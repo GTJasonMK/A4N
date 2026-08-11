@@ -25,33 +25,18 @@ pub(crate) struct EmbedTextsOutput {
 #[serde(deny_unknown_fields)]
 #[cfg(feature = "fastembed")]
 pub(crate) struct ModelPayload {
-    pub(crate) operation: String,
-    pub(crate) model: Option<String>,
+    pub(crate) model: String,
 }
 
 #[cfg(feature = "fastembed")]
 impl ModelPayload {
-    pub(crate) fn validate_operation(
-        &self,
-        expected: &str,
-    ) -> Result<(), a4n_core::error::AppError> {
-        let operation = self.operation.trim();
-        if operation == expected {
-            return Ok(());
-        }
-        Err(a4n_core::error::AppError::InvalidArgument(format!(
-            "embedding 模型端点要求 operation={expected}，实际为 {operation}"
-        )))
-    }
     pub(crate) fn required_model(&self) -> Result<&str, a4n_core::error::AppError> {
-        self.model
-            .as_deref()
-            .map(str::trim)
-            .filter(|model| !model.is_empty())
-            .ok_or_else(|| {
-                a4n_core::error::AppError::InvalidArgument(
-                    "embedding 模型操作必须提供模型名".to_string(),
-                )
-            })
+        let model = self.model.trim();
+        if model.is_empty() {
+            return Err(a4n_core::error::AppError::InvalidArgument(
+                "embedding 模型操作必须提供模型名".to_string(),
+            ));
+        }
+        Ok(model)
     }
 }

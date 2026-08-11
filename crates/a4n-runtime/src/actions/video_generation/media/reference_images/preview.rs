@@ -3,7 +3,6 @@ use super::records::{
     verify_reference_image_project_editors,
 };
 use crate::actions::video_generation::media::types::ReferenceImagePreviewPlaceholders;
-use crate::state::{CollaborationRuntimeFacade, VideoRuntimeFacade};
 use a4n_core::models::ai::generated_image;
 use a4n_orchestrator::video::{
     encode_query_component, ensure_reference_image_ids_valid, image_mime_from_path,
@@ -12,8 +11,8 @@ use a4n_orchestrator::video::{
 use std::path::Path;
 
 pub(crate) async fn reference_image_preview_placeholders_by_ids(
-    video: &VideoRuntimeFacade<'_>,
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -35,8 +34,8 @@ pub(crate) async fn reference_image_preview_placeholders_by_ids(
 }
 
 pub(crate) async fn reference_image_preview_placeholder_by_id(
-    video: &VideoRuntimeFacade<'_>,
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -58,8 +57,8 @@ pub(crate) async fn reference_image_preview_placeholder_by_id(
 }
 
 async fn reference_image_preview_placeholders_for_ids(
-    video: &VideoRuntimeFacade<'_>,
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,

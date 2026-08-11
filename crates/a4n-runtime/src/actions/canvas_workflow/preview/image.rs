@@ -43,7 +43,6 @@ pub(super) async fn preview_canvas_image_node(
         graph_id: input.graph_id,
         node_id: input.node_id,
         node_kind: node.node_kind.clone(),
-        status: "preview".to_string(),
         note: "已构造 GenerateImageNode 的图片 provider 请求预览；预览不会调用外部模型。"
             .to_string(),
         request: serde_json::to_value(preview).map_err(|err| err.to_string())?,

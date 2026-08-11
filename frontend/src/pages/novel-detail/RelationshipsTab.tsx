@@ -41,6 +41,7 @@ import { EmptyHint } from "./shared";
 import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
 import { THEME_APPLIED_EVENT } from "../../theme/activeTheme";
 import { profileRelationshipBaseAttributes } from "../writing-desk/CharacterProfileEditorModal";
+import { CharacterDetailDialog } from "../CharacterDetailDialog";
 
 interface CurrentRelationship {
   id: string;
@@ -51,6 +52,14 @@ interface CurrentRelationship {
   last_synced_chapter: number;
   editable: boolean;
 }
+
+export const relationshipEditMode = (
+  editable: boolean,
+  lastSyncedChapter: number,
+): "initial" | "timeline" | "readonly" => {
+  if (editable) return "initial";
+  return lastSyncedChapter > 0 ? "timeline" : "readonly";
+};
 
 interface RelationshipEditorState {
   profileId: number;
@@ -204,6 +213,8 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     useState<CurrentRelationship | null>(null);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const [editor, setEditor] = useState<RelationshipEditorState | null>(null);
+  const [timelineRelationship, setTimelineRelationship] =
+    useState<CurrentRelationship | null>(null);
   const [saving, setSaving] = useState(false);
   const activeProjectIdRef = useRef(projectId);
   const mutationSeqRef = useRef(0);
@@ -239,6 +250,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     mutationInFlightRef.current = false;
     setCurrentDetail(null);
     setEditor(null);
+    setTimelineRelationship(null);
     setSaving(false);
   }, [projectId]);
 
@@ -255,6 +267,13 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
 
   useEffect(() => {
     setCurrentDetail((current) => {
+      if (!current) return null;
+      return (
+        currentRels.find((relationship) => relationship.id === current.id) ??
+        null
+      );
+    });
+    setTimelineRelationship((current) => {
       if (!current) return null;
       return (
         currentRels.find((relationship) => relationship.id === current.id) ??
@@ -342,13 +361,17 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   };
 
   const openEdit = (relationship: CurrentRelationship) => {
-    if (!relationship.editable) {
-      addToast(
-        relationship.last_synced_chapter > 0
-          ? "该关系已进入章节时间线，请在角色详情中记录后续变化"
-          : "该关系包含结构化资料，不能用文本表单直接覆盖",
-        "info",
-      );
+    const mode = relationshipEditMode(
+      relationship.editable,
+      relationship.last_synced_chapter,
+    );
+    if (mode !== "initial") {
+      if (mode === "timeline") {
+        setCurrentDetail(null);
+        setTimelineRelationship(relationship);
+      } else {
+        addToast("该关系包含结构化资料，不能用文本表单直接覆盖", "info");
+      }
       return;
     }
     setEditor({
@@ -444,6 +467,12 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     );
   }
 
+  const timelineProfile = timelineRelationship
+    ? (displayProfiles.find(
+        (profile) => profile.id === timelineRelationship.profile_id,
+      ) ?? null)
+    : null;
+
   return (
     <div className="content-wide flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -489,6 +518,21 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         onChange={setEditor}
         onSave={() => void saveRelationship()}
         onClose={() => !saving && setEditor(null)}
+      />
+
+      <CharacterDetailDialog
+        open={timelineRelationship != null && timelineProfile != null}
+        onClose={() => setTimelineRelationship(null)}
+        projectId={projectId}
+        character={timelineProfile}
+        currentChapterNumber={timelineRelationship?.last_synced_chapter}
+        initialTab="manage"
+        initialEventFilter={
+          timelineRelationship
+            ? { category: "social", key: timelineRelationship.character_b }
+            : null
+        }
+        onChanged={() => load({ silent: true, force: true })}
       />
     </div>
   );
@@ -1142,7 +1186,10 @@ const CurrentRelationshipDetailDialog: React.FC<{
   onDelete: () => void;
   onClose: () => void;
 }> = ({ relationship, saving, onEdit, onDelete, onClose }) => {
-  const editable = relationship.editable;
+  const editMode = relationshipEditMode(
+    relationship.editable,
+    relationship.last_synced_chapter,
+  );
   return (
     <Modal
       isOpen
@@ -1153,7 +1200,7 @@ const CurrentRelationshipDetailDialog: React.FC<{
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
       footer={
-        editable ? (
+        editMode === "initial" ? (
           <div className="flex items-center gap-2">
             <BookButton variant="secondary" onClick={onEdit} disabled={saving}>
               <Pencil size={12} /> 编辑
@@ -1162,6 +1209,10 @@ const CurrentRelationshipDetailDialog: React.FC<{
               <Trash2 size={12} /> 删除
             </BookButton>
           </div>
+        ) : editMode === "timeline" ? (
+          <BookButton variant="primary" onClick={onEdit} disabled={saving}>
+            <Pencil size={12} /> 记录关系变化
+          </BookButton>
         ) : undefined
       }
     >
@@ -1172,7 +1223,7 @@ const CurrentRelationshipDetailDialog: React.FC<{
         <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
           {relationship.description}
         </div>
-        {!editable ? (
+        {editMode !== "initial" ? (
           <div className="mt-4 rounded-xl border border-book-border/60 bg-book-bg-tertiary/45 px-3 py-2 text-small leading-relaxed text-book-text-muted">
             {relationship.last_synced_chapter > 0
               ? "该角色已经进入章节时间线。后续关系变化应在角色详情中按实际章节记录，不能直接重写初始关系。"

@@ -5,20 +5,16 @@ import { BookButton } from "../../../components/ui/BookButton";
 
 interface ImportFilePanelProps {
   fileName: string;
-  fileType: string;
   importBusy: boolean;
   externalBusy: boolean;
-  onFileTypeChange: (value: string) => void;
   onSelectFile: () => void;
   onImport: () => void;
 }
 
 export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
   fileName,
-  fileType,
   importBusy,
   externalBusy,
-  onFileTypeChange,
   onSelectFile,
   onImport,
 }) => (
@@ -29,7 +25,7 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
         支持 TXT、Markdown、EPUB 与 DOCX
       </p>
     </div>
-    <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
+    <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
       <button
         type="button"
         onClick={onSelectFile}
@@ -50,21 +46,6 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
           {fileName ? "重新选择" : "选择文件"}
         </span>
       </button>
-      <label className="min-w-0">
-        <span className="sr-only">文件类型</span>
-        <select
-          aria-label="文件类型"
-          value={fileType}
-          onChange={(e) => onFileTypeChange(e.target.value)}
-          disabled={importBusy || externalBusy}
-          className="pyqt-input a4n-compact-select h-10 w-full !min-h-10 text-xs"
-        >
-          <option value="txt">TXT</option>
-          <option value="markdown">Markdown</option>
-          <option value="epub">EPUB</option>
-          <option value="docx">DOCX</option>
-        </select>
-      </label>
       <BookButton
         variant="primary"
         size="sm"

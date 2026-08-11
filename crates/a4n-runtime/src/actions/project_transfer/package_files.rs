@@ -1,43 +1,34 @@
 use super::contracts::ExportProjectPackageData;
+#[cfg(test)]
+use super::contracts::PROJECT_FAMILY_PACKAGE_SUFFIX;
 use a4n_core::models::project::novel_project;
 use base64::Engine as _;
-use std::path::Path;
 
 pub(super) fn export_package_data(
     project: &novel_project::Model,
     bytes: Vec<u8>,
+    file_suffix: &str,
 ) -> ExportProjectPackageData {
     ExportProjectPackageData {
-        file_name: project_package_file_name(project),
+        file_name: project_package_file_name(project, file_suffix),
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
     }
 }
 
 pub(super) fn validate_uploaded_project_file_name(
     file_name: &str,
-    expected_extension: &str,
+    expected_suffix: &str,
     label: &str,
 ) -> Result<(), String> {
     let trimmed = file_name.trim();
     if trimmed.is_empty() {
         return Err(format!("{label}文件名不能为空"));
     }
-    let name = Path::new(trimmed)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("{label}文件名无效"))?;
-    if name != trimmed {
+    if trimmed.contains('/') || trimmed.contains('\\') {
         return Err(format!("{label}文件名不能包含路径"));
     }
-    let extension = Path::new(name)
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .ok_or_else(|| format!("{label}必须是 .{expected_extension} 文件"))?;
-    if !extension.eq_ignore_ascii_case(expected_extension) {
-        return Err(format!("{label}必须是 .{expected_extension} 文件"));
+    if !trimmed.to_ascii_lowercase().ends_with(expected_suffix) {
+        return Err(format!("{label}文件名必须以 {expected_suffix} 结尾"));
     }
     Ok(())
 }
@@ -63,14 +54,14 @@ pub(super) fn decode_uploaded_project_file(
     Ok(bytes)
 }
 
-fn project_package_file_name(project: &novel_project::Model) -> String {
+fn project_package_file_name(project: &novel_project::Model, file_suffix: &str) -> String {
     let stem = sanitize_file_name_component(&project.title);
     let stem = if stem.is_empty() {
         format!("project-{}", project.id)
     } else {
         stem
     };
-    format!("{stem}.a4n-project.zip")
+    format!("{stem}{file_suffix}")
 }
 
 fn sanitize_file_name_component(value: &str) -> String {
@@ -88,4 +79,43 @@ fn sanitize_file_name_component(value: &str) -> String {
         .collect::<String>()
         .trim_matches([' ', '.'])
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upload_file_name_requires_exact_package_suffix() {
+        validate_uploaded_project_file_name(
+            "novel.a4n-family.zip",
+            PROJECT_FAMILY_PACKAGE_SUFFIX,
+            "项目族包",
+        )
+        .expect("项目族包后缀应通过");
+        assert!(
+            validate_uploaded_project_file_name(
+                "novel.a4n-project.zip",
+                PROJECT_FAMILY_PACKAGE_SUFFIX,
+                "项目族包",
+            )
+            .is_err()
+        );
+        assert!(
+            validate_uploaded_project_file_name(
+                "novel.a4n-family.zip/other.zip",
+                PROJECT_FAMILY_PACKAGE_SUFFIX,
+                "项目族包",
+            )
+            .is_err()
+        );
+        assert!(
+            validate_uploaded_project_file_name(
+                "folder\\novel.a4n-family.zip",
+                PROJECT_FAMILY_PACKAGE_SUFFIX,
+                "项目族包",
+            )
+            .is_err()
+        );
+    }
 }

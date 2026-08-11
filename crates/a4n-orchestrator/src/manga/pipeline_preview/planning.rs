@@ -4,6 +4,7 @@ mod page_plan;
 use a4n_core::error::AppError;
 use serde_json::json;
 
+use super::super::pipeline_json::required_array_field;
 use super::contracts::{
     MangaExtractionPreview, MangaPipelineRequestPreviewStep, MangaPreviewContext,
 };
@@ -24,24 +25,22 @@ pub(super) async fn preview_planning(
         items_json,
         comic_synthesis_json,
     } = extraction;
+    let items = required_array_field(&items_json, "items", "manga_item_extraction")?;
     let extraction_summary = json!({
         "characters": characters_json,
         "events": events_json,
-        "reference_assets": reference_assets,
         "speech": speech_json,
         "visual_anchors": visual_json,
-        "items": items_json.get("items").cloned().unwrap_or_else(|| json!([])),
+        "items": items,
         "comic_synthesis": comic_synthesis_json
     });
-    let Some(plan_json) =
-        preview_page_plan(context, steps, &extraction_summary, &reference_assets).await?
-    else {
+    let Some(plan) = preview_page_plan(context, steps, &extraction_summary).await? else {
         return Ok(());
     };
     preview_page_drawing_prompts(
         context,
         steps,
-        &plan_json,
+        &plan,
         &extraction_summary,
         &reference_assets,
     )

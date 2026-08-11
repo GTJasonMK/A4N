@@ -9,4 +9,4 @@ pub use generation::{
 pub use mutations::{
     preview_continue_part_outlines_request, preview_regenerate_part_outline_request,
 };
-pub use records::{delete_latest_parts, get_generation_progress, list_parts};
+pub use records::{delete_latest_parts, get_generation_progress, list_parts, save_part_outline};

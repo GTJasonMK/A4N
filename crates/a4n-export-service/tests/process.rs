@@ -1,12 +1,12 @@
 use a4n_test_support::process::{
-    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportClient, ExportDocumentKind,
-    ExportRenderJsonInput, ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
-    HttpExportClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceRequestContext, ServiceStatus,
-    TraceContext, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, disconnect_during_request_body, finish_sidecar,
-    sidecar_base_url, sidecar_manager, start_sidecar, unused_local_addr,
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportClient, ExportRenderJsonInput,
+    ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput, HttpExportClient,
+    SIDECAR_PROCESS_TEST_TOKEN, ServiceRequestContext, ServiceStatus, TraceContext,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    disconnect_during_request_body, finish_sidecar, sidecar_base_url, sidecar_manager,
+    start_sidecar, unused_local_addr,
 };
 
 #[tokio::test]
@@ -38,7 +38,6 @@ async fn export_service_process_serves_typed_render_and_stops() {
     .with_payload(
         EXPORT_RENDER_CAPABILITY_VERSION,
         ExportRenderJsonInput {
-            kind: ExportDocumentKind::GenericJson,
             payload: serde_json::json!({"value": 1}),
             pretty: false,
         },
@@ -57,10 +56,7 @@ async fn export_service_process_serves_typed_render_and_stops() {
         .await
         .expect("typed export render should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
-    assert_eq!(
-        response.payload.expect("export payload").content,
-        "{\"value\":1}"
-    );
+    assert_eq!(response.payload.expect("export payload"), "{\"value\":1}");
 
     disconnect_during_request_body(addr, "/export/render_zip").await;
     let invalid_zip = client

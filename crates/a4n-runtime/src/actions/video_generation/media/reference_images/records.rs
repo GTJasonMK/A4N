@@ -1,12 +1,11 @@
-use crate::state::{CollaborationRuntimeFacade, VideoRuntimeFacade};
 use a4n_core::models::ai::generated_image;
 use a4n_orchestrator::collaboration::ProjectAccessRole;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 
 pub(super) async fn validated_reference_images_for_ids(
-    video: &VideoRuntimeFacade<'_>,
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -22,7 +21,7 @@ pub(super) async fn validated_reference_images_for_ids(
 }
 
 pub(super) async fn load_reference_images_by_id(
-    video: &VideoRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
     ids: &[i64],
 ) -> Result<HashMap<i64, generated_image::Model>, String> {
     let rows = video
@@ -61,7 +60,7 @@ fn unique_project_ids_from_images(images: &[generated_image::Model]) -> Vec<i64>
 }
 
 pub(super) async fn verify_reference_image_project_editors(
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_ids: &[i64],
 ) -> Result<(), String> {

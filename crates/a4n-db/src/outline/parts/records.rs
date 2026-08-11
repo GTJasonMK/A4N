@@ -42,6 +42,7 @@ pub async fn update_part_outline_record<C>(
 where
     C: ConnectionTrait,
 {
+    let updated_at = std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
     let mut active: part_outline::ActiveModel = existing.into();
     active.part_number = Set(draft.part_number);
     active.title = Set(draft.title.clone());
@@ -51,7 +52,7 @@ where
     active.theme = Set(Some(draft.theme.clone()));
     active.key_events = Set(Some(draft.key_events.clone()));
     active.character_focus = Set(Some(draft.character_focus.clone()));
-    active.updated_at = Set(now);
+    active.updated_at = Set(updated_at);
     Ok(active.update(db).await?)
 }
 

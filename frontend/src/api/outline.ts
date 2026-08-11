@@ -9,6 +9,8 @@ import type {
 } from "./generated/generationContracts";
 import type {
   ChapterOutlineSummary,
+  DeleteLatestOutlineRecordsInput,
+  OutlineDeleteTarget,
   OutlineMutationResult,
   PartOutlineSummary,
   SaveChapterOutlineInput,
@@ -91,7 +93,6 @@ export async function syncOutlineMaterials(projectId: Id): Promise<string[]> {
   const normalizedProjectId = idNum(projectId);
   try {
     const result = await apiInvoke<OutlineMutationResult>("sync_outline_materials", {
-      userId: currentUserId(),
       projectId: normalizedProjectId,
     });
     return result.warnings;
@@ -142,7 +143,7 @@ export async function previewContinuePartOutlinesRequest(input: {
 
 export async function previewRegeneratePartsRequest(input: {
   project_id: number;
-  part_count?: number | null;
+  expected_parts: OutlineDeleteTarget[];
   chapters_per_part?: number | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
@@ -175,12 +176,11 @@ export async function previewRegeneratePartOutlineRequest(input: {
 
 export async function deleteLatestParts(
   projectId: Id,
-  count: number,
+  parts: ReadonlyArray<Pick<PartOutline, "id" | "updated_at">>,
 ): Promise<OutlineMutationResult> {
   return apiInvoke<OutlineMutationResult>("delete_latest_parts", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    count,
+    input: outlineDeleteInput(projectId, parts),
   });
 }
 
@@ -271,6 +271,7 @@ export async function previewRegenerateChapterOutlineRequest(
 export async function updateChapterOutline(input: {
   project_id: number;
   outline_id: number;
+  expected_updated_at: string;
   title?: string;
   summary?: string;
   beats?: unknown[];
@@ -284,13 +285,34 @@ export async function updateChapterOutline(input: {
 
 export async function deleteLatestChapterOutlines(
   projectId: Id,
-  count: number,
+  outlines: ReadonlyArray<Pick<ChapterOutline, "id" | "updated_at">>,
 ): Promise<OutlineMutationResult> {
   return apiInvoke<OutlineMutationResult>("delete_latest_chapter_outlines", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    count,
+    input: outlineDeleteInput(projectId, outlines),
   });
+}
+
+function outlineDeleteInput(
+  projectId: Id,
+  records: ReadonlyArray<{ id: number; updated_at?: string | null }>,
+): DeleteLatestOutlineRecordsInput {
+  return {
+    project_id: idNum(projectId),
+    targets: outlineRecordTargets(records),
+  };
+}
+
+export function outlineRecordTargets(
+  records: ReadonlyArray<{ id: number; updated_at?: string | null }>,
+): [OutlineDeleteTarget, ...OutlineDeleteTarget[]] {
+  if (records.length === 0) throw new Error("至少选择一条大纲资料");
+  const targets = records.map((record) => {
+    const expectedUpdatedAt = record.updated_at?.trim();
+    if (!expectedUpdatedAt) throw new Error("缺少大纲资料版本，请刷新后重试");
+    return { id: record.id, expected_updated_at: expectedUpdatedAt };
+  });
+  return [targets[0], ...targets.slice(1)];
 }
 
 export async function getChapterOutlinesPacing(projectId: Id): Promise<ChapterOutlinePacing> {

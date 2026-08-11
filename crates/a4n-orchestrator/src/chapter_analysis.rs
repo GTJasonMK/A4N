@@ -1,9 +1,12 @@
-use a4n_core::{chapter_analysis::ensure_chapter_has_analysis_content, error::AppError};
+use a4n_core::{
+    chapter_analysis::ensure_chapter_has_analysis_content, error::AppError,
+    models::chapter::chapter,
+};
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;
-use owner::build_chapter_analysis_preview_requests;
+use owner::{build_chapter_analysis_preview_requests, chapter_foreshadowing_resolution_context};
 
 mod application;
 mod checkpoint;
@@ -17,21 +20,22 @@ mod workflow;
 
 pub use outputs::{
     ChapterAnalysisOutputError, chapter_analysis_foreshadowing_drafts,
+    retrospective_chapter_outline_input,
 };
 pub use workflow::{
+    CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
     ChapterAnalysisCheckpointIncomplete, ChapterAnalysisResumeBlockReason,
-    PreviousChapterAnalysisIncomplete, chapter_analysis_phase_fingerprint,
-    chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
+    chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
+    chapter_analysis_run_input_matches, chapter_analysis_run_uses_replacement_commit,
     chapter_analysis_workflow_business_key, chapter_analysis_workflow_fingerprint,
-    chapter_analysis_workflow_run_input, ensure_previous_chapter_analysis_complete_from_rows,
-    require_completed_chapter_analysis_phase,
+    chapter_analysis_workflow_run_input, require_completed_chapter_analysis_phase,
 };
 
 pub type ChapterAnalysisProgressReporter<'a> =
     &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
 
 pub struct ChapterAnalysisInput<'a> {
-    pub chapter_id: i64,
+    pub chapter: chapter::Model,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub progress: Option<ChapterAnalysisProgressReporter<'a>>,
     /// 活体信号出口：与字段级里程碑取自同一个 token 流。
@@ -103,7 +107,13 @@ impl OrchestratorContext {
         .await
         .map_err(chapter_content_edit_error)?;
         ensure_chapter_has_analysis_content(&chapter)?;
-        build_chapter_analysis_preview_requests(&chapter, prompt_renderer).await
+        let foreshadowing = self
+            .foreshadowing_items_for_rag_ingest(chapter.project_id)
+            .await?;
+        let resolution_context =
+            chapter_foreshadowing_resolution_context(chapter.chapter_number, &foreshadowing);
+        build_chapter_analysis_preview_requests(&chapter, prompt_renderer, &resolution_context)
+            .await
     }
 }
 
@@ -124,7 +134,10 @@ fn chapter_content_edit_error(error: a4n_db::chapter_content::ChapterContentEdit
     }
 }
 pub use application::{
-    CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL, ChapterAnalysisApplicationProgress,
+    CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL, CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY,
+    CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC, CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY,
+    CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC, CHAPTER_ANALYSIS_STEP_SCENE_SYNC,
+    CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS, ChapterAnalysisApplicationProgress,
     ChapterAnalysisApplicationProgressReporter, ChapterAnalysisHostPort,
     ChapterAnalysisPreviewStep,
 };

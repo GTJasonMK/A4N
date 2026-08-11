@@ -31,7 +31,7 @@ mod tests {
     #[test]
     fn frontend_state_rejects_non_a4n_keys() {
         assert!(validate_key("a4n:ok").is_ok());
-        assert!(validate_key("a4n-theme-mode").is_ok());
+        assert!(validate_key("a4n-settings-tab").is_ok());
         assert!(validate_key("other:key").is_err());
         assert!(validate_key("").is_err());
     }

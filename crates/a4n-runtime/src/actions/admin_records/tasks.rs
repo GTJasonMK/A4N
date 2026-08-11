@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 pub async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary>, String> {
     state
-        .admin()
+        .orchestrator()
         .pending_tasks()
         .await
         .map_err(app_error_message)
@@ -12,7 +12,7 @@ pub async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary
 
 pub async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), String> {
     state
-        .task_queue()
+        .orchestrator()
         .queue_cancel(task_id)
         .await
         .map_err(|error| error.to_string())
@@ -20,7 +20,7 @@ pub async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), St
 
 pub async fn health_check(state: &AppState) -> Result<Value, String> {
     let mut health = state
-        .admin()
+        .orchestrator()
         .database_health()
         .await
         .map_err(app_error_message)?;
@@ -30,7 +30,7 @@ pub async fn health_check(state: &AppState) -> Result<Value, String> {
             json!(state.runtime_profile().as_str()),
         );
         let services = state
-            .admin()
+            .orchestrator()
             .managed_service_health_summaries()
             .await
             .map_err(app_error_message)?;

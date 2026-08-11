@@ -1,5 +1,5 @@
 use super::*;
-use crate::state::{CollaborationRuntimeFacade, RuntimeProfile};
+use crate::state::RuntimeProfile;
 use a4n_capabilities::A4nCapabilities;
 use a4n_orchestrator::media::PreparedImageGenerationRequest;
 
@@ -18,7 +18,7 @@ pub(super) async fn prepared_image_generation_preview_step(
     image_generation_preview_step(
         state.runtime_profile(),
         state.capabilities(),
-        &state.collaboration(),
+        state.orchestrator(),
         project_id,
         key,
         title,
@@ -33,7 +33,7 @@ pub(super) async fn prepared_image_generation_preview_step(
 pub(super) async fn image_generation_preview_step(
     runtime_profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     key: impl Into<String>,
     title: impl Into<String>,

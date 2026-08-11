@@ -215,7 +215,7 @@ fn targeted_storyboard_prompt_uses_target_content_segment_after_action_bridge() 
     let mut first = segment(1);
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
         transition_type: "match_cut".to_string(),
-        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("角色推门动作连续完成".to_string()),
         preserved_sound: None,
         required_cut_point: None,

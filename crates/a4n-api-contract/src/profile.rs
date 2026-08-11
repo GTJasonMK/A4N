@@ -147,3 +147,73 @@ pub struct SceneProfileDeleteResult {
     #[serde(default)]
     pub warnings: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ListForeshadowingInput {
+    pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ForeshadowingRecordInput {
+    pub description: String,
+    pub setup_chapter: i32,
+    #[serde(default)]
+    pub payoff_chapter: Option<i32>,
+    pub status: String,
+    #[serde(default)]
+    pub related_characters: Vec<String>,
+    pub importance: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CreateForeshadowingInput {
+    pub project_id: i64,
+    pub record: ForeshadowingRecordInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateForeshadowingInput {
+    pub project_id: i64,
+    pub foreshadowing_id: i64,
+    pub expected_updated_at: String,
+    pub record: ForeshadowingRecordInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteForeshadowingInput {
+    pub project_id: i64,
+    pub foreshadowing_id: i64,
+    pub expected_updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ForeshadowingSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub description: String,
+    pub setup_chapter: i32,
+    pub payoff_chapter: Option<i32>,
+    pub status: String,
+    pub related_characters: Vec<String>,
+    pub importance: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ForeshadowingMutationResult {
+    pub foreshadowing: ForeshadowingSummary,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ForeshadowingDeleteResult {
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}

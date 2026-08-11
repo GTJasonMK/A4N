@@ -24,8 +24,7 @@ impl DocxParser {
         let archive = read_docx_archive(data)?;
         parse_extracted_document(
             &archive.text_content,
-            archive.metadata,
-            Vec::new(),
+            archive.title.as_deref(),
             source_title,
         )
     }

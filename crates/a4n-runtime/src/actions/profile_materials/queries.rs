@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 
-use crate::state::ProfileMaterialRuntimeFacade;
-
 pub(crate) async fn count_profile_material_images(
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     kind: &str,
     profile_id: i64,
@@ -15,7 +13,7 @@ pub(crate) async fn count_profile_material_images(
 }
 
 pub(crate) async fn count_profile_material_images_by_profile(
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     kind: &str,
     profile_ids: &[i64],
@@ -27,7 +25,7 @@ pub(crate) async fn count_profile_material_images_by_profile(
 }
 
 pub(crate) async fn list_profile_material_image_ids(
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     kind: &str,
     profile_id: i64,

@@ -1,37 +1,19 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    error::AppError,
-    shooting_script::{CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptV1, ShootingSceneV1},
+use a4n_core::error::AppError;
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingDirectingStatementV1,
+    ShootingSceneV1,
 };
 
-use super::contracts::ChapterScreenplayPlan;
+use super::contracts::ScreenplayPlanUnit;
 
 pub(super) fn assemble_chapter_shooting_script(
-    plan: &ChapterScreenplayPlan,
+    directing_statement: &ShootingDirectingStatementV1,
+    units: &[ScreenplayPlanUnit],
     scenes: Vec<ShootingSceneV1>,
 ) -> Result<ChapterShootingScriptV1, AppError> {
-    if scenes.len() != plan.units.len() {
-        return Err(AppError::InvalidArgument(format!(
-            "拍摄设计单元数量 {} 与叙事编排单元数量 {} 不一致",
-            scenes.len(),
-            plan.units.len()
-        )));
-    }
-    let mut assembled = scenes
-        .into_iter()
-        .zip(&plan.units)
-        .map(|(scene, unit)| assemble_shooting_scene(unit, scene))
-        .collect::<Result<Vec<_>, _>>()?;
-    assembled.sort_by_key(|scene| scene.timeline_position);
-    for (scene_offset, scene) in assembled.iter_mut().enumerate() {
-        scene.scene_index = checked_index(scene_offset, "拍摄场景数量")?;
-    }
-    let script = ChapterShootingScriptV1 {
-        schema_version: CHAPTER_SHOOTING_SCRIPT_V1.to_string(),
-        directing_statement: plan.directing_statement.clone(),
-        scenes: assembled,
-    };
+    let script = assemble_script(directing_statement, units, scenes)?;
     script
         .validate()
         .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
@@ -39,17 +21,33 @@ pub(super) fn assemble_chapter_shooting_script(
 }
 
 pub(super) fn assemble_available_shooting_script(
-    plan: &ChapterScreenplayPlan,
+    directing_statement: &ShootingDirectingStatementV1,
+    units: &[ScreenplayPlanUnit],
     scenes: Vec<ShootingSceneV1>,
 ) -> Result<ChapterShootingScriptV1, AppError> {
-    if scenes.is_empty() || scenes.len() > plan.units.len() {
+    if scenes.is_empty() {
         return Err(AppError::InvalidArgument(
             "已完成拍摄设计单元数量无效".to_string(),
         ));
     }
+    assemble_script(directing_statement, units, scenes)
+}
+
+fn assemble_script(
+    directing_statement: &ShootingDirectingStatementV1,
+    units: &[ScreenplayPlanUnit],
+    scenes: Vec<ShootingSceneV1>,
+) -> Result<ChapterShootingScriptV1, AppError> {
+    if scenes.len() != units.len() {
+        return Err(AppError::InvalidArgument(format!(
+            "拍摄设计单元数量 {} 与叙事编排单元数量 {} 不一致",
+            scenes.len(),
+            units.len()
+        )));
+    }
     let mut assembled = scenes
         .into_iter()
-        .zip(&plan.units)
+        .zip(units)
         .map(|(scene, unit)| assemble_shooting_scene(unit, scene))
         .collect::<Result<Vec<_>, _>>()?;
     assembled.sort_by_key(|scene| scene.timeline_position);
@@ -57,8 +55,8 @@ pub(super) fn assemble_available_shooting_script(
         scene.scene_index = checked_index(scene_offset, "拍摄场景数量")?;
     }
     Ok(ChapterShootingScriptV1 {
-        schema_version: CHAPTER_SHOOTING_SCRIPT_V1.to_string(),
-        directing_statement: plan.directing_statement.clone(),
+        schema_version: ChapterShootingScriptSchemaVersion::V1,
+        directing_statement: directing_statement.clone(),
         scenes: assembled,
     })
 }

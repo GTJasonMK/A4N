@@ -38,7 +38,7 @@ impl<'a> RuntimeCanvasEditingNodeHostPort<'a> {
         let workflow_context = TaskWorkflowContext::new(workflow_run_id)
             .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))?;
         self.state
-            .task_queue()
+            .orchestrator()
             .queue_run_tracked_with_workflow_context(
                 QueueTaskKind::Assembly,
                 TaskPriority::Medium,

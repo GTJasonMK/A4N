@@ -1,4 +1,5 @@
 use a4n_core::models::asset::{object_profile, profile_primary_material};
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
 
 use crate::asset::{AssetDbError, ObjectProfileRecordInput};
@@ -26,7 +27,7 @@ where
             input.name
         )));
     }
-    insert_object_profile_record(db, project_id, input).await
+    insert_object_profile_record(db, project_id, input, PROFILE_OWNERSHIP_USER).await
 }
 
 pub async fn update_object_profile_record<C>(

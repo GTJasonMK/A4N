@@ -15,9 +15,6 @@ pub(crate) async fn download_model_events(
     if let Err(error) = validate_service_request(&request) {
         return failed_response(task_id, error);
     }
-    if let Err(error) = request.payload.validate_operation("download") {
-        return failed_response(task_id, service_error(&error));
-    }
     let model = match request.payload.required_model() {
         Ok(model) => model.to_string(),
         Err(error) => return failed_response(task_id, service_error(&error)),

@@ -43,7 +43,7 @@ where
 {
     let submitted_id = if let Some(workflow_run_id) = workflow_run_id {
         state
-            .task_queue()
+            .orchestrator()
             .queue_submit_with_workflow_context(
                 task_type,
                 priority,
@@ -54,21 +54,21 @@ where
             .map_err(|err| err.to_string())?
     } else {
         state
-            .task_queue()
+            .orchestrator()
             .queue_submit(task_type, priority, project_id)
             .await
             .map_err(|err| err.to_string())?
     };
     let mut submitted_guard = state
-        .task_queue()
+        .orchestrator()
         .queue_submitted_task_guard(submitted_id.clone());
     let Some(permit) = state
-        .task_queue()
+        .orchestrator()
         .queue_acquire_task_with_cancel(&submitted_id, cancel_token)
         .await
         .map_err(|err| err.to_string())?
     else {
-        let cancel_result = state.task_queue().queue_cancel(&submitted_id).await;
+        let cancel_result = state.orchestrator().queue_cancel(&submitted_id).await;
         submitted_guard.disarm();
         return match cancel_result {
             Ok(()) => Err("任务已取消".to_string()),
@@ -84,7 +84,7 @@ where
         Ok(value) => {
             permit.complete();
             state
-                .task_queue()
+                .orchestrator()
                 .queue_mark_done(&running_id)
                 .await
                 .map_err(|error| format!("队列任务业务操作已完成，但同步完成状态失败: {error}"))?;
@@ -93,7 +93,7 @@ where
         Err(mut error) => {
             permit.fail(error.clone());
             if let Err(status_error) = state
-                .task_queue()
+                .orchestrator()
                 .queue_mark_failed(&running_id, &error)
                 .await
             {

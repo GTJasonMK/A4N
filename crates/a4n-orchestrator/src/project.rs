@@ -1,50 +1,46 @@
+pub(crate) use a4n_db::project::ProjectStatusArtifacts;
 pub use a4n_db::project::{
-    BlueprintRestoreError, BlueprintRestoreResult, ChapterGenerationReadiness,
-    ChapterGenerationReferenceContextRows, ChapterMangaSourceSummary, CreateDerivedProjectParams,
-    CreateFreeformVideoProjectParams, CreateProjectRecordInput, DERIVED_PROJECT_STATUS_DRAFT,
+    BlueprintRestoreError, BlueprintRestoreResult, ChapterGenerationReferenceContextRows,
+    ChapterMangaSourceSummary, CreateDerivedProjectParams, CreateFreeformVideoProjectParams,
+    CreateProjectRecordInput, DERIVED_PROJECT_STATUS_DRAFT, DeleteLatestOutlineRecordsInput,
     DerivedChapterScope, ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult,
     FreeformGeneratedResetTargets, FreeformVideoGeneratedDataResetResult,
-    ImportBlueprintUpsertInput, ImportChapterOutlineUpsertInput, ImportPartOutlineUpsertInput,
-    ImportTextProjectBlueprint, ImportTextProjectBlueprintVersion, ImportTextProjectChapter,
-    ImportTextProjectChapterOutline, ImportTextProjectCharacter, ImportTextProjectError,
-    ImportTextProjectPartOutline, ImportTextProjectPayload, ImportTextProjectRecordInput,
-    ImportTextProjectRecordResult, ImportTextProjectRelationship, MangaCharacterPortraitRefSummary,
-    OutlineGenerationProgressRows, PROJECT_KIND_COMIC, PROJECT_KIND_GALGAME, PROJECT_KIND_TEXT,
-    PROJECT_KIND_VIDEO, PROJECT_TYPE_NOVEL_LONG, PROJECT_TYPE_NOVEL_SHORT, PROJECT_TYPE_PROSE,
-    PROJECT_TYPE_SCRIPT, ProjectBasicRecordError, ProjectBlueprintCleanupResult,
-    ProjectChapterOutlineUpdateError, ProjectChapterOutlineUpdateInput,
-    ProjectChapterSceneRecordError, ProjectChapterSceneReorderError,
-    ProjectChapterSceneReorderInput, ProjectChapterSceneReorderScope,
-    ProjectConversationCleanupResult, ProjectFamilyContext, ProjectFamilyExportRows,
-    ProjectFamilyExportSelection, ProjectFamilyMetadata, ProjectFamilyMetadataQuery,
-    ProjectFamilyMetadataReadError, ProjectFamilyTextCoreRows,
+    MangaCharacterPortraitRefSummary, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
+    OutlineDeleteTarget, OutlineGenerationProgressRows, PROJECT_KIND_COMIC, PROJECT_KIND_GALGAME,
+    PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, PROJECT_TYPE_NOVEL_LONG, PROJECT_TYPE_NOVEL_SHORT,
+    PROJECT_TYPE_PROSE, PROJECT_TYPE_SCRIPT, ProjectBasicRecordError,
+    ProjectBlueprintCleanupResult, ProjectChapterOutlineUpdateError,
+    ProjectChapterOutlineUpdateInput, ProjectChapterSceneRecordError,
+    ProjectChapterSceneReorderError, ProjectChapterSceneReorderInput,
+    ProjectChapterSceneReorderScope, ProjectConversationCleanupResult, ProjectFamilyContext,
+    ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyMetadata,
+    ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError, ProjectFamilyTextCoreRows,
     ProjectGeneratedArtifactLinkCleanupResult, ProjectGeneratedArtifactRowCleanupResult,
     ProjectGeneratedChapterSceneSaveError, ProjectGeneratedChapterSceneSaveInput,
     ProjectGenerationMediaGraphCleanupResult, ProjectGenerationRunCleanupResult,
     ProjectMediaCopyError, ProjectMediaFileCopier, ProjectMutationError,
     ProjectOptimizationCleanupResult, ProjectProgressQuery, ProjectProgressReadError,
-    ProjectProgressStatus, ProjectProgressSummary, ProjectRollbackImpactQuery,
-    ProjectRollbackImpactReadError, ProjectRollbackImpactSummary, ProjectStatusArtifacts,
-    ProjectStatusHistorySummary, ProjectTaskQueueCleanupResult, ProjectTextAnchorCleanupResult,
-    ProjectTextAnchorDeleteScope, ProjectWorkflowCleanupResult, SOURCE_MODE_DERIVED,
-    SOURCE_MODE_FREEFORM, SOURCE_MODE_SELF, SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT,
-    SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED, SourceSnapshotChapterSummary,
-    UpdateProjectRecordInput, UpdateProjectStatusRecordInput, duplicate_freeform_project_record,
+    ProjectProgressStatus, ProjectProgressSummary, ProjectTaskQueueCleanupResult,
+    ProjectTextAnchorCleanupResult, ProjectTextAnchorDeleteScope, ProjectWorkflowCleanupResult,
+    SOURCE_MODE_DERIVED, SOURCE_MODE_FREEFORM, SOURCE_MODE_SELF, SOURCE_SYNC_CONFLICT,
+    SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,
+    SourceSnapshotChapterSummary, UpdateProjectRecordInput, duplicate_freeform_project_record,
     is_freeform_generated_media_asset, is_freeform_imported_canvas_image,
     is_freeform_imported_canvas_video, is_valid_derived_project_status,
     is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
     normalize_project_type,
 };
-pub use a4n_db::project_dependency_graph::{AssetDependencyGraph, AssetGraphNodeDetail};
 pub use a4n_db::project_family_import::*;
 pub use a4n_db::project_reset::{
-    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult, ProjectStatusRollbackOutcome,
+    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult,
 };
 
 use a4n_core::models::character::protagonist_profile;
 use a4n_db::character::{CharacterProfileDeletionSummary, CharacterTimelineDeletionSummary};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ChapterDerivedCleanupArtifacts {
     pub stale_profile_ids: Vec<i64>,
     pub stale_character_state_ids: Vec<i64>,
@@ -74,6 +70,33 @@ impl ChapterDerivedCleanupArtifacts {
 
     fn extend_media_file_paths(&mut self, paths: Vec<String>) {
         self.media_file_paths.extend(paths);
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.stale_profile_ids.extend(other.stale_profile_ids);
+        self.stale_character_state_ids
+            .extend(other.stale_character_state_ids);
+        self.stale_attribute_event_ids
+            .extend(other.stale_attribute_event_ids);
+        self.stale_foreshadowing_ids
+            .extend(other.stale_foreshadowing_ids);
+        self.changed_foreshadowing_ids
+            .extend(other.changed_foreshadowing_ids);
+        self.media_file_paths.extend(other.media_file_paths);
+        self.scene_records_changed |= other.scene_records_changed;
+
+        self.stale_profile_ids.sort_unstable();
+        self.stale_profile_ids.dedup();
+        self.stale_character_state_ids.sort_unstable();
+        self.stale_character_state_ids.dedup();
+        self.stale_attribute_event_ids.sort_unstable();
+        self.stale_attribute_event_ids.dedup();
+        self.stale_foreshadowing_ids.sort_unstable();
+        self.stale_foreshadowing_ids.dedup();
+        self.changed_foreshadowing_ids.sort_unstable();
+        self.changed_foreshadowing_ids.dedup();
+        self.media_file_paths.sort();
+        self.media_file_paths.dedup();
     }
 }
 
@@ -136,8 +159,6 @@ mod input_rules;
 mod json_field_rules;
 mod package_rules;
 mod status;
-mod text_import_payload;
-mod text_project_import;
 mod video_studio_package;
 mod video_studio_transfer;
 
@@ -146,11 +167,11 @@ pub use duplication::{
     BranchProjectApplicationInput, DuplicateProjectApplicationInput, ProjectDuplicationHostPort,
 };
 pub use generation_params_rules::{
-    generation_spec_params_object, optional_params_i64, optional_params_string,
-    required_generation_spec_target_id, required_params_i64, required_params_i64_array,
-    required_params_object, required_params_string, required_params_string_array,
-    validate_generation_spec_canonical_key, validate_optional_galgame_cg_importance,
-    validate_params_id_equals, validate_snapshot_character_profile_id,
+    generation_spec_params_object, optional_params_i64, required_generation_spec_target_id,
+    required_params_i64, required_params_i64_array, required_params_object, required_params_string,
+    required_params_string_array, validate_generation_spec_canonical_key,
+    validate_params_id_equals, validate_required_galgame_cg_importance,
+    validate_snapshot_character_profile_id,
 };
 pub use input_rules::{
     ProjectDuplicatePath, ensure_text_project_for_copy,
@@ -158,12 +179,7 @@ pub use input_rules::{
     required_optional_text, required_project_status, required_text, resolve_project_duplicate_path,
 };
 pub use json_field_rules::{
-    import_chapter_outline_status, import_chapter_status, optional_json_f32_field,
-    optional_json_object_clone, optional_json_positive_i32_field, optional_json_positive_i64_field,
-    optional_json_string, optional_json_value, optional_top_array, optional_top_object,
-    required_json_array, required_json_bool, required_json_i32_field, required_json_i64_field,
-    required_json_nonnegative_i32_field, required_json_object, required_json_positive_i32_field,
-    required_json_string, required_json_string_field, required_json_text,
+    required_json_i32_field, required_json_i64_field, required_json_string_field,
     required_optional_json_string_field,
 };
 pub use package_rules::{
@@ -173,12 +189,6 @@ pub use package_rules::{
     sha256_bytes, validate_freeform_video_project, validate_import_unique_ids,
     validate_import_unique_key_strings, validate_snapshot_payload_identity, validate_unique_ids,
 };
-pub use status::{
-    build_rollback_summary, ensure_text_project_status_command, rollback_impact_count,
-    rollback_impact_query_for_transition, rollback_path, rollback_preview_path,
-    rollback_preview_warning_message,
-};
-pub(crate) use text_import_payload::parse_import_payload;
 
 pub use family_package::{
     FamilyImportMediaPayload, MANIFEST_PATH as FAMILY_PACKAGE_MANIFEST_PATH, MEDIA_FILE_FIELDS,
@@ -218,12 +228,10 @@ pub(crate) use chapter_scene_rules::{
 };
 pub(crate) use chapters::{
     is_character_sync_available_chapter, validate_chapter_generation_number,
-    validate_chapter_generation_readiness_record,
 };
-pub(crate) use cleanup::{cleanup_chapter_derived_data_in, delete_chapter_content_record_in};
+pub(crate) use cleanup::cleanup_chapter_derived_data_in;
 pub(crate) use errors::blueprint_restore_error_to_app;
 pub(crate) use errors::foreshadowing_db_error_to_app_error;
-pub(crate) use errors::import_text_project_error_to_app_error;
 pub(crate) use errors::project_basic_record_error_to_app_error;
 pub(crate) use errors::project_chapter_context_error_to_app_error;
 pub(crate) use errors::project_chapter_outline_update_error_to_app_error;
@@ -243,6 +251,6 @@ pub(crate) use errors::project_rollback_impact_read_error_to_app_error;
 pub(crate) use errors::project_status_read_error_to_app_error;
 pub(crate) use errors::project_status_write_error_to_app_error;
 pub(crate) use status::{
-    ensure_text_project_status_machine_record, next_status_from_artifact_flags,
+    forward_status_artifacts_ready, next_status_from_artifact_flags, rollback_path,
     validate_forward_status_artifacts_record,
 };

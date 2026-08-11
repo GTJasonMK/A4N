@@ -8,8 +8,9 @@ use crate::{
         context::shooting_context_request,
         contracts::{
             CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT, CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
-            ChapterScreenplayLayoutV1, PreparedChapterShootingScriptRequest,
-            ScreenplayLayoutUnitV1, ScreenplayUnitAdaptationV1, ShootingScriptProgressReporter, ShootingScriptStreamReporter,
+            PreparedChapterShootingScriptRequest, ScreenplayLayoutUnitV1,
+            ScreenplayUnitAdaptationV1, ShootingScriptProgressReporter,
+            ShootingScriptStreamReporter,
         },
         progress::unit_adaptation_stream_progress,
     },
@@ -21,8 +22,9 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_adaptati
     orchestrator: &OrchestratorContext,
     workflow_run_id: i64,
     prepared: &PreparedChapterShootingScriptRequest,
-    layout: &ChapterScreenplayLayoutV1,
-    offset: usize,
+    unit: &ScreenplayLayoutUnitV1,
+    unit_offset: usize,
+    total_unit_count: usize,
     progress: ShootingScriptProgressReporter<'_>,
     stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
     cancel_token: Option<&CancellationToken>,
@@ -30,18 +32,14 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_adaptati
     super::super::super::contracts::ShootingScriptStageResult<ScreenplayUnitAdaptationV1>,
     AppError,
 > {
-    let unit = layout
-        .units
-        .get(offset)
-        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个改编单元", offset + 1)))?;
-    let unit_progress = unit_adaptation_stream_progress(offset, layout.units.len());
+    let unit_progress = unit_adaptation_stream_progress(unit_offset, total_unit_count);
     let request = unit_adaptation_request(prepared, workflow_run_id, unit)?;
     let stage = orchestrator
         .run_shooting_script_stage::<ScreenplayUnitAdaptationV1>(
             workflow_run_id,
             &format!("screenplay_unit_adaptation:{}", unit.narrative_unit_index),
             i32::try_from(
-                offset
+                unit_offset
                     .checked_mul(3)
                     .and_then(|value| value.checked_add(3))
                     .ok_or_else(|| AppError::InvalidArgument("改编单元数量超限".into()))?,
@@ -62,8 +60,8 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_adaptati
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         &format!(
             "叙事单元 {}/{} {}",
-            offset + 1,
-            layout.units.len(),
+            unit_offset + 1,
+            total_unit_count,
             if stage.restored {
                 "已从调用断点恢复"
             } else {
@@ -86,7 +84,6 @@ pub(in crate::shooting_script) async fn restore_screenplay_adaptation_unit(
             workflow_run_id,
             &format!("screenplay_unit_adaptation:{}", unit.narrative_unit_index),
             &request,
-            "叙事单元剧本改编",
             |output| validate_unit_adaptation(output, unit),
         )
         .await

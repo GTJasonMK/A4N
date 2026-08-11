@@ -82,9 +82,19 @@ pub(super) async fn find_active_global_theme(
         .filter(theme_config::Column::IsActive.eq(true))
         .one(db)
         .await?;
-    Ok(theme.map(|theme| ThemeInfo {
-        id: theme.id,
-        name: theme.name,
-        mode: theme.mode,
-    }))
+    theme
+        .map(|theme| {
+            let mode = theme.mode.parse().map_err(|error| {
+                AdminDbError::InvalidArgument(format!(
+                    "主题 {} 的持久化 mode 无效：{error}",
+                    theme.id
+                ))
+            })?;
+            Ok(ThemeInfo {
+                id: theme.id,
+                name: theme.name,
+                mode,
+            })
+        })
+        .transpose()
 }

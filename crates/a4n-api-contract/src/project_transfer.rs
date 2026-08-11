@@ -1,12 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ImportProjectFullUploadInput {
-    pub file_name: String,
-    pub data_base64: String,
-}
+pub const PROJECT_FAMILY_PACKAGE_SUFFIX: &str = ".a4n-family.zip";
+pub const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX: &str = ".a4n-video-studio.zip";
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -35,14 +31,7 @@ pub struct ExportProjectPackageData {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ImportProjectFamilyUploadInput {
-    pub file_name: String,
-    pub data_base64: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ImportVideoStudioProjectUploadInput {
+pub struct ImportProjectPackageUploadInput {
     pub file_name: String,
     pub data_base64: String,
 }

@@ -5,8 +5,10 @@ mod secrets;
 mod trace;
 
 pub(crate) use context::SidecarRequestContext;
+#[cfg(test)]
+pub(crate) use requests::pure_transform_service_request;
 pub(crate) use requests::{
-    global_service_request_without_secrets, pure_transform_service_request,
+    global_service_request_without_secrets, pure_transform_typed_service_request,
     service_request_with_context,
 };
 pub(super) use scope::value_as_i64;

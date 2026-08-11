@@ -4,6 +4,8 @@ mod contracts;
 mod preparation;
 mod schema;
 
+pub(in crate::import_reverse) use checkpoint::restored_import_reverse_checkpoint;
+
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;

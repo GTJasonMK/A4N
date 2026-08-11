@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::chapter_analysis::owner::{
-    prompt::required_chapter_title, requests::context::build_chapter_analysis_stage_request,
+    prompt::chapter_display_title, requests::context::build_chapter_analysis_stage_request,
 };
 
 pub async fn build_chapter_summary_synthesis_request(
@@ -15,7 +15,7 @@ pub async fn build_chapter_summary_synthesis_request(
     prompt_renderer: &dyn PromptRenderer,
     facts: &Value,
 ) -> Result<ChatRequest, AppError> {
-    let chapter_title = required_chapter_title(ch)?;
+    let chapter_title = chapter_display_title(ch);
     build_chapter_analysis_stage_request(
         ch,
         prompt_renderer,

@@ -30,12 +30,15 @@ impl AggregatedDownloadProgress {
     }
 
     pub(super) fn update(&mut self, size: u64) -> Result<(), String> {
+        let total_bytes = self.total_bytes;
         self.completed
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |completed| {
-                completed.checked_add(size)
+                completed
+                    .checked_add(size)
+                    .filter(|next| *next <= total_bytes)
             })
             .map_err(|completed| {
-                format!("fastembed 下载进度超过 u64 上限：{completed} + {size}")
+                format!("fastembed 下载进度超过声明总量：{completed} + {size} > {total_bytes}")
             })?;
         self.emit(false);
         Ok(())
@@ -69,7 +72,7 @@ pub(super) fn send_download_progress(
         return;
     };
     let _ = tx.send(DownloadProgress {
-        downloaded_bytes: downloaded_bytes.min(total_bytes),
+        downloaded_bytes,
         total_bytes,
         message: message.to_string(),
     });
@@ -87,5 +90,20 @@ pub(super) fn format_bytes(value: u64) -> String {
         format!("{value} {}", UNITS[unit])
     } else {
         format!("{size:.1} {}", UNITS[unit])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aggregated_progress_rejects_bytes_beyond_declared_total() {
+        let completed = Arc::new(AtomicU64::new(4));
+        let mut progress =
+            AggregatedDownloadProgress::new(None, completed.clone(), 5, "model.onnx".to_string());
+
+        assert!(progress.update(2).is_err());
+        assert_eq!(completed.load(Ordering::Relaxed), 4);
     }
 }

@@ -3,8 +3,7 @@ use a4n_core::error::AppError;
 use a4n_db::workflow;
 
 use super::super::super::pipeline_prompt::{
-    MangaLlmCallInput, build_manga_context_manifest, load_manga_restored_llm_checkpoint,
-    prepare_manga_llm_call,
+    MangaLlmCallInput, load_manga_restored_llm_checkpoint, prepare_manga_llm_call,
 };
 use super::super::contracts::{MangaPreviewCall, MangaPreviewCallInput};
 
@@ -18,13 +17,12 @@ pub(in crate::manga::pipeline_preview) async fn build_manga_preview_call(
         call_key,
         call_order,
         restore_from_checkpoint,
-        manifest,
+        prompt_renderer,
+        project_id,
+        variables,
+        user_content,
         temperature,
     } = input;
-    let prompt_renderer = manifest.prompt_renderer;
-    let project_id = manifest.project_id;
-    let variables = manifest.variables;
-    let manifest = build_manga_context_manifest(manifest).await?;
     let prepared = prepare_manga_llm_call(MangaLlmCallInput {
         prompt_renderer,
         prompt_name,
@@ -33,7 +31,7 @@ pub(in crate::manga::pipeline_preview) async fn build_manga_preview_call(
         call_key,
         call_order,
         variables,
-        manifest,
+        user_content,
         temperature,
     })
     .await?;
@@ -51,7 +49,6 @@ pub(in crate::manga::pipeline_preview) async fn build_manga_preview_call(
         .await?
         {
             return Ok(MangaPreviewCall::Restored {
-                response_text: restored.response_text,
                 parsed_output: restored.parsed_output,
             });
         }

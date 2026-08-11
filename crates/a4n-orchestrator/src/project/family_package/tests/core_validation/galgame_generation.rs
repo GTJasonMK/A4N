@@ -93,7 +93,7 @@ fn validate_package_manifest_accepts_generation_galgame_portrait_params() {
     spec.target_kind = "portrait_expression".to_string();
     spec.target_entity_kind = "character_profile".to_string();
     spec.target_entity_id = Some(601);
-    spec.params_json = galgame_portrait_params(2, 601, "smile", Some("standing"), &[2301]);
+    spec.params_json = galgame_portrait_params(2, 601, "smile", "standing", &[2301]);
     package.generation_specs = vec![spec];
 
     validate_package_manifest(&package)
@@ -116,7 +116,7 @@ fn validate_package_manifest_rejects_galgame_portrait_source_chapter_context() {
     spec.target_kind = "portrait_expression".to_string();
     spec.target_entity_kind = "character_profile".to_string();
     spec.target_entity_id = Some(601);
-    spec.params_json = galgame_portrait_params(2, 601, "smile", Some("standing"), &[2301]);
+    spec.params_json = galgame_portrait_params(2, 601, "smile", "standing", &[2301]);
     package.generation_specs = vec![spec];
 
     let err = validate_package_manifest(&package)
@@ -136,7 +136,7 @@ fn validate_package_manifest_rejects_galgame_portrait_empty_source_line_ids() {
     spec.target_kind = "portrait_expression".to_string();
     spec.target_entity_kind = "character_profile".to_string();
     spec.target_entity_id = Some(601);
-    spec.params_json = galgame_portrait_params(2, 601, "smile", Some("standing"), &[]);
+    spec.params_json = galgame_portrait_params(2, 601, "smile", "standing", &[]);
     package.generation_specs = vec![spec];
 
     let err = validate_package_manifest(&package)
@@ -164,7 +164,7 @@ fn validate_package_manifest_rejects_galgame_portrait_source_line_character_mism
     spec.target_kind = "portrait_expression".to_string();
     spec.target_entity_kind = "character_profile".to_string();
     spec.target_entity_id = Some(601);
-    spec.params_json = galgame_portrait_params(2, 601, "smile", Some("standing"), &[2301]);
+    spec.params_json = galgame_portrait_params(2, 601, "smile", "standing", &[2301]);
     package.generation_specs = vec![spec];
 
     let err = validate_package_manifest(&package)
@@ -189,7 +189,7 @@ fn validate_package_manifest_rejects_galgame_portrait_source_line_variant_mismat
     spec.target_kind = "portrait_expression".to_string();
     spec.target_entity_kind = "character_profile".to_string();
     spec.target_entity_id = Some(601);
-    spec.params_json = galgame_portrait_params(2, 601, "smile", Some("standing"), &[2301]);
+    spec.params_json = galgame_portrait_params(2, 601, "smile", "standing", &[2301]);
     package.generation_specs = vec![spec];
 
     let err = validate_package_manifest(&package)
@@ -246,7 +246,7 @@ fn validate_package_manifest_rejects_galgame_portrait_position_sample_mismatch()
     spec.target_kind = "portrait_expression".to_string();
     spec.target_entity_kind = "character_profile".to_string();
     spec.target_entity_id = Some(601);
-    spec.params_json = galgame_portrait_params(2, 601, "smile", Some("standing"), &[2301]);
+    spec.params_json = galgame_portrait_params(2, 601, "smile", "standing", &[2301]);
     package.generation_specs = vec![spec];
 
     let err = validate_package_manifest(&package)

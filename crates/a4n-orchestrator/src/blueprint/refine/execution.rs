@@ -177,8 +177,7 @@ impl OrchestratorContext {
         let completion_slot_for_tx = Arc::clone(&completion_slot);
         let completion_input = BlueprintRefinementPersistenceInput {
             project_id: input.project_id,
-            blueprint: prepared.blueprint.clone(),
-            next_version: prepared.next_version.clone(),
+            expected_source_snapshot: prepared.expected_source_snapshot.clone(),
             parsed: output.parsed,
         };
         let snapshot = session.snapshot();

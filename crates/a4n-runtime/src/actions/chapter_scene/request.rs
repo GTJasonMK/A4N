@@ -5,7 +5,6 @@ use crate::{
         ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
         model_request_preview,
     },
-    prompt_renderer::RuntimePromptRenderer,
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationInput;
@@ -15,9 +14,9 @@ pub async fn preview_chapter_scene_request(
     user_id: i64,
     input: &GenerateChapterSceneInput,
 ) -> Result<ModelRequestPreview, AppError> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let preview = state
-        .project_scene_records()
+        .orchestrator()
         .prepare_chapter_scene_request_preview_for_user_validated(
             user_id,
             ChapterSceneGenerationApplicationInput {
@@ -25,7 +24,7 @@ pub async fn preview_chapter_scene_request(
                 scene_number: input.scene_number,
                 scene_prompt: input.scene_prompt.clone(),
             },
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await?;
     let step = chat_request_step_for_state(

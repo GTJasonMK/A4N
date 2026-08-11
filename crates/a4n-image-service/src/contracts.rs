@@ -1,6 +1,5 @@
 use a4n_image::ImageGenerationRequest;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,12 +16,6 @@ pub(crate) struct ImageGenerationOutput {
     pub(crate) bytes_base64: String,
     pub(crate) format: String,
     pub(crate) model: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct ProviderProbeOutput {
-    pub(crate) ok: bool,
-    pub(crate) request_preview: Value,
 }
 
 #[cfg(test)]

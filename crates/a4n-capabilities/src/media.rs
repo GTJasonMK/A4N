@@ -77,10 +77,6 @@ impl ImageClient for HttpImageClient {
             .await
     }
 
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/image/probe", request).await
-    }
-
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport.post_json("/image/models", request).await
     }
@@ -164,10 +160,6 @@ impl VideoClient for HttpVideoClient {
         self.transport
             .post_json("/video/request_preview", request)
             .await
-    }
-
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/video/probe", request).await
     }
 
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {

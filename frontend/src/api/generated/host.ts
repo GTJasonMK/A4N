@@ -3,6 +3,392 @@
 
 import type { ThemeMode } from "./theme";
 
+export const HOST_API_COMMANDS = [
+  "accept_import_review",
+  "accept_project_invite",
+  "activate_theme",
+  "add_image_config",
+  "add_profile_attribute",
+  "add_video_config",
+  "apply_assembly_postprocess_edit",
+  "apply_implicit_update_decision",
+  "apply_optimization_patches",
+  "apply_source_sync_decisions",
+  "assemble_chapter_videos",
+  "attribute_history",
+  "batch_accept_reviews",
+  "bind_galgame_media",
+  "bind_manga_reference_image",
+  "branch_project",
+  "cancel_admin_task",
+  "cancel_embedding_model_download",
+  "cancel_galgame_pipeline",
+  "cancel_generation_task",
+  "cancel_import_analysis",
+  "cancel_manga_pipeline",
+  "cancel_task",
+  "cancel_workflow",
+  "change_user_password",
+  "check_character_conflict",
+  "check_implicit_update",
+  "check_import_dedup",
+  "check_profile_sync_conflict",
+  "cleanup_orphan_project_data_dirs",
+  "confirm_reverse_engineering_candidate",
+  "create_derived_project",
+  "create_embedding_config",
+  "create_foreshadowing",
+  "create_freeform_video_project",
+  "create_invite_code",
+  "create_llm_config",
+  "create_object_profile",
+  "create_optimization_analysis_session",
+  "create_optimization_chat_session",
+  "create_profile",
+  "create_project",
+  "create_scene_profile",
+  "create_theme",
+  "create_user",
+  "decline_project_invite",
+  "delete_chapter_scene",
+  "delete_chapter_video_prompt",
+  "delete_embedding_config",
+  "delete_foreshadowing",
+  "delete_galgame_line",
+  "delete_image",
+  "delete_import_review",
+  "delete_latest_chapter_outlines",
+  "delete_latest_parts",
+  "delete_llm_config",
+  "delete_local_embedding_model",
+  "delete_manga_by_chapter",
+  "delete_manga_prompt",
+  "delete_object_profile",
+  "delete_optimize_session",
+  "delete_profile",
+  "delete_project",
+  "delete_scene_profile",
+  "delete_theme",
+  "delete_video",
+  "detach_derived_project",
+  "detect_image_config_models",
+  "detect_llm_config_models",
+  "detect_video_config_models",
+  "diff_blueprint_versions",
+  "diff_profile_chapters",
+  "disable_user",
+  "discover_character_profiles",
+  "download_embedding_model",
+  "duplicate_project",
+  "edit_chapter_shooting_script",
+  "execute_attribute_deletion",
+  "export_all_configs_json",
+  "export_batch_data",
+  "export_characters_json_data",
+  "export_derived_project_data",
+  "export_epub_data",
+  "export_galgame_webgal",
+  "export_markdown_data",
+  "export_outline_json_data",
+  "export_pdf_data",
+  "export_project_family_data",
+  "export_theme",
+  "export_txt_data",
+  "export_video_studio_project_data",
+  "forward_project_status",
+  "generate_chapter_analysis",
+  "generate_chapter_scene",
+  "generate_chapter_shooting_script",
+  "generate_next_chapter_shooting_script_unit",
+  "generate_object_profile_image_prompt",
+  "generate_portrait_prompt",
+  "generate_scene_profile_image_prompt",
+  "get_admin_overview",
+  "get_blueprint",
+  "get_canvas_graph",
+  "get_canvas_node_contracts",
+  "get_chapter_outlines_pacing",
+  "get_chapter_shooting_script",
+  "get_chapter_shooting_script_unit_progress",
+  "get_character_arc_status",
+  "get_character_voice_fingerprint",
+  "get_current_user",
+  "get_embedding_model_download_info",
+  "get_galgame_pipeline_status",
+  "get_galgame_script",
+  "get_generation_call_analytics",
+  "get_generation_progress",
+  "get_implicit_review",
+  "get_inspiration_history",
+  "get_llm_max_tokens_config",
+  "get_log_dir",
+  "get_manga_pipeline_status",
+  "get_optimize_session",
+  "get_primary_portrait",
+  "get_profile_state_at_chapter",
+  "get_project",
+  "get_project_asset_dependency_graph",
+  "get_project_asset_dependency_graph_node_detail",
+  "get_project_import_analysis_progress",
+  "get_project_status_machine",
+  "get_queue_stats",
+  "get_snapshot",
+  "get_storage_paths",
+  "get_task_history",
+  "get_token_summary",
+  "get_usage_trends",
+  "get_user_usage",
+  "get_workflow_progress_events",
+  "get_workflow_run_detail",
+  "health_check",
+  "import_all_configs",
+  "import_canvas_media",
+  "import_chapter",
+  "import_galgame_audio",
+  "import_project_family_upload",
+  "import_project_text_upload",
+  "import_theme",
+  "import_video_studio_project_upload",
+  "insert_galgame_line",
+  "invite_project_member",
+  "leave_project",
+  "list_active_workflows",
+  "list_all_projects",
+  "list_all_users",
+  "list_behaviors",
+  "list_blueprint_versions",
+  "list_chapter_outlines",
+  "list_chapter_scenes",
+  "list_chapter_video_prompts",
+  "list_chapters",
+  "list_deletion_marks",
+  "list_embedding_config",
+  "list_foreshadowing",
+  "list_image_configs",
+  "list_images_by_chapter",
+  "list_images_by_project",
+  "list_import_queue",
+  "list_invite_codes",
+  "list_llm_config",
+  "list_local_embedding_models",
+  "list_manga_page_prompts",
+  "list_model_provider_catalog",
+  "list_my_project_invites",
+  "list_object_profiles",
+  "list_optimize_patch_sets",
+  "list_optimize_sessions",
+  "list_optimize_turns",
+  "list_orphan_project_data_dirs",
+  "list_parts",
+  "list_pending_tasks",
+  "list_portraits_by_project",
+  "list_profile_materials",
+  "list_profiles",
+  "list_project_invites",
+  "list_project_members",
+  "list_projects",
+  "list_scene_profiles",
+  "list_sessions",
+  "list_snapshots",
+  "list_source_snapshot_chapters",
+  "list_themes",
+  "list_video_configs",
+  "list_video_reference_images",
+  "list_videos_by_chapter",
+  "list_workflow_runs",
+  "load_cached_assembled_chapter_video_preview",
+  "load_video_playback_data",
+  "load_video_scrub_playback_data",
+  "load_video_segment_plan_draft",
+  "login_user",
+  "modify_profile_attribute",
+  "oauth2_authorize_url",
+  "oauth2_callback",
+  "optimize_chapter_video_prompt",
+  "optimize_manga_prompt",
+  "plan_galgame_assets",
+  "poll_video_job",
+  "prepare_chapter_generation_rag_embedding",
+  "prepare_optimization_analysis_session",
+  "preview_apply_beat_mapping_request",
+  "preview_batch_generate_part_outlines_request",
+  "preview_batch_images_request",
+  "preview_canvas_node_request",
+  "preview_chapter_analysis_request",
+  "preview_chapter_prompt",
+  "preview_chapter_scene_request",
+  "preview_chapter_video_request",
+  "preview_check_character_conflict_request",
+  "preview_check_implicit_update_request",
+  "preview_continue_part_outlines_request",
+  "preview_create_optimization_analysis_session_request",
+  "preview_discover_character_profiles_request",
+  "preview_galgame_pipeline_request",
+  "preview_generate_age_variant_request",
+  "preview_generate_blueprint_request",
+  "preview_generate_chapter_outlines_by_count_request",
+  "preview_generate_missing_portraits_request",
+  "preview_generate_part_chapter_outlines_request",
+  "preview_generate_parts_request",
+  "preview_generate_portrait_prompt_request",
+  "preview_generate_portrait_request",
+  "preview_import_project_analysis_request",
+  "preview_inspiration_request",
+  "preview_object_profile_image_request",
+  "preview_page_image_request",
+  "preview_prepare_optimization_analysis_session_request",
+  "preview_propose_optimization_patches_request",
+  "preview_reference_media_video_request",
+  "preview_refine_blueprint_request",
+  "preview_regenerate_chapter_outline_request",
+  "preview_regenerate_last_part_request",
+  "preview_regenerate_part_outline_request",
+  "preview_regenerate_parts_request",
+  "preview_regenerate_portrait_request",
+  "preview_resume_chapter_analysis_sync_request",
+  "preview_resume_manga_pipeline_request",
+  "preview_reverse_engineer_blueprint_request",
+  "preview_reverse_engineer_outline_request",
+  "preview_reverse_engineer_part_outline_request",
+  "preview_rollback",
+  "preview_scene_image_request",
+  "preview_send_optimization_message_request",
+  "preview_source_sync",
+  "preview_start_manga_pipeline_request",
+  "preview_sync_all_character_profiles_request",
+  "preview_sync_character_from_chapters_request",
+  "preview_test_embedding_config_request",
+  "preview_test_image_config_request",
+  "preview_test_llm_config_request",
+  "preview_video_provider_request_by_video_id",
+  "prompt_list",
+  "prompt_list_categories",
+  "prompt_list_project_overrides",
+  "prompt_load_defaults",
+  "prompt_remove_project_override",
+  "prompt_render",
+  "prompt_render_ab",
+  "prompt_reset",
+  "prompt_set_project_override",
+  "prompt_update",
+  "prompt_validate_variables",
+  "prompt_version_diff",
+  "prompt_version_history",
+  "push_assembled_chapter_video",
+  "rag_enhanced_search",
+  "rag_enhanced_search_with_vectors",
+  "rag_ingest_all",
+  "rag_prepare_enhanced_search",
+  "rag_prepare_ingest_all",
+  "rag_upload_ingest_embeddings",
+  "read_recent_logs",
+  "record_optimize_agent_event",
+  "refresh_token",
+  "register_user",
+  "reject_import_review",
+  "reject_pending_optimize_patch_sets",
+  "remove_image_config",
+  "remove_project_member",
+  "remove_video_config",
+  "reorder_chapter_scenes",
+  "reorder_galgame_lines",
+  "request_attribute_deletion",
+  "reset_deletion_marks",
+  "reset_project_generated_data",
+  "restore_blueprint_version",
+  "resume_chapter_analysis_sync",
+  "resume_manga_pipeline",
+  "resume_workflow_run",
+  "reverse_engineer_blueprint",
+  "reverse_engineer_outline",
+  "reverse_engineer_part_outline",
+  "revoke_project_invite",
+  "revoke_session",
+  "rollback_project_status",
+  "rollback_to_chapter",
+  "run_canvas_graph",
+  "run_canvas_node",
+  "run_galgame_asset_generation",
+  "run_import_project_analysis",
+  "save_blueprint",
+  "save_canvas_graph",
+  "save_canvas_text_asset",
+  "save_chapter_outline",
+  "save_part_outline",
+  "select_segment_video",
+  "set_default_embedding_config",
+  "set_default_image_config",
+  "set_default_llm_config",
+  "set_default_video_config",
+  "set_log_level",
+  "set_primary_portrait",
+  "set_profile_primary_material",
+  "start_blueprint_generation",
+  "start_blueprint_refinement",
+  "start_chapter_generation",
+  "start_galgame_pipeline",
+  "start_image_generation",
+  "start_inspiration_generation",
+  "start_manga_pipeline",
+  "start_optimize_analysis_generation",
+  "start_optimize_chat_generation",
+  "start_optimize_patch_generation",
+  "start_outline_generation",
+  "start_portrait_generation",
+  "start_video_generation",
+  "sync_all_character_profiles",
+  "sync_blueprint_materials",
+  "sync_character_from_chapters",
+  "sync_outline_materials",
+  "sync_scene_profiles",
+  "test_embedding_config",
+  "test_image_config",
+  "test_llm_config",
+  "trim_video",
+  "unbind_galgame_media",
+  "update_assembly_push_status",
+  "update_chapter_content",
+  "update_chapter_outline",
+  "update_chapter_scene",
+  "update_chapter_video_prompt",
+  "update_chapter_video_segment_recipe",
+  "update_character_profile",
+  "update_embedding_config",
+  "update_foreshadowing",
+  "update_galgame_choices",
+  "update_galgame_line",
+  "update_galgame_scene",
+  "update_image",
+  "update_image_config",
+  "update_llm_config",
+  "update_llm_max_tokens_config",
+  "update_manga_prompt",
+  "update_object_profile",
+  "update_project",
+  "update_project_member_role",
+  "update_scene_profile",
+  "update_theme",
+  "update_user_profile",
+  "update_user_role",
+  "update_video",
+  "update_video_config",
+  "update_video_segment_plan_draft_recipe",
+  "update_world_setting",
+  "upload_assembly_insert_video",
+  "upload_chapter_video",
+  "upload_image",
+  "upload_portrait",
+  "upload_profile_material_image",
+  "upload_reference_media_video",
+] as const;
+
+export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];
+
+export const PROJECT_FAMILY_PACKAGE_SUFFIX = ".a4n-family.zip";
+export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = ".a4n-video-studio.zip";
+
+export const MAX_PROJECT_TEXT_UPLOAD_BYTES = 104857600;
+
 export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<string, string>([
   ["start_blueprint_generation", "/generation-tasks/blueprint"],
   ["start_blueprint_refinement", "/generation-tasks/blueprint-refinement"],
@@ -108,7 +494,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "start_chapter_generation": "full",
   "start_galgame_pipeline": "full",
   "start_image_generation": "full",
-  "start_import_analysis": "full",
   "start_inspiration_generation": "full",
   "start_manga_pipeline": "full",
   "start_optimize_analysis_generation": "full",
@@ -125,7 +510,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "test_embedding_config": "full",
   "test_image_config": "full",
   "test_llm_config": "full",
-  "test_video_config": "full",
 };
 
 export interface SetLogLevelInput {
@@ -180,24 +564,10 @@ export interface CleanupOrphanProjectDataDirsInput {
   caller_user_id: number;
 }
 
-export interface ImportUploadedFileInput {
+export interface ImportProjectTextUploadInput {
   data_base64: string;
   file_name: string;
-  file_type: string;
-}
-
-export interface ParsedChapterSummary {
-  content: string;
-  content_hash: string | null;
-  number: number;
-  title: string;
-}
-
-export interface ImportFileResult {
-  chapters: ParsedChapterSummary[];
-  detected_encoding: string;
-  total_words: number;
-  warnings: string[];
+  project_id: number;
 }
 
 export interface ReverseEngineerInput {
@@ -664,7 +1034,6 @@ export interface ExportFileData {
 export interface MangaPipelineStartInput {
   chapter_number: number;
   project_id: number;
-  start_from_stage?: MangaPipelineStartStage | null;
 }
 
 export interface MangaPipelineResumeInput {
@@ -680,9 +1049,9 @@ export interface MangaChapterInput {
 export interface BindMangaReferenceImageInput {
   asset_id: number;
   asset_kind: MangaReferenceAssetKind;
+  character_name: string;
   downstream_strategy: DownstreamConflictStrategy;
   prompt_id: number;
-  slot_id: string;
 }
 
 export interface UpdateMangaPromptInput {
@@ -701,8 +1070,6 @@ export interface DeleteMangaPromptInput {
   downstream_strategy: DownstreamConflictStrategy;
   prompt_id: number;
 }
-
-export type MangaPipelineStartStage = "character_binding" | "speech_selection" | "visual_anchor_extraction" | "item_extraction" | "comic_synthesis" | "page_planning" | "drawing_prompt";
 
 export interface MangaPipelineStatusSummary {
   can_cancel: boolean;
@@ -801,42 +1168,18 @@ export interface MangaPageDrawingPromptV2 {
 
 export type MangaReferenceAssetKind = "character_portrait" | "generated_image";
 
-export type MangaReferenceTargetType = "character" | "visual";
-
-export type MangaReferenceBindingStatus = "missing" | "bound";
-
 export interface MangaBoundReferenceAsset {
   asset_id: number;
   asset_kind: MangaReferenceAssetKind;
-  chapter_id: number | null;
-  expression: string | null;
-  image_id: number | null;
   image_path: string;
-  image_type: string | null;
-  is_favorite: boolean | null;
-  is_primary: boolean | null;
-  label: string;
-  panel_id: string | null;
-  portrait_id: number | null;
-  portrait_type: string | null;
-  pose: string | null;
-  profile_id: number | null;
-  prompt: string;
 }
 
 export interface MangaReferenceBindingSummary {
-  asset_kind: MangaReferenceAssetKind;
   bound_asset: MangaBoundReferenceAsset | null;
-  label: string;
-  purpose: string;
-  required: boolean;
-  slot_id: string;
-  status: MangaReferenceBindingStatus;
-  target_name: string | null;
-  target_type: MangaReferenceTargetType;
+  character_name: string;
 }
 
-export interface MangaPromptSourceSummary {
+export interface MangaPagePromptSourceSummary {
   content_sha256: string;
   root_project_id: number;
   shooting_script_id: number;
@@ -848,7 +1191,7 @@ export interface MangaPromptSourceSummary {
   source_snapshot_id: number | null;
 }
 
-export interface MangaPromptSummary {
+export interface MangaPagePromptSummary {
   chapter_id: number;
   created_at: string;
   dialogue_text: string | null;
@@ -858,13 +1201,11 @@ export interface MangaPromptSummary {
   image_prompt: string;
   page_number: number;
   page_plan: MangaPageV3;
-  panel_number: number;
   project_id: number;
-  prompt_type: string;
   reference_bindings: MangaReferenceBindingSummary[];
   shooting_script_id: number;
   shooting_script_revision: number;
-  source: MangaPromptSourceSummary;
+  source: MangaPagePromptSourceSummary;
   status: string;
   updated_at: string;
 }
@@ -1235,11 +1576,6 @@ export interface RagEnhancedSearchWithVectorsInput {
   search: EnhancedSearchInput;
 }
 
-export interface ImportProjectFullUploadInput {
-  data_base64: string;
-  file_name: string;
-}
-
 export interface ExportProjectFamilyDataInput {
   include_derived_projects: boolean;
   root_project_id: number;
@@ -1258,38 +1594,38 @@ export interface ExportProjectPackageData {
   file_name: string;
 }
 
-export interface ImportProjectFamilyUploadInput {
+export interface ImportProjectPackageUploadInput {
   data_base64: string;
   file_name: string;
 }
 
-export interface ImportVideoStudioProjectUploadInput {
-  data_base64: string;
-  file_name: string;
-}
+export type ImportReviewStatus = "pending" | "accepted" | "rejected" | "modified";
 
 export interface ImportReviewSummary {
   analysis_result: unknown;
   created_at: string | null;
-  dedup_paragraphs: number;
-  dedup_rate: number | null;
-  detected_encoding: string | null;
-  file_type: string;
   filename: string;
   id: number;
-  parsed_chapters: number;
   project_id: number;
-  review_status: string;
+  review_status: ImportReviewStatus;
   updated_at: string | null;
+}
+
+export interface ImportProjectReviewsInput {
+  project_id: number;
+}
+
+export interface ImportReviewIdInput {
+  review_id: number;
+}
+
+export interface AcceptImportReviewInput {
+  analysis_result?: unknown;
+  review_id: number;
 }
 
 export interface BatchAcceptImportReviewsInput {
   review_ids: number[];
-}
-
-export interface ImportAnalysisStatusSummary {
-  count: number;
-  status: string;
 }
 
 export interface DedupResult {
@@ -1297,10 +1633,6 @@ export interface DedupResult {
   content_hash: string;
   is_duplicate: boolean;
   matched_chapter_id: number | null;
-}
-
-export interface UpdateImportStatusInput {
-  status: string;
 }
 
 export interface CheckImportDedupInput {
@@ -1656,6 +1988,119 @@ export interface ProjectRollbackPreview {
   path: ProjectStatus[];
 }
 
+export interface AssetGraphNode {
+  asset_type: string;
+  chapter_id: number | null;
+  count: number;
+  details: unknown;
+  direct_downstream_count: number;
+  downstream_count: number;
+  editable: boolean;
+  id: string;
+  kind: string;
+  label: string;
+  layer: number;
+  mutable: boolean;
+  mutation_policy: string;
+  needs_visualization: boolean;
+  profile_id: number | null;
+  record_id: number | null;
+  status: string | null;
+  summary: string | null;
+  visualized: boolean;
+}
+
+export interface AssetGraphEdge {
+  count: number;
+  from: string;
+  relation: string;
+  to: string;
+}
+
+export interface AssetGraphLayer {
+  index: number;
+  label: string;
+  node_ids: string[];
+}
+
+export interface AssetDependencyGraph {
+  edges: AssetGraphEdge[];
+  generated_at: string;
+  layers: AssetGraphLayer[];
+  nodes: AssetGraphNode[];
+  project_id: number;
+  warnings: string[];
+}
+
+export interface AssetLineageRef {
+  asset_type: string;
+  id: string;
+  kind: string;
+  label: string;
+  record_id: number | null;
+}
+
+export interface PromptSource {
+  edited_by_user: boolean | null;
+  id: string;
+  kind: string;
+  source_record_id: number | null;
+  text: string;
+}
+
+export interface GenerationRunSnapshot {
+  completed_at: string | null;
+  created_at: string | null;
+  id: number | null;
+  model: string | null;
+  model_kind: string;
+  provider: string | null;
+  status: string;
+  step_key: string;
+  title: string;
+  workflow: string;
+}
+
+export interface GenerationInputSource {
+  content_type: string;
+  group: string;
+  id: string;
+  kind: string;
+  label: string;
+  run_id: number | null;
+  source_record_id: number | null;
+  text: string | null;
+  value: unknown;
+}
+
+export interface AssetLineageRecord {
+  asset_id: number | null;
+  asset_kind: string;
+  generation_inputs: GenerationInputSource[];
+  generation_runs: GenerationRunSnapshot[];
+  id: string;
+  input_status: string;
+  label: string;
+  media_sources: AssetLineageRef[];
+  origin: string;
+  prompt_sources: PromptSource[];
+  request_snapshot: unknown;
+  result: unknown;
+  source_refs: AssetLineageRef[];
+  status: string | null;
+  warnings: string[];
+}
+
+export interface AssetGraphNodeDetail {
+  asset_type: string;
+  kind: string;
+  node_id: string;
+  records: AssetLineageRecord[];
+  summary: string | null;
+  title: string;
+  warnings: string[];
+}
+
 export interface ProjectSummary {
   chapters_per_part: number | null;
   collaboration_root_project_id: number;
@@ -1708,6 +2153,11 @@ export interface CreateDerivedProjectInput {
   root_project_id: number;
   start_chapter: number;
   title: string;
+}
+
+export interface DuplicateProjectInput {
+  new_title: string;
+  project_id: number;
 }
 
 export interface UpdateProjectInput {
@@ -1887,6 +2337,7 @@ export interface PartOutlineSummary {
 
 export interface SaveChapterOutlineInput {
   chapter_number: number;
+  expected_updated_at?: string | null;
   outline_id?: number | null;
   project_id: number;
   summary?: string | null;
@@ -1900,6 +2351,7 @@ export interface SaveChapterOutlineResult {
 
 export interface SavePartOutlineInput {
   end_chapter: number;
+  expected_updated_at?: string | null;
   part_id?: number | null;
   part_number: number;
   project_id: number;
@@ -1912,6 +2364,16 @@ export interface SavePartOutlineInput {
 export interface SavePartOutlineResult {
   part: PartOutlineSummary;
   warnings: string[];
+}
+
+export interface OutlineDeleteTarget {
+  expected_updated_at: string;
+  id: number;
+}
+
+export interface DeleteLatestOutlineRecordsInput {
+  project_id: number;
+  targets: OutlineDeleteTarget[];
 }
 
 export interface UpdateChapterOutlineResult {
@@ -2064,11 +2526,29 @@ export interface ListProfilesInput {
   project_id: number;
 }
 
+export interface AttributeCountsSummary {
+  explicit: number;
+  implicit: number;
+  social: number;
+}
+
 export interface CharacterProfileSummary {
+  age: string | null;
+  appearance: string | null;
+  attribute_counts: AttributeCountsSummary;
+  background: string | null;
+  base_attributes: unknown;
+  character_arc: unknown;
+  created_at: string | null;
   current_state: unknown;
+  gender: string | null;
   id: number;
   last_synced_chapter: number;
   name: string;
+  personality: string | null;
+  project_id: number;
+  updated_at: string | null;
+  voice_fingerprint: unknown;
 }
 
 export interface CharacterProfileCreateResult {
@@ -2083,6 +2563,85 @@ export interface CharacterProfileMutationResult {
 
 export interface CharacterProfileDeleteResult {
   warnings: string[];
+}
+
+export interface SyncCharacterProfileInput {
+  chapter_number: number;
+  name: string;
+  project_id: number;
+}
+
+export interface SyncAllCharacterProfilesInput {
+  chapter_number: number;
+  project_id: number;
+}
+
+export type CharacterProfileSyncSkipReason = "already_synced_to_target" | "already_synced_past_target" | "target_before_first_seen";
+
+export interface CharacterProfileSyncRange {
+  from: number;
+  to: number;
+}
+
+export interface CharacterProfileProtectedAttribute {
+  category: string;
+  chapter_number: number;
+  key: string;
+  operation: string;
+}
+
+export interface CharacterProfileSyncedResult {
+  attribute_event_rag_error: string | null;
+  attribute_event_rag_indexed: boolean;
+  attribute_event_rag_indexed_count: number;
+  behaviors_recorded: number;
+  changes_applied: number;
+  chapters_analyzed: number;
+  classification_suggestions_applied: number;
+  deleted_attribute_event_rag: number;
+  deleted_deletion_marks: number;
+  deleted_state_rag: number;
+  deletions_executed: number;
+  deletions_marked: number;
+  implicit_reviews_applied: number;
+  implicit_reviews_checked: number;
+  llm_trace_paths: string[];
+  name: string;
+  protected_attributes: CharacterProfileProtectedAttribute[];
+  rewound_deletion_marks: number;
+  snapshot_hash: string;
+  state_indexes_upserted: number;
+  state_rag_error: string | null;
+  state_rag_indexed: boolean;
+  state_rag_indexed_count: number;
+  sync_range: CharacterProfileSyncRange;
+  synced_chapter: number;
+}
+
+export interface CharacterProfileSkippedResult {
+  first_seen_chapter: number | null;
+  name: string;
+  reason: CharacterProfileSyncSkipReason;
+  synced_chapter: number;
+  target_chapter: number;
+}
+
+export type SyncCharacterProfileResult = CharacterProfileSyncedResult & { status: "synced" } | CharacterProfileSkippedResult & { status: "skipped" };
+
+export interface CharacterProfileSyncFailure {
+  error: string;
+  name: string;
+}
+
+export type CharacterProfileSyncBatchStatus = "synced" | "skipped" | "failed" | "completed_with_errors";
+
+export interface SyncAllCharacterProfilesResult {
+  failed: CharacterProfileSyncFailure[];
+  skipped: CharacterProfileSkippedResult[];
+  status: CharacterProfileSyncBatchStatus;
+  synced: CharacterProfileSyncedResult[];
+  target_chapter: number;
+  total: number;
 }
 
 export interface ListObjectProfilesInput {
@@ -2196,6 +2755,59 @@ export interface SceneProfileMutationResult {
 }
 
 export interface SceneProfileDeleteResult {
+  warnings: string[];
+}
+
+export interface ListForeshadowingInput {
+  project_id: number;
+}
+
+export interface ForeshadowingRecordInput {
+  description: string;
+  importance: number;
+  payoff_chapter?: number | null;
+  related_characters?: string[];
+  setup_chapter: number;
+  status: string;
+}
+
+export interface CreateForeshadowingInput {
+  project_id: number;
+  record: ForeshadowingRecordInput;
+}
+
+export interface UpdateForeshadowingInput {
+  expected_updated_at: string;
+  foreshadowing_id: number;
+  project_id: number;
+  record: ForeshadowingRecordInput;
+}
+
+export interface DeleteForeshadowingInput {
+  expected_updated_at: string;
+  foreshadowing_id: number;
+  project_id: number;
+}
+
+export interface ForeshadowingSummary {
+  created_at: string;
+  description: string;
+  id: number;
+  importance: number;
+  payoff_chapter: number | null;
+  project_id: number;
+  related_characters: string[];
+  setup_chapter: number;
+  status: string;
+  updated_at: string;
+}
+
+export interface ForeshadowingMutationResult {
+  foreshadowing: ForeshadowingSummary;
+  warnings: string[];
+}
+
+export interface ForeshadowingDeleteResult {
   warnings: string[];
 }
 
@@ -2472,7 +3084,6 @@ export interface GeneratedVideoSummary {
   source_video_id: number | null;
   status: string;
   thumbnail_path: string | null;
-  timeline_item_id: number | null;
   updated_at: string;
   video_type: string;
   width: number;
@@ -2490,6 +3101,7 @@ export type DownstreamConflictStrategy = "reject" | "keep_downstream" | "delete_
 export interface ChapterVideoPrompt {
   aspect_ratio: string | null;
   chapter_id: number;
+  created_at: string;
   duration_secs: number;
   generated_video_id: number | null;
   id: number;
@@ -2527,6 +3139,14 @@ export interface DeleteChapterVideoPromptInput {
   prompt_id: number;
 }
 
+export interface PreviewChapterVideoPromptOverrideInput {
+  duration_secs?: number;
+  motion_prompt?: string | null;
+  negative_prompt?: string | null;
+  reference_image_ids_json?: unknown;
+  visual_prompt?: string;
+}
+
 export interface GenerateChapterVideosBatchResult {
   failed_count: number;
   pending_count: number;
@@ -2552,7 +3172,6 @@ export interface AssembledChapterVideoClipSummary {
   insert_after_video_id: number | null;
   shot_number: number;
   sort_order: number;
-  timeline_item_id: number | null;
   video_id: number;
   video_type: string;
 }
@@ -2601,56 +3220,6 @@ export interface UploadChapterVideoInput {
 export interface VideoSegmentTarget {
   segment_index_in_shot: number;
   source_shot_id: string;
-}
-
-export interface GetVideoTimelineInput {
-  chapter_id: number;
-  project_id: number;
-}
-
-export interface CommitInsertedSegmentDraftInput {
-  expected_timeline_revision: number;
-  timeline_id: number;
-  workflow_run_id: number;
-}
-
-export interface MoveInsertedSegmentInput {
-  expected_timeline_revision: number;
-  next_item_id?: number | null;
-  previous_item_id?: number | null;
-  timeline_id: number;
-  timeline_item_id: number;
-}
-
-export interface DeleteInsertedSegmentInput {
-  expected_timeline_revision: number;
-  timeline_id: number;
-  timeline_item_id: number;
-}
-
-export type VideoTimelineItemKind = "native" | "inserted";
-
-export type VideoTimelineItemStatus = "active" | "needs_reanchor";
-
-export interface VideoTimelineItemSummary {
-  display_index: number;
-  generated_video_id: number | null;
-  id: number;
-  kind: VideoTimelineItemKind;
-  plan_prompt_id: number | null;
-  segment_index_in_shot: number | null;
-  segment_number: number | null;
-  source_shot_id: string | null;
-  status: VideoTimelineItemStatus;
-  title: string | null;
-}
-
-export interface VideoTimelineSummary {
-  chapter_id: number;
-  id: number;
-  items: VideoTimelineItemSummary[];
-  project_id: number;
-  revision: number;
 }
 
 export interface UploadReferenceMediaVideoInput {

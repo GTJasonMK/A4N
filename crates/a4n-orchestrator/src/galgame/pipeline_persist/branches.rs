@@ -1,16 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::super::{
-    GalgameBranchDesign, GalgamePipelineBeatRefV3, GalgamePipelineBranchSceneLineStaged,
+    GalgameBranchDesign, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
+    GalgameLinePresentationV2, GalgamePipelineBeatRefV3, GalgamePipelineBranchSceneLineStaged,
     GalgamePipelineChoicePlan, GalgamePipelineScene, LINE_TYPE_CHOICE, SCENE_ENTRY_BRANCH,
 };
 use super::contracts::*;
 use super::rules::{
-    invalid, participants_json, presentation_json_for_line, speaker_projection, stage_position,
-    to_i32, validate_persist_line,
+    invalid, participants_json, presentation_document_for_line, speaker_projection, to_i32,
+    validate_persist_line,
 };
 use super::sources::text_anchor_id_for_line;
 
@@ -150,19 +151,21 @@ pub(super) fn choice_line_and_branch_scenes(
                             .entry(profile_id)
                             .or_insert(speaker_name);
                     }
-                    let mut presentation_json = presentation_json_for_line(line, None);
-                    presentation_json["branch"] = json!(true);
-                    presentation_json["branch_id"] = json!(option.branch_id);
-                    presentation_json["returns_to_scene_index"] = json!(return_scene_index);
+                    let mut presentation = presentation_document_for_line(line, None);
+                    presentation.branch = Some(true);
+                    presentation.branch_id = Some(option.branch_id.clone());
+                    presentation.returns_to_scene_index = Some(return_scene_index);
+                    let presentation_json = serde_json::to_value(presentation)
+                        .map_err(AppError::Serialization)?;
+                    let speaker = speaker_projection(line);
                     Ok(GalgamePersistLine {
                         line_index: to_i32(line_offset + 1, "branch line_index")?,
                         line_type: line.line_type.clone(),
                         speaker_profile_id: line.speaker_profile_id,
                         text: line.text.clone(),
-                        expression: speaker_projection(line).map(|cast| cast.expression.clone()),
-                        pose: speaker_projection(line).map(|cast| cast.pose.clone()),
-                        position: speaker_projection(line)
-                            .map(|cast| stage_position(cast.position)),
+                        expression: speaker.map(|cast| cast.expression.clone()),
+                        pose: speaker.map(|cast| cast.pose.clone()),
+                        position: speaker.map(|cast| cast.position.to_string()),
                         presentation_json,
                         text_anchor_id,
                         choices: Vec::new(),
@@ -197,7 +200,7 @@ pub(super) fn choice_line_and_branch_scenes(
             expression: None,
             pose: None,
             position: None,
-            presentation_json: empty_choice_presentation(&choice.after_beat_ref),
+            presentation_json: choice_presentation_json(&choice.after_beat_ref)?,
             text_anchor_id: None,
             choices,
         },
@@ -205,16 +208,17 @@ pub(super) fn choice_line_and_branch_scenes(
     ))
 }
 
-fn empty_choice_presentation(beat_ref: &GalgamePipelineBeatRefV3) -> Value {
-    json!({
-        "schema_version": "galgame_line_presentation_v2",
-        "visible_cast": [],
-        "enter": [],
-        "exit": [],
-        "focus_character_profile_id": null,
-        "hold": true,
-        "player_knowledge": [],
-        "branch": true,
-        "after_beat_ref": beat_ref,
-    })
+fn choice_presentation_json(beat_ref: &GalgamePipelineBeatRefV3) -> Result<Value, AppError> {
+    let mut presentation = GalgameLinePresentationDocumentV2::from(GalgameLinePresentationV2 {
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
+        visible_cast: Vec::new(),
+        enter: Vec::new(),
+        exit: Vec::new(),
+        focus_character_profile_id: None,
+        hold: true,
+        player_knowledge: Vec::new(),
+    });
+    presentation.branch = Some(true);
+    presentation.after_beat_ref = Some(*beat_ref);
+    serde_json::to_value(presentation).map_err(AppError::Serialization)
 }

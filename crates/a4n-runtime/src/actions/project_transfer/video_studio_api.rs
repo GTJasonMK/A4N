@@ -1,7 +1,7 @@
 use super::{
     contracts::{
         ExportProjectPackageData, ExportVideoStudioProjectDataInput,
-        ImportVideoStudioProjectUploadInput,
+        ImportProjectPackageUploadInput, VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
     },
     package_files::{
         decode_uploaded_project_file, export_package_data, validate_uploaded_project_file_name,
@@ -21,7 +21,7 @@ pub async fn export_video_studio_project_data(
 ) -> Result<ExportProjectPackageData, String> {
     let host_port = RuntimeVideoStudioProjectTransferHostPort::new(state);
     let exported = state
-        .video_studio_transfer()
+        .orchestrator()
         .export_video_studio_project_validated(
             ExportVideoStudioProjectApplicationInput {
                 user_id,
@@ -34,19 +34,24 @@ pub async fn export_video_studio_project_data(
     Ok(export_package_data(
         &exported.project,
         exported.package_bytes,
+        VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
     ))
 }
 
 pub async fn import_video_studio_project_upload(
     state: &AppState,
     user_id: i64,
-    input: ImportVideoStudioProjectUploadInput,
+    input: ImportProjectPackageUploadInput,
 ) -> Result<novel_project::Model, String> {
-    validate_uploaded_project_file_name(&input.file_name, "zip", "视频画布项目包")?;
+    validate_uploaded_project_file_name(
+        &input.file_name,
+        VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+        "视频画布项目包",
+    )?;
     let bytes = decode_uploaded_project_file(&input.data_base64, "视频画布项目包")?;
     let mut host_port = RuntimeVideoStudioProjectTransferHostPort::new(state);
     state
-        .video_studio_transfer()
+        .orchestrator()
         .import_video_studio_project_validated(
             ImportVideoStudioProjectApplicationInput {
                 user_id,

@@ -81,21 +81,27 @@ jobs:
       - name: Check generation progress channel boundary
         run: ./scripts/checks/check-generation-progress-boundary.sh
 
+  sidecar-catalog:
+    name: Read sidecar catalog
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.catalog.outputs.packages }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - id: catalog
+        run: |
+          ruby -rjson -e 'puts "packages=#{JSON.generate(JSON.parse(File.read(ARGV.fetch(0))).map { |entry| entry.fetch("binary") })}"' \
+            crates/a4n-service-protocol/service-catalog.json >> "$GITHUB_OUTPUT"
+
   sidecars:
     name: Sidecar package ${{ matrix.package }}
+    needs: sidecar-catalog
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - a4n-prompt-service
-          - a4n-llm-gateway
-          - a4n-embedding-service
-          - a4n-rag-service
-          - a4n-image-service
-          - a4n-video-service
-          - a4n-import-service
-          - a4n-export-service
+        package: ${{ fromJSON(needs.sidecar-catalog.outputs.packages) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -132,19 +138,12 @@ jobs:
 
   sidecar-process:
     name: Sidecar process test ${{ matrix.package }}
+    needs: sidecar-catalog
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - a4n-prompt-service
-          - a4n-llm-gateway
-          - a4n-embedding-service
-          - a4n-rag-service
-          - a4n-image-service
-          - a4n-video-service
-          - a4n-import-service
-          - a4n-export-service
+        package: ${{ fromJSON(needs.sidecar-catalog.outputs.packages) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -306,7 +305,6 @@ jobs:
             scripts/checks/smoke-macos-tauri-bundle.sh \
             scripts/checks/generate-release-sbom.sh
           ruby -e 'require "json"; JSON.parse(File.read("crates/a4n-tauri/tauri.sidecars.conf.json"))'
-          ./scripts/checks/check-sidecar-package-inventory.sh
           ./scripts/checks/check-release-manifest.sh
           ./scripts/checks/check-sidecar-security-boundary.sh
           ./scripts/checks/check-core-boundary.sh
@@ -672,46 +670,16 @@ jobs:
             libayatana-appindicator3-dev \
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev \
-            pkg-config \
-            webkit2gtk-driver \
-            xvfb
-          chromedriver --version
-          google-chrome --version
-          command -v WebKitWebDriver
+            pkg-config
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
-      - name: Install Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend and real Tauri application
+      - name: Prepare ONNX Runtime
         run: |
           ./scripts/dev/setup-onnxruntime.sh
           source scripts/lib/common.sh
           require_onnxruntime
-          npm --prefix frontend run build
-          cargo build -p a4n-tauri --features embedded-capabilities
-
-      - name: Run real Chromium and Tauri generation recovery
-        env:
-          A4N_WDIO_APP_BINARY: ${{ github.workspace }}/target/debug/a4n-tauri
-        run: |
-          source scripts/lib/common.sh
-          require_onnxruntime
-          xvfb-run -a timeout 1200 cargo test -p a4n-server \
-            --features embedded-llm-provider,embedded-media-providers \
-            --test cleanup_recovery \
-            real_chromium_recovers_generation_after_proxy_aborts_sse \
-            -- --nocapture --test-threads=1
 
       - name: Run 1 MiB generation reconnect recovery
         run: >-

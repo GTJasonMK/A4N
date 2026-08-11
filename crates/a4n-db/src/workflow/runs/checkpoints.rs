@@ -8,17 +8,26 @@ pub async fn upsert_workflow_checkpoint(
     db: &DatabaseConnection,
     input: UpsertWorkflowCheckpointInput,
 ) -> Result<workflow_checkpoint::Model, WorkflowWriteError> {
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let checkpoint = upsert_workflow_checkpoint_in_transaction(&tx, input).await?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(checkpoint)
+}
+
+pub async fn upsert_workflow_checkpoint_in_transaction(
+    tx: &sea_orm::DatabaseTransaction,
+    input: UpsertWorkflowCheckpointInput,
+) -> Result<workflow_checkpoint::Model, WorkflowWriteError> {
     validate_positive_i64(input.workflow_run_id, "workflow_run_id")?;
     let step_key = required_text(input.step_key, "step_key")?;
     let status = required_text(input.status, "status")?;
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
-    let run = locked_workflow_run_by_id(&tx, input.workflow_run_id).await?;
+    let run = locked_workflow_run_by_id(tx, input.workflow_run_id).await?;
     ensure_workflow_write_open(&run.status, "写入工作流 checkpoint")?;
     let now = Utc::now().naive_utc();
     let existing = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(input.workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(step_key.as_str()))
-        .one(&tx)
+        .one(tx)
         .await
         .map_err(WorkflowWriteError::Database)?;
 
@@ -36,10 +45,9 @@ pub async fn upsert_workflow_checkpoint(
         active.updated_at = Set(now);
         active.completed_at = Set(input.completed.then_some(now));
         let updated = active
-            .update(&tx)
+            .update(tx)
             .await
             .map_err(WorkflowWriteError::Database)?;
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
         return Ok(updated);
     }
 
@@ -59,10 +67,9 @@ pub async fn upsert_workflow_checkpoint(
         updated_at: Set(now),
         completed_at: Set(input.completed.then_some(now)),
     }
-    .insert(&tx)
+    .insert(tx)
     .await
     .map_err(WorkflowWriteError::Database)?;
-    tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(inserted)
 }
 
@@ -223,6 +230,19 @@ pub async fn workflow_checkpoint_model_by_step(
     workflow_run_id: i64,
     step_key: &str,
 ) -> Result<Option<workflow_checkpoint::Model>, WorkflowReadError> {
+    workflow_checkpoint_model_by_step_in(db, workflow_run_id, step_key).await
+}
+
+pub async fn workflow_checkpoint_model_by_step_in<C>(
+    db: &C,
+    workflow_run_id: i64,
+    step_key: &str,
+) -> Result<Option<workflow_checkpoint::Model>, WorkflowReadError>
+where
+    C: ConnectionTrait,
+{
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    let step_key = required_text(step_key.to_string(), "step_key")?;
     workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(step_key))

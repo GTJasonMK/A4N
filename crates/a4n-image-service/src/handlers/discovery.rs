@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_image_providers::{image_provider_request_body_preview, pick_image_provider};
+use a4n_image_providers::image_provider_request_body_preview;
 use a4n_model_discovery::{
     ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
 };
@@ -7,16 +7,14 @@ use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 use serde_json::{Value, json};
 
-use crate::contracts::{ImageProviderPayload, ProviderProbeOutput};
-use crate::protocol::{
-    error_response, result_response, validate_image_request, validate_model_discovery_request,
-};
+use crate::contracts::ImageProviderPayload;
+use crate::protocol::{result_response, validate_image_request, validate_model_discovery_request};
 
 pub(crate) async fn request_preview(
     Json(request): Json<ServiceRequest<ImageProviderPayload>>,
 ) -> Json<ServiceResponse<Value>> {
     if let Err(error) = validate_image_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     Json(result_response(
         &request,
@@ -24,32 +22,11 @@ pub(crate) async fn request_preview(
     ))
 }
 
-pub(crate) async fn probe(
-    Json(request): Json<ServiceRequest<ImageProviderPayload>>,
-) -> Json<ServiceResponse<ProviderProbeOutput>> {
-    if let Err(error) = validate_image_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    let result = async {
-        let _provider = pick_image_provider(
-            &request.payload.backend,
-            &request.payload.base_url,
-            &request.payload.api_key,
-        )?;
-        Ok(ProviderProbeOutput {
-            ok: true,
-            request_preview: image_request_preview(&request.payload)?,
-        })
-    }
-    .await;
-    Json(result_response(&request, result))
-}
-
 pub(crate) async fn discover_models(
     Json(request): Json<ServiceRequest<ModelDiscoveryRequest>>,
 ) -> Json<ServiceResponse<ModelDiscoveryResult>> {
     if let Err(error) = validate_model_discovery_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = discover_models_from_request(request.payload.clone())
         .await

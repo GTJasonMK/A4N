@@ -3,19 +3,20 @@ use a4n_core::error::AppError;
 use crate::AppState;
 
 use super::contracts::{
-    BlueprintDiffSummary, BlueprintSummary, BlueprintVersionSummary, DiffBlueprintVersionsInput,
-    RestoreBlueprintVersionInput,
+    BlueprintDiffSummary, BlueprintMutationResult, BlueprintVersionSummary,
+    DiffBlueprintVersionsInput, ListBlueprintVersionsInput, RestoreBlueprintVersionInput,
 };
-use super::projections::{blueprint_summary, blueprint_version_summary};
+use super::manual::blueprint_material_sync_warnings;
+use super::projections::blueprint_version_summary;
 
 pub async fn list_blueprint_versions(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
+    input: ListBlueprintVersionsInput,
 ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
     let versions = state
-        .project_blueprint()
-        .blueprint_versions_for_user_validated(user_id, project_id)
+        .orchestrator()
+        .blueprint_versions_for_user_validated(user_id, input.project_id)
         .await?;
     Ok(versions.iter().map(blueprint_version_summary).collect())
 }
@@ -26,7 +27,7 @@ pub async fn diff_blueprint_versions(
     input: DiffBlueprintVersionsInput,
 ) -> Result<BlueprintDiffSummary, AppError> {
     let diff = state
-        .project_blueprint()
+        .orchestrator()
         .diff_blueprint_versions_for_user_validated(
             user_id,
             input.project_id,
@@ -34,22 +35,19 @@ pub async fn diff_blueprint_versions(
             &input.version_b,
         )
         .await?;
-    Ok(BlueprintDiffSummary {
-        version_a: input.version_a,
-        version_b: input.version_b,
-        diff,
-    })
+    Ok(BlueprintDiffSummary { diff })
 }
 
 pub async fn restore_blueprint_version(
     state: &AppState,
     user_id: i64,
     input: RestoreBlueprintVersionInput,
-) -> Result<BlueprintSummary, AppError> {
-    let result = state
-        .project_blueprint()
+) -> Result<BlueprintMutationResult, AppError> {
+    state
+        .orchestrator()
         .restore_blueprint_version_for_user_validated(user_id, input.project_id, &input.version)
         .await?;
-
-    Ok(blueprint_summary(&result.blueprint))
+    Ok(BlueprintMutationResult {
+        warnings: blueprint_material_sync_warnings(state, input.project_id).await,
+    })
 }

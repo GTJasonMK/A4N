@@ -8,6 +8,7 @@ pub mod canvas;
 pub mod collaboration;
 pub mod galgame;
 pub mod image;
+pub mod import_review;
 pub mod llm;
 pub mod manga;
 pub mod model_discovery;
@@ -24,7 +25,7 @@ pub use model_discovery::{DiscoveredModel, ModelDiscoveryResult};
 
 pub const EXTERNAL_IMPORT_MODEL: &str = "external-import";
 
-use std::{fmt, str::FromStr};
+use std::{collections::BTreeMap, fmt, str::FromStr};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -35,6 +36,8 @@ pub enum ThemeMode {
     Light,
     Dark,
 }
+
+pub type ThemeCssVariables = BTreeMap<String, String>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]

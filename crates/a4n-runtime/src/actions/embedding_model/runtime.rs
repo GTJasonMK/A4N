@@ -1,9 +1,6 @@
 use super::{
     contracts::{LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput},
-    provider::{
-        cached_local_embedding_provider, fastembed_cache_dir_from_config,
-        fastembed_identity_from_config,
-    },
+    provider::{cached_local_embedding_provider, fastembed_cache_dir_from_config},
 };
 use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
@@ -39,7 +36,7 @@ impl LocalEmbeddingProviderRuntime {
     pub async fn test_embedding_config(
         &self,
         input: &LocalEmbeddingConfigInput,
-    ) -> Result<bool, AppError> {
+    ) -> Result<(), AppError> {
         let provider = cached_local_embedding_provider(self, input).await?;
         provider.test_connection().await
     }
@@ -48,20 +45,13 @@ impl LocalEmbeddingProviderRuntime {
         &self,
         input: LocalEmbedTextsInput,
     ) -> Result<LocalEmbedTextsOutput, AppError> {
-        let identity = fastembed_identity_from_config(self, &input.config)?;
+        let provider = cached_local_embedding_provider(self, &input.config).await?;
+        let (embeddings, identity) = provider.embed_with_identity(input.texts).await?;
         let identity = a4n_api_contract::embedding::EmbeddingModelIdentity {
             backend: identity.backend,
             model: identity.model,
             dimension: identity.dimension,
         };
-        if input.texts.is_empty() {
-            return Ok(LocalEmbedTextsOutput {
-                identity,
-                embeddings: Vec::new(),
-            });
-        }
-        let provider = cached_local_embedding_provider(self, &input.config).await?;
-        let embeddings = provider.embed(input.texts).await?;
         Ok(LocalEmbedTextsOutput {
             identity,
             embeddings,

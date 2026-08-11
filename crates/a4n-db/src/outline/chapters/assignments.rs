@@ -28,9 +28,10 @@ where
         if outline.part_id == expected_part_id {
             continue;
         }
+        let updated_at = std::cmp::max(now, outline.updated_at + chrono::Duration::microseconds(1));
         let mut active: chapter_outline::ActiveModel = outline.into();
         active.part_id = Set(expected_part_id);
-        active.updated_at = Set(now);
+        active.updated_at = Set(updated_at);
         active.update(db).await?;
     }
 

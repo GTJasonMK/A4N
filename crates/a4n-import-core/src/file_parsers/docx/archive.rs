@@ -1,14 +1,12 @@
-use std::collections::HashMap;
-
 use crate::ImportTransformError;
 use zip::result::ZipError;
 
-use super::super::shared::extract_document_metadata;
+use super::super::shared::extract_document_title;
 use super::document::extract_docx_document_text;
 
 pub(super) struct DocxArchiveContent {
     pub text_content: String,
-    pub metadata: HashMap<String, String>,
+    pub title: Option<String>,
 }
 
 pub(super) fn read_docx_archive(data: &[u8]) -> Result<DocxArchiveContent, ImportTransformError> {
@@ -27,7 +25,7 @@ pub(super) fn read_docx_archive(data: &[u8]) -> Result<DocxArchiveContent, Impor
     drop(doc_file);
 
     let text_content = extract_docx_document_text(&xml_content);
-    let mut metadata = HashMap::new();
+    let mut title = None;
 
     match archive.by_name("docProps/core.xml") {
         Ok(mut meta_file) => {
@@ -35,7 +33,7 @@ pub(super) fn read_docx_archive(data: &[u8]) -> Result<DocxArchiveContent, Impor
             std::io::Read::read_to_string(&mut meta_file, &mut xml).map_err(|e| {
                 ImportTransformError::InvalidDocument(format!("无法读取 DOCX 元数据: {e}"))
             })?;
-            metadata.extend(extract_document_metadata(&xml));
+            title = extract_document_title(&xml);
         }
         Err(ZipError::FileNotFound) => {}
         Err(e) => {
@@ -47,6 +45,6 @@ pub(super) fn read_docx_archive(data: &[u8]) -> Result<DocxArchiveContent, Impor
 
     Ok(DocxArchiveContent {
         text_content,
-        metadata,
+        title,
     })
 }

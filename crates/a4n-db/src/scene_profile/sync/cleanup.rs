@@ -12,6 +12,7 @@ pub async fn delete_chapter_scene_sync_records<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
+    prune_ai_orphans: bool,
 ) -> SceneProfileDbResult<bool>
 where
     C: ConnectionTrait,
@@ -39,6 +40,12 @@ where
     }
 
     delete_chapter_scene_records(db, project_id, chapter_id).await?;
-    refresh_scene_profiles_after_occurrence_change(db, project_id, &old_scene_ids).await?;
+    refresh_scene_profiles_after_occurrence_change(
+        db,
+        project_id,
+        &old_scene_ids,
+        prune_ai_orphans,
+    )
+    .await?;
     Ok(true)
 }

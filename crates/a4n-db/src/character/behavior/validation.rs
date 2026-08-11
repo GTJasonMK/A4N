@@ -1,5 +1,5 @@
 use super::contracts::InsertBehaviorRecordInput;
-use crate::character::CharacterDbError;
+use crate::character::{CharacterDbError, validate_timeline_source_kind};
 use serde_json::Value;
 
 pub fn validate_behavior_classification_results(
@@ -36,6 +36,7 @@ pub(super) fn validate_behavior_record_input(
             "行为记录章节号必须大于 0".to_string(),
         ));
     }
+    let source_kind = validate_timeline_source_kind(&input.source_kind)?;
     let behavior_type = input.behavior_type.trim().to_string();
     let behavior_description = input.behavior_description.trim().to_string();
     let original_text = input.original_text.trim().to_string();
@@ -71,6 +72,7 @@ pub(super) fn validate_behavior_record_input(
     Ok(InsertBehaviorRecordInput {
         profile_id: input.profile_id,
         chapter_number: input.chapter_number,
+        source_kind,
         behavior_type,
         behavior_description,
         original_text,

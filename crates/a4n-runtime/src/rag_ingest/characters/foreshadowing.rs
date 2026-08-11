@@ -13,7 +13,7 @@ pub(crate) async fn ingest_foreshadowing_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let items = state
-        .rag()
+        .orchestrator()
         .foreshadowing_items_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;

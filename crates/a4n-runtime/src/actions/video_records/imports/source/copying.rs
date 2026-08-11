@@ -3,10 +3,9 @@ use super::super::prelude::{
     remove_created_file_on_error_sync,
 };
 use super::delete_video_record_error;
-use crate::state::VideoRuntimeFacade;
 
 pub(in crate::actions::video_records::imports) async fn persist_imported_video_file<F>(
-    video: &VideoRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
     data_dir: &Path,
     record_id: i64,
     source: &Path,

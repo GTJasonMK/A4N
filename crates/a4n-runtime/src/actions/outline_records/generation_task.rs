@@ -10,7 +10,7 @@ pub async fn start_outline_generation_typed(
     input: StartOutlineGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .outline()
+        .orchestrator()
         .start_outline_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -21,7 +21,7 @@ pub async fn start_outline_generation_typed(
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
         if let Err(error) = worker_state
-            .outline()
+            .orchestrator()
             .run_outline_generation_task(input, handle.clone())
             .await
         {

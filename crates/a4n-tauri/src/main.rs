@@ -6,7 +6,6 @@ mod commands;
 mod environment;
 mod logging;
 mod media_protocol;
-mod progress_task;
 mod setup;
 mod window;
 

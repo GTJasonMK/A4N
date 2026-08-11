@@ -33,7 +33,7 @@ pub async fn embed_and_store_rag_record_in_store(
         id: chunk_id,
         embedding: vector.clone(),
         metadata: normalize_metadata(project_id, &text, metadata, &embedding_identity)?,
-        content: Some(text),
+        content: text,
     };
     store_rag_embedding_records(vector_store, project_id, vec![record]).await?;
     Ok(vector)
@@ -75,7 +75,7 @@ pub async fn embed_and_store_rag_records_in_store(
                 id,
                 embedding,
                 metadata: normalize_metadata(project_id, &text, metadata, &embedding_identity)?,
-                content: Some(text),
+                content: text,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

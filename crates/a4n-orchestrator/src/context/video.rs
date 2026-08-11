@@ -18,7 +18,7 @@ use a4n_db::video::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
     UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
 };
-use a4n_db::video_prompt::{UpdateChapterVideoPromptInput, VideoPromptDownstreamDependencies};
+use a4n_db::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -489,7 +489,7 @@ impl VideoApplication {
     pub(super) async fn update_chapter_video_prompt_with_policy(
         &self,
         prompt_id: i64,
-        input: UpdateChapterVideoPromptInput,
+        input: ChapterVideoPromptPatch,
         allow_downstream: bool,
     ) -> Result<chapter_video_prompt::Model, AppError> {
         a4n_db::video_prompt::update_chapter_video_prompt_with_policy(
@@ -519,7 +519,7 @@ impl VideoApplication {
     pub(super) async fn update_chapter_video_prompt_with_generation_run_checkpoint(
         &self,
         prompt_id: i64,
-        input: UpdateChapterVideoPromptInput,
+        input: ChapterVideoPromptPatch,
         metadata_json: Option<Value>,
         allow_downstream: bool,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
@@ -1419,7 +1419,7 @@ impl OrchestratorContext {
     pub async fn update_chapter_video_prompt_with_policy(
         &self,
         prompt_id: i64,
-        input: UpdateChapterVideoPromptInput,
+        input: ChapterVideoPromptPatch,
         allow_downstream: bool,
     ) -> Result<chapter_video_prompt::Model, AppError> {
         self.video
@@ -1440,7 +1440,7 @@ impl OrchestratorContext {
     pub async fn update_chapter_video_prompt_with_generation_run_checkpoint(
         &self,
         prompt_id: i64,
-        input: UpdateChapterVideoPromptInput,
+        input: ChapterVideoPromptPatch,
         metadata_json: Option<Value>,
         allow_downstream: bool,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,

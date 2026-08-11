@@ -1,4 +1,4 @@
-use crate::{AppState, prompt_renderer::RuntimePromptRenderer};
+use crate::AppState;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_api_contract::optimize::StartOptimizeChatGenerationInput;
 use a4n_orchestrator::GenerationTaskAccessError;
@@ -19,7 +19,7 @@ pub async fn start_optimize_chat_generation_typed(
     input: StartOptimizeChatGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize()
+        .orchestrator()
         .start_optimize_chat_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -29,12 +29,12 @@ pub async fn start_optimize_chat_generation_typed(
     let worker_state = state.clone();
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         if let Err(error) = worker_state
-            .optimize()
+            .orchestrator()
             .run_optimize_chat_generation_task(
                 a4n_orchestrator::optimize::OptimizeChatGenerationApplicationContext {
-                    prompt_renderer: &prompt_renderer,
+                    prompt_renderer: prompt_renderer,
                 },
                 user_id,
                 input,
@@ -61,7 +61,7 @@ pub async fn create_optimization_chat_session(
     let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_agent_variables(permissions.as_ref());
     let session = state
-        .optimize()
+        .orchestrator()
         .create_optimize_chat_session_for_user_validated(
             user_id,
             input.project_id,

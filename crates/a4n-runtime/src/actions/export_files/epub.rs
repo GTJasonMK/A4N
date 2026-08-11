@@ -14,7 +14,7 @@ pub async fn export_epub_data(
 ) -> Result<ExportFileData, String> {
     export_epub_task_scope(state, user_id, project_id).await?;
     state
-        .export()
+        .orchestrator()
         .run_export_epub_validated(project_id, &title, &author, progress)
         .await
         .map_err(|error| error.to_string())

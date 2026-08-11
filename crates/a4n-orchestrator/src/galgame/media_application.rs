@@ -23,7 +23,7 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PersistedGalgameAudioFile {
+struct PersistedGalgameAudioFile {
     pub relative_path: String,
     pub file_size: i64,
     pub duration_secs: f32,
@@ -214,8 +214,8 @@ fn persist_galgame_audio_file(
     output_file
         .write_all(bytes)
         .map_err(|err| format!("写入 Galgame 音频文件失败：{err}"))?;
-    let metadata =
-        std::fs::metadata(&path).map_err(|err| format!("无法读取 Galgame 音频文件元数据：{err}"))?;
+    let metadata = std::fs::metadata(&path)
+        .map_err(|err| format!("无法读取 Galgame 音频文件元数据：{err}"))?;
     let file_size = i64::try_from(metadata.len())
         .map_err(|_| "Galgame 音频文件过大，无法记录文件大小".to_string())?;
     let relative_path = data_dir_relative_path(data_dir, &path)?;

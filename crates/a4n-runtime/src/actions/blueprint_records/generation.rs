@@ -7,7 +7,6 @@ use a4n_orchestrator::GenerationTaskAccessError;
 use crate::AppState;
 use crate::actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state};
 use crate::actions::template_variables::parse_template_variables_app_error as parse_template_variables;
-use crate::prompt_renderer::RuntimePromptRenderer;
 
 use super::contracts::{BlueprintSummary, PreviewBlueprintGenerationInput};
 use super::projections::blueprint_summary;
@@ -18,7 +17,7 @@ pub async fn start_blueprint_generation_typed(
     input: StartBlueprintGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .project_blueprint()
+        .orchestrator()
         .start_blueprint_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -28,12 +27,12 @@ pub async fn start_blueprint_generation_typed(
     let worker_state = state.clone();
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         if let Err(error) = worker_state
-            .project_blueprint()
+            .orchestrator()
             .run_blueprint_generation_task(
                 a4n_orchestrator::blueprint::BlueprintGenerationApplicationContext {
-                    prompt_renderer: &prompt_renderer,
+                    prompt_renderer: prompt_renderer,
                 },
                 user_id,
                 input,
@@ -58,10 +57,10 @@ pub async fn get_blueprint(
     project_id: i64,
 ) -> Result<Option<BlueprintSummary>, AppError> {
     Ok(state
-        .project_blueprint()
+        .orchestrator()
         .novel_blueprint_for_user_validated(user_id, project_id)
         .await?
-        .map(|blueprint| blueprint_summary(&blueprint)))
+        .map(|(blueprint, needs_review)| blueprint_summary(&blueprint, needs_review)))
 }
 
 pub async fn preview_generate_blueprint_request(
@@ -70,16 +69,16 @@ pub async fn preview_generate_blueprint_request(
     input: PreviewBlueprintGenerationInput,
 ) -> Result<ModelRequestPreview, AppError> {
     let variables = parse_template_variables(&input.variables)?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let stages = state
-        .project_blueprint()
+        .orchestrator()
         .preview_blueprint_generation_requests_for_user_validated(
             user_id,
             input.project_id,
             &input.title,
             &input.genre,
             input.target_length,
-            &prompt_renderer,
+            prompt_renderer,
             &variables,
         )
         .await?;

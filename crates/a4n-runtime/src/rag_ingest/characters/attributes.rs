@@ -15,7 +15,7 @@ pub(crate) async fn ingest_character_attribute_events_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let profiles = state
-        .rag()
+        .orchestrator()
         .protagonist_profiles_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -42,7 +42,7 @@ pub(crate) async fn ingest_character_attribute_events_inner(
         .collect::<HashMap<_, _>>();
 
     let events = state
-        .rag()
+        .orchestrator()
         .attribute_events_for_rag_ingest(&profile_ids)
         .await
         .map_err(|e| e.to_string())?;

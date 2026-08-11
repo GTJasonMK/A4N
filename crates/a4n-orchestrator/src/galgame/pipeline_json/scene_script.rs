@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
-use a4n_core::{error::AppError, shooting_script::ShootingCoverageV1};
+use a4n_core::error::AppError;
+use a4n_domain::shooting_script::ShootingCoverageV1;
 use serde_json::Value;
 
 use super::contracts::*;

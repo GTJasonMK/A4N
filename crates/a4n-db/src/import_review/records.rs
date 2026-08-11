@@ -1,12 +1,12 @@
 use super::contracts::{
-    IMPORT_REVIEW_STATUS_PENDING, ImportReviewCreateInput, ImportReviewMutationError,
-    normalize_import_review_status,
+    ImportReviewCreateInput, ImportReviewMutationError, ensure_pending_import_review,
 };
 use a4n_core::models::{chapter::chapter, project::import_review_queue};
+use a4n_domain::import_review::ImportReviewStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set,
+    QuerySelect, Set, TransactionTrait,
 };
 
 pub async fn import_reviews_by_project<C>(
@@ -40,8 +40,9 @@ pub async fn create_import_reviews<C>(
     inputs: Vec<ImportReviewCreateInput>,
 ) -> Result<Vec<import_review_queue::Model>, DbErr>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
+    let tx = db.begin().await?;
     let now = Utc::now().naive_utc();
     let mut reviews = Vec::with_capacity(inputs.len());
     for input in inputs {
@@ -49,56 +50,40 @@ where
             import_review_queue::ActiveModel {
                 project_id: Set(input.project_id),
                 filename: Set(input.filename),
-                file_type: Set(input.file_type),
-                detected_encoding: Set(input.detected_encoding),
-                parsed_chapters: Set(input.parsed_chapters),
-                dedup_paragraphs: Set(input.dedup_paragraphs),
-                dedup_rate: Set(input.dedup_rate),
-                analysis_result: Set(Some(input.analysis_result)),
-                review_status: Set(IMPORT_REVIEW_STATUS_PENDING.to_string()),
+                analysis_result: Set(input.analysis_result),
+                review_status: Set(ImportReviewStatus::Pending.as_str().to_string()),
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()
             }
-            .insert(db)
+            .insert(&tx)
             .await?,
         );
     }
+    tx.commit().await?;
     Ok(reviews)
 }
 
-pub async fn delete_pending_import_reviews_by_project<C>(
-    db: &C,
-    project_id: i64,
-) -> Result<u64, DbErr>
-where
-    C: ConnectionTrait,
-{
-    let result = import_review_queue::Entity::delete_many()
-        .filter(import_review_queue::Column::ProjectId.eq(project_id))
-        .filter(import_review_queue::Column::ReviewStatus.eq(IMPORT_REVIEW_STATUS_PENDING))
-        .exec(db)
-        .await?;
-    Ok(result.rows_affected)
-}
-
-pub async fn update_import_review_status<C>(
+pub async fn reject_import_review<C>(
     db: &C,
     review_id: i64,
-    status: &str,
 ) -> Result<import_review_queue::Model, ImportReviewMutationError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
-    let status = normalize_import_review_status(status)?;
+    let tx = db.begin().await?;
     let review = import_review_queue::Entity::find_by_id(review_id)
-        .one(db)
+        .lock_exclusive()
+        .one(&tx)
         .await?
-        .ok_or_else(|| ImportReviewMutationError::NotFound("导入记录不存在".into()))?;
+        .ok_or_else(|| ImportReviewMutationError::NotFound("导入审核不存在".to_string()))?;
+    ensure_pending_import_review(&review, "拒绝导入审核")?;
     let mut active: import_review_queue::ActiveModel = review.into();
-    active.review_status = Set(status.to_string());
+    active.review_status = Set(ImportReviewStatus::Rejected.as_str().to_string());
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(Into::into)
+    let updated = active.update(&tx).await?;
+    tx.commit().await?;
+    Ok(updated)
 }
 
 pub async fn delete_import_review<C>(

@@ -8,7 +8,7 @@ pub(in crate::actions::canvas_workflow::media_import) async fn import_canvas_aud
     input: ImportCanvasMediaInput,
 ) -> Result<ImportedCanvasMedia, String> {
     let asset = state
-        .canvas()
+        .orchestrator()
         .import_canvas_audio_validated(CanvasAudioImportHostInput {
             user_id,
             project_id: input.project_id,

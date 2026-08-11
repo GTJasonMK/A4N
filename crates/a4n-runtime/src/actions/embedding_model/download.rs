@@ -2,8 +2,8 @@
 use super::models::{list_local_embedding_models, list_local_embedding_models_in_cache};
 use super::{
     DownloadProgress,
-    contracts::{EmbeddingModelExecution, EmbeddingModelInput, LocalEmbeddingModelSummary},
-    host_adapter::{downloaded_model_summary, embedding_model_execution, required_text},
+    contracts::{EmbeddingModelInput, LocalEmbeddingModelSummary},
+    host_adapter::{downloaded_model_summary, required_text},
 };
 use crate::AppState;
 use a4n_core::error::AppError;
@@ -21,12 +21,12 @@ pub async fn download_embedding_model(
     cancel_token: Option<CancellationToken>,
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
-    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
+    if state.runtime_profile().uses_sidecars() {
         let capabilities = state.capabilities().clone();
         let model_for_download = model.clone();
         let queue_cancel_token = cancel_token.clone().unwrap_or_default();
         let models = state
-            .task_queue()
+            .orchestrator()
             .queue_run_tracked_with_cancel(
                 QueueTaskKind::EmbeddingDownload,
                 TaskPriority::Low,
@@ -60,7 +60,7 @@ pub async fn download_embedding_model(
         let cache_dir_for_download = cache_dir.clone();
 
         let download_result = state
-            .task_queue()
+            .orchestrator()
             .queue_run_tracked_with_cancel(
                 QueueTaskKind::EmbeddingDownload,
                 TaskPriority::Low,
@@ -98,13 +98,7 @@ pub async fn download_embedding_model_to_cache(
     {
         let model = required_text(&input.model, "fastembed 模型名")?;
         download_fastembed_model(&model, cache_dir.clone(), progress_tx, cancel_token).await?;
-        list_local_embedding_models_in_cache(&cache_dir)?
-            .into_iter()
-            .find(|item| {
-                item.name.eq_ignore_ascii_case(&model)
-                    || item.model_code.eq_ignore_ascii_case(&model)
-            })
-            .ok_or_else(|| AppError::ConfigError(format!("下载完成但未能定位模型状态: {model}")))
+        downloaded_model_summary(list_local_embedding_models_in_cache(&cache_dir)?, &model)
     }
     #[cfg(not(feature = "local-embedding"))]
     {

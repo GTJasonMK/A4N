@@ -8,7 +8,8 @@ use sea_orm::{
 use std::collections::HashMap;
 
 use super::contracts::{
-    ChapterSourceSnapshot, ProjectOutlineRecordError, RetrospectiveChapterOutlineUpsertInput,
+    ChapterSourceSnapshot, ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
+    RetrospectiveChapterOutlineUpsertInput, RetrospectiveChapterOutlineUpsertOutcome,
     chapter_source_snapshot_matches, chapter_source_snapshot_targets,
 };
 
@@ -63,38 +64,45 @@ pub async fn upsert_retrospective_chapter_outline_checked(
     db: &DatabaseConnection,
     input: RetrospectiveChapterOutlineUpsertInput,
     source: ChapterSourceSnapshot,
-) -> Result<chapter_outline::Model, ProjectOutlineRecordError> {
+) -> Result<RetrospectiveChapterOutlineUpsertOutcome, ProjectOutlineRecordError> {
+    upsert_automatic_chapter_outline_checked(db, input, source, SOURCE_KIND_RETROSPECTIVE_ANALYSIS)
+        .await
+}
+
+pub(crate) async fn upsert_automatic_chapter_outline_checked(
+    db: &DatabaseConnection,
+    input: RetrospectiveChapterOutlineUpsertInput,
+    source: ChapterSourceSnapshot,
+    source_kind: &str,
+) -> Result<RetrospectiveChapterOutlineUpsertOutcome, ProjectOutlineRecordError> {
     if !chapter_source_snapshot_targets(&source, input.project_id, input.chapter_number) {
         return Err(ProjectOutlineRecordError::InvalidArgument(
             "回顾性章纲来源章节与写入目标不一致".to_string(),
         ));
     }
     let txn = db.begin().await?;
-    let project = crate::project::project_for_update(&txn, input.project_id)
+    let project = crate::project::project_by_id_for_update(&txn, input.project_id)
         .await?
         .ok_or_else(|| {
             ProjectOutlineRecordError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
-    if let Some(operation) = crate::project::blocked_project_write_operation(
-        &project.lifecycle_gate,
-        "保存回顾性章节大纲",
-    ) {
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
         return Err(ProjectOutlineRecordError::InvalidState {
             current: project.lifecycle_gate,
-            operation,
+            operation: "保存回顾性章节大纲".to_string(),
         });
     }
-    crate::project::lock_project_chapter_rows(&txn, input.project_id).await?;
     lock_and_validate_chapter_source(&txn, &source).await?;
-    let result = upsert_retrospective_chapter_outline_in(&txn, input).await?;
+    let result = upsert_automatic_chapter_outline_in(&txn, input, source_kind).await?;
     txn.commit().await?;
     Ok(result)
 }
 
-async fn upsert_retrospective_chapter_outline_in<C>(
+async fn upsert_automatic_chapter_outline_in<C>(
     db: &C,
     input: RetrospectiveChapterOutlineUpsertInput,
-) -> Result<chapter_outline::Model, ProjectOutlineRecordError>
+    source_kind: &str,
+) -> Result<RetrospectiveChapterOutlineUpsertOutcome, ProjectOutlineRecordError>
 where
     C: ConnectionTrait,
 {
@@ -129,7 +137,7 @@ where
 
         chapter_outline_provenance::ActiveModel {
             outline_id: Set(inserted.id),
-            source_kind: Set(SOURCE_KIND_RETROSPECTIVE_ANALYSIS.to_string()),
+            source_kind: Set(source_kind.to_string()),
             source_fingerprint_json: Set(input.source_fingerprint_json),
             created_at: Set(now),
             updated_at: Set(now),
@@ -139,7 +147,10 @@ where
 
         link_chapter_to_outline_if_needed(db, input.project_id, input.chapter_number, inserted.id)
             .await?;
-        return Ok(inserted);
+        return Ok(RetrospectiveChapterOutlineUpsertOutcome {
+            outline: inserted,
+            action: RetrospectiveChapterOutlineAction::Created,
+        });
     };
 
     // 即使章纲由用户拥有，也允许在写入边界修复历史上的脏软关联；
@@ -150,15 +161,28 @@ where
         .one(db)
         .await?;
     let Some(provenance) = provenance else {
-        return Ok(existing);
+        return Ok(RetrospectiveChapterOutlineUpsertOutcome {
+            outline: existing,
+            action: RetrospectiveChapterOutlineAction::Preserved,
+        });
     };
-    if provenance.source_kind != SOURCE_KIND_RETROSPECTIVE_ANALYSIS
-        || provenance.source_fingerprint_json == input.source_fingerprint_json
-    {
-        return Ok(existing);
+    if provenance.source_kind != source_kind {
+        return Ok(RetrospectiveChapterOutlineUpsertOutcome {
+            outline: existing,
+            action: RetrospectiveChapterOutlineAction::Preserved,
+        });
+    }
+    if provenance.source_fingerprint_json == input.source_fingerprint_json {
+        return Ok(RetrospectiveChapterOutlineUpsertOutcome {
+            outline: existing,
+            action: RetrospectiveChapterOutlineAction::Unchanged,
+        });
     }
 
-    let now = Utc::now().naive_utc();
+    let now = std::cmp::max(
+        Utc::now().naive_utc(),
+        existing.updated_at + chrono::Duration::microseconds(1),
+    );
     let mut active: chapter_outline::ActiveModel = existing.into();
     // part_id 由用户/正式大纲流程管理，回顾性刷新不能丢失用户的分部归属。
     active.title = Set(Some(input.title));
@@ -179,7 +203,10 @@ where
     provenance_active.updated_at = Set(now);
     provenance_active.update(db).await?;
 
-    Ok(updated)
+    Ok(RetrospectiveChapterOutlineUpsertOutcome {
+        outline: updated,
+        action: RetrospectiveChapterOutlineAction::Updated,
+    })
 }
 
 fn chapter_source_query(
@@ -304,6 +331,53 @@ where
         .exec(db)
         .await
         .map(|_| ())
+}
+
+/// 正文变化时删除仍由分析拥有的旧章纲；用户接管后的章纲没有 provenance，始终保留。
+pub async fn delete_automatic_chapter_outlines_for_source_change<C>(
+    db: &C,
+    project_id: i64,
+    chapter_number: i32,
+) -> Result<Vec<i64>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let outlines = chapter_outline::Entity::find()
+        .filter(chapter_outline::Column::ProjectId.eq(project_id))
+        .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
+        .all(db)
+        .await?;
+    let mut automatic_ids = Vec::new();
+    for outline in outlines {
+        let source_kind = chapter_outline_provenance::Entity::find_by_id(outline.id)
+            .one(db)
+            .await?
+            .map(|provenance| provenance.source_kind);
+        if source_kind.as_deref().is_some_and(|source_kind| {
+            matches!(
+                source_kind,
+                SOURCE_KIND_RETROSPECTIVE_ANALYSIS | SOURCE_KIND_IMPORT_ANALYSIS
+            )
+        }) {
+            automatic_ids.push(outline.id);
+        }
+    }
+    if automatic_ids.is_empty() {
+        return Ok(automatic_ids);
+    }
+
+    chapter::Entity::update_many()
+        .col_expr(chapter::Column::OutlineId, Expr::value(Option::<i64>::None))
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .filter(chapter::Column::OutlineId.is_in(automatic_ids.clone()))
+        .exec(db)
+        .await?;
+    chapter_outline::Entity::delete_many()
+        .filter(chapter_outline::Column::Id.is_in(automatic_ids.clone()))
+        .exec(db)
+        .await?;
+    Ok(automatic_ids)
 }
 
 /// 在不覆盖有效用户关联的前提下，修复章节到章纲的软关联。

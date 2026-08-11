@@ -88,3 +88,19 @@ fn health_accepts_the_version_compatibility_extension() {
     serde_json::from_value::<ServiceHealth>(health)
         .expect("known compatibility extension should remain wire-compatible");
 }
+
+#[test]
+fn response_distinguishes_explicit_null_payload_from_missing_payload() {
+    let unit = serde_json::from_value::<ServiceResponse<()>>(serde_json::json!({
+        "status": "ok",
+        "payload": null
+    }))
+    .expect("unit payload should deserialize from explicit null");
+    assert_eq!(unit.payload, Some(()));
+
+    let missing = serde_json::from_value::<ServiceResponse<()>>(serde_json::json!({
+        "status": "ok"
+    }))
+    .expect("missing payload remains representable for contract validation");
+    assert_eq!(missing.payload, None);
+}

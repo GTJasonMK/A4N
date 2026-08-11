@@ -48,17 +48,19 @@ fn galgame_portrait_variant_key(
         .get("expression")
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|value| !value.is_empty());
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            ProjectFamilyImportError::invalid_package(
+                "Galgame 立绘差分 params_json 缺少 expression",
+            )
+        })?;
     let pose = object
         .get("pose")
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|value| !value.is_empty());
-    match (expression, pose) {
-        (Some(expression), None) => Ok(format!("expression:{expression}")),
-        (Some(expression), Some(pose)) => Ok(format!("expression:{expression}:pose:{pose}")),
-        (None, _) => Err(ProjectFamilyImportError::invalid_package(
-            "Galgame 立绘差分 params_json 缺少 expression",
-        )),
-    }
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            ProjectFamilyImportError::invalid_package("Galgame 立绘差分 params_json 缺少 pose")
+        })?;
+    Ok(format!("expression:{expression}:pose:{pose}"))
 }

@@ -5,11 +5,11 @@ pub(in crate::sidecar_clients) fn sidecar_url_for_service(name: &str) -> Result<
         .into_iter()
         .find(|spec| spec.name == name)
         .ok_or_else(|| format!("未知 sidecar service: {name}"))?;
-    sidecar_url_from_spec(spec)
+    sidecar_url_from_spec(&spec)
 }
 
 pub(in crate::sidecar_clients::service_manager) fn sidecar_url_from_spec(
-    spec: SidecarServiceSpec,
+    spec: &SidecarServiceSpec,
 ) -> Result<String, String> {
     if let Some(url) =
         parse_sidecar_url_env(spec.url_env.as_str(), optional_env_string(&spec.url_env)?)?
@@ -22,7 +22,7 @@ pub(in crate::sidecar_clients::service_manager) fn sidecar_url_from_spec(
         &spec.default_addr,
     )?;
     if addr == spec.default_addr {
-        Ok(spec.default_url)
+        Ok(spec.default_url.clone())
     } else {
         Ok(format!("http://{addr}"))
     }

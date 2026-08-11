@@ -1,5 +1,6 @@
-use super::pipeline::latest_galgame_pipeline_states_by_project;
+use super::GALGAME_PIPELINE_WORKFLOW_KIND;
 use super::status::galgame_project_progress_from_counts;
+use crate::project::progress::shared::latest_pipeline_states_by_project;
 use crate::project::progress::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_core::models::galgame::{galgame_line, galgame_scene, galgame_script};
 use sea_orm::{
@@ -66,7 +67,13 @@ pub(in crate::project::progress) async fn galgame_project_progress_by_project(
         }
     }
 
-    let pipeline_by_project_id = latest_galgame_pipeline_states_by_project(db, project_ids).await?;
+    let pipeline_by_project_id = latest_pipeline_states_by_project(
+        db,
+        project_ids,
+        GALGAME_PIPELINE_WORKFLOW_KIND,
+        "查询 Galgame 最近管线失败",
+    )
+    .await?;
     let mut progress = HashMap::with_capacity(project_ids.len());
     for project_id in project_ids {
         progress.insert(

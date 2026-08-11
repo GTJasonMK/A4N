@@ -1,6 +1,6 @@
 use crate::{
     AppState,
-    actions::{app_error_message, canvas_workflow, video_generation},
+    actions::{app_error_message, canvas_workflow, chapter_content, video_generation},
 };
 use a4n_orchestrator::workflow::{UnifiedResumeDispatch, plan_unified_resume};
 
@@ -14,7 +14,7 @@ pub async fn resume_workflow_run_for_user(
     input: ResumeWorkflowRunInput,
 ) -> Result<WorkflowRunSummary, String> {
     let run = state
-        .workflow()
+        .orchestrator()
         .workflow_run_model_by_id(input.workflow_run_id)
         .await
         .map_err(|err| err.to_string())?;
@@ -29,8 +29,8 @@ pub async fn resume_workflow_run_for_user(
     match dispatch {
         UnifiedResumeDispatch::VideoProviderJob { video_id } => {
             state
-                .workflow()
-                .mark_workflow_running(input.workflow_run_id)
+                .orchestrator()
+                .mark_workflow_running_validated(input.workflow_run_id)
                 .await
                 .map_err(app_error_message)?;
             video_generation::poll_video_job(state, user_id, video_id).await?;
@@ -46,6 +46,13 @@ pub async fn resume_workflow_run_for_user(
             crate::workflow::resume_chapter_analysis_workflow_run(state, user_id, &run).await?;
             workflow_run_summary(state, input.workflow_run_id).await
         }
+        UnifiedResumeDispatch::ChapterContentSync { chapter_id } => {
+            if run.chapter_id != Some(chapter_id) {
+                return Err("章节资料同步工作流 chapter_id 与作用域不一致".to_string());
+            }
+            chapter_content::resume_chapter_content_sync_workflow_run(state, &run).await?;
+            workflow_run_summary(state, input.workflow_run_id).await
+        }
     }
 }
 
@@ -54,7 +61,7 @@ async fn workflow_run_summary(
     workflow_run_id: i64,
 ) -> Result<WorkflowRunSummary, String> {
     state
-        .workflow()
+        .orchestrator()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)

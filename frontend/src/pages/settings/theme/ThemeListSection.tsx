@@ -27,7 +27,7 @@ interface ThemeListSectionProps {
   onActivate: (themeId: number) => void;
   onDelete: (themeId: number, name: string) => void;
   onExport: (themeId: number) => void;
-  onViewCss: (themeId: number) => void;
+  onViewCss: (theme: Theme) => void;
 }
 
 export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
@@ -108,7 +108,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
             onActivate={() => onActivate(theme.id)}
             onDelete={() => onDelete(theme.id, theme.name)}
             onExport={() => onExport(theme.id)}
-            onViewCss={() => onViewCss(theme.id)}
+            onViewCss={() => onViewCss(theme)}
           />
         ))}
       </ul>

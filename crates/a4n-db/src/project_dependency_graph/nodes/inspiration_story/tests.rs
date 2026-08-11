@@ -117,10 +117,6 @@ fn story_nodes_preserve_outline_fallback_word_count_and_analysis_count() {
         version: "1.0".to_string(),
         change_description: None,
         blueprint_data: json!({}),
-        world_setting_snapshot: None,
-        characters_snapshot: None,
-        relationships_snapshot: None,
-        synopsis_snapshot: None,
         created_at: now,
         created_by: None,
     }];

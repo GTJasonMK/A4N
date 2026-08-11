@@ -94,7 +94,7 @@ pub(super) fn chapter_analysis_stage_schema(stage: &str) -> Result<Value, AppErr
                     "required": ["planted", "resolved", "tensions"],
                     "properties": {
                         "planted": {"type": "array", "items": foreshadowing_item_schema()},
-                        "resolved": {"type": "array", "items": foreshadowing_item_schema()},
+                        "resolved": {"type": "array", "items": foreshadowing_resolution_schema()},
                         "tensions": string_array()
                     }
                 },
@@ -138,6 +138,17 @@ fn foreshadowing_item_schema() -> Value {
             "category": {"enum": ["character_secret", "plot_twist", "item_mystery", "world_rule"]},
             "priority": {"enum": ["high", "medium", "low"]},
             "related_entities": {"type": "array", "items": {"type": "string"}}
+        }
+    })
+}
+
+fn foreshadowing_resolution_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "resolution"],
+        "properties": {
+            "id": {"type": "string"},
+            "resolution": {"type": "string"}
         }
     })
 }

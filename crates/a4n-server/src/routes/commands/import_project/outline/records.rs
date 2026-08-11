@@ -1,9 +1,7 @@
 use crate::state::ServerState;
 use serde_json::Value;
 
-use super::super::super::{
-    ApiError, command_input, i64_arg, outline_records_actions, to_value, u64_arg,
-};
+use super::super::super::{ApiError, command_input, i64_arg, outline_records_actions, to_value};
 
 pub(in crate::routes::commands) async fn list_parts(
     state: &ServerState,
@@ -41,12 +39,9 @@ pub(in crate::routes::commands) async fn delete_latest_parts(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let count = u64_arg(args, "count")?;
-    to_value(
-        outline_records_actions::delete_latest_parts(state.runtime(), user_id, project_id, count)
-            .await?,
-    )
+    let input: outline_records_actions::DeleteLatestOutlineRecordsInput =
+        command_input(args, "delete_latest_parts")?;
+    to_value(outline_records_actions::delete_latest_parts(state.runtime(), user_id, input).await?)
 }
 
 pub(in crate::routes::commands) async fn get_generation_progress(
@@ -88,16 +83,11 @@ pub(in crate::routes::commands) async fn delete_latest_chapter_outlines(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let count = u64_arg(args, "count")?;
+    let input: outline_records_actions::DeleteLatestOutlineRecordsInput =
+        command_input(args, "delete_latest_chapter_outlines")?;
     to_value(
-        outline_records_actions::delete_latest_chapter_outlines(
-            state.runtime(),
-            user_id,
-            project_id,
-            count,
-        )
-        .await?,
+        outline_records_actions::delete_latest_chapter_outlines(state.runtime(), user_id, input)
+            .await?,
     )
 }
 

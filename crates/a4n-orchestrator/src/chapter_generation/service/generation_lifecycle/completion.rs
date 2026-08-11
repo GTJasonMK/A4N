@@ -1,7 +1,7 @@
 mod trace;
 
 use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter;
+use a4n_core::models::chapter::{chapter, chapter_outline};
 use a4n_db::chapter_content::GeneratedChapterContentRecordInput;
 use a4n_llm::provider::ChatRequest;
 use chrono::Utc;
@@ -23,6 +23,7 @@ impl ChapterGenerationService {
         &self,
         session: &ChapterGenerationSession,
         content: &str,
+        source_outline: Option<chapter_outline::Model>,
         chapter_outline: &str,
         generation_trace: Option<ChapterGenerationTrace>,
         db: &DatabaseTransaction,
@@ -43,6 +44,7 @@ impl ChapterGenerationService {
                         .existing_chapter
                         .as_ref()
                         .map(|chapter| chapter.id),
+                    source_outline: source_outline.clone(),
                     title: validated.title,
                     summary: validated.summary,
                     content: validated.normalized_content,
@@ -55,6 +57,7 @@ impl ChapterGenerationService {
         if let Some(trace) = generation_trace {
             self.record_chapter_generation_trace(
                 &updated_chapter,
+                source_outline.as_ref(),
                 chapter_outline,
                 content,
                 trace,

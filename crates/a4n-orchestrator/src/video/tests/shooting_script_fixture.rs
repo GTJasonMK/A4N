@@ -1,10 +1,10 @@
-use a4n_core::shooting_script::{
-    CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptV1, ShootingBlockingV1, ShootingCameraAngleV1,
-    ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
-    ShootingCoverageV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-    ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1,
-    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingViewpointModeV1,
-    ShootingViewpointV1,
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingBlockingV1,
+    ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
+    ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDirectingStatementV1,
+    ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
+    ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
+    ShootingViewpointModeV1, ShootingViewpointV1,
 };
 
 pub(in crate::video) fn test_chapter_shooting_script(
@@ -80,7 +80,7 @@ pub(in crate::video) fn test_chapter_shooting_script(
     };
 
     ChapterShootingScriptV1 {
-        schema_version: CHAPTER_SHOOTING_SCRIPT_V1.to_string(),
+        schema_version: ChapterShootingScriptSchemaVersion::V1,
         directing_statement: ShootingDirectingStatementV1 {
             central_dramatic_question: "小宦官能否确认暗处异常".to_string(),
             protagonist_throughline: "进入殿内并克制恐惧".to_string(),

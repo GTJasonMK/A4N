@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use a4n_core::{
     error::AppError,
-    shooting_script::{ChapterShootingScriptV1, ShootingCoverageV1, ShootingViewpointModeV1},
     video_execution::{
         VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_EXECUTION_PROJECTION_V2, VideoActionLoadV1,
         VideoDirectingAuditV2, VideoExecutionBeatV2, VideoExecutionProjectionV2,
@@ -10,6 +9,9 @@ use a4n_core::{
         VideoExecutionSceneV2, VideoExecutionShotV2, VideoShootingScriptIdentityV1,
         VideoSourceSpanRangeV1,
     },
+};
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptV1, ShootingCoverageV1, ShootingViewpointModeV1,
 };
 
 pub(in crate::video) fn video_projection_from_shooting_script(
@@ -274,7 +276,7 @@ pub(in crate::video) fn video_projection_from_shooting_script(
     })
 }
 
-fn scene_viewpoint_is_complete(scene: &a4n_core::shooting_script::ShootingSceneV1) -> bool {
+fn scene_viewpoint_is_complete(scene: &a4n_domain::shooting_script::ShootingSceneV1) -> bool {
     if scene.viewpoint.information_strategy.trim().is_empty() {
         return false;
     }
@@ -289,7 +291,7 @@ fn scene_viewpoint_is_complete(scene: &a4n_core::shooting_script::ShootingSceneV
 }
 
 fn scene_audience_causality_is_complete(
-    scene: &a4n_core::shooting_script::ShootingSceneV1,
+    scene: &a4n_domain::shooting_script::ShootingSceneV1,
 ) -> bool {
     !scene.dramatic_question.trim().is_empty()
         && !scene.scene_objective.trim().is_empty()

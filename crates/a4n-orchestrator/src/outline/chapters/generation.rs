@@ -7,7 +7,9 @@ use crate::outline::chapter_contract::{
     required_part_summary, validate_chapter_generation_range,
     validate_chapter_outline_generation_request, validate_requested_part_context,
 };
-use crate::outline::context::load_chapter_outline_generation_context;
+use crate::outline::context::{
+    load_chapter_outline_generation_context, lock_outline_generation_sources,
+};
 use crate::outline::{
     ChapterOutlineCountGenerationInput, ChapterOutlineGenerationInput, OrchestratorContext,
     report_progress, validate_existing_chapter_outline_for_request,
@@ -103,7 +105,7 @@ impl OrchestratorContext {
             }
         }
 
-        let context =
+        let mut context =
             load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
         validate_requested_part_context(&context.parts, start_chapter, end_chapter)?;
         ensure_focus_part_in_context(focus_part, &context.parts)?;
@@ -112,8 +114,30 @@ impl OrchestratorContext {
         let mut results = Vec::new();
         for chapter_number in start_chapter..=end_chapter {
             let current = chapter_number - start_chapter + 1;
+            let current_focus_part = focus_part
+                .map(|focus_part| {
+                    context
+                        .parts
+                        .iter()
+                        .find(|part| part.id == focus_part.id)
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "outline_generation_source_changed".to_string(),
+                            operation: "生成章节大纲（目标分部已变化，请重新生成）".to_string(),
+                        })
+                })
+                .transpose()?;
             let expected_part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
+            if current_focus_part.is_some_and(|part| {
+                chapter_number < part.start_chapter
+                    || chapter_number > part.end_chapter
+                    || expected_part_id != Some(part.id)
+            }) {
+                return Err(AppError::InvalidState {
+                    current: "outline_generation_source_changed".to_string(),
+                    operation: "生成章节大纲（目标分部范围已变化，请重新生成）".to_string(),
+                });
+            }
 
             if let Some(existing) = self
                 .existing_chapter_outline_for_number(project_id, chapter_number)
@@ -124,6 +148,9 @@ impl OrchestratorContext {
                     chapter_number,
                     expected_part_id,
                 )?;
+                context =
+                    load_chapter_outline_generation_context(self.database.connection(), project_id)
+                        .await?;
                 report_progress(
                     progress,
                     current,
@@ -144,7 +171,7 @@ impl OrchestratorContext {
                 .generate_single_chapter_outline_json(SingleChapterOutlineJsonInput {
                     project_id,
                     context: &context,
-                    focus_part,
+                    focus_part: current_focus_part,
                     chapter_number,
                     prompt_renderer,
                     variables,
@@ -153,14 +180,21 @@ impl OrchestratorContext {
                 .await?;
             let part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
-            let outline = insert_chapter_outline_from_json(
+            let tx = lock_outline_generation_sources(
                 self.database.connection(),
+                project_id,
+                &context.source_snapshot,
+            )
+            .await?;
+            let outline = insert_chapter_outline_from_json(
+                &tx,
                 project_id,
                 part_id,
                 &generated.chapter_json,
                 Utc::now().naive_utc(),
             )
             .await?;
+            tx.commit().await.map_err(AppError::Database)?;
             self.record_chapter_outline_generation_run(
                 &outline,
                 &generated.request,
@@ -170,6 +204,9 @@ impl OrchestratorContext {
             )
             .await?;
             results.push(outline);
+            context =
+                load_chapter_outline_generation_context(self.database.connection(), project_id)
+                    .await?;
             report_progress(
                 progress,
                 current,

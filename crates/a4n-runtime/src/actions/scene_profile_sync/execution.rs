@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::{
-    prompt_renderer::RuntimePromptRenderer,
     rag_ingest::SceneRagSyncTraceSource,
     sidecar_clients::{scope_rag_operation_trace, workflow_rag_operation_trace_id},
     state::AppState,
@@ -14,18 +13,20 @@ use crate::{
 
 pub use scope::scene_profile_sync_task_scope;
 
-pub(crate) struct RuntimeSceneProfileSyncHostPort<'a> {
-    state: &'a AppState,
+pub(crate) struct RuntimeSceneProfileSyncHostPort {
+    state: AppState,
 }
 
-impl<'a> RuntimeSceneProfileSyncHostPort<'a> {
-    pub(crate) fn new(state: &'a AppState) -> Self {
-        Self { state }
+impl RuntimeSceneProfileSyncHostPort {
+    pub(crate) fn new(state: &AppState) -> Self {
+        Self {
+            state: state.clone(),
+        }
     }
 }
 
 #[async_trait]
-impl SceneProfileSyncHostPort for RuntimeSceneProfileSyncHostPort<'_> {
+impl SceneProfileSyncHostPort for RuntimeSceneProfileSyncHostPort {
     async fn sync_scene_rag_records(
         &self,
         project_id: i64,
@@ -35,7 +36,7 @@ impl SceneProfileSyncHostPort for RuntimeSceneProfileSyncHostPort<'_> {
             workflow_rag_operation_trace_id(workflow_run_id).map_err(AppError::InvalidArgument)?;
         scope_rag_operation_trace(trace_id, async {
             crate::rag_ingest::sync_scene_rag_records(
-                self.state,
+                &self.state,
                 project_id,
                 SceneRagSyncTraceSource::WorkflowRun(workflow_run_id),
             )
@@ -57,15 +58,15 @@ pub async fn sync_scene_profiles_for_chapters(
     progress: Option<&SceneProfileSyncProgress<'_>>,
 ) -> Result<Value, String> {
     scene_profile_sync_task_scope(state, user_id, project_id).await?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let host_port = RuntimeSceneProfileSyncHostPort::new(state);
     state
-        .scene_profile()
-        .sync_scene_profiles_for_chapters_validated(
+        .orchestrator()
+        .sync_scene_profiles_for_chapters_for_user_validated(
             user_id,
             project_id,
             chapter_number,
-            &prompt_renderer,
+            prompt_renderer,
             &host_port,
             progress,
         )

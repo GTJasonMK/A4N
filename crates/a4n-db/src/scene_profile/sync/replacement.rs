@@ -62,7 +62,8 @@ where
 
     let mut affected_scene_ids = old_scene_ids;
     affected_scene_ids.extend(scene_ref_map.values().copied());
-    refresh_scene_profiles_after_occurrence_change(db, project_id, &affected_scene_ids).await?;
+    refresh_scene_profiles_after_occurrence_change(db, project_id, &affected_scene_ids, false)
+        .await?;
 
     Ok(SceneSyncRecordResult {
         profile_ids: scene_ref_map.values().copied().collect(),

@@ -28,6 +28,7 @@ pub async fn rebuild_chapter_content_anchor_records(
     }
 
     let tx = db.begin().await?;
+    super::delete_chapter_content_profile_evidence_records(&tx, project.id, chapter.id).await?;
     text_anchor::Entity::delete_many()
         .filter(text_anchor::Column::ProjectId.eq(project.id))
         .filter(text_anchor::Column::SourceKind.eq(SOURCE_KIND_CHAPTER_CONTENT))

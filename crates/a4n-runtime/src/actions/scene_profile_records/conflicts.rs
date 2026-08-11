@@ -1,14 +1,11 @@
-use crate::{
-    actions::{
-        dependency_conflict::{DownstreamConflictStrategy, resolve_downstream_id_conflict},
-        profile_materials,
-    },
-    state::{ProfileMaterialRuntimeFacade, SceneProfileRuntimeFacade},
+use crate::actions::{
+    dependency_conflict::{DownstreamConflictStrategy, resolve_downstream_id_conflict},
+    profile_materials,
 };
 use a4n_orchestrator::profile_material::PROFILE_KIND_SCENE;
 
 pub(super) async fn scene_profile_project_id(
-    scene_profile: &SceneProfileRuntimeFacade<'_>,
+    scene_profile: &a4n_orchestrator::OrchestratorContext,
     scene_profile_id: i64,
 ) -> Result<i64, String> {
     let profile = scene_profile
@@ -19,7 +16,7 @@ pub(super) async fn scene_profile_project_id(
 }
 
 pub(super) async fn resolve_scene_profile_downstream_conflict(
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     scene_profile_id: i64,
     strategy: DownstreamConflictStrategy,

@@ -1,9 +1,8 @@
 use a4n_capabilities::{
-    CapabilityClient, EmbeddingClient, ExportClient, ImageClient, LlmClient, RagClient, VideoClient,
+    CapabilityClient, EmbeddingClient, EmbeddingModelOperation, ExportClient, ImageClient,
+    LlmClient, RagClient, VideoClient,
 };
-use a4n_export_core::{
-    ExportDocumentKind, ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput,
-};
+use a4n_export_core::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
     EXPORT_RENDER_CAPABILITY_VERSION, IMAGE_PROVIDER_CAPABILITY_VERSION,
@@ -72,7 +71,10 @@ async fn recording_embedding_returns_configured_response_and_captures_request() 
 async fn recording_embedding_unconfigured_operations_fail_explicitly() {
     let client = RecordingEmbeddingClient::new(response(serde_json::Value::Null));
     let error = client
-        .model_operation(request("model-request", EMBEDDING_CAPABILITY_VERSION))
+        .model_operation(
+            EmbeddingModelOperation::List,
+            request("model-request", EMBEDDING_CAPABILITY_VERSION),
+        )
         .await
         .expect_err("unconfigured model operation must fail");
 
@@ -155,12 +157,8 @@ async fn recording_image_generate_events_capture_request_and_bind_task_id() {
 #[tokio::test]
 async fn recording_image_responses_and_request_ledgers_are_operation_specific() {
     let preview_response = response(serde_json::json!({"operation": "preview"}));
-    let probe_response = response(serde_json::json!({"operation": "probe"}));
-    let client = RecordingImageClient::new()
-        .with_preview_response(preview_response.clone())
-        .with_probe_response(probe_response.clone());
+    let client = RecordingImageClient::new().with_preview_response(preview_response.clone());
     let preview_request = request("image-preview", IMAGE_PROVIDER_CAPABILITY_VERSION);
-    let probe_request = request("image-probe", IMAGE_PROVIDER_CAPABILITY_VERSION);
 
     assert_eq!(
         client
@@ -169,18 +167,9 @@ async fn recording_image_responses_and_request_ledgers_are_operation_specific() 
             .expect("configured preview response"),
         preview_response
     );
-    assert_eq!(
-        client
-            .probe(probe_request.clone())
-            .await
-            .expect("configured probe response"),
-        probe_response
-    );
     assert_eq!(client.preview_call_count(), 1);
-    assert_eq!(client.probe_call_count(), 1);
     assert_eq!(client.generate_call_count(), 0);
     assert_eq!(client.last_preview_request(), Some(preview_request));
-    assert_eq!(client.last_probe_request(), Some(probe_request));
 }
 
 #[tokio::test]
@@ -228,16 +217,13 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
     let poll_response = response(serde_json::json!({"operation": "poll"}));
     let status_response = response(serde_json::json!({"operation": "status"}));
     let preview_response = response(serde_json::json!({"operation": "preview"}));
-    let probe_response = response(serde_json::json!({"operation": "probe"}));
     let client = RecordingVideoClient::new()
         .with_poll_response(poll_response.clone())
         .with_status_response(status_response.clone())
-        .with_preview_response(preview_response.clone())
-        .with_probe_response(probe_response.clone());
+        .with_preview_response(preview_response.clone());
     let poll_request = request("video-poll", VIDEO_PROVIDER_CAPABILITY_VERSION);
     let status_request = request("video-status", VIDEO_PROVIDER_CAPABILITY_VERSION);
     let preview_request = request("video-preview", VIDEO_PROVIDER_CAPABILITY_VERSION);
-    let probe_request = request("video-probe", VIDEO_PROVIDER_CAPABILITY_VERSION);
 
     assert_eq!(
         client
@@ -260,22 +246,13 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
             .expect("configured preview response"),
         preview_response
     );
-    assert_eq!(
-        client
-            .probe(probe_request.clone())
-            .await
-            .expect("configured probe response"),
-        probe_response
-    );
     assert_eq!(client.poll_call_count(), 1);
     assert_eq!(client.status_call_count(), 1);
     assert_eq!(client.preview_call_count(), 1);
-    assert_eq!(client.probe_call_count(), 1);
     assert_eq!(client.generate_call_count(), 0);
     assert_eq!(client.last_poll_request(), Some(poll_request));
     assert_eq!(client.last_status_request(), Some(status_request));
     assert_eq!(client.last_preview_request(), Some(preview_request));
-    assert_eq!(client.last_probe_request(), Some(probe_request));
 }
 
 #[tokio::test]
@@ -390,7 +367,6 @@ async fn recording_export_unconfigured_operation_fails_explicitly() {
     .with_payload(
         EXPORT_RENDER_CAPABILITY_VERSION,
         ExportRenderJsonInput {
-            kind: ExportDocumentKind::GenericJson,
             payload: serde_json::Value::Null,
             pretty: false,
         },

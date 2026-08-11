@@ -5,9 +5,7 @@ export type {
   ModelDiscoveryResult,
 } from "./generated/config";
 
-import type {
-  ModelDiscoveryInput,
-} from "./generated/config";
+import type { ModelDiscoveryInput } from "./generated/config";
 
 interface LocalRuntimeDiscoveryKeyOptions {
   systemConfigId: number;
@@ -15,26 +13,73 @@ interface LocalRuntimeDiscoveryKeyOptions {
   getLocalConfigApiKey: (configId: number) => string | null | undefined;
 }
 
+interface ModelDiscoveryFieldOptions {
+  provider: string;
+  baseUrl: string;
+  apiKey: string;
+  clearApiKey: boolean;
+  configId?: number | null;
+  hasApiKey: boolean;
+  readonly: boolean;
+  scope: "server" | "local";
+}
+
+export function buildModelDiscoveryField(options: ModelDiscoveryFieldOptions): {
+  discoveryKey: string;
+  input: ModelDiscoveryInput;
+} {
+  const apiKey = options.apiKey.trim();
+  const configId = options.configId ?? null;
+  return {
+    discoveryKey: [
+      options.provider,
+      options.baseUrl.trim(),
+      options.scope,
+      configId ?? "new",
+      options.clearApiKey ? "cleared-key" : apiKey ? "form-key" : "saved-key",
+    ].join("|"),
+    input: {
+      provider: options.provider,
+      base_url: options.baseUrl,
+      api_key: options.clearApiKey ? null : apiKey || undefined,
+      config_id: configId,
+      use_saved_api_key: Boolean(
+        !options.readonly &&
+        configId != null &&
+        configId > 0 &&
+        options.hasApiKey &&
+        !options.clearApiKey &&
+        !apiKey,
+      ),
+    },
+  };
+}
+
 export function withLocalRuntimeDiscoveryKey(
   input: ModelDiscoveryInput,
   options: LocalRuntimeDiscoveryKeyOptions,
 ): ModelDiscoveryInput {
-  if (input.api_key_encrypted === null) return input;
-  const apiKey = input.api_key_encrypted?.trim();
+  if (input.api_key === null) return input;
+  const apiKey = input.api_key?.trim();
   const useLocalRuntime = usesLocalRuntimeSettings();
   if (useLocalRuntime && input.config_id === options.systemConfigId) {
     return {
       ...input,
-      api_key_encrypted: apiKey || options.getSystemDefaultApiKey()?.trim() || undefined,
+      api_key: apiKey || options.getSystemDefaultApiKey()?.trim() || undefined,
       use_saved_api_key: false,
     };
   }
-  if (apiKey || !useLocalRuntime || input.config_id == null || input.config_id <= 0) {
+  if (
+    apiKey ||
+    !useLocalRuntime ||
+    input.config_id == null ||
+    input.config_id <= 0
+  ) {
     return input;
   }
   return {
     ...input,
-    api_key_encrypted: options.getLocalConfigApiKey(input.config_id)?.trim() || undefined,
+    api_key: options.getLocalConfigApiKey(input.config_id)?.trim() || undefined,
     use_saved_api_key: false,
   };
 }

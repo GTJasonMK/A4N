@@ -15,7 +15,7 @@ pub(crate) async fn ingest_outlines_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let outlines = state
-        .rag()
+        .orchestrator()
         .chapter_outlines_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -56,7 +56,7 @@ pub(crate) async fn ingest_part_outlines_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let parts = state
-        .rag()
+        .orchestrator()
         .part_outlines_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

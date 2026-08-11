@@ -145,13 +145,11 @@ pub struct ProjectGeneratedDataResetResult {
 pub struct ProjectGeneratedDataResetOutcome {
     pub result: ProjectGeneratedDataResetResult,
     pub previous_status: ProjectStatus,
-    pub published_status_change: bool,
     pub media_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ProjectStatusRollbackOutcome {
     pub project: novel_project::Model,
-    pub media_paths: Vec<String>,
     pub needs_rag_clear: bool,
 }

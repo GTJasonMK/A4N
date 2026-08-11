@@ -4,7 +4,7 @@
 export type VideoDurationMode = "range" | "fixed";
 
 export interface ModelDiscoveryInput {
-  api_key_encrypted?: string | null;
+  api_key?: string | null;
   base_url: string;
   config_id: number | null;
   provider: string;
@@ -221,23 +221,9 @@ export interface UpdateVideoConfigInput {
   supported_durations_json?: unknown;
 }
 
-export const USAGE_GUIDE_MAX_IMAGES = 20;
-export const USAGE_GUIDE_IMAGE_MAX_BYTES = 8388608;
-export const USAGE_GUIDE_NEW_IMAGES_MAX_BYTES = 20971520;
-
-export type UsageGuideBlockKind = "text" | "image";
-
-export interface UsageGuideBlock {
-  data_base64: string | null;
-  file_name: string | null;
-  image_path: string | null;
-  kind: UsageGuideBlockKind;
-  mime_type: string | null;
-  text: string | null;
-}
-
-export interface UsageGuideDocument {
-  blocks: UsageGuideBlock[];
+export interface ImportAllConfigsInput {
+  overwrite: boolean;
+  settings_json: string;
 }
 
 export interface LlmProviderDescriptor {

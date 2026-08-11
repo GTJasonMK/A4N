@@ -16,7 +16,7 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
 ) -> Result<AssemblyRequestContext, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let prepared = state
-        .video()
+        .orchestrator()
         .assembly_video_records_validated(project_id, chapter_id, &workflow_mode, action)
         .await
         .map_err(app_error_message)?;

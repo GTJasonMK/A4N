@@ -23,7 +23,6 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         call_key: &str,
-        call_order: i32,
         fingerprint_json: &Value,
         request: ChatRequest,
         label: &str,
@@ -36,11 +35,7 @@ impl OrchestratorContext {
         self.mark_workflow_current_step(workflow_run_id, call_key)
             .await?;
         if let Some(checkpoint) = self
-            .load_completed_llm_call_checkpoint_with_repair_state(
-                workflow_run_id,
-                call_key,
-                fingerprint_json,
-            )
+            .load_completed_llm_call_checkpoint(workflow_run_id, call_key, fingerprint_json)
             .await?
         {
             let checkpoint_json = required_llm_call_checkpoint_json(checkpoint, call_key)
@@ -54,7 +49,10 @@ impl OrchestratorContext {
             let restored_parsed_output = checkpoint_json
                 .get("parsed_output")
                 .filter(|value| !value.is_null())
-                .cloned();
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(format!("{call_key}.parsed_output 必须是结构化输出"))
+                })?;
             let usage = checkpoint_json
                 .get("usage")
                 .filter(|value| !value.is_null())
@@ -65,7 +63,7 @@ impl OrchestratorContext {
                 .map(str::to_string);
             return Ok(RawCallResult {
                 response_content,
-                restored_parsed_output,
+                restored_parsed_output: Some(restored_parsed_output),
                 usage,
                 finish_reason,
             });
@@ -130,14 +128,6 @@ impl OrchestratorContext {
                 "拍摄剧本 LLM token usage"
             );
         }
-        self.persist_raw_shooting_call(
-            workflow_run_id,
-            call_key,
-            call_order,
-            fingerprint_json.clone(),
-            &result,
-        )
-        .await?;
         Ok(RawCallResult {
             response_content: result.response_content,
             restored_parsed_output: None,
@@ -148,55 +138,6 @@ impl OrchestratorContext {
                 .transpose()?,
             finish_reason: result.finish_reason,
         })
-    }
-
-    pub(in crate::shooting_script) async fn load_completed_llm_call_checkpoint_with_repair_state(
-        &self,
-        workflow_run_id: i64,
-        call_key: &str,
-        fingerprint_json: &Value,
-    ) -> Result<Option<a4n_core::models::generation::workflow_checkpoint::Model>, AppError> {
-        if let Some(checkpoint) = self
-            .load_completed_llm_call_checkpoint(workflow_run_id, call_key, fingerprint_json)
-            .await?
-        {
-            return Ok(Some(checkpoint));
-        }
-        let checkpoints = self.workflow_checkpoint_models(workflow_run_id).await?;
-        Ok(checkpoints.into_iter().find(|checkpoint| {
-            checkpoint.step_key == call_key
-                && checkpoint.status == crate::workflow::WORKFLOW_STATUS_COMPLETED
-                && checkpoint.artifacts_json.as_ref().is_some_and(|artifacts| {
-                    let state = artifacts.get("structured_repair_state");
-                    let valid_state = state.and_then(|value| value.get("schema_version"))
-                        == Some(&Value::from(1));
-                    let status = state
-                        .and_then(|value| value.get("status"))
-                        .and_then(Value::as_str);
-                    let has_parsed_output = checkpoint
-                        .checkpoint_json
-                        .as_ref()
-                        .and_then(|value| value.get("parsed_output"))
-                        .is_some_and(|value| !value.is_null());
-                    let has_raw_response = checkpoint
-                        .checkpoint_json
-                        .as_ref()
-                        .and_then(|value| value.get("response_content"))
-                        .and_then(Value::as_str)
-                        .is_some_and(|value| !value.trim().is_empty());
-                    valid_state
-                        && match status {
-                            Some("completed") => has_parsed_output,
-                            Some("pending_field_patch") => {
-                                !call_key.ends_with(":schema_patch")
-                                    && !call_key.ends_with(":schema_repair")
-                                    && has_raw_response
-                                    && !has_parsed_output
-                            }
-                            _ => false,
-                        }
-                })
-        }))
     }
 
     pub(super) async fn ensure_shooting_script_running(

@@ -2,7 +2,7 @@ use a4n_core::{error::AppError, models::galgame::galgame_line};
 use a4n_db::galgame::UpdateGalgameLineRecordInput;
 
 use crate::galgame::{
-    OrchestratorContext, UpdateGalgameLineInput, galgame_line_record_error, normalize_line_type,
+    OrchestratorContext, UpdateGalgameLineInput, galgame_line_record_error,
     normalize_optional_positive_id, required_text, validate_and_project_presentation,
     validate_line_semantics, validate_positive_id,
 };
@@ -19,8 +19,8 @@ impl OrchestratorContext {
         let line = self
             .load_line_in_project(context.project.id, input.line_id)
             .await?;
-        let next_line_type = match input.line_type.as_deref() {
-            Some(line_type) => normalize_line_type(line_type)?.to_string(),
+        let next_line_type = match input.line_type {
+            Some(line_type) => line_type.to_string(),
             None => line.line_type.clone(),
         };
         let next_speaker_profile_id = match input.speaker_profile_id {
@@ -51,10 +51,15 @@ impl OrchestratorContext {
             .as_ref()
             .map(|projection| projection.0.clone())
             .unwrap_or_else(|| line.expression.clone());
+        let next_pose = presentation_projection
+            .as_ref()
+            .map(|projection| projection.1.clone())
+            .unwrap_or_else(|| line.pose.clone());
         validate_line_semantics(
             &next_line_type,
             next_speaker_profile_id,
             next_expression.as_deref(),
+            next_pose.as_deref(),
         )?;
         if let Some(speaker_profile_id) = next_speaker_profile_id {
             self.validate_speaker_profile(&context, speaker_profile_id)

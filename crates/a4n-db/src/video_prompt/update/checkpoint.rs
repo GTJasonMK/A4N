@@ -5,15 +5,14 @@ use serde_json::{Value, json};
 use crate::video::{self, VideoDbError};
 
 use super::{
-    super::UpdateChapterVideoPromptInput,
-    metadata::sync_chapter_video_prompt_metadata_after_update,
+    super::ChapterVideoPromptPatch, metadata::sync_chapter_video_prompt_metadata_after_update,
     policy::update_chapter_video_prompt_with_policy_in,
 };
 
 pub async fn update_chapter_video_prompt_with_generation_run_checkpoint<C>(
     db: &C,
     prompt_id: i64,
-    input: UpdateChapterVideoPromptInput,
+    input: ChapterVideoPromptPatch,
     metadata_json: Option<Value>,
     allow_downstream: bool,
     mut generation_run: crate::generation::RecordCompletedGenerationRunWithCheckpointInput,

@@ -1,12 +1,12 @@
 use crate::app::PromptServiceState;
-use crate::protocol::{error_response, result_response, validate_service_request};
+use crate::protocol::{result_response, validate_service_request};
 use a4n_prompt::{
     contracts::{
         CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptNamePayload,
         PromptRemoveProjectOverridePayload, PromptSetProjectOverridePayload,
         PromptUpdateManyPayload, PromptUpdatePayload,
     },
-    engine::{PromptEngine, PromptEntry},
+    engine::PromptEntry,
 };
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -16,7 +16,7 @@ pub(crate) async fn hydrate_overrides(
     Json(request): Json<ServiceRequest<PromptHydrateOverridesPayload>>,
 ) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let overrides = request
         .payload
@@ -36,7 +36,7 @@ pub(crate) async fn set_project_override(
     Json(request): Json<ServiceRequest<PromptSetProjectOverridePayload>>,
 ) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = &request.payload;
     let result = state
@@ -52,7 +52,7 @@ pub(crate) async fn remove_project_override(
     Json(request): Json<ServiceRequest<PromptRemoveProjectOverridePayload>>,
 ) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = &request.payload;
     let result = state
@@ -68,7 +68,7 @@ pub(crate) async fn load_defaults(
     Json(request): Json<ServiceRequest<PromptEmptyPayload>>,
 ) -> Json<ServiceResponse<CountOutput>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = state
         .engine
@@ -83,7 +83,7 @@ pub(crate) async fn update_prompt(
     Json(request): Json<ServiceRequest<PromptUpdatePayload>>,
 ) -> Json<ServiceResponse<PromptEntry>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = &request.payload;
     let result = state
@@ -98,7 +98,7 @@ pub(crate) async fn update_many_prompts(
     Json(request): Json<ServiceRequest<PromptUpdateManyPayload>>,
 ) -> Json<ServiceResponse<Vec<PromptEntry>>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = &request.payload;
     let updates = payload
@@ -115,7 +115,7 @@ pub(crate) async fn reset_prompt(
     Json(request): Json<ServiceRequest<PromptNamePayload>>,
 ) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = state.engine.reset(&request.payload.name).await.map(|_| ());
     Json(result_response(&request, result))

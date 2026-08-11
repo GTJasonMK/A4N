@@ -7,8 +7,9 @@ use serde_json::Value;
 use super::super::owner::{
     build_chapter_character_state_request, build_chapter_fact_extraction_request,
     build_chapter_foreshadowing_events_request, build_chapter_summary_synthesis_request,
-    validate_chapter_character_state, validate_chapter_fact_extraction,
-    validate_chapter_foreshadowing_events, validate_chapter_summary_synthesis,
+    chapter_foreshadowing_resolution_context, validate_chapter_character_state,
+    validate_chapter_fact_extraction, validate_chapter_foreshadowing_events,
+    validate_chapter_summary_synthesis,
 };
 use super::super::{ChapterAnalysisProgress, OrchestratorContext};
 use super::contracts::{
@@ -85,14 +86,24 @@ impl OrchestratorContext {
         progress: &mut ChapterAnalysisProgress<'_>,
         workflow_run_id: i64,
     ) -> Result<ExecutedChapterAnalysisStage, AppError> {
-        let request =
-            build_chapter_foreshadowing_events_request(chapter, prompt_renderer, facts).await?;
+        let foreshadowing = self
+            .foreshadowing_items_for_rag_ingest(chapter.project_id)
+            .await?;
+        let resolution_context =
+            chapter_foreshadowing_resolution_context(chapter.chapter_number, &foreshadowing);
+        let request = build_chapter_foreshadowing_events_request(
+            chapter,
+            prompt_renderer,
+            facts,
+            &resolution_context,
+        )
+        .await?;
         self.execute_chapter_analysis_stage(
             request,
             progress,
             workflow_run_id,
             FORESHADOWING_STAGE,
-            |output| validate_chapter_foreshadowing_events(output, facts),
+            |output| validate_chapter_foreshadowing_events(output, facts, &resolution_context),
         )
         .await
     }

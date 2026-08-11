@@ -13,7 +13,7 @@ pub struct GalgameTargetContext {
 pub struct GalgamePortraitSpecTargetInput {
     pub profile_id: i64,
     pub expression: String,
-    pub pose: Option<String>,
+    pub pose: String,
     pub position_samples: Vec<String>,
     pub source_line_ids: Vec<i64>,
 }

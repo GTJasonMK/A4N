@@ -1,13 +1,12 @@
 import React, { useState } from "react";
-import { ChevronRight,
-  Film,
-  FolderOpen,
-  Plus,
-  Sparkles,
-  Upload, } from "lucide-react";
+import { ChevronRight, Film, FolderOpen, Plus, Sparkles, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
+import {
+  PROJECT_FAMILY_PACKAGE_SUFFIX,
+  VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+} from "../../api/project";
 import { ImportsTab } from "../novel-detail/ImportsTab";
 
 export type CreateMode = "ai" | "free" | "video_canvas";
@@ -125,7 +124,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
       onClose={() => !importing && onClose()}
       title="导入项目"
       icon={<Upload size={15} />}
-      subtitle="从项目包或文本项目备份恢复项目"
+      subtitle="从项目包恢复项目"
       maxWidthClassName="max-w-md"
       bodyClassName="px-4 py-4"
       closeOnBackdrop={!importing}
@@ -150,7 +149,8 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
       }
     >
       <p className="text-xs text-book-text-muted leading-relaxed mb-3">
-        从 `.zip` 项目族包或视频画布项目包恢复项目和媒体资产；旧 `.json` 文本项目备份仍可恢复文本核心数据。
+        从 <code>{PROJECT_FAMILY_PACKAGE_SUFFIX}</code> 项目族包或{" "}
+        <code>{VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX}</code> 视频画布项目包恢复项目和媒体资产。
         <br />
         请选择本地文件上传导入。
       </p>

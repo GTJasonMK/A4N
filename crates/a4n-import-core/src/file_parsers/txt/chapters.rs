@@ -30,8 +30,6 @@ pub(super) fn split_into_chapters(
             number,
             title: title.to_string(),
             content,
-            start_offset: start,
-            end_offset: end,
         });
     }
     Ok(chapters)

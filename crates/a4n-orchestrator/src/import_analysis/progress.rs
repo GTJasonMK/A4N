@@ -10,10 +10,7 @@ pub use self::persistence::{
 pub use self::resume::{
     import_progress_resume_stage, import_progress_totals_match, resume_import_progress,
 };
-pub use self::schema::{
-    CHAPTERS_PER_PART, STAGE_ANALYSIS, STAGE_BLUEPRINT, STAGE_OUTLINES, STAGE_PARTS,
-    initial_import_progress,
-};
+pub use self::schema::{STAGE_ANALYSIS, initial_import_progress};
 pub use self::updates::{
     finish_import_progress, progress_stage_completed, update_import_progress_stage,
 };

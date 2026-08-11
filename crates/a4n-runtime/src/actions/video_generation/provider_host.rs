@@ -66,7 +66,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         &self,
         config_id: Option<i64>,
     ) -> Result<video_gen_config::Model, AppError> {
-        resolve_video_config(&self.state.settings(), config_id)
+        resolve_video_config(self.state.orchestrator(), config_id)
             .await
             .map_err(host_error)
     }
@@ -76,7 +76,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         input: VideoProviderRequestInput,
     ) -> Result<VideoProviderRequestBody, AppError> {
         if self.state.runtime_profile().uses_sidecars() {
-            let collaboration = self.state.collaboration();
+            let collaboration = self.state.orchestrator();
             let root_project_id = video_sidecar_root_project_id(
                 self.state.runtime_profile(),
                 &collaboration,
@@ -157,7 +157,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         input: VideoProviderRequestInput,
         progress: &mut VideoGenerationProgress<'_>,
     ) -> Result<VideoGenerationResult, AppError> {
-        let collaboration = self.state.collaboration();
+        let collaboration = self.state.orchestrator();
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
             &collaboration,
@@ -205,13 +205,13 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         &self,
         input: ChapterVideoImageInput,
     ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
-        let video = self.state.video();
-        let collaboration = self.state.collaboration();
+        let video = self.state.orchestrator();
+        let collaboration = self.state.orchestrator();
         match input.mode {
             VideoProviderValidationMode::Generate => {
                 let mut staging_artifacts = Vec::new();
                 let jwt_secret = if input.transport == ProviderImageInputTransport::PublicUrl {
-                    Some(self.state.auth().required_jwt_secret()?)
+                    Some(self.state.orchestrator().required_jwt_secret()?)
                 } else {
                     None
                 };
@@ -353,7 +353,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
         job_id: &str,
         cancel_token: CancellationToken,
     ) -> Result<VideoJobState, AppError> {
-        let collaboration = self.state.collaboration();
+        let collaboration = self.state.orchestrator();
         let root_project_id =
             video_sidecar_root_project_id(self.state.runtime_profile(), &collaboration, project_id)
                 .await
@@ -413,7 +413,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
             paths.push(path);
         }
         self.state
-            .project_family()
+            .orchestrator()
             .insert_file_artifact_cleanup_intent(
                 persisted.project_id,
                 format!(
@@ -550,7 +550,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         input: CanvasVideoProviderInput,
     ) -> Result<VideoGenerationResult, AppError> {
-        let collaboration = self.state.collaboration();
+        let collaboration = self.state.orchestrator();
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
             &collaboration,

@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_api_contract::outline::OutlineDeleteTarget;
 use a4n_core::{
     error::AppError,
     models::chapter::{chapter_outline, part_outline},
-    state::status::ProjectStatus,
 };
+use a4n_domain::project::ProjectStatus;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
 use serde::{Deserialize, Serialize};
@@ -35,7 +36,7 @@ pub struct GeneratePartsInput {
 #[serde(deny_unknown_fields)]
 pub struct RegeneratePartsInput {
     pub project_id: i64,
-    pub part_count: Option<i32>,
+    pub expected_parts: Vec<OutlineDeleteTarget>,
     pub chapters_per_part: Option<i32>,
     pub task_id: Option<String>,
     pub variables: Option<Value>,
@@ -214,7 +215,7 @@ impl OrchestratorContext {
                     "workflow": "part_outline_generation",
                     "mode": "regenerate_all",
                     "project_id": input.project_id,
-                    "part_count": input.part_count,
+                    "expected_parts": &input.expected_parts,
                     "chapters_per_part": input.chapters_per_part,
                     "variables": &variables,
                 }),
@@ -225,7 +226,7 @@ impl OrchestratorContext {
             let parts = self
                 .regenerate_parts(PartOutlineRegenerationInput {
                     project_id: input.project_id,
-                    part_count: input.part_count,
+                    expected_parts: &input.expected_parts,
                     chapters_per_part: input.chapters_per_part,
                     prompt_renderer: self,
                     variables: &variables,
@@ -707,6 +708,7 @@ impl OrchestratorContext {
             input.project_id,
             input.part_count,
             input.chapters_per_part,
+            &[],
             false,
             self,
             &variables,
@@ -721,8 +723,9 @@ impl OrchestratorContext {
         let variables = parse_template_variables_app_error(&input.variables)?;
         self.preview_generate_parts_requests(
             input.project_id,
-            input.part_count,
+            None,
             input.chapters_per_part,
+            &input.expected_parts,
             true,
             self,
             &variables,

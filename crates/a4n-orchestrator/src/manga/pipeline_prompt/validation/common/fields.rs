@@ -20,7 +20,7 @@ pub(in crate::manga::pipeline_prompt::validation) fn reject_manga_unknown_fields
     Ok(())
 }
 
-pub(in crate::manga::pipeline_prompt::validation) fn required_manga_string(
+pub(in crate::manga::pipeline_prompt) fn required_manga_string(
     value: &Value,
     key: &str,
     path: &str,
@@ -32,6 +32,23 @@ pub(in crate::manga::pipeline_prompt::validation) fn required_manga_string(
         .filter(|text| !text.is_empty())
         .map(ToOwned::to_owned)
         .ok_or_else(|| AppError::InvalidArgument(format!("{path}.{key} 必须是非空字符串")))
+}
+
+pub(in crate::manga::pipeline_prompt::validation) fn required_manga_enum(
+    value: &Value,
+    key: &str,
+    path: &str,
+    allowed: &[&str],
+) -> Result<(), AppError> {
+    let actual = required_manga_string(value, key, path)?;
+    if allowed.contains(&actual.as_str()) {
+        Ok(())
+    } else {
+        Err(AppError::InvalidArgument(format!(
+            "{path}.{key} 必须是 {} 之一",
+            allowed.join("、")
+        )))
+    }
 }
 
 pub(in crate::manga::pipeline_prompt::validation) fn required_manga_bool(

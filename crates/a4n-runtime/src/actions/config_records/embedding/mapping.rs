@@ -12,7 +12,6 @@ pub(super) fn embedding_config_summary(config: &embedding_config::Model) -> Embe
         name: config.name.clone(),
         backend: config.backend.clone(),
         base_url: config.base_url.clone(),
-        api_key_encrypted: None,
         has_api_key: config
             .api_key_encrypted
             .as_ref()
@@ -22,8 +21,6 @@ pub(super) fn embedding_config_summary(config: &embedding_config::Model) -> Embe
         batch_size: config.batch_size,
         local_model_path: config.local_model_path.clone(),
         is_default: config.is_default,
-        created_at: Some(config.created_at.to_string()),
-        updated_at: Some(config.updated_at.to_string()),
     }
 }
 

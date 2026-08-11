@@ -1,4 +1,4 @@
-use super::types::{SettingsAllConfigImportError, SettingsAllEmbeddingConfigImportRow};
+use super::types::{SettingsAllConfigImportError, SettingsAllEmbeddingConfigRow};
 use super::validation::{DefaultImportPolicy, DefaultStateRow, ensure_single_default_after_import};
 use sea_orm::DbErr;
 use std::error::Error;
@@ -32,8 +32,8 @@ fn existing_default_state(name: &str, is_default: bool) -> DefaultStateRow {
     }
 }
 
-fn embedding_row(name: &str, is_default: bool) -> SettingsAllEmbeddingConfigImportRow {
-    SettingsAllEmbeddingConfigImportRow {
+fn embedding_row(name: &str, is_default: bool) -> SettingsAllEmbeddingConfigRow {
+    SettingsAllEmbeddingConfigRow {
         name: name.to_string(),
         backend: "local_hash".to_string(),
         base_url: None,
@@ -48,7 +48,7 @@ fn embedding_row(name: &str, is_default: bool) -> SettingsAllEmbeddingConfigImpo
 
 fn ensure_embedding_defaults(
     existing: &[DefaultStateRow],
-    incoming: &[SettingsAllEmbeddingConfigImportRow],
+    incoming: &[SettingsAllEmbeddingConfigRow],
     overwrite: bool,
 ) -> Result<(), SettingsAllConfigImportError> {
     ensure_single_default_after_import(

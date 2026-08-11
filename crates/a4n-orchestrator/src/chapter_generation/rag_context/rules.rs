@@ -1,6 +1,45 @@
 use a4n_core::rag::RagDataType;
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use serde_json::Value;
+use serde_json::{Value, json};
+
+use super::{contracts::PreparedGenerationRagSearch, query::GenerationRagQueries};
+
+pub fn generation_rag_query_fingerprint(
+    project_id: i64,
+    chapter_number: i32,
+    queries: &GenerationRagQueries,
+    embedding_identity: &EmbeddingModelIdentity,
+) -> Result<String, String> {
+    let weighted_queries = queries
+        .weighted_queries()
+        .into_iter()
+        .map(|query| json!({"text": query.text, "weight": query.weight}))
+        .collect::<Vec<_>>();
+    a4n_db::generation::generation_checkpoint_fingerprint_sha256(&json!({
+        "version": 1,
+        "project_id": project_id,
+        "chapter_number": chapter_number,
+        "queries": weighted_queries,
+        "embedding_identity": embedding_identity,
+    }))
+    .map_err(|error| format!("构建章节生成 RAG query fingerprint 失败: {error}"))
+}
+
+pub fn validate_generation_rag_query_fingerprint(
+    actual: &str,
+    prepared: &PreparedGenerationRagSearch,
+) -> Result<(), String> {
+    let expected = generation_rag_query_fingerprint(
+        prepared.project_id,
+        prepared.chapter_number,
+        &prepared.queries,
+        &prepared.embedding_identity,
+    )?;
+    if actual == expected {
+        return Ok(());
+    }
+    Err("章节生成 RAG query fingerprint 已过期或不匹配，请重新准备查询向量".to_string())
+}
 
 pub fn validate_generation_embedding_identity_match(
     actual: &EmbeddingModelIdentity,

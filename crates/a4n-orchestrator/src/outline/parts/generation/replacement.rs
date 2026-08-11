@@ -2,15 +2,15 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 use chrono::Utc;
 
-use crate::outline::context::load_part_generation_context;
+use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
 use crate::outline::part_contract::{
-    PartOutlineDraft, part_outline_model_from_json,
-    sync_part_outlines_and_assign_chapters_transaction, validate_existing_parts_for_plan,
+    PartOutlineDraft, part_outline_model_from_json, sync_part_outlines_and_assign_chapters_in,
+    validate_existing_parts_for_plan,
 };
 use crate::outline::{OrchestratorContext, PartOutlineRegenerationInput, report_progress};
 
 use super::super::contracts::PartOutlineJsonInput;
-use super::super::planning::plan_replacement_parts;
+use super::super::planning::{plan_replacement_parts, validate_replacement_part_sources};
 
 impl OrchestratorContext {
     pub async fn regenerate_parts(
@@ -19,21 +19,23 @@ impl OrchestratorContext {
     ) -> Result<Vec<part_outline::Model>, AppError> {
         let PartOutlineRegenerationInput {
             project_id,
-            part_count,
+            expected_parts,
             chapters_per_part,
             prompt_renderer,
             variables,
             progress,
             workflow_run_id,
         } = input;
-        let context = load_part_generation_context(
+        let mut context = load_part_generation_context(
             self.database.connection(),
             project_id,
-            part_count,
+            None,
             chapters_per_part,
         )
         .await?;
         validate_existing_parts_for_plan(&context.parts)?;
+        context.requested_part_count =
+            validate_replacement_part_sources(&context.parts, expected_parts)?;
         let batch =
             plan_replacement_parts(context.requested_part_count, context.chapters_per_part)?;
         let num_parts = i32::try_from(batch.len()).map_err(|_| {
@@ -69,6 +71,7 @@ impl OrchestratorContext {
                     requested_part_count: context.requested_part_count,
                     blueprint_context: &context.blueprint_payload,
                     previous_parts: &generated_context_parts,
+                    source_snapshot: &context.source_snapshot,
                     prompt_renderer,
                     variables,
                     workflow_run_id,
@@ -104,22 +107,24 @@ impl OrchestratorContext {
                 },
             )
             .collect();
-        let results = sync_part_outlines_and_assign_chapters_transaction(
-            &self.database,
+        let tx = lock_outline_generation_sources(
+            self.database.connection(),
             project_id,
-            drafts,
-            now,
+            &context.source_snapshot,
         )
         .await?;
+        let results =
+            sync_part_outlines_and_assign_chapters_in(&tx, project_id, drafts, now).await?;
         for part in &results {
             if let Some((_, _, _, generated)) = generated_jsons
                 .iter()
                 .find(|(part_number, _, _, _)| *part_number == part.part_number)
             {
-                self.record_part_outline_generation_run(part, generated, "重新生成分部大纲")
+                self.record_part_outline_generation_run(&tx, part, generated, "重新生成分部大纲")
                     .await?;
             }
         }
+        tx.commit().await.map_err(AppError::Database)?;
         Ok(results)
     }
 }

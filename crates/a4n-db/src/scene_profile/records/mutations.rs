@@ -1,4 +1,5 @@
 use a4n_core::models::scene::scene_profile;
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
 use sea_orm::DatabaseConnection;
 
 use super::{
@@ -21,7 +22,7 @@ pub async fn create_scene_profile_record_checked(
             input.name
         )));
     }
-    create_scene_profile_record(db, project_id, input).await
+    create_scene_profile_record(db, project_id, input, PROFILE_OWNERSHIP_USER).await
 }
 
 pub async fn update_scene_profile_record_checked(
@@ -42,5 +43,5 @@ pub async fn update_scene_profile_record_checked(
             input.name
         )));
     }
-    replace_scene_profile_record(db, existing, input).await
+    replace_scene_profile_record(db, existing, input, PROFILE_OWNERSHIP_USER).await
 }

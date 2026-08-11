@@ -1,39 +1,26 @@
-use super::{ImportReviewSummary, UpdateImportStatusInput, access, projections};
+use super::{ImportReviewIdInput, ImportReviewSummary, projections};
 use crate::AppState;
 use a4n_core::error::AppError;
-
-pub async fn update_import_status(
-    state: &AppState,
-    user_id: i64,
-    review_id: i64,
-    input: UpdateImportStatusInput,
-) -> Result<ImportReviewSummary, AppError> {
-    access::verify_review_access(state, user_id, review_id).await?;
-    let updated = state
-        .import_review()
-        .update_import_review_status_validated(review_id, &input.status)
-        .await?;
-    projections::import_review_summary(&updated)
-}
 
 pub async fn delete_import_review(
     state: &AppState,
     user_id: i64,
-    review_id: i64,
+    input: ImportReviewIdInput,
 ) -> Result<(), AppError> {
-    access::verify_review_access(state, user_id, review_id).await?;
-    state.import_review().delete_import_review(review_id).await
+    state
+        .orchestrator()
+        .delete_import_review_for_user_validated(user_id, input.review_id)
+        .await
 }
 
 pub async fn reject_import_review(
     state: &AppState,
     user_id: i64,
-    review_id: i64,
+    input: ImportReviewIdInput,
 ) -> Result<ImportReviewSummary, AppError> {
-    access::verify_review_access(state, user_id, review_id).await?;
     let updated = state
-        .import_review()
-        .reject_import_review(review_id)
+        .orchestrator()
+        .reject_import_review_for_user_validated(user_id, input.review_id)
         .await?;
     projections::import_review_summary(&updated)
 }

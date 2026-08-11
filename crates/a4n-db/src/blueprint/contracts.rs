@@ -1,3 +1,4 @@
+use a4n_domain::project::ProjectStatus;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 use serde_json::Value;
@@ -31,6 +32,57 @@ pub struct NovelBlueprintUpsertInput {
     pub now: NaiveDateTime,
 }
 
+/// 用户直接录入或编辑正式蓝图时可修改的字段。
+#[derive(Debug, Clone)]
+pub struct ManualBlueprintUpsertInput {
+    pub project_id: i64,
+    pub title: String,
+    pub genre: String,
+    pub style: Option<String>,
+    pub tone: Option<String>,
+    pub target_audience: Option<String>,
+    pub one_sentence_summary: Option<String>,
+    pub full_synopsis: Option<String>,
+    pub needs_part_outlines: bool,
+    pub total_chapters: i32,
+    pub chapters_per_part: Option<i32>,
+    pub current_version: String,
+    pub now: NaiveDateTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct SaveManualBlueprintInput {
+    pub project_id: i64,
+    pub genre: String,
+    pub style: Option<String>,
+    pub tone: Option<String>,
+    pub target_audience: Option<String>,
+    pub one_sentence_summary: Option<String>,
+    pub full_synopsis: Option<String>,
+    pub total_chapters: i32,
+    pub created_by: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateBlueprintWorldSettingInput {
+    pub project_id: i64,
+    pub world_setting: Value,
+    pub created_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlueprintMutationStatusChange {
+    pub from: ProjectStatus,
+    pub to: ProjectStatus,
+    pub changed_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct VersionedBlueprintMutationResult {
+    pub blueprint: a4n_core::models::project::novel_blueprint::Model,
+    pub status_change: Option<BlueprintMutationStatusChange>,
+}
+
 /// 优化路径的可选补丁字段。
 #[derive(Debug, Clone)]
 pub struct BlueprintRefinePatchInput {
@@ -57,7 +109,7 @@ pub struct InsertBlueprintVersionInput {
 pub struct SyncProjectAfterBlueprintInput {
     pub project_id: i64,
     pub title: String,
-    pub status: String,
+    pub status: ProjectStatus,
     pub target_chapters: i32,
     pub total_chapters: Option<i32>,
     pub chapters_per_part: Option<i32>,

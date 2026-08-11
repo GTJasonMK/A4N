@@ -2,6 +2,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_llm::trace::{chat_request_messages_json, text_response_summary_json};
+use sea_orm::DatabaseTransaction;
 use serde_json::json;
 
 use crate::{generation::generation_error, outline::OrchestratorContext};
@@ -12,12 +13,13 @@ use super::super::contracts::GeneratedPartOutline;
 impl OrchestratorContext {
     pub(in crate::outline::parts) async fn record_part_outline_generation_run(
         &self,
+        db: &DatabaseTransaction,
         part: &part_outline::Model,
         generated: &GeneratedPartOutline,
         title: &str,
     ) -> Result<(), AppError> {
-        a4n_db::generation::record_completed_generation_run(
-            self.database.connection(),
+        a4n_db::generation::record_completed_generation_run_in_transaction(
+            db,
             RecordCompletedGenerationRunInput {
                 project_id: part.project_id,
                 workflow: "part_outline_generation".to_string(),

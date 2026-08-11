@@ -28,7 +28,8 @@ const materialSyncLabel = (state: ChapterMaterialSyncState | null | undefined): 
   if (statuses.includes("failed")) return "资料同步失败";
   if (statuses.includes("running")) return "资料同步中";
   if (statuses.includes("pending")) return "资料待同步";
-  if (statuses.includes("needs_analysis")) return "资料需更新";
+  if (statuses.includes("needs_analysis")) return "正文变化，需重析";
+  if (statuses.includes("not_analyzed")) return "尚未分析";
   if (statuses.includes("unknown")) return "资料待核对";
   return "资料已同步";
 };

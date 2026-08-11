@@ -15,6 +15,8 @@ use async_trait::async_trait;
 
 use crate::runtime_config;
 
+#[cfg(feature = "local-embedding")]
+pub(crate) use contracts::resolve_fastembed_cache_dir;
 pub use contracts::{
     default_fastembed_cache_dir, effective_fastembed_cache_dir, model_identity_from_config,
 };
@@ -105,7 +107,7 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
             .await
     }
 
-    async fn test_connection(&self) -> Result<bool, AppError> {
+    async fn test_connection(&self) -> Result<(), AppError> {
         let provider = self.resolve_default().await?;
         self.facade
             .queue_run_tracked(

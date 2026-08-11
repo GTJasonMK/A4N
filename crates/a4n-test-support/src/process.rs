@@ -28,17 +28,15 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 pub const SIDECAR_PROCESS_TEST_TOKEN: &str = "a4n-process-test-token";
 
 pub use a4n_capabilities::{
-    EmbeddingClient, ExportClient, HttpEmbeddingClient, HttpExportClient, HttpImageClient,
-    HttpImportClient, HttpPromptClient, HttpRagClient, HttpVideoClient, ImageClient, ImportClient,
-    JsonRequest, PromptClient, RagClient, VideoClient,
+    EmbeddingClient, EmbeddingModelOperation, ExportClient, HttpEmbeddingClient, HttpExportClient,
+    HttpImageClient, HttpImportClient, HttpPromptClient, HttpRagClient, HttpVideoClient,
+    ImageClient, ImportClient, JsonRequest, PromptClient, RagClient, VideoClient,
 };
 pub use a4n_export_core::{
-    ExportDocumentKind, ExportRenderJsonInput, ExportRenderZipInput, ExportZipEntryBytes,
-    ExportZipPackageInput, render_zip,
+    ExportRenderJsonInput, ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
+    render_zip,
 };
-pub use a4n_import_core::{
-    ImportDocumentKind, ImportNormalizeJsonInput, ImportReadMediaPackageZipInput,
-};
+pub use a4n_import_core::ImportReadMediaPackageZipInput;
 pub use a4n_service_protocol::{
     EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EXPORT_RENDER_CAPABILITY_VERSION,
     EXPORT_SERVICE_NAME, IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME,

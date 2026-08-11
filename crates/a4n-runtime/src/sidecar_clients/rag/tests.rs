@@ -97,7 +97,7 @@ fn rag_service_request_accepts_repeated_same_project_and_rejects_mixed_projects(
 
 #[test]
 fn rag_service_request_keeps_global_operations_without_project_scope() {
-    let request = rag_service_request("rag.list_collections", json!({ "collection": "novel" }))
+    let request = rag_service_request("rag.drop_collection", json!({ "collection": "novel" }))
         .expect("global rag service request");
 
     assert_eq!(request.project_id, None);
@@ -220,7 +220,7 @@ async fn rag_ingest_uses_typed_events_and_preserves_project_scope() {
                         "root_project_id": 3,
                         "data_type": "chapter"
                     }),
-                    content: Some("chapter content".to_string()),
+                    content: "chapter content".to_string(),
                 }],
             )
             .await
@@ -230,7 +230,6 @@ async fn rag_ingest_uses_typed_events_and_preserves_project_scope() {
 
     assert_eq!(written, 1);
     assert_eq!(client.ingest_events_call_count(), 1);
-    assert_eq!(client.ingest_call_count(), 0);
     let request = client
         .last_ingest_events_request()
         .expect("recorded request");

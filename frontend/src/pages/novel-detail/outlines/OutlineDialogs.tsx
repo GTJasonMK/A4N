@@ -401,7 +401,7 @@ export function ChapterOutlineActionDialog({
             />
           }
           title="重新生成本章纲"
-          description="基于蓝图和前后文重写这一章的章节大纲。"
+          description="基于当前正式资料和前后文重写这一章的章节大纲。"
           disabled={busy}
           onClick={async () => {
             await onRegenerate(outline);

@@ -1,6 +1,9 @@
 use a4n_core::models::{
-    chapter::{chapter_outline, part_outline},
-    project::{novel_blueprint, novel_project},
+    chapter::{chapter_outline, chapter_outline_provenance, part_outline},
+    project::{
+        blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
+        novel_project,
+    },
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -91,6 +94,44 @@ async fn insert_existing_blueprint(
     .unwrap();
 }
 
+async fn insert_existing_blueprint_materials(db: &DatabaseConnection, project_id: i64) {
+    let now = fixed_time();
+    blueprint_character::ActiveModel {
+        project_id: Set(project_id),
+        name: Set("林岚".to_string()),
+        character_type: Set("protagonist".to_string()),
+        gender: Set(None),
+        age: Set(None),
+        appearance: Set(None),
+        personality: Set(Some("谨慎".to_string())),
+        background: Set(Some("用户手工录入".to_string())),
+        motivation: Set(None),
+        arc_summary: Set(None),
+        relationship_to_protagonist: Set(None),
+        arc_stages: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    blueprint_relationship::ActiveModel {
+        project_id: Set(project_id),
+        relationship_type: Set("friend".to_string()),
+        character_a: Set("林岚".to_string()),
+        character_b: Set("陈恪".to_string()),
+        description: Set(Some("用户确认的旧友关系".to_string())),
+        strength: Set(Some(7)),
+        evolution: Set(None),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
 fn blueprint_draft(
     total_chapters: Option<i32>,
     needs_part_outlines: Option<bool>,
@@ -143,12 +184,20 @@ async fn reverse_blueprint_transaction_persists_derived_part_outline_threshold()
 
     let short = blueprint_for_project(&db, short_project.id).await;
     let long = blueprint_for_project(&db, long_project.id).await;
+    let short_versions = blueprint_version::Entity::find()
+        .filter(blueprint_version::Column::ProjectId.eq(short_project.id))
+        .all(&db)
+        .await
+        .unwrap();
     assert_eq!(short.total_chapters, Some(50));
     assert!(!short.needs_part_outlines);
     assert_eq!(short.chapters_per_part, None);
     assert_eq!(long.total_chapters, Some(51));
     assert!(long.needs_part_outlines);
     assert_eq!(long.chapters_per_part, Some(CHAPTERS_PER_PART));
+    assert_eq!(short.current_version, "1.0");
+    assert_eq!(short_versions.len(), 1);
+    assert_eq!(short_versions[0].version, "1.0");
 }
 
 #[tokio::test]
@@ -156,6 +205,7 @@ async fn reverse_blueprint_transaction_preserves_existing_chapter_plan_when_omit
     let db = setup_db().await;
     let project = insert_project(&db, "既有五十一章项目").await;
     insert_existing_blueprint(&db, project.id, 51, true).await;
+    insert_existing_blueprint_materials(&db, project.id).await;
 
     apply_reverse_blueprint_records_transaction(&db, project.id, blueprint_draft(None, None))
         .await
@@ -173,6 +223,36 @@ async fn reverse_blueprint_transaction_preserves_existing_chapter_plan_when_omit
     assert_eq!(project.total_chapters, Some(51));
     assert_eq!(project.target_chapters, 51);
     assert_eq!(project.chapters_per_part, Some(CHAPTERS_PER_PART));
+    assert_eq!(blueprint.current_version, "1.1");
+    let characters = blueprint_character::Entity::find()
+        .filter(blueprint_character::Column::ProjectId.eq(project.id))
+        .all(&db)
+        .await
+        .unwrap();
+    let relationships = blueprint_relationship::Entity::find()
+        .filter(blueprint_relationship::Column::ProjectId.eq(project.id))
+        .all(&db)
+        .await
+        .unwrap();
+    let version = blueprint_version::Entity::find()
+        .filter(blueprint_version::Column::ProjectId.eq(project.id))
+        .filter(blueprint_version::Column::Version.eq("1.1"))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(characters.len(), 1);
+    assert_eq!(characters[0].background.as_deref(), Some("用户手工录入"));
+    assert_eq!(relationships.len(), 1);
+    assert_eq!(
+        relationships[0].description.as_deref(),
+        Some("用户确认的旧友关系")
+    );
+    assert_eq!(version.blueprint_data["characters"][0]["name"], "林岚");
+    assert_eq!(
+        version.blueprint_data["relationships"][0]["character_b"],
+        "陈恪"
+    );
 }
 
 #[tokio::test]
@@ -223,7 +303,7 @@ async fn reverse_outline_transaction_updates_existing_word_count_target() {
     let db = setup_db().await;
     let project = insert_project(&db, "章纲更新项目").await;
     let now = fixed_time();
-    chapter_outline::ActiveModel {
+    let existing = chapter_outline::ActiveModel {
         project_id: Set(project.id),
         part_id: Set(None),
         chapter_number: Set(1),
@@ -240,6 +320,18 @@ async fn reverse_outline_transaction_updates_existing_word_count_target() {
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    chapter_outline_provenance::ActiveModel {
+        outline_id: Set(existing.id),
+        source_kind: Set(
+            chapter_outline_provenance::SOURCE_KIND_RETROSPECTIVE_ANALYSIS.to_string(),
+        ),
+        source_fingerprint_json: Set(json!({"source": "old chapter analysis"})),
+        created_at: Set(now),
+        updated_at: Set(now),
     }
     .insert(&db)
     .await
@@ -271,12 +363,42 @@ async fn reverse_outline_transaction_updates_existing_word_count_target() {
     assert_eq!(outline.word_count_target, Some(3200));
     assert_eq!(outline.foreshadowing_setup, None);
     assert_eq!(outline.foreshadowing_payoff, None);
+    assert!(outline.updated_at > existing.updated_at);
+    assert!(
+        chapter_outline_provenance::Entity::find_by_id(existing.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none(),
+        "用户确认的反推章纲必须成为正式写作计划"
+    );
 }
 
 #[tokio::test]
 async fn reverse_part_outline_transaction_inserts_and_updates_canonical_row() {
     let db = setup_db().await;
     let project = insert_project(&db, "分部更新项目").await;
+    chapter_outline::ActiveModel {
+        project_id: Set(project.id),
+        part_id: Set(None),
+        chapter_number: Set(12),
+        title: Set(Some("钟楼来信".to_string())),
+        summary: Set(Some("林岚收到来自未来的信。".to_string())),
+        beats: Set(None),
+        key_scenes: Set(None),
+        pacing_score: Set(None),
+        foreshadowing_setup: Set(None),
+        foreshadowing_payoff: Set(None),
+        characters_involved: Set(None),
+        word_count_target: Set(None),
+        status: Set("draft".to_string()),
+        created_at: Set(fixed_time()),
+        updated_at: Set(fixed_time()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
     let first = ReversePartOutlineApplyRow {
         part_number: 1,
         title: "第一部".to_string(),
@@ -309,6 +431,13 @@ async fn reverse_part_outline_transaction_inserts_and_updates_canonical_row() {
         .all(&db)
         .await
         .unwrap();
+    let outline = chapter_outline::Entity::find()
+        .filter(chapter_outline::Column::ProjectId.eq(project.id))
+        .filter(chapter_outline::Column::ChapterNumber.eq(12))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].title, "第一部·星潮");
     assert_eq!(rows[0].end_chapter, 24);
@@ -316,4 +445,5 @@ async fn reverse_part_outline_transaction_inserts_and_updates_canonical_row() {
     assert_eq!(rows[0].theme.as_deref(), Some("代价"));
     assert_eq!(rows[0].key_events, Some(json!(["旧敌回归", "盟友背叛"])));
     assert_eq!(rows[0].character_focus, Some(json!({"主角": "主动追查"})));
+    assert_eq!(outline.part_id, Some(rows[0].id));
 }

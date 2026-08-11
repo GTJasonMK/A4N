@@ -2,7 +2,7 @@ use super::*;
 use a4n_core::models::{
     asset::object_profile,
     chapter::chapter,
-    project::{novel_project, source_snapshot_chapter, text_anchor},
+    project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
 };
 use chrono::Utc;
 use sea_orm::{
@@ -123,6 +123,20 @@ async fn rebuild_current_chapter_anchors_replaces_existing_rows() {
     let first = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
         .await
         .unwrap();
+    let object = object_profile_record(&db, project.id).await;
+    merge_profile_evidence_records(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        object.id,
+        vec![TextAnchorEvidenceInput {
+            text_anchor_id: first[0].id,
+            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+        }],
+    )
+    .await
+    .unwrap();
     let second = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
         .await
         .unwrap();
@@ -141,6 +155,14 @@ async fn rebuild_current_chapter_anchors_replaces_existing_rows() {
         second
             .iter()
             .any(|anchor| anchor.quote == "抽屉里有一枚青铜钥匙")
+    );
+    assert_eq!(
+        profile_evidence::Entity::find()
+            .filter(profile_evidence::Column::ProfileId.eq(object.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
     );
 }
 
@@ -229,6 +251,58 @@ async fn merge_profile_evidence_persists_anchor_binding() {
     assert_eq!(evidence[0].profile_kind, "object");
     assert_eq!(evidence[0].profile_id, object.id);
     assert_eq!(evidence[0].text_anchor_id, anchor.id);
+}
+
+#[tokio::test]
+async fn earliest_profile_evidence_chapter_requires_the_current_chapter_source() {
+    let db = setup_db().await;
+    let project = text_project(&db, "档案首次出现章节").await;
+    let chapter = chapter_record(&db, project.id, 7, "他在站台上举起青铜钥匙。").await;
+    let object = object_profile_record(&db, project.id).await;
+    let anchor = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
+        .await
+        .unwrap()
+        .remove(0);
+    merge_profile_evidence_records(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        object.id,
+        vec![TextAnchorEvidenceInput {
+            text_anchor_id: anchor.id,
+            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+        }],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        earliest_current_profile_evidence_chapter(
+            &db,
+            project.id,
+            TextAnchorProfileKind::Object,
+            object.id,
+        )
+        .await
+        .unwrap(),
+        Some(7)
+    );
+
+    let mut stale_chapter: chapter::ActiveModel = chapter.into();
+    stale_chapter.content = Set("正文已经改变".to_string());
+    stale_chapter.update(&db).await.unwrap();
+    assert_eq!(
+        earliest_current_profile_evidence_chapter(
+            &db,
+            project.id,
+            TextAnchorProfileKind::Object,
+            object.id,
+        )
+        .await
+        .unwrap(),
+        None
+    );
 }
 
 #[tokio::test]

@@ -6,3 +6,4 @@ mod early_extraction;
 mod late_extraction;
 mod pipeline;
 mod planning;
+mod progress;

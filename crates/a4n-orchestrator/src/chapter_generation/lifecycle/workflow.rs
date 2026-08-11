@@ -5,10 +5,7 @@ use serde_json::Value;
 use super::super::ChapterGenerationWordCountRange;
 use crate::{
     OrchestratorContext,
-    workflow::{
-        UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
-        WORKFLOW_STATUS_RUNNING,
-    },
+    workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
 };
 
 pub(crate) struct StartChapterGenerationWorkflowInput<'a> {
@@ -64,17 +61,6 @@ impl OrchestratorContext {
             .await
             .map(|_| ())
             .map_err(|error| error.to_string())
-    }
-
-    pub(crate) async fn fail_chapter_generation_workflow(
-        &self,
-        workflow_run_id: i64,
-        error: &str,
-    ) -> Result<(), String> {
-        self.mark_workflow_status(workflow_run_id, WORKFLOW_STATUS_FAILED, true, Some(error))
-            .await
-            .map(|_| ())
-            .map_err(|status_error| status_error.to_string())
     }
 }
 

@@ -14,6 +14,8 @@ pub enum UnifiedResumeDispatch {
     VideoCanvasGraph,
     /// 章节分析工作流续跑。
     ChapterAnalysis,
+    /// 章节正文保存后的派生资料同步续跑。
+    ChapterContentSync { chapter_id: i64 },
 }
 
 /// 工作流终态结果（纯规则）。
@@ -150,6 +152,9 @@ pub fn resolve_unified_resume_dispatch(
         }),
         "video_canvas_graph" => Ok(UnifiedResumeDispatch::VideoCanvasGraph),
         "chapter_analysis" => Ok(UnifiedResumeDispatch::ChapterAnalysis),
+        "chapter_content_sync" => Ok(UnifiedResumeDispatch::ChapterContentSync {
+            chapter_id: chapter_scope_target_id(scope_table, scope_id)?,
+        }),
         "manga_pipeline" => Err("漫画流水线请在漫画章节页使用“续传流水线”入口恢复".to_string()),
         other => Err(format!("工作流类型 {other} 暂未接入统一恢复入口")),
     }
@@ -175,6 +180,15 @@ fn video_provider_job_target_id(
     scope_id
         .filter(|_| scope_table == Some("generated_video"))
         .ok_or_else(|| "视频 provider 工作流缺少 generated_video 目标".to_string())
+}
+
+fn chapter_scope_target_id(
+    scope_table: Option<&str>,
+    scope_id: Option<i64>,
+) -> Result<i64, String> {
+    scope_id
+        .filter(|id| *id > 0 && scope_table == Some("chapter"))
+        .ok_or_else(|| "章节资料同步工作流缺少 chapter 目标".to_string())
 }
 
 #[cfg(test)]
@@ -267,6 +281,11 @@ mod tests {
             plan_unified_resume(true, None, "chapter_analysis", None, None).unwrap(),
             UnifiedResumeDispatch::ChapterAnalysis
         );
+        assert_eq!(
+            plan_unified_resume(true, None, "chapter_content_sync", Some("chapter"), Some(7))
+                .unwrap(),
+            UnifiedResumeDispatch::ChapterContentSync { chapter_id: 7 }
+        );
         assert!(
             plan_unified_resume(true, None, "manga_pipeline", None, None)
                 .unwrap_err()
@@ -281,6 +300,11 @@ mod tests {
             plan_unified_resume(true, None, "video_provider_job", Some("other"), Some(1))
                 .unwrap_err(),
             "视频 provider 工作流缺少 generated_video 目标"
+        );
+        assert_eq!(
+            plan_unified_resume(true, None, "chapter_content_sync", Some("other"), Some(7))
+                .unwrap_err(),
+            "章节资料同步工作流缺少 chapter 目标"
         );
     }
 

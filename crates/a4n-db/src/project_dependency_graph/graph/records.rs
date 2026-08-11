@@ -53,7 +53,7 @@ impl AssetGraphRecords {
     pub(super) async fn load(
         db: &impl ConnectionTrait,
         root_project_id: i64,
-        family_project_ids: Vec<i64>,
+        family_project_ids: &[i64],
     ) -> Result<Self, AppError> {
         let RootAssetGraphRecords {
             conversations,
@@ -73,13 +73,13 @@ impl AssetGraphRecords {
             video_prompts,
             generated_images,
             generated_videos,
-        } = load_family_asset_graph_records(db, &family_project_ids).await?;
+        } = load_family_asset_graph_records(db, family_project_ids).await?;
         let GenerationAssetGraphRecords {
             generation_specs,
             prompt_artifacts,
             media_assets,
             media_provenance,
-        } = load_generation_asset_graph_records(db, &family_project_ids).await?;
+        } = load_generation_asset_graph_records(db, family_project_ids).await?;
 
         Ok(Self {
             conversations,

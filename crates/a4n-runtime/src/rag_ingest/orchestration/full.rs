@@ -44,7 +44,7 @@ async fn rag_ingest_all_inner(
         .map_err(|error| error.to_string())?;
     if rebuild {
         state
-            .rag()
+            .orchestrator()
             .clear_project_rag(project_id)
             .await
             .map_err(|error| error.to_string())?;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle,
+import {
+  AlertTriangle,
   CheckCircle2,
   CircleDashed,
   Eye,
@@ -8,7 +9,8 @@ import { AlertTriangle,
   Play,
   RefreshCw,
   Trash2,
-  XCircle, } from "lucide-react";
+  XCircle,
+} from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
@@ -34,21 +36,19 @@ import {
   optimizeMangaPrompt,
   type BindMangaReferenceImageInput,
   type MangaPipelineStatusSummary,
-  type MangaPromptSummary,
+  type MangaPagePromptSummary,
   updateMangaPrompt,
 } from "../../../api/manga";
 import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
 import { isChapterGenerating, type ChapterRow } from "../shared";
-import { MangaPanelList } from "./MangaPanelList";
+import { MangaPagePromptList } from "./MangaPagePromptList";
 import { explainMangaPipelineAiConfigError } from "./mangaPipelineErrors";
 import {
   chapterHeading,
-  MANGA_PIPELINE_START_STAGE_OPTIONS,
+  countStaleMangaPagePrompts,
   mangaStageLabel,
-  summarizePanelSources,
-  type MangaPipelineStartStageOption,
 } from "./mangaTabUtils";
 
 interface MangaChapterDetailPanelProps {
@@ -56,8 +56,8 @@ interface MangaChapterDetailPanelProps {
   isSingleMode: boolean;
   selectedChapter: ChapterRow | null;
   selectedStatus: MangaPipelineStatusSummary | null | undefined;
-  panels: MangaPromptSummary[];
-  panelsLoading: boolean;
+  pagePrompts: MangaPagePromptSummary[];
+  pagePromptsLoading: boolean;
   currentContentHash: string | null;
   characterAssetsLoading: boolean;
   projectImagesLoading: boolean;
@@ -68,16 +68,14 @@ interface MangaChapterDetailPanelProps {
   characterProfileCount: number;
   portraitCount: number;
   missingPortraitCount: number;
-  pipelineStartStage: MangaPipelineStartStageOption;
   acting: string | null;
   canEditManga: boolean;
-  onPipelineStartStageChange: (value: MangaPipelineStartStageOption) => void;
   onPreviewPipeline: (mode: "start" | "resume") => void;
   onRunPipeline: (mode: "start" | "resume") => void;
   onGenerateMissingPortraits: () => void;
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
-  onPanelsChanged: () => Promise<void>;
+  onPagePromptsChanged: () => Promise<void>;
 }
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
@@ -101,8 +99,8 @@ export function MangaChapterDetailPanel({
   isSingleMode,
   selectedChapter,
   selectedStatus,
-  panels,
-  panelsLoading,
+  pagePrompts,
+  pagePromptsLoading,
   currentContentHash,
   characterAssetsLoading,
   projectImagesLoading,
@@ -113,44 +111,47 @@ export function MangaChapterDetailPanel({
   characterProfileCount,
   portraitCount,
   missingPortraitCount,
-  pipelineStartStage,
   acting,
   canEditManga,
-  onPipelineStartStageChange,
   onPreviewPipeline,
   onRunPipeline,
   onGenerateMissingPortraits,
   onCancelPipeline,
   onDeleteManga,
-  onPanelsChanged,
+  onPagePromptsChanged,
 }: MangaChapterDetailPanelProps) {
   const addToast = useToast((state) => state.addToast);
   const { runProgressTask: runPageImageProgressTask } = useProgressTask();
-  const [generatingPageNumber, setGeneratingPageNumber] = useState<number | null>(null);
-  const [panelActionBusy, setPanelActionBusy] = useState(false);
+  const [generatingPageNumber, setGeneratingPageNumber] = useState<
+    number | null
+  >(null);
+  const [promptActionBusy, setPromptActionBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
-  const [optimizingPromptId, setOptimizingPromptId] = useState<number | null>(null);
+  const [optimizingPromptId, setOptimizingPromptId] = useState<number | null>(
+    null,
+  );
   const selectedChapterId = selectedChapter?.id ?? null;
   const scopeKey = `${projectId}:${selectedChapterId ?? "none"}`;
   const mountedRef = useRef(false);
   const activeScopeRef = useRef(scopeKey);
-  const panelsRef = useRef<MangaPromptSummary[]>(panels);
+  const pagePromptsRef = useRef<MangaPagePromptSummary[]>(pagePrompts);
   const actionSeqRef = useRef(0);
   const actionBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
   const previewBusyRef = useRef(false);
   const selectedChapterReady = Boolean(selectedChapter?.content?.trim());
   const selectedChapterGenerating = isChapterGenerating(selectedChapter);
-  const detailBusy = panelActionBusy || requestPreviewLoading;
+  const detailBusy = promptActionBusy || requestPreviewLoading;
 
   activeScopeRef.current = scopeKey;
-  panelsRef.current = panels;
+  pagePromptsRef.current = pagePrompts;
 
   const isCurrentScope = useCallback(
-    (requestScope: string) => mountedRef.current && activeScopeRef.current === requestScope,
+    (requestScope: string) =>
+      mountedRef.current && activeScopeRef.current === requestScope,
     [],
   );
 
@@ -184,21 +185,18 @@ export function MangaChapterDetailPanel({
       }
       actionBusyRef.current = true;
       actionSeqRef.current += 1;
-      setPanelActionBusy(true);
+      setPromptActionBusy(true);
       return actionSeqRef.current;
     },
     [addToast, isCurrentScope],
   );
 
-  const finishAction = useCallback(
-    (requestSeq: number) => {
-      if (actionSeqRef.current === requestSeq) {
-        actionBusyRef.current = false;
-        setPanelActionBusy(false);
-      }
-    },
-    [],
-  );
+  const finishAction = useCallback((requestSeq: number) => {
+    if (actionSeqRef.current === requestSeq) {
+      actionBusyRef.current = false;
+      setPromptActionBusy(false);
+    }
+  }, []);
 
   const closeRequestPreview = useCallback(() => {
     previewSeqRef.current += 1;
@@ -225,9 +223,9 @@ export function MangaChapterDetailPanel({
     previewSeqRef.current += 1;
     actionBusyRef.current = false;
     previewBusyRef.current = false;
-    panelsRef.current = panels;
+    pagePromptsRef.current = pagePrompts;
     setGeneratingPageNumber(null);
-    setPanelActionBusy(false);
+    setPromptActionBusy(false);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
@@ -235,12 +233,15 @@ export function MangaChapterDetailPanel({
   }, [scopeKey]);
 
   useEffect(() => {
-    panelsRef.current = panels;
-  }, [panels]);
-  const panelSourceStatus =
+    pagePromptsRef.current = pagePrompts;
+  }, [pagePrompts]);
+  const stalePagePromptCount =
     selectedChapter != null
-      ? summarizePanelSources(panels, currentContentHash)
-      : null;
+      ? countStaleMangaPagePrompts(pagePrompts, currentContentHash)
+      : 0;
+  const pipelineStoppedWithError =
+    selectedStatus?.pipeline_status === "failed" ||
+    selectedStatus?.pipeline_status === "interrupted";
 
   const stageText = selectedStatus?.stage
     ? mangaStageLabel(selectedStatus.stage)
@@ -248,7 +249,7 @@ export function MangaChapterDetailPanel({
       ? mangaStageLabel(selectedStatus.pipeline_status)
       : "未开始";
   const statusTone: NoticeTone =
-    selectedStatus?.pipeline_status === "failed"
+    pipelineStoppedWithError
       ? "danger"
       : selectedStatus?.pipeline_status === "running"
         ? "warning"
@@ -279,12 +280,12 @@ export function MangaChapterDetailPanel({
         text: "当前章节正文仍在生成中，漫画操作已锁定。",
       };
     }
-    if (selectedStatus?.pipeline_status === "failed") {
+    if (pipelineStoppedWithError) {
       return {
         tone: "danger" as NoticeTone,
         text: selectedStatus.message
           ? explainMangaPipelineAiConfigError(selectedStatus.message)
-          : "漫画流水线失败，可使用续传保留已完成断点。",
+          : "漫画流水线中断，可使用续传保留已完成断点。",
       };
     }
     if (selectedStatus?.can_resume) {
@@ -298,16 +299,16 @@ export function MangaChapterDetailPanel({
     if (missingPortraitCount > 0) {
       return {
         tone: "warning" as NoticeTone,
-        text: `有 ${missingPortraitCount} 位角色缺少立绘；生成时会退回文字档案描述。`,
+        text: `有 ${missingPortraitCount} 位角色缺少立绘；涉及这些角色的页面必须先绑定参考图后才能成图。`,
       };
     }
-    if (panelSourceStatus && panelSourceStatus.staleCount > 0) {
+    if (stalePagePromptCount > 0) {
       return {
         tone: "warning" as NoticeTone,
-        text: `有 ${panelSourceStatus.staleCount} 页提示词基于旧正文，建议从受影响阶段重新生成。`,
+        text: `有 ${stalePagePromptCount} 页提示词基于旧正文，建议从头重新生成。`,
       };
     }
-    if (panels.length > 0) {
+    if (pagePrompts.length > 0) {
       return {
         tone: "ok" as NoticeTone,
         text: "当前整页提示词可继续绑定参考图并生成图片。",
@@ -367,13 +368,14 @@ export function MangaChapterDetailPanel({
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(`已生成第 ${pageNumber} 页整页漫画`, "success");
-      await onPanelsChanged();
+      await onPagePromptsChanged();
     } catch (err) {
       if (!isCurrentAction(requestScope, actionSeq)) return;
       const message = extractErrorMessage(err, "整页漫画生成失败");
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
-      if (isCurrentAction(requestScope, actionSeq)) setGeneratingPageNumber(null);
+      if (isCurrentAction(requestScope, actionSeq))
+        setGeneratingPageNumber(null);
       finishAction(actionSeq);
     }
   };
@@ -434,7 +436,8 @@ export function MangaChapterDetailPanel({
       return;
     }
     const requestScope = scopeKey;
-    const prompt = panelsRef.current.find((panel) => panel.id === input.prompt_id) ?? null;
+    const prompt =
+      pagePromptsRef.current.find((prompt) => prompt.id === input.prompt_id) ?? null;
     if (!prompt) {
       addToast("漫画提示词已不在当前章节中", "error");
       return;
@@ -459,7 +462,8 @@ export function MangaChapterDetailPanel({
         downstreamStrategy = strategy;
       }
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      const currentPrompt = panelsRef.current.find((panel) => panel.id === input.prompt_id) ?? null;
+      const currentPrompt =
+        pagePromptsRef.current.find((prompt) => prompt.id === input.prompt_id) ?? null;
       if (!currentPrompt) {
         addToast("漫画提示词已不在当前章节中", "error");
         return;
@@ -470,7 +474,7 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast("已绑定参考图", "success");
-      await onPanelsChanged();
+      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, "绑定参考图失败"), "error");
@@ -492,7 +496,8 @@ export function MangaChapterDetailPanel({
       throw new Error(message);
     }
     const requestScope = scopeKey;
-    const prompt = panelsRef.current.find((panel) => panel.id === promptId) ?? null;
+    const prompt =
+      pagePromptsRef.current.find((prompt) => prompt.id === promptId) ?? null;
     if (!prompt) {
       const message = "漫画提示词已不在当前章节中";
       addToast(message, "error");
@@ -520,8 +525,10 @@ export function MangaChapterDetailPanel({
         }
         downstreamStrategy = strategy;
       }
-      if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
-      const currentPrompt = panelsRef.current.find((panel) => panel.id === promptId) ?? null;
+      if (!isCurrentAction(requestScope, actionSeq))
+        throw new Error("任务已停止");
+      const currentPrompt =
+        pagePromptsRef.current.find((prompt) => prompt.id === promptId) ?? null;
       if (!currentPrompt) {
         const message = "漫画提示词已不在当前章节中";
         addToast(message, "error");
@@ -532,9 +539,10 @@ export function MangaChapterDetailPanel({
         image_prompt: imagePrompt,
         downstream_strategy: downstreamStrategy,
       });
-      if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
+      if (!isCurrentAction(requestScope, actionSeq))
+        throw new Error("任务已停止");
       addToast("已保存提示词", "success");
-      await onPanelsChanged();
+      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         const message = extractErrorMessage(err, "保存提示词失败");
@@ -552,7 +560,7 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const handleOptimizePrompt = async (prompt: MangaPromptSummary) => {
+  const handleOptimizePrompt = async (prompt: MangaPagePromptSummary) => {
     if (!canEditManga) {
       addToast("当前账号没有编辑此漫画项目的权限", "error");
       return;
@@ -562,7 +570,8 @@ export function MangaChapterDetailPanel({
       return;
     }
     const requestScope = scopeKey;
-    const requestPrompt = panelsRef.current.find((panel) => panel.id === prompt.id) ?? null;
+    const requestPrompt =
+      pagePromptsRef.current.find((current) => current.id === prompt.id) ?? null;
     if (!requestPrompt) {
       addToast("漫画提示词已不在当前章节中", "error");
       return;
@@ -588,8 +597,10 @@ export function MangaChapterDetailPanel({
       }
       const instruction = await promptDialog({
         title: "优化文字资产",
-        message: "输入你希望如何优化这条漫画整页提示词。有下游图片时会按刚才选择的处理方式继续。",
-        placeholder: "例如：保留角色和参考图约束，增强构图关系，压缩重复形容词…",
+        message:
+          "输入你希望如何优化这条漫画整页提示词。有下游图片时会按刚才选择的处理方式继续。",
+        placeholder:
+          "例如：保留角色和参考图约束，增强构图关系，压缩重复形容词…",
         multiline: true,
         required: true,
         confirmText: "开始优化",
@@ -599,7 +610,8 @@ export function MangaChapterDetailPanel({
       if (!trimmed) return;
       if (!isCurrentAction(requestScope, actionSeq)) return;
       const currentPrompt =
-        panelsRef.current.find((panel) => panel.id === requestPrompt.id) ?? null;
+        pagePromptsRef.current.find((current) => current.id === requestPrompt.id) ??
+        null;
       if (!currentPrompt) {
         addToast("漫画提示词已不在当前章节中", "error");
         return;
@@ -612,7 +624,7 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast("漫画提示词已优化", "success");
-      await onPanelsChanged();
+      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, "优化漫画提示词失败"), "error");
@@ -623,7 +635,7 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const handleDeletePrompt = async (prompt: MangaPromptSummary) => {
+  const handleDeletePrompt = async (prompt: MangaPagePromptSummary) => {
     if (!canEditManga) {
       addToast("当前账号没有编辑此漫画项目的权限", "error");
       return;
@@ -633,7 +645,8 @@ export function MangaChapterDetailPanel({
       return;
     }
     const requestScope = scopeKey;
-    const requestPrompt = panelsRef.current.find((panel) => panel.id === prompt.id) ?? null;
+    const requestPrompt =
+      pagePromptsRef.current.find((current) => current.id === prompt.id) ?? null;
     if (!requestPrompt) {
       addToast("漫画提示词已不在当前章节中", "error");
       return;
@@ -667,7 +680,8 @@ export function MangaChapterDetailPanel({
       }
       if (!isCurrentAction(requestScope, actionSeq)) return;
       const currentPrompt =
-        panelsRef.current.find((panel) => panel.id === requestPrompt.id) ?? null;
+        pagePromptsRef.current.find((current) => current.id === requestPrompt.id) ??
+        null;
       if (!currentPrompt) {
         addToast("漫画提示词已不在当前章节中", "error");
         return;
@@ -675,7 +689,7 @@ export function MangaChapterDetailPanel({
       await deleteMangaPrompt(requestPrompt.id, downstreamStrategy);
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast("漫画提示词已删除", "success");
-      await onPanelsChanged();
+      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, "删除漫画提示词失败"), "error");
@@ -686,11 +700,12 @@ export function MangaChapterDetailPanel({
   };
 
   const pipelineRunning = selectedStatus?.can_cancel === true;
-  const pipelineCanResume = selectedStatus?.can_resume === true && !pipelineRunning;
-  const hasMangaResult = panels.length > 0;
-  const mangaResultStale = (panelSourceStatus?.staleCount ?? 0) > 0;
+  const pipelineCanResume =
+    selectedStatus?.can_resume === true && !pipelineRunning;
+  const hasMangaResult = pagePrompts.length > 0;
+  const mangaResultStale = stalePagePromptCount > 0;
   const pipelineFailed =
-    selectedStatus?.pipeline_status === "failed" && !pipelineCanResume;
+    pipelineStoppedWithError && !pipelineCanResume;
   const showPipelineDirectAction =
     !hasMangaResult || pipelineCanResume || pipelineFailed || mangaResultStale;
   const pipelineDirectVariant =
@@ -730,19 +745,24 @@ export function MangaChapterDetailPanel({
       pipelineMenuItems.push({
         label: pipelinePreviewLabel,
         icon: <Eye size={12} />,
-        disabled: pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy,
-        onClick: () => onPreviewPipeline(pipelineCanResume ? "resume" : "start"),
+        disabled:
+          pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy,
+        onClick: () =>
+          onPreviewPipeline(pipelineCanResume ? "resume" : "start"),
       });
     }
-    if (pipelineCanResume || (hasMangaResult && !mangaResultStale && !pipelineFailed)) {
+    if (
+      pipelineCanResume ||
+      (hasMangaResult && !mangaResultStale && !pipelineFailed)
+    ) {
       pipelineMenuItems.push({
-        label: "从所选阶段重新生成",
+        label: "从头重新生成",
         icon: <Play size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
         onClick: () => onRunPipeline("start"),
       });
       pipelineMenuItems.push({
-        label: "查看重新生成请求",
+        label: "查看从头重新生成请求",
         icon: <Eye size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
         onClick: () => onPreviewPipeline("start"),
@@ -760,7 +780,11 @@ export function MangaChapterDetailPanel({
         onClick: onGenerateMissingPortraits,
       });
     }
-    if (!detailBusy && acting !== `delete-${selectedChapter.id}` && !selectedChapterGenerating) {
+    if (
+      !detailBusy &&
+      acting !== `delete-${selectedChapter.id}` &&
+      !selectedChapterGenerating
+    ) {
       pipelineMenuItems.push({ type: "divider" });
       pipelineMenuItems.push({
         label: "删除本章漫画",
@@ -770,11 +794,6 @@ export function MangaChapterDetailPanel({
       });
     }
   }
-  const selectedStartStageLabel =
-    MANGA_PIPELINE_START_STAGE_OPTIONS.find(
-      (option) => option.value === pipelineStartStage,
-    )?.label ?? "从头开始";
-
   return (
     <>
       <section
@@ -784,122 +803,114 @@ export function MangaChapterDetailPanel({
             : "flex min-h-[60vh] min-w-0 flex-col lg:h-full lg:min-h-0"
         }
       >
-      {!selectedChapter ? (
-        <div className="m-auto text-sm text-book-text-muted">
-          {isSingleMode ? "请先在写作桌选择章节" : "从左侧选择一章查看漫画详情"}
-        </div>
-      ) : (
-        <>
-          <header className="shrink-0 border-b border-book-border/55 pb-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold text-book-text-main">
-                  {chapterHeading(selectedChapter)}
-                </h2>
-                <p className={`mt-1 text-small ${noticeClass[statusTone]}`}>
-                  {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-              {canEditManga ? (
-                <div className="flex items-center justify-end gap-2">
-                  {pipelineMenuItems.length > 0 ? <Dropdown items={pipelineMenuItems} /> : null}
-                  {pipelineRunning ? (
-                    <BookButton
-                      size="sm"
-                      variant="secondary"
-                      onClick={onCancelPipeline}
-                      disabled={detailBusy || acting === `cancel-${selectedChapter.id}`}
-                    >
-                      {acting === `cancel-${selectedChapter.id}` ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <PauseCircle size={13} />
-                      )}
-                      停止生成
-                    </BookButton>
-                  ) : showPipelineDirectAction ? (
-                    <BookButton
-                      size="sm"
-                      variant={pipelineDirectVariant}
-                      onClick={() => onRunPipeline(pipelineCanResume ? "resume" : "start")}
-                      disabled={pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy}
-                    >
-                      {pipelineResumeBusy || pipelineStartBusy ? (
-                        <LoadingSpinner size="sm" />
-                      ) : pipelineCanResume || pipelineFailed || mangaResultStale ? (
-                        <RefreshCw size={13} />
-                      ) : (
-                        <Play size={13} />
-                      )}
-                      {pipelineDirectLabel}
-                    </BookButton>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            {canEditManga && !pipelineRunning ? (
-              <details className="mt-2 text-small text-book-text-muted">
-                <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                  生成选项 · {selectedStartStageLabel}
-                </summary>
-                <label className="mt-2 flex max-w-sm flex-col gap-1">
-                  <span>开始阶段</span>
-                  <select
-                    value={pipelineStartStage}
-                    onChange={(event) =>
-                      onPipelineStartStageChange(
-                        event.target.value as MangaPipelineStartStageOption,
-                      )
-                    }
-                    className="pyqt-input h-9 !px-2 !py-1 text-xs"
-                    disabled={detailBusy || pipelineStartBusy || selectedChapterGenerating}
-                  >
-                    {MANGA_PIPELINE_START_STAGE_OPTIONS.map((option) => (
-                      <option key={option.value || "fresh"} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </details>
-            ) : null}
-
-            <div
-              className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
-            >
-              <span className="mt-0.5 shrink-0">{noticeIcon(notice.tone)}</span>
-              <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
-                {notice.text}
-              </span>
-            </div>
-          </header>
-
-          <div className="mt-3 min-h-0 flex-1">
-            <MangaPanelList
-              panels={panels}
-              panelsLoading={panelsLoading}
-              currentContentHash={currentContentHash}
-              chapterLocked={selectedChapterGenerating || !selectedChapterReady}
-              generatingPageNumber={generatingPageNumber}
-              profiles={profiles}
-              portraits={portraits}
-              projectImages={projectImages}
-              assetsLoading={characterAssetsLoading || projectImagesLoading}
-              pipelineStatus={selectedStatus}
-              optimizingPromptId={optimizingPromptId}
-              actionsDisabled={detailBusy}
-              canEditManga={canEditManga}
-              onPreviewPageImage={handlePreviewPageImage}
-              onGeneratePageImage={handleGeneratePageImage}
-              onBindReferenceImage={handleBindReferenceImage}
-              onUpdatePrompt={handleUpdatePrompt}
-              onOptimizePrompt={handleOptimizePrompt}
-              onDeletePrompt={handleDeletePrompt}
-            />
+        {!selectedChapter ? (
+          <div className="m-auto text-sm text-book-text-muted">
+            {isSingleMode
+              ? "请先在写作桌选择章节"
+              : "从左侧选择一章查看漫画详情"}
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            <header className="shrink-0 border-b border-book-border/55 pb-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-book-text-main">
+                    {chapterHeading(selectedChapter)}
+                  </h2>
+                  <p className={`mt-1 text-small ${noticeClass[statusTone]}`}>
+                    {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                {canEditManga ? (
+                  <div className="flex items-center justify-end gap-2">
+                    {pipelineMenuItems.length > 0 ? (
+                      <Dropdown items={pipelineMenuItems} />
+                    ) : null}
+                    {pipelineRunning ? (
+                      <BookButton
+                        size="sm"
+                        variant="secondary"
+                        onClick={onCancelPipeline}
+                        disabled={
+                          detailBusy ||
+                          acting === `cancel-${selectedChapter.id}`
+                        }
+                      >
+                        {acting === `cancel-${selectedChapter.id}` ? (
+                          <LoadingSpinner size="sm" />
+                        ) : (
+                          <PauseCircle size={13} />
+                        )}
+                        停止生成
+                      </BookButton>
+                    ) : showPipelineDirectAction ? (
+                      <BookButton
+                        size="sm"
+                        variant={pipelineDirectVariant}
+                        onClick={() =>
+                          onRunPipeline(pipelineCanResume ? "resume" : "start")
+                        }
+                        disabled={
+                          pipelineMainDisabled ||
+                          pipelineResumeBusy ||
+                          pipelineStartBusy
+                        }
+                      >
+                        {pipelineResumeBusy || pipelineStartBusy ? (
+                          <LoadingSpinner size="sm" />
+                        ) : pipelineCanResume ||
+                          pipelineFailed ||
+                          mangaResultStale ? (
+                          <RefreshCw size={13} />
+                        ) : (
+                          <Play size={13} />
+                        )}
+                        {pipelineDirectLabel}
+                      </BookButton>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
+              >
+                <span className="mt-0.5 shrink-0">
+                  {noticeIcon(notice.tone)}
+                </span>
+                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
+                  {notice.text}
+                </span>
+              </div>
+            </header>
+
+            <div className="mt-3 min-h-0 flex-1">
+              <MangaPagePromptList
+                prompts={pagePrompts}
+                promptsLoading={pagePromptsLoading}
+                currentContentHash={currentContentHash}
+                chapterLocked={
+                  selectedChapterGenerating || !selectedChapterReady
+                }
+                generatingPageNumber={generatingPageNumber}
+                profiles={profiles}
+                portraits={portraits}
+                projectImages={projectImages}
+                assetsLoading={characterAssetsLoading || projectImagesLoading}
+                pipelineStatus={selectedStatus}
+                optimizingPromptId={optimizingPromptId}
+                actionsDisabled={detailBusy}
+                canEditManga={canEditManga}
+                onPreviewPageImage={handlePreviewPageImage}
+                onGeneratePageImage={handleGeneratePageImage}
+                onBindReferenceImage={handleBindReferenceImage}
+                onUpdatePrompt={handleUpdatePrompt}
+                onOptimizePrompt={handleOptimizePrompt}
+                onDeletePrompt={handleDeletePrompt}
+              />
+            </div>
+          </>
+        )}
       </section>
       <RequestPreviewModal
         open={requestPreviewOpen}

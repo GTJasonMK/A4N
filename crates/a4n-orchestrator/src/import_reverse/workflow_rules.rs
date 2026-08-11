@@ -7,20 +7,15 @@ use std::collections::HashMap;
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// import_reverse exclusive business key。
-pub fn import_reverse_business_key(
-    project_id: i64,
-    prompt_name: &str,
-    apply: bool,
-) -> Result<String, String> {
+pub fn import_reverse_business_key(project_id: i64, prompt_name: &str) -> Result<String, String> {
     if project_id <= 0 {
         return Err("项目 ID 必须大于 0".to_string());
     }
     if prompt_name.trim().is_empty() {
         return Err("逆向 prompt_name 不能为空".to_string());
     }
-    let mode = if apply { "apply" } else { "reverse" };
     Ok(format!(
-        "import_reverse_engineer:project:{project_id}:{prompt_name}:{mode}"
+        "import_reverse_engineer:project:{project_id}:{prompt_name}:reverse"
     ))
 }
 
@@ -28,13 +23,12 @@ pub fn import_reverse_business_key(
 pub fn import_reverse_workflow_fingerprint(
     project_id: i64,
     prompt_name: &str,
-    apply: bool,
     content_sample: &str,
     auto_context: bool,
     context_limit: Option<i64>,
+    auto_context_source_sha256: Option<&str>,
     variables: &HashMap<String, Value>,
 ) -> Value {
-    let mode = if apply { "apply" } else { "reverse" };
     let variables_json = Value::Object(
         variables
             .iter()
@@ -45,11 +39,12 @@ pub fn import_reverse_workflow_fingerprint(
         "schema_version": 1,
         "workflow": "import_reverse_engineer",
         "target": prompt_name,
-        "mode": mode,
+        "mode": "reverse",
         "project_id": project_id,
         "content_sample_sha256": source_content_sha256(content_sample),
         "auto_context": auto_context,
         "context_limit": context_limit,
+        "auto_context_source_sha256": auto_context_source_sha256,
         "variables": variables_json
     })
 }
@@ -58,16 +53,27 @@ pub fn import_reverse_workflow_fingerprint(
 pub fn import_reverse_workflow_run_input(
     project_id: i64,
     prompt_name: &str,
-    apply: bool,
     content_sample: &str,
     auto_context: bool,
     context_limit: Option<i64>,
+    auto_context_source_sha256: Option<&str>,
     variables: &HashMap<String, Value>,
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
-    let mode = if apply { "apply" } else { "reverse" };
+    let valid_source_fingerprint = auto_context_source_sha256.is_some_and(|value| {
+        value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    });
+    if (auto_context && !valid_source_fingerprint)
+        || (!auto_context && auto_context_source_sha256.is_some())
+    {
+        return Err(if auto_context {
+            "启用项目上下文时缺少有效的上下文来源指纹".to_string()
+        } else {
+            "未启用项目上下文时不应提供上下文来源指纹".to_string()
+        });
+    }
     Ok(UpsertWorkflowRunInput {
-        business_key: import_reverse_business_key(project_id, prompt_name, apply)?,
+        business_key: import_reverse_business_key(project_id, prompt_name)?,
         workflow_kind: "import_reverse_engineer".to_string(),
         project_id: Some(project_id),
         root_project_id: Some(project_id),
@@ -75,14 +81,14 @@ pub fn import_reverse_workflow_run_input(
         scope_table: Some("project".to_string()),
         scope_id: Some(project_id),
         chapter_id: None,
-        mode: Some(mode.to_string()),
+        mode: Some("reverse".to_string()),
         input_fingerprint_json: Some(import_reverse_workflow_fingerprint(
             project_id,
             prompt_name,
-            apply,
             content_sample,
             auto_context,
             context_limit,
+            auto_context_source_sha256,
             variables,
         )),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
@@ -100,19 +106,20 @@ mod tests {
 
     #[test]
     fn rejects_empty_prompt() {
-        assert!(import_reverse_business_key(1, "  ", false).is_err());
+        assert!(import_reverse_business_key(1, "  ").is_err());
     }
 
     #[test]
     fn builds_running_input() {
         let vars = HashMap::new();
+        let source_fingerprint = "a".repeat(64);
         let input = import_reverse_workflow_run_input(
             2,
             "outline",
-            false,
             "sample",
             true,
             Some(3),
+            Some(&source_fingerprint),
             &vars,
             Some("import-reverse-task"),
         )
@@ -120,5 +127,23 @@ mod tests {
         assert!(input.business_key.contains("outline:reverse"));
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
         assert_eq!(input.active_task_id.as_deref(), Some("import-reverse-task"));
+    }
+
+    #[test]
+    fn auto_context_requires_a_source_fingerprint() {
+        let vars = HashMap::new();
+        assert!(
+            import_reverse_workflow_run_input(
+                2,
+                "outline",
+                "sample",
+                true,
+                Some(3),
+                None,
+                &vars,
+                None,
+            )
+            .is_err()
+        );
     }
 }

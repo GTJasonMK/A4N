@@ -45,7 +45,7 @@ fn galgame_portrait_spec_target_input_rejects_invalid_source_line_ids() {
     let input = GalgamePortraitSpecTargetInput {
         profile_id: 7,
         expression: "smile".to_string(),
-        pose: None,
+        pose: "standing".to_string(),
         position_samples: Vec::new(),
         source_line_ids: vec![11, 0],
     };

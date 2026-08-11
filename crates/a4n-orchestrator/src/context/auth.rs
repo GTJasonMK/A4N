@@ -3,10 +3,7 @@ use a4n_core::models::user::{invite_code, user, user_session};
 use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
-use crate::auth::{
-    BootstrapAdminInput, ensure_same_user, profile_email_update, required_logout_identity,
-    required_session_id, required_session_user_id,
-};
+use crate::auth::{BootstrapAdminInput, required_session_id, required_session_user_id};
 
 #[derive(Clone)]
 pub(super) struct AuthApplication {
@@ -101,65 +98,15 @@ impl AuthApplication {
         a4n_db::auth::revoke_session(self.database.connection(), user_id, session_id).await
     }
 
-    /// 登出：校验 user/session 身份后撤销会话。
-    async fn logout_user_session(
-        &self,
-        user_id: Option<i64>,
-        session_id: Option<&str>,
-    ) -> Result<(), AppError> {
-        let (user_id, session_id) = required_logout_identity(user_id, session_id)?;
-        self.revoke_user_session(user_id, &session_id).await
+    async fn list_sessions(&self, user_id: i64) -> Result<Vec<user_session::Model>, AppError> {
+        let user_id = required_session_user_id(user_id, "列出会话")?;
+        a4n_db::auth::list_sessions(self.database.connection(), user_id).await
     }
 
-    /// 列出本人会话：同用户门禁 + 正数 user_id。
-    async fn list_own_sessions(
-        &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-    ) -> Result<Vec<user_session::Model>, AppError> {
-        ensure_same_user(caller_user_id, target_user_id, "只能列出当前登录用户会话")?;
-        let user_id = required_session_user_id(target_user_id, "列出会话")?;
-        self.user_sessions(user_id).await
-    }
-
-    /// 撤销本人会话：同用户门禁 + 会话 ID 校验。
-    async fn revoke_own_session(
-        &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-        session_id: &str,
-    ) -> Result<(), AppError> {
-        ensure_same_user(caller_user_id, target_user_id, "只能撤销当前登录用户会话")?;
-        let user_id = required_session_user_id(target_user_id, "撤销会话")?;
+    async fn revoke_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
+        let user_id = required_session_user_id(user_id, "撤销会话")?;
         let session_id = required_session_id(session_id, "撤销会话")?;
         self.revoke_user_session(user_id, &session_id).await
-    }
-
-    /// 更新本人资料：同用户门禁 + email 更新语义。
-    async fn update_own_user_profile(
-        &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-        email: Option<&Option<String>>,
-        avatar_url: Option<Option<&str>>,
-    ) -> Result<user::Model, AppError> {
-        ensure_same_user(caller_user_id, target_user_id, "只能更新当前登录用户资料")?;
-        let email = profile_email_update(email)?;
-        self.update_user_profile(target_user_id, email, avatar_url)
-            .await
-    }
-
-    /// 修改本人密码：同用户门禁后改密。
-    async fn change_own_user_password(
-        &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-        old_password: &str,
-        new_password: &str,
-    ) -> Result<(), AppError> {
-        ensure_same_user(caller_user_id, target_user_id, "只能修改当前登录用户密码")?;
-        self.change_user_password(target_user_id, old_password, new_password)
-            .await
     }
 
     async fn verify_session_refresh_token(
@@ -198,10 +145,6 @@ impl AuthApplication {
             new_refresh_token,
         )
         .await
-    }
-
-    async fn user_sessions(&self, user_id: i64) -> Result<Vec<user_session::Model>, AppError> {
-        a4n_db::auth::list_sessions(self.database.connection(), user_id).await
     }
 
     async fn create_auth_user(
@@ -299,56 +242,33 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn logout_user_session(
-        &self,
-        user_id: Option<i64>,
-        session_id: Option<&str>,
-    ) -> Result<(), AppError> {
-        self.auth.logout_user_session(user_id, session_id).await
+    pub async fn list_sessions(&self, user_id: i64) -> Result<Vec<user_session::Model>, AppError> {
+        self.auth.list_sessions(user_id).await
     }
 
-    pub async fn list_own_sessions(
-        &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-    ) -> Result<Vec<user_session::Model>, AppError> {
-        self.auth
-            .list_own_sessions(caller_user_id, target_user_id)
-            .await
+    pub async fn revoke_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
+        self.auth.revoke_session(user_id, session_id).await
     }
 
-    pub async fn revoke_own_session(
+    pub async fn update_user_profile(
         &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-        session_id: &str,
-    ) -> Result<(), AppError> {
-        self.auth
-            .revoke_own_session(caller_user_id, target_user_id, session_id)
-            .await
-    }
-
-    pub async fn update_own_user_profile(
-        &self,
-        caller_user_id: i64,
-        target_user_id: i64,
-        email: Option<&Option<String>>,
+        user_id: i64,
+        email: Option<&str>,
         avatar_url: Option<Option<&str>>,
     ) -> Result<user::Model, AppError> {
         self.auth
-            .update_own_user_profile(caller_user_id, target_user_id, email, avatar_url)
+            .update_user_profile(user_id, email, avatar_url)
             .await
     }
 
-    pub async fn change_own_user_password(
+    pub async fn change_user_password(
         &self,
-        caller_user_id: i64,
-        target_user_id: i64,
+        user_id: i64,
         old_password: &str,
         new_password: &str,
     ) -> Result<(), AppError> {
         self.auth
-            .change_own_user_password(caller_user_id, target_user_id, old_password, new_password)
+            .change_user_password(user_id, old_password, new_password)
             .await
     }
 
@@ -422,45 +342,6 @@ impl OrchestratorContext {
     ) -> Result<user::Model, AppError> {
         self.auth
             .login_with_oauth2(provider, provider_id, email, username_hint, avatar_url)
-            .await
-    }
-}
-
-impl OrchestratorContext {
-    pub async fn user_sessions(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<a4n_core::models::user::user_session::Model>, a4n_core::error::AppError> {
-        self.auth.user_sessions(user_id).await
-    }
-
-    pub async fn revoke_user_session(
-        &self,
-        user_id: i64,
-        session_id: &str,
-    ) -> Result<(), a4n_core::error::AppError> {
-        self.auth.revoke_user_session(user_id, session_id).await
-    }
-
-    pub async fn update_user_profile(
-        &self,
-        user_id: i64,
-        email: Option<&str>,
-        avatar_url: Option<Option<&str>>,
-    ) -> Result<a4n_core::models::user::user::Model, a4n_core::error::AppError> {
-        self.auth
-            .update_user_profile(user_id, email, avatar_url)
-            .await
-    }
-
-    pub async fn change_user_password(
-        &self,
-        user_id: i64,
-        old_password: &str,
-        new_password: &str,
-    ) -> Result<(), a4n_core::error::AppError> {
-        self.auth
-            .change_user_password(user_id, old_password, new_password)
             .await
     }
 }

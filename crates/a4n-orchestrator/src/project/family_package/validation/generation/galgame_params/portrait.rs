@@ -9,10 +9,9 @@ use super::super::super::galgame::{
     is_valid_galgame_expression, is_valid_galgame_position, normalized_galgame_position,
 };
 use crate::project::{
-    generation_spec_params_object, optional_params_string, required_generation_spec_target_id,
-    required_params_i64, required_params_i64_array, required_params_string,
-    required_params_string_array, validate_generation_spec_canonical_key,
-    validate_snapshot_character_profile_id,
+    generation_spec_params_object, required_generation_spec_target_id, required_params_i64,
+    required_params_i64_array, required_params_string, required_params_string_array,
+    validate_generation_spec_canonical_key, validate_snapshot_character_profile_id,
 };
 
 use super::super::targets::validate_generation_spec_galgame_scene_context;
@@ -50,11 +49,8 @@ pub(super) fn validate_galgame_portrait_spec_params(
         spec.id,
         expression
     );
-    let pose = optional_params_string(params, "pose", spec.id)?;
-    let variant_key = match pose {
-        Some(ref pose) => format!("expression:{expression}:pose:{pose}"),
-        None => format!("expression:{expression}"),
-    };
+    let pose = required_params_string(params, "pose", spec.id)?;
+    let variant_key = format!("expression:{expression}:pose:{pose}");
     let expected_key = format!(
         "galgame:{}:portrait:{target_id}:{variant_key}",
         spec.project_id
@@ -91,7 +87,7 @@ pub(super) fn validate_galgame_portrait_spec_params(
                 .as_deref()
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
-                == pose.as_deref(),
+                == Some(pose.as_str()),
             "项目族导入包 Galgame 立绘差分参数 source_line_ids 行 pose 与目标不一致: generation_spec_id={}, line_id={}, pose={:?}, expected={:?}",
             spec.id,
             line.id,

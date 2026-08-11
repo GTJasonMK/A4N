@@ -222,14 +222,15 @@ impl OrchestratorContext {
             .await;
         match create_result {
             Ok(asset) => Ok(asset),
-            Err(primary) => match remove_canvas_audio_file(self.data_dir(), &persisted.relative_path)
-            {
-                Ok(()) => Err(primary),
-                Err(cleanup) => Err(AppError::InvalidState {
-                    current: primary.to_string(),
-                    operation: format!("画布音频记录创建失败后的文件清理也失败：{cleanup}"),
-                }),
-            },
+            Err(primary) => {
+                match remove_canvas_audio_file(self.data_dir(), &persisted.relative_path) {
+                    Ok(()) => Err(primary),
+                    Err(cleanup) => Err(AppError::InvalidState {
+                        current: primary.to_string(),
+                        operation: format!("画布音频记录创建失败后的文件清理也失败：{cleanup}"),
+                    }),
+                }
+            }
         }
     }
 }
@@ -280,12 +281,12 @@ fn remove_canvas_audio_file(data_dir: &Path, relative_path: &str) -> Result<(), 
             "画布音频路径必须是相对路径".to_string(),
         ));
     }
-    let canonical_data_dir = data_dir.canonicalize().map_err(|error| {
-        AppError::InvalidState {
+    let canonical_data_dir = data_dir
+        .canonicalize()
+        .map_err(|error| AppError::InvalidState {
             current: "canvas_audio_import".to_string(),
             operation: format!("解析应用数据目录失败：{error}"),
-        }
-    })?;
+        })?;
     let path = match data_dir.join(raw).canonicalize() {
         Ok(path) => path,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),

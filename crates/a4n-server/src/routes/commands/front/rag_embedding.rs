@@ -175,10 +175,10 @@ pub(in crate::routes::commands) async fn download_embedding_model(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let mut input: embedding_model_actions::DownloadEmbeddingModelInput =
+    let input: embedding_model_actions::DownloadEmbeddingModelInput =
         command_input(args, "download_embedding_model")?;
-    let task_id = sanitize_optional_task_id(input.task_id.clone())?;
-    input.task_id = task_id.clone();
+    let task_id =
+        embedding_model_actions::normalize_optional_embedding_download_task_id(input.task_id)?;
     let task = register_web_task(
         state,
         user_id,
@@ -210,7 +210,7 @@ pub(in crate::routes::commands) async fn download_embedding_model(
     };
     let mut result = embedding_model_actions::download_embedding_model(
         state.runtime(),
-        input,
+        embedding_model_actions::EmbeddingModelInput { model: input.model },
         progress_tx,
         cancel_token,
     )

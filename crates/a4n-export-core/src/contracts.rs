@@ -4,28 +4,11 @@ use serde::{Deserialize, Serialize};
 use crate::archive::decode_base64;
 use crate::errors::ExportRenderError;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ExportDocumentKind {
-    SettingsAll,
-    GenericJson,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ExportRenderJsonInput {
-    pub kind: ExportDocumentKind,
     pub payload: serde_json::Value,
-    #[serde(default)]
     pub pretty: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct ExportRenderJsonOutput {
-    pub kind: ExportDocumentKind,
-    pub content: String,
-    pub content_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -42,7 +25,6 @@ pub struct ExportZipPackageInput {
     pub manifest_path: String,
     pub manifest_bytes: Vec<u8>,
     pub manifest_label: String,
-    #[serde(default)]
     pub entries: Vec<ExportZipEntryBytes>,
     pub package_label: String,
 }
@@ -61,7 +43,6 @@ pub struct ExportRenderZipInput {
     pub manifest_path: String,
     pub manifest_bytes_base64: String,
     pub manifest_label: String,
-    #[serde(default)]
     pub entries: Vec<ExportRenderZipEntryInput>,
     pub package_label: String,
 }
@@ -130,11 +111,17 @@ mod tests {
     #[test]
     fn export_contract_rejects_unknown_fields() {
         let error = serde_json::from_value::<ExportRenderJsonInput>(serde_json::json!({
-            "kind": "generic_json",
             "payload": {},
+            "pretty": false,
             "legacy_mode": true
         }))
         .expect_err("unknown export fields must fail");
         assert!(error.to_string().contains("unknown field `legacy_mode`"));
+        assert!(
+            serde_json::from_value::<ExportRenderJsonInput>(serde_json::json!({
+                "payload": {}
+            }))
+            .is_err()
+        );
     }
 }

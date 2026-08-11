@@ -54,32 +54,42 @@ fn validate_speech_array(
         .ok_or_else(|| AppError::InvalidArgument(format!("{context}.{field} 必须是数组")))?;
     for (index, item) in items.iter().enumerate() {
         let item_context = format!("{context}.{field}[{index}]");
-        let allowed = match field {
-            "dialogues" => &[
-                "index",
-                "speaker",
-                "content",
-                "source_span_id",
-                "emotion",
-                "target",
-                "beat_ref",
-                "is_internal",
-                "bubble_type",
-            ][..],
-            "narrations" => &[
-                "index",
-                "content",
-                "source_span_id",
-                "narration_type",
-                "beat_ref",
-                "position",
-            ][..],
-            _ => &[][..],
+        let (allowed, is_dialogue) = match field {
+            "dialogues" => (
+                &[
+                    "index",
+                    "speaker",
+                    "content",
+                    "source_span_id",
+                    "emotion",
+                    "target",
+                    "beat_ref",
+                    "is_internal",
+                    "bubble_type",
+                ][..],
+                true,
+            ),
+            "narrations" => (
+                &[
+                    "index",
+                    "content",
+                    "source_span_id",
+                    "narration_type",
+                    "beat_ref",
+                    "position",
+                ][..],
+                false,
+            ),
+            other => {
+                return Err(AppError::InvalidArgument(format!(
+                    "manga_speech_selection 不支持字段 {other}"
+                )));
+            }
         };
         reject_manga_unknown_fields(item, allowed, &item_context)?;
         validate_manga_nonnegative_index(item.get("index"), &format!("{item_context}.index"))?;
         required_manga_string(item, "content", &item_context)?;
-        if field == "dialogues" {
+        if is_dialogue {
             required_manga_string(item, "speaker", &item_context)?;
             required_manga_string(item, "emotion", &item_context)?;
             validate_manga_nullable_string(item.get("target"), &format!("{item_context}.target"))?;

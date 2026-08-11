@@ -1,22 +1,34 @@
 use super::contracts::ProjectChapterContextError;
 use a4n_core::models::{
     asset::object_profile,
+    chapter::chapter,
     character::{character_state_index, protagonist_profile, snapshot_reference},
-    scene::scene_profile,
+    project::{profile_evidence, text_anchor},
+    scene::{scene_occurrence, scene_profile},
 };
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+use a4n_core::source_spans::source_text_hash;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
+use std::collections::HashMap;
 
 pub async fn object_profiles_before_chapter(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<object_profile::Model>, ProjectChapterContextError> {
+    let current_ai_profile_ids =
+        current_object_profile_ids_before_chapter(db, project_id, chapter_number).await?;
+    let mut available =
+        Condition::any().add(object_profile::Column::OwnershipKind.ne(PROFILE_OWNERSHIP_AI_SYNC));
+    if !current_ai_profile_ids.is_empty() {
+        available = available.add(object_profile::Column::Id.is_in(current_ai_profile_ids));
+    }
     object_profile::Entity::find()
         .filter(object_profile::Column::ProjectId.eq(project_id))
-        .filter(object_profile::Column::FirstSeenChapter.lt(chapter_number))
+        .filter(available)
         .order_by_desc(object_profile::Column::LastSeenChapter)
         .order_by_asc(object_profile::Column::Id)
         .all(db)
@@ -29,11 +41,77 @@ pub async fn scene_profiles_before_chapter(
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<scene_profile::Model>, ProjectChapterContextError> {
+    let current_ai_profile_ids = scene_occurrence::Entity::find()
+        .select_only()
+        .column(scene_occurrence::Column::SceneProfileId)
+        .filter(scene_occurrence::Column::ProjectId.eq(project_id))
+        .filter(scene_occurrence::Column::ChapterNumber.lt(chapter_number))
+        .distinct()
+        .into_tuple::<i64>()
+        .all(db)
+        .await
+        .map_err(ProjectChapterContextError::Database)?;
+    let mut available =
+        Condition::any().add(scene_profile::Column::OwnershipKind.ne(PROFILE_OWNERSHIP_AI_SYNC));
+    if !current_ai_profile_ids.is_empty() {
+        available = available.add(scene_profile::Column::Id.is_in(current_ai_profile_ids));
+    }
     scene_profile::Entity::find()
         .filter(scene_profile::Column::ProjectId.eq(project_id))
-        .filter(scene_profile::Column::FirstSeenChapter.lt(chapter_number))
+        .filter(available)
         .order_by_desc(scene_profile::Column::LastSeenChapter)
         .order_by_asc(scene_profile::Column::Id)
+        .all(db)
+        .await
+        .map_err(ProjectChapterContextError::Database)
+}
+
+async fn current_object_profile_ids_before_chapter(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter_number: i32,
+) -> Result<Vec<i64>, ProjectChapterContextError> {
+    let chapters = chapter::Entity::find()
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.lt(chapter_number))
+        .all(db)
+        .await
+        .map_err(ProjectChapterContextError::Database)?;
+    if chapters.is_empty() {
+        return Ok(Vec::new());
+    }
+    let chapter_versions = chapters
+        .iter()
+        .map(|chapter| (chapter.id, source_text_hash(&chapter.content)))
+        .collect::<HashMap<_, _>>();
+    let anchors = text_anchor::Entity::find()
+        .filter(text_anchor::Column::ProjectId.eq(project_id))
+        .filter(text_anchor::Column::SourceKind.eq(crate::text_anchor::SOURCE_KIND_CHAPTER_CONTENT))
+        .filter(text_anchor::Column::SourceChapterId.is_in(chapter_versions.keys().copied()))
+        .filter(text_anchor::Column::SourceSnapshotId.is_null())
+        .all(db)
+        .await
+        .map_err(ProjectChapterContextError::Database)?;
+    let current_anchor_ids = anchors
+        .into_iter()
+        .filter(|anchor| {
+            anchor
+                .source_chapter_id
+                .and_then(|chapter_id| chapter_versions.get(&chapter_id))
+                .is_some_and(|hash| hash == &anchor.source_version_hash)
+        })
+        .map(|anchor| anchor.id)
+        .collect::<Vec<_>>();
+    if current_anchor_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    profile_evidence::Entity::find()
+        .select_only()
+        .column(profile_evidence::Column::ProfileId)
+        .filter(profile_evidence::Column::ProfileKind.eq("object"))
+        .filter(profile_evidence::Column::TextAnchorId.is_in(current_anchor_ids))
+        .distinct()
+        .into_tuple::<i64>()
         .all(db)
         .await
         .map_err(ProjectChapterContextError::Database)

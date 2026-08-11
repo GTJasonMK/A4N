@@ -11,7 +11,7 @@ use super::embedded::store_embedded_rag_records_in_store;
 use super::provider::{embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store};
 
 #[tokio::test]
-async fn direct_write_rejects_embedding_dimension_mismatch_without_creating_collection() {
+async fn direct_write_rejects_embedding_dimension_mismatch_without_writing_records() {
     let store = MemoryVectorStore::new();
     let error = embed_and_store_rag_record_in_store(
         &store,
@@ -26,10 +26,11 @@ async fn direct_write_rejects_embedding_dimension_mismatch_without_creating_coll
 
     assert!(error.to_string().contains("嵌入返回维度不匹配"));
     assert!(
-        !store
-            .collection_exists("1")
+        store
+            .metadata_by_ids("1", &["rag:wrong-dimension".to_string()])
             .await
-            .expect("collection state")
+            .expect("record state")
+            .is_empty()
     );
 }
 
@@ -53,7 +54,7 @@ async fn direct_write_rejects_vector_store_short_write() {
 }
 
 #[tokio::test]
-async fn batch_write_rejects_provider_count_mismatch_without_partial_records() {
+async fn batch_write_rejects_provider_count_mismatch_without_writing_records() {
     let store = MemoryVectorStore::new();
     let error = embed_and_store_rag_records_in_store(
         &store,
@@ -77,10 +78,11 @@ async fn batch_write_rejects_provider_count_mismatch_without_partial_records() {
 
     assert!(error.to_string().contains("嵌入返回数量不匹配"));
     assert!(
-        !store
-            .collection_exists("1")
+        store
+            .metadata_by_ids("1", &["rag:1".to_string(), "rag:2".to_string()])
             .await
-            .expect("collection state")
+            .expect("record state")
+            .is_empty()
     );
 }
 

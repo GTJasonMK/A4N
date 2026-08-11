@@ -10,6 +10,7 @@ use a4n_core::{
     },
     source_spans::source_text_hash as source_content_sha256,
 };
+use a4n_db::video_prompt::ChapterVideoPromptPatch;
 use a4n_llm::{
     context::{
         COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
@@ -33,7 +34,7 @@ use crate::{
 
 use super::prompt_optimization_rules::is_frame_prompt_type;
 use super::{
-    OptimizedVideoPromptFields, UpdateChapterVideoPromptInput, VideoPromptDownstreamCleanupPort,
+    OptimizedVideoPromptFields, VideoPromptDownstreamCleanupPort,
     VideoPromptDownstreamDependencies, normalized_existing_optional_text,
     normalized_optimized_optional_text, optimized_motion_prompt, required_optimized_text,
     validate_optimized_prompt_fields, video_prompt_optimization_checkpoint_output,
@@ -238,7 +239,7 @@ impl OrchestratorContext {
         } = call_result;
         self.update_chapter_video_prompt_with_generation_run_checkpoint(
             prepared.prompt.id,
-            UpdateChapterVideoPromptInput {
+            ChapterVideoPromptPatch {
                 visual_prompt: Some(visual_prompt.clone()),
                 motion_prompt: Some(motion_prompt.clone()),
                 negative_prompt: Some(negative_prompt.clone()),

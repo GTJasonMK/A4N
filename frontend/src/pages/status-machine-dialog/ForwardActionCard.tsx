@@ -21,7 +21,7 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
   return (
     <section className="a4n-context-bar min-w-0 justify-between">
       <div className="min-w-0">
-        <div className="text-caption text-book-text-muted">下一阶段</div>
+        <div className="text-caption text-book-text-muted">可标记阶段</div>
         <div className="truncate text-xs font-medium text-book-text-main">
           {getProjectStatusText(target)}
         </div>

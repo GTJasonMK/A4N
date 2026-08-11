@@ -1,4 +1,4 @@
-//! 导入审核队列表实体【新增】
+//! 导入审核队列表实体。
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -13,26 +13,11 @@ pub struct Model {
     /// 原始文件名
     pub filename: String,
 
-    /// 文件类型：txt / epub / docx
-    pub file_type: String,
-
-    /// 检测到的编码
-    pub detected_encoding: Option<String>,
-
-    /// 解析出的章节数
-    pub parsed_chapters: i32,
-
-    /// 去重后的段落数
-    pub dedup_paragraphs: i32,
-
-    /// SimHash 去重率
-    pub dedup_rate: Option<f32>,
-
-    /// AI 分析结果
+    /// 规范化后的章节导入内容
     #[sea_orm(column_type = "Json")]
-    pub analysis_result: Option<serde_json::Value>,
+    pub analysis_result: serde_json::Value,
 
-    /// 审核状态：pending / analyzing / reviewing / accepted / rejected / modified
+    /// 审核状态：pending / accepted / rejected / modified
     pub review_status: String,
 
     pub created_at: chrono::NaiveDateTime,

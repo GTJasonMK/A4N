@@ -51,26 +51,6 @@ pub(crate) fn chapter_content_import_error_to_app_error(
 ) -> AppError {
     match error {
         ChapterContentImportError::Database(error) => AppError::Database(error),
-        ChapterContentImportError::PreviousChapterMissing {
-            previous_number,
-            chapter_number,
-        } => AppError::InvalidArgument(format!(
-            "请先完成第{previous_number}章正文后，再导入第{chapter_number}章"
-        )),
-        ChapterContentImportError::PreviousChapterGenerating {
-            previous_number,
-            chapter_number,
-            status,
-        } => AppError::InvalidState {
-            current: status,
-            operation: format!("等待第{previous_number}章完成后导入第{chapter_number}章"),
-        },
-        ChapterContentImportError::PreviousChapterNoContent {
-            previous_number,
-            chapter_number,
-        } => AppError::InvalidArgument(format!(
-            "第{previous_number}章尚无可用正文，请先生成或导入正文后再导入第{chapter_number}章"
-        )),
         ChapterContentImportError::TargetChapterGenerating {
             chapter_number,
             status,

@@ -59,17 +59,21 @@ pub fn normalize_required_text_set(
     values: Vec<String>,
     field_name: &str,
 ) -> Result<Vec<String>, AppError> {
-    let values = values
+    let values = normalize_text_set(values);
+    if values.is_empty() {
+        return Err(AppError::InvalidArgument(format!("{field_name}不能为空")));
+    }
+    Ok(values)
+}
+
+pub fn normalize_text_set(values: Vec<String>) -> Vec<String> {
+    values
         .into_iter()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .collect::<BTreeSet<_>>()
         .into_iter()
-        .collect::<Vec<_>>();
-    if values.is_empty() {
-        return Err(AppError::InvalidArgument(format!("{field_name}不能为空")));
-    }
-    Ok(values)
+        .collect()
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_core::models::chapter::{chapter, chapter_outline};
 use chrono::NaiveDateTime;
 use serde_json::Value;
 
@@ -39,6 +39,7 @@ pub struct GeneratedChapterContentRecordInput {
     pub project_id: i64,
     pub chapter_number: i32,
     pub existing_chapter_id: Option<i64>,
+    pub source_outline: Option<chapter_outline::Model>,
     pub title: String,
     pub summary: String,
     pub content: String,
@@ -51,29 +52,12 @@ pub struct StoreChapterAnalysisRecordInput {
     pub analysis_data: Value,
     pub summary: Option<String>,
     pub style_tags: Option<Value>,
-    pub now: NaiveDateTime,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChapterContentImportError {
     #[error(transparent)]
     Database(#[from] sea_orm::DbErr),
-    #[error("请先完成第{previous_number}章正文后，再导入第{chapter_number}章")]
-    PreviousChapterMissing {
-        previous_number: i32,
-        chapter_number: i32,
-    },
-    #[error("第{previous_number}章正在生成中")]
-    PreviousChapterGenerating {
-        previous_number: i32,
-        chapter_number: i32,
-        status: String,
-    },
-    #[error("第{previous_number}章尚无可用正文，请先生成或导入正文后再导入第{chapter_number}章")]
-    PreviousChapterNoContent {
-        previous_number: i32,
-        chapter_number: i32,
-    },
     #[error("第 {chapter_number} 章正在生成中，请等待当前生成完成后再{operation}")]
     TargetChapterGenerating {
         chapter_number: i32,

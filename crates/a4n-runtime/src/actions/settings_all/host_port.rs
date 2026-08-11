@@ -1,9 +1,6 @@
 use a4n_core::error::AppError;
-use a4n_export_core::{ExportDocumentKind, ExportRenderJsonInput};
-use a4n_import_core::{ImportDocumentKind, ImportNormalizeJsonInput};
 use a4n_orchestrator::config::{PromptRow, SettingsAllHostPort};
 use async_trait::async_trait;
-use serde_json::Value;
 use tera::Tera;
 
 use crate::{
@@ -30,41 +27,8 @@ impl SettingsAllHostPort for RuntimeSettingsAllHostPort<'_> {
             .map(|prompt| PromptRow {
                 name: prompt.name,
                 content: prompt.content,
-                title: Some(prompt.title),
-                description: prompt.description,
             })
             .collect())
-    }
-
-    async fn render_export_json(&self, payload: Value) -> Result<String, AppError> {
-        crate::sidecar_clients::render_export_json(
-            self.state.runtime_profile(),
-            self.state.capabilities(),
-            ExportRenderJsonInput {
-                kind: ExportDocumentKind::SettingsAll,
-                payload,
-                pretty: true,
-            },
-            None,
-            None,
-        )
-        .await
-        .map(|rendered| rendered.content)
-        .map_err(AppError::ConfigError)
-    }
-
-    async fn normalize_import_json(&self, content: String) -> Result<Value, AppError> {
-        crate::sidecar_clients::normalize_import_json(
-            self.state.runtime_profile(),
-            self.state.capabilities(),
-            ImportNormalizeJsonInput {
-                kind: ImportDocumentKind::SettingsAll,
-                content,
-            },
-        )
-        .await
-        .map(|normalized| normalized.normalized)
-        .map_err(|error| AppError::InvalidArgument(format!("JSON 解析失败：{error}")))
     }
 
     async fn prepare_prompt_import(

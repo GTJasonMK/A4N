@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::outline::OutlineDeleteTarget;
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
@@ -60,7 +61,7 @@ pub struct PartOutlineGenerationInput<'a, 'progress> {
 
 pub struct PartOutlineRegenerationInput<'a, 'progress> {
     pub project_id: i64,
-    pub part_count: Option<i32>,
+    pub expected_parts: &'a [OutlineDeleteTarget],
     pub chapters_per_part: Option<i32>,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub variables: &'a HashMap<String, Value>,

@@ -12,7 +12,7 @@ pub(crate) async fn ingest_scene_profiles_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let profiles = state
-        .rag()
+        .orchestrator()
         .scene_profiles_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

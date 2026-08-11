@@ -27,10 +27,11 @@ import {
   exportProjectFamilyData,
   exportVideoStudioProjectData,
   importProjectFamilyUpload,
-  importProjectFullUpload,
   importVideoStudioProjectUpload,
   listMyProjectInvites,
   listProjects,
+  PROJECT_FAMILY_PACKAGE_SUFFIX,
+  VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
   type NovelProject,
   type ProjectAccessScope,
   type ProjectInvite,
@@ -581,30 +582,20 @@ export const NovelList: React.FC<NovelListProps> = () => {
       const dataBase64 = await readFileAsBase64(selectedFile);
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
       const input = { file_name: fileName, data_base64: dataBase64 };
-      if (fileName.toLowerCase().endsWith(".zip")) {
-        try {
-          const imported = await importProjectFamilyUpload(input);
-          if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-          importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
-          addToast(`已导入项目包：${imported.map((item) => item.title).join(" / ")}`, "success");
-        } catch (familyErr) {
-          try {
-            const imported = await importVideoStudioProjectUpload(input);
-            if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-            addToast(`已导入视频画布项目：${imported.title}`, "success");
-          } catch (studioErr) {
-            throw new Error(
-              `导入项目族包失败：${extractErrorMessage(familyErr, "无法识别项目族包")}；导入视频画布包失败：${extractErrorMessage(studioErr, "无法识别视频画布包")}`,
-            );
-          }
-        }
-      } else if (fileName.toLowerCase().endsWith(".json")) {
-        const np = await importProjectFullUpload(input);
+      const normalizedFileName = fileName.toLowerCase();
+      if (normalizedFileName.endsWith(PROJECT_FAMILY_PACKAGE_SUFFIX)) {
+        const imported = await importProjectFamilyUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-        importedTextProject = np;
-        addToast(`已导入项目：${np.title}`, "success");
+        importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
+        addToast(`已导入项目族包：${imported.map((item) => item.title).join(" / ")}`, "success");
+      } else if (normalizedFileName.endsWith(VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX)) {
+        const imported = await importVideoStudioProjectUpload(input);
+        if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+        addToast(`已导入视频画布项目：${imported.title}`, "success");
       } else {
-        throw new Error("项目导入文件必须是 .zip 项目包或 .json 文本项目备份");
+        throw new Error(
+          `项目导入文件必须以 ${PROJECT_FAMILY_PACKAGE_SUFFIX} 或 ${VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX} 结尾`,
+        );
       }
       setImportDialogOpenState(false);
       await refresh(activeTabRef.current);
@@ -626,7 +617,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const requestSeq = importFileSeqRef.current + 1;
     importFileSeqRef.current = requestSeq;
     try {
-      const selected = await pickLocalFile(".zip,.json,application/json,application/zip");
+      const selected = await pickLocalFile(
+        `${PROJECT_FAMILY_PACKAGE_SUFFIX},${VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX},application/zip`,
+      );
       if (
         selected &&
         mountedRef.current &&

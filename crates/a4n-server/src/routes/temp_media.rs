@@ -1,5 +1,4 @@
 mod config;
-mod contracts;
 mod delete;
 mod rules;
 mod serve;

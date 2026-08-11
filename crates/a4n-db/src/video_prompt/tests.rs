@@ -122,8 +122,8 @@ fn completed_run_input(
     }
 }
 
-fn update_input(visual_prompt: &str) -> UpdateChapterVideoPromptInput {
-    UpdateChapterVideoPromptInput {
+fn update_input(visual_prompt: &str) -> ChapterVideoPromptPatch {
+    ChapterVideoPromptPatch {
         visual_prompt: Some(visual_prompt.to_string()),
         ..Default::default()
     }

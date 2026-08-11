@@ -1,7 +1,7 @@
 use a4n_core::{error::AppError, models::project::novel_project};
 use sea_orm::{ConnectionTrait, EntityTrait};
 
-use super::asset_dependency_graph;
+use super::asset_dependency_graph_for_scope;
 use crate::project_dependency_graph::{
     AssetGraphNodeDetail, CHAPTER_VIDEO_PROMPT_TYPES, VIDEO_FRAME_PROMPT_TYPES,
     VIDEO_SEGMENT_PLAN_PROMPT_TYPES,
@@ -32,8 +32,8 @@ pub async fn asset_dependency_graph_node_detail(
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let scope = load_asset_graph_scope(db, requested_project).await?;
     let root_project_id = scope.root_project.id;
-    let family_project_ids = scope.family_project_ids;
-    let graph = asset_dependency_graph(db, project_id).await?;
+    let graph = asset_dependency_graph_for_scope(db, &scope).await?;
+    let family_project_ids = &scope.family_project_ids;
     let node = graph
         .nodes
         .iter()
@@ -59,16 +59,16 @@ pub async fn asset_dependency_graph_node_detail(
             scene_profile_detail_records(db, root_project_id, node.record_id).await?
         }
         "video_segment_plan" => {
-            video_prompt_detail_records(db, &family_project_ids, VIDEO_SEGMENT_PLAN_PROMPT_TYPES)
+            video_prompt_detail_records(db, family_project_ids, VIDEO_SEGMENT_PLAN_PROMPT_TYPES)
                 .await?
         }
         "character_portrait" => {
-            character_portrait_detail_records(db, &family_project_ids, node.profile_id).await?
+            character_portrait_detail_records(db, family_project_ids, node.profile_id).await?
         }
         "object_material_image" => {
             profile_material_image_detail_records(
                 db,
-                &family_project_ids,
+                family_project_ids,
                 node.profile_id,
                 crate::profile_material::PROFILE_KIND_OBJECT,
             )
@@ -77,31 +77,31 @@ pub async fn asset_dependency_graph_node_detail(
         "scene_material_image" => {
             profile_material_image_detail_records(
                 db,
-                &family_project_ids,
+                family_project_ids,
                 node.profile_id,
                 crate::profile_material::PROFILE_KIND_SCENE,
             )
             .await?
         }
-        "chapter_manga_prompt" => manga_prompt_detail_records(db, &family_project_ids).await?,
+        "chapter_manga_prompt" => manga_prompt_detail_records(db, family_project_ids).await?,
         "manga_page_image" => {
-            manga_image_detail_records(db, &family_project_ids, &mut warnings).await?
+            manga_image_detail_records(db, family_project_ids, &mut warnings).await?
         }
         "video_frame_prompt" => {
-            video_prompt_detail_records(db, &family_project_ids, VIDEO_FRAME_PROMPT_TYPES).await?
+            video_prompt_detail_records(db, family_project_ids, VIDEO_FRAME_PROMPT_TYPES).await?
         }
         "video_frame_image" => {
-            video_frame_image_detail_records(db, &family_project_ids, &mut warnings).await?
+            video_frame_image_detail_records(db, family_project_ids, &mut warnings).await?
         }
         "chapter_video_prompt" => {
-            video_prompt_detail_records(db, &family_project_ids, CHAPTER_VIDEO_PROMPT_TYPES).await?
+            video_prompt_detail_records(db, family_project_ids, CHAPTER_VIDEO_PROMPT_TYPES).await?
         }
         "generated_video" => {
-            generated_video_detail_records(db, &family_project_ids, &mut warnings).await?
+            generated_video_detail_records(db, family_project_ids, &mut warnings).await?
         }
-        "generation_spec" => generation_spec_detail_records(db, &family_project_ids).await?,
-        "prompt_artifact" => prompt_artifact_detail_records(db, &family_project_ids).await?,
-        "media_asset" => media_asset_detail_records(db, &family_project_ids, &mut warnings).await?,
+        "generation_spec" => generation_spec_detail_records(db, family_project_ids).await?,
+        "prompt_artifact" => prompt_artifact_detail_records(db, family_project_ids).await?,
+        "media_asset" => media_asset_detail_records(db, family_project_ids, &mut warnings).await?,
         _ => generic_node_detail_records(&node, structural_source_refs.clone()),
     };
     for record in &mut records {

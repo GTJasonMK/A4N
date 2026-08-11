@@ -16,7 +16,7 @@ pub async fn list_deletion_marks(
 ) -> Result<Vec<DeletionMarkSummary>, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let marks = state
-        .character()
+        .orchestrator()
         .deletion_marks_by_profile_validated(
             input.profile_id,
             input.category.as_deref(),
@@ -35,7 +35,7 @@ pub async fn request_attribute_deletion(
 ) -> Result<RequestAttributeDeletionResultSummary, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let mark = state
-        .character()
+        .orchestrator()
         .request_attribute_deletion_validated(CharacterAttributeDeletionRequestInput {
             profile_id: input.profile_id,
             category: input.category,
@@ -60,7 +60,7 @@ pub async fn execute_attribute_deletion(
 ) -> Result<ExecuteAttributeDeletionResultSummary, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let result = state
-        .character()
+        .orchestrator()
         .execute_ready_attribute_deletion_validated(
             input.profile_id,
             input.category,
@@ -85,7 +85,7 @@ pub async fn reset_deletion_marks(
 ) -> Result<ResetDeletionMarksResultSummary, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let deleted_marks = state
-        .character()
+        .orchestrator()
         .reset_deletion_marks_validated(input.profile_id, &input.category, &input.key)
         .await
         .map_err(app_error_message)?;

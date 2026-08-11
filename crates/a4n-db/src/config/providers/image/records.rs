@@ -82,28 +82,6 @@ where
     active.update(db).await.map_err(AppError::Database)
 }
 
-pub async fn set_default_image_config_record<C>(
-    db: &C,
-    model: image_gen_config::Model,
-) -> Result<image_gen_config::Model, AppError>
-where
-    C: ConnectionTrait,
-{
-    image_gen_config::Entity::update_many()
-        .col_expr(
-            image_gen_config::Column::IsDefault,
-            sea_orm::sea_query::Expr::value(false),
-        )
-        .filter(image_gen_config::Column::IsDefault.eq(true))
-        .exec(db)
-        .await
-        .map_err(AppError::Database)?;
-
-    let mut active: image_gen_config::ActiveModel = model.into();
-    active.is_default = Set(true);
-    active.update(db).await.map_err(AppError::Database)
-}
-
 pub async fn delete_image_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>
 where
     C: ConnectionTrait,

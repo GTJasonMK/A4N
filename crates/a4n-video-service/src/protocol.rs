@@ -3,15 +3,14 @@ use a4n_core::error::AppError;
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
-    redact_sensitive_message, validate_known_service_request,
-    validate_provider_api_key_secret_policy,
+    redact_sensitive_message, validate_provider_api_key_secret_policy,
 };
 
 pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
     result: Result<T, AppError>,
 ) -> ServiceResponse<T> {
-    ServiceResponse::from_result(request.trace_context.trace_id.clone(), result, |err| {
+    request.result_response(result, |err| {
         ServiceError::non_retryable(
             service_error_code(&err),
             redact_sensitive_message(err.to_string()),
@@ -78,7 +77,7 @@ pub(crate) fn validate_model_discovery_request(
 }
 
 pub(crate) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request(request, VIDEO_SERVICE_NAME)
+    request.validate_known_service(VIDEO_SERVICE_NAME)
 }
 
 pub(crate) fn validate_provider_secret_policy<T>(
@@ -93,13 +92,6 @@ pub(crate) fn validate_optional_provider_secret_policy<T>(
     request: &ServiceRequest<T>,
 ) -> Result<(), ServiceError> {
     validate_provider_api_key_secret_policy(api_key, &request.secret_policy, VIDEO_SERVICE_NAME)
-}
-
-pub(crate) fn error_response<T, P>(
-    request: &ServiceRequest<P>,
-    error: ServiceError,
-) -> ServiceResponse<T> {
-    ServiceResponse::error(request.trace_context.trace_id.clone(), error)
 }
 
 pub(crate) fn service_error_code(err: &AppError) -> ServiceErrorCode {

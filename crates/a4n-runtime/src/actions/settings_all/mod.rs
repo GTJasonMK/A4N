@@ -1,25 +1,34 @@
 mod host_port;
 
+pub use a4n_api_contract::config::ImportAllConfigsInput;
 use a4n_core::error::AppError;
-pub use a4n_orchestrator::config::{ImportAllConfigsInput, ImportAllResult};
 
-use crate::AppState;
+use crate::{
+    AppState,
+    actions::admin_records::{AdminPermission, require_admin_permission},
+};
 
 use self::host_port::RuntimeSettingsAllHostPort;
 
-pub async fn export_all_configs_to_json(state: &AppState) -> Result<String, AppError> {
+pub async fn export_all_configs_to_json(
+    state: &AppState,
+    caller_user_id: i64,
+) -> Result<String, AppError> {
+    require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings).await?;
     state
-        .settings()
+        .orchestrator()
         .export_all_configs_to_json_validated(&RuntimeSettingsAllHostPort { state })
         .await
 }
 
 pub async fn import_all_configs(
     state: &AppState,
+    caller_user_id: i64,
     input: ImportAllConfigsInput,
-) -> Result<ImportAllResult, AppError> {
+) -> Result<Vec<String>, AppError> {
+    require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings).await?;
     state
-        .settings()
+        .orchestrator()
         .import_all_configs_validated(&RuntimeSettingsAllHostPort { state }, input)
         .await
 }

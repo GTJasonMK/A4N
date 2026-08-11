@@ -27,19 +27,14 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         step_key: &str,
         request: &ChatRequest,
-        label: &str,
         validate_output: impl Fn(&T) -> Result<(), AppError>,
     ) -> Result<Option<T>, AppError>
     where
-        T: DeserializeOwned + JsonSchema,
+        T: DeserializeOwned,
     {
         let fingerprint_json = a4n_llm::trace::context_aware_chat_request_trace_json(request)?;
         let Some(checkpoint) = self
-            .load_completed_llm_call_checkpoint_with_repair_state(
-                workflow_run_id,
-                step_key,
-                &fingerprint_json,
-            )
+            .load_completed_llm_call_checkpoint(workflow_run_id, step_key, &fingerprint_json)
             .await?
         else {
             return Ok(None);
@@ -47,31 +42,15 @@ impl OrchestratorContext {
         let checkpoint_json =
             crate::workflow::required_llm_call_checkpoint_json(checkpoint, step_key)
                 .map_err(workflow_checkpoint_contract_app_error)?;
-        if let Some(value) = checkpoint_json
+        let value = checkpoint_json
             .get("parsed_output")
             .filter(|value| !value.is_null())
-            && let Ok(output) = serde_json::from_value::<T>(value.clone())
-            && validate_output(&output).is_ok()
-        {
-            return Ok(Some(output));
-        }
-        let raw_response = checkpoint_json["response_content"]
-            .as_str()
             .ok_or_else(|| {
-                AppError::InvalidArgument(format!("{step_key}.response_content 必须是字符串"))
+                AppError::InvalidArgument(format!("{step_key}.parsed_output 必须是结构化输出"))
             })?;
-        if let Ok(output) = parse_strict_json_response::<T>(raw_response, label)
-            && validate_output(&output).is_ok()
-        {
-            return Ok(Some(output));
-        }
-        self.load_compatible_full_repair_output(
-            workflow_run_id,
-            step_key,
-            raw_response,
-            &validate_output,
-        )
-        .await
+        let output = serde_json::from_value(value.clone())?;
+        validate_output(&output)?;
+        Ok(Some(output))
     }
 
     pub(super) async fn run_shooting_script_stage<T>(
@@ -102,7 +81,6 @@ impl OrchestratorContext {
             .run_or_restore_raw_shooting_call(
                 workflow_run_id,
                 step_key,
-                step_order,
                 &fingerprint_json,
                 request.clone(),
                 label,
@@ -191,7 +169,7 @@ impl OrchestratorContext {
                 .await?;
                 Ok(ShootingScriptStageResult {
                     output: repaired.output,
-                    restored: repaired.restored,
+                    restored: false,
                 })
             }
         }

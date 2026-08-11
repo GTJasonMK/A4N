@@ -2,7 +2,7 @@ use super::profiles::AttributeCountsSummary;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SnapshotReferenceSummary {
     pub id: i64,
     pub profile_id: i64,
@@ -19,7 +19,7 @@ pub struct SnapshotReferenceSummary {
     pub created_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProfileChapterStateSummary {
     pub id: i64,
     pub profile_id: i64,

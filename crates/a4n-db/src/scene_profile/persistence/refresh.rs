@@ -2,28 +2,39 @@ use crate::scene_profile::SceneProfileDbResult;
 use a4n_core::models::scene::{
     scene_entity_state, scene_occurrence, scene_profile, scene_transition,
 };
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde_json::json;
 use std::collections::BTreeSet;
 
-async fn delete_orphan_scene_profile<C>(
+async fn handle_orphan_scene_profile<C>(
     db: &C,
     project_id: i64,
     scene_profile_id: i64,
+    prune_ai_profile: bool,
 ) -> SceneProfileDbResult<()>
 where
     C: ConnectionTrait,
 {
-    let occurrence_count = scene_occurrence::Entity::find()
-        .filter(scene_occurrence::Column::ProjectId.eq(project_id))
-        .filter(scene_occurrence::Column::SceneProfileId.eq(scene_profile_id))
-        .count(db)
-        .await?;
-    if occurrence_count > 0 {
+    let Some(profile) = scene_profile::Entity::find_by_id(scene_profile_id)
+        .one(db)
+        .await?
+    else {
+        return Ok(());
+    };
+    if profile.project_id != project_id {
+        return Ok(());
+    }
+    if !prune_ai_profile || profile.ownership_kind != PROFILE_OWNERSHIP_AI_SYNC {
+        if profile.current_state_json != json!({}) {
+            let mut active: scene_profile::ActiveModel = profile.into();
+            active.current_state_json = Set(json!({}));
+            active.updated_at = Set(Utc::now().naive_utc());
+            active.update(db).await?;
+        }
         return Ok(());
     }
     scene_entity_state::Entity::delete_many()
@@ -54,13 +65,14 @@ pub(in crate::scene_profile) async fn refresh_scene_profiles_after_occurrence_ch
     db: &C,
     project_id: i64,
     scene_profile_ids: &BTreeSet<i64>,
+    prune_ai_orphans: bool,
 ) -> SceneProfileDbResult<()>
 where
     C: ConnectionTrait,
 {
     for scene_id in scene_profile_ids {
         if !rebuild_scene_profile_state(db, project_id, *scene_id).await? {
-            delete_orphan_scene_profile(db, project_id, *scene_id).await?;
+            handle_orphan_scene_profile(db, project_id, *scene_id, prune_ai_orphans).await?;
         }
     }
     Ok(())

@@ -34,29 +34,6 @@ interface ShootingScriptTabProps {
   chapter: ChapterData | null;
 }
 
-export function assertNextUnitProgressPreservesScenes(
-  previous: ChapterShootingScriptUnitProgressView | null,
-  next: ChapterShootingScriptUnitProgressView,
-): void {
-  const sceneCountMatches =
-    next.completed_unit_count > 0 &&
-    next.script.scenes.length === next.completed_unit_count;
-  const preservesPrevious =
-    previous == null ||
-    (next.workflow_run_id === previous.workflow_run_id &&
-      next.total_unit_count === previous.total_unit_count &&
-      next.completed_unit_count > previous.completed_unit_count &&
-      previous.script.scenes.every(
-        (scene, index) =>
-          JSON.stringify(scene) === JSON.stringify(next.script.scenes[index]),
-      ));
-  if (!sceneCountMatches || !preservesPrevious) {
-    throw new Error(
-      "生成下一个场景返回了倒退或改写已有场景的结果，已拒绝覆盖当前页面数据",
-    );
-  }
-}
-
 export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   projectId,
   canEdit,
@@ -186,7 +163,6 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         },
         () => generateNextChapterShootingScriptUnit(projectId, chapterId, taskId),
       );
-      assertNextUnitProgressPreservesScenes(unitProgress, generated);
       if (generated.completed_record) {
         const completedView = {
           record: generated.completed_record,

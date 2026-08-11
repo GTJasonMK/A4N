@@ -1,8 +1,7 @@
 use super::{
-    contracts::{
-        EmbeddingModelDownloadInfoSummary, EmbeddingModelExecution, LocalEmbeddingModelSummary,
-    },
-    host_adapter::{embedding_model_execution, required_text},
+    contracts::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary},
+    host_adapter::required_text,
+    normalize_optional_embedding_download_task_id,
 };
 use a4n_core::error::AppError;
 
@@ -14,19 +13,15 @@ fn blank_model_is_rejected() {
 }
 
 #[test]
-fn embedding_model_operations_route_only_sidecar_profile_to_capability() {
+fn embedding_download_task_id_uses_one_strict_rule() {
     assert_eq!(
-        embedding_model_execution(crate::state::RuntimeProfile::Sidecar),
-        EmbeddingModelExecution::Sidecar
+        normalize_optional_embedding_download_task_id(Some(" task-1 ".to_string()))
+            .expect("valid task id"),
+        Some("task-1".to_string())
     );
-    assert_eq!(
-        embedding_model_execution(crate::state::RuntimeProfile::Full),
-        EmbeddingModelExecution::HostLocal
-    );
-    assert_eq!(
-        embedding_model_execution(crate::state::RuntimeProfile::Minimal),
-        EmbeddingModelExecution::HostLocal
-    );
+    for task_id in ["", "task/path", "任务"] {
+        assert!(normalize_optional_embedding_download_task_id(Some(task_id.to_string())).is_err());
+    }
 }
 
 #[test]
@@ -37,7 +32,6 @@ fn embedding_sidecar_model_payloads_match_host_contracts() {
         "description": "test",
         "dimension": 512,
         "downloaded": true,
-        "cache_path": "/sidecar/cache/model",
         "size_bytes": 42
     }]))
     .expect("embedding sidecar models payload");
@@ -48,14 +42,32 @@ fn embedding_sidecar_model_payloads_match_host_contracts() {
         "model_code": "BAAI/bge-small-zh-v1.5",
         "total_size_bytes": 42,
         "downloaded_size_bytes": 21,
-        "missing_size_bytes": 21,
-        "files": [{
-            "path": "model.onnx",
-            "size_bytes": 42,
-            "downloaded_size_bytes": 21,
-            "downloaded": false
-        }]
+        "missing_size_bytes": 21
     }))
     .expect("embedding sidecar download info payload");
-    assert_eq!(info.files.len(), 1);
+    assert_eq!(info.missing_size_bytes, 21);
+
+    assert!(
+        serde_json::from_value::<LocalEmbeddingModelSummary>(serde_json::json!({
+            "name": "BGESmallZHV15",
+            "model_code": "BAAI/bge-small-zh-v1.5",
+            "description": "test",
+            "dimension": 512,
+            "downloaded": true,
+            "cache_path": "/sidecar/cache/model",
+            "size_bytes": 42
+        }))
+        .is_err()
+    );
+    assert!(
+        serde_json::from_value::<EmbeddingModelDownloadInfoSummary>(serde_json::json!({
+            "model_name": "BGESmallZHV15",
+            "model_code": "BAAI/bge-small-zh-v1.5",
+            "total_size_bytes": 42,
+            "downloaded_size_bytes": 21,
+            "missing_size_bytes": 21,
+            "files": []
+        }))
+        .is_err()
+    );
 }

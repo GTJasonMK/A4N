@@ -50,7 +50,7 @@ pub(in crate::galgame) async fn validate_galgame_portrait_spec_source_lines(
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            != input.pose.as_deref()
+            != Some(input.pose.as_str())
         {
             return Err(GalgameGenerationRecordError::InvalidArgument(format!(
                 "Galgame 立绘差分 source_line_ids 行 pose 与目标不一致: spec_id={}, line_id={}, pose={:?}, expected={:?}",

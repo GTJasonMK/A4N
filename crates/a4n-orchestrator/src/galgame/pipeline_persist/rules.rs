@@ -1,11 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use a4n_core::error::AppError;
 use serde_json::{Value, json};
 
 use super::super::{
-    GalgamePipelineEventCgPlan, GalgamePipelineLineStaged, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE,
-    LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION,
+    GalgameLinePresentationDocumentV2, GalgamePipelineEventCgPlan, GalgamePipelineLineStaged,
+    LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION,
+    LINE_TYPE_STAGE_DIRECTION,
 };
 
 pub(super) fn validate_persist_line(line: &GalgamePipelineLineStaged) -> Result<(), AppError> {
@@ -58,32 +59,27 @@ pub(super) fn to_i32(value: usize, label: &str) -> Result<i32, AppError> {
         })
 }
 
-pub(super) fn presentation_json_for_line(
+pub(super) fn presentation_document_for_line(
     line: &GalgamePipelineLineStaged,
-    cg: Option<&&GalgamePipelineEventCgPlan>,
-) -> Value {
-    let mut value = serde_json::to_value(&line.presentation)
-        .expect("validated Galgame presentation must serialize");
+    cg: Option<&GalgamePipelineEventCgPlan>,
+) -> GalgameLinePresentationDocumentV2 {
+    let mut value = GalgameLinePresentationDocumentV2::from(line.presentation.clone());
     if let Some(cg) = cg {
-        value["cg"] = json!(true);
-        value["cg_note"] = json!(cg.cg_note);
-        value["cg_importance"] = json!(cg.importance);
+        value.cg = Some(true);
+        value.cg_note = Some(cg.cg_note.clone());
+        value.cg_importance = Some(cg.importance);
     }
     value
 }
 
 pub(super) fn participants_json(participants: BTreeMap<i64, String>) -> Value {
-    let mut seen = BTreeSet::new();
     let items = participants
         .into_iter()
-        .filter_map(|(profile_id, name)| {
-            if !seen.insert(profile_id) {
-                return None;
-            }
-            Some(json!({
+        .map(|(profile_id, name)| {
+            json!({
                 "character_profile_id": profile_id,
                 "name": name,
-            }))
+            })
         })
         .collect::<Vec<_>>();
     json!(items)
@@ -97,15 +93,6 @@ pub(super) fn speaker_projection(
         .visible_cast
         .iter()
         .find(|cast| cast.character_profile_id == speaker_id)
-}
-
-pub(super) fn stage_position(position: super::super::GalgameStagePositionV2) -> String {
-    match position {
-        super::super::GalgameStagePositionV2::Left => "left",
-        super::super::GalgameStagePositionV2::Center => "center",
-        super::super::GalgameStagePositionV2::Right => "right",
-    }
-    .to_string()
 }
 
 pub(super) fn invalid(message: impl Into<String>) -> AppError {

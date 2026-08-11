@@ -390,12 +390,10 @@ impl OrchestratorContext {
         {
             Ok(image) => image,
             Err(error) => {
-                let cleanup_error = remove_profile_material_file(
-                    self.data_dir(),
-                    &persisted.relative_path,
-                )
-                .err()
-                .map(|error| error.to_string());
+                let cleanup_error =
+                    remove_profile_material_file(self.data_dir(), &persisted.relative_path)
+                        .err()
+                        .map(|error| error.to_string());
                 return Err(AppError::InvalidState {
                     current: "profile_material_upload".to_string(),
                     operation: append_cleanup_error(
@@ -958,12 +956,11 @@ fn persist_profile_material_image(
         current: "profile_material_upload".to_string(),
         operation: "上传素材图过大，无法记录文件大小".to_string(),
     })?;
-    let relative_path = data_dir_relative_path(data_dir, &path).map_err(|operation| {
-        AppError::InvalidState {
+    let relative_path =
+        data_dir_relative_path(data_dir, &path).map_err(|operation| AppError::InvalidState {
             current: "profile_material_upload".to_string(),
             operation,
-        }
-    })?;
+        })?;
     Ok(PersistedProfileMaterialImage {
         relative_path,
         file_size,
@@ -977,10 +974,12 @@ fn remove_profile_material_file(data_dir: &Path, relative_path: &str) -> Result<
             "素材图路径必须是应用数据目录内的相对路径".to_string(),
         ));
     }
-    let canonical_data_dir = data_dir.canonicalize().map_err(|error| AppError::InvalidState {
-        current: "profile_material_upload".to_string(),
-        operation: format!("解析应用数据目录失败：{error}"),
-    })?;
+    let canonical_data_dir = data_dir
+        .canonicalize()
+        .map_err(|error| AppError::InvalidState {
+            current: "profile_material_upload".to_string(),
+            operation: format!("解析应用数据目录失败：{error}"),
+        })?;
     let path = data_dir
         .join(raw)
         .canonicalize()
@@ -1069,9 +1068,8 @@ fn compact_json_hint(value: &Value, empty_text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use chrono::NaiveDate;
-
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn persists_profile_material_under_project_directory() {
@@ -1095,16 +1093,18 @@ mod tests {
             },
         )
         .expect("persist profile material");
-        assert!(persisted
-            .relative_path
-            .starts_with("projects/7/images/profile_materials/scene_42_"));
+        assert!(
+            persisted
+                .relative_path
+                .starts_with("projects/7/images/profile_materials/scene_42_")
+        );
         assert_eq!(persisted.file_size, 16);
         let absolute = data_dir.join(&persisted.relative_path);
         assert!(absolute.is_file());
         let _ = std::fs::remove_dir_all(data_dir);
     }
 
-#[test]
+    #[test]
     fn profile_material_metadata_uses_canonical_fields() {
         let metadata = profile_material_metadata(
             PROFILE_KIND_SCENE,

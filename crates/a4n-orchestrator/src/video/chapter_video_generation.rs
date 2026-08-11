@@ -1,3 +1,4 @@
+use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
 use a4n_core::{
     error::AppError,
     models::{
@@ -143,7 +144,7 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn ChapterVideoGenerationHostPort,
         input: GenerateChapterVideoInput,
-        prompt_override: Option<super::PreviewChapterVideoPromptOverrideInput>,
+        prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
     ) -> Result<ChapterVideoRequestPreview, AppError> {
         let prepared = self
             .prepare_chapter_video_generation(
@@ -296,7 +297,7 @@ impl OrchestratorContext {
         host_port: &dyn ChapterVideoGenerationHostPort,
         input: GenerateChapterVideoInput,
         mode: VideoProviderValidationMode,
-        prompt_override: Option<super::PreviewChapterVideoPromptOverrideInput>,
+        prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
     ) -> Result<PreparedChapterVideoGeneration, AppError> {
         let GenerateChapterVideoInput {
             user_id,

@@ -1,5 +1,3 @@
-use serde_json::json;
-
 use super::*;
 
 fn source(status: &str) -> ChapterMangaSourceSummary {
@@ -27,32 +25,6 @@ fn manga_source_write_gate_preserves_deleted_and_generating_errors() {
     );
     ensure_manga_source_can_write(&source("draft"), "生成漫画")
         .expect("draft source should allow writes");
-}
-
-#[test]
-fn manga_checkpoint_match_uses_core_source_metadata_contract() {
-    let current = source("draft");
-    let matching = json!({
-        "source": a4n_core::source_spans::source_metadata(
-            a4n_core::source_spans::ChapterSourceContext {
-                content: &current.content,
-            },
-        ),
-    });
-    assert!(
-        manga_checkpoint_matches_source(&matching, &current).expect("matching checkpoint source")
-    );
-
-    let changed = json!({"source": {"content_sha256": "changed"}});
-    assert!(
-        !manga_checkpoint_matches_source(&changed, &current).expect("changed checkpoint source")
-    );
-    assert_eq!(
-        manga_checkpoint_matches_source(&json!({}), &current)
-            .expect_err("missing source metadata should reject")
-            .to_string(),
-        "参数无效：漫画流水线断点缺少 source 元数据"
-    );
 }
 
 #[test]

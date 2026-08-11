@@ -1,7 +1,8 @@
 use super::contracts::CharacterTimelineDeletionSummary;
 use crate::character::{CharacterDbError, validate_chapter_number};
 use a4n_core::models::character::{
-    attribute_event, character_state_index, protagonist_behavior_record, snapshot_reference,
+    attribute_event::{self, SOURCE_KIND_AI_SYNC},
+    character_state_index, protagonist_behavior_record, snapshot_reference,
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
@@ -14,11 +15,55 @@ pub async fn delete_timeline_artifacts_from_chapter<C>(
 where
     C: ConnectionTrait,
 {
+    delete_timeline_artifacts_from_chapter_with_source(
+        db,
+        profile_id,
+        start_chapter,
+        end_chapter,
+        None,
+    )
+    .await
+}
+
+pub(in crate::character) async fn delete_ai_timeline_artifacts_from_chapter_checked<C>(
+    db: &C,
+    profile_id: i64,
+    start_chapter: i32,
+    end_chapter: Option<i32>,
+) -> Result<CharacterTimelineDeletionSummary, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    validate_timeline_cleanup_range(start_chapter, end_chapter)?;
+    delete_timeline_artifacts_from_chapter_with_source(
+        db,
+        profile_id,
+        start_chapter,
+        end_chapter,
+        Some(SOURCE_KIND_AI_SYNC),
+    )
+    .await
+}
+
+async fn delete_timeline_artifacts_from_chapter_with_source<C>(
+    db: &C,
+    profile_id: i64,
+    start_chapter: i32,
+    end_chapter: Option<i32>,
+    source_kind: Option<&str>,
+) -> Result<CharacterTimelineDeletionSummary, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
     let mut attribute_event_ids_query = attribute_event::Entity::find()
         .select_only()
         .column(attribute_event::Column::Id)
         .filter(attribute_event::Column::ProfileId.eq(profile_id))
         .filter(attribute_event::Column::ChapterNumber.gte(start_chapter));
+    if let Some(source_kind) = source_kind {
+        attribute_event_ids_query =
+            attribute_event_ids_query.filter(attribute_event::Column::SourceKind.eq(source_kind));
+    }
     if let Some(end_chapter) = end_chapter {
         attribute_event_ids_query = attribute_event_ids_query
             .filter(attribute_event::Column::ChapterNumber.lte(end_chapter));
@@ -42,6 +87,10 @@ where
     let mut attribute_event_delete = attribute_event::Entity::delete_many()
         .filter(attribute_event::Column::ProfileId.eq(profile_id))
         .filter(attribute_event::Column::ChapterNumber.gte(start_chapter));
+    if let Some(source_kind) = source_kind {
+        attribute_event_delete =
+            attribute_event_delete.filter(attribute_event::Column::SourceKind.eq(source_kind));
+    }
     if let Some(end_chapter) = end_chapter {
         attribute_event_delete =
             attribute_event_delete.filter(attribute_event::Column::ChapterNumber.lte(end_chapter));
@@ -51,6 +100,10 @@ where
     let mut behavior_delete = protagonist_behavior_record::Entity::delete_many()
         .filter(protagonist_behavior_record::Column::ProfileId.eq(profile_id))
         .filter(protagonist_behavior_record::Column::ChapterNumber.gte(start_chapter));
+    if let Some(source_kind) = source_kind {
+        behavior_delete =
+            behavior_delete.filter(protagonist_behavior_record::Column::SourceKind.eq(source_kind));
+    }
     if let Some(end_chapter) = end_chapter {
         behavior_delete = behavior_delete
             .filter(protagonist_behavior_record::Column::ChapterNumber.lte(end_chapter));
@@ -94,6 +147,14 @@ pub async fn delete_timeline_artifacts_from_chapter_checked<C>(
 where
     C: ConnectionTrait,
 {
+    validate_timeline_cleanup_range(start_chapter, end_chapter)?;
+    delete_timeline_artifacts_from_chapter(db, profile_id, start_chapter, end_chapter).await
+}
+
+fn validate_timeline_cleanup_range(
+    start_chapter: i32,
+    end_chapter: Option<i32>,
+) -> Result<(), CharacterDbError> {
     validate_chapter_number(start_chapter)?;
     if let Some(end_chapter) = end_chapter {
         validate_chapter_number(end_chapter)?;
@@ -103,6 +164,5 @@ where
             ));
         }
     }
-
-    delete_timeline_artifacts_from_chapter(db, profile_id, start_chapter, end_chapter).await
+    Ok(())
 }

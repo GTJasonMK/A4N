@@ -39,7 +39,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/video/status", post(handlers::status))
         .route("/video/delete", post(handlers::delete))
         .route("/video/request_preview", post(handlers::request_preview))
-        .route("/video/probe", post(handlers::probe))
         .route("/video/models", post(handlers::discover_models))
         .layer(DefaultBodyLimit::max(
             policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),

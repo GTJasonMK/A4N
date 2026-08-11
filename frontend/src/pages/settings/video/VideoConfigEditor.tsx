@@ -1,14 +1,15 @@
 import React from "react";
-import { detectServerVideoConfigModels, detectVideoConfigModels } from "../../../api/video";
+import {
+  detectServerVideoConfigModels,
+  detectVideoConfigModels,
+} from "../../../api/video";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
-import {
-  VIDEO_DURATION_MODES,
-  VIDEO_SIZE_OPTIONS,
-} from "./videoConfigUtils";
+import { VIDEO_DURATION_MODES, VIDEO_SIZE_OPTIONS } from "./videoConfigUtils";
 import type { VideoProviderDescriptor } from "../../../api/generated/config";
+import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { VideoForm } from "./types";
 
 interface VideoConfigEditorProps {
@@ -30,12 +31,28 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
   templateLocked = false,
   providers,
 }) => {
-  const detectModels = serverScope ? detectServerVideoConfigModels : detectVideoConfigModels;
+  const detectModels = serverScope
+    ? detectServerVideoConfigModels
+    : detectVideoConfigModels;
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
-  const selectedProvider = providers.find((provider) => provider.id === form.provider);
-  const providerMinDuration = selectedProvider?.min_duration_secs ?? form.min_duration_secs;
-  const providerMaxDuration = selectedProvider?.max_duration_secs ?? form.max_duration_secs;
+  const selectedProvider = providers.find(
+    (provider) => provider.id === form.provider,
+  );
+  const providerMinDuration =
+    selectedProvider?.min_duration_secs ?? form.min_duration_secs;
+  const providerMaxDuration =
+    selectedProvider?.max_duration_secs ?? form.max_duration_secs;
+  const modelDiscovery = buildModelDiscoveryField({
+    provider: form.provider,
+    baseUrl: form.api_base_url,
+    apiKey: form.api_key,
+    clearApiKey: form.clear_api_key,
+    configId,
+    hasApiKey: form.has_api_key,
+    readonly,
+    scope: serverScope ? "server" : "local",
+  });
 
   const setDurationMode = (durationMode: VideoForm["duration_mode"]) => {
     if (structureDisabled) return;
@@ -65,8 +82,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           <select
             value={form.provider}
             onChange={(event) => {
-              const provider = providers.find((item) => item.id === event.target.value);
-              if (!provider) throw new Error(`video provider 未注册：${event.target.value}`);
+              const provider = providers.find(
+                (item) => item.id === event.target.value,
+              );
+              if (!provider)
+                throw new Error(`video provider 未注册：${event.target.value}`);
               setForm({
                 ...form,
                 provider: provider.id,
@@ -95,31 +115,8 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             placeholder="例如：video-01 / kling-v1 / runway-gen3"
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
-            discoveryKey={[
-              form.provider,
-              form.api_base_url.trim(),
-              serverScope ? "server" : "local",
-              configId ?? "new",
-              form.clear_api_key ? "cleared-key" : form.api_key.trim() ? "form-key" : "saved-key",
-            ].join("|")}
-            detectModels={() =>
-              detectModels({
-                provider: form.provider,
-                base_url: form.api_base_url,
-                api_key_encrypted: form.clear_api_key
-                  ? null
-                  : form.api_key.trim() || undefined,
-                config_id: configId ?? null,
-                use_saved_api_key: Boolean(
-                  !readonly &&
-                    configId != null &&
-                    configId > 0 &&
-                    form.has_api_key &&
-                    !form.clear_api_key &&
-                    !form.api_key.trim(),
-                ),
-              })
-            }
+            discoveryKey={modelDiscovery.discoveryKey}
+            detectModels={() => detectModels(modelDiscovery.input)}
           />
         </FormField>
       </div>
@@ -127,7 +124,9 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
       <FormField label="接口地址">
         <BookInput
           value={form.api_base_url}
-          onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
+          onChange={(event) =>
+            setForm({ ...form, api_base_url: event.target.value })
+          }
           placeholder="https://api.example.com/v1"
           disabled={structureDisabled}
         />
@@ -145,7 +144,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           type="password"
           value={form.api_key}
           onChange={(event) =>
-            setForm({ ...form, api_key: event.target.value, clear_api_key: false })
+            setForm({
+              ...form,
+              api_key: event.target.value,
+              clear_api_key: false,
+            })
           }
           autoComplete="off"
           disabled={apiKeyInputDisabled || readonly}
@@ -223,7 +226,9 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             max={120}
             step={1}
             value={String(form.fps)}
-            onChange={(event) => setForm({ ...form, fps: Number(event.target.value) })}
+            onChange={(event) =>
+              setForm({ ...form, fps: Number(event.target.value) })
+            }
             disabled={structureDisabled}
           />
         </FormField>
@@ -252,7 +257,10 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
               step={1}
               value={String(form.min_duration_secs)}
               onChange={(event) =>
-                setForm({ ...form, min_duration_secs: Number(event.target.value) })
+                setForm({
+                  ...form,
+                  min_duration_secs: Number(event.target.value),
+                })
               }
               disabled={structureDisabled}
             />
@@ -265,7 +273,10 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
               step={1}
               value={String(form.max_duration_secs)}
               onChange={(event) =>
-                setForm({ ...form, max_duration_secs: Number(event.target.value) })
+                setForm({
+                  ...form,
+                  max_duration_secs: Number(event.target.value),
+                })
               }
               disabled={structureDisabled}
             />

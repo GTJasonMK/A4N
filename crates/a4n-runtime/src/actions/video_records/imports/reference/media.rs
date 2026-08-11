@@ -49,7 +49,7 @@ async fn create_imported_reference_media_video(
     let properties = probe_video_properties(&source.path, "导入参考媒体视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video()
+        .orchestrator()
         .create_imported_reference_media_video_record_validated(
             project_id,
             chapter_id,
@@ -72,7 +72,7 @@ async fn create_imported_reference_media_video(
         .map_err(crate::actions::app_error_message)?;
 
     let (output, output_path_str) = persist_imported_video_file(
-        &state.video(),
+        state.orchestrator(),
         state.data_dir(),
         record.id,
         &source.path,

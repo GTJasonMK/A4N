@@ -20,9 +20,11 @@ fn rag_ingest_progress_reports_stage_and_advances() {
 
     progress.stage("准备同步").expect("stage reports");
     progress.advance(2, "已同步 2 条").expect("advance reports");
-    progress
-        .advance(9, "同步完成")
-        .expect("advance caps at total");
+    let error = progress
+        .advance(2, "不应静默截断")
+        .expect_err("progress beyond the declared total must fail");
+    assert!(error.contains("超过声明总量"));
+    progress.advance(1, "同步完成").expect("reaches total");
 
     let events = events.lock().expect("progress events lock");
     assert_eq!(events.len(), 3);

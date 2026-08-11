@@ -33,6 +33,7 @@ impl OrchestratorContext {
             requested_part_count,
             blueprint_context,
             previous_parts,
+            source_snapshot,
             prompt_renderer,
             variables,
             workflow_run_id,
@@ -46,6 +47,7 @@ impl OrchestratorContext {
             requested_part_count,
             blueprint_context,
             previous_parts,
+            source_snapshot,
             prompt_renderer,
             variables,
         })
@@ -62,6 +64,7 @@ impl OrchestratorContext {
             chapters_per_part,
             requested_part_count,
             &request,
+            source_snapshot,
         )?;
         crate::workflow::attach_llm_call_checkpoint_trace(
             &mut request,
@@ -76,7 +79,7 @@ impl OrchestratorContext {
         )
         .await
         .map_err(workflow_write_app_error)?;
-        if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
+        let generated = if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
             self.database.connection(),
             workflow_run_id,
             &call_key,
@@ -88,81 +91,77 @@ impl OrchestratorContext {
             let checkpoint_json =
                 workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
                     .map_err(workflow_checkpoint_contract_app_error)?;
-            return restored_part_outline_checkpoint(
-                checkpoint_json,
-                request,
-                part_num,
-                start_ch,
-                end_ch,
-            );
-        }
-        let response =
-            crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
+            restored_part_outline_checkpoint(checkpoint_json, request, part_num, start_ch, end_ch)?
+        } else {
+            let response =
+                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
 
-        let response_usage_json = response
-            .usage
-            .as_ref()
-            .map(serde_json::to_value)
-            .transpose()?;
-        let content = response.message.content;
-        let finish_reason = response.finish_reason;
-        ensure_response_not_truncated(
-            finish_reason.as_deref(),
-            &format!("第 {part_num} 部分部大纲"),
-        )?;
-        let parse_output = |value: &serde_json::Value| {
-            parse_part_outline_single_response(
-                &serde_json::to_string(value)?,
-                part_num,
-                start_ch,
-                end_ch,
-            )
-        };
-        let repaired = self
-            .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
-                request: request.clone(),
-                raw_response: &content,
-                label: "部大纲",
-                schema: part_outline_single_response_schema(),
-                checkpoint: Some(StructuredRepairCheckpointContext {
+            let response_usage_json = response
+                .usage
+                .as_ref()
+                .map(serde_json::to_value)
+                .transpose()?;
+            let content = response.message.content;
+            let finish_reason = response.finish_reason;
+            ensure_response_not_truncated(
+                finish_reason.as_deref(),
+                &format!("第 {part_num} 部分部大纲"),
+            )?;
+            let parse_output = |value: &serde_json::Value| {
+                parse_part_outline_single_response(
+                    &serde_json::to_string(value)?,
+                    part_num,
+                    start_ch,
+                    end_ch,
+                )
+            };
+            let repaired = self
+                .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
+                    request: request.clone(),
+                    raw_response: &content,
+                    label: "部大纲",
+                    schema: part_outline_single_response_schema(),
+                    checkpoint: Some(StructuredRepairCheckpointContext {
+                        workflow_run_id,
+                        base_call_key: call_key.clone(),
+                        call_order: part_num,
+                    }),
+                    cancel_token: None,
+                    progress: None,
+                    parse_output: &parse_output,
+                })
+                .await?;
+            let repair_artifact = repaired.artifact_summary();
+            let data = repaired.output;
+            let generated = GeneratedPartOutline {
+                data,
+                request,
+                response_content: content,
+                finish_reason,
+            };
+            workflow::save_completed_llm_call_checkpoint(
+                self.database.connection(),
+                CompletedLlmCallCheckpointInput {
                     workflow_run_id,
-                    base_call_key: call_key.clone(),
+                    call_key,
                     call_order: part_num,
-                }),
-                cancel_token: None,
-                progress: None,
-                parse_output: &parse_output,
-            })
-            .await?;
-        let repair_artifact = repaired.artifact_summary();
-        let data = repaired.output;
-        let generated = GeneratedPartOutline {
-            data,
-            request,
-            response_content: content,
-            finish_reason,
+                    input_fingerprint_json: fingerprint_json,
+                    checkpoint_json: json!({
+                        "output": generated.data.clone(),
+                        "parsed_output": generated.data.clone(),
+                        "response_content": generated.response_content.clone(),
+                        "usage": response_usage_json,
+                        "finish_reason": generated.finish_reason.clone(),
+                    }),
+                    artifacts_json: Some(json!({
+                        "structured_repair": repair_artifact,
+                    })),
+                },
+            )
+            .await
+            .map_err(workflow_write_app_error)?;
+            generated
         };
-        workflow::save_completed_llm_call_checkpoint(
-            self.database.connection(),
-            CompletedLlmCallCheckpointInput {
-                workflow_run_id,
-                call_key,
-                call_order: part_num,
-                input_fingerprint_json: fingerprint_json,
-                checkpoint_json: json!({
-                    "output": generated.data.clone(),
-                    "parsed_output": generated.data.clone(),
-                    "response_content": generated.response_content.clone(),
-                    "usage": response_usage_json,
-                    "finish_reason": generated.finish_reason.clone(),
-                }),
-                artifacts_json: Some(json!({
-                    "structured_repair": repair_artifact,
-                })),
-            },
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
         Ok(generated)
     }
 }

@@ -24,7 +24,7 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_editing_node(
     let shared_run = run_handle.map(Into::into);
     let host_port = RuntimeCanvasEditingNodeHostPort::new(state);
     let summary = state
-        .canvas()
+        .orchestrator()
         .run_canvas_editing_node_validated(
             CanvasEditingNodeExecutionInput {
                 user_id,

@@ -22,7 +22,6 @@ import type {
   GeneratedVideo,
   UpdateVideoInput,
   VideoSegmentExecutionRecipe,
-  VideoTimelineSummary,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -51,7 +50,6 @@ import {
   type VideoSegmentCardPlan,
 } from "./videoTabUtils";
 import { VideoPromptSetupPanel } from "./VideoPromptSetupPanel";
-import type { InsertedSegmentGap } from "./InsertedSegmentTimelinePanel";
 import { VideoResultsPane } from "./VideoResultsPane";
 import {
   directorSections,
@@ -65,7 +63,6 @@ interface VideoGenerationWorkspaceProps {
   selectedSegmentNumber: number | null;
   planningDraftVisible: boolean;
   finalPromptBlockedReasons: Map<number, string>;
-  timeline: VideoTimelineSummary | null;
   selectedPrompt: ChapterVideoPrompt | null;
   selectedPromptId: number | null;
   selectedPromptStale: boolean;
@@ -96,8 +93,6 @@ interface VideoGenerationWorkspaceProps {
   onActivateSegment: (segmentNumber: number) => void | Promise<void>;
   onCloseSegmentConfig: () => void | Promise<void>;
   onDeletePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
-  onInsertSegment: (gap: InsertedSegmentGap) => void;
-  onOpenInsertedSegment: (timelineItemId: number) => void;
   onWorkflowModeChange: (
     mode: ChapterVideoWorkflowMode,
     shotNumber: number,
@@ -168,7 +163,6 @@ export const VideoGenerationWorkspace: React.FC<
   selectedSegmentNumber,
   planningDraftVisible,
   finalPromptBlockedReasons,
-  timeline,
   selectedPrompt,
   selectedPromptId,
   selectedPromptStale,
@@ -199,8 +193,6 @@ export const VideoGenerationWorkspace: React.FC<
   onActivateSegment,
   onCloseSegmentConfig,
   onDeletePrompt,
-  onInsertSegment,
-  onOpenInsertedSegment,
   onWorkflowModeChange,
   onFirstFrameSourceChange,
   onContinuitySourceChange,
@@ -1352,15 +1344,12 @@ export const VideoGenerationWorkspace: React.FC<
             loading={loading}
             savingRecipeSegments={savingRecipeSegments}
             finalPromptBlockedReasons={finalPromptBlockedReasons}
-            timeline={timeline}
             layout="index"
             onLoad={onLoad}
             onSelectPrompt={onSelectPrompt}
             onSelectSegment={onActivateSegment}
             onWorkflowModeChange={onWorkflowModeChange}
             onDeletePrompt={onDeletePrompt}
-            onInsertSegment={onInsertSegment}
-            onOpenInsertedSegment={onOpenInsertedSegment}
           />
         </div>
 
@@ -1425,15 +1414,12 @@ export const VideoGenerationWorkspace: React.FC<
                   loading={loading}
                   savingRecipeSegments={savingRecipeSegments}
                   finalPromptBlockedReasons={finalPromptBlockedReasons}
-                  timeline={timeline}
                   layout="selected"
                   onLoad={onLoad}
                   onSelectPrompt={onSelectPrompt}
                   onSelectSegment={onActivateSegment}
                   onWorkflowModeChange={onWorkflowModeChange}
                   onDeletePrompt={onDeletePrompt}
-                  onInsertSegment={onInsertSegment}
-                  onOpenInsertedSegment={onOpenInsertedSegment}
                 />
               </div>
             </section>

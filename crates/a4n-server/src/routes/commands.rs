@@ -77,7 +77,7 @@ use self::request::*;
 use self::source_sync::*;
 use self::task::*;
 
-use super::auth::{authenticated_user, issue_auth_response};
+use super::auth::{authenticated_user, issue_auth_response, user_agent};
 use super::error::ApiError;
 use crate::state::ServerState;
 use a4n_core::event::channel::TaskKind;
@@ -93,10 +93,12 @@ use a4n_runtime::host_api::character_records as character_records_actions;
 use a4n_runtime::host_api::config_records as config_records_actions;
 use a4n_runtime::host_api::embedding_model as embedding_model_actions;
 use a4n_runtime::host_api::export_files as export_files_actions;
+use a4n_runtime::host_api::foreshadowing_records as foreshadowing_records_actions;
 use a4n_runtime::host_api::generation_analytics as generation_analytics_actions;
 use a4n_runtime::host_api::image_generation as image_generation_actions;
 use a4n_runtime::host_api::image_records as image_records_actions;
 use a4n_runtime::host_api::import_analysis as import_analysis_actions;
+use a4n_runtime::host_api::import_file as import_file_actions;
 use a4n_runtime::host_api::import_reverse as import_reverse_actions;
 use a4n_runtime::host_api::import_review as import_review_actions;
 use a4n_runtime::host_api::inspiration_records as inspiration_records_actions;
@@ -137,19 +139,45 @@ pub async fn invoke(
     Path(cmd): Path<String>,
     Json(args): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if cmd == "oauth2_authorize_url" {
-        return Ok(Json(oauth2_authorize_url(&state, &args).await?).into_response());
-    }
-    if cmd == "oauth2_callback" {
-        return Ok(Json(oauth2_callback(&state, &headers, &args).await?).into_response());
+    let public_result = match cmd.as_str() {
+        "login_user" => Some(login_user(&state, &headers, &args).await?),
+        "register_user" => Some(register_user(&state, &headers, &args).await?),
+        "refresh_token" => Some(refresh_token(&state, &args).await?),
+        "oauth2_authorize_url" => Some(oauth2_authorize_url(&state, &args).await?),
+        "oauth2_callback" => Some(oauth2_callback(&state, &headers, &args).await?),
+        _ => None,
+    };
+    if let Some(result) = public_result {
+        return Ok(Json(result).into_response());
     }
 
     let user = authenticated_user(&state, &headers).await?;
-    verify_user_arg(&args, user.id)?;
+    let result = dispatch_runtime_command_inner(state.runtime(), user.id, args, cmd).await?;
+
+    Ok(Json(result).into_response())
+}
+
+pub async fn dispatch_runtime_command(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    args: Value,
+    cmd: String,
+) -> Result<Value, String> {
+    dispatch_runtime_command_inner(runtime, user_id, args, cmd)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+async fn dispatch_runtime_command_inner(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    args: Value,
+    cmd: String,
+) -> Result<Value, ApiError> {
     let runtime_config_snapshot =
         a4n_runtime::runtime_config::snapshot_from_args(&args).map_err(ApiError::bad_request)?;
-    let user_id = user.id;
-    let result = run_with_runtime_context(user_id, runtime_config_snapshot, async move {
+    let state = ServerState::from_runtime(runtime.clone());
+    run_with_runtime_context(user_id, runtime_config_snapshot, async move {
         if let Some(command) = reverse_engineer_web_command(&cmd) {
             return run_reverse_engineer_web_command(&state, user_id, &args, command).await;
         }
@@ -158,7 +186,5 @@ pub async fn invoke(
         }
         dispatch::dispatch(&state, user_id, &args, &cmd).await
     })
-    .await?;
-
-    Ok(Json(result).into_response())
+    .await
 }

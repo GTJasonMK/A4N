@@ -25,7 +25,6 @@ pub struct ImportedImageUploadInput {
     pub data_base64: String,
     pub image_type: String,
     pub prompt: String,
-    pub model: Option<String>,
     pub chapter_id: Option<i64>,
     pub panel_id: Option<String>,
     pub metadata_json: Option<Value>,
@@ -113,12 +112,6 @@ impl OrchestratorContext {
         let prompt = required_text(&input.prompt, "图片提示词")
             .map(str::to_string)
             .map_err(AppError::InvalidArgument)?;
-        let model = match input.model.as_deref() {
-            Some(model) => required_text(model, "图片模型")
-                .map(str::to_string)
-                .map_err(AppError::InvalidArgument)?,
-            None => IMPORTED_IMAGE_MODEL.to_string(),
-        };
         let decoded = decode_uploaded_image_data(
             &input.file_name,
             &input.mime_type,
@@ -130,7 +123,7 @@ impl OrchestratorContext {
             project_id,
             image_type,
             prompt,
-            model,
+            model: IMPORTED_IMAGE_MODEL.to_string(),
             chapter_id: input.chapter_id,
             panel_id: input.panel_id,
             metadata_json: input.metadata_json,

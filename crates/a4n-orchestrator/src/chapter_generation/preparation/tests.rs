@@ -1,10 +1,10 @@
 use super::{
-    ChapterGenerationWordCountRange, merge_generation_outline_text,
+    ChapterGenerationWordCountRange, generation_chapter_title, merge_generation_outline_text,
     reference_context::{
         formatting::{format_character_reference_line, format_foreshadowing_reference_line},
         selection::{select_generation_characters, select_generation_foreshadowing},
     },
-    required_generation_chapter_title, resolve_generation_word_count_range,
+    resolve_generation_word_count_range,
 };
 use a4n_core::models::{
     chapter::chapter_outline, character::foreshadowing_index, project::blueprint_character,
@@ -78,38 +78,50 @@ fn blueprint_character(name: &str) -> blueprint_character::Model {
 }
 
 #[test]
-fn required_generation_chapter_title_rejects_missing_title() {
+fn generation_chapter_title_falls_back_to_chapter_number() {
     let outline = generation_outline(Some("  "), Some("旧城暗线浮出水面"));
 
-    let err = required_generation_chapter_title(2, Some(&outline), None)
-        .expect_err("blank outline title must fail");
+    let title = generation_chapter_title(2, Some(&outline), None);
 
-    assert!(err.contains("第 2 章缺少标题"));
+    assert_eq!(title, "第2章");
 }
 
 #[test]
-fn required_generation_chapter_title_prefers_explicit_hint() {
+fn generation_chapter_title_prefers_explicit_hint() {
     let outline = generation_outline(Some("大纲标题"), Some("旧城暗线浮出水面"));
 
-    let title = required_generation_chapter_title(2, Some(&outline), Some("  正文标题  "))
-        .expect("explicit title hint should pass");
+    let title = generation_chapter_title(2, Some(&outline), Some("  正文标题  "));
 
     assert_eq!(title, "正文标题");
 }
 
 #[test]
-fn merge_generation_outline_text_rejects_missing_outline_source() {
-    let err = merge_generation_outline_text(
+fn merge_generation_outline_text_rejects_missing_outline_and_brief() {
+    let err = merge_generation_outline_text(2, None, Some("  "), None, Some("星门余烬"), None)
+        .expect_err("outline or brief must be required");
+
+    assert!(err.contains("缺少可用章节大纲或本章创作简报"));
+}
+
+#[test]
+fn merge_generation_outline_text_uses_brief_without_formal_outline() {
+    let text = merge_generation_outline_text(
         2,
         None,
-        Some("  "),
-        Some("强调悬疑节奏"),
-        Some("星门余烬"),
         None,
+        Some("  林岚在旧仓库发现失踪者留下的录音，并决定隐瞒其中一句话。  "),
+        None,
+        Some(ChapterGenerationWordCountRange {
+            min: 3_000,
+            max: 4_000,
+        }),
     )
-    .expect_err("generation outline source must be required");
+    .expect("brief should be enough to generate without a formal outline");
 
-    assert!(err.contains("第 2 章缺少章节大纲"));
+    assert!(text.contains("章节标题: 第2章"));
+    assert!(text.contains("本章创作简报:\n林岚在旧仓库发现失踪者留下的录音"));
+    assert!(!text.contains("## 写作指令"));
+    assert!(text.contains("## 正文字数要求"));
 }
 
 #[test]

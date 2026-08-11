@@ -1,5 +1,5 @@
 use super::{ApplySourceSyncInput, SourceSyncRunSummary, orchestrator_decision, projections};
-use crate::{AppState, prompt_renderer::RuntimePromptRenderer};
+use crate::AppState;
 use a4n_core::error::AppError;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_queue::queue::TaskFamilyContext;
@@ -10,7 +10,7 @@ pub async fn apply_source_sync_decisions(
     input: ApplySourceSyncInput,
 ) -> Result<SourceSyncRunSummary, AppError> {
     let run = state
-        .source_sync()
+        .orchestrator()
         .source_sync_run_for_user_validated(user_id, input.sync_run_id)
         .await?;
     let context = TaskFamilyContext::new(
@@ -20,26 +20,26 @@ pub async fn apply_source_sync_decisions(
         "source_sync",
     )?;
     let state_for_task = state.clone();
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let decisions = input
         .decisions
         .into_iter()
         .map(orchestrator_decision)
         .collect();
     let updated = state
-        .task_queue()
+        .orchestrator()
         .queue_run_tracked_with_family_context(
             QueueTaskKind::SourceSync,
             TaskPriority::Medium,
             context,
             || async move {
                 state_for_task
-                    .source_sync()
+                    .orchestrator()
                     .run_source_sync_apply_for_user_validated(
                         user_id,
                         run,
                         decisions,
-                        Some(&prompt_renderer),
+                        Some(prompt_renderer),
                     )
                     .await
             },

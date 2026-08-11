@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
-use a4n_db::workflow;
 use a4n_llm::provider::is_truncated_finish_reason;
 use serde_json::Value;
 
-use crate::{OrchestratorContext, workflow::workflow_checkpoint_contract_app_error};
-use a4n_llm::context::LlmContextManifest;
+use crate::{OrchestratorContext, structured_llm::parse_strict_json_response};
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::contracts::{
@@ -14,18 +12,17 @@ use super::super::contracts::{
 };
 use super::checkpoint::load_manga_restored_llm_checkpoint;
 use super::request::prepare_manga_llm_call;
-use crate::structured_llm::{StructuredRepairCheckpointContext, StructuredValueRepairInput};
 
 pub(in crate::manga) struct MangaRenderTraceInput<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub prompt_name: &'a str,
     pub project_id: i64,
-    pub workflow_run_id: Option<i64>,
+    pub workflow_run_id: i64,
     pub call_key: String,
     pub call_order: i32,
     pub restore_from_checkpoint: bool,
     pub variables: &'a HashMap<String, Value>,
-    pub manifest: LlmContextManifest,
+    pub user_content: String,
     pub temperature: f32,
 }
 
@@ -43,12 +40,9 @@ impl OrchestratorContext {
             call_order,
             restore_from_checkpoint,
             variables,
-            manifest,
+            user_content,
             temperature,
         } = input;
-        let workflow_run_id =
-            workflow::required_llm_call_workflow_run_id(workflow_run_id, &call_key)
-                .map_err(workflow_checkpoint_contract_app_error)?;
         let prepared = prepare_manga_llm_call(MangaLlmCallInput {
             prompt_renderer,
             prompt_name,
@@ -57,11 +51,10 @@ impl OrchestratorContext {
             call_key,
             call_order,
             variables,
-            manifest,
+            user_content,
             temperature,
         })
         .await?;
-        let repair_request = prepared.request.clone();
         let (response_text, usage, finish_reason, restored_parsed_output) =
             if restore_from_checkpoint
                 && let Some(restored) = load_manga_restored_llm_checkpoint(
@@ -98,68 +91,24 @@ impl OrchestratorContext {
             request_json: prepared.request_json,
             messages_json: prepared.messages_json,
             response_text,
-            workflow_run_id: Some(workflow_run_id),
-            call_key: Some(prepared.call_key),
-            call_order: Some(prepared.call_order),
-            input_fingerprint_json: Some(prepared.input_fingerprint_json),
+            workflow_run_id,
+            call_key: prepared.call_key,
+            call_order: prepared.call_order,
+            input_fingerprint_json: prepared.input_fingerprint_json,
             usage,
             finish_reason,
-            context_manifest_summary_json: prepared.context_manifest_summary_json,
             restored_parsed_output,
-            repair_request: Some(repair_request),
         })
     }
+}
 
-    pub(in crate::manga) async fn repair_and_validate_manga_llm_output<F>(
-        &self,
-        trace: &MangaPromptGenerationTrace,
-        validate: F,
-    ) -> Result<Value, AppError>
-    where
-        F: Fn(&Value) -> Result<Value, AppError>,
-    {
-        if let Some(restored) = trace.restored_parsed_output.as_ref() {
-            return validate(restored);
-        }
-        let request = trace
-            .repair_request
-            .clone()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_manga_repair_request".to_string(),
-                operation: format!("修复漫画结构化输出 {}", trace.prompt_name),
-            })?;
-        let workflow_run_id = workflow::required_llm_call_workflow_run_id(
-            trace.workflow_run_id,
-            trace.call_key.as_deref().unwrap_or(&trace.prompt_name),
-        )
-        .map_err(workflow_checkpoint_contract_app_error)?;
-        let call_key = trace
-            .call_key
-            .clone()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_manga_call_key".to_string(),
-                operation: format!("修复漫画结构化输出 {}", trace.prompt_name),
-            })?;
-        let call_order = trace.call_order.ok_or_else(|| AppError::InvalidState {
-            current: "missing_manga_call_order".to_string(),
-            operation: format!("修复漫画结构化输出 {}", trace.prompt_name),
-        })?;
-        let repaired = self
-            .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
-                request,
-                raw_response: &trace.response_text,
-                label: &trace.prompt_name,
-                schema: crate::manga::pipeline_json::manga_llm_output_schema(&trace.prompt_name)?,
-                checkpoint: Some(StructuredRepairCheckpointContext {
-                    workflow_run_id,
-                    base_call_key: call_key,
-                    call_order,
-                }),
-                cancel_token: None,
-                progress: None,
-                parse_output: &validate,
-            })
-            .await?;
-        Ok(repaired.output)
-    }
+pub(in crate::manga) fn parse_and_validate_manga_llm_output<F, T>(
+    trace: &MangaPromptGenerationTrace,
+    validate: F,
+) -> Result<T, AppError>
+where
+    F: FnOnce(&Value) -> Result<T, AppError>,
+{
+    let parsed = parse_strict_json_response::<Value>(&trace.response_text, &trace.prompt_name)?;
+    validate(&parsed)
 }

@@ -9,10 +9,9 @@ where
 {
     let prompts = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(chapter_manga_prompt::Column::PromptType.ne("pipeline_status"))
+        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
         .order_by_asc(chapter_manga_prompt::Column::ChapterId)
         .order_by_asc(chapter_manga_prompt::Column::PageNumber)
-        .order_by_asc(chapter_manga_prompt::Column::PanelNumber)
         .order_by_asc(chapter_manga_prompt::Column::Id)
         .all(db)
         .await
@@ -33,10 +32,9 @@ where
 {
     let prompts = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(chapter_manga_prompt::Column::PromptType.ne("pipeline_status"))
+        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
         .order_by_asc(chapter_manga_prompt::Column::ChapterId)
         .order_by_asc(chapter_manga_prompt::Column::PageNumber)
-        .order_by_asc(chapter_manga_prompt::Column::PanelNumber)
         .all(db)
         .await
         .map_err(AppError::Database)?;

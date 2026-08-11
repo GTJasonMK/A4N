@@ -1,3 +1,4 @@
+use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
 
 use super::super::contracts::MangaPipelineRequestPreviewStep;
@@ -73,8 +74,8 @@ impl MangaPipelineRequestPreviewStep {
 pub(in crate::manga::pipeline_preview) fn push_blocked_after(
     steps: &mut Vec<MangaPipelineRequestPreviewStep>,
     next_step_key: &str,
-) {
-    for (key, title, prompt_name) in manga_pipeline_steps_after(next_step_key) {
+) -> Result<(), AppError> {
+    for (key, title, prompt_name) in manga_pipeline_steps_after(next_step_key)? {
         steps.push(MangaPipelineRequestPreviewStep::blocked(
             key,
             title,
@@ -82,11 +83,12 @@ pub(in crate::manga::pipeline_preview) fn push_blocked_after(
             "该请求依赖前序模型输出，发送前无法提前构造真实请求",
         ));
     }
+    Ok(())
 }
 
 fn manga_pipeline_steps_after(
     next_step_key: &str,
-) -> &'static [(&'static str, &'static str, &'static str)] {
+) -> Result<&'static [(&'static str, &'static str, &'static str)], AppError> {
     const STEPS: &[(&str, &str, &str)] = &[
         (
             "manga_character_binding",
@@ -127,6 +129,8 @@ fn manga_pipeline_steps_after(
     let index = STEPS
         .iter()
         .position(|(key, _, _)| *key == next_step_key)
-        .unwrap_or(STEPS.len());
-    &STEPS[index..]
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!("未知漫画流水线预览步骤: {next_step_key}"))
+        })?;
+    Ok(&STEPS[index..])
 }

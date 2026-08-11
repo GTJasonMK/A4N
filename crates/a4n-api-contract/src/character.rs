@@ -50,27 +50,46 @@ pub struct SyncAllCharacterProfilesInput {
     pub chapter_number: i32,
 }
 
-#[derive(Serialize, JsonSchema)]
-pub struct CharacterProfileSummary {
-    pub id: i64,
-    pub name: String,
-    pub current_state: Value,
-    pub last_synced_chapter: i32,
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct AttributeCountsSummary {
+    pub explicit: usize,
+    pub implicit: usize,
+    pub social: usize,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct CharacterProfileSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub base_attributes: Value,
+    pub current_state: Value,
+    pub character_arc: Option<Value>,
+    pub voice_fingerprint: Option<Value>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+    pub last_synced_chapter: i32,
+    pub attribute_counts: AttributeCountsSummary,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct CharacterProfileCreateResult {
     pub profile_id: i64,
     pub warnings: Vec<String>,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct CharacterProfileMutationResult {
     pub profile: CharacterProfileSummary,
     pub warnings: Vec<String>,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct CharacterProfileDeleteResult {
     pub warnings: Vec<String>,
 }
@@ -106,6 +125,14 @@ pub struct CharacterProfileSyncRange {
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+pub struct CharacterProfileProtectedAttribute {
+    pub chapter_number: i32,
+    pub category: String,
+    pub key: String,
+    pub operation: String,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
 pub struct CharacterProfileSyncedResult {
     pub name: String,
     pub chapters_analyzed: usize,
@@ -120,6 +147,7 @@ pub struct CharacterProfileSyncedResult {
     pub rewound_deletion_marks: u64,
     pub implicit_reviews_checked: usize,
     pub implicit_reviews_applied: usize,
+    pub protected_attributes: Vec<CharacterProfileProtectedAttribute>,
     pub snapshot_hash: String,
     pub state_indexes_upserted: usize,
     pub deleted_state_rag: usize,

@@ -6,7 +6,6 @@ use crate::{
         access, portrait_records::portrait_project_id_for_user,
         request_preview::ModelRequestPreview, template_variables::parse_template_variables,
     },
-    prompt_renderer::RuntimePromptRenderer,
     state::AppState,
 };
 use a4n_orchestrator::portrait::{
@@ -24,12 +23,12 @@ pub async fn preview_generate_portrait_prompt_request(
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let variables = parse_template_variables(input.variables.as_ref())?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .character()
+        .orchestrator()
         .prepare_generate_portrait_prompt_request_preview_validated(
             &input,
-            &prompt_renderer,
+            prompt_renderer,
             &variables,
         )
         .await
@@ -56,10 +55,10 @@ pub async fn preview_generate_portrait_request(
     input: GeneratePortraitInput,
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .character()
-        .prepare_generate_portrait_request_preview_validated(&input, &prompt_renderer)
+        .orchestrator()
+        .prepare_generate_portrait_request_preview_validated(&input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     let reference_count = validate_reference_image_ids(&input.reference_image_ids)?.len();
@@ -163,7 +162,7 @@ pub async fn preview_generate_missing_portraits_request(
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let missing_profiles = state
-        .character()
+        .orchestrator()
         .missing_portrait_profiles(input.project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -196,7 +195,7 @@ async fn required_portrait(
     portrait_id: i64,
 ) -> Result<a4n_core::models::character::character_portrait::Model, String> {
     state
-        .character()
+        .orchestrator()
         .character_portrait_by_id(portrait_id)
         .await
         .map_err(|error| error.to_string())?

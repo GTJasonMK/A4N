@@ -63,10 +63,10 @@ macro_rules! chapter_analysis_web_task_command {
             let stream_reporter = web_stream_reporter(task.clone());
             let progress = a4n_runtime::workflow::ChapterAnalysisProgress::new(
                 Some(&reporter),
-                Some(&stream_reporter),
                 cancel_token.as_ref(),
                 task_id.as_deref(),
-            );
+            )
+            .with_stream_reporter(Some(&stream_reporter));
             let result = $run(state.runtime(), user_id, input.chapter_id, Some(&progress)).await;
             let value = finish_web_task(
                 state,

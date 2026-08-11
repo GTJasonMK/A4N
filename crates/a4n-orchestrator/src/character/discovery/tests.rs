@@ -386,52 +386,6 @@ fn parse_output_accepts_canonical_object_and_projects_base_attributes() {
 }
 
 #[test]
-fn parse_output_rejects_legacy_evidence_field() {
-    let (chapters, anchors) = discovery_anchor_context("沈砚推门而入。");
-    let content = json!({
-        "characters": [{
-            "name": "沈砚",
-            "aliases": [],
-            "importance": "primary",
-            "role": "主角",
-            "explicit_attributes": {},
-            "implicit_attributes": {},
-            "social_attributes": {},
-            "evidence": "沈砚推门而入"
-        }]
-    })
-    .to_string();
-
-    let error = parse_character_discovery_output(&content, &chapters, &anchors)
-        .expect_err("legacy free-text evidence must fail");
-    assert!(error.contains("evidence 已废弃"));
-    assert!(error.contains("evidence_anchor_id"));
-}
-
-#[test]
-fn parse_output_rejects_legacy_evidence_span_id() {
-    let (chapters, anchors) = discovery_anchor_context("沈砚推门而入。");
-    let content = json!({
-        "characters": [{
-            "name": "沈砚",
-            "aliases": [],
-            "importance": "primary",
-            "role": "主角",
-            "explicit_attributes": {},
-            "implicit_attributes": {},
-            "social_attributes": {},
-            "evidence_span_id": "ch9:s1:f1"
-        }]
-    })
-    .to_string();
-
-    let error = parse_character_discovery_output(&content, &chapters, &anchors)
-        .expect_err("legacy evidence span id must fail");
-    assert!(error.contains("evidence_span_id 已废弃"));
-    assert!(error.contains("evidence_anchor_id"));
-}
-
-#[test]
 fn parse_output_rejects_model_supplied_derived_fields() {
     let (chapters, anchors) = discovery_anchor_context("沈砚推门而入。");
     let evidence_anchor_id = anchor_id_containing(&anchors, "沈砚推门而入");

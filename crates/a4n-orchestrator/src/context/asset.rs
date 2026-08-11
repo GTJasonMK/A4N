@@ -5,8 +5,8 @@ use a4n_db::DbHandle;
 use super::OrchestratorContext;
 
 use crate::asset::{
-    ObjectProfileDraft, ObjectProfileUpsertRecordResult, asset_error,
-    normalize_object_profile_record_input, normalize_object_profile_record_inputs,
+    ObjectProfileDraft, ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult,
+    asset_error, normalize_object_profile_record_input, normalize_object_profile_record_inputs,
 };
 
 #[derive(Clone)]
@@ -76,6 +76,8 @@ impl AssetApplication {
         &self,
         project_id: i64,
         drafts: Vec<ObjectProfileDraft>,
+        source_chapters: Vec<a4n_db::project::ChapterSourceSnapshot>,
+        profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
         generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
     ) -> Result<ObjectProfileUpsertRecordResult, AppError> {
         let inputs = normalize_object_profile_record_inputs(drafts)?;
@@ -83,6 +85,8 @@ impl AssetApplication {
             self.database.connection(),
             project_id,
             inputs,
+            source_chapters,
+            profile_evidence,
             generation_run,
         )
         .await
@@ -132,10 +136,18 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         drafts: Vec<ObjectProfileDraft>,
+        source_chapters: Vec<a4n_db::project::ChapterSourceSnapshot>,
+        profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
         generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
     ) -> Result<ObjectProfileUpsertRecordResult, AppError> {
         self.asset
-            .upsert_object_profiles_from_drafts_validated(project_id, drafts, generation_run)
+            .upsert_object_profiles_from_drafts_validated(
+                project_id,
+                drafts,
+                source_chapters,
+                profile_evidence,
+                generation_run,
+            )
             .await
     }
 

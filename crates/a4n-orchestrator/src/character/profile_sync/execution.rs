@@ -1,10 +1,10 @@
 use a4n_api_contract::character::{
-    CharacterProfileSyncedResult, CharacterProfileSyncRange, CharacterProfileSyncSkipReason,
-    SyncCharacterProfileResult,
+    CharacterProfileProtectedAttribute, CharacterProfileSyncRange, CharacterProfileSyncSkipReason,
+    CharacterProfileSyncedResult, SyncCharacterProfileResult,
 };
 use a4n_core::error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
+use serde_json::json;
 
 use crate::{
     OrchestratorContext,
@@ -207,10 +207,15 @@ impl OrchestratorContext {
                 project_id: prepared.project_id,
                 profile_id: prepared.profile.id,
                 profile_name: prepared.profile.name.clone(),
+                expected_profile_updated_at: prepared.profile.updated_at,
+                expected_profile_last_synced_chapter: prepared.profile.last_synced_chapter,
+                expected_profile_base_attributes: prepared.profile.base_attributes.clone(),
+                expected_profile_current_state: prepared.profile.current_state.clone(),
                 start_chapter: prepared.start_chapter,
                 target_chapter: prepared.target_chapter,
                 clear_to_chapter: Some(prepared.clear_to_chapter),
                 selected_chapter_numbers: prepared.selected_chapter_numbers.clone(),
+                source_chapters: prepared.source_chapters.clone(),
                 baseline_state: prepared.baseline_state.clone(),
                 write_steps,
                 behaviors: classified.behaviors,
@@ -373,6 +378,17 @@ fn character_profile_sync_summary(
         rewound_deletion_marks: applied.deletion_mark_rewind.rewound,
         implicit_reviews_checked,
         implicit_reviews_applied: applied.write_summary.implicit_reviews_applied,
+        protected_attributes: applied
+            .write_summary
+            .protected_attributes
+            .into_iter()
+            .map(|attribute| CharacterProfileProtectedAttribute {
+                chapter_number: attribute.chapter_number,
+                category: attribute.category,
+                key: attribute.key,
+                operation: attribute.operation,
+            })
+            .collect(),
         snapshot_hash: applied.target_snapshot_hash,
         state_indexes_upserted: applied.state_indexes.len(),
         deleted_state_rag: rag.deleted_state_rag,

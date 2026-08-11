@@ -26,10 +26,10 @@ pub async fn user_from_access_token(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::Unauthorized("访问令牌缺少会话绑定，请重新登录".into()))?;
     state
-        .auth()
+        .orchestrator()
         .verify_active_session(user_id, session_id)
         .await?;
-    state.auth().current_user(user_id).await
+    state.orchestrator().current_user(user_id).await
 }
 
 pub async fn verify_media_token_for_path(
@@ -56,7 +56,7 @@ pub async fn verify_media_token_for_path(
         .sub
         .parse::<i64>()
         .map_err(|_| AppError::Unauthorized("媒体令牌 subject 不是有效用户 ID".into()))?;
-    state.auth().current_user(user_id).await?;
+    state.orchestrator().current_user(user_id).await?;
     Ok(())
 }
 
@@ -73,7 +73,7 @@ pub async fn issue_auth_result(
         secret,
     )?;
     let session = state
-        .auth()
+        .orchestrator()
         .create_session(user.id, &pair.refresh_token, user_agent)
         .await?;
     let session_id = session.id.clone();
@@ -115,10 +115,10 @@ pub async fn refresh_token(
     let user_id = required_session_user_id(user_id, "刷新令牌")?;
 
     let session = state
-        .auth()
+        .orchestrator()
         .verify_session_refresh_token(user_id, &session_id, &input.refresh_token)
         .await?;
-    let user = state.auth().current_user(user_id).await?;
+    let user = state.orchestrator().current_user(user_id).await?;
     let pair = jwt::refresh_access_token_with_role(
         &input.refresh_token,
         Some(&user.username),
@@ -127,7 +127,7 @@ pub async fn refresh_token(
         secret,
     )?;
     state
-        .auth()
+        .orchestrator()
         .rotate_session_refresh_token(session, &input.refresh_token, &pair.refresh_token)
         .await?;
 

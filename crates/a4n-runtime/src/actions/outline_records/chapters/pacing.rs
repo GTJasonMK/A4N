@@ -12,7 +12,7 @@ pub async fn get_chapter_outlines_pacing(
 ) -> Result<Value, AppError> {
     project_access::verify_project_editor(state, user_id, project_id).await?;
     let outlines = state
-        .project_outline_records()
+        .orchestrator()
         .chapter_outlines_for_project(project_id)
         .await?;
     build_chapter_outlines_pacing(&outlines)

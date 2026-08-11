@@ -38,8 +38,12 @@ impl DestructiveLifecycleCoordinator {
     ) -> Result<(), String> {
         let _guard = self.lock(format!("project:{project_id}")).await;
         let claim = state
-            .generation_tasks()
-            .begin_project_gate(project_id, user_id, ProjectLifecycleOperation::Delete)
+            .orchestrator()
+            .begin_generation_project_lifecycle_gate(
+                project_id,
+                user_id,
+                ProjectLifecycleOperation::Delete,
+            )
             .await
             .map_err(|error| error.to_string())?;
         let can_restore = claim.state == LifecycleGateClaimState::Started;
@@ -79,8 +83,12 @@ impl DestructiveLifecycleCoordinator {
     ) -> Result<ProjectGeneratedDataResetApplicationResult, String> {
         let _guard = self.lock(format!("project:{project_id}")).await;
         let claim = state
-            .generation_tasks()
-            .begin_project_gate(project_id, user_id, ProjectLifecycleOperation::Reset)
+            .orchestrator()
+            .begin_generation_project_lifecycle_gate(
+                project_id,
+                user_id,
+                ProjectLifecycleOperation::Reset,
+            )
             .await
             .map_err(|error| error.to_string())?;
         let can_restore = claim.state == LifecycleGateClaimState::Started;
@@ -119,8 +127,8 @@ impl DestructiveLifecycleCoordinator {
     ) -> Result<(), String> {
         let _guard = self.lock(format!("user:{user_id}")).await;
         let claim = state
-            .generation_tasks()
-            .begin_user_disable_gate(caller_user_id, user_id)
+            .orchestrator()
+            .begin_generation_user_disable_gate(caller_user_id, user_id)
             .await
             .map_err(|error| error.to_string())?;
         if claim.state == LifecycleGateClaimState::Complete {
@@ -130,15 +138,18 @@ impl DestructiveLifecycleCoordinator {
         let mut durable_drain_write = false;
         if let Err(error) = drain_user(state, user_id, &mut durable_drain_write).await {
             if can_restore && !durable_drain_write && !error.is_timeout() {
-                let _ = state.generation_tasks().restore_user_gate(user_id).await;
+                let _ = state
+                    .orchestrator()
+                    .restore_generation_user_lifecycle_gate(user_id)
+                    .await;
             } else {
                 self.schedule_user_continuation(state, user_id);
             }
             return Err(error.to_string());
         }
         if let Err(error) = state
-            .generation_tasks()
-            .complete_user_disable(user_id)
+            .orchestrator()
+            .complete_generation_user_disable_gate(user_id)
             .await
         {
             self.schedule_user_continuation(state, user_id);
@@ -149,8 +160,8 @@ impl DestructiveLifecycleCoordinator {
 
     pub(crate) async fn continue_pending(&self, state: &AppState) -> Result<(), String> {
         for operation in state
-            .generation_tasks()
-            .pending_operations()
+            .orchestrator()
+            .pending_generation_lifecycle_operations()
             .await
             .map_err(|error| error.to_string())?
         {
@@ -160,15 +171,15 @@ impl DestructiveLifecycleCoordinator {
                     interrupt_startup_tasks(
                         state,
                         state
-                            .generation_tasks()
-                            .active_for_user(user_id)
+                            .orchestrator()
+                            .active_generation_tasks_for_user(user_id)
                             .await
                             .map_err(|error| error.to_string())?,
                     )
                     .await?;
                     state
-                        .generation_tasks()
-                        .complete_user_disable(user_id)
+                        .orchestrator()
+                        .complete_generation_user_disable_gate(user_id)
                         .await
                         .map_err(|error| error.to_string())?;
                 }
@@ -181,8 +192,8 @@ impl DestructiveLifecycleCoordinator {
                     interrupt_startup_tasks(
                         state,
                         state
-                            .generation_tasks()
-                            .active_for_project(project_id)
+                            .orchestrator()
+                            .active_generation_tasks_for_project(project_id)
                             .await
                             .map_err(|error| error.to_string())?,
                     )
@@ -201,8 +212,8 @@ impl DestructiveLifecycleCoordinator {
                     interrupt_startup_tasks(
                         state,
                         state
-                            .generation_tasks()
-                            .active_for_project(project_id)
+                            .orchestrator()
+                            .active_generation_tasks_for_project(project_id)
                             .await
                             .map_err(|error| error.to_string())?,
                     )
@@ -214,8 +225,8 @@ impl DestructiveLifecycleCoordinator {
         interrupt_startup_tasks(
             state,
             state
-                .generation_tasks()
-                .active()
+                .orchestrator()
+                .active_generation_tasks()
                 .await
                 .map_err(|error| error.to_string())?,
         )
@@ -328,8 +339,8 @@ impl DestructiveLifecycleCoordinator {
                 continue;
             }
             match state
-                .generation_tasks()
-                .complete_user_disable(user_id)
+                .orchestrator()
+                .complete_generation_user_disable_gate(user_id)
                 .await
             {
                 Ok(()) => return,
@@ -353,7 +364,7 @@ async fn delete_project_forward(
     project_id: i64,
 ) -> Result<(), DeleteProjectForwardError> {
     match state
-        .project_family()
+        .orchestrator()
         .delete_project_cascade_validated(project_id)
         .await
     {
@@ -361,8 +372,11 @@ async fn delete_project_forward(
         Err(error @ AppError::InvalidArgument(_)) => {
             let error = error.to_string();
             match state
-                .generation_tasks()
-                .restore_project_gate(project_id, ProjectLifecycleOperation::Delete)
+                .orchestrator()
+                .restore_generation_project_lifecycle_gate(
+                    project_id,
+                    ProjectLifecycleOperation::Delete,
+                )
                 .await
             {
                 Ok(()) => {
@@ -383,18 +397,18 @@ async fn reset_project_forward(
     project_id: i64,
 ) -> Result<ProjectGeneratedDataResetApplicationResult, String> {
     let result = state
-        .project_family()
+        .orchestrator()
         .reset_project_generated_data_validated(project_id)
         .await
         .map_err(|error| error.to_string())?;
     state
-        .rag()
+        .orchestrator()
         .clear_project_rag(project_id)
         .await
         .map_err(|error| error.to_string())?;
     state
-        .generation_tasks()
-        .complete_project_reset(project_id)
+        .orchestrator()
+        .complete_generation_project_reset_gate(project_id)
         .await
         .map_err(|error| error.to_string())?;
     Ok(result)
@@ -429,8 +443,8 @@ async fn drain_project(
     let started = tokio::time::Instant::now();
     loop {
         let tasks = state
-            .generation_tasks()
-            .active_for_project(project_id)
+            .orchestrator()
+            .active_generation_tasks_for_project(project_id)
             .await
             .map_err(|error| DrainError::Failed(error.to_string()))?;
         if tasks.is_empty() {
@@ -440,8 +454,8 @@ async fn drain_project(
         if started.elapsed() >= DESTRUCTIVE_DRAIN_TIMEOUT {
             interrupt_drain_timeout(state, &tasks, durable_write).await?;
             let remaining = state
-                .generation_tasks()
-                .active_for_project(project_id)
+                .orchestrator()
+                .active_generation_tasks_for_project(project_id)
                 .await
                 .map_err(|error| DrainError::Failed(error.to_string()))?;
             if remaining.is_empty() {
@@ -463,8 +477,8 @@ async fn drain_user(
     let started = tokio::time::Instant::now();
     loop {
         let tasks = state
-            .generation_tasks()
-            .active_for_user(user_id)
+            .orchestrator()
+            .active_generation_tasks_for_user(user_id)
             .await
             .map_err(|error| DrainError::Failed(error.to_string()))?;
         if tasks.is_empty() {
@@ -474,8 +488,8 @@ async fn drain_user(
         if started.elapsed() >= DESTRUCTIVE_DRAIN_TIMEOUT {
             interrupt_drain_timeout(state, &tasks, durable_write).await?;
             let remaining = state
-                .generation_tasks()
-                .active_for_user(user_id)
+                .orchestrator()
+                .active_generation_tasks_for_user(user_id)
                 .await
                 .map_err(|error| DrainError::Failed(error.to_string()))?;
             if remaining.is_empty() {
@@ -499,8 +513,8 @@ async fn request_cancellation(
         .filter(|task| task.status != "finalizing" && task.status != "cancelling")
     {
         match state
-            .generation_tasks()
-            .request_destructive_cancel(task)
+            .orchestrator()
+            .request_generation_destructive_cancel(task)
             .await
             .map_err(|error| DrainError::Failed(error.to_string()))?
         {
@@ -510,8 +524,8 @@ async fn request_cancellation(
             }
             GenerationTerminalWriteOutcome::NoLiveSession => {
                 state
-                    .generation_tasks()
-                    .interrupt(
+                    .orchestrator()
+                    .interrupt_generation_destructive_task(
                         task,
                         InterruptionReason::SessionOwnerLost,
                         "generation session owner 丢失，破坏性操作向前收尾".to_string(),
@@ -533,8 +547,8 @@ async fn interrupt_drain_timeout(
 ) -> Result<(), DrainError> {
     for task in tasks.iter().filter(|task| task.status != "finalizing") {
         state
-            .generation_tasks()
-            .interrupt(
+            .orchestrator()
+            .interrupt_generation_destructive_task(
                 task,
                 InterruptionReason::DestructiveDrainTimeout,
                 "破坏性操作等待 30 秒后中断旧 generation attempt".to_string(),
@@ -552,8 +566,8 @@ async fn project_operation_pending(
     expected: ProjectLifecycleOperation,
 ) -> Result<bool, String> {
     Ok(state
-        .generation_tasks()
-        .pending_operations()
+        .orchestrator()
+        .pending_generation_lifecycle_operations()
         .await
         .map_err(|error| error.to_string())?
         .into_iter()
@@ -573,8 +587,8 @@ async fn project_operation_pending(
 
 async fn user_disable_pending(state: &AppState, user_id: i64) -> Result<bool, String> {
     Ok(state
-        .generation_tasks()
-        .pending_operations()
+        .orchestrator()
+        .pending_generation_lifecycle_operations()
         .await
         .map_err(|error| error.to_string())?
         .into_iter()
@@ -592,8 +606,8 @@ async fn interrupt_startup_tasks(
 ) -> Result<(), String> {
     for task in tasks {
         state
-            .generation_tasks()
-            .interrupt(
+            .orchestrator()
+            .interrupt_generation_destructive_task(
                 &task,
                 InterruptionReason::HostRestartRecovery,
                 "Host 重启恢复时中断旧 generation attempt".to_string(),
@@ -612,8 +626,8 @@ async fn restore_project_if_safe(
 ) {
     if restore
         && let Err(error) = state
-            .generation_tasks()
-            .restore_project_gate(project_id, operation)
+            .orchestrator()
+            .restore_generation_project_lifecycle_gate(project_id, operation)
             .await
     {
         tracing::error!(project_id, error = %error, "恢复 project lifecycle gate 失败");

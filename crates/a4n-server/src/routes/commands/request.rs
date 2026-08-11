@@ -2,7 +2,7 @@ use std::future::Future;
 
 use serde_json::Value;
 
-use super::{ApiError, ServerState, i64_arg};
+use super::{ApiError, i64_arg};
 
 pub(in crate::routes::commands) async fn run_with_runtime_context<F>(
     user_id: i64,
@@ -23,8 +23,7 @@ where
     })?
 }
 
-pub(in crate::routes::commands) async fn require_admin_caller(
-    _state: &ServerState,
+pub(in crate::routes::commands) fn require_admin_caller(
     authenticated_user_id: i64,
     args: &Value,
 ) -> Result<(), ApiError> {

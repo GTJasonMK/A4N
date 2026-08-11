@@ -13,10 +13,7 @@ pub(in crate::project_dependency_graph) fn manga_prompt_record(
     }
     AssetLineageRecord {
         id: format!("chapter_manga_prompt:{}", prompt.id),
-        label: format!(
-            "第 {} 章 第 {} 页 第 {} 格",
-            prompt.chapter_id, prompt.page_number, prompt.panel_number
-        ),
+        label: format!("第 {} 章 第 {} 页", prompt.chapter_id, prompt.page_number),
         asset_kind: "chapter_manga_prompt".to_string(),
         asset_id: Some(prompt.id),
         status: Some(prompt.status.clone()),

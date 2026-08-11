@@ -14,7 +14,7 @@ pub(crate) async fn ingest_scene_occurrences_inner(
     let mut stats = IngestStats::default();
     let profile_names = scene_profile_names(state, project_id).await?;
     let occurrences = state
-        .rag()
+        .orchestrator()
         .scene_occurrences_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

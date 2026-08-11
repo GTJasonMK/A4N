@@ -11,7 +11,7 @@ pub async fn list_chapter_scenes(
     chapter_id: i64,
 ) -> Result<Vec<ChapterSceneSummary>, AppError> {
     let scenes = state
-        .project_scene_records()
+        .orchestrator()
         .chapter_scenes_for_user_validated(user_id, chapter_id)
         .await?;
 
@@ -24,7 +24,7 @@ pub async fn update_chapter_scene(
     input: UpdateChapterSceneInput,
 ) -> Result<ChapterSceneSummary, AppError> {
     let updated = state
-        .project_scene_records()
+        .orchestrator()
         .update_chapter_scene_for_user_validated(
             user_id,
             input.scene_id,
@@ -48,7 +48,7 @@ pub async fn delete_chapter_scene(
     scene_id: i64,
 ) -> Result<(), AppError> {
     state
-        .project_scene_records()
+        .orchestrator()
         .delete_chapter_scene_for_user_validated(user_id, scene_id)
         .await?;
     Ok(())
@@ -61,7 +61,7 @@ pub async fn reorder_chapter_scenes(
 ) -> Result<Vec<ChapterSceneSummary>, AppError> {
     let reorder_input = ProjectChapterSceneReorderInput { order: input.order };
     let updated_scenes = state
-        .project_scene_records()
+        .orchestrator()
         .reorder_chapter_scenes_for_user_validated(user_id, reorder_input)
         .await?;
     Ok(updated_scenes.iter().map(chapter_scene_summary).collect())

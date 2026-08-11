@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_llm::gateway::{LlmGatewayPayload, LlmProbeOutput};
+use a4n_llm::gateway::{LlmProbeOutput, LlmProbePayload};
 use a4n_llm::provider::{ChatRequest, LlmProvider, collect_chat_stream};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
@@ -10,7 +10,7 @@ use crate::protocol::{
 };
 
 pub(crate) async fn probe(
-    Json(request): Json<ServiceRequest<LlmGatewayPayload>>,
+    Json(request): Json<ServiceRequest<LlmProbePayload>>,
 ) -> Json<ServiceResponse<LlmProbeOutput>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
@@ -25,16 +25,26 @@ pub(crate) async fn probe(
     Json(result_response(&request, result))
 }
 
-async fn probe_with_provider(payload: LlmGatewayPayload) -> Result<LlmProbeOutput, AppError> {
+async fn probe_with_provider(payload: LlmProbePayload) -> Result<LlmProbeOutput, AppError> {
     let provider = provider_from_config(payload.provider)?;
     probe_existing_provider(provider.as_ref(), payload.request).await
 }
 
 pub(crate) async fn probe_existing_provider(
     provider: &dyn LlmProvider,
-    request: ChatRequest,
+    request: Option<ChatRequest>,
 ) -> Result<LlmProbeOutput, AppError> {
-    // 探测只收集最小真实 stream，不调用完整响应 chat()。
-    let response = collect_chat_stream(provider, request).await?;
-    LlmProbeOutput::from_chat_response(response)
+    match request {
+        Some(request) => {
+            // 探测只收集最小真实 stream，不调用完整响应 chat()。
+            let response = collect_chat_stream(provider, request).await?;
+            LlmProbeOutput::from_chat_response(response)
+        }
+        None => provider.test_connection().await.map(|ok| LlmProbeOutput {
+            ok,
+            response_preview: None,
+            usage: None,
+            finish_reason: None,
+        }),
+    }
 }

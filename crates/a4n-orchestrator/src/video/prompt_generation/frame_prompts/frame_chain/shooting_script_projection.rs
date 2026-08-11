@@ -4,8 +4,8 @@ use crate::video::prompt_generation::frame_prompts::{
     video_projection_from_shooting_script, video_prompt_generation_trace,
 };
 use a4n_core::error::AppError;
-use a4n_core::shooting_script::ChapterShootingScriptV1;
 use a4n_core::video_execution::VideoShootingScriptIdentityV1;
+use a4n_domain::shooting_script::ChapterShootingScriptV1;
 
 use super::contracts::{
     SegmentPlanFromShootingScriptProjectionInput, ShootingScriptProjectionPreparationInput,

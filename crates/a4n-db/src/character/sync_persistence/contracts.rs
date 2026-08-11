@@ -4,7 +4,11 @@ use super::super::{
     CharacterTimelineDeletionSummary, InsertBehaviorRecordInput,
 };
 use a4n_core::models::character::character_state_index;
+use chrono::NaiveDateTime;
+use serde::Serialize;
 use serde_json::Value;
+
+use crate::project::ChapterSourceSnapshot;
 
 #[derive(Debug, Clone)]
 pub struct CharacterSyncAttributeEventRecordInput {
@@ -30,6 +34,15 @@ pub struct CharacterSyncWriteSummary {
     pub deletions_executed: usize,
     pub implicit_reviews_applied: usize,
     pub attribute_event_ids: Vec<i64>,
+    pub protected_attributes: Vec<CharacterSyncProtectedAttribute>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CharacterSyncProtectedAttribute {
+    pub chapter_number: i32,
+    pub category: String,
+    pub key: String,
+    pub operation: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,10 +59,15 @@ pub struct CharacterSyncPersistenceInput {
     pub project_id: i64,
     pub profile_id: i64,
     pub profile_name: String,
+    pub expected_profile_updated_at: NaiveDateTime,
+    pub expected_profile_last_synced_chapter: i32,
+    pub expected_profile_base_attributes: Value,
+    pub expected_profile_current_state: Value,
     pub start_chapter: i32,
     pub target_chapter: i32,
     pub clear_to_chapter: Option<i32>,
     pub selected_chapter_numbers: Vec<i32>,
+    pub source_chapters: Vec<ChapterSourceSnapshot>,
     pub baseline_state: Value,
     pub write_steps: Vec<CharacterSyncWriteStepRecordInput>,
     pub behaviors: Vec<Value>,

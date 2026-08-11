@@ -1,7 +1,6 @@
 use crate::{
     AppState,
     actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state},
-    prompt_renderer::RuntimePromptRenderer,
 };
 
 use super::super::{
@@ -16,15 +15,15 @@ pub async fn preview_send_optimization_message_request(
     input: SendOptimizationMessageInput,
 ) -> Result<ModelRequestPreview, String> {
     let permissions = input.permissions.as_ref().map(orchestrator_permissions);
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .optimize()
+        .orchestrator()
         .build_send_user_message_preview_request_for_user_validated(
             user_id,
             input.session_id,
             &input.message,
             permissions.as_ref(),
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await
         .map_err(|error| error.to_string())?;

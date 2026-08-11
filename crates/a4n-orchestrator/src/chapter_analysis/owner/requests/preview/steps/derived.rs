@@ -18,6 +18,7 @@ pub(super) async fn build_derived_preview_steps(
     ch: &chapter::Model,
     prompt_renderer: &dyn PromptRenderer,
     facts_placeholder: &Value,
+    pending_foreshadowing: &Value,
 ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
     Ok(vec![
         ChapterAnalysisRequestStep {
@@ -46,6 +47,7 @@ pub(super) async fn build_derived_preview_steps(
                 ch,
                 prompt_renderer,
                 facts_placeholder,
+                pending_foreshadowing,
             )
             .await?,
         },

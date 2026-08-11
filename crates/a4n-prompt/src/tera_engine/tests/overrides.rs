@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use super::super::TeraPromptEngine;
 use super::support::make_entry;
-use crate::engine::PromptEngine;
 
 #[test]
 fn test_simple_render() {

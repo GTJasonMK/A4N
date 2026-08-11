@@ -10,7 +10,7 @@ pub async fn preview_source_sync(
     derived_project_id: i64,
 ) -> Result<SourceSyncPlanSummary, AppError> {
     let family = state
-        .source_sync()
+        .orchestrator()
         .source_sync_preview_context_for_user_validated(user_id, derived_project_id)
         .await?;
     let context = TaskFamilyContext::new(
@@ -21,14 +21,14 @@ pub async fn preview_source_sync(
     )?;
     let state_for_task = state.clone();
     let plan = state
-        .task_queue()
+        .orchestrator()
         .queue_run_tracked_with_family_context(
             QueueTaskKind::SourceSync,
             TaskPriority::Medium,
             context,
             || async move {
                 state_for_task
-                    .source_sync()
+                    .orchestrator()
                     .preview_source_sync_for_user_validated(user_id, derived_project_id)
                     .await
             },

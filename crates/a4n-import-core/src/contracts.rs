@@ -6,29 +6,6 @@ use crate::archive::{decode_base64, encode_base64};
 use crate::errors::ImportTransformError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ImportDocumentKind {
-    SettingsAll,
-    GenericJson,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ImportNormalizeJsonInput {
-    pub kind: ImportDocumentKind,
-    pub content: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ImportNormalizeJsonOutput {
-    pub kind: ImportDocumentKind,
-    pub normalized: serde_json::Value,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub warnings: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ImportReadMediaPackageZipInput {
     pub zip_bytes_base64: String,
@@ -48,7 +25,6 @@ pub struct ImportReadMediaPackageZipEntryOutput {
 #[serde(deny_unknown_fields)]
 pub struct ImportReadMediaPackageZipOutput {
     pub manifest: serde_json::Value,
-    #[serde(default)]
     pub entries: Vec<ImportReadMediaPackageZipEntryOutput>,
 }
 
@@ -92,12 +68,20 @@ mod tests {
 
     #[test]
     fn import_contract_rejects_unknown_fields() {
-        let error = serde_json::from_value::<ImportNormalizeJsonInput>(serde_json::json!({
-            "kind": "generic_json",
-            "content": "{}",
+        let error = serde_json::from_value::<ImportReadMediaPackageZipInput>(serde_json::json!({
+            "zip_bytes_base64": "UEsDBAo=",
+            "manifest_path": "manifest.json",
+            "package_label": "测试包",
+            "manifest_label": "测试清单",
             "legacy_mode": true
         }))
         .expect_err("unknown import fields must fail");
         assert!(error.to_string().contains("unknown field `legacy_mode`"));
+        assert!(
+            serde_json::from_value::<ImportReadMediaPackageZipOutput>(serde_json::json!({
+                "manifest": {}
+            }))
+            .is_err()
+        );
     }
 }

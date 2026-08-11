@@ -115,6 +115,7 @@ fn remote_service_uses_service_scoped_security_instead_of_local_bootstrap() {
     let config = build_remote_service(
         "prompt",
         "https://prompt.example.test".to_string(),
+        "/ready".to_string(),
         RemoteSecurityConfig {
             auth_token_env: Some("A4N_REMOTE_PROMPT_TOKEN".to_string()),
             ..Default::default()
@@ -126,6 +127,7 @@ fn remote_service_uses_service_scoped_security_instead_of_local_bootstrap() {
         config.remote_security.auth_token_env.as_deref(),
         Some("A4N_REMOTE_PROMPT_TOKEN")
     );
+    assert_eq!(config.health_path, "/ready");
     assert!(!config.env.contains_key(SIDECAR_AUTH_TOKEN_ENV));
     config
         .validate()
@@ -134,6 +136,7 @@ fn remote_service_uses_service_scoped_security_instead_of_local_bootstrap() {
     let local = build_remote_service(
         "prompt",
         "http://127.0.0.1:47641".to_string(),
+        "/healthz".to_string(),
         RemoteSecurityConfig::default(),
         Some("local-script-token"),
     );

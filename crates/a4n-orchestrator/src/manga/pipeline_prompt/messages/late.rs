@@ -37,7 +37,7 @@ pub(in crate::manga) fn manga_item_extraction_user_message(
     build_manga_step_user_message(
         "manga_item_extraction",
         "基于对白旁白和视觉锚点抽取漫画页需要稳定绘制的关键物品",
-        manga_item_extraction_input(speech_json, visual_json),
+        manga_item_extraction_input(speech_json, visual_json)?,
         json!({
             "format": "json_object",
             "prompt_name": "manga_item_extraction",

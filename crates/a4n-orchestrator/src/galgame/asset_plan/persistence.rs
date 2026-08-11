@@ -2,10 +2,9 @@ use a4n_core::error::AppError;
 
 use crate::galgame::{OrchestratorContext, galgame_asset_plan_spec_record_error};
 
-use super::contracts::{
-    GalgameAssetPlan, GalgameAssetPlanGroup, GalgameAssetPlanItemDraft, GalgameAssetPlanSummary,
-};
+use super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft};
 use super::drafts::push_plan_item;
+use super::{GalgameAssetPlan, GalgameAssetPlanSummary};
 
 pub(super) async fn persist_galgame_asset_plan(
     service: &OrchestratorContext,

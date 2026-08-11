@@ -45,9 +45,6 @@ pub struct Model {
 
     pub generated_video_id: Option<i64>,
 
-    /// Canonical timeline item for a committed inserted-segment prompt.
-    pub timeline_item_id: Option<i64>,
-
     #[sea_orm(column_type = "Json")]
     pub metadata_json: Option<serde_json::Value>,
 

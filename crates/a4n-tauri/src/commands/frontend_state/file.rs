@@ -95,7 +95,6 @@ mod tests {
         let path = unique_temp_file("a4n_frontend_state");
         let mut file = FrontendStateFile::default();
         file.entries.insert("a4n:settings:tab".into(), "llm".into());
-        file.entries.insert("a4n-theme-mode".into(), "dark".into());
 
         write_state_file(&path, &file).expect("write state");
         let reloaded = read_state_file(&path).expect("read state");
@@ -104,8 +103,6 @@ mod tests {
             reloaded.entries.get("a4n:settings:tab"),
             Some(&"llm".into())
         );
-        assert_eq!(reloaded.entries.get("a4n-theme-mode"), Some(&"dark".into()));
-
         let _ = std::fs::remove_file(&path);
     }
 

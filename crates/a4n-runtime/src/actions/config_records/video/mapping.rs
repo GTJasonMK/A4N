@@ -3,16 +3,21 @@ mod params;
 use super::contracts::{UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary};
 use a4n_core::models::ai::video_gen_config;
 use a4n_orchestrator::video::validate_video_config_params;
+use std::str::FromStr;
 
 use params::{video_config_params, video_update_config_params};
 
-pub(super) fn video_config_summary(config: &video_gen_config::Model) -> VideoConfigSummary {
-    VideoConfigSummary {
+pub(super) fn video_config_summary(
+    config: &video_gen_config::Model,
+) -> Result<VideoConfigSummary, String> {
+    Ok(VideoConfigSummary {
         id: config.id,
         name: config.name.clone(),
         backend: config.backend.clone(),
-        base_url: config.base_url.clone(),
-        api_key_encrypted: None,
+        base_url: config
+            .base_url
+            .clone()
+            .ok_or_else(|| format!("视频配置 #{} 缺少 base_url", config.id))?,
         has_api_key: config
             .api_key_encrypted
             .as_ref()
@@ -24,13 +29,12 @@ pub(super) fn video_config_summary(config: &video_gen_config::Model) -> VideoCon
         default_duration_secs: config.default_duration_secs,
         min_duration_secs: config.min_duration_secs,
         max_duration_secs: config.max_duration_secs,
-        duration_mode: config.duration_mode.clone(),
+        duration_mode: a4n_api_contract::config::VideoDurationMode::from_str(&config.duration_mode)
+            .map_err(|error| format!("视频配置 #{} 的 duration_mode 无效: {error}", config.id))?,
         supported_durations_json: config.supported_durations_json.clone(),
         default_fps: config.default_fps,
         is_default: config.is_default,
-        created_at: Some(config.created_at.to_string()),
-        updated_at: Some(config.updated_at.to_string()),
-    }
+    })
 }
 
 pub(super) fn video_create_params(

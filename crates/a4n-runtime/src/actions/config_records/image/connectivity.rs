@@ -1,57 +1,55 @@
-use super::super::shared::validate_runtime_snapshot_config_id;
+use super::super::shared::{require_config_admin, validate_runtime_snapshot_config_id};
 use crate::actions::request_preview::{
     ModelRequestPreview, image_provider_request_step, model_request_preview, provider_request_step,
 };
 use crate::{AppState, actions::app_error_message};
 use a4n_core::{error::AppError, models::ai::image_gen_config};
 use a4n_image::ImageGenerationRequest;
-use a4n_orchestrator::config::configured_image_provider;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 
 const IMAGE_CONNECTIVITY_TEST_PROMPT: &str = "test connectivity, draw a tiny dot";
 
-pub async fn test_image_config(state: &AppState, config_id: i64) -> Result<bool, String> {
-    let config = resolve_image_config_for_connectivity_test(state, config_id).await?;
+pub async fn test_image_config(
+    state: &AppState,
+    user_id: i64,
+    config_id: i64,
+) -> Result<(), String> {
+    let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_image_connectivity_test_request(&config);
-    if state.runtime_profile().uses_sidecars() {
-        let capabilities = state.capabilities().clone();
-        let config = config.clone();
-        state
-            .task_queue()
-            .queue_run_tracked(
-                QueueTaskKind::ImageGeneration,
-                TaskPriority::High,
-                None,
-                || async move {
-                    crate::sidecar_clients::probe_image_config(&capabilities, &config, request)
-                        .await
-                        .map_err(AppError::ConfigError)
-                },
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-        return Ok(true);
-    }
-
-    let provider = configured_image_provider(&config).map_err(|e| e.to_string())?;
+    let profile = state.runtime_profile();
+    let capabilities = state.capabilities().clone();
     state
-        .task_queue()
+        .orchestrator()
         .queue_run_tracked(
             QueueTaskKind::ImageGeneration,
             TaskPriority::High,
             None,
-            || async move { provider.generate(request).await.map(|_| ()) },
+            || async move {
+                crate::sidecar_clients::generate_image(
+                    profile,
+                    &capabilities,
+                    &config,
+                    request,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .map(|_| ())
+                .map_err(AppError::ConfigError)
+            },
         )
         .await
-        .map_err(|e| e.to_string())?;
-    Ok(true)
+        .map_err(|e| e.to_string())
 }
 
 pub async fn preview_test_image_config_request(
     state: &AppState,
+    user_id: i64,
     config_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    let config = resolve_image_config_for_connectivity_test(state, config_id).await?;
+    let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_image_connectivity_test_request(&config);
     if state.runtime_profile().uses_sidecars() {
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
@@ -96,14 +94,16 @@ pub async fn preview_test_image_config_request(
 
 async fn resolve_image_config_for_connectivity_test(
     state: &AppState,
+    user_id: i64,
     config_id: i64,
 ) -> Result<image_gen_config::Model, String> {
     if let Some(config) = crate::runtime_config::current_image_model() {
         validate_runtime_snapshot_config_id("image", config.id, config_id)?;
         return Ok(config);
     }
+    require_config_admin(state, user_id).await?;
     state
-        .settings()
+        .orchestrator()
         .image_config_record_by_id(config_id)
         .await
         .map_err(app_error_message)

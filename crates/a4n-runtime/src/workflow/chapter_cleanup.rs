@@ -31,7 +31,7 @@ async fn finish_chapter_derived_cleanup_inner(
     artifacts: ChapterDerivedCleanupArtifacts,
 ) -> Result<(), String> {
     state
-        .rag()
+        .orchestrator()
         .cleanup_chapter_derived_rag(project_id, chapter_id, chapter_number, &artifacts)
         .await?;
     if artifacts.scene_records_changed {

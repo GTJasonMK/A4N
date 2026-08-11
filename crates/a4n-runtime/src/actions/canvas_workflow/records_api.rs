@@ -16,7 +16,7 @@ pub async fn get_canvas_graph(
 ) -> Result<CanvasGraphDocument, String> {
     access::verify_project_access_string(state, user_id, input.project_id).await?;
     state
-        .canvas()
+        .orchestrator()
         .get_or_create_canvas_graph_record(input.project_id, input.graph_id, Utc::now().naive_utc())
         .await
         .map_err(app_error_message)
@@ -37,7 +37,7 @@ pub async fn save_canvas_graph(
 ) -> Result<CanvasGraphDocument, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     state
-        .canvas()
+        .orchestrator()
         .save_canvas_graph_record(input.project_id, input.graph, Utc::now().naive_utc())
         .await
         .map_err(app_error_message)
@@ -50,7 +50,7 @@ pub async fn save_canvas_text_asset(
 ) -> Result<canvas_text_asset::Model, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     state
-        .canvas()
+        .orchestrator()
         .upsert_canvas_text_asset_record(input.project_id, input.text_asset, Utc::now().naive_utc())
         .await
         .map_err(app_error_message)

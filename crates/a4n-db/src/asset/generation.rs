@@ -1,5 +1,14 @@
-use super::contracts::{AssetDbError, ObjectProfileRecordInput, ObjectProfileUpsertRecordResult};
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::contracts::{
+    AssetDbError, ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput,
+    ObjectProfileUpsertRecordResult,
+};
 use super::profiles::{ensure_object_profile_project_exists, upsert_object_profiles_in};
+use crate::project::ChapterSourceSnapshot;
+use crate::text_anchor::{
+    EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind,
+};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
 
@@ -7,6 +16,8 @@ pub async fn upsert_object_profiles_with_generation_run_record<C>(
     db: &C,
     project_id: i64,
     inputs: Vec<ObjectProfileRecordInput>,
+    source_chapters: Vec<ChapterSourceSnapshot>,
+    profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
     mut generation_run: crate::generation::RecordCompletedGenerationRunInput,
 ) -> Result<ObjectProfileUpsertRecordResult, AssetDbError>
 where
@@ -22,10 +33,28 @@ where
             "物体档案生成运行记录目标由物体服务绑定，调用方不能预填 targets".to_string(),
         ));
     }
+    if source_chapters.is_empty()
+        || source_chapters
+            .iter()
+            .any(|source| source.project_id != project_id)
+    {
+        return Err(AssetDbError::InvalidArgument(
+            "物体档案发现缺少有效章节来源快照".to_string(),
+        ));
+    }
 
     let txn = db.begin().await?;
+    if !crate::chapter_content::chapter_source_snapshots_match_for_update(&txn, &source_chapters)
+        .await?
+    {
+        return Err(AssetDbError::InvalidState {
+            current: "chapter_source_changed".to_string(),
+            operation: "保存物体档案发现结果；章节正文已变化，请重新分析".to_string(),
+        });
+    }
     ensure_object_profile_project_exists(&txn, project_id).await?;
     let result = upsert_object_profiles_in(&txn, project_id, inputs).await?;
+    merge_object_profile_evidence_records(&txn, project_id, &result, profile_evidence).await?;
     generation_run.targets = result
         .created
         .iter()
@@ -50,6 +79,69 @@ where
     }
     txn.commit().await?;
     Ok(result)
+}
+
+async fn merge_object_profile_evidence_records<C>(
+    db: &C,
+    project_id: i64,
+    result: &ObjectProfileUpsertRecordResult,
+    inputs: Vec<ObjectProfileEvidenceRecordInput>,
+) -> Result<(), AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    let profiles = result
+        .created
+        .iter()
+        .chain(result.updated.iter())
+        .map(|profile| (profile.normalized_name.clone(), profile.id))
+        .collect::<BTreeMap<_, _>>();
+    let mut bound = BTreeSet::new();
+    for input in inputs {
+        if !bound.insert(input.normalized_name.clone()) {
+            return Err(AssetDbError::InvalidArgument(format!(
+                "物体档案证据存在重复对象: {}",
+                input.normalized_name
+            )));
+        }
+        let profile_id = profiles
+            .get(&input.normalized_name)
+            .copied()
+            .ok_or_else(|| AssetDbError::InvalidState {
+                current: format!("物体档案写入结果缺少对象: {}", input.normalized_name),
+                operation: "绑定物体档案证据".to_string(),
+            })?;
+        let refs = input
+            .text_anchor_ids
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|text_anchor_id| TextAnchorEvidenceInput {
+                text_anchor_id,
+                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+            })
+            .collect::<Vec<_>>();
+        if refs.is_empty() {
+            return Err(AssetDbError::InvalidArgument(
+                "物体档案 profile_evidence 不能为空".to_string(),
+            ));
+        }
+        crate::text_anchor::merge_profile_evidence_records(
+            db,
+            project_id,
+            None,
+            TextAnchorProfileKind::Object,
+            profile_id,
+            refs,
+        )
+        .await?;
+    }
+    if bound.len() != profiles.len() {
+        return Err(AssetDbError::InvalidArgument(
+            "物体档案证据未覆盖全部写入结果".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn object_profile_generation_response_summary(

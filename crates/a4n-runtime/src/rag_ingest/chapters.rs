@@ -4,6 +4,7 @@ use super::sync::{
 };
 use crate::state::AppState;
 use a4n_core::models::chapter::chapter;
+use a4n_orchestrator::rag::RagSyncContext;
 
 pub(crate) async fn ingest_chapters_inner(
     state: &AppState,
@@ -11,13 +12,15 @@ pub(crate) async fn ingest_chapters_inner(
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
-    let mut sync = state
-        .rag()
-        .rag_sync_context_for_id_prefixes(project_id, vec![format!("chapter:{project_id}:")])
-        .await
-        .map_err(|error| error.to_string())?;
+    let mut sync = RagSyncContext::for_id_prefixes(
+        state.orchestrator(),
+        project_id,
+        vec![format!("chapter:{project_id}:")],
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     let chapters = state
-        .rag()
+        .orchestrator()
         .chapters_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -36,21 +39,21 @@ pub(crate) async fn ingest_chapters_inner(
             ),
         )?;
         let records = state
-            .rag()
+            .orchestrator()
             .chapter_rag_records(chapter, super::chapter_rag_chunking_mode())
             .await?;
         let labeled_records = records
             .into_iter()
             .map(|record| {
-                let label = a4n_orchestrator::rag::chapter_rag_record_label(chapter, &record);
+                let label = a4n_orchestrator::rag::chapter_rag_record_label(chapter, &record)?;
                 let chunk_id = record.chunk_id.clone();
-                labeled_rag_record(
+                Ok(labeled_rag_record(
                     record,
                     label,
                     format!("章节 RAG：chapter_id={}, chunk_id={chunk_id}", chapter.id),
-                )
+                ))
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, String>>()?;
         let processed = sync_labeled_records_concurrent(
             &mut sync,
             state,

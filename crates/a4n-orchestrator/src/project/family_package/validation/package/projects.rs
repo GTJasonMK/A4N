@@ -4,7 +4,7 @@ use crate::project::{
     is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
     normalize_project_type,
 };
-use a4n_core::state::validator::StateValidator;
+use a4n_core::state::validator::parse_project_status;
 use std::collections::HashSet;
 
 pub(super) fn validate_package_projects(package: &ProjectFamilyPackage) -> Result<(), String> {
@@ -35,7 +35,7 @@ pub(super) fn validate_package_projects(package: &ProjectFamilyPackage) -> Resul
         }
         normalize_project_type(&project.project_type).map_err(|err| err.to_string())?;
         normalize_project_kind(&project.project_kind).map_err(|err| err.to_string())?;
-        StateValidator::parse_status(&project.status).map_err(|err| err.to_string())?;
+        parse_project_status(&project.status).map_err(|err| err.to_string())?;
         if !is_valid_source_sync_status(&project.source_sync_status) {
             return Err(format!(
                 "项目族导入包项目源同步状态无效: project_id={}, source_sync_status={}",

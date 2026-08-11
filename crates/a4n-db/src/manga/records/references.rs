@@ -1,26 +1,21 @@
-use crate::manga::{
-    MangaPromptRecordError, manga_record_database, require_manga_text, require_positive_manga_id,
-};
+use crate::manga::{MangaPromptRecordError, manga_record_database, require_positive_manga_id};
 use a4n_core::models::{
-    ai::generated_image,
-    character::{character_portrait, protagonist_profile},
-    project::novel_project,
+    ai::generated_image, character::character_portrait, project::novel_project,
 };
+use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};
 use sea_orm::{DatabaseConnection, EntityTrait};
-use serde_json::{Value, json};
 
 pub async fn manga_reference_bound_asset(
     db: &DatabaseConnection,
     project_id: i64,
-    asset_kind: &str,
+    asset_kind: MangaReferenceAssetKind,
     asset_id: i64,
-) -> Result<Value, MangaPromptRecordError> {
+) -> Result<MangaBoundReferenceAsset, MangaPromptRecordError> {
     require_positive_manga_id(project_id, "project_id")?;
     require_positive_manga_id(asset_id, "asset_id")?;
-    let asset_kind = require_manga_text(asset_kind, "asset_kind")?;
     let allowed_project_ids = allowed_reference_project_ids(db, project_id).await?;
     match asset_kind {
-        "character_portrait" => {
+        MangaReferenceAssetKind::CharacterPortrait => {
             let portrait = character_portrait::Entity::find_by_id(asset_id)
                 .one(db)
                 .await
@@ -38,30 +33,13 @@ pub async fn manga_reference_bound_asset(
                     "角色立绘 #{asset_id} 缺少图片路径"
                 )));
             }
-            let profile = protagonist_profile::Entity::find_by_id(portrait.profile_id)
-                .one(db)
-                .await
-                .map_err(manga_record_database("读取漫画参考角色档案失败"))?;
-            let label = profile
-                .as_ref()
-                .map(|profile| profile.name.trim())
-                .filter(|name| !name.is_empty())
-                .unwrap_or("角色立绘");
-            Ok(json!({
-                "asset_kind": "character_portrait",
-                "asset_id": portrait.id,
-                "portrait_id": portrait.id,
-                "profile_id": portrait.profile_id,
-                "label": label,
-                "image_path": portrait.image_path,
-                "prompt": portrait.prompt,
-                "portrait_type": portrait.portrait_type,
-                "expression": portrait.expression,
-                "pose": portrait.pose,
-                "is_primary": portrait.is_primary,
-            }))
+            Ok(MangaBoundReferenceAsset {
+                asset_kind,
+                asset_id: portrait.id,
+                image_path: portrait.image_path,
+            })
         }
-        "generated_image" => {
+        MangaReferenceAssetKind::GeneratedImage => {
             let image = generated_image::Entity::find_by_id(asset_id)
                 .one(db)
                 .await
@@ -79,22 +57,12 @@ pub async fn manga_reference_bound_asset(
                     "图片 #{asset_id} 缺少文件路径"
                 )));
             }
-            Ok(json!({
-                "asset_kind": "generated_image",
-                "asset_id": image.id,
-                "image_id": image.id,
-                "label": format!("{} #{}", image.image_type, image.id),
-                "image_type": image.image_type,
-                "image_path": image.file_path,
-                "prompt": image.prompt,
-                "chapter_id": image.chapter_id,
-                "panel_id": image.panel_id,
-                "is_favorite": image.is_favorite,
-            }))
+            Ok(MangaBoundReferenceAsset {
+                asset_kind,
+                asset_id: image.id,
+                image_path: image.file_path,
+            })
         }
-        other => Err(MangaPromptRecordError::InvalidArgument(format!(
-            "不支持的参考图素材类型: {other}，只能是 character_portrait 或 generated_image"
-        ))),
     }
 }
 

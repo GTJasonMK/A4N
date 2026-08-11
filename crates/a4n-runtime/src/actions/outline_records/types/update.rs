@@ -6,6 +6,7 @@ use serde_json::Value;
 pub struct UpdateChapterOutlineInput {
     pub project_id: i64,
     pub outline_id: i64,
+    pub expected_updated_at: String,
     #[serde(default, deserialize_with = "deserialize_optional_outline_title")]
     pub title: Option<String>,
     #[serde(default, deserialize_with = "deserialize_optional_outline_summary")]

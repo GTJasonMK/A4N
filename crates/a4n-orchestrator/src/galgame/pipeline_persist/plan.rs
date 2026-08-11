@@ -113,8 +113,11 @@ pub fn build_galgame_script_persist_plan(
             }
             let text_anchor_id =
                 text_anchor_id_for_line(line, &source_span_by_id, source_snapshot_chapter_id)?;
-            let presentation_json =
-                presentation_json_for_line(line, cg_by_scene_line.get(&(scene.index, line.index)));
+            let presentation_json = serde_json::to_value(presentation_document_for_line(
+                line,
+                cg_by_scene_line.get(&(scene.index, line.index)).copied(),
+            ))
+            .map_err(AppError::Serialization)?;
             validate_persist_line(line)?;
             if let Some(profile_id) = line.speaker_profile_id {
                 let speaker_name = line.speaker_name.clone().ok_or_else(|| {
@@ -124,14 +127,15 @@ pub fn build_galgame_script_persist_plan(
                 })?;
                 participants.entry(profile_id).or_insert(speaker_name);
             }
+            let speaker = speaker_projection(line);
             persist_lines.push(GalgamePersistLine {
                 line_index: to_i32(persist_lines.len() + 1, "line_index")?,
                 line_type: line.line_type.clone(),
                 speaker_profile_id: line.speaker_profile_id,
                 text: line.text.clone(),
-                expression: speaker_projection(line).map(|cast| cast.expression.clone()),
-                pose: speaker_projection(line).map(|cast| cast.pose.clone()),
-                position: speaker_projection(line).map(|cast| stage_position(cast.position)),
+                expression: speaker.map(|cast| cast.expression.clone()),
+                pose: speaker.map(|cast| cast.pose.clone()),
+                position: speaker.map(|cast| cast.position.to_string()),
                 presentation_json,
                 text_anchor_id,
                 choices: Vec::new(),

@@ -6,9 +6,9 @@ use serde_json::Value;
 use a4n_core::source_spans::SourceSpan;
 
 use super::common::{
-    reject_manga_unknown_fields, required_manga_string, validate_manga_beat_ref,
-    validate_manga_beat_refs, validate_manga_nonnegative_index, validate_manga_nullable_string,
-    validate_manga_source_span_id_array,
+    reject_manga_unknown_fields, required_manga_enum, required_manga_string,
+    validate_manga_beat_ref, validate_manga_beat_refs, validate_manga_nonnegative_index,
+    validate_manga_nullable_string, validate_manga_source_span_id_array,
 };
 
 pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
@@ -48,7 +48,7 @@ pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
         required_manga_string(scene, "atmosphere", &path)?;
         validate_manga_nullable_string(scene.get("weather"), &format!("{path}.weather"))?;
         required_manga_string(scene, "lighting", &path)?;
-        required_manga_string(scene, "indoor_outdoor", &path)?;
+        required_manga_enum(scene, "indoor_outdoor", &path, &["indoor", "outdoor"])?;
         required_manga_string(scene, "description", &path)?;
         validate_manga_source_span_id_array(
             scene,
@@ -105,12 +105,17 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
         let ids = item
             .get("source_span_ids")
             .and_then(Value::as_array)
-            .expect("validate_manga_source_span_id_array already checked source_span_ids");
+            .ok_or_else(|| AppError::InvalidArgument(format!("{source_span_path} 必须是数组")))?;
         for (id_index, id) in ids.iter().enumerate() {
             let source_span_id = id
                 .as_str()
                 .map(str::trim)
-                .expect("validate_manga_source_span_id_array already checked string ids");
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(format!(
+                        "{source_span_path}[{id_index}] 必须是非空字符串"
+                    ))
+                })?;
             if !allowed.contains(source_span_id) {
                 return Err(AppError::InvalidArgument(format!(
                     "{source_span_path}[{id_index}] 不在 input.available_source_span_ids 中: {source_span_id}"

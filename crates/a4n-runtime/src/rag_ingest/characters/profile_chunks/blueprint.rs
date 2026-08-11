@@ -5,7 +5,7 @@ use super::super::super::sync::{
 use crate::state::AppState;
 use a4n_core::rag::RagDataType;
 use a4n_orchestrator::rag::{
-    blueprint_character_rag_record_label, blueprint_character_rag_records,
+    RagSyncContext, blueprint_character_rag_record_label, blueprint_character_rag_records,
 };
 
 pub(crate) async fn ingest_character_records_inner(
@@ -14,13 +14,12 @@ pub(crate) async fn ingest_character_records_inner(
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
-    let mut sync = state
-        .rag()
-        .rag_sync_context_for_data_type(project_id, RagDataType::Character)
-        .await
-        .map_err(|error| error.to_string())?;
+    let mut sync =
+        RagSyncContext::for_data_type(state.orchestrator(), project_id, RagDataType::Character)
+            .await
+            .map_err(|error| error.to_string())?;
     let blueprint_chars = state
-        .rag()
+        .orchestrator()
         .blueprint_characters_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

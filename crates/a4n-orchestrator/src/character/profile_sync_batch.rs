@@ -1,9 +1,8 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::character::{
-    CharacterProfileSkippedResult, CharacterProfileSyncBatchStatus,
-    CharacterProfileSyncFailure, CharacterProfileSyncedResult, SyncAllCharacterProfilesResult,
-    SyncCharacterProfileResult,
+    CharacterProfileSkippedResult, CharacterProfileSyncBatchStatus, CharacterProfileSyncFailure,
+    CharacterProfileSyncedResult, SyncAllCharacterProfilesResult, SyncCharacterProfileResult,
 };
 use a4n_core::{error::AppError, models::character::protagonist_profile};
 use a4n_prompt::rendering::PromptRenderer;
@@ -16,9 +15,8 @@ use super::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress,
     CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject, CharacterSyncRangeMode,
-    analysis_profile_sync_skip_reason, character_identity_key, profile_character_keys,
-    character_profile_skipped_result, profile_sync_skip_reason,
-    validate_character_sync_target_chapter,
+    analysis_profile_sync_skip_reason, character_identity_key, character_profile_skipped_result,
+    profile_character_keys, profile_sync_skip_reason, validate_character_sync_target_chapter,
 };
 
 pub const CHARACTER_PROFILE_SYNC_STEPS: u32 = 10;
@@ -286,9 +284,10 @@ impl OrchestratorContext {
                 let offset = u64::from(current.min(local_total))
                     * u64::from(CHARACTER_PROFILE_SYNC_STEPS)
                     / u64::from(local_total);
-                let mapped = base + u32::try_from(offset).map_err(|_| {
-                    AppError::InvalidArgument("角色同步进度超出 u32 范围".to_string())
-                })?;
+                let mapped = base
+                    + u32::try_from(offset).map_err(|_| {
+                        AppError::InvalidArgument("角色同步进度超出 u32 范围".to_string())
+                    })?;
                 progress.report(mapped, total, message)
             };
             let result = self
@@ -381,8 +380,19 @@ pub(crate) struct AnalysisCharacterProfileSyncResult {
     pub(crate) sync_characters: Vec<String>,
     pub(crate) unmatched_analysis_characters: Vec<String>,
     pub(crate) unmatched_sync_characters: Vec<String>,
+    pub(crate) preserved: Vec<AnalysisPreservedCharacterAttribute>,
     #[serde(flatten)]
     pub(crate) batch: SyncAllCharacterProfilesResult,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct AnalysisPreservedCharacterAttribute {
+    pub(crate) name: String,
+    pub(crate) character_name: String,
+    pub(crate) chapter_number: i32,
+    pub(crate) category: String,
+    pub(crate) key: String,
+    pub(crate) operation: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -397,13 +407,42 @@ fn analysis_sync_result(
     skipped: Vec<CharacterProfileSkippedResult>,
     failed: Vec<CharacterProfileSyncFailure>,
 ) -> AnalysisCharacterProfileSyncResult {
+    let preserved = synced
+        .iter()
+        .flat_map(|profile| {
+            profile.protected_attributes.iter().map(|attribute| {
+                AnalysisPreservedCharacterAttribute {
+                    name: format!(
+                        "{} · {}「{}」",
+                        profile.name,
+                        protected_attribute_category_label(&attribute.category),
+                        attribute.key
+                    ),
+                    character_name: profile.name.clone(),
+                    chapter_number: attribute.chapter_number,
+                    category: attribute.category.clone(),
+                    key: attribute.key.clone(),
+                    operation: attribute.operation.clone(),
+                }
+            })
+        })
+        .collect();
     AnalysisCharacterProfileSyncResult {
         analysis_characters,
         discovery_characters,
         sync_characters,
         unmatched_analysis_characters,
         unmatched_sync_characters,
+        preserved,
         batch: character_profile_sync_batch_result(target_chapter, synced, skipped, failed),
+    }
+}
+
+fn protected_attribute_category_label(category: &str) -> &str {
+    match category {
+        "social" => "关系",
+        "implicit" => "隐性属性",
+        _ => "显性属性",
     }
 }
 

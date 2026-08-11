@@ -20,6 +20,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
+SERVICE_CATALOG="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
+TAURI_SIDECAR_CONFIG="$PROJECT_ROOT/crates/a4n-tauri/tauri.sidecars.conf.json"
 PREPARE_ARGS=()
 TAURI_ARGS=()
 CARGO_BUILD_ARGS=()
@@ -93,7 +95,14 @@ else
 fi
 
 prepare_command=("$SCRIPT_DIR/prepare-tauri-external-bin.sh" "${PREPARE_ARGS[@]}")
-tauri_command=(cargo tauri build --config tauri.sidecars.conf.json "${TAURI_ARGS[@]}")
+require_command ruby
+tauri_config="$(ruby -rjson -e '
+  config = JSON.parse(File.read(ARGV.fetch(0)))
+  sidecars = JSON.parse(File.read(ARGV.fetch(1))).map { |entry| "../../target/tauri-sidecars/#{entry.fetch("binary")}" }
+  config.fetch("bundle").fetch("externalBin").unshift(*sidecars)
+  print JSON.generate(config)
+' "$TAURI_SIDECAR_CONFIG" "$SERVICE_CATALOG")"
+tauri_command=(cargo tauri build --config "$tauri_config" "${TAURI_ARGS[@]}")
 if [[ ${#CARGO_BUILD_ARGS[@]} -gt 0 ]]; then
     tauri_command+=(-- "${CARGO_BUILD_ARGS[@]}")
 fi
@@ -103,7 +112,8 @@ if $DRY_RUN; then
     log_info "prepare sidecars:"
     print_command "${prepare_command[@]}"
     log_info "build tauri:"
-    print_command "${tauri_command[@]}"
+    log_info "config: tauri.sidecars.conf.json + service-catalog.json"
+    print_command cargo tauri build --config '<generated>' "${TAURI_ARGS[@]}"
     exit 0
 fi
 

@@ -83,6 +83,15 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
         "event_candidates": [],
         "foreshadowing_candidates": []
     });
+    let pending_foreshadowing = json!([{
+        "id": "7",
+        "description": "门后的脚步声",
+        "setup_chapter": 1,
+        "payoff_chapter": null,
+        "status": "pending",
+        "importance": 3,
+        "related_characters": []
+    }]);
     let requests = vec![
         build_chapter_fact_extraction_request(&chapter, &ChapterSessionPromptRenderer, &spans)
             .await
@@ -93,9 +102,14 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
         build_chapter_character_state_request(&chapter, &ChapterSessionPromptRenderer, &facts)
             .await
             .expect("character state request"),
-        build_chapter_foreshadowing_events_request(&chapter, &ChapterSessionPromptRenderer, &facts)
-            .await
-            .expect("foreshadowing request"),
+        build_chapter_foreshadowing_events_request(
+            &chapter,
+            &ChapterSessionPromptRenderer,
+            &facts,
+            &pending_foreshadowing,
+        )
+        .await
+        .expect("foreshadowing request"),
     ];
     let first_system = &requests[0].messages[0].content;
     let first_pack = &requests[0].context_manifest_json.as_ref().unwrap()["packs"][0];
@@ -119,4 +133,10 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
             "missing rendered stage prompt for {stage}"
         );
     }
+    assert!(
+        requests[3].messages[1]
+            .content
+            .contains("pending_foreshadowing")
+    );
+    assert!(requests[3].messages[1].content.contains("门后的脚步声"));
 }

@@ -74,7 +74,6 @@ pub(super) fn galgame_reset_outcome(
             deleted_task_dependencies: input.task_cleanup.deleted_task_dependencies,
         },
         previous_status: input.previous_status,
-        published_status_change: input.previous_status != ProjectStatus::Draft,
         media_paths: input.media_paths,
     }
 }

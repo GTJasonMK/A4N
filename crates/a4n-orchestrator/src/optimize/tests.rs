@@ -8,7 +8,6 @@ use super::*;
 use a4n_core::error::AppError;
 use a4n_core::models::ai::{optimization_session, optimization_turn};
 use a4n_llm::provider::MessageRole;
-use a4n_prompt::engine::PromptEngine;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use chrono::Utc;
 use serde_json::json;

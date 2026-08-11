@@ -8,7 +8,7 @@ pub fn root_text_family_metadata(project_id: i64, metadata: Value) -> Result<Val
             message: "RAG 记录 metadata 必须是 JSON 对象".to_string(),
         });
     };
-    let source_chapter_id = metadata_positive_i64(&object, "chapter_id")
+    let source_chapter_id = optional_metadata_positive_i64(&object, "chapter_id")?
         .map(Value::from)
         .unwrap_or(Value::Null);
     insert_or_validate(
@@ -42,10 +42,19 @@ fn insert_or_validate(
     }
 }
 
-fn metadata_positive_i64(object: &serde_json::Map<String, Value>, key: &str) -> Option<i64> {
-    let value = object.get(key)?;
+fn optional_metadata_positive_i64(
+    object: &serde_json::Map<String, Value>,
+    key: &str,
+) -> Result<Option<i64>, RagSyncError> {
+    let Some(value) = object.get(key) else {
+        return Ok(None);
+    };
     let parsed = value
         .as_i64()
-        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))?;
-    (parsed > 0).then_some(parsed)
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+        .filter(|value| *value > 0)
+        .ok_or_else(|| RagSyncError::InvalidRecord {
+            message: format!("RAG 记录 metadata {key} 必须是正整数，实际为 {value}"),
+        })?;
+    Ok(Some(parsed))
 }

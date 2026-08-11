@@ -87,7 +87,7 @@ impl TeraPromptEngine {
         Ok(loaded)
     }
 
-    pub(super) fn set_runtime_project_override(
+    pub async fn set_project_override(
         &self,
         project_id: i64,
         name: &str,
@@ -101,7 +101,7 @@ impl TeraPromptEngine {
         Ok(())
     }
 
-    pub(super) fn remove_runtime_project_override(
+    pub async fn remove_project_override(
         &self,
         project_id: i64,
         name: &str,

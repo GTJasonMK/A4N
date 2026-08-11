@@ -1,16 +1,14 @@
 import React, { useCallback } from "react";
 import {
-  activateVideoConfig,
-  activateServerVideoConfig,
   addVideoConfig,
   addServerVideoConfig,
   listVideoConfigs,
   listServerVideoConfigs,
   removeVideoConfig,
   removeServerVideoConfig,
+  setDefaultServerVideoConfig,
+  setDefaultVideoConfig,
   SYSTEM_VIDEO_CONFIG_ID,
-  testVideoConfig,
-  testServerVideoConfig,
   updateVideoConfig,
   updateServerVideoConfig,
 } from "../../api/video";
@@ -51,7 +49,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
       return {
         ...toVideoItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_VIDEO_CONFIG_ID,
-        deleteDisabledReason: "系统默认视频模板由管理员维护，不能在用户配置页删除。",
+        deleteDisabledReason:
+          "系统默认视频模板由管理员维护，不能在用户配置页删除。",
       };
     });
     return { items, catalog: providerCatalog };
@@ -76,8 +75,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
       }
       activeLabel={serverScope ? "全局默认" : "当前默认"}
       activateText={serverScope ? "设为全局默认" : "设为默认"}
-      activateSuccessMessage={serverScope ? "已设为系统全局默认" : "已设为当前默认"}
-      activateErrorMessage={serverScope ? "设置系统全局默认失败" : "设置默认失败"}
+      activateSuccessMessage={
+        serverScope ? "已设为系统全局默认" : "已设为当前默认"
+      }
+      activateErrorMessage={
+        serverScope ? "设置系统全局默认失败" : "设置默认失败"
+      }
       formatItem={formatVideoItem}
       renderEditor={(form, setForm, context) => (
         <VideoConfigEditor
@@ -86,7 +89,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
           configId={context.selectedId}
           serverScope={serverScope}
           readonly={context.readonly}
-          templateLocked={!serverScope && context.selectedId === SYSTEM_VIDEO_CONFIG_ID}
+          templateLocked={
+            !serverScope && context.selectedId === SYSTEM_VIDEO_CONFIG_ID
+          }
           providers={catalog?.video ?? []}
         />
       )}
@@ -109,10 +114,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
       }}
       onDelete={serverScope ? removeServerVideoConfig : removeVideoConfig}
       onActivate={async (id) => {
-        await (serverScope ? activateServerVideoConfig : activateVideoConfig)(id);
-      }}
-      onTest={async (id) => {
-        await (serverScope ? testServerVideoConfig : testVideoConfig)(id);
+        await (
+          serverScope ? setDefaultServerVideoConfig : setDefaultVideoConfig
+        )(id);
       }}
     />
   );

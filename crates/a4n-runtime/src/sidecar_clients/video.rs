@@ -4,7 +4,7 @@ mod operations;
 
 pub(crate) use operations::{
     delete_video_job, discover_video_models, generate_video, poll_video,
-    preview_video_provider_request, probe_video_config, video_job_status,
+    preview_video_provider_request, video_job_status,
 };
 
 #[cfg(test)]

@@ -10,6 +10,7 @@ pub(super) fn chapter_outline_call_fingerprint_json(
     call_key: &str,
     chapter_number: i32,
     request: &ChatRequest,
+    source_snapshot: &Value,
 ) -> Result<Value, AppError> {
     Ok(json!({
         "schema_version": 1,
@@ -21,6 +22,9 @@ pub(super) fn chapter_outline_call_fingerprint_json(
         "max_tokens": request.max_tokens,
         "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
+        "source_snapshot_sha256": a4n_core::source_spans::source_text_hash(
+            &serde_json::to_string(source_snapshot)?
+        ),
         "target": {
             "chapter_number": chapter_number,
             "count": 1,

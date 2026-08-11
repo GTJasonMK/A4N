@@ -21,8 +21,8 @@ export const ReferenceBindingsPanel: React.FC<{
   projectImages: GeneratedImage[];
   assetsLoading?: boolean;
   chapterLocked: boolean;
-  selectedCandidateBySlot: Record<string, string>;
-  onSelectCandidate: (slotKey: string, value: string) => void;
+  selectedCandidateByCharacter: Record<string, string>;
+  onSelectCandidate: (bindingKey: string, value: string) => void;
   onBindReferenceImage?: (
     input: Omit<BindMangaReferenceImageInput, "downstream_strategy">,
   ) => void | Promise<void>;
@@ -33,29 +33,29 @@ export const ReferenceBindingsPanel: React.FC<{
   projectImages,
   assetsLoading = false,
   chapterLocked,
-  selectedCandidateBySlot,
+  selectedCandidateByCharacter,
   onSelectCandidate,
   onBindReferenceImage,
 }) => {
   if (page.referenceBindings.length === 0) {
     return (
       <div className="border-l-2 border-book-border/70 pl-2 text-xs text-book-text-muted">
-        本页没有参考图槽位。
+        本页没有角色参考图需求。
       </div>
     );
   }
 
   return (
     <div className="divide-y divide-book-border/35 border-y border-book-border/35">
-      {page.referenceBindings.map((slot) => {
-        const candidates = buildReferenceCandidates(slot, profiles, portraits, projectImages);
-        const slotKey = `${page.prompt.id}:${slot.slotId}`;
-        const boundKey = slot.boundAsset
-          ? `${slot.boundAsset.asset_kind}:${slot.boundAsset.asset_id}`
+      {page.referenceBindings.map((binding) => {
+        const candidates = buildReferenceCandidates(binding, profiles, portraits, projectImages);
+        const bindingKey = `${page.prompt.id}:${binding.characterName}`;
+        const boundKey = binding.boundAsset
+          ? `${binding.boundAsset.asset_kind}:${binding.boundAsset.asset_id}`
           : "";
-        const selectedKey = selectedCandidateBySlot[slotKey] ?? boundKey;
+        const selectedKey = selectedCandidateByCharacter[bindingKey] ?? boundKey;
         const selected = candidates.find((candidate) => candidate.key === selectedKey);
-        const boundSrc = toMediaSrc(slot.boundAsset?.image_path);
+        const boundSrc = toMediaSrc(binding.boundAsset?.image_path);
         const bindDisabled =
           chapterLocked ||
           assetsLoading ||
@@ -65,13 +65,17 @@ export const ReferenceBindingsPanel: React.FC<{
 
         return (
           <div
-            key={slot.slotId}
+            key={binding.characterName}
             className="py-3"
           >
             <div className="flex items-start gap-2">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-book-border/50 bg-book-bg-tertiary text-caption text-book-text-muted">
                 {boundSrc ? (
-                  <img src={boundSrc} alt={slot.label} className="h-full w-full object-cover" />
+                  <img
+                    src={boundSrc}
+                    alt={binding.characterName}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <Image size={16} />
                 )}
@@ -79,22 +83,15 @@ export const ReferenceBindingsPanel: React.FC<{
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                   <span className="truncate text-xs font-semibold text-book-text-main">
-                    {slot.label}
+                    {binding.characterName}
                   </span>
                   <span
                     className={`text-caption ${
-                      slot.boundAsset
-                        ? "text-success"
-                        : slot.required
-                          ? "text-warning"
-                          : "text-book-text-muted"
+                      binding.boundAsset ? "text-success" : "text-warning"
                     }`}
                   >
-                    {slot.boundAsset ? "已绑定" : slot.required ? "必需" : "可选"}
+                    {binding.boundAsset ? "已绑定" : "待绑定"}
                   </span>
-                </div>
-                <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">
-                  {slot.purpose}
                 </div>
               </div>
             </div>
@@ -102,7 +99,7 @@ export const ReferenceBindingsPanel: React.FC<{
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
               <select
                 value={selectedKey}
-                onChange={(event) => onSelectCandidate(slotKey, event.target.value)}
+                onChange={(event) => onSelectCandidate(bindingKey, event.target.value)}
                 className="pyqt-input h-8 min-w-0 !px-2 !py-1 text-xs"
                 disabled={chapterLocked || assetsLoading || candidates.length === 0}
               >
@@ -127,14 +124,14 @@ export const ReferenceBindingsPanel: React.FC<{
                   if (!selected || !onBindReferenceImage) return;
                   void onBindReferenceImage({
                     prompt_id: page.prompt.id,
-                    slot_id: slot.slotId,
+                    character_name: binding.characterName,
                     asset_kind: selected.assetKind,
                     asset_id: selected.assetId,
                   });
                 }}
               >
                 <Link2 size={12} />
-                {slot.boundAsset ? "改绑" : "绑定"}
+                {binding.boundAsset ? "改绑" : "绑定"}
               </BookButton>
             </div>
           </div>

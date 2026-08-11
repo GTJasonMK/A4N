@@ -2,7 +2,6 @@ use super::super::{ProposeOptimizationPatchesInput, preview::chat_step};
 use crate::{
     AppState,
     actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state},
-    prompt_renderer::RuntimePromptRenderer,
 };
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizePatchGenerationInput,
@@ -17,7 +16,7 @@ pub async fn start_optimize_patch_generation_typed(
     input: StartOptimizePatchGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize()
+        .orchestrator()
         .start_optimize_patch_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -26,12 +25,12 @@ pub async fn start_optimize_patch_generation_typed(
     let worker_state = state.clone();
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         if let Err(error) = worker_state
-            .optimize()
+            .orchestrator()
             .run_optimize_patch_generation_task(
                 OptimizePatchGenerationApplicationContext {
-                    prompt_renderer: &prompt_renderer,
+                    prompt_renderer: prompt_renderer,
                 },
                 user_id,
                 input,
@@ -55,14 +54,14 @@ pub async fn preview_propose_optimization_patches_request(
     user_id: i64,
     input: ProposeOptimizationPatchesInput,
 ) -> Result<ModelRequestPreview, String> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .optimize()
+        .orchestrator()
         .build_propose_patches_preview_request_for_user_validated(
             user_id,
             input.session_id,
             input.issue_ids,
-            &prompt_renderer,
+            prompt_renderer,
             input.agent_instruction.as_deref(),
         )
         .await

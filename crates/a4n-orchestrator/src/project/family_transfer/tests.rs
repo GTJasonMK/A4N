@@ -3,12 +3,10 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        media::media_asset,
-        project::{novel_project, project_source_snapshot},
-    },
+use a4n_core::models::{
+    media::media_asset,
+    project::{novel_project, project_source_snapshot},
+    user::user,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -25,28 +23,14 @@ use super::{
     project_family_export_media_files,
 };
 
+#[derive(Default)]
 struct TestProjectFamilyTransferHost {
-    permission_project_ids: Mutex<Vec<i64>>,
     render_calls: AtomicUsize,
     rendered_mode: Mutex<Option<String>>,
     rendered_project_ids: Mutex<Vec<i64>>,
     read_package: Mutex<Option<ReadProjectFamilyPackage>>,
     written_paths: Vec<String>,
     rollback_calls: AtomicUsize,
-}
-
-impl Default for TestProjectFamilyTransferHost {
-    fn default() -> Self {
-        Self {
-            permission_project_ids: Mutex::new(Vec::new()),
-            render_calls: AtomicUsize::new(0),
-            rendered_mode: Mutex::new(None),
-            rendered_project_ids: Mutex::new(Vec::new()),
-            read_package: Mutex::new(None),
-            written_paths: Vec::new(),
-            rollback_calls: AtomicUsize::new(0),
-        }
-    }
 }
 
 impl TestProjectFamilyTransferHost {
@@ -60,14 +44,6 @@ impl TestProjectFamilyTransferHost {
 
 #[async_trait]
 impl ProjectFamilyTransferHostPort for TestProjectFamilyTransferHost {
-    async fn verify_project_owner(&self, _user_id: i64, project_id: i64) -> Result<(), AppError> {
-        self.permission_project_ids
-            .lock()
-            .expect("permission project ids lock")
-            .push(project_id);
-        Ok(())
-    }
-
     async fn render_export_package(
         &self,
         package: &ProjectFamilyPackage,
@@ -110,15 +86,30 @@ impl ProjectFamilyTransferHostPort for TestProjectFamilyTransferHost {
 }
 
 #[tokio::test]
-async fn root_export_application_owns_permission_lookup_rows_assembly_and_render() {
+async fn root_export_application_enforces_owner_before_rows_assembly_and_render() {
     let (context, database) = setup().await;
-    let root = insert_project(database.as_ref(), 7, "text", None).await;
+    let owner_user_id = insert_active_user(database.as_ref(), "root-owner").await;
+    let intruder_user_id = insert_active_user(database.as_ref(), "root-intruder").await;
+    let root = insert_project(database.as_ref(), owner_user_id, "text", None).await;
     let host = TestProjectFamilyTransferHost::default();
+
+    context
+        .export_project_family_package_validated(
+            ExportProjectFamilyPackageApplicationInput {
+                user_id: intruder_user_id,
+                root_project_id: root.id,
+                include_derived_projects: false,
+            },
+            &host,
+        )
+        .await
+        .expect_err("非 Owner 不得导出项目族包");
+    assert_eq!(host.render_calls.load(Ordering::SeqCst), 0);
 
     let exported = context
         .export_project_family_package_validated(
             ExportProjectFamilyPackageApplicationInput {
-                user_id: 7,
+                user_id: owner_user_id,
                 root_project_id: root.id,
                 include_derived_projects: false,
             },
@@ -130,13 +121,6 @@ async fn root_export_application_owns_permission_lookup_rows_assembly_and_render
     assert_eq!(exported.project.id, root.id);
     assert_eq!(exported.package_bytes, vec![1, 2, 3]);
     assert_eq!(host.render_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        host.permission_project_ids
-            .lock()
-            .expect("permission project ids lock")
-            .as_slice(),
-        [root.id]
-    );
     assert_eq!(
         host.rendered_mode
             .lock()
@@ -154,16 +138,17 @@ async fn root_export_application_owns_permission_lookup_rows_assembly_and_render
 }
 
 #[tokio::test]
-async fn derived_export_application_owns_derived_then_root_permission_order() {
+async fn derived_export_application_reuses_collaboration_root_owner_check() {
     let (context, database) = setup().await;
-    let root = insert_project(database.as_ref(), 8, "text", None).await;
-    let derived = insert_project(database.as_ref(), 8, "video", Some(root.id)).await;
+    let owner_user_id = insert_active_user(database.as_ref(), "derived-owner").await;
+    let root = insert_project(database.as_ref(), owner_user_id, "text", None).await;
+    let derived = insert_project(database.as_ref(), owner_user_id, "video", Some(root.id)).await;
     let host = TestProjectFamilyTransferHost::default();
 
     let exported = context
         .export_derived_project_package_validated(
             ExportDerivedProjectPackageApplicationInput {
-                user_id: 8,
+                user_id: owner_user_id,
                 derived_project_id: derived.id,
             },
             &host,
@@ -172,13 +157,6 @@ async fn derived_export_application_owns_derived_then_root_permission_order() {
         .expect("派生项目包导出 application 应成功");
 
     assert_eq!(exported.project.id, derived.id);
-    assert_eq!(
-        host.permission_project_ids
-            .lock()
-            .expect("permission project ids lock")
-            .as_slice(),
-        [derived.id, root.id]
-    );
     assert_eq!(
         host.rendered_mode
             .lock()
@@ -297,6 +275,28 @@ async fn setup() -> (OrchestratorContext, Arc<a4n_db::DatabaseConnection>) {
         .build()
         .await;
     (context, database)
+}
+
+async fn insert_active_user(database: &a4n_db::DatabaseConnection, label: &str) -> i64 {
+    let now = Utc::now().naive_utc();
+    user::ActiveModel {
+        username: Set(format!("family-transfer-{label}")),
+        email: Set(format!("family-transfer-{label}@example.test")),
+        password_hash: Set("test-password-hash".to_string()),
+        role: Set("user".to_string()),
+        oauth_provider: Set(None),
+        oauth_subject: Set(None),
+        avatar_url: Set(None),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        last_login_at: Set(None),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("测试用户应可写入")
+    .id
 }
 
 async fn insert_project(

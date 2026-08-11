@@ -5,17 +5,17 @@ use serde_json::{Value, json};
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// Galgame 管线 workflow kind。
-pub const GALGAME_PIPELINE_WORKFLOW_KIND: &str = "galgame_pipeline";
+pub(super) const GALGAME_PIPELINE_WORKFLOW_KIND: &str = "galgame_pipeline";
 /// Galgame 管线 mode。
-pub const GALGAME_PIPELINE_MODE_FULL: &str = "full_pipeline_v1";
+const GALGAME_PIPELINE_MODE_FULL: &str = "full_pipeline_v1";
 
 /// exclusive business key。
-pub fn galgame_pipeline_business_key(project_id: i64) -> String {
+fn galgame_pipeline_business_key(project_id: i64) -> String {
     format!("galgame_pipeline:{project_id}")
 }
 
 /// 输入指纹。
-pub fn galgame_pipeline_workflow_fingerprint(
+fn galgame_pipeline_workflow_fingerprint(
     project_id: i64,
     source_snapshot_id: i64,
     root_project_id: i64,
@@ -29,7 +29,7 @@ pub fn galgame_pipeline_workflow_fingerprint(
 }
 
 /// 构造 begin 输入。
-pub fn galgame_pipeline_workflow_run_input(
+pub(super) fn galgame_pipeline_workflow_run_input(
     project_id: i64,
     root_project_id: i64,
     source_snapshot_id: i64,

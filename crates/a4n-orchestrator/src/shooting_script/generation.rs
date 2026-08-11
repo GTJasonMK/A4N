@@ -10,30 +10,26 @@ use crate::{OrchestratorContext, workflow::WORKFLOW_STATUS_INTERRUPTED};
 use self::{
     design::{generate_shooting_scene, restore_shooting_scene},
     screenplay::{
-        adaptation::{generate_screenplay_adaptation_unit, restore_screenplay_adaptation_unit},
-        layout::{
-            generate_screenplay_layout_unit, generate_screenplay_skeleton,
-            restore_screenplay_layout_unit, restore_screenplay_skeleton,
-        },
+        assemble_screenplay_layout_unit, assemble_screenplay_plan_unit,
+        generate_screenplay_adaptation_unit, generate_screenplay_layout_unit,
+        generate_screenplay_skeleton, restore_screenplay_adaptation_unit,
+        restore_screenplay_layout_unit, restore_screenplay_skeleton,
     },
 };
 use super::{
+    ChapterShootingScriptSourceInput,
     assembly::{assemble_available_shooting_script, assemble_chapter_shooting_script},
     contracts::{
-        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterScreenplayLayoutV1, ChapterScreenplayPlan,
-        ChapterShootingScriptSourceInput, ChapterShootingScriptUnitProgress,
-        RegenerateChapterShootingScriptInput, ResolvedChapterShootingScript,
-        ShootingScriptProgressReporter, ShootingScriptStreamReporter,
-    },
-    screenplay::{
-        assemble_screenplay_layout_unit, assemble_screenplay_plan_unit, validate_screenplay_layout,
-        validate_screenplay_plan, validate_script_against_plan, validate_script_source_spans,
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
+        ChapterShootingScriptUnitProgress, RegenerateChapterShootingScriptInput,
+        ResolvedChapterShootingScript, ShootingScriptProgressReporter,
+        ShootingScriptStreamReporter,
     },
 };
 
 enum ShootingScriptGenerationOutcome {
     Partial {
-        script: Box<a4n_core::shooting_script::ChapterShootingScriptV1>,
+        script: Box<a4n_domain::shooting_script::ChapterShootingScriptV1>,
         completed_unit_count: usize,
         total_unit_count: usize,
     },
@@ -63,10 +59,13 @@ impl OrchestratorContext {
         &self,
         source: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptUnitProgress>, AppError> {
-        let (requested_source, _) = self.load_chapter_shooting_script_source(&source).await?;
+        let (requested_source, current) = self.load_chapter_shooting_script_source(&source).await?;
         let workflow_source = shared_workflow_source(&requested_source);
         let run = self
-            .workflow_runs_by_project_kind(workflow_source.project_id, "chapter_shooting_script")
+            .workflow_runs_by_project_kind(
+                workflow_source.project_id,
+                CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
+            )
             .await?
             .into_iter()
             .find(|run| {
@@ -90,56 +89,46 @@ impl OrchestratorContext {
             return Ok(None);
         };
         let total_unit_count = skeleton.units.len();
-        let mut layout_units = Vec::with_capacity(total_unit_count);
         let mut plan_units = Vec::with_capacity(total_unit_count);
         let mut scenes = Vec::with_capacity(total_unit_count);
         for offset in 0..total_unit_count {
+            let skeleton_unit = &skeleton.units[offset];
             let Some(detail) =
-                restore_screenplay_layout_unit(self, run.id, &prepared, &skeleton, offset).await?
-            else {
-                break;
-            };
-            layout_units.push(assemble_screenplay_layout_unit(
-                &skeleton.units[offset],
-                detail,
-            )?);
-            let Some(adaptation) =
-                restore_screenplay_adaptation_unit(self, run.id, &prepared, &layout_units[offset])
+                restore_screenplay_layout_unit(self, run.id, &prepared, &skeleton, skeleton_unit)
                     .await?
             else {
                 break;
             };
-            plan_units.push(assemble_screenplay_plan_unit(
-                &layout_units[offset],
-                adaptation,
-            )?);
-            let Some(scene) =
-                restore_shooting_scene(self, run.id, &prepared, &plan_units[offset]).await?
+            let layout_unit = assemble_screenplay_layout_unit(skeleton_unit, detail);
+            let Some(adaptation) =
+                restore_screenplay_adaptation_unit(self, run.id, &prepared, &layout_unit).await?
             else {
                 break;
             };
+            let plan_unit = assemble_screenplay_plan_unit(&layout_unit, adaptation);
+            let Some(scene) = restore_shooting_scene(self, run.id, &prepared, &plan_unit).await?
+            else {
+                break;
+            };
+            plan_units.push(plan_unit);
             scenes.push(scene);
         }
         if scenes.is_empty() {
             return Ok(None);
         }
-        let plan = ChapterScreenplayPlan {
-            directing_statement: skeleton.directing_statement,
-            units: plan_units,
-        };
-        let script = assemble_available_shooting_script(&plan, scenes)?;
+        let script =
+            assemble_available_shooting_script(&skeleton.directing_statement, &plan_units, scenes)?;
         let completed_unit_count = script.scenes.len();
         let resolved = if completed_unit_count == total_unit_count
             && run.status == crate::workflow::WORKFLOW_STATUS_COMPLETED
         {
-            Some(
-                self.current_chapter_shooting_script(source)
-                    .await?
-                    .ok_or_else(|| AppError::InvalidState {
-                        current: "completed_workflow_without_shooting_script".to_string(),
-                        operation: "读取已完成拍摄剧本".to_string(),
-                    })?,
-            )
+            Some(ResolvedChapterShootingScript {
+                source: requested_source,
+                shooting_script: current.ok_or_else(|| AppError::InvalidState {
+                    current: "completed_workflow_without_shooting_script".to_string(),
+                    operation: "读取已完成拍摄剧本".to_string(),
+                })?,
+            })
         } else {
             None
         };
@@ -309,67 +298,55 @@ impl OrchestratorContext {
         let progress_total = CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
         progress(0, progress_total, "正在读取章节正文和来源锚点")?;
         let prepared = self.prepare_chapter_shooting_script_request(input).await?;
-        let skeleton =
-            generate_screenplay_skeleton(
-                self,
-                workflow_run_id,
-                &prepared,
-                progress,
-                stream_reporter,
-                cancel_token,
-            )
-                .await?;
+        let skeleton = generate_screenplay_skeleton(
+            self,
+            workflow_run_id,
+            &prepared,
+            progress,
+            stream_reporter,
+            cancel_token,
+        )
+        .await?;
         let total_unit_count = skeleton.units.len();
-        let mut layout_units = Vec::with_capacity(total_unit_count);
         let mut plan_units = Vec::with_capacity(total_unit_count);
         let mut scenes = Vec::with_capacity(total_unit_count);
 
         for offset in 0..total_unit_count {
+            let skeleton_unit = &skeleton.units[offset];
             let layout_stage = generate_screenplay_layout_unit(
                 self,
                 workflow_run_id,
                 &prepared,
                 &skeleton,
+                skeleton_unit,
                 offset,
+                total_unit_count,
                 progress,
                 stream_reporter,
                 cancel_token,
             )
             .await?;
-            layout_units.push(assemble_screenplay_layout_unit(
-                &skeleton.units[offset],
-                layout_stage.output,
-            )?);
-            let layout = ChapterScreenplayLayoutV1 {
-                schema_version: "chapter_screenplay_layout_v1".to_string(),
-                directing_statement: skeleton.directing_statement.clone(),
-                units: layout_units.clone(),
-            };
+            let layout_unit = assemble_screenplay_layout_unit(skeleton_unit, layout_stage.output);
             let adaptation_stage = generate_screenplay_adaptation_unit(
                 self,
                 workflow_run_id,
                 &prepared,
-                &layout,
+                &layout_unit,
                 offset,
+                total_unit_count,
                 progress,
                 stream_reporter,
                 cancel_token,
             )
             .await?;
-            plan_units.push(assemble_screenplay_plan_unit(
-                &layout.units[offset],
-                adaptation_stage.output,
-            )?);
-            let plan = ChapterScreenplayPlan {
-                directing_statement: skeleton.directing_statement.clone(),
-                units: plan_units.clone(),
-            };
+            let plan_unit = assemble_screenplay_plan_unit(&layout_unit, adaptation_stage.output);
             let design_stage = generate_shooting_scene(
                 self,
                 workflow_run_id,
                 &prepared,
-                &plan,
+                &plan_unit,
                 offset,
+                total_unit_count,
                 progress,
                 stream_reporter,
                 cancel_token,
@@ -377,10 +354,15 @@ impl OrchestratorContext {
             .await?;
             let generated_unit =
                 !layout_stage.restored || !adaptation_stage.restored || !design_stage.restored;
+            plan_units.push(plan_unit);
             scenes.push(design_stage.output);
 
             if stop_after_next_unit && generated_unit && scenes.len() < total_unit_count {
-                let script = assemble_available_shooting_script(&plan, scenes)?;
+                let script = assemble_available_shooting_script(
+                    &skeleton.directing_statement,
+                    &plan_units,
+                    scenes,
+                )?;
                 progress(
                     92,
                     progress_total,
@@ -398,20 +380,8 @@ impl OrchestratorContext {
             }
         }
 
-        let layout = ChapterScreenplayLayoutV1 {
-            schema_version: "chapter_screenplay_layout_v1".to_string(),
-            directing_statement: skeleton.directing_statement.clone(),
-            units: layout_units,
-        };
-        validate_screenplay_layout(&layout, &prepared.source_spans)?;
-        let plan = ChapterScreenplayPlan {
-            directing_statement: skeleton.directing_statement,
-            units: plan_units,
-        };
-        validate_screenplay_plan(&plan, &prepared.source_spans)?;
-        let script = assemble_chapter_shooting_script(&plan, scenes)?;
-        validate_script_source_spans(&script, &prepared.source_spans)?;
-        validate_script_against_plan(&script, &plan)?;
+        let script =
+            assemble_chapter_shooting_script(&skeleton.directing_statement, &plan_units, scenes)?;
         progress(
             94,
             progress_total,

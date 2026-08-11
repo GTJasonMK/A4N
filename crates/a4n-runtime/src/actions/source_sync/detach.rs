@@ -7,7 +7,7 @@ pub async fn detach_derived_project(
     derived_project_id: i64,
 ) -> Result<novel_project::Model, AppError> {
     state
-        .source_sync()
+        .orchestrator()
         .detach_derived_project_for_user_validated(user_id, derived_project_id)
         .await
 }

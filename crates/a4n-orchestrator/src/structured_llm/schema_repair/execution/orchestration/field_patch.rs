@@ -47,9 +47,11 @@ where
         .trace_context
         .as_ref()
         .and_then(|trace| trace.project_id);
-    let repair_prompt = context
-        .prompt_render_async("structured_json_field_repair", &HashMap::new(), project_id)
-        .await?;
+    let repair_prompt = context.prompt_render_template(
+        "structured_json_field_repair",
+        &HashMap::new(),
+        project_id,
+    )?;
     let patch_request =
         build_schema_field_patch_request(input.request.clone(), &repair_prompt, &report)?;
     match context

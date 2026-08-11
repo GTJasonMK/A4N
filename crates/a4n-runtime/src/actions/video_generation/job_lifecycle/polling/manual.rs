@@ -12,7 +12,7 @@ pub(in crate::actions::video_generation) async fn poll_video_job(
     video_id: i64,
 ) -> Result<GeneratedVideoSummary, String> {
     let video = state
-        .video()
+        .orchestrator()
         .generated_video_by_id(video_id)
         .await
         .map_err(crate::actions::app_error_message)?
@@ -24,11 +24,11 @@ pub(in crate::actions::video_generation) async fn poll_video_job(
         return Ok(video_to_summary(&video));
     }
     let cfg_id = provider_poll_config_id(&video)?;
-    let cfg = resolve_video_config(&state.settings(), cfg_id).await?;
+    let cfg = resolve_video_config(state.orchestrator(), cfg_id).await?;
     let prompt_id = prompt_id_from_video(&video);
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let updated = state
-        .video()
+        .orchestrator()
         .poll_video_provider_once_validated(
             video,
             &cfg,

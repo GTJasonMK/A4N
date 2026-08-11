@@ -1,6 +1,6 @@
 use super::types::{
     manga_record_database, require_manga_text, require_positive_manga_id,
-    validate_manga_page_position,
+    validate_manga_page_number,
 };
 use super::*;
 use std::error::Error;
@@ -20,14 +20,9 @@ fn manga_record_input_validation_rejects_invalid_identity_and_position() {
             if message == "prompt_type 不能为空"
     ));
     assert!(matches!(
-        validate_manga_page_position(0, 0),
+        validate_manga_page_number(0),
         Err(MangaPromptRecordError::InvalidArgument(message))
             if message == "page_number 必须是正整数"
-    ));
-    assert!(matches!(
-        validate_manga_page_position(1, -1),
-        Err(MangaPromptRecordError::InvalidArgument(message))
-            if message == "panel_number 不能为负数"
     ));
 }
 

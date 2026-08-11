@@ -2,13 +2,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use a4n_domain::shooting_script::{
-    CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1,
-    ShootingBlockingV1, ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingBlockingV1,
+    ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
     ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
-    ShootingSceneV1, ShootingScriptValidationError, ShootingShotSizeV1, ShootingShotV1,
-    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
-    ShootingViewpointModeV1, ShootingViewpointV1,
+    ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
+    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingViewpointModeV1,
+    ShootingViewpointV1,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

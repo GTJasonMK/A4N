@@ -30,19 +30,45 @@ pub async fn manga_character_portrait_refs(
 
     let mut character_portraits = Vec::new();
     for profile in profiles {
-        let Some(portrait) = portraits
+        let profile_portraits = portraits
             .iter()
-            .find(|portrait| portrait.profile_id == profile.id && portrait.is_primary)
-            .or_else(|| {
-                portraits
-                    .iter()
-                    .find(|portrait| portrait.profile_id == profile.id)
-            })
-        else {
+            .filter(|portrait| portrait.profile_id == profile.id)
+            .collect::<Vec<_>>();
+        if profile_portraits.is_empty() {
             continue;
-        };
+        }
+        let portrait = profile_portraits
+            .into_iter()
+            .find(|portrait| portrait.is_primary)
+            .ok_or_else(|| {
+                ProjectFamilyDbError::InvalidArgument(format!(
+                    "角色档案 #{} 已有立绘但没有主立绘",
+                    profile.id
+                ))
+            })?;
         if portrait.image_path.trim().is_empty() {
-            continue;
+            return Err(ProjectFamilyDbError::InvalidArgument(format!(
+                "角色档案 #{} 的主立绘 #{} 缺少图片路径",
+                profile.id, portrait.id
+            )));
+        }
+        if profile.name.trim().is_empty() {
+            return Err(ProjectFamilyDbError::InvalidArgument(format!(
+                "角色档案 #{} 名称为空",
+                profile.id
+            )));
+        }
+        if portrait.prompt.trim().is_empty() {
+            return Err(ProjectFamilyDbError::InvalidArgument(format!(
+                "角色档案 #{} 的主立绘 #{} 缺少提示词",
+                profile.id, portrait.id
+            )));
+        }
+        if portrait.portrait_type.trim().is_empty() {
+            return Err(ProjectFamilyDbError::InvalidArgument(format!(
+                "角色档案 #{} 的主立绘 #{} 缺少立绘类型",
+                profile.id, portrait.id
+            )));
         }
         character_portraits.push(MangaCharacterPortraitRefSummary {
             profile_id: profile.id,

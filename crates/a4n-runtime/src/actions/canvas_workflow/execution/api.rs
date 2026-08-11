@@ -19,7 +19,7 @@ pub async fn run_canvas_graph(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     let prepared = state
-        .canvas()
+        .orchestrator()
         .prepare_canvas_graph_run_validated(
             CanvasGraphRunPreparationInput {
                 user_id,
@@ -40,7 +40,7 @@ pub async fn run_canvas_node(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     let prepared = state
-        .canvas()
+        .orchestrator()
         .prepare_canvas_single_node_run_validated(
             CanvasSingleNodeRunPreparationInput {
                 user_id,
@@ -61,7 +61,7 @@ pub async fn resume_canvas_graph_run(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     let prepared = state
-        .canvas()
+        .orchestrator()
         .prepare_canvas_graph_resume_validated(
             CanvasGraphResumePreparationInput {
                 user_id,
@@ -134,7 +134,7 @@ async fn run_prepared_canvas_graph(
 ) -> Result<CanvasNodeRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     state
-        .canvas()
+        .orchestrator()
         .run_prepared_canvas_graph_validated(prepared, &host_port)
         .await
 }

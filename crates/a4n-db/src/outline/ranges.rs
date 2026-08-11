@@ -8,56 +8,35 @@ pub(super) fn expected_part_id_for_existing_outline(
     parts: &[part_outline::Model],
     outline: &chapter_outline::Model,
 ) -> Result<Option<i64>, OutlineDbError> {
-    if parts.is_empty() {
-        return Ok(None);
-    }
-    let mut matched = parts.iter().filter(|part| {
-        outline.chapter_number >= part.start_chapter && outline.chapter_number <= part.end_chapter
-    });
+    part_id_for_chapter_number(parts, outline.chapter_number)
+}
+
+/// 章节可以先于分部存在；没有覆盖该章节的分部时保持未归属。
+pub fn part_id_for_chapter_number(
+    parts: &[part_outline::Model],
+    chapter_number: i32,
+) -> Result<Option<i64>, OutlineDbError> {
+    let mut matched = parts
+        .iter()
+        .filter(|part| chapter_number >= part.start_chapter && chapter_number <= part.end_chapter);
     let first = matched.next();
     if matched.next().is_some() {
         return Err(OutlineDbError::InvalidArgument(format!(
             "第 {} 章匹配到多个分部大纲，无法生成章节大纲",
-            outline.chapter_number
+            chapter_number
         )));
     }
-    match first {
-        Some(part) => Ok(Some(part.id)),
-        None => Err(OutlineDbError::InvalidArgument(format!(
-            "已有第 {} 章章纲不在任何分部范围内，请先删除旧章纲或重新生成覆盖该章节的分部",
-            outline.chapter_number
-        ))),
-    }
+    Ok(first.map(|part| part.id))
 }
 
-pub(super) fn latest_part_ids_to_delete(
-    parts: &[part_outline::Model],
-    count: u64,
-) -> Result<Vec<i64>, OutlineDbError> {
-    if count == 0 {
-        return Err(OutlineDbError::InvalidArgument(
-            "删除分部数量必须大于 0".to_string(),
-        ));
-    }
-    if count as usize > parts.len() {
-        return Err(OutlineDbError::InvalidArgument(format!(
-            "删除分部数量超过现有分部数量：count={count}, total={}",
-            parts.len()
-        )));
-    }
-    validate_existing_parts_for_latest_delete(parts)?;
-    Ok(parts
-        .iter()
-        .rev()
-        .take(count as usize)
-        .map(|part| part.id)
-        .collect())
+pub fn validate_part_outline_records(parts: &[part_outline::Model]) -> Result<(), OutlineDbError> {
+    validate_part_outline_records_with_action(parts, "请先清理分部状态后重试")
 }
 
-fn validate_existing_parts_for_latest_delete(
+fn validate_part_outline_records_with_action(
     parts: &[part_outline::Model],
+    action: &str,
 ) -> Result<(), OutlineDbError> {
-    let action = "请先清理分部状态后再删除";
     let mut seen = BTreeSet::new();
     let mut ranges = Vec::with_capacity(parts.len());
     for part in parts {

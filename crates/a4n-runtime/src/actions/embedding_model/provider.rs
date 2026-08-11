@@ -1,6 +1,10 @@
-use super::{contracts::LocalEmbeddingConfigInput, host_adapter::required_text};
+use super::contracts::LocalEmbeddingConfigInput;
+#[cfg(feature = "local-embedding")]
+use super::host_adapter::required_text;
 use a4n_core::error::AppError;
-use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
+#[cfg(feature = "local-embedding")]
+use a4n_embedding::provider::EmbeddingBackend;
+use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::FastEmbedProvider;
 use std::{path::PathBuf, sync::Arc};
@@ -48,6 +52,7 @@ pub(super) async fn cached_local_embedding_provider(
     }
 }
 
+#[cfg(feature = "local-embedding")]
 pub(super) fn resolve_fastembed_config(
     runtime: &LocalEmbeddingProviderRuntime,
     input: &LocalEmbeddingConfigInput,
@@ -58,29 +63,18 @@ pub(super) fn resolve_fastembed_config(
     if dimension == 0 {
         return Err(AppError::InvalidArgument("向量维度必须大于 0".to_string()));
     }
-    let batch_size = input.batch_size.unwrap_or(32).max(1);
-    let cache_dir = input
-        .local_model_path
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| runtime.fastembed_cache_dir());
+    let batch_size = input.batch_size;
+    if batch_size == 0 {
+        return Err(AppError::InvalidArgument("批量大小必须大于 0".to_string()));
+    }
+    let cache_dir = crate::dynamic_embedding::resolve_fastembed_cache_dir(
+        input.local_model_path.as_deref(),
+        runtime.fastembed_cache_dir(),
+    )?;
     Ok((backend, model, dimension, batch_size, cache_dir))
 }
 
-pub(super) fn fastembed_identity_from_config(
-    runtime: &LocalEmbeddingProviderRuntime,
-    input: &LocalEmbeddingConfigInput,
-) -> Result<EmbeddingModelIdentity, AppError> {
-    let (backend, model, dimension, _, _) = resolve_fastembed_config(runtime, input)?;
-    Ok(EmbeddingModelIdentity {
-        backend,
-        model,
-        dimension,
-    })
-}
-
+#[cfg(feature = "local-embedding")]
 fn normalized_fastembed_backend_name(value: &str) -> Result<String, AppError> {
     match value.trim().to_ascii_lowercase().as_str() {
         "fastembed" => Ok(format!("{:?}", EmbeddingBackend::FastEmbed)),

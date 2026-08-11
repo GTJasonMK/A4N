@@ -1,10 +1,9 @@
 use crate::generation::delete_generation_run_targets_for;
 use crate::manga::{
-    MANGA_PAGE_PROMPT_TYPE, MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt,
-    manga_record_database, require_manga_text, require_positive_manga_id,
-    validate_manga_prompt_identity,
+    MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt, manga_record_database,
+    require_manga_text, require_positive_manga_id, validate_manga_page_prompt_layout,
 };
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
@@ -72,23 +71,18 @@ pub async fn delete_manga_prompt_record(
 
 pub async fn update_manga_page_prompt_layout(
     db: &DatabaseConnection,
-    panel: chapter_manga_prompt::Model,
+    page_prompt: chapter_manga_prompt::Model,
     layout: Value,
 ) -> Result<chapter_manga_prompt::Model, MangaPromptRecordError> {
-    require_positive_manga_id(panel.id, "prompt_id")?;
-    if panel.prompt_type != MANGA_PAGE_PROMPT_TYPE {
+    require_positive_manga_id(page_prompt.id, "prompt_id")?;
+    if page_prompt.prompt_type != MANGA_PAGE_PROMPT_TYPE {
         return Err(MangaPromptRecordError::InvalidArgument(
             "只能更新 page_generation 的参考图绑定".to_string(),
         ));
     }
-    validate_manga_prompt_identity(
-        &panel.prompt_type,
-        panel.page_number,
-        panel.panel_number,
-        Some(&layout),
-    )
-    .map_err(manga_pipeline_record_error)?;
-    let mut active: chapter_manga_prompt::ActiveModel = panel.into();
+    validate_manga_page_prompt_layout(page_prompt.page_number, Some(&layout))
+        .map_err(manga_pipeline_record_error)?;
+    let mut active: chapter_manga_prompt::ActiveModel = page_prompt.into();
     active.layout = Set(Some(layout));
     active.updated_at = Set(Utc::now().naive_utc());
     active
@@ -103,17 +97,17 @@ fn manga_pipeline_record_error(error: MangaPipelineDbError) -> MangaPromptRecord
 
 pub async fn update_manga_page_prompt_image_prompt(
     db: &DatabaseConnection,
-    panel: chapter_manga_prompt::Model,
+    page_prompt: chapter_manga_prompt::Model,
     image_prompt: String,
 ) -> Result<chapter_manga_prompt::Model, MangaPromptRecordError> {
-    require_positive_manga_id(panel.id, "prompt_id")?;
-    if panel.prompt_type != MANGA_PAGE_PROMPT_TYPE || panel.panel_number != 0 {
+    require_positive_manga_id(page_prompt.id, "prompt_id")?;
+    if page_prompt.prompt_type != MANGA_PAGE_PROMPT_TYPE {
         return Err(MangaPromptRecordError::InvalidArgument(
             "只能修改 page_generation 的图片提示词".to_string(),
         ));
     }
     require_manga_text(&image_prompt, "image_prompt")?;
-    let mut active: chapter_manga_prompt::ActiveModel = panel.into();
+    let mut active: chapter_manga_prompt::ActiveModel = page_prompt.into();
     active.image_prompt = Set(image_prompt);
     active.status = Set("pending".to_string());
     active.updated_at = Set(Utc::now().naive_utc());

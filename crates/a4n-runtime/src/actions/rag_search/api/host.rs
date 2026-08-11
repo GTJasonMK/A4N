@@ -18,7 +18,7 @@ pub async fn rag_enhanced_search(
     let query = required_nonblank(&input.query, "rag_enhanced_search query")?;
     let top_k = required_top_k(input.top_k, "rag_enhanced_search")?;
     let data_types = normalize_search_data_types(input.data_types)?;
-    let rag = state.rag();
+    let rag = state.orchestrator();
     execute_enhanced_rag_search(
         &rag,
         project_id,
@@ -37,7 +37,7 @@ pub async fn rag_prepare_enhanced_search(
     input: EnhancedSearchInput,
 ) -> Result<RagPreparedEnhancedSearchOutput, AppError> {
     access::verify_project_editor(state, user_id, project_id).await?;
-    let rag = state.rag();
+    let rag = state.orchestrator();
     let prepared = prepare_enhanced_rag_search(&rag, project_id, input).await?;
     Ok(RagPreparedEnhancedSearchOutput {
         queries: prepared
@@ -65,6 +65,6 @@ pub async fn rag_enhanced_search_with_vectors(
     input: RagEnhancedSearchWithVectorsInput,
 ) -> Result<RagEnhancedSearchOutput, AppError> {
     access::verify_project_editor(state, user_id, project_id).await?;
-    let rag = state.rag();
+    let rag = state.orchestrator();
     execute_enhanced_rag_search_with_vectors(&rag, project_id, input).await
 }

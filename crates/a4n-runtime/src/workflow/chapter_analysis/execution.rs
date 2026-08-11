@@ -3,7 +3,7 @@ use a4n_core::models::chapter::chapter;
 use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
-use crate::{actions::access, prompt_renderer::RuntimePromptRenderer, state::AppState};
+use crate::{actions::access, state::AppState};
 
 pub async fn generate_and_sync_chapter_analysis_with_progress(
     state: &AppState,
@@ -12,23 +12,22 @@ pub async fn generate_and_sync_chapter_analysis_with_progress(
     progress: Option<&ChapterAnalysisProgress<'_>>,
 ) -> Result<chapter::Model, String> {
     let chapter = state
-        .chapter_analysis()
+        .orchestrator()
         .preflight_chapter_analysis_validated(chapter_id, false)
         .await
         .map_err(|error| error.to_string())?;
     access::verify_project_editor(state, user_id, chapter.project_id)
         .await
         .map_err(|error| error.to_string())?;
-    run_chapter_analysis_application(state, chapter_id, progress, false).await
+    run_chapter_analysis_application(state, chapter_id, progress).await
 }
 
 pub(super) async fn run_chapter_analysis_application(
     state: &AppState,
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
-    cleanup_before_analysis: bool,
 ) -> Result<chapter::Model, String> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = crate::actions::character_ai::RuntimeCharacterProfileSyncStageTracePort::new(
         state.log_dir(),
@@ -56,28 +55,15 @@ pub(super) async fn run_chapter_analysis_application(
         cancel_token: progress.and_then(|progress| progress.cancel_token),
         active_task_id: progress.and_then(|progress| progress.task_id),
     };
-    let result = if cleanup_before_analysis {
-        state
-            .chapter_analysis()
-            .run_chapter_analysis_validated(
-                chapter_id,
-                &prompt_renderer,
-                &host_port,
-                application_progress,
-                Some(&trace_port),
-            )
-            .await
-    } else {
-        state
-            .chapter_analysis()
-            .run_chapter_analysis_after_content_postprocess_validated(
-                chapter_id,
-                &prompt_renderer,
-                &host_port,
-                application_progress,
-                Some(&trace_port),
-            )
-            .await
-    };
-    result.map_err(|error| error.to_string())
+    state
+        .orchestrator()
+        .run_chapter_analysis_validated(
+            chapter_id,
+            prompt_renderer,
+            &host_port,
+            application_progress,
+            Some(&trace_port),
+        )
+        .await
+        .map_err(|error| error.to_string())
 }

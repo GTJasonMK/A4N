@@ -9,6 +9,3 @@ pub use projections::to_user_summary;
 pub use sessions::*;
 pub use tokens::*;
 pub use users::*;
-
-#[cfg(test)]
-mod tests;

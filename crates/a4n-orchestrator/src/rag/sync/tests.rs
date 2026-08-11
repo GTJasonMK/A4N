@@ -203,6 +203,12 @@ fn root_text_metadata_is_inserted_and_conflicts_are_rejected() {
     let error = root_text_family_metadata(7, json!({"root_project_id": 8}))
         .expect_err("conflicting root project must fail");
     assert!(error.to_string().contains("expected=7, actual=8"));
+
+    for chapter_id in [json!(0), json!(-1), json!("9"), json!(null)] {
+        let error = root_text_family_metadata(7, json!({"chapter_id": chapter_id}))
+            .expect_err("invalid present chapter id must fail");
+        assert!(error.to_string().contains("chapter_id 必须是正整数"));
+    }
 }
 
 #[test]

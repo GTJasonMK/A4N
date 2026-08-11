@@ -10,7 +10,7 @@ use super::state::TeraPromptEngine;
 use super::variables::missing_template_variables;
 
 impl TeraPromptEngine {
-    pub(super) fn render_prompt(
+    pub fn render(
         &self,
         template_name: &str,
         variables: &HashMap<String, serde_json::Value>,
@@ -35,7 +35,7 @@ impl TeraPromptEngine {
         }
     }
 
-    pub(super) fn get_prompt(&self, name: &str) -> Result<PromptEntry, AppError> {
+    pub fn get(&self, name: &str) -> Result<PromptEntry, AppError> {
         self.entries
             .read()
             .get(name)
@@ -43,14 +43,11 @@ impl TeraPromptEngine {
             .ok_or_else(|| Self::prompt_not_found(name))
     }
 
-    pub(super) fn all_prompts(&self) -> Vec<PromptEntry> {
+    pub fn list_all(&self) -> Vec<PromptEntry> {
         self.entries.read().values().cloned().collect()
     }
 
-    pub(super) fn prompt_version_history(
-        &self,
-        name: &str,
-    ) -> Result<Vec<PromptVersion>, AppError> {
+    pub fn version_history(&self, name: &str) -> Result<Vec<PromptVersion>, AppError> {
         let entries = self.entries.read();
         let entry = entries
             .get(name)
@@ -75,12 +72,7 @@ impl TeraPromptEngine {
         Ok(history)
     }
 
-    pub(super) fn prompt_diff(
-        &self,
-        name: &str,
-        version_a: &str,
-        version_b: &str,
-    ) -> Result<String, AppError> {
+    pub fn diff(&self, name: &str, version_a: &str, version_b: &str) -> Result<String, AppError> {
         let entries = self.entries.read();
         let current = entries
             .get(name)
@@ -108,7 +100,7 @@ impl TeraPromptEngine {
             .to_string())
     }
 
-    pub(super) fn validate_prompt_variables(
+    pub fn validate_variables(
         &self,
         template_name: &str,
         variables: &HashSet<String>,
@@ -121,7 +113,7 @@ impl TeraPromptEngine {
             .map_err(|error| AppError::Internal(anyhow::anyhow!("模板变量解析失败: {error}")))
     }
 
-    pub(super) fn prompt_categories(&self) -> Result<Vec<PromptCategory>, AppError> {
+    pub fn categories(&self) -> Result<Vec<PromptCategory>, AppError> {
         let registry = self.registry.read();
         let mut categories = Vec::with_capacity(registry.categories().len());
         for (key, value) in registry.categories() {
@@ -138,13 +130,13 @@ impl TeraPromptEngine {
         Ok(categories)
     }
 
-    pub(super) fn render_prompt_ab(
+    pub fn render_ab(
         &self,
         template_name: &str,
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<(String, String), AppError> {
-        let current = self.render_prompt(template_name, variables, project_id)?;
+        let current = self.render(template_name, variables, project_id)?;
         let original_content = self
             .original_contents
             .read()

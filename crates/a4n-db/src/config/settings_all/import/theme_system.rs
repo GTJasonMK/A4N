@@ -1,7 +1,7 @@
 use super::super::super::LLM_MAX_TOKENS_SETTING_KEY;
 use super::super::{
     types::{
-        SettingsAllConfigImportError, SettingsAllSystemSettingImportRow, SettingsAllThemeImportRow,
+        SettingsAllConfigImportError, SettingsAllSystemSettingRow, SettingsAllThemeRow,
         settings_all_config_database,
     },
     validation::validate_llm_max_tokens_import_against_current_default,
@@ -12,7 +12,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 
 pub(super) async fn import_theme_row<C>(
     db: &C,
-    row: SettingsAllThemeImportRow,
+    row: SettingsAllThemeRow,
     overwrite: bool,
     now: NaiveDateTime,
 ) -> Result<bool, SettingsAllConfigImportError>
@@ -28,13 +28,18 @@ where
         .one(db)
         .await
         .map_err(|source| settings_all_config_database("读取现有主题失败", source))?;
+    let css_variables = serde_json::to_value(&row.css_variables).map_err(|source| {
+        SettingsAllConfigImportError::InvalidArgument(format!(
+            "序列化主题 css_variables 失败：{source}"
+        ))
+    })?;
 
     match (existing, overwrite) {
         (Some(_), false) => Ok(false),
         (Some(existing), true) => {
             let mut active: theme_config::ActiveModel = existing.into();
-            active.mode = Set(row.mode);
-            active.css_variables = Set(row.css_variables);
+            active.mode = Set(row.mode.to_string());
+            active.css_variables = Set(css_variables);
             active.is_system_default = Set(row.is_system_default);
             active.is_active = Set(row.is_active);
             active.updated_at = Set(now);
@@ -50,8 +55,8 @@ where
             let inserted = theme_config::ActiveModel {
                 user_id: Set(row.user_id),
                 name: Set(row.name),
-                mode: Set(row.mode),
-                css_variables: Set(row.css_variables),
+                mode: Set(row.mode.to_string()),
+                css_variables: Set(css_variables),
                 is_system_default: Set(row.is_system_default),
                 is_active: Set(row.is_active),
                 created_at: Set(now),
@@ -70,7 +75,7 @@ where
 
 pub(super) async fn import_system_setting_row<C>(
     db: &C,
-    row: SettingsAllSystemSettingImportRow,
+    row: SettingsAllSystemSettingRow,
     overwrite: bool,
     now: NaiveDateTime,
 ) -> Result<bool, SettingsAllConfigImportError>

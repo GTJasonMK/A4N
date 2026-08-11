@@ -1,4 +1,5 @@
 import { apiInvoke } from "../index";
+import { requireCurrentUserId } from "../authStorage";
 import { runtimeInvoke } from "../runtime";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
@@ -6,6 +7,7 @@ import type {
   EmbeddingConfig,
   EmbeddingModelDownloadInfo,
   LocalEmbedTextsOutput,
+  LocalEmbeddingConfigInput,
   LocalEmbeddingModel,
   UpdateEmbeddingInput,
 } from "./types";
@@ -42,6 +44,7 @@ export async function setDefaultEmbeddingConfig(configId: Id): Promise<void> {
     return;
   }
   return apiInvoke<void>("set_default_embedding_config", {
+    callerUserId: requireCurrentUserId(),
     configId: idNum(configId, "Embedding 配置 ID"),
   });
 }
@@ -61,7 +64,10 @@ export async function updateEmbeddingConfig(
   input: UpdateEmbeddingInput,
 ): Promise<EmbeddingConfig> {
   if (usesLocalRuntimeSettings()) {
-    return updateLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"), input);
+    return updateLocalEmbeddingConfig(
+      idNum(configId, "Embedding 配置 ID"),
+      input,
+    );
   }
   return apiInvoke<EmbeddingConfig>("update_embedding_config", {
     configId: idNum(configId, "Embedding 配置 ID"),
@@ -74,10 +80,11 @@ export async function testEmbeddingConfig(configId: Id): Promise<void> {
     const id = idNum(configId, "Embedding 配置 ID");
     if (canUseLocalDesktopEmbedding()) {
       return runtimeInvoke<void>("local_test_embedding_config", {
-        input: getLocalEmbeddingConfig(id),
+        input: localEmbeddingConfigInput(getLocalEmbeddingConfig(id)),
       });
     }
     return apiInvoke<void>("test_embedding_config", {
+      userId: requireCurrentUserId(),
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({
         embedding: getLocalEmbeddingConfig(id),
@@ -85,29 +92,42 @@ export async function testEmbeddingConfig(configId: Id): Promise<void> {
     });
   }
   return apiInvoke<void>("test_embedding_config", {
+    userId: requireCurrentUserId(),
     configId: idNum(configId, "Embedding 配置 ID"),
   });
 }
 
-export async function previewTestEmbeddingConfigRequest(configId: Id): Promise<ModelRequestPreview> {
+export async function previewTestEmbeddingConfigRequest(
+  configId: Id,
+): Promise<ModelRequestPreview> {
   if (usesLocalRuntimeSettings()) {
     const id = idNum(configId, "Embedding 配置 ID");
-    return apiInvoke<ModelRequestPreview>("preview_test_embedding_config_request", {
-      configId: id,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot(
-        {
-          embedding: getLocalEmbeddingConfig(id),
-        },
-        { includeProviderApiKeys: false },
-      ),
-    });
+    return apiInvoke<ModelRequestPreview>(
+      "preview_test_embedding_config_request",
+      {
+        userId: requireCurrentUserId(),
+        configId: id,
+        runtime_config_snapshot: buildRuntimeConfigSnapshot(
+          {
+            embedding: getLocalEmbeddingConfig(id),
+          },
+          { includeProviderApiKeys: false },
+        ),
+      },
+    );
   }
-  return apiInvoke<ModelRequestPreview>("preview_test_embedding_config_request", {
-    configId: idNum(configId, "Embedding 配置 ID"),
-  });
+  return apiInvoke<ModelRequestPreview>(
+    "preview_test_embedding_config_request",
+    {
+      userId: requireCurrentUserId(),
+      configId: idNum(configId, "Embedding 配置 ID"),
+    },
+  );
 }
 
-export async function listLocalEmbeddingModels(): Promise<LocalEmbeddingModel[]> {
+export async function listLocalEmbeddingModels(): Promise<
+  LocalEmbeddingModel[]
+> {
   if (canUseLocalDesktopEmbedding()) {
     return runtimeInvoke<LocalEmbeddingModel[]>("local_list_embedding_models");
   }
@@ -118,13 +138,19 @@ export async function getEmbeddingModelDownloadInfo(
   model: string,
 ): Promise<EmbeddingModelDownloadInfo> {
   if (canUseLocalDesktopEmbedding()) {
-    return runtimeInvoke<EmbeddingModelDownloadInfo>("local_get_embedding_model_download_info", {
-      input: { model },
-    });
+    return runtimeInvoke<EmbeddingModelDownloadInfo>(
+      "local_get_embedding_model_download_info",
+      {
+        input: { model },
+      },
+    );
   }
-  return apiInvoke<EmbeddingModelDownloadInfo>("get_embedding_model_download_info", {
-    input: { model },
-  });
+  return apiInvoke<EmbeddingModelDownloadInfo>(
+    "get_embedding_model_download_info",
+    {
+      input: { model },
+    },
+  );
 }
 
 export async function downloadEmbeddingModel(
@@ -132,16 +158,21 @@ export async function downloadEmbeddingModel(
   taskId?: string | null,
 ): Promise<LocalEmbeddingModel> {
   if (canUseLocalDesktopEmbedding()) {
-    return runtimeInvoke<LocalEmbeddingModel>("local_download_embedding_model", {
-      input: { model, task_id: taskId ?? null },
-    });
+    return runtimeInvoke<LocalEmbeddingModel>(
+      "local_download_embedding_model",
+      {
+        input: { model, task_id: taskId ?? null },
+      },
+    );
   }
   return apiInvoke<LocalEmbeddingModel>("download_embedding_model", {
     input: { model, task_id: taskId ?? null },
   });
 }
 
-export async function cancelEmbeddingModelDownload(taskId: string): Promise<void> {
+export async function cancelEmbeddingModelDownload(
+  taskId: string,
+): Promise<void> {
   if (canUseLocalDesktopEmbedding()) {
     return runtimeInvoke<void>("local_cancel_embedding_model_download", {
       input: { task_id: taskId },
@@ -154,7 +185,9 @@ export async function cancelEmbeddingModelDownload(taskId: string): Promise<void
 
 export async function deleteLocalEmbeddingModel(model: string): Promise<void> {
   if (canUseLocalDesktopEmbedding()) {
-    return runtimeInvoke<void>("local_delete_embedding_model", { input: { model } });
+    return runtimeInvoke<void>("local_delete_embedding_model", {
+      input: { model },
+    });
   }
   return apiInvoke<void>("delete_local_embedding_model", { input: { model } });
 }
@@ -167,6 +200,18 @@ export async function embedTextsLocally(
     throw new Error("当前运行模式不支持本机桌面 Embedding");
   }
   return runtimeInvoke<LocalEmbedTextsOutput>("local_embed_texts", {
-    input: { config, texts },
+    input: { config: localEmbeddingConfigInput(config), texts },
   });
+}
+
+function localEmbeddingConfigInput(
+  config: EmbeddingConfig,
+): LocalEmbeddingConfigInput {
+  return {
+    backend: config.backend,
+    model: config.model,
+    dimension: config.dimension,
+    batch_size: config.batch_size,
+    local_model_path: config.local_model_path,
+  };
 }

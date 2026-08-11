@@ -43,7 +43,7 @@ pub(crate) async fn enqueue_file_artifact_cleanup_by_project(
     }
     for (project_id, paths) in by_project {
         state
-            .project_family()
+            .orchestrator()
             .insert_file_artifact_cleanup_intent(
                 project_id,
                 format!("file-artifact:{cleanup_token}:{project_id}"),

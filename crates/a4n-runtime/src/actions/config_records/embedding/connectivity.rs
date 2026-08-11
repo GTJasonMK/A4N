@@ -1,13 +1,12 @@
 use super::super::shared::{
-    ModelRequestPreview, positive_i32_as_usize, validate_runtime_snapshot_config_id,
+    ModelRequestPreview, require_config_admin, validate_runtime_snapshot_config_id,
 };
 use crate::actions::request_preview::{model_request_preview, provider_request_step};
 use crate::{AppState, actions::app_error_message};
 use a4n_core::models::ai::embedding_config;
+use a4n_embedding::provider::EMBEDDING_CONNECTIVITY_TEST_TEXT;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use serde::Serialize;
-
-const EMBEDDING_CONNECTIVITY_TEST_INPUT: &str = "test";
 
 #[derive(Debug, Clone, Serialize)]
 struct EmbeddingConnectivityPreviewRequest {
@@ -17,13 +16,16 @@ struct EmbeddingConnectivityPreviewRequest {
     input: Vec<String>,
 }
 
-pub async fn test_embedding_config(state: &AppState, config_id: i64) -> Result<bool, String> {
-    let config = resolve_embedding_config_for_connectivity_test(state, config_id).await?;
-    let expected_dimension = positive_i32_as_usize(config.dimension, "嵌入配置维度")?;
+pub async fn test_embedding_config(
+    state: &AppState,
+    user_id: i64,
+    config_id: i64,
+) -> Result<(), String> {
+    let config = resolve_embedding_config_for_connectivity_test(state, user_id, config_id).await?;
     if state.runtime_profile().uses_sidecars() {
         let capabilities = state.capabilities().clone();
-        return state
-            .task_queue()
+        state
+            .orchestrator()
             .queue_run_tracked(
                 QueueTaskKind::EmbeddingCall,
                 TaskPriority::High,
@@ -32,43 +34,37 @@ pub async fn test_embedding_config(state: &AppState, config_id: i64) -> Result<b
                     crate::sidecar_clients::test_embedding_config_via_sidecar(
                         &capabilities,
                         &config,
-                        EMBEDDING_CONNECTIVITY_TEST_INPUT,
                     )
                     .await
                 },
             )
             .await
-            .map_err(|e| e.to_string());
+            .map_err(|e| e.to_string())?;
+        return Ok(());
     }
     let provider = crate::dynamic_embedding::make_provider_from_model(
         &config,
         state.default_fastembed_cache_dir(),
     )
     .map_err(|e| e.to_string())?;
-    let vectors = state
-        .task_queue()
+    state
+        .orchestrator()
         .queue_run_tracked(
             QueueTaskKind::EmbeddingCall,
             TaskPriority::High,
             None,
-            || async move {
-                provider
-                    .embed(vec![EMBEDDING_CONNECTIVITY_TEST_INPUT.to_string()])
-                    .await
-            },
+            || async move { provider.test_connection().await },
         )
         .await
-        .map_err(|e| e.to_string())?;
-    Ok(vectors
-        .first()
-        .is_some_and(|vector| vector.len() == expected_dimension))
+        .map_err(|e| e.to_string())
 }
 
 pub async fn preview_test_embedding_config_request(
     state: &AppState,
+    user_id: i64,
     config_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    let config = resolve_embedding_config_for_connectivity_test(state, config_id).await?;
+    let config = resolve_embedding_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_embedding_connectivity_test_request(&config);
     Ok(model_request_preview(
         "embedding_config_connectivity_test",
@@ -87,14 +83,16 @@ pub async fn preview_test_embedding_config_request(
 
 async fn resolve_embedding_config_for_connectivity_test(
     state: &AppState,
+    user_id: i64,
     config_id: i64,
 ) -> Result<embedding_config::Model, String> {
     if let Some(config) = crate::runtime_config::current_embedding_model() {
         validate_runtime_snapshot_config_id("embedding", config.id, config_id)?;
         return Ok(config);
     }
+    require_config_admin(state, user_id).await?;
     state
-        .settings()
+        .orchestrator()
         .embedding_config_by_id(config_id)
         .await
         .map_err(app_error_message)
@@ -107,6 +105,6 @@ fn build_embedding_connectivity_test_request(
         backend: config.backend.clone(),
         model: config.model.clone(),
         dimension: config.dimension,
-        input: vec![EMBEDDING_CONNECTIVITY_TEST_INPUT.to_string()],
+        input: vec![EMBEDDING_CONNECTIVITY_TEST_TEXT.to_string()],
     }
 }

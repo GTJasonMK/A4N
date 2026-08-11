@@ -1,3 +1,4 @@
+use a4n_domain::ThemeMode;
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -35,7 +36,7 @@ pub struct DailyUsagePoint {
 pub struct ThemeInfo {
     pub id: i64,
     pub name: String,
-    pub mode: String,
+    pub mode: ThemeMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -22,7 +22,7 @@ pub async fn oauth2_login_user(
     let user_info = provider.get_user_info(&token).await?;
 
     state
-        .auth()
+        .orchestrator()
         .login_with_oauth2(
             &user_info.provider,
             &user_info.provider_id,

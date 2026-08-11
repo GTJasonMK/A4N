@@ -1,15 +1,14 @@
 use super::shared::{
-    PipelineProjectState, ProgressCounts, non_zero, progress_count_detail, project_progress,
+    PipelineProjectState, ProgressCounts, latest_pipeline_states_by_project, non_zero,
+    progress_count_detail, project_progress,
 };
 use super::{ProjectProgressReadError, ProjectProgressStatus, ProjectProgressSummary};
 use crate::project::PROJECT_KIND_COMIC;
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
-use serde_json::Value;
 use std::collections::HashMap;
 
-const MANGA_PAGE_PROMPT_TYPE: &str = "page_generation";
-const PIPELINE_STATUS_PROMPT_TYPE: &str = "pipeline_status";
+const MANGA_PIPELINE_WORKFLOW_KIND: &str = "manga_pipeline";
 
 pub(super) async fn comic_project_progress_by_project(
     db: &DatabaseConnection,
@@ -20,28 +19,24 @@ pub(super) async fn comic_project_progress_by_project(
     }
     let rows = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(
-            chapter_manga_prompt::Column::PromptType
-                .is_in([MANGA_PAGE_PROMPT_TYPE, PIPELINE_STATUS_PROMPT_TYPE]),
-        )
+        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
         .all(db)
         .await
-        .map_err(|error| {
-            ProjectProgressReadError::database("查询漫画页面与管线提示词失败", error)
-        })?;
+        .map_err(|error| ProjectProgressReadError::database("查询漫画页面提示词失败", error))?;
     let mut counts_by_project: HashMap<i64, ProgressCounts> = HashMap::new();
-    let mut pipeline_by_project: HashMap<i64, PipelineProjectState> = HashMap::new();
     for row in rows {
-        if row.prompt_type == MANGA_PAGE_PROMPT_TYPE {
-            counts_by_project
-                .entry(row.project_id)
-                .or_default()
-                .add(&row.status);
-        } else if row.prompt_type == PIPELINE_STATUS_PROMPT_TYPE {
-            let pipeline = pipeline_by_project.entry(row.project_id).or_default();
-            add_pipeline_layout(pipeline, row.layout.as_ref());
-        }
+        counts_by_project
+            .entry(row.project_id)
+            .or_default()
+            .add(&row.status);
     }
+    let mut pipeline_by_project = latest_pipeline_states_by_project(
+        db,
+        project_ids,
+        MANGA_PIPELINE_WORKFLOW_KIND,
+        "查询漫画最近流水线失败",
+    )
+    .await?;
     let mut progress = HashMap::with_capacity(project_ids.len());
     for project_id in project_ids {
         progress.insert(
@@ -53,31 +48,6 @@ pub(super) async fn comic_project_progress_by_project(
         );
     }
     Ok(progress)
-}
-
-fn add_pipeline_layout(state: &mut PipelineProjectState, layout: Option<&Value>) {
-    let Some(layout) = layout else {
-        return;
-    };
-    let status = layout
-        .get("pipeline_status")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .unwrap_or_default();
-    match status {
-        "running" => state.running = true,
-        "failed" => state.failed = true,
-        "cancelled" => state.cancelled = true,
-        _ => {}
-    }
-    if state.message.is_none() {
-        state.message = layout
-            .get("message")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|message| !message.is_empty())
-            .map(str::to_string);
-    }
 }
 
 fn comic_project_progress_from_counts(

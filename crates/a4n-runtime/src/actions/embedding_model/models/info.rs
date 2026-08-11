@@ -6,11 +6,9 @@ use a4n_embedding_fastembed::{FastEmbedDownloadInfo, fastembed_model_download_in
 
 use crate::AppState;
 
-#[cfg(feature = "local-embedding")]
-use super::super::contracts::EmbeddingModelDownloadFileSummary;
 use super::super::{
-    contracts::{EmbeddingModelDownloadInfoSummary, EmbeddingModelExecution, EmbeddingModelInput},
-    host_adapter::{embedding_model_execution, required_text},
+    contracts::{EmbeddingModelDownloadInfoSummary, EmbeddingModelInput},
+    host_adapter::required_text,
 };
 
 pub async fn get_embedding_model_download_info(
@@ -18,13 +16,9 @@ pub async fn get_embedding_model_download_info(
     input: EmbeddingModelInput,
 ) -> Result<EmbeddingModelDownloadInfoSummary, AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
-    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
-        return crate::sidecar_clients::embedding_model_operation(
-            state.capabilities(),
-            "download_info",
-            &model,
-        )
-        .await;
+    if state.runtime_profile().uses_sidecars() {
+        return crate::sidecar_clients::embedding_model_download_info(state.capabilities(), &model)
+            .await;
     }
     get_embedding_model_download_info_in_cache(&model, &state.default_fastembed_cache_dir()).await
 }
@@ -56,15 +50,5 @@ fn to_embedding_model_download_info_summary(
         total_size_bytes: info.total_size_bytes,
         downloaded_size_bytes: info.downloaded_size_bytes,
         missing_size_bytes: info.missing_size_bytes,
-        files: info
-            .files
-            .into_iter()
-            .map(|file| EmbeddingModelDownloadFileSummary {
-                path: file.path,
-                size_bytes: file.size_bytes,
-                downloaded_size_bytes: file.downloaded_size_bytes,
-                downloaded: file.downloaded,
-            })
-            .collect(),
     }
 }

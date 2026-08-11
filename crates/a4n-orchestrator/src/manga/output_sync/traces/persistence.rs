@@ -6,11 +6,11 @@ use crate::generation::generation_error;
 
 use super::super::super::OrchestratorContext;
 use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
-use super::contracts::MangaGenerationTraceRecord;
-use super::payload::build_manga_generation_trace_record;
+use super::contracts::MangaPageGenerationTraceRecord;
+use super::payload::build_manga_page_generation_trace_record;
 
 impl OrchestratorContext {
-    pub(in crate::manga::output_sync) async fn record_chapter_manga_prompt_generation_run(
+    pub(in crate::manga::output_sync) async fn record_manga_page_prompt_generation_run(
         &self,
         row: &chapter_manga_prompt::Model,
         trace: MangaPromptGenerationTrace,
@@ -25,8 +25,8 @@ impl OrchestratorContext {
         {
             return Ok(());
         }
-        let MangaGenerationTraceRecord { run, checkpoint } =
-            build_manga_generation_trace_record(row, trace)?;
+        let MangaPageGenerationTraceRecord { run, checkpoint } =
+            build_manga_page_generation_trace_record(row, trace)?;
         a4n_db::generation::record_completed_run_with_checkpoint_transaction(
             self.database.connection(),
             a4n_db::generation::RecordCompletedGenerationRunWithCheckpointInput { run, checkpoint },

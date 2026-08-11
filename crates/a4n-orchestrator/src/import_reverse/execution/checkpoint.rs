@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-pub(super) fn restored_import_reverse_checkpoint(
+pub(in crate::import_reverse) fn restored_import_reverse_checkpoint(
     checkpoint_json: Value,
     prompt_name: &str,
 ) -> Result<Value, AppError> {

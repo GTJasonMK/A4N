@@ -5,7 +5,8 @@ mod projections;
 mod queries;
 
 pub use a4n_api_contract::profile::{
-    ListObjectProfilesInput, ObjectProfileInput, ObjectProfileSummary,
+    ListObjectProfilesInput, ObjectProfileDeleteResult, ObjectProfileInput,
+    ObjectProfileMutationResult, ObjectProfileSummary,
 };
 pub use mutations::*;
 pub use queries::list_object_profiles;

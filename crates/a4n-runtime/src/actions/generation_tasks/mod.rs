@@ -24,8 +24,8 @@ pub async fn cancel_generation_task(
     input: CancelGenerationTaskInput,
 ) -> Result<GenerationTaskHandle, String> {
     state
-        .generation_tasks()
-        .request_cancel(user_id, &input.task_id, input.attempt)
+        .orchestrator()
+        .request_generation_cancel(user_id, &input.task_id, input.attempt)
         .await
         .map_err(|error| error.to_string())
 }
@@ -36,8 +36,8 @@ pub async fn cancel_generation_task_typed(
     input: CancelGenerationTaskInput,
 ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
     state
-        .generation_tasks()
-        .request_cancel(user_id, &input.task_id, input.attempt)
+        .orchestrator()
+        .request_generation_cancel(user_id, &input.task_id, input.attempt)
         .await
 }
 
@@ -48,8 +48,8 @@ pub async fn authorize_generation_task(
     attempt: u32,
 ) -> Result<PersistedGenerationTask, GenerationTaskAccessError> {
     state
-        .generation_tasks()
-        .authorize_task(user_id, task_id, attempt)
+        .orchestrator()
+        .authorize_generation_task(user_id, task_id, attempt)
         .await
 }
 
@@ -66,8 +66,8 @@ pub async fn generation_task_summary(
     attempt: u32,
 ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
     state
-        .generation_tasks()
-        .task_summary(user_id, task_id, attempt)
+        .orchestrator()
+        .generation_task_summary_for_user(user_id, task_id, attempt)
         .await
 }
 
@@ -77,8 +77,8 @@ pub async fn list_active_generation_tasks(
     project_id: Option<i64>,
 ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
     state
-        .generation_tasks()
-        .list_active_summaries(user_id, project_id)
+        .orchestrator()
+        .list_active_generation_task_summaries(user_id, project_id)
         .await
 }
 
@@ -89,8 +89,8 @@ pub async fn list_generation_task_history(
     cursor: Option<GenerationHistoryCursor>,
 ) -> Result<GenerationTaskHistoryPage, GenerationTaskAccessError> {
     let result = state
-        .generation_tasks()
-        .list_history_summaries(user_id, input.project_id, input.limit, cursor)
+        .orchestrator()
+        .list_generation_task_history_summaries(user_id, input.project_id, input.limit, cursor)
         .await?;
     let next_cursor = result
         .next_cursor
@@ -114,6 +114,6 @@ pub fn subscribe_generation_task(
     after_sequence: Option<u64>,
 ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
     state
-        .generation_tasks()
-        .subscribe_task(task, after_sequence)
+        .orchestrator()
+        .subscribe_generation_task(task, after_sequence)
 }

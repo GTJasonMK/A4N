@@ -38,12 +38,11 @@ pub async fn reset_project_generated_data_record(
         .await
         .map_err(ProjectResetDbError::from)?;
 
-    let previous_status = StateValidator::parse_status(&project.status).map_err(|_| {
-        ProjectResetDbError::InvalidState {
+    let previous_status =
+        parse_project_status(&project.status).map_err(|_| ProjectResetDbError::InvalidState {
             current: project.status.clone(),
             operation: "重置项目生成数据".to_string(),
-        }
-    })?;
+        })?;
     let now = Utc::now().naive_utc();
 
     let optimization_cleanup =
@@ -113,18 +112,20 @@ pub async fn reset_project_generated_data_record(
     let updated = active.update(&tx).await?;
     project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, now).await?;
 
-    project_db::insert_project_status_history(
-        &tx,
-        ProjectStatusHistoryInput {
-            project_id,
-            from_status: previous_status.as_str().to_string(),
-            to_status: ProjectStatus::Draft.as_str().to_string(),
-            reason: Some("项目生成数据重置".to_string()),
-            changed_by: Some("system".to_string()),
-            changed_at: now,
-        },
-    )
-    .await?;
+    if previous_status != ProjectStatus::Draft {
+        project_db::insert_project_status_history(
+            &tx,
+            ProjectStatusHistoryInput {
+                project_id,
+                from_status: previous_status,
+                to_status: ProjectStatus::Draft,
+                reason: Some("项目生成数据重置".to_string()),
+                changed_by: Some("system".to_string()),
+                changed_at: now,
+            },
+        )
+        .await?;
+    }
 
     let media_paths = crate::media::schedule_unreferenced_media_cleanup(
         &tx,
@@ -187,7 +188,6 @@ pub async fn reset_project_generated_data_record(
             deleted_task_dependencies: task_cleanup.deleted_task_dependencies,
         },
         previous_status,
-        published_status_change: previous_status != ProjectStatus::Draft,
         media_paths,
     })
 }

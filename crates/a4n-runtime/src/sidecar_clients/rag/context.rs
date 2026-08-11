@@ -13,4 +13,4 @@ pub(crate) use mutations::{
 };
 pub(crate) use scene::{scene_rag_sync_operation_trace_id, workflow_rag_operation_trace_id};
 pub(super) use scope::current_rag_operation_trace_id;
-pub(crate) use scope::scope_rag_operation_trace;
+pub(crate) use scope::{rag_operation_timestamp, scope_rag_operation_trace};

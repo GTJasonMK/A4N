@@ -103,6 +103,22 @@ macro_rules! config_web_id_unit_command {
     };
 }
 
+macro_rules! config_web_caller_id_unit_command {
+    ($name:ident, $action:path $(,)?) => {
+        pub(in crate::routes::commands) async fn $name(
+            state: &$crate::state::ServerState,
+            user_id: i64,
+            args: &serde_json::Value,
+        ) -> Result<serde_json::Value, $crate::routes::commands::ApiError> {
+            let config_id = $crate::routes::commands::i64_arg(args, "configId")?;
+            $action(state.runtime(), user_id, config_id)
+                .await
+                .map_err($crate::routes::commands::ApiError::bad_request)?;
+            Ok(serde_json::Value::Null)
+        }
+    };
+}
+
 macro_rules! config_web_model_discovery_command {
     ($name:ident, $action:path $(,)?) => {
         pub(in crate::routes::commands) async fn $name(
@@ -112,11 +128,8 @@ macro_rules! config_web_model_discovery_command {
         ) -> Result<serde_json::Value, $crate::routes::commands::ApiError> {
             let input: $crate::routes::commands::config_records_actions::ModelDiscoveryInput =
                 $crate::routes::commands::command_input(args, stringify!($name))?;
-            if input.use_saved_api_key {
-                super::shared::require_global_config_admin(state, user_id).await?;
-            }
             $crate::routes::commands::to_value(
-                $action(state.runtime(), input)
+                $action(state.runtime(), user_id, input)
                     .await
                     .map_err($crate::routes::commands::ApiError::bad_request)?,
             )
@@ -124,6 +137,7 @@ macro_rules! config_web_model_discovery_command {
     };
 }
 
+pub(super) use config_web_caller_id_unit_command;
 pub(super) use config_web_id_unit_command;
 pub(super) use config_web_input_command;
 pub(super) use config_web_model_discovery_command;

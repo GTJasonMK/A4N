@@ -1,12 +1,11 @@
 use super::contracts::{CanvasNodeRequestPreview, PreviewCanvasNodeRequestInput};
 use super::fallback::blocked_canvas_node_request_preview;
-use crate::state::CanvasRuntimeFacade;
 use a4n_core::models::canvas::canvas_node;
 use a4n_orchestrator::canvas::CanvasGraphRecordDocument as CanvasGraphDocument;
 use serde_json::json;
 
 pub(super) async fn preview_canvas_llm_node(
-    canvas: &CanvasRuntimeFacade<'_>,
+    canvas: &a4n_orchestrator::OrchestratorContext,
     input: &PreviewCanvasNodeRequestInput,
     node: &canvas_node::Model,
     document: &CanvasGraphDocument,
@@ -30,7 +29,6 @@ pub(super) async fn preview_canvas_llm_node(
         graph_id: input.graph_id,
         node_id: input.node_id,
         node_kind: node.node_kind.clone(),
-        status: "preview".to_string(),
         note: "已构造 LlmTextNode 的 LLM 请求预览；预览不会调用外部模型。".to_string(),
         request: json!({
             "config_id": llm_input.config_id,

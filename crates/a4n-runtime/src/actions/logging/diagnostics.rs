@@ -1,4 +1,4 @@
-use super::contracts::{LogReadResult, ReadLogsInput};
+use super::{LogReadResult, ReadLogsInput};
 use crate::AppState;
 use crate::actions::admin_records::{AdminPermission, require_admin_permission};
 use a4n_core::error::AppError;
@@ -25,8 +25,8 @@ pub async fn log_dir_path_for_admin(
 }
 
 pub fn read_recent_logs(log_dir: &Path, input: ReadLogsInput) -> Result<LogReadResult, String> {
-    let lines = input.lines.unwrap_or(500).min(10_000);
-    let days_ago = input.days_ago.unwrap_or(0);
+    let lines = input.lines.min(10_000);
+    let days_ago = input.days_ago;
     let date = log_date_for_days_ago(chrono::Local::now().date_naive(), days_ago)?;
     let date_str = date.format("%Y-%m-%d").to_string();
     let file_path = log_dir.join(format!("a4n.log.{date_str}"));

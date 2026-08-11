@@ -60,12 +60,12 @@ pub async fn local_download_embedding_model(
     state: State<'_, LocalEmbeddingRuntimeState>,
     input: DownloadEmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
-    let task_id = input
-        .task_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-        .map(ToOwned::to_owned);
+    let DownloadEmbeddingModelInput { model, task_id } = input;
+    let task_id =
+        a4n_runtime::host_api::embedding_model::normalize_optional_embedding_download_task_id(
+            task_id,
+        )
+        .map_err(|err| err.to_string())?;
     let cancel_token = if let Some(task_id) = task_id.as_deref() {
         let token = CancellationToken::new();
         state
@@ -78,7 +78,7 @@ pub async fn local_download_embedding_model(
         None
     };
     let result = a4n_runtime::host_api::embedding_model::download_embedding_model_to_cache(
-        input,
+        EmbeddingModelInput { model },
         state.fastembed_cache_dir(),
         None,
         cancel_token,

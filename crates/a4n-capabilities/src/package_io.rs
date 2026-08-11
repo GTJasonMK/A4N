@@ -1,12 +1,7 @@
 use super::contracts::{CapabilityClient, CapabilityResult, ExportClient, ImportClient};
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_export_core::{
-    ExportRenderJsonInput, ExportRenderJsonOutput, ExportRenderZipInput, ExportRenderZipOutput,
-};
-use a4n_import_core::{
-    ImportNormalizeJsonInput, ImportNormalizeJsonOutput, ImportReadMediaPackageZipInput,
-    ImportReadMediaPackageZipOutput,
-};
+use a4n_export_core::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use a4n_service_protocol::{
     EXPORT_SERVICE_NAME, IMPORT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
 };
@@ -47,15 +42,6 @@ impl CapabilityClient for HttpImportClient {
 
 #[async_trait]
 impl ImportClient for HttpImportClient {
-    async fn normalize_json(
-        &self,
-        request: ServiceRequest<ImportNormalizeJsonInput>,
-    ) -> CapabilityResult<ServiceResponse<ImportNormalizeJsonOutput>> {
-        self.transport
-            .post_typed("/import/normalize_json", request)
-            .await
-    }
-
     async fn read_media_package_zip(
         &self,
         request: ServiceRequest<ImportReadMediaPackageZipInput>,
@@ -105,7 +91,7 @@ impl ExportClient for HttpExportClient {
     async fn render_json(
         &self,
         request: ServiceRequest<ExportRenderJsonInput>,
-    ) -> CapabilityResult<ServiceResponse<ExportRenderJsonOutput>> {
+    ) -> CapabilityResult<ServiceResponse<String>> {
         self.transport
             .post_typed("/export/render_json", request)
             .await

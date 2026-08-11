@@ -10,7 +10,7 @@ pub async fn get_galgame_pipeline_status(
     input: GalgameProjectInput,
 ) -> Result<GalgamePipelineStatusSummary, String> {
     let status = state
-        .galgame()
+        .orchestrator()
         .get_galgame_pipeline_status_for_user_validated(user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;

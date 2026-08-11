@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use a4n_core::error::AppError;
 use a4n_prompt::{
-    engine::{DependencyGraph, PromptEntry, PromptVersion},
+    engine::{PromptCategory, PromptEntry, PromptVersion},
     rendering::PromptRenderer,
 };
 use async_trait::async_trait;
@@ -17,17 +17,8 @@ impl PromptRenderer for OrchestratorContext {
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        self.prompt_render_async(template_name, variables, project_id)
-            .await
+        self.prompt_render_template(template_name, variables, project_id)
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PromptRegistryCategory {
-    pub key: String,
-    pub label: Option<String>,
-    pub order: i32,
-    pub description: Option<String>,
 }
 
 impl OrchestratorContext {
@@ -38,18 +29,6 @@ impl OrchestratorContext {
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
         self.engine.render(template_name, variables, project_id)
-    }
-
-    /// 异步渲染提示词模板（含项目覆盖）。
-    pub(crate) async fn prompt_render_async(
-        &self,
-        template_name: &str,
-        variables: &HashMap<String, serde_json::Value>,
-        project_id: Option<i64>,
-    ) -> Result<String, AppError> {
-        self.engine
-            .render_prompt(template_name, variables, project_id)
-            .await
     }
 
     pub(crate) fn prompt_render_ab(
@@ -118,10 +97,6 @@ impl OrchestratorContext {
         self.engine.validate_variables(template_name, variables)
     }
 
-    pub(crate) fn prompt_dependency_graph(&self) -> DependencyGraph {
-        self.engine.dependency_graph()
-    }
-
     pub(crate) async fn prompt_set_project_override(
         &self,
         project_id: i64,
@@ -141,23 +116,7 @@ impl OrchestratorContext {
         self.engine.remove_project_override(project_id, name).await
     }
 
-    pub(crate) fn prompt_registry_categories(
-        &self,
-    ) -> Result<Vec<PromptRegistryCategory>, AppError> {
-        let registry = self.engine.registry();
-        let registry = registry.read();
-        let mut categories = Vec::with_capacity(registry.categories().len());
-        for (key, value) in registry.categories() {
-            categories.push(PromptRegistryCategory {
-                key: key.clone(),
-                label: value.label.clone(),
-                order: value
-                    .order
-                    .ok_or_else(|| AppError::ConfigError(format!("提示词分类 {key} 缺少 order")))?,
-                description: value.description.clone(),
-            });
-        }
-        categories.sort_by_key(|category| (category.order, category.key.clone()));
-        Ok(categories)
+    pub(crate) fn prompt_categories(&self) -> Result<Vec<PromptCategory>, AppError> {
+        self.engine.categories()
     }
 }

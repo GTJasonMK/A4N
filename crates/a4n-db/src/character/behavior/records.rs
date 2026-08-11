@@ -14,6 +14,7 @@ where
     protagonist_behavior_record::ActiveModel {
         profile_id: Set(input.profile_id),
         chapter_number: Set(input.chapter_number),
+        source_kind: Set(input.source_kind),
         behavior_type: Set(input.behavior_type),
         behavior_description: Set(input.behavior_description),
         original_text: Set(input.original_text),

@@ -1,39 +1,27 @@
+use a4n_core::blueprint_context::{
+    blueprint_character_llm_context, blueprint_model_llm_context,
+    blueprint_relationship_llm_context,
+};
 use a4n_db::import_reverse::ReverseBlueprintContextRows;
 use serde_json::{Value, json};
 
 pub(super) fn existing_blueprint_projection(rows: &ReverseBlueprintContextRows) -> Option<Value> {
-    rows.existing_blueprint.as_ref().map(|blueprint| {
-        json!({
-            "title": blueprint.title,
-            "genre": blueprint.genre,
-            "style": blueprint.style,
-            "tone": blueprint.tone,
-            "target_audience": blueprint.target_audience,
-            "one_sentence_summary": blueprint.one_sentence_summary,
-            "full_synopsis": blueprint.full_synopsis,
-            "world_setting": blueprint.world_setting,
-        })
-    })
+    rows.existing_blueprint
+        .as_ref()
+        .map(blueprint_model_llm_context)
 }
 
 pub(super) fn existing_character_projections(rows: &ReverseBlueprintContextRows) -> Vec<Value> {
     rows.blueprint_characters
         .iter()
-        .map(|character| {
-            json!({
-                "name": character.name,
-                "character_type": character.character_type,
-                "gender": character.gender,
-                "age": character.age,
-                "appearance": character.appearance,
-                "personality": character.personality,
-                "background": character.background,
-                "motivation": character.motivation,
-                "arc_summary": character.arc_summary,
-                "relationship_to_protagonist": character.relationship_to_protagonist,
-                "arc_stages": character.arc_stages,
-            })
-        })
+        .map(blueprint_character_llm_context)
+        .collect()
+}
+
+pub(super) fn existing_relationship_projections(rows: &ReverseBlueprintContextRows) -> Vec<Value> {
+    rows.blueprint_relationships
+        .iter()
+        .map(blueprint_relationship_llm_context)
         .collect()
 }
 

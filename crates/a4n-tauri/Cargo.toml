@@ -24,9 +24,9 @@ required-features = ["video-scrub-e2e-host"]
 
 [dependencies]
 a4n-api-contract = { path = "../a4n-api-contract" }
-anyhow = { workspace = true }
 a4n-core = { path = "../a4n-core" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
+a4n-server = { path = "../a4n-server" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 # Tauri

@@ -8,7 +8,7 @@ pub async fn preview_batch_generate_part_outlines_request(
     input: BatchGeneratePartOutlinesInput,
 ) -> Result<ModelRequestPreview, AppError> {
     state
-        .collaboration()
+        .orchestrator()
         .verify_project_permission(
             input.project_id,
             user_id,
@@ -16,7 +16,7 @@ pub async fn preview_batch_generate_part_outlines_request(
         )
         .await?;
     let all_steps = state
-        .outline()
+        .orchestrator()
         .preview_batch_generate_part_outlines_validated(input)
         .await?;
     outline_preview(

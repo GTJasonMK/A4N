@@ -1,28 +1,6 @@
-use a4n_core::{
-    json_contract::{ensure_object, required_array, required_string},
-    source_spans::reject_deprecated_reference_fields,
-};
+use a4n_core::json_contract::{ensure_object, required_array, required_string};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
-
-pub(in crate::scene_profile::application::parsing) fn reject_deprecated_evidence_fields(
-    value: &Value,
-    path: &str,
-    expected_field: &str,
-) -> Result<(), String> {
-    reject_deprecated_reference_fields(
-        value,
-        path,
-        &[
-            "evidence",
-            "source_text",
-            "original_text",
-            "source_span_ids",
-            "evidence_span_ids",
-        ],
-        expected_field,
-    )
-}
 
 pub(in crate::scene_profile::application::parsing) fn validate_character_refs(
     value: &Value,

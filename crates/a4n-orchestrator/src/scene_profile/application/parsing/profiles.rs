@@ -1,6 +1,6 @@
 use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::{SceneProfileEvidenceRefs, SceneProfileSyncRequestContext};
-use super::validation::{reject_deprecated_evidence_fields, validate_id_in_set};
+use super::validation::validate_id_in_set;
 use crate::scene_profile::{SCENE_TYPES, SceneProfileDraft, normalize_scene_type_value};
 use a4n_core::json_contract::{
     ensure_object, optional_positive_i64, positive_i64_array, reject_unknown_fields,
@@ -26,7 +26,6 @@ pub(super) fn parse_scene_profiles(
     for (index, scene) in scenes.iter().enumerate() {
         let path = format!("scenes[{index}]");
         ensure_object(scene, &path)?;
-        reject_deprecated_evidence_fields(scene, &path, "evidence_anchor_ids")?;
         reject_unknown_fields(
             scene,
             &path,

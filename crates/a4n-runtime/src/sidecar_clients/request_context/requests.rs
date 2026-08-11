@@ -48,6 +48,28 @@ pub(crate) fn pure_transform_service_request(
     )
 }
 
+pub(crate) fn pure_transform_typed_service_request<T: Serialize>(
+    capability_version: impl Into<String>,
+    payload: T,
+    project_id: Option<i64>,
+    root_project_id: Option<i64>,
+) -> Result<ServiceRequest<T>, String> {
+    let request =
+        pure_transform_service_request(capability_version, &payload, project_id, root_project_id)?;
+    Ok(ServiceRequest {
+        request_id: request.request_id,
+        trace_context: request.trace_context,
+        schema_version: request.schema_version,
+        user_id: request.user_id,
+        project_id: request.project_id,
+        root_project_id: request.root_project_id,
+        runtime_config_snapshot: request.runtime_config_snapshot,
+        secret_policy: request.secret_policy,
+        capability_version: request.capability_version,
+        payload,
+    })
+}
+
 pub(crate) fn service_request_with_context(
     mut context: SidecarRequestContext,
     capability_version: impl Into<String>,

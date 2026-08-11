@@ -6,7 +6,7 @@ use a4n_core::{error::AppError, models::project::novel_project};
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 use self::{build::build_asset_dependency_graph, records::AssetGraphRecords};
-use super::{AssetDependencyGraph, load_asset_graph_scope};
+use super::{AssetDependencyGraph, load_asset_graph_scope, scope::AssetGraphScope};
 
 pub use self::detail::asset_dependency_graph_node_detail;
 
@@ -21,9 +21,15 @@ pub async fn asset_dependency_graph(
         .map_err(AppError::Database)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let scope = load_asset_graph_scope(db, project).await?;
-    let records =
-        AssetGraphRecords::load(db, scope.root_project.id, scope.family_project_ids.clone())
-            .await?;
 
-    build_asset_dependency_graph(&scope, &records)
+    asset_dependency_graph_for_scope(db, &scope).await
+}
+
+pub(super) async fn asset_dependency_graph_for_scope(
+    db: &impl ConnectionTrait,
+    scope: &AssetGraphScope,
+) -> Result<AssetDependencyGraph, AppError> {
+    let records =
+        AssetGraphRecords::load(db, scope.root_project.id, &scope.family_project_ids).await?;
+    build_asset_dependency_graph(scope, &records)
 }

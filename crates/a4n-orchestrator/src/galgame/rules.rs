@@ -2,9 +2,9 @@ use a4n_core::error::AppError;
 use serde_json::Value;
 
 use super::{
-    GALGAME_EXPRESSIONS, GalgameLinePresentationDocumentV2, GalgameStagePositionV2,
-    LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION,
-    LINE_TYPE_STAGE_DIRECTION, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN, validate_staged_presentation,
+    GALGAME_EXPRESSIONS, GalgameLinePresentationDocumentV2, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE,
+    LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, SCENE_ENTRY_BRANCH,
+    SCENE_ENTRY_MAIN, validate_staged_presentation,
 };
 
 const LINE_TYPES: &[&str] = &[
@@ -50,43 +50,59 @@ pub(crate) fn validate_and_project_presentation(
     Ok((
         Some(speaker.expression.clone()),
         Some(speaker.pose.clone()),
-        Some(
-            match speaker.position {
-                GalgameStagePositionV2::Left => "left",
-                GalgameStagePositionV2::Center => "center",
-                GalgameStagePositionV2::Right => "right",
-            }
-            .to_string(),
-        ),
+        Some(speaker.position.to_string()),
     ))
+}
+
+pub(crate) fn parse_and_validate_presentation_projection(
+    presentation_json: &Value,
+    speaker_profile_id: Option<i64>,
+    expression: Option<&str>,
+    pose: Option<&str>,
+    position: Option<&str>,
+    context: &str,
+) -> Result<GalgameLinePresentationDocumentV2, AppError> {
+    let presentation =
+        serde_json::from_value::<GalgameLinePresentationDocumentV2>(presentation_json.clone())
+            .map_err(|error| {
+                AppError::InvalidArgument(format!(
+                    "{context} presentation_json 不符合 v2 合同: {error}"
+                ))
+            })?;
+    let projected = validate_and_project_presentation(&presentation, speaker_profile_id, context)?;
+    if expression != projected.0.as_deref()
+        || pose != projected.1.as_deref()
+        || position != projected.2.as_deref()
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "{context} 的演出投影列与 presentation_json 不一致"
+        )));
+    }
+    Ok(presentation)
 }
 
 fn validate_presentation_directives(
     presentation: &GalgameLinePresentationDocumentV2,
     context: &str,
 ) -> Result<(), AppError> {
-    if let Some(importance) = presentation.cg_importance.as_deref()
-        && !["normal", "high", "critical"].contains(&importance)
-    {
-        return Err(AppError::InvalidArgument(format!(
-            "{context}.cg_importance 无效: {importance}"
-        )));
-    }
-    if presentation.cg == Some(true)
-        && presentation
+    if presentation.cg == Some(true) {
+        if presentation
             .cg_note
             .as_deref()
             .is_none_or(|note| note.trim().is_empty())
-    {
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "{context}.cg=true 时 cg_note 不能为空"
+            )));
+        }
+        if presentation.cg_importance.is_none() {
+            return Err(AppError::InvalidArgument(format!(
+                "{context}.cg=true 时 cg_importance 不能为空"
+            )));
+        }
+    } else if presentation.cg_note.is_some() || presentation.cg_importance.is_some() {
         return Err(AppError::InvalidArgument(format!(
-            "{context}.cg=true 时 cg_note 不能为空"
-        )));
-    }
-    if let Some(transition) = presentation.transition.as_deref()
-        && !["cut", "fade", "dissolve"].contains(&transition)
-    {
-        return Err(AppError::InvalidArgument(format!(
-            "{context}.transition 无效: {transition}"
+            "{context}.cg 未启用时不能保留 cg_note/cg_importance"
         )));
     }
     if let Some(scene_index) = presentation.returns_to_scene_index
@@ -144,8 +160,10 @@ pub(crate) fn validate_line_semantics(
     line_type: &str,
     speaker_profile_id: Option<i64>,
     expression: Option<&str>,
+    pose: Option<&str>,
 ) -> Result<(), AppError> {
     let expression = expression.map(str::trim).filter(|value| !value.is_empty());
+    let pose = pose.map(str::trim).filter(|value| !value.is_empty());
     if let Some(expression) = expression
         && !is_valid_galgame_expression(expression)
     {
@@ -159,6 +177,9 @@ pub(crate) fn validate_line_semantics(
         ),
         LINE_TYPE_DIALOGUE | LINE_TYPE_MONOLOGUE if expression.is_none() => Err(
             AppError::InvalidArgument(format!("{line_type} 行绑定角色时必须显式提供 expression")),
+        ),
+        LINE_TYPE_DIALOGUE | LINE_TYPE_MONOLOGUE if pose.is_none() => Err(
+            AppError::InvalidArgument(format!("{line_type} 行绑定角色时必须显式提供 pose")),
         ),
         LINE_TYPE_DIALOGUE | LINE_TYPE_MONOLOGUE => Ok(()),
         _ if speaker_profile_id.is_some() => Err(AppError::InvalidArgument(format!(
@@ -186,16 +207,6 @@ pub(super) fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, 
         Err(AppError::InvalidArgument(format!("{label} 不能为空")))
     } else {
         Ok(value)
-    }
-}
-
-pub(super) fn ensure_json_object(value: &Value, label: &str) -> Result<(), AppError> {
-    if value.is_object() {
-        Ok(())
-    } else {
-        Err(AppError::InvalidArgument(format!(
-            "{label} 必须是 JSON 对象"
-        )))
     }
 }
 

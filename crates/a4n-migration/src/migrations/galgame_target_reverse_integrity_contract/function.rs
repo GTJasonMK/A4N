@@ -161,15 +161,8 @@ BEGIN
                   OR NULLIF(BTRIM(spec.params_json::jsonb #>> '{scene,title}'), '') IS DISTINCT FROM NULLIF(BTRIM(scene.title), '')
                   OR NULLIF(BTRIM(spec.params_json::jsonb #>> '{scene,location}'), '') IS DISTINCT FROM NULLIF(BTRIM(scene.location), '')
                   OR NULLIF(BTRIM(spec.params_json::jsonb #>> '{scene,time_of_day}'), '') IS DISTINCT FROM NULLIF(BTRIM(scene.time_of_day), '')
-                  OR NULLIF(BTRIM(spec.params_json::jsonb ->> 'cg_note'), '') IS DISTINCT FROM COALESCE(
-                      CASE WHEN jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_note') = 'string'
-                           THEN NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_note'), '') END,
-                      CASE WHEN jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_prompt') = 'string'
-                           THEN NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_prompt'), '') END,
-                      CASE WHEN jsonb_typeof(line_row.presentation_json::jsonb -> 'event_cg_note') = 'string'
-                           THEN NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'event_cg_note'), '') END
-                  )
-                  OR COALESCE(NULLIF(BTRIM(spec.params_json::jsonb ->> 'cg_importance'), ''), 'normal') IS DISTINCT FROM COALESCE(NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_importance'), ''), 'normal')
+                  OR NULLIF(BTRIM(spec.params_json::jsonb ->> 'cg_note'), '') IS DISTINCT FROM NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_note'), '')
+                  OR NULLIF(BTRIM(spec.params_json::jsonb ->> 'cg_importance'), '') IS DISTINCT FROM NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_importance'), '')
               )
         ) THEN
             RAISE EXCEPTION 'Galgame CG 生成意图必须随目标行更新或清理';
@@ -215,7 +208,7 @@ BEGIN
                           WHERE line_row.id IS NULL
                              OR line_row.speaker_profile_id IS DISTINCT FROM spec.target_entity_id
                              OR NULLIF(BTRIM(COALESCE(line_row.expression, '')), '') IS DISTINCT FROM NULLIF(BTRIM(spec.params_json::jsonb ->> 'expression'), '')
-                             OR COALESCE(NULLIF(BTRIM(line_row.pose), ''), '') IS DISTINCT FROM COALESCE(NULLIF(BTRIM(spec.params_json::jsonb ->> 'pose'), ''), '')
+                             OR NULLIF(BTRIM(line_row.pose), '') IS DISTINCT FROM NULLIF(BTRIM(spec.params_json::jsonb ->> 'pose'), '')
                              OR script.project_id IS DISTINCT FROM spec.project_id
                              OR script.root_project_id IS DISTINCT FROM spec.root_project_id
                              OR script.source_snapshot_id IS DISTINCT FROM spec.source_snapshot_id

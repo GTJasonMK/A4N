@@ -17,7 +17,7 @@ where
         .ok_or_else(|| BlueprintDbError::NotFound(format!("项目不存在: {}", input.project_id)))?;
     let mut active: novel_project::ActiveModel = project.into();
     active.title = Set(input.title);
-    active.status = Set(input.status);
+    active.status = Set(input.status.as_str().to_string());
     active.target_chapters = Set(input.target_chapters);
     active.total_chapters = Set(input.total_chapters);
     active.chapters_per_part = Set(input.chapters_per_part);

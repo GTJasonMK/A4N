@@ -1,21 +1,14 @@
 use serde::Serialize;
 
-use crate::contracts::{ExportRenderJsonInput, ExportRenderJsonOutput};
+use crate::contracts::ExportRenderJsonInput;
 use crate::errors::ExportRenderError;
 
-pub fn render_json(
-    input: ExportRenderJsonInput,
-) -> Result<ExportRenderJsonOutput, ExportRenderError> {
-    let content = if input.pretty {
-        serde_json::to_string_pretty(&input.payload)?
+pub fn render_json(input: ExportRenderJsonInput) -> Result<String, ExportRenderError> {
+    if input.pretty {
+        Ok(serde_json::to_string_pretty(&input.payload)?)
     } else {
-        serde_json::to_string(&input.payload)?
-    };
-    Ok(ExportRenderJsonOutput {
-        kind: input.kind,
-        content,
-        content_type: "application/json".to_string(),
-    })
+        Ok(serde_json::to_string(&input.payload)?)
+    }
 }
 
 pub fn render_json_manifest_pretty(

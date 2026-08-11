@@ -2,7 +2,7 @@ use a4n_core::{
     error::AppError,
     models::{
         asset::object_profile,
-        character::{character_state_index, protagonist_profile},
+        character::{character_state_index, foreshadowing_index, protagonist_profile},
         scene::scene_profile,
     },
 };
@@ -43,15 +43,68 @@ impl ProjectChapterContextApplication {
 
     async fn sync_analysis_foreshadowing(
         &self,
-        project_id: i64,
-        chapter_number: i32,
+        source: a4n_db::project::ChapterSourceSnapshot,
         drafts: Vec<ForeshadowingAnalysisDraft>,
+        resolved_ids: Vec<i64>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         a4n_db::project::sync_chapter_analysis_foreshadowing(
             self.database.connection(),
-            project_id,
-            chapter_number,
+            source,
             drafts,
+            resolved_ids,
+        )
+        .await
+        .map_err(foreshadowing_db_error_to_app_error)
+    }
+
+    async fn foreshadowing_records_by_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+        a4n_db::project::foreshadowing_records_by_project(self.database.connection(), project_id)
+            .await
+            .map_err(foreshadowing_db_error_to_app_error)
+    }
+
+    async fn create_foreshadowing_record(
+        &self,
+        project_id: i64,
+        input: a4n_db::project::ForeshadowingRecordInput,
+    ) -> Result<foreshadowing_index::Model, AppError> {
+        a4n_db::project::create_foreshadowing_record(self.database.connection(), project_id, input)
+            .await
+            .map_err(foreshadowing_db_error_to_app_error)
+    }
+
+    async fn update_foreshadowing_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+        expected_updated_at: &str,
+        input: a4n_db::project::ForeshadowingRecordInput,
+    ) -> Result<foreshadowing_index::Model, AppError> {
+        a4n_db::project::update_foreshadowing_record(
+            self.database.connection(),
+            project_id,
+            foreshadowing_id,
+            expected_updated_at,
+            input,
+        )
+        .await
+        .map_err(foreshadowing_db_error_to_app_error)
+    }
+
+    async fn delete_foreshadowing_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+        expected_updated_at: &str,
+    ) -> Result<foreshadowing_index::Model, AppError> {
+        a4n_db::project::delete_foreshadowing_record(
+            self.database.connection(),
+            project_id,
+            foreshadowing_id,
+            expected_updated_at,
         )
         .await
         .map_err(foreshadowing_db_error_to_app_error)
@@ -126,6 +179,48 @@ impl ProjectChapterContextApplication {
 }
 
 impl OrchestratorContext {
+    pub async fn foreshadowing_records_by_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+        self.project_chapter_context
+            .foreshadowing_records_by_project(project_id)
+            .await
+    }
+
+    pub async fn create_foreshadowing_record_validated(
+        &self,
+        project_id: i64,
+        input: a4n_db::project::ForeshadowingRecordInput,
+    ) -> Result<foreshadowing_index::Model, AppError> {
+        self.project_chapter_context
+            .create_foreshadowing_record(project_id, input)
+            .await
+    }
+
+    pub async fn update_foreshadowing_record_validated(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+        expected_updated_at: &str,
+        input: a4n_db::project::ForeshadowingRecordInput,
+    ) -> Result<foreshadowing_index::Model, AppError> {
+        self.project_chapter_context
+            .update_foreshadowing_record(project_id, foreshadowing_id, expected_updated_at, input)
+            .await
+    }
+
+    pub async fn delete_foreshadowing_record_validated(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+        expected_updated_at: &str,
+    ) -> Result<foreshadowing_index::Model, AppError> {
+        self.project_chapter_context
+            .delete_foreshadowing_record(project_id, foreshadowing_id, expected_updated_at)
+            .await
+    }
+
     pub(crate) async fn chapter_generation_reference_context_rows(
         &self,
         project_id: i64,
@@ -137,12 +232,12 @@ impl OrchestratorContext {
 
     pub(crate) async fn sync_chapter_analysis_foreshadowing(
         &self,
-        project_id: i64,
-        chapter_number: i32,
+        source: a4n_db::project::ChapterSourceSnapshot,
         drafts: Vec<ForeshadowingAnalysisDraft>,
+        resolved_ids: Vec<i64>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         self.project_chapter_context
-            .sync_analysis_foreshadowing(project_id, chapter_number, drafts)
+            .sync_analysis_foreshadowing(source, drafts, resolved_ids)
             .await
     }
 

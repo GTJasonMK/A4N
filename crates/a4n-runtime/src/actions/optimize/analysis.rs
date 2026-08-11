@@ -1,4 +1,4 @@
-use crate::{AppState, prompt_renderer::RuntimePromptRenderer};
+use crate::AppState;
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizeAnalysisGenerationInput,
 };
@@ -25,7 +25,7 @@ pub async fn start_optimize_analysis_generation_typed(
     input: StartOptimizeAnalysisGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize()
+        .orchestrator()
         .start_optimize_analysis_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -35,7 +35,7 @@ pub async fn start_optimize_analysis_generation_typed(
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
         if let Err(error) = worker_state
-            .optimize()
+            .orchestrator()
             .run_optimize_analysis_generation_task(user_id, input, handle.clone())
             .await
         {
@@ -62,15 +62,15 @@ pub async fn create_optimization_analysis_session(
         permissions.as_ref(),
         input.agent_instruction.as_deref(),
     );
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let session = state
-        .optimize()
+        .orchestrator()
         .create_optimize_analysis_session_for_user_validated(
             user_id,
             input.project_id,
             input.chapter_number,
             &input.name,
-            &prompt_renderer,
+            prompt_renderer,
             &variables,
         )
         .await
@@ -91,13 +91,13 @@ pub async fn prepare_optimization_analysis_session(
         permissions.as_ref(),
         input.agent_instruction.as_deref(),
     );
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     state
-        .optimize()
+        .orchestrator()
         .prepare_optimize_analysis_session_validated(PrepareOptimizeAnalysisApplicationInput {
             user_id,
             session_id,
-            prompt_renderer: &prompt_renderer,
+            prompt_renderer: prompt_renderer,
             variables: &variables,
         })
         .await

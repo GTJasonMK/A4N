@@ -4,15 +4,20 @@ use a4n_queue::priority::TaskProgress as QueueTaskProgress;
 use super::super::super::TaskProgressEventSummary;
 
 pub(in crate::actions::task_records) fn task_progress_event_summary(
+    task_id: &str,
     event: TaskProgressEvent,
 ) -> TaskProgressEventSummary {
     TaskProgressEventSummary {
         id: event.id,
-        task_id: Some(event.task_id),
+        task_id: Some(task_id.to_string()),
         current: event.current,
         total: event.total,
         message: event.message,
-        percent: event.percent,
+        percent: if event.total == 0 {
+            0.0
+        } else {
+            event.current as f32 / event.total as f32 * 100.0
+        },
         meta: event.meta,
         timestamp: event.timestamp,
     }

@@ -44,15 +44,11 @@ where
 {
     validate_positive_i64(project.id, "project_id")
         .map_err(ProjectStatusWriteError::InvalidArgument)?;
-    let to_status = required_text(input.to_status, "to_status")
-        .map_err(ProjectStatusWriteError::InvalidArgument)?;
-    let history_from_status = required_text(input.history_from_status, "from_status")
-        .map_err(ProjectStatusWriteError::InvalidArgument)?;
     let history_reason = required_text(input.history_reason, "reason")
         .map_err(ProjectStatusWriteError::InvalidArgument)?;
 
     let mut active: novel_project::ActiveModel = project.into();
-    active.status = Set(to_status.clone());
+    active.status = Set(input.to_status.as_str().to_string());
     active.updated_at = Set(input.changed_at);
     if input.clear_draft_fields {
         active.raw_blueprint = Set(None);
@@ -64,8 +60,8 @@ where
         db,
         ProjectStatusHistoryInput {
             project_id: updated.id,
-            from_status: history_from_status,
-            to_status,
+            from_status: input.history_from_status,
+            to_status: input.to_status,
             reason: Some(history_reason),
             changed_by: input.changed_by,
             changed_at: input.changed_at,

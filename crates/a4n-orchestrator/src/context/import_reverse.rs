@@ -5,10 +5,7 @@
 
 use a4n_core::error::AppError;
 use a4n_db::DbHandle;
-use a4n_db::import_reverse::{
-    ImportReverseDbError, ReverseBlueprintApplyDraft, ReverseContextRows, ReverseOutlineApplyRow,
-    ReversePartOutlineApplyRow,
-};
+use a4n_db::import_reverse::{ImportReverseDbError, ReverseContextRows};
 
 use super::OrchestratorContext;
 
@@ -39,48 +36,6 @@ impl ImportReverseApplication {
         .await
         .map_err(import_reverse_db_error)
     }
-
-    async fn apply_reverse_blueprint_records_transaction(
-        &self,
-        project_id: i64,
-        draft: ReverseBlueprintApplyDraft,
-    ) -> Result<a4n_db::import_reverse::ReverseBlueprintApplyResult, AppError> {
-        a4n_db::import_reverse::apply_reverse_blueprint_records_transaction(
-            self.connection(),
-            project_id,
-            draft,
-        )
-        .await
-        .map_err(import_reverse_db_error)
-    }
-
-    async fn apply_reverse_outline_records_transaction(
-        &self,
-        project_id: i64,
-        rows: &[ReverseOutlineApplyRow],
-    ) -> Result<usize, AppError> {
-        a4n_db::import_reverse::apply_reverse_outline_records_transaction(
-            self.connection(),
-            project_id,
-            rows,
-        )
-        .await
-        .map_err(AppError::Database)
-    }
-
-    async fn apply_reverse_part_outline_records_transaction(
-        &self,
-        project_id: i64,
-        rows: &[ReversePartOutlineApplyRow],
-    ) -> Result<usize, AppError> {
-        a4n_db::import_reverse::apply_reverse_part_outline_records_transaction(
-            self.connection(),
-            project_id,
-            rows,
-        )
-        .await
-        .map_err(AppError::Database)
-    }
 }
 
 fn import_reverse_db_error(error: ImportReverseDbError) -> AppError {
@@ -88,6 +43,7 @@ fn import_reverse_db_error(error: ImportReverseDbError) -> AppError {
         ImportReverseDbError::Database(error) => AppError::Database(error),
         ImportReverseDbError::NotFound(message) => AppError::NotFound(message),
         ImportReverseDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        ImportReverseDbError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
     }
 }
 
@@ -102,58 +58,25 @@ impl OrchestratorContext {
             .await
     }
 
-    /// 仅供 import_reverse 编排使用。
-    pub(crate) async fn apply_reverse_blueprint_records_transaction(
-        &self,
-        project_id: i64,
-        draft: ReverseBlueprintApplyDraft,
-    ) -> Result<a4n_db::import_reverse::ReverseBlueprintApplyResult, AppError> {
-        self.import_reverse
-            .apply_reverse_blueprint_records_transaction(project_id, draft)
-            .await
-    }
-
-    /// 仅供 import_reverse 编排使用。
-    pub(crate) async fn apply_reverse_outline_records_transaction(
-        &self,
-        project_id: i64,
-        rows: &[ReverseOutlineApplyRow],
-    ) -> Result<usize, AppError> {
-        self.import_reverse
-            .apply_reverse_outline_records_transaction(project_id, rows)
-            .await
-    }
-
-    /// 仅供 import_reverse 编排使用。
-    pub(crate) async fn apply_reverse_part_outline_records_transaction(
-        &self,
-        project_id: i64,
-        rows: &[ReversePartOutlineApplyRow],
-    ) -> Result<usize, AppError> {
-        self.import_reverse
-            .apply_reverse_part_outline_records_transaction(project_id, rows)
-            .await
-    }
-
     /// 导入逆向工程：校验后创建 workflow_run（RUNNING）。
     pub(crate) async fn begin_import_reverse_workflow_validated(
         &self,
         project_id: i64,
         prompt_name: &str,
-        apply: bool,
         content_sample: &str,
         auto_context: bool,
         context_limit: Option<i64>,
+        auto_context_source_sha256: Option<&str>,
         variables: &std::collections::HashMap<String, serde_json::Value>,
         active_task_id: Option<&str>,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let input = crate::import_reverse::import_reverse_workflow_run_input(
             project_id,
             prompt_name,
-            apply,
             content_sample,
             auto_context,
             context_limit,
+            auto_context_source_sha256,
             variables,
             active_task_id,
         )

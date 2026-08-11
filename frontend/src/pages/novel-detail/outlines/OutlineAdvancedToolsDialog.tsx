@@ -18,7 +18,6 @@ interface OutlineAdvancedToolsDialogProps {
   projectId: number;
   parts: PartOutline[];
   outlines: ChapterOutline[];
-  partCount: NumberInputValue;
   chaptersPerPart: NumberInputValue;
   delPartCount: number;
   delChapterCount: number;
@@ -41,7 +40,6 @@ export function OutlineAdvancedToolsDialog({
   projectId,
   parts,
   outlines,
-  partCount,
   chaptersPerPart,
   delPartCount,
   delChapterCount,
@@ -93,7 +91,6 @@ export function OutlineAdvancedToolsDialog({
         <OutlineAdvancedPanel
           projectId={projectId}
           parts={parts}
-          partCount={typeof partCount === "number" ? partCount : null}
           chaptersPerPart={typeof chaptersPerPart === "number" ? chaptersPerPart : null}
           runGeneration={runGeneration}
           disabled={advancedPanelDisabled}
@@ -151,7 +148,7 @@ export function OutlineAdvancedToolsDialog({
               <div className="min-w-0 flex-1">
                 <h3 className="font-medium text-book-text-main">删除最近分部</h3>
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                  从故事末尾删除指定数量的分部，操作前会再次确认。
+                  从故事末尾删除指定数量的分部；范围内章纲会保留为未归属。
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
@@ -196,7 +193,7 @@ export function OutlineAdvancedToolsDialog({
               <div className="min-w-0 flex-1">
                 <h3 className="font-medium text-book-text-main">删除最近章纲</h3>
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                  删除后，对应章节会回到尚未规划的状态。
+                  只删除章纲，不删除已有正文；对应章节会回到尚未规划的状态。
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">

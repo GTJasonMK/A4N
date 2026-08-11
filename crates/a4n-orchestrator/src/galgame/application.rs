@@ -250,8 +250,8 @@ impl OrchestratorContext {
                 chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: None,
-                resumable_only: false,
-                limit: 1,
+                resumable_only: Some(false),
+                limit: Some(1),
             })
             .await?
             .into_iter()
@@ -345,8 +345,8 @@ impl OrchestratorContext {
                 chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
-                resumable_only: false,
-                limit: 1,
+                resumable_only: Some(false),
+                limit: Some(1),
             })
             .await?
             .into_iter()

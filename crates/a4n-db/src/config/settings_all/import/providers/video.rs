@@ -1,14 +1,14 @@
 use super::super::super::types::{
-    SettingsAllConfigImportError, SettingsAllVideoConfigImportRow, settings_all_config_database,
+    SettingsAllConfigImportError, SettingsAllVideoConfigRow, settings_all_config_database,
 };
-use super::defaults::clear_video_defaults;
+use crate::config::{ProviderConfigKind, clear_provider_config_defaults};
 use a4n_core::models::ai::video_gen_config;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 pub(in crate::config::settings_all::import) async fn import_video_config_row<C>(
     db: &C,
-    row: SettingsAllVideoConfigImportRow,
+    row: SettingsAllVideoConfigRow,
     overwrite: bool,
     now: NaiveDateTime,
 ) -> Result<bool, SettingsAllConfigImportError>
@@ -20,13 +20,15 @@ where
         .one(db)
         .await
         .map_err(|source| settings_all_config_database("读取现有视频配置失败", source))?;
+    if row.is_default && (overwrite || existing.is_none()) {
+        clear_provider_config_defaults(db, ProviderConfigKind::Video, None)
+            .await
+            .map_err(|source| settings_all_config_database("清除既有默认视频配置失败", source))?;
+    }
 
     match (existing, overwrite) {
         (Some(_), false) => Ok(false),
         (Some(existing), true) => {
-            if row.is_default {
-                clear_video_defaults(db).await?;
-            }
             video_active_model_for_update(existing.into(), row, now)
                 .update(db)
                 .await
@@ -34,9 +36,6 @@ where
             Ok(true)
         }
         (None, _) => {
-            if row.is_default {
-                clear_video_defaults(db).await?;
-            }
             video_active_model_for_insert(row, now)
                 .insert(db)
                 .await
@@ -48,11 +47,11 @@ where
 
 fn video_active_model_for_update(
     mut active: video_gen_config::ActiveModel,
-    row: SettingsAllVideoConfigImportRow,
+    row: SettingsAllVideoConfigRow,
     now: NaiveDateTime,
 ) -> video_gen_config::ActiveModel {
     active.backend = Set(row.backend);
-    active.base_url = Set(row.base_url);
+    active.base_url = Set(Some(row.base_url));
     active.api_key_encrypted = Set(row.api_key_encrypted);
     active.model = Set(row.model);
     active.max_concurrent = Set(row.max_concurrent);
@@ -70,13 +69,13 @@ fn video_active_model_for_update(
 }
 
 fn video_active_model_for_insert(
-    row: SettingsAllVideoConfigImportRow,
+    row: SettingsAllVideoConfigRow,
     now: NaiveDateTime,
 ) -> video_gen_config::ActiveModel {
     video_gen_config::ActiveModel {
         name: Set(row.name),
         backend: Set(row.backend),
-        base_url: Set(row.base_url),
+        base_url: Set(Some(row.base_url)),
         api_key_encrypted: Set(row.api_key_encrypted),
         model: Set(row.model),
         max_concurrent: Set(row.max_concurrent),

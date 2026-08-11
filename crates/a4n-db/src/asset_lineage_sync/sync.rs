@@ -24,8 +24,7 @@ where
 {
     let manga_prompts = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.is_in(family.project_ids.iter().copied()))
-        .filter(chapter_manga_prompt::Column::PromptType.ne("dsl"))
-        .filter(chapter_manga_prompt::Column::PromptType.ne(PIPELINE_STATUS_PROMPT_TYPE))
+        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
         .order_by_asc(chapter_manga_prompt::Column::Id)
         .all(db)
         .await

@@ -3,7 +3,7 @@ use crate::contracts::{
     CollectionPayload, CompletenessByIdsPayload, DeleteOutput, DeletePayload, EmptyOutput,
     MetadataByFilterPayload, MetadataByIdsPayload, MetadataOutput,
 };
-use crate::protocol::{error_response, result_response, validate_service_request};
+use crate::protocol::{result_response, validate_service_request};
 use a4n_rag_core::vector_store::CompletenessReport;
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -13,7 +13,7 @@ pub(crate) async fn delete_records(
     Json(request): Json<ServiceRequest<DeletePayload>>,
 ) -> Json<ServiceResponse<DeleteOutput>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let store = state.store.clone();
@@ -31,7 +31,7 @@ pub(crate) async fn drop_collection(
     Json(request): Json<ServiceRequest<CollectionPayload>>,
 ) -> Json<ServiceResponse<EmptyOutput>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let collection = request.payload.collection.clone();
     let store = state.store.clone();
@@ -49,7 +49,7 @@ pub(crate) async fn metadata_by_ids(
     Json(request): Json<ServiceRequest<MetadataByIdsPayload>>,
 ) -> Json<ServiceResponse<MetadataOutput>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let result = state
@@ -65,7 +65,7 @@ pub(crate) async fn metadata_by_filter(
     Json(request): Json<ServiceRequest<MetadataByFilterPayload>>,
 ) -> Json<ServiceResponse<MetadataOutput>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let result = state
@@ -81,7 +81,7 @@ pub(crate) async fn completeness_report_by_ids(
     Json(request): Json<ServiceRequest<CompletenessByIdsPayload>>,
 ) -> Json<ServiceResponse<CompletenessReport>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let result = state

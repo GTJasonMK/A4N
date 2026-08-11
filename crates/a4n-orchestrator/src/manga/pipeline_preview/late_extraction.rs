@@ -18,27 +18,19 @@ pub(super) async fn preview_late_extraction(
     early: MangaEarlyExtraction,
 ) -> Result<Option<MangaExtractionPreview>, AppError> {
     let MangaEarlyExtraction {
-        events_out,
         events_json,
         characters_json,
-        speech_out,
         speech_json,
     } = early;
-    let reference_assets = context.reference_assets.clone();
-    let Some((visual_out, visual_json)) =
-        preview_visual(context, steps, &events_out, &events_json, &reference_assets).await?
-    else {
+    let Some(visual_json) = preview_visual(context, steps, &events_json).await? else {
         return Ok(None);
     };
-    let Some((items_out, items_json)) = preview_items(
+    let Some(items_json) = preview_items(
         context,
         steps,
         ItemPreviewInput {
-            speech_out: &speech_out,
             speech_json: &speech_json,
-            visual_out: &visual_out,
             visual_json: &visual_json,
-            reference_assets: &reference_assets,
         },
     )
     .await?
@@ -49,15 +41,10 @@ pub(super) async fn preview_late_extraction(
         context,
         steps,
         SynthesisPreviewInput {
-            events_out: &events_out,
             events_json: &events_json,
-            speech_out: &speech_out,
             speech_json: &speech_json,
-            visual_out: &visual_out,
             visual_json: &visual_json,
-            items_out: &items_out,
             items_json: &items_json,
-            reference_assets: &reference_assets,
         },
     )
     .await?

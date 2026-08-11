@@ -1,7 +1,5 @@
 use super::*;
-use crate::project::{
-    CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG, create_project_record, required_text,
-};
+use crate::project::{CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG, create_project_record};
 use a4n_core::models::project::{novel_project, project_status_history};
 use a4n_domain::project::ProjectStatus;
 use chrono::{Duration, NaiveDate, NaiveDateTime};
@@ -38,26 +36,40 @@ fn project_status_history_summary_maps_fields_and_timestamp() {
         changed_at,
     };
 
-    let summary = project_status_history_summary(item);
+    let summary = project_status_history_summary(item).unwrap();
 
     assert_eq!(summary.id, 9);
-    assert_eq!(summary.project_id, 7);
-    assert_eq!(summary.from_status, "draft");
-    assert_eq!(summary.to_status, "blueprint_ready");
+    assert_eq!(summary.from_status, ProjectStatus::Draft);
+    assert_eq!(summary.to_status, ProjectStatus::BlueprintReady);
     assert_eq!(summary.reason.as_deref(), Some("蓝图生成完成"));
-    assert_eq!(summary.changed_at, changed_at.to_string());
+    assert_eq!(summary.created_at, changed_at.to_string());
 }
 
 #[test]
-fn project_status_history_text_helpers_trim_and_reject_empty_values() {
-    assert_eq!(
-        required_text(" draft ".to_string(), "from_status").unwrap(),
-        "draft"
-    );
-    assert_eq!(
-        required_text("   ".to_string(), "to_status").unwrap_err(),
-        "to_status 不能为空"
-    );
+fn project_status_history_rejects_unknown_persisted_status() {
+    let mut item = project_status_history::Model {
+        id: 9,
+        project_id: 7,
+        from_status: "future".to_string(),
+        to_status: "draft".to_string(),
+        reason: None,
+        changed_by: None,
+        changed_at: naive_datetime(),
+    };
+    assert!(matches!(
+        project_status_history_summary(item.clone()),
+        Err(ProjectStatusReadError::InvalidArgument(message)) if message.contains("future")
+    ));
+    item.from_status = "draft".to_string();
+    item.to_status = "future".to_string();
+    assert!(matches!(
+        project_status_history_summary(item),
+        Err(ProjectStatusReadError::InvalidArgument(message)) if message.contains("future")
+    ));
+}
+
+#[test]
+fn project_status_history_normalizes_optional_actor() {
     assert_eq!(
         normalize_optional_text(Some(" system ".to_string())).as_deref(),
         Some("system")
@@ -129,16 +141,6 @@ async fn project_status_reads_validate_arguments_before_database_access() {
         Err(ProjectStatusReadError::InvalidArgument(message))
             if message == "project_id 必须大于 0"
     ));
-    assert!(matches!(
-        chapter_generation_readiness(&db, 0, 1).await,
-        Err(ProjectStatusReadError::InvalidArgument(message))
-            if message == "project_id 必须大于 0"
-    ));
-    assert!(matches!(
-        chapter_generation_readiness(&db, 1, 0).await,
-        Err(ProjectStatusReadError::InvalidArgument(message))
-            if message == "chapter_number 必须大于 0"
-    ));
 }
 
 #[tokio::test]
@@ -167,8 +169,8 @@ async fn update_project_status_record_updates_project_and_history() {
         &db,
         project,
         UpdateProjectStatusRecordInput {
-            to_status: " draft ".to_string(),
-            history_from_status: " writing ".to_string(),
+            to_status: ProjectStatus::Draft,
+            history_from_status: ProjectStatus::Writing,
             history_reason: " 项目状态回退 ".to_string(),
             changed_by: Some(" system ".to_string()),
             changed_at,

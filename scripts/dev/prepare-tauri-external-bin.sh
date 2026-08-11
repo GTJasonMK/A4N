@@ -20,16 +20,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-SIDECAR_PACKAGES=(
-    "a4n-prompt-service"
-    "a4n-llm-gateway"
-    "a4n-embedding-service"
-    "a4n-rag-service"
-    "a4n-image-service"
-    "a4n-video-service"
-    "a4n-import-service"
-    "a4n-export-service"
-)
+SERVICE_CATALOG="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
+require_command ruby
+sidecar_package_lines="$(ruby -rjson -e 'JSON.parse(File.read(ARGV.fetch(0))).each { |entry| puts entry.fetch("binary") }' "$SERVICE_CATALOG")"
+SIDECAR_PACKAGES=()
+while IFS= read -r package; do
+    [[ -z "$package" ]] || SIDECAR_PACKAGES+=("$package")
+done <<<"$sidecar_package_lines"
+[[ "${#SIDECAR_PACKAGES[@]}" -gt 0 ]] || die "sidecar service catalog 为空"
 TOOL_SPECS=(
     "a4n-cli:a4n"
     "a4n-server:a4n-server"

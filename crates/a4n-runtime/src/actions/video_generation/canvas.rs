@@ -12,7 +12,7 @@ pub async fn preview_canvas_video_request(
 ) -> Result<ModelRequestPreview, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
-        .canvas()
+        .orchestrator()
         .preview_canvas_video_request_validated(input, &host_port)
         .await
         .map_err(|error| error.to_string())?;

@@ -10,7 +10,7 @@ use crate::contracts::{ImageGenerationOutput, ImageProviderPayload};
 use crate::handlers::events::{
     completed_generation_event, event_line, failed_generation_event, progress_generation_event,
 };
-use crate::protocol::{error_response, validate_image_request, validate_model_discovery_request};
+use crate::protocol::{validate_image_request, validate_model_discovery_request};
 
 #[test]
 fn image_generation_events_keep_terminal_payload_and_error_contracts() {
@@ -71,7 +71,7 @@ fn rejects_incompatible_protocol_version_with_trace() {
     let mut request = service_request(image_payload(""), false);
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
     let response: ServiceResponse<()> =
-        error_response(&request, validate_image_request(&request).unwrap_err());
+        request.error_response(validate_image_request(&request).unwrap_err());
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
     let error = response.error.expect("version mismatch error");

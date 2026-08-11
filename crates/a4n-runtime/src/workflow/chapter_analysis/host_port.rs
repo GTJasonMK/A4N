@@ -1,10 +1,8 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter;
 use a4n_orchestrator::{
-    chapter_analysis::ChapterAnalysisHostPort,
-    chapter_content::{ChapterDerivedCleanupHostPort, ChapterOutlineCleanupHostPort},
-    project::ChapterDerivedCleanupArtifacts,
-    scene_profile::SceneProfileSyncHostPort,
+    chapter_analysis::ChapterAnalysisHostPort, chapter_content::ChapterDerivedCleanupHostPort,
+    project::ChapterDerivedCleanupArtifacts, scene_profile::SceneProfileSyncHostPort,
 };
 use async_trait::async_trait;
 
@@ -16,22 +14,22 @@ use crate::{
     state::AppState,
 };
 
-pub(crate) struct RuntimeChapterAnalysisHostPort<'a> {
-    state: &'a AppState,
-    scene_profile: RuntimeSceneProfileSyncHostPort<'a>,
+pub(crate) struct RuntimeChapterAnalysisHostPort {
+    state: AppState,
+    scene_profile: RuntimeSceneProfileSyncHostPort,
 }
 
-impl<'a> RuntimeChapterAnalysisHostPort<'a> {
-    pub(crate) fn new(state: &'a AppState) -> Self {
+impl RuntimeChapterAnalysisHostPort {
+    pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            state,
+            state: state.clone(),
             scene_profile: RuntimeSceneProfileSyncHostPort::new(state),
         }
     }
 }
 
 #[async_trait]
-impl ChapterDerivedCleanupHostPort for RuntimeChapterAnalysisHostPort<'_> {
+impl ChapterDerivedCleanupHostPort for RuntimeChapterAnalysisHostPort {
     fn validate_chapter_cleanup_artifacts(
         &self,
         artifacts: &ChapterDerivedCleanupArtifacts,
@@ -55,7 +53,7 @@ impl ChapterDerivedCleanupHostPort for RuntimeChapterAnalysisHostPort<'_> {
         artifacts: ChapterDerivedCleanupArtifacts,
     ) -> Result<(), AppError> {
         crate::workflow::chapter_cleanup::finish_chapter_derived_cleanup(
-            self.state,
+            &self.state,
             project_id,
             chapter_id,
             chapter_number,
@@ -64,18 +62,7 @@ impl ChapterDerivedCleanupHostPort for RuntimeChapterAnalysisHostPort<'_> {
         .await
         .map_err(host_error)
     }
-}
 
-impl ChapterOutlineCleanupHostPort for RuntimeChapterAnalysisHostPort<'_> {
-    fn active_generation_chapter(&self, project_id: i64, chapter_numbers: &[i32]) -> Option<i32> {
-        self.state
-            .chapter_generation()
-            .active_generation_chapter(project_id, chapter_numbers)
-    }
-}
-
-#[async_trait]
-impl ChapterAnalysisHostPort for RuntimeChapterAnalysisHostPort<'_> {
     async fn sync_chapter_rag_records(
         &self,
         chapter: &chapter::Model,
@@ -85,7 +72,7 @@ impl ChapterAnalysisHostPort for RuntimeChapterAnalysisHostPort<'_> {
             workflow_rag_operation_trace_id(workflow_run_id).map_err(AppError::InvalidArgument)?;
         scope_rag_operation_trace(trace_id, async {
             self.state
-                .rag()
+                .orchestrator()
                 .sync_chapter_rag_records(chapter, chapter_rag_chunking_mode())
                 .await
                 .map(|_| ())
@@ -93,7 +80,10 @@ impl ChapterAnalysisHostPort for RuntimeChapterAnalysisHostPort<'_> {
         })
         .await
     }
+}
 
+#[async_trait]
+impl ChapterAnalysisHostPort for RuntimeChapterAnalysisHostPort {
     fn scene_profile_sync_host_port(&self) -> &dyn SceneProfileSyncHostPort {
         &self.scene_profile
     }

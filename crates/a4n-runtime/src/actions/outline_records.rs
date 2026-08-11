@@ -22,21 +22,23 @@ pub use batch::{
 pub use chapters::{
     delete_latest_chapter_outlines, get_chapter_outlines_pacing, list_chapter_outlines,
     preview_generate_part_chapter_outlines_request, preview_regenerate_chapter_outline_request,
-    update_chapter_outline,
+    save_chapter_outline, update_chapter_outline,
 };
 pub use generation_task::start_outline_generation_typed;
 pub use parts::{
     delete_latest_parts, get_generation_progress, list_parts,
     preview_continue_part_outlines_request, preview_generate_parts_request,
     preview_regenerate_last_part_request, preview_regenerate_part_outline_request,
-    preview_regenerate_parts_request,
+    preview_regenerate_parts_request, save_part_outline,
 };
 pub use types::{
     ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlineSummary,
-    ContinuePartOutlinesInput, GenerateChapterOutlinesByCountInput,
-    GeneratePartChapterOutlinesInput, GeneratePartsInput, GenerationProgressSummary,
-    PartOutlineSummary, RegenerateChapterOutlineInput, RegenerateLastPartInput,
-    RegeneratePartOutlineInput, RegeneratePartsInput, UpdateChapterOutlineInput,
+    ContinuePartOutlinesInput, DeleteLatestOutlineRecordsInput,
+    GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
+    GenerationProgressSummary, OutlineMutationResult, PartOutlineSummary,
+    RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
+    RegeneratePartsInput, SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput,
+    SavePartOutlineResult, UpdateChapterOutlineInput, UpdateChapterOutlineResult,
 };
 
 #[cfg(test)]
@@ -50,3 +52,54 @@ use types::chapter_outline_summary;
 #[cfg(test)]
 mod tests;
 use crate::AppState;
+
+pub async fn sync_outline_materials(
+    state: &AppState,
+    user_id: i64,
+    project_id: i64,
+) -> Result<OutlineMutationResult, AppError> {
+    crate::actions::access::verify_project_editor(state, user_id, project_id).await?;
+    Ok(OutlineMutationResult {
+        warnings: outline_material_sync_warnings(state, project_id).await,
+    })
+}
+
+pub(in crate::actions::outline_records) async fn outline_material_sync_warnings(
+    state: &AppState,
+    project_id: i64,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    for result in [
+        crate::rag_ingest::ingest_outlines_inner(state, project_id, None).await,
+        crate::rag_ingest::ingest_part_outlines_inner(state, project_id, None).await,
+    ] {
+        match result {
+            Ok(stats) => errors.extend(stats.errors),
+            Err(error) => errors.push(error),
+        }
+    }
+    if errors.is_empty() {
+        Vec::new()
+    } else {
+        vec![format!(
+            "大纲检索索引未完全更新：{}。正式资料未受影响，可稍后在项目操作中重新同步",
+            errors.into_iter().take(8).collect::<Vec<_>>().join("；")
+        )]
+    }
+}
+
+pub(in crate::actions::outline_records) fn project_outline_delete_input(
+    input: DeleteLatestOutlineRecordsInput,
+) -> a4n_orchestrator::project::DeleteLatestOutlineRecordsInput {
+    a4n_orchestrator::project::DeleteLatestOutlineRecordsInput {
+        project_id: input.project_id,
+        targets: input
+            .targets
+            .into_iter()
+            .map(|target| a4n_orchestrator::project::OutlineDeleteTarget {
+                id: target.id,
+                expected_updated_at: target.expected_updated_at,
+            })
+            .collect(),
+    }
+}

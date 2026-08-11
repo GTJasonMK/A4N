@@ -75,3 +75,19 @@ pub enum MangaCameraAngleV2 {
     OverShoulder,
     Profile,
 }
+
+impl MangaCameraAngleV2 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EyeLevel => "eye_level",
+            Self::High => "high",
+            Self::Low => "low",
+            Self::TopDown => "top_down",
+            Self::Overhead => "overhead",
+            Self::Dutch => "dutch",
+            Self::Subjective => "subjective",
+            Self::OverShoulder => "over_shoulder",
+            Self::Profile => "profile",
+        }
+    }
+}

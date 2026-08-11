@@ -52,10 +52,6 @@ impl OrchestratorContext {
         let filter = chapter_rag_delete_filter(project_id, chapter_id, chapter_number)?;
         self.delete_rag_records_with_filter(project_id, filter)
             .await
-            .map_err(|error| match error {
-                RagSyncError::Delete { message } => RagSyncError::DeleteChapter { message },
-                error => error,
-            })
     }
 
     async fn delete_rag_records_with_filter(

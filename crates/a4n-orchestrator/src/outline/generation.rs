@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
-    outline::{OutlineGenerationOperation, StartOutlineGenerationInput},
+    outline::{OutlineDeleteTarget, OutlineGenerationOperation, StartOutlineGenerationInput},
 };
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
@@ -49,13 +49,16 @@ impl OrchestratorContext {
                 part_count,
                 chapters_per_part,
                 ..
+            } => {
+                require_optional_positive(*part_count, "part_count")?;
+                require_optional_positive(*chapters_per_part, "chapters_per_part")?;
             }
-            | OutlineGenerationOperation::RegenerateParts {
-                part_count,
+            OutlineGenerationOperation::RegenerateParts {
+                expected_parts,
                 chapters_per_part,
                 ..
             } => {
-                require_optional_positive(*part_count, "part_count")?;
+                validate_expected_part_targets(expected_parts)?;
                 require_optional_positive(*chapters_per_part, "chapters_per_part")?;
             }
             OutlineGenerationOperation::RegenerateLastPart { .. } => {}
@@ -290,14 +293,14 @@ impl OrchestratorContext {
                 Ok("分部大纲已生成")
             }
             OutlineGenerationOperation::RegenerateParts {
-                part_count,
+                expected_parts,
                 chapters_per_part,
                 variables,
             } => {
                 self.regenerate_parts_validated(
                     RegeneratePartsInput {
                         project_id,
-                        part_count,
+                        expected_parts,
                         chapters_per_part,
                         task_id,
                         variables: variables_value(variables),
@@ -498,6 +501,35 @@ fn require_optional_positive(value: Option<i32>, field: &str) -> Result<(), AppE
     Ok(())
 }
 
+fn validate_expected_part_targets(targets: &[OutlineDeleteTarget]) -> Result<(), AppError> {
+    if targets.is_empty() || targets.len() > 1024 {
+        return Err(AppError::InvalidArgument(
+            "expected_parts 数量必须在 1..=1024".to_string(),
+        ));
+    }
+    let mut ids = HashSet::with_capacity(targets.len());
+    for target in targets {
+        if target.id <= 0 {
+            return Err(AppError::InvalidArgument(
+                "expected_parts.id 必须大于 0".to_string(),
+            ));
+        }
+        let expected_updated_at = target.expected_updated_at.trim();
+        if expected_updated_at.is_empty() || expected_updated_at.len() > 64 {
+            return Err(AppError::InvalidArgument(
+                "expected_parts.expected_updated_at 无效".to_string(),
+            ));
+        }
+        if !ids.insert(target.id) {
+            return Err(AppError::InvalidArgument(format!(
+                "expected_parts 包含重复分部: {}",
+                target.id
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn require_positive(value: i32, field: &str) -> Result<(), AppError> {
     if value <= 0 {
         return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
@@ -552,7 +584,10 @@ mod tests {
                 variables: None,
             },
             OutlineGenerationOperation::RegenerateParts {
-                part_count: None,
+                expected_parts: vec![OutlineDeleteTarget {
+                    id: 1,
+                    expected_updated_at: "2026-08-12 00:00:00".to_string(),
+                }],
                 chapters_per_part: None,
                 variables: None,
             },

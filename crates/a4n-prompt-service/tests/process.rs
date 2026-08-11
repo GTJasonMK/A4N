@@ -279,6 +279,7 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
         .await
         .expect("prompt project override should cross the independent process");
     assert_eq!(override_set.status, ServiceStatus::Ok);
+    override_set.payload.expect("override set acknowledgement");
     let overridden = client
         .render(typed_request(request_context(
             "prompt-process-override-render",
@@ -310,6 +311,9 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
         .await
         .expect("prompt project override removal should cross the process");
     assert_eq!(override_removed.status, ServiceStatus::Ok);
+    override_removed
+        .payload
+        .expect("override removal acknowledgement");
 
     finish_sidecar(process, &manager, PROMPT_SERVICE_NAME, addr).await;
 

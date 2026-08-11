@@ -21,7 +21,7 @@ impl VideoRecordLifecycleHostPort for VideoRecordLifecycleHost<'_> {
 
 pub async fn delete_video(state: &AppState, user_id: i64, video_id: i64) -> Result<(), String> {
     let project_ids = state
-        .video()
+        .orchestrator()
         .missing_video_reference_project_ids(video_id)
         .await
         .map_err(app_error_message)?;
@@ -32,7 +32,7 @@ pub async fn delete_video(state: &AppState, user_id: i64, video_id: i64) -> Resu
         access::verify_project_editor_string(state, user_id, project_id).await?;
     }
     state
-        .video()
+        .orchestrator()
         .delete_video_record_validated(&VideoRecordLifecycleHost { state }, video_id)
         .await
         .map_err(app_error_message)

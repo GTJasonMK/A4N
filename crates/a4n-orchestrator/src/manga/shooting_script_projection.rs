@@ -1,4 +1,4 @@
-use a4n_core::shooting_script::{
+use a4n_domain::shooting_script::{
     ChapterShootingScriptV1, ShootingCoverageV1, ShootingPerformanceBeatV1,
 };
 use serde_json::{Value, json};

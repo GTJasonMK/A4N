@@ -29,7 +29,7 @@ crates/
   a4n-orchestrator            业务规则、事务、工作流和能力编排唯一 owner
   a4n-runtime                 provider、文件、进程和 Host API 适配
   a4n-tauri / a4n-server      桌面与 Web host 入口
-  a4n-cli                     无前端 CLI、Agent 合同、Shell、Flow 和 local 生命周期
+  a4n-cli                     无前端 CLI、Agent 合同、Shell 和 local 生命周期
   a4n-migration               数据库迁移
 frontend/
   src/           React 前端源码
@@ -92,7 +92,7 @@ A4N_JWT_SECRET=replace-with-a-long-random-secret \
 A4N_BOOTSTRAP_ADMIN_USERNAME=admin \
 A4N_BOOTSTRAP_ADMIN_EMAIL=admin@example.com \
 A4N_BOOTSTRAP_ADMIN_PASSWORD=replace-with-an-initial-admin-password \
-./scripts/dev/run-web.sh
+./scripts/run.sh --server
 ```
 
 Web 空库首次启动必须提供 `A4N_BOOTSTRAP_ADMIN_USERNAME`、`A4N_BOOTSTRAP_ADMIN_EMAIL`、`A4N_BOOTSTRAP_ADMIN_PASSWORD` 三个变量创建首个管理员；用户表已有账号时不会再次创建。
@@ -131,7 +131,7 @@ npm run build
 ## 无前端 CLI
 
 `a4n` 通过 Server 调用共享 Host API manifest 中与桌面/Web 相同的全部业务命令，并提供稳定的
-JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察、可恢复 Flow 和本地
+JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察和本地
 Server 生命周期管理。完整说明见 [A4N CLI 手册](docs/CLI.md)。
 
 最小启动：

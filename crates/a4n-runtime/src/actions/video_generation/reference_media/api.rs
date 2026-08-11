@@ -9,7 +9,7 @@ pub async fn preview_video_provider_request_by_video_id(
     video_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     let video = state
-        .video()
+        .orchestrator()
         .generated_video_by_id(video_id)
         .await
         .map_err(crate::actions::app_error_message)?
@@ -40,7 +40,7 @@ pub async fn preview_reference_media_video_request(
 ) -> Result<ModelRequestPreview, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
-        .video()
+        .orchestrator()
         .preview_reference_media_video_request_validated(&host_port, input)
         .await
         .map_err(crate::actions::app_error_message)?;

@@ -1577,6 +1577,16 @@ impl OrchestratorContext {
         )
         .await
         .map_err(GenerationTaskAccessError::InvalidArgument)?;
+        self.validate_chapter_generation_plan_input(
+            input.project_id,
+            input.chapter_number,
+            input.writing_notes.as_deref(),
+        )
+        .await
+        .map_err(GenerationTaskAccessError::InvalidArgument)?;
+        self.validate_chapter_generation_client_rag_input(&input)
+            .await
+            .map_err(GenerationTaskAccessError::InvalidArgument)?;
         self.generation
             .start_chapter_generation_task(user_id, input)
             .await
@@ -2201,14 +2211,15 @@ fn generation_task_handle(snapshot: &GenerationTaskSnapshot) -> GenerationTaskHa
 
 fn chapter_generation_input_fingerprint(input: &StartChapterGenerationInput) -> Value {
     serde_json::json!({
-        "version": 1,
+        "version": 2,
         "task_kind": "chapter_generation",
         "project_id": input.project_id,
         "chapter_number": input.chapter_number,
         "writing_notes": input.writing_notes,
         "min_word_count": input.min_word_count,
         "max_word_count": input.max_word_count,
-        "client_rag_context": input.client_rag_context,
+        "client_rag_embedding_identity": input.client_rag_embedding_identity,
+        "client_rag_query_fingerprint": input.client_rag_query_fingerprint,
     })
 }
 

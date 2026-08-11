@@ -4,22 +4,6 @@ use serde_json::Value;
 
 use super::ApiError;
 
-pub(in crate::routes::commands) fn verify_user_arg(
-    args: &Value,
-    authenticated_user_id: i64,
-) -> Result<(), ApiError> {
-    let Some(value) = args.get("userId") else {
-        return Ok(());
-    };
-    let Some(user_id) = value.as_i64() else {
-        return Err(ApiError::bad_request("userId 必须是整数"));
-    };
-    if user_id != authenticated_user_id {
-        return Err(ApiError::forbidden("请求用户与登录用户不一致"));
-    }
-    Ok(())
-}
-
 pub(in crate::routes::commands) fn required_arg<'a>(
     args: &'a Value,
     key: &str,

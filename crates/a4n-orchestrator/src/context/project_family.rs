@@ -1,8 +1,6 @@
-use a4n_core::{
-    error::AppError, event::bridge::InternalEvent, models::project::novel_project,
-    state::status::ProjectStatus,
-};
+use a4n_core::{error::AppError, event::bridge::InternalEvent, models::project::novel_project};
 use a4n_db::DbHandle;
+use a4n_domain::project::ProjectStatus;
 use chrono::{Duration, Utc};
 
 use super::OrchestratorContext;
@@ -736,11 +734,11 @@ impl OrchestratorContext {
             .project_family
             .reset_project_generated_data(project_id)
             .await?;
-        if outcome.published_status_change {
+        if outcome.previous_status != ProjectStatus::Draft {
             self.publish_internal_event(InternalEvent::ProjectStatusChanged {
                 project_id,
-                from: outcome.previous_status.as_str().to_string(),
-                to: ProjectStatus::Draft.as_str().to_string(),
+                from: outcome.previous_status,
+                to: ProjectStatus::Draft,
                 timestamp: Utc::now().naive_utc(),
             })?;
         }

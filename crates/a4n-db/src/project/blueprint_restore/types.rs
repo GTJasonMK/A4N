@@ -8,10 +8,10 @@ pub struct BlueprintRestoreResult {
     pub restored_at: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlueprintRestoreStatusChange {
-    pub from: String,
-    pub to: String,
+    pub from: ProjectStatus,
+    pub to: ProjectStatus,
     pub changed_at: NaiveDateTime,
 }
 

@@ -5,15 +5,14 @@ import { shouldUseHttpBackend } from "../utils/runtimeMode";
 /**
  * 后端主题（theme_config 表）应用到 DOM 的工具
  *
- * 这里也是 App 启动时加载已激活主题的统一入口；用 CustomEvent 通知 Layout
- * 同步暗色/亮色状态（Layout 内的 isDark 由便携前端状态持久化）。
+ * 这里也是 App 启动时加载已激活主题的统一入口；CustomEvent 用于通知画布等
+ * 非 React 主题消费者重新读取 CSS 变量。
  */
 export const THEME_APPLIED_EVENT = "a4n:theme-applied";
-export const THEME_MODE_STORAGE_KEY = "a4n-theme-mode";
 
 const appliedThemeVariables = new Set<string>();
 
-export interface ThemeAppliedDetail {
+interface ThemeAppliedDetail {
   mode: ThemeMode | null;
 }
 
@@ -26,18 +25,16 @@ function dispatchThemeApplied(detail: ThemeAppliedDetail): void {
 }
 
 function clearAppliedThemeVariables(): void {
-  if (appliedThemeVariables.size === 0) return;
-
   const root = document.documentElement;
   for (const key of appliedThemeVariables) root.style.removeProperty(key);
   appliedThemeVariables.clear();
+  root.classList.remove("dark");
 
   dispatchThemeApplied({ mode: null });
 }
 
 /**
  * 把后端 Theme 的 css_variables 写入 :root.style，并按 mode 切换 .dark 类。
- * dispatch THEME_APPLIED_EVENT，让 App.tsx 的 Layout 同步 isDark。
  */
 export function applyActiveTheme(theme: Theme): void {
   const root = document.documentElement;
@@ -59,7 +56,10 @@ export function applyActiveTheme(theme: Theme): void {
   dispatchThemeApplied({ mode: theme.mode });
 }
 
-function selectActiveTheme(themes: Theme[], userId?: number | null): Theme | null {
+function selectActiveTheme(
+  themes: Theme[],
+  userId?: number | null,
+): Theme | null {
   if (userId != null) {
     const userTheme = themes.find((t) => t.is_active && t.user_id === userId);
     if (userTheme) return userTheme;
@@ -68,7 +68,9 @@ function selectActiveTheme(themes: Theme[], userId?: number | null): Theme | nul
 }
 
 /** 应用启动时调用：拉取主题列表，优先应用当前用户的 active 主题，否则应用全局 active 主题。 */
-export async function loadAndApplyActiveTheme(userId?: number | null): Promise<void> {
+export async function loadAndApplyActiveTheme(
+  userId?: number | null,
+): Promise<void> {
   if (shouldUseHttpBackend() && !readCurrentAccessToken()) {
     clearAppliedThemeVariables();
     return;
@@ -83,7 +85,5 @@ export async function loadAndApplyActiveTheme(userId?: number | null): Promise<v
   const active = selectActiveTheme(themes, userId);
   if (active) {
     applyActiveTheme(active);
-  } else {
-    clearAppliedThemeVariables();
   }
 }

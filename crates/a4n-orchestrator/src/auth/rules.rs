@@ -1,7 +1,6 @@
 //! 认证 Host 输入的纯校验规则（无 DB）。
 
 use a4n_core::error::AppError;
-use serde::{Deserialize, Deserializer};
 
 /// 调用方必须操作自身用户资源。
 pub fn ensure_same_user(
@@ -14,30 +13,6 @@ pub fn ensure_same_user(
     } else {
         Err(AppError::Forbidden(message.to_string()))
     }
-}
-
-/// 资料邮箱更新：缺省表示不改；显式 null 非法；Some 取引用。
-pub fn profile_email_update(email: Option<&Option<String>>) -> Result<Option<&str>, AppError> {
-    match email {
-        None => Ok(None),
-        Some(Some(email)) => Ok(Some(email.as_str())),
-        Some(None) => Err(AppError::InvalidArgument("email 不能为空".into())),
-    }
-}
-
-/// 登出必须同时具备有效 user_id 与非空 session_id。
-pub fn required_logout_identity(
-    user_id: Option<i64>,
-    session_id: Option<&str>,
-) -> Result<(i64, String), AppError> {
-    let user_id = user_id
-        .filter(|id| *id > 0)
-        .ok_or_else(|| AppError::InvalidArgument("登出缺少有效用户 ID".into()))?;
-    let session_id = session_id
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-        .ok_or_else(|| AppError::InvalidArgument("登出缺少会话 ID".into()))?;
-    Ok((user_id, session_id.to_string()))
 }
 
 /// 会话操作要求正数 user_id。
@@ -59,17 +34,6 @@ pub fn required_session_id(session_id: &str, operation: &str) -> Result<String, 
     } else {
         Ok(session_id.to_string())
     }
-}
-
-/// serde：区分「字段缺席」与「字段为 null」的更新语义。
-pub fn deserialize_nullable_update_field<'de, D, T>(
-    deserializer: D,
-) -> Result<Option<Option<T>>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 /// OAuth2 授权码 trim 后非空。
@@ -100,15 +64,6 @@ mod tests {
         let error = ensure_same_user(1, 2, "只能操作当前登录用户").expect_err("cross");
         assert!(matches!(error, AppError::Forbidden(_)));
         assert!(ensure_same_user(1, 1, "ok").is_ok());
-    }
-
-    #[test]
-    fn required_logout_identity_requires_both() {
-        assert!(required_logout_identity(None, Some("s")).is_err());
-        assert!(required_logout_identity(Some(0), Some("s")).is_err());
-        assert!(required_logout_identity(Some(1), Some("  ")).is_err());
-        let (uid, sid) = required_logout_identity(Some(3), Some(" abc ")).unwrap();
-        assert_eq!((uid, sid.as_str()), (3, "abc"));
     }
 
     #[test]

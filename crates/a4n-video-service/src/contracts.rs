@@ -37,12 +37,6 @@ pub(crate) struct VideoGenerationOutput {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct ProviderProbeOutput {
-    pub(crate) ok: bool,
-    pub(crate) request_preview: Value,
-}
-
-#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub(crate) enum VideoJobOutput {
     Pending,

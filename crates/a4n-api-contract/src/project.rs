@@ -4,9 +4,11 @@ use serde_json::Value;
 
 use crate::collaboration::ProjectAccessRole;
 pub use a4n_domain::project::{
+    AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
+    AssetLineageRecord, AssetLineageRef, GenerationInputSource, GenerationRunSnapshot,
     ProjectProgressStatus, ProjectProgressSummary, ProjectRollbackImpactSummary,
     ProjectRollbackPreview, ProjectStatus, ProjectStatusHistorySummary,
-    ProjectStatusMachineSummary,
+    ProjectStatusMachineSummary, PromptSource,
 };
 
 #[derive(Serialize, JsonSchema)]
@@ -69,6 +71,13 @@ pub struct CreateDerivedProjectInput {
     pub start_chapter: i32,
     pub end_chapter: i32,
     pub creation_options: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DuplicateProjectInput {
+    pub project_id: i64,
+    pub new_title: String,
 }
 
 #[derive(Deserialize, JsonSchema)]

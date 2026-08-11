@@ -1,7 +1,7 @@
 use std::fmt;
 
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const PROJECT_KIND_GALGAME: &str = "galgame";
 pub const SCENE_ENTRY_MAIN: &str = "main";
@@ -17,7 +17,6 @@ pub const GALGAME_TARGET_PORTRAIT_EXPRESSION: &str = "portrait_expression";
 pub const GALGAME_ENTITY_SCENE: &str = "galgame_scene";
 pub const GALGAME_ENTITY_LINE: &str = "galgame_line";
 pub const GALGAME_ENTITY_CHARACTER_PROFILE: &str = "character_profile";
-pub const GALGAME_CG_IMPORTANCE: &[&str] = &["normal", "high", "critical"];
 pub const GALGAME_EXPRESSIONS: &[&str] = &[
     "neutral",
     "smile",
@@ -393,6 +392,7 @@ pub struct GalgameLinePresentationV2 {
     pub visible_cast: Vec<GalgameVisibleCastMemberV2>,
     pub enter: Vec<i64>,
     pub exit: Vec<i64>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub focus_character_profile_id: Option<i64>,
     pub hold: bool,
     pub player_knowledge: Vec<String>,
@@ -405,17 +405,34 @@ pub struct GalgameLinePresentationDocumentV2 {
     pub visible_cast: Vec<GalgameVisibleCastMemberV2>,
     pub enter: Vec<i64>,
     pub exit: Vec<i64>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub focus_character_profile_id: Option<i64>,
     pub hold: bool,
     pub player_knowledge: Vec<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub cg: Option<bool>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub cg_note: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub cg_importance: Option<GalgameCgImportance>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub transition: Option<GalgameTransition>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub branch: Option<bool>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub branch_id: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub returns_to_scene_index: Option<i32>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub after_beat_ref: Option<GalgamePipelineBeatRefV3>,
+}
+
+fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
 }
 
 impl GalgameLinePresentationDocumentV2 {
@@ -428,6 +445,28 @@ impl GalgameLinePresentationDocumentV2 {
             focus_character_profile_id: self.focus_character_profile_id,
             hold: self.hold,
             player_knowledge: self.player_knowledge.clone(),
+        }
+    }
+}
+
+impl From<GalgameLinePresentationV2> for GalgameLinePresentationDocumentV2 {
+    fn from(presentation: GalgameLinePresentationV2) -> Self {
+        Self {
+            schema_version: presentation.schema_version,
+            visible_cast: presentation.visible_cast,
+            enter: presentation.enter,
+            exit: presentation.exit,
+            focus_character_profile_id: presentation.focus_character_profile_id,
+            hold: presentation.hold,
+            player_knowledge: presentation.player_knowledge,
+            cg: None,
+            cg_note: None,
+            cg_importance: None,
+            transition: None,
+            branch: None,
+            branch_id: None,
+            returns_to_scene_index: None,
+            after_beat_ref: None,
         }
     }
 }
@@ -525,4 +564,55 @@ pub fn galgame_pipeline_stage_keys() -> Vec<&'static str> {
         .into_iter()
         .map(GalgamePipelineStartStage::key)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GalgameLinePresentationDocumentV2;
+    use serde_json::json;
+
+    #[test]
+    fn presentation_document_requires_nullable_wire_fields() {
+        let canonical = json!({
+            "schema_version": "galgame_line_presentation_v2",
+            "visible_cast": [],
+            "enter": [],
+            "exit": [],
+            "focus_character_profile_id": null,
+            "hold": false,
+            "player_knowledge": [],
+            "cg": null,
+            "cg_note": null,
+            "cg_importance": null,
+            "transition": null,
+            "branch": null,
+            "branch_id": null,
+            "returns_to_scene_index": null,
+            "after_beat_ref": null
+        });
+
+        serde_json::from_value::<GalgameLinePresentationDocumentV2>(canonical.clone())
+            .expect("canonical presentation");
+        for field in [
+            "focus_character_profile_id",
+            "cg",
+            "cg_note",
+            "cg_importance",
+            "transition",
+            "branch",
+            "branch_id",
+            "returns_to_scene_index",
+            "after_beat_ref",
+        ] {
+            let mut missing = canonical.clone();
+            missing
+                .as_object_mut()
+                .expect("presentation object")
+                .remove(field);
+            assert!(
+                serde_json::from_value::<GalgameLinePresentationDocumentV2>(missing).is_err(),
+                "missing {field} must fail"
+            );
+        }
+    }
 }

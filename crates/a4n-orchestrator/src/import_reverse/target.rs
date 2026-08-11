@@ -1,8 +1,8 @@
 use a4n_core::config::app_config::llm_token_profiles;
 use a4n_core::import_reverse::ReverseContextKind;
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReverseEngineeringTarget {
     Blueprint,
     Outline,
@@ -10,6 +10,15 @@ pub enum ReverseEngineeringTarget {
 }
 
 impl ReverseEngineeringTarget {
+    pub(crate) fn from_prompt_name(value: &str) -> Option<Self> {
+        match value {
+            "reverse_blueprint" => Some(Self::Blueprint),
+            "reverse_outline" => Some(Self::Outline),
+            "reverse_part_outline" => Some(Self::PartOutline),
+            _ => None,
+        }
+    }
+
     pub(crate) fn context_kind(self) -> ReverseContextKind {
         match self {
             Self::Blueprint => ReverseContextKind::Blueprint,
@@ -57,25 +66,19 @@ impl ReverseEngineeringTarget {
         }
     }
 
-    pub fn initial_message(self, apply: bool) -> &'static str {
-        match (self, apply) {
-            (Self::Blueprint, false) => "正在准备反推蓝图",
-            (Self::Blueprint, true) => "正在准备反推蓝图并应用",
-            (Self::Outline, false) => "正在准备反推章节大纲",
-            (Self::Outline, true) => "正在准备反推章节大纲并应用",
-            (Self::PartOutline, false) => "正在准备反推分部大纲",
-            (Self::PartOutline, true) => "正在准备反推分部大纲并应用",
+    pub fn initial_message(self) -> &'static str {
+        match self {
+            Self::Blueprint => "正在准备蓝图归纳",
+            Self::Outline => "正在准备章节大纲候选",
+            Self::PartOutline => "正在准备分部大纲候选",
         }
     }
 
-    pub fn success_message(self, apply: bool) -> &'static str {
-        match (self, apply) {
-            (Self::Blueprint, false) => "反推蓝图完成",
-            (Self::Blueprint, true) => "反推蓝图结果已应用",
-            (Self::Outline, false) => "反推章节大纲完成",
-            (Self::Outline, true) => "反推章节大纲结果已应用",
-            (Self::PartOutline, false) => "反推分部大纲完成",
-            (Self::PartOutline, true) => "反推分部大纲结果已应用",
+    pub fn success_message(self) -> &'static str {
+        match self {
+            Self::Blueprint => "蓝图已归纳并写入正式资料",
+            Self::Outline => "章节大纲候选已生成",
+            Self::PartOutline => "分部大纲候选已生成",
         }
     }
 
@@ -111,19 +114,11 @@ impl ReverseEngineeringTarget {
         }
     }
 
-    pub(crate) fn applying_message(self) -> &'static str {
+    pub(crate) fn ready_message(self) -> &'static str {
         match self {
-            Self::Blueprint => "正在应用反推蓝图结果",
-            Self::Outline => "正在应用反推章节大纲结果",
-            Self::PartOutline => "正在应用反推分部大纲结果",
-        }
-    }
-
-    pub(crate) fn applied_message(self) -> &'static str {
-        match self {
-            Self::Blueprint => "反推蓝图结果已应用",
-            Self::Outline => "反推章节大纲结果已应用",
-            Self::PartOutline => "反推分部大纲结果已应用",
+            Self::Blueprint => "蓝图已归纳并写入正式资料",
+            Self::Outline => "章节大纲候选已生成，等待用户确认",
+            Self::PartOutline => "分部大纲候选已生成，等待用户确认",
         }
     }
 

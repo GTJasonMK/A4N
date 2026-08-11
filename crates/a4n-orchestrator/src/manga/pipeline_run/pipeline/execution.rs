@@ -1,18 +1,16 @@
+use std::collections::HashMap;
+
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_manga_prompt;
-use serde_json::{Map, json};
+use serde_json::json;
 
 use crate::shooting_script::ChapterShootingScriptSourceInput;
 use a4n_core::source_spans::source_spans_for_content;
 
 use super::super::super::pipeline_prompt::manga_pipeline_prompt_fingerprint;
-use super::super::super::pipeline_status::MangaPipelineStatusInput;
-use super::super::super::reference_assets::{
-    character_portraits_json, format_character_portrait_context, manga_reference_assets_metadata,
-};
-use super::super::super::{
-    MangaGeneratePanelsInput, MangaPipelineStartStage, OrchestratorContext, PIPELINE_TOTAL_STEPS,
-};
+use super::super::super::pipeline_state::manga_pipeline_stage_status;
+use super::super::super::reference_assets::manga_reference_assets_json;
+use super::super::super::{MangaGeneratePagePromptsInput, MangaPipelineStage, OrchestratorContext};
 use super::super::completion::complete_pipeline;
 use super::super::contracts::MangaRunContext;
 use super::super::early_extraction::run_early_extraction;
@@ -20,20 +18,18 @@ use super::super::late_extraction::run_late_extraction;
 use super::super::planning::run_planning;
 
 impl OrchestratorContext {
-    pub(super) async fn generate_panels_inner(
+    pub(crate) async fn generate_page_prompts(
         &self,
-        input: MangaGeneratePanelsInput<'_>,
+        input: MangaGeneratePagePromptsInput<'_>,
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
-        let MangaGeneratePanelsInput {
+        let MangaGeneratePagePromptsInput {
             chapter_id,
             project_id,
             prompt_renderer,
-            variables,
             reference_context,
             task_id,
             workflow_run_id,
             resume_from_checkpoint,
-            start_from_stage,
         } = input;
         self.ensure_media_workflow_v2_ready(project_id).await?;
         let script_context = self
@@ -65,49 +61,22 @@ impl OrchestratorContext {
             "shooting_script_revision": script_context.shooting_script.record.revision,
             "shooting_script_sha256": script_context.shooting_script.record.script_sha256,
         });
-        if !resume_from_checkpoint && start_from_stage.is_none() {
-            self.clear_pipeline_checkpoint(project_id, chapter_id)
-                .await?;
-        }
-        let (initial_stage, initial_current, initial_message) = match start_from_stage {
-            Some(stage) => stage.status(),
-            None => MangaPipelineStartStage::CharacterBinding.status(),
-        };
-        self.set_pipeline_status(MangaPipelineStatusInput {
-            chapter_id,
-            project_id,
-            pipeline_status: "running",
-            stage: initial_stage,
-            current: initial_current,
-            total: PIPELINE_TOTAL_STEPS,
-            message: initial_message,
+        let (initial_stage, initial_current, initial_message) =
+            manga_pipeline_stage_status(MangaPipelineStage::CharacterBinding);
+        self.record_manga_pipeline_progress(
+            workflow_run_id,
             task_id,
-            allow_cancel_override: true,
-        })
+            initial_stage,
+            initial_current,
+            initial_message,
+        )
         .await?;
-        self.ensure_pipeline_not_cancelled(project_id, chapter_id)
-            .await?;
 
-        let mut vars = variables.clone();
-        vars.insert("chapter_content".into(), json!(&chapter_content));
-        vars.insert(
-            "source_content_sha256".into(),
-            json!(&script_context.source.content_sha256),
-        );
-        let character_portraits = character_portraits_json(&reference_context.character_portraits);
-        vars.insert("character_portraits".into(), character_portraits.clone());
-        vars.insert(
-            "character_portrait_count".into(),
-            json!(reference_context.character_portraits.len()),
-        );
-        let character_portrait_context = format_character_portrait_context(&reference_context);
-        let reference_assets = json!({
-            "character_portraits": character_portraits,
-            "character_portrait_summary": character_portrait_context,
-        });
-        let reference_assets_metadata = manga_reference_assets_metadata(&reference_context);
+        let variables = HashMap::new();
+        let reference_assets = manga_reference_assets_json(&reference_context.character_portraits);
+        let reference_assets_metadata = reference_assets.clone();
         let prompt_fingerprint =
-            manga_pipeline_prompt_fingerprint(prompt_renderer, project_id, &vars).await?;
+            manga_pipeline_prompt_fingerprint(prompt_renderer, project_id, &variables).await?;
         let context = MangaRunContext {
             service: self,
             chapter_id,
@@ -117,19 +86,17 @@ impl OrchestratorContext {
             task_id,
             workflow_run_id,
             resume_from_checkpoint,
-            start_from_stage,
             chapter_content,
             source_spans,
-            variables: vars,
+            variables,
             reference_assets,
             source_metadata,
             reference_assets_metadata,
             prompt_fingerprint,
         };
-        let mut checkpoint = Map::new();
-        let early = run_early_extraction(&context, &mut checkpoint).await?;
-        let extraction = run_late_extraction(&context, &mut checkpoint, early).await?;
-        let planning = run_planning(&context, &mut checkpoint, extraction).await?;
-        complete_pipeline(&context, &mut checkpoint, planning).await
+        let early = run_early_extraction(&context).await?;
+        let extraction = run_late_extraction(&context, early).await?;
+        let planning = run_planning(&context, extraction).await?;
+        complete_pipeline(&context, planning).await
     }
 }

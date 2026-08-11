@@ -20,7 +20,6 @@ mod tests {
     use a4n_llm::provider::MessageRole;
     use serde_json::json;
 
-    use crate::engine::PromptEngine;
     use crate::tera_engine::TeraPromptEngine;
 
     use super::*;

@@ -13,6 +13,11 @@ pub(in crate::config::settings_all) fn ensure_single_default_after_import<T>(
     let mut result = existing.to_vec();
     let existing_default_count = result.iter().filter(|row| row.is_default).count();
     let incoming_default_count = incoming.iter().filter(|row| is_default(*row)).count();
+    if incoming_default_count > 1 {
+        return Err(SettingsAllConfigImportError::InvalidArgument(format!(
+            "全量导入文件只能声明一个{kind}，当前为 {incoming_default_count} 个"
+        )));
+    }
 
     for row in incoming {
         let row_name = name(row);

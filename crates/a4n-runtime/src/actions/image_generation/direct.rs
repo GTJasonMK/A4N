@@ -18,7 +18,7 @@ pub async fn preview_scene_image_request(
 ) -> Result<ModelRequestPreview, String> {
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .media()
+        .orchestrator()
         .prepare_scene_image_request_validated(
             &host,
             user_id,
@@ -56,7 +56,7 @@ pub async fn preview_canvas_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .media()
+        .orchestrator()
         .prepare_canvas_image_request_validated(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
@@ -86,7 +86,7 @@ pub(crate) async fn generate_galgame_image(
     let progress = progress.unwrap_or(&DEFAULT_IMAGE_GENERATION_PROGRESS);
     let host = RuntimeImageGenerationHostPort::new(state);
     state
-        .media()
+        .orchestrator()
         .generate_galgame_image_validated(&host, user_id, input, progress.inner())
         .await
         .map_err(|error| error.to_string())

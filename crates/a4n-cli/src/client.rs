@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use a4n_api_contract::auth::{
-    AuthResult, LoginInput, RefreshTokenInput, RegisterInput, TokenPairSummary, UserSummary,
+    AuthResult, LoginInput, RefreshTokenInput, RegisterInput, RevokeSessionInput, TokenPairSummary,
+    UserSummary,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use reqwest::header::{ACCEPT, HeaderValue};
@@ -267,8 +268,8 @@ impl ApiClient {
         };
         let result = self
             .send_json(routing::command_request(
-                "logout_user",
-                json!({ "sessionId": session_id }),
+                "revoke_session",
+                json!({ "input": RevokeSessionInput { session_id } }),
             )?)
             .await;
         self.clear_auth()?;
@@ -903,12 +904,12 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            client.url("/projects?limit=1").unwrap(),
-            "http://127.0.0.1:8080/a4n/api/projects?limit=1"
+            client.url("/meta?detail=1").unwrap(),
+            "http://127.0.0.1:8080/a4n/api/meta?detail=1"
         );
         assert!(client.url("/../admin").is_err());
         assert!(client.url("/%2e%2e/admin").is_err());
-        assert!(client.url("/projects#credentials").is_err());
+        assert!(client.url("/meta#credentials").is_err());
     }
 
     #[test]
@@ -968,7 +969,7 @@ mod tests {
             write_response(&mut stream, "401 Unauthorized", r#"{"message":"expired"}"#).await;
 
             let (mut stream, refresh) = accept_request(&listener).await;
-            assert!(refresh.starts_with("POST /api/auth/refresh "));
+            assert!(refresh.starts_with("POST /api/commands/refresh_token "));
             assert!(refresh.contains(r#""refresh_token":"refresh""#));
             write_response(
                 &mut stream,
@@ -1055,7 +1056,7 @@ mod tests {
             );
 
             let (mut refresh_stream, refresh) = accept_request(&listener).await;
-            assert!(refresh.starts_with("POST /api/auth/refresh "));
+            assert!(refresh.starts_with("POST /api/commands/refresh_token "));
             assert!(refresh.contains(r#""refresh_token":"refresh""#));
             write_response(
                 &mut refresh_stream,
@@ -1123,7 +1124,7 @@ mod tests {
         let server = format!("http://{}", listener.local_addr().unwrap());
         let server_task = tokio::spawn(async move {
             let (mut stream, request) = accept_request(&listener).await;
-            assert!(request.starts_with("POST /api/auth/logout "));
+            assert!(request.starts_with("POST /api/commands/revoke_session "));
             write_response(
                 &mut stream,
                 "500 Internal Server Error",

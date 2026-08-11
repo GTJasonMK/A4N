@@ -232,6 +232,19 @@ fn inserts_choice_line_from_branch_design() {
     assert_eq!(choice_line.choices[0].option_index, 1);
     assert_eq!(choice_line.choices[0].target_scene_index, 3);
     assert_eq!(choice_line.choices[1].target_scene_index, 4);
+    let choice_presentation = serde_json::from_value::<GalgameLinePresentationDocumentV2>(
+        choice_line.presentation_json.clone(),
+    )
+    .expect("choice presentation must use the complete v2 document");
+    assert_eq!(choice_presentation.branch, Some(true));
+    assert_eq!(
+        choice_presentation.after_beat_ref,
+        Some(GalgamePipelineBeatRefV3 {
+            scene_index: 1,
+            shot_index: 1,
+            beat_index: 1,
+        })
+    );
 
     assert_eq!(plan.scenes[2].scene_index, 3);
     assert_eq!(plan.scenes[2].entry_kind, SCENE_ENTRY_BRANCH);

@@ -25,7 +25,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
             )),
         )
         .route("/image/request_preview", post(discovery::request_preview))
-        .route("/image/probe", post(discovery::probe))
         .route("/image/models", post(discovery::discover_models))
         .layer(DefaultBodyLimit::max(
             policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),

@@ -10,7 +10,7 @@ use super::super::super::{
 
 pub async fn list_active_workflows(state: &AppState) -> Result<Vec<WorkflowStateSummary>, String> {
     let tasks = state
-        .workflow()
+        .orchestrator()
         .persisted_task_history(None, 0, 100)
         .await
         .map_err(app_error_message)?;

@@ -40,6 +40,7 @@ const persistedPrompt = {
   status: "completed",
   generated_video_id: null,
   metadata_json: { segments: [{ segment_number: 1, title: "正式片段" }] },
+  created_at: "2026-07-29T00:00:00Z",
   updated_at: "2026-07-29T00:00:00Z",
 } satisfies ChapterVideoPrompt;
 

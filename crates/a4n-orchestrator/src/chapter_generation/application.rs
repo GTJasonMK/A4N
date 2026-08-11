@@ -18,7 +18,7 @@ use a4n_service_protocol::{
 };
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
@@ -43,13 +43,15 @@ use super::service::{
     generation::checkpoint::{
         ChapterGenerationCheckpointSaveInput, chapter_generation_call_fingerprint_json,
         save_completed_chapter_generation_checkpoint,
+        validate_chapter_generation_source_fingerprint,
     },
 };
 
 use super::{
-    ChapterGenerationWordCountRange, GenerationRagContext, PreparedGenerationRagSearch,
-    merge_generation_outline_text, non_empty_trimmed, required_generation_chapter_title,
-    resolve_generation_word_count_range, upsert_chapter_generation_variables,
+    ChapterGenerationWordCountRange, GenerationRagQueries, PreparedGenerationRagSearch,
+    generation_chapter_title, generation_rag_query_fingerprint, merge_generation_outline_text,
+    non_empty_trimmed, resolve_generation_word_count_range, upsert_chapter_generation_variables,
+    validate_generation_query_vectors, validate_generation_rag_query_fingerprint,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -61,19 +63,11 @@ pub struct PreviewChapterGenerationInput {
     pub max_word_count: Option<i32>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct FinishChapterGenerationRagContextInput {
-    pub project_id: i64,
-    pub chapter_number: i32,
-    pub writing_notes: Option<String>,
-    pub embedding_identity: EmbeddingModelIdentity,
-    pub query_vectors: Vec<Vec<f32>>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct PreparedGenerationRagEmbeddingRequest {
     pub query_texts: Vec<String>,
     pub embedding_identity: EmbeddingModelIdentity,
+    pub query_fingerprint: String,
 }
 
 pub struct ChapterGenerationApplicationContext<'a> {
@@ -89,11 +83,38 @@ pub struct ChapterGenerationRequestPreview {
 
 struct PreparedChapterGeneration {
     chapter_title: String,
+    source_outline: Option<chapter_outline::Model>,
     outline_text: String,
     context_before: Option<String>,
     word_count_range: ChapterGenerationWordCountRange,
     use_rag: bool,
     variables: HashMap<String, Value>,
+    source_fingerprint_json: Value,
+    rag_embedding_identity: Option<EmbeddingModelIdentity>,
+}
+
+struct PreparedChapterGenerationSources {
+    chapter_title: String,
+    source_outline: Option<chapter_outline::Model>,
+    writing_instruction: Option<String>,
+    rag_query_outline_text: String,
+    base_outline_text: String,
+    reference_context: Option<String>,
+    context_before: Option<String>,
+    word_count_range: ChapterGenerationWordCountRange,
+}
+
+struct ResolvedChapterGenerationRagContext {
+    text: Option<String>,
+    embedding_identity: Option<EmbeddingModelIdentity>,
+    query_fingerprint: Option<String>,
+}
+
+#[derive(Debug)]
+struct ClientGenerationRagInput {
+    embedding_identity: EmbeddingModelIdentity,
+    query_fingerprint: String,
+    query_vectors: Vec<Vec<f32>>,
 }
 
 struct PrepareChapterGenerationInput<'a> {
@@ -102,7 +123,7 @@ struct PrepareChapterGenerationInput<'a> {
     writing_notes: Option<&'a str>,
     min_word_count: Option<i32>,
     max_word_count: Option<i32>,
-    client_rag_context: Option<&'a str>,
+    client_rag: Option<ClientGenerationRagInput>,
     runtime_embedding_identity: Option<EmbeddingModelIdentity>,
     cancel_token: Option<&'a CancellationToken>,
 }
@@ -115,7 +136,7 @@ impl OrchestratorContext {
         context: ChapterGenerationApplicationContext<'_>,
         input: StartChapterGenerationInput,
         handle: GenerationTaskHandle,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
+        host_port: Arc<dyn ChapterDerivedCleanupHostPort>,
     ) -> Result<(), String> {
         let Some(execution) = self
             .acquire_generation_task_execution(&handle)
@@ -128,6 +149,24 @@ impl OrchestratorContext {
         let cancel_token = execution.permit.cancellation_token();
         let publisher = execution.publisher.clone();
         let chapter_service = self.chapter_generation_service();
+        let client_rag = match client_generation_rag_input(&input) {
+            Ok(client_rag) => client_rag,
+            Err(error) => {
+                return fail_chapter_generation_execution(
+                    self,
+                    &chapter_service,
+                    execution,
+                    None,
+                    None,
+                    generation_error_from_text(
+                        "generation_request_invalid",
+                        "chapter_prepare",
+                        error,
+                    ),
+                )
+                .await;
+            }
+        };
 
         if let Err(error) = publisher
             .progress(chapter_progress(
@@ -177,7 +216,7 @@ impl OrchestratorContext {
                 writing_notes: input.writing_notes.as_deref(),
                 min_word_count: input.min_word_count,
                 max_word_count: input.max_word_count,
-                client_rag_context: input.client_rag_context.as_deref(),
+                client_rag,
                 runtime_embedding_identity: context.runtime_embedding_identity,
                 cancel_token: Some(&cancel_token),
             })
@@ -301,6 +340,7 @@ impl OrchestratorContext {
             let json = chapter_generation_call_fingerprint_json(
                 input.project_id,
                 input.chapter_number,
+                &prepared.source_fingerprint_json,
                 &request,
             )?;
             let sha256 = workflow::llm_call_checkpoint_fingerprint_sha256(&json)
@@ -430,6 +470,53 @@ impl OrchestratorContext {
                 .await;
             }
         };
+        let current_source_fingerprint = match self
+            .current_chapter_generation_source_fingerprint(
+                input.project_id,
+                input.chapter_number,
+                input.writing_notes.as_deref(),
+                input.min_word_count,
+                input.max_word_count,
+                prepared.rag_embedding_identity.as_ref(),
+                Some(&cancel_token),
+            )
+            .await
+        {
+            Ok(fingerprint) => fingerprint,
+            Err(error) => {
+                return fail_chapter_generation_execution(
+                    self,
+                    &chapter_service,
+                    execution,
+                    Some(Arc::clone(&chapter_session)),
+                    Some(workflow_run_id),
+                    generation_error_from_text(
+                        "generation_source_revalidation_failed",
+                        "chapter_source_revalidate",
+                        error,
+                    ),
+                )
+                .await;
+            }
+        };
+        if let Err(error) = validate_chapter_generation_source_fingerprint(
+            &prepared.source_fingerprint_json,
+            &current_source_fingerprint,
+        ) {
+            return fail_chapter_generation_execution(
+                self,
+                &chapter_service,
+                execution,
+                Some(Arc::clone(&chapter_session)),
+                Some(workflow_run_id),
+                generation_error_from_text(
+                    "generation_source_changed",
+                    "chapter_source_revalidate",
+                    error,
+                ),
+            )
+            .await;
+        }
         let finish_reason_text = generation_finish_reason_text(output.finish_reason);
         if let Err(error) =
             save_completed_chapter_generation_checkpoint(ChapterGenerationCheckpointSaveInput {
@@ -455,10 +542,16 @@ impl OrchestratorContext {
             .await;
         }
 
+        let content_sync_lock =
+            self.chapter_content_sync_lock(input.project_id, input.chapter_number);
+        let _content_sync_guard = content_sync_lock.lock_owned().await;
         let chapter_id = Arc::new(AtomicI64::new(0));
         let chapter_id_slot = Arc::clone(&chapter_id);
+        let content_sync_run_id = Arc::new(AtomicI64::new(0));
+        let content_sync_run_id_slot = Arc::clone(&content_sync_run_id);
         let finish_reason = output.finish_reason;
         let content = output.content;
+        let source_outline = prepared.source_outline;
         let outline_text = prepared.outline_text;
         let trace = crate::chapter_generation::service::ChapterGenerationTrace {
             request: request_trace,
@@ -467,25 +560,42 @@ impl OrchestratorContext {
         };
         let completion_service = chapter_service.clone();
         let completion_chapter_session = Arc::clone(&chapter_session);
+        let completion_context = self.clone();
+        let completion_host_port = Arc::clone(&host_port);
         let completion = execution
             .terminal
             .complete_with(&session, move |tx| {
                 let chapter_service = completion_service.clone();
                 let chapter_session = Arc::clone(&completion_chapter_session);
                 let content = content.clone();
+                let source_outline = source_outline;
                 let outline_text = outline_text.clone();
                 let trace = trace.clone();
+                let context = completion_context.clone();
                 Box::pin(async move {
                     let chapter = chapter_service
                         .finish_generated_chapter_in_transaction(
                             &chapter_session,
                             &content,
+                            source_outline,
                             &outline_text,
                             Some(trace),
                             tx,
                         )
                         .await?;
+                    let content_sync_run = context
+                        .begin_chapter_content_sync_in_transaction(
+                            tx,
+                            &chapter,
+                            true,
+                            true,
+                            &|artifacts| {
+                                completion_host_port.validate_chapter_cleanup_artifacts(artifacts)
+                            },
+                        )
+                        .await?;
                     chapter_id_slot.store(chapter.id, Ordering::Release);
+                    content_sync_run_id_slot.store(content_sync_run.id, Ordering::Release);
                     let sha256 = format!("{:x}", Sha256::digest(chapter.content.as_bytes()));
                     Ok(CompletionDescriptor {
                         result_ref: Some(GenerationResultRef {
@@ -523,20 +633,25 @@ impl OrchestratorContext {
         if chapter_id <= 0 {
             return Err("generation completed 但缺少章节结果 id".to_string());
         }
+        let content_sync_run_id = content_sync_run_id.load(Ordering::Acquire);
+        if content_sync_run_id <= 0 {
+            return Err("generation completed 但缺少章节资料同步 run id".to_string());
+        }
+        let content_sync_run = self
+            .workflow_run_model_by_id(content_sync_run_id)
+            .await
+            .map_err(|error| error.to_string())?;
         if let Err(error) = self
-            .postprocess_chapter_after_content_change_validated(host_port, chapter_id)
+            .settle_chapter_content_sync_run(host_port.as_ref(), &content_sync_run)
             .await
         {
-            let _ = self
-                .fail_chapter_generation_workflow(workflow_run_id, &error.to_string())
-                .await;
-            tracing::error!(
+            tracing::warn!(
                 task_id = %handle.task_id,
                 chapter_id,
+                workflow_run_id = content_sync_run_id,
                 error = %error,
-                "章节正文已完成，但章节后处理失败"
+                "章节正文已完成，派生资料同步待恢复"
             );
-            return Err(error.to_string());
         }
         self.complete_chapter_generation_workflow(workflow_run_id)
             .await?;
@@ -563,7 +678,7 @@ impl OrchestratorContext {
                 writing_notes: input.writing_notes.as_deref(),
                 min_word_count: input.min_word_count,
                 max_word_count: input.max_word_count,
-                client_rag_context: None,
+                client_rag: None,
                 runtime_embedding_identity: context.runtime_embedding_identity,
                 cancel_token: None,
             })
@@ -615,9 +730,17 @@ impl OrchestratorContext {
             .effective_chapter_generation_embedding_identity(runtime_embedding_identity)
             .await?;
         if input.chapter_number <= 1 {
+            let queries = GenerationRagQueries::default();
+            let query_fingerprint = generation_rag_query_fingerprint(
+                input.project_id,
+                input.chapter_number,
+                &queries,
+                &embedding_identity,
+            )?;
             return Ok(PreparedGenerationRagEmbeddingRequest {
                 query_texts: Vec::new(),
                 embedding_identity,
+                query_fingerprint,
             });
         }
         let (outline, writing_instruction, rag_query_outline_text) = self
@@ -631,13 +754,19 @@ impl OrchestratorContext {
             .prepare_generation_rag_search(
                 input.project_id,
                 input.chapter_number,
-                Some(&outline),
+                outline.as_ref(),
                 &rag_query_outline_text,
                 writing_instruction.as_deref(),
                 embedding_identity.clone(),
             )
             .await?;
         Ok(PreparedGenerationRagEmbeddingRequest {
+            query_fingerprint: generation_rag_query_fingerprint(
+                prepared.project_id,
+                prepared.chapter_number,
+                &prepared.queries,
+                &prepared.embedding_identity,
+            )?,
             query_texts: prepared
                 .queries
                 .weighted_queries()
@@ -648,21 +777,13 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn finish_chapter_generation_rag_context_validated(
+    pub(crate) async fn validate_chapter_generation_client_rag_input(
         &self,
-        user_id: i64,
-        input: FinishChapterGenerationRagContextInput,
-    ) -> Result<GenerationRagContext, String> {
-        self.validate_chapter_generation_application_access(
-            user_id,
-            input.project_id,
-            input.chapter_number,
-            "构建章节生成 RAG 上下文",
-        )
-        .await?;
-        if input.chapter_number <= 1 {
-            return Ok(GenerationRagContext::default());
-        }
+        input: &StartChapterGenerationInput,
+    ) -> Result<(), String> {
+        let Some(client_rag) = client_generation_rag_input(input)? else {
+            return Ok(());
+        };
         let (outline, writing_instruction, rag_query_outline_text) = self
             .chapter_generation_rag_input(
                 input.project_id,
@@ -674,18 +795,18 @@ impl OrchestratorContext {
             .prepare_generation_rag_search(
                 input.project_id,
                 input.chapter_number,
-                Some(&outline),
+                outline.as_ref(),
                 &rag_query_outline_text,
                 writing_instruction.as_deref(),
-                input.embedding_identity.clone(),
+                client_rag.embedding_identity,
             )
             .await?;
-        self.execute_prepared_chapter_generation_rag_search_with_vectors(
-            &prepared,
-            &input.embedding_identity,
-            input.query_vectors,
+        validate_generation_rag_query_fingerprint(&client_rag.query_fingerprint, &prepared)?;
+        validate_generation_query_vectors(
+            &client_rag.query_vectors,
+            prepared.queries.weighted_queries().len(),
+            prepared.embedding_identity.dimension,
         )
-        .await
     }
 
     pub(crate) async fn validate_chapter_generation_application_access(
@@ -711,40 +832,14 @@ impl OrchestratorContext {
         &self,
         input: PrepareChapterGenerationInput<'_>,
     ) -> Result<PreparedChapterGeneration, String> {
-        let outline = self
-            .required_chapter_generation_outline(input.project_id, input.chapter_number)
-            .await?;
-        let writing_instruction = input.writing_notes.and_then(non_empty_trimmed);
-        let word_count_range = resolve_generation_word_count_range(
-            Some(&outline),
-            input.min_word_count,
-            input.max_word_count,
-        )?;
-        let chapter_title =
-            required_generation_chapter_title(input.chapter_number, Some(&outline), None)?;
-        let rag_query_outline_text = merge_generation_outline_text(
-            input.chapter_number,
-            Some(&outline),
-            None,
-            writing_instruction,
-            Some(&chapter_title),
-            None,
-        )?;
-        let mut outline_text = merge_generation_outline_text(
-            input.chapter_number,
-            Some(&outline),
-            None,
-            writing_instruction,
-            Some(&chapter_title),
-            Some(word_count_range),
-        )?;
-
-        check_optional_cancelled(input.cancel_token)?;
-        let reference_context = self
-            .resolve_generation_reference_context(
+        let sources = self
+            .prepare_chapter_generation_sources(
                 input.project_id,
                 input.chapter_number,
-                Some(&outline),
+                input.writing_notes,
+                input.min_word_count,
+                input.max_word_count,
+                input.cancel_token,
             )
             .await?;
 
@@ -753,23 +848,29 @@ impl OrchestratorContext {
             .resolve_chapter_generation_rag_context(
                 input.project_id,
                 input.chapter_number,
-                &outline,
-                &rag_query_outline_text,
-                writing_instruction,
-                input.client_rag_context,
+                sources.source_outline.as_ref(),
+                &sources.rag_query_outline_text,
+                sources.writing_instruction.as_deref(),
+                input.client_rag,
                 input.runtime_embedding_identity,
             )
             .await?;
+        let source_fingerprint_json = self
+            .chapter_generation_source_fingerprint_json(
+                input.project_id,
+                input.chapter_number,
+                &sources,
+                rag_context.query_fingerprint.as_deref(),
+            )
+            .await?;
 
-        check_optional_cancelled(input.cancel_token)?;
-        let context_before = self
-            .resolve_chapter_context_before(input.project_id, input.chapter_number, None)
-            .await
-            .map_err(|error| format!("构建章节前文上下文失败: {error}"))?;
-
-        for context in [reference_context.as_deref(), rag_context.as_deref()]
-            .into_iter()
-            .flatten()
+        let mut outline_text = sources.base_outline_text.clone();
+        for context in [
+            sources.reference_context.as_deref(),
+            rag_context.text.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
         {
             outline_text.push_str("\n\n");
             outline_text.push_str(context);
@@ -778,20 +879,82 @@ impl OrchestratorContext {
         upsert_chapter_generation_variables(
             &mut variables,
             input.chapter_number,
-            &chapter_title,
+            &sources.chapter_title,
             &outline_text,
-            writing_instruction,
-            reference_context.as_deref(),
-            rag_context.as_deref(),
-            word_count_range,
+            sources.writing_instruction.as_deref(),
+            sources.reference_context.as_deref(),
+            rag_context.text.as_deref(),
+            sources.word_count_range,
         );
         Ok(PreparedChapterGeneration {
-            chapter_title,
+            chapter_title: sources.chapter_title,
+            source_outline: sources.source_outline,
             outline_text,
-            context_before,
-            word_count_range,
+            context_before: sources.context_before,
+            word_count_range: sources.word_count_range,
             use_rag: input.chapter_number > 1,
             variables,
+            source_fingerprint_json,
+            rag_embedding_identity: rag_context.embedding_identity,
+        })
+    }
+
+    async fn prepare_chapter_generation_sources(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+        writing_notes: Option<&str>,
+        min_word_count: Option<i32>,
+        max_word_count: Option<i32>,
+        cancel_token: Option<&CancellationToken>,
+    ) -> Result<PreparedChapterGenerationSources, String> {
+        let outline = self
+            .formal_chapter_outline_by_project_number(project_id, chapter_number)
+            .await
+            .map_err(|error| error.to_string())?;
+        let writing_instruction = writing_notes
+            .and_then(non_empty_trimmed)
+            .map(str::to_string);
+        let word_count_range =
+            resolve_generation_word_count_range(outline.as_ref(), min_word_count, max_word_count)?;
+        let chapter_title = generation_chapter_title(chapter_number, outline.as_ref(), None);
+        let rag_query_outline_text = merge_generation_outline_text(
+            chapter_number,
+            outline.as_ref(),
+            None,
+            writing_instruction.as_deref(),
+            Some(&chapter_title),
+            None,
+        )?;
+        let base_outline_text = merge_generation_outline_text(
+            chapter_number,
+            outline.as_ref(),
+            None,
+            writing_instruction.as_deref(),
+            Some(&chapter_title),
+            Some(word_count_range),
+        )?;
+
+        check_optional_cancelled(cancel_token)?;
+        let reference_context = self
+            .resolve_generation_reference_context(project_id, chapter_number, outline.as_ref())
+            .await?;
+
+        check_optional_cancelled(cancel_token)?;
+        let context_before = self
+            .resolve_chapter_context_before(project_id, chapter_number, None)
+            .await
+            .map_err(|error| format!("构建章节前文上下文失败: {error}"))?;
+
+        Ok(PreparedChapterGenerationSources {
+            chapter_title,
+            source_outline: outline,
+            writing_instruction,
+            rag_query_outline_text,
+            base_outline_text,
+            reference_context,
+            context_before,
+            word_count_range,
         })
     }
 
@@ -799,37 +962,190 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-        outline: &chapter_outline::Model,
+        outline: Option<&chapter_outline::Model>,
         rag_query_outline_text: &str,
         writing_instruction: Option<&str>,
-        client_rag_context: Option<&str>,
+        client_rag: Option<ClientGenerationRagInput>,
         runtime_embedding_identity: Option<EmbeddingModelIdentity>,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<ResolvedChapterGenerationRagContext, String> {
         if chapter_number <= 1 {
-            return Ok(None);
+            return Ok(ResolvedChapterGenerationRagContext {
+                text: None,
+                embedding_identity: None,
+                query_fingerprint: None,
+            });
         }
-        if let Some(context) = client_rag_context
-            .map(str::trim)
-            .filter(|context| !context.is_empty())
-        {
-            return Ok(Some(context.to_string()));
-        }
-        let embedding_identity = self
-            .effective_chapter_generation_embedding_identity(runtime_embedding_identity)
-            .await?;
+        let embedding_identity = match client_rag.as_ref() {
+            Some(client_rag) => client_rag.embedding_identity.clone(),
+            None => {
+                self.effective_chapter_generation_embedding_identity(runtime_embedding_identity)
+                    .await?
+            }
+        };
         let prepared = self
             .prepare_generation_rag_search(
                 project_id,
                 chapter_number,
-                Some(outline),
+                outline,
                 rag_query_outline_text,
                 writing_instruction,
                 embedding_identity,
             )
             .await?;
-        self.execute_prepared_chapter_generation_rag_search(&prepared)
+        let query_fingerprint = generation_rag_query_fingerprint(
+            prepared.project_id,
+            prepared.chapter_number,
+            &prepared.queries,
+            &prepared.embedding_identity,
+        )?;
+        let embedding_identity = prepared.embedding_identity.clone();
+        let context = match client_rag {
+            Some(client_rag) => {
+                validate_generation_rag_query_fingerprint(
+                    &client_rag.query_fingerprint,
+                    &prepared,
+                )?;
+                self.execute_prepared_chapter_generation_rag_search_with_vectors(
+                    &prepared,
+                    &client_rag.embedding_identity,
+                    client_rag.query_vectors,
+                )
+                .await?
+            }
+            None => {
+                self.execute_prepared_chapter_generation_rag_search(&prepared)
+                    .await?
+            }
+        };
+        Ok(ResolvedChapterGenerationRagContext {
+            text: context.text,
+            embedding_identity: Some(embedding_identity),
+            query_fingerprint: Some(query_fingerprint),
+        })
+    }
+
+    async fn current_chapter_generation_source_fingerprint(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+        writing_notes: Option<&str>,
+        min_word_count: Option<i32>,
+        max_word_count: Option<i32>,
+        rag_embedding_identity: Option<&EmbeddingModelIdentity>,
+        cancel_token: Option<&CancellationToken>,
+    ) -> Result<Value, String> {
+        let sources = self
+            .prepare_chapter_generation_sources(
+                project_id,
+                chapter_number,
+                writing_notes,
+                min_word_count,
+                max_word_count,
+                cancel_token,
+            )
+            .await?;
+        let rag_query_fingerprint = if chapter_number <= 1 {
+            None
+        } else {
+            let embedding_identity = rag_embedding_identity.ok_or_else(|| {
+                "第 2 章及以后缺少章节生成 RAG embedding identity，无法复验正式来源".to_string()
+            })?;
+            let prepared = self
+                .prepare_generation_rag_search(
+                    project_id,
+                    chapter_number,
+                    sources.source_outline.as_ref(),
+                    &sources.rag_query_outline_text,
+                    sources.writing_instruction.as_deref(),
+                    embedding_identity.clone(),
+                )
+                .await?;
+            Some(generation_rag_query_fingerprint(
+                prepared.project_id,
+                prepared.chapter_number,
+                &prepared.queries,
+                &prepared.embedding_identity,
+            )?)
+        };
+        check_optional_cancelled(cancel_token)?;
+        self.chapter_generation_source_fingerprint_json(
+            project_id,
+            chapter_number,
+            &sources,
+            rag_query_fingerprint.as_deref(),
+        )
+        .await
+    }
+
+    async fn chapter_generation_source_fingerprint_json(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+        sources: &PreparedChapterGenerationSources,
+        rag_query_fingerprint: Option<&str>,
+    ) -> Result<Value, String> {
+        let rag_source_revision_sha256 = self
+            .chapter_generation_rag_source_revision_sha256(project_id, chapter_number)
+            .await?;
+        Ok(json!({
+            "version": 1,
+            "project_id": project_id,
+            "chapter_number": chapter_number,
+            "chapter_title": sources.chapter_title,
+            "base_outline_text": sources.base_outline_text,
+            "reference_context": sources.reference_context,
+            "context_before": sources.context_before,
+            "word_count_range": sources.word_count_range,
+            "rag_query_fingerprint": rag_query_fingerprint,
+            "rag_source_revision_sha256": rag_source_revision_sha256,
+        }))
+    }
+
+    async fn chapter_generation_rag_source_revision_sha256(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<Option<String>, String> {
+        if chapter_number <= 1 {
+            return Ok(None);
+        }
+        let chapters = self
+            .chapters_before_number(project_id, chapter_number)
             .await
-            .map(|context| context.text)
+            .map_err(|error| format!("读取章节生成前序正文来源失败: {error}"))?
+            .into_iter()
+            .filter(|chapter| chapter.has_available_content())
+            .collect::<Vec<_>>();
+        let profiles = self
+            .protagonist_profiles_for_project(project_id)
+            .await
+            .map_err(|error| format!("读取章节生成角色来源失败: {error}"))?;
+        let profile_ids = profiles
+            .iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>();
+        let mut character_states = self
+            .character_states_for_rag_ingest(&profile_ids)
+            .await
+            .map_err(|error| format!("读取章节生成角色状态来源失败: {error}"))?;
+        character_states.retain(|state| state.chapter_number < chapter_number);
+        character_states.sort_by_key(|state| (state.chapter_number, state.id));
+        let mut attribute_events = self
+            .attribute_events_for_rag_ingest(&profile_ids)
+            .await
+            .map_err(|error| format!("读取章节生成角色属性来源失败: {error}"))?;
+        attribute_events.retain(|event| event.chapter_number < chapter_number);
+        attribute_events.sort_by_key(|event| (event.chapter_number, event.id));
+
+        let sources = json!({
+            "chapters": chapters,
+            "character_profiles": profiles,
+            "character_states": character_states,
+            "character_attribute_events": attribute_events,
+        });
+        workflow::llm_call_checkpoint_fingerprint_sha256(&sources)
+            .map(Some)
+            .map_err(|error| format!("构建章节生成正式 RAG 来源 fingerprint 失败: {error}"))
     }
 
     async fn prepare_generation_rag_search(
@@ -859,21 +1175,32 @@ impl OrchestratorContext {
         .await
     }
 
+    pub(crate) async fn validate_chapter_generation_plan_input(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+        writing_notes: Option<&str>,
+    ) -> Result<(), String> {
+        self.chapter_generation_rag_input(project_id, chapter_number, writing_notes)
+            .await
+            .map(|_| ())
+    }
+
     async fn chapter_generation_rag_input(
         &self,
         project_id: i64,
         chapter_number: i32,
         writing_notes: Option<&str>,
-    ) -> Result<(chapter_outline::Model, Option<String>, String), String> {
+    ) -> Result<(Option<chapter_outline::Model>, Option<String>, String), String> {
         let outline = self
-            .required_chapter_generation_outline(project_id, chapter_number)
-            .await?;
+            .formal_chapter_outline_by_project_number(project_id, chapter_number)
+            .await
+            .map_err(|error| error.to_string())?;
         let writing_instruction = writing_notes.and_then(non_empty_trimmed);
-        let chapter_title =
-            required_generation_chapter_title(chapter_number, Some(&outline), None)?;
+        let chapter_title = generation_chapter_title(chapter_number, outline.as_ref(), None);
         let rag_query_outline_text = merge_generation_outline_text(
             chapter_number,
-            Some(&outline),
+            outline.as_ref(),
             None,
             writing_instruction,
             Some(&chapter_title),
@@ -898,6 +1225,39 @@ impl OrchestratorContext {
                 .map_err(|error| error.to_string()),
         }
     }
+}
+
+fn client_generation_rag_input(
+    input: &StartChapterGenerationInput,
+) -> Result<Option<ClientGenerationRagInput>, String> {
+    let client_rag = match (
+        input.client_rag_embedding_identity.as_ref(),
+        input.client_rag_query_fingerprint.as_deref(),
+        input.client_rag_query_vectors.as_ref(),
+    ) {
+        (None, None, None) => return Ok(None),
+        (Some(identity), Some(query_fingerprint), Some(query_vectors)) => {
+            ClientGenerationRagInput {
+                embedding_identity: EmbeddingModelIdentity {
+                    backend: identity.backend.clone(),
+                    model: identity.model.clone(),
+                    dimension: identity.dimension,
+                },
+                query_fingerprint: query_fingerprint.to_string(),
+                query_vectors: query_vectors.clone(),
+            }
+        }
+        _ => {
+            return Err(
+                "章节生成客户端 RAG identity、query fingerprint 和 query vectors 必须同时提供"
+                    .to_string(),
+            );
+        }
+    };
+    if input.chapter_number <= 1 {
+        return Err("第 1 章不接受客户端 RAG 查询向量".to_string());
+    }
+    Ok(Some(client_rag))
 }
 
 async fn fail_chapter_generation_execution(
@@ -983,6 +1343,23 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), String> {
 mod cancellation_tests {
     use super::*;
 
+    fn chapter_generation_input(chapter_number: i32) -> StartChapterGenerationInput {
+        StartChapterGenerationInput {
+            meta: a4n_api_contract::generation_tasks::GenerationStartRequestMeta {
+                start_request_id: "test-request".to_string(),
+                retry_of_task_id: None,
+            },
+            project_id: 1,
+            chapter_number,
+            writing_notes: None,
+            min_word_count: None,
+            max_word_count: None,
+            client_rag_embedding_identity: None,
+            client_rag_query_fingerprint: None,
+            client_rag_query_vectors: None,
+        }
+    }
+
     #[test]
     fn cancelling_generation_finalizes_workflow_as_cancelled() {
         assert_eq!(
@@ -992,6 +1369,37 @@ mod cancellation_tests {
         assert_eq!(
             chapter_generation_failure_outcome(GenerationTaskStatus::Running),
             crate::workflow::WorkflowRunFinalizeOutcome::Failed,
+        );
+    }
+
+    #[test]
+    fn client_rag_fields_must_be_provided_together() {
+        let mut input = chapter_generation_input(2);
+        input.client_rag_query_fingerprint = Some("a".repeat(64));
+
+        assert!(
+            client_generation_rag_input(&input)
+                .expect_err("partial client RAG payload must fail")
+                .contains("必须同时提供")
+        );
+    }
+
+    #[test]
+    fn first_chapter_rejects_client_rag_vectors() {
+        let mut input = chapter_generation_input(1);
+        input.client_rag_embedding_identity =
+            Some(a4n_api_contract::embedding::EmbeddingModelIdentity {
+                backend: "local".to_string(),
+                model: "test".to_string(),
+                dimension: 2,
+            });
+        input.client_rag_query_fingerprint = Some("a".repeat(64));
+        input.client_rag_query_vectors = Some(vec![vec![0.0, 1.0]]);
+
+        assert!(
+            client_generation_rag_input(&input)
+                .expect_err("chapter one must not accept client RAG vectors")
+                .contains("第 1 章")
         );
     }
 }

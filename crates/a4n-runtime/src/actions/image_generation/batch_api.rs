@@ -14,7 +14,7 @@ pub async fn preview_batch_images_request(
 ) -> Result<ModelRequestPreview, String> {
     let host = RuntimeImageGenerationHostPort::new(state);
     let requests = state
-        .media()
+        .orchestrator()
         .prepare_batch_images_request_validated(
             &host,
             user_id,

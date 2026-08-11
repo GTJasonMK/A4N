@@ -35,68 +35,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-const VIDEO_CANVAS_UP_SQL: &[&str] = &[
-    "ALTER TABLE novel_project ADD COLUMN IF NOT EXISTS source_mode TEXT",
-    "UPDATE novel_project SET source_mode = CASE WHEN project_kind = 'text' THEN 'self' ELSE 'derived' END WHERE source_mode IS NULL OR source_mode = ''",
-    "ALTER TABLE novel_project ALTER COLUMN source_mode SET DEFAULT 'self'",
-    "ALTER TABLE novel_project ALTER COLUMN source_mode SET NOT NULL",
-    "CREATE INDEX IF NOT EXISTS idx_novel_project_source_mode ON novel_project(source_mode)",
-    r#"
-CREATE TABLE IF NOT EXISTS canvas_graph (
-    id BIGSERIAL PRIMARY KEY,
-    project_id BIGINT NOT NULL REFERENCES novel_project(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    graph_kind TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    viewport_json JSONB,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-)
-"#,
-    r#"
-CREATE TABLE IF NOT EXISTS canvas_node (
-    id BIGSERIAL PRIMARY KEY,
-    graph_id BIGINT NOT NULL REFERENCES canvas_graph(id) ON DELETE CASCADE,
-    node_kind TEXT NOT NULL,
-    ref_type TEXT,
-    ref_id BIGINT,
-    config_json JSONB NOT NULL,
-    position_json JSONB NOT NULL,
-    state TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-)
-"#,
-    r#"
-CREATE TABLE IF NOT EXISTS canvas_edge (
-    id BIGSERIAL PRIMARY KEY,
-    graph_id BIGINT NOT NULL REFERENCES canvas_graph(id) ON DELETE CASCADE,
-    source_node_id BIGINT NOT NULL REFERENCES canvas_node(id) ON DELETE CASCADE,
-    source_port TEXT NOT NULL,
-    target_node_id BIGINT NOT NULL REFERENCES canvas_node(id) ON DELETE CASCADE,
-    target_port TEXT NOT NULL,
-    role TEXT NOT NULL,
-    config_json JSONB NOT NULL
-)
-"#,
-    r#"
-CREATE TABLE IF NOT EXISTS canvas_text_asset (
-    id BIGSERIAL PRIMARY KEY,
-    project_id BIGINT NOT NULL REFERENCES novel_project(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    text_kind TEXT NOT NULL,
-    content TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-)
-"#,
-    "CREATE INDEX IF NOT EXISTS idx_canvas_graph_project_kind ON canvas_graph(project_id, graph_kind)",
-    "CREATE INDEX IF NOT EXISTS idx_canvas_node_graph ON canvas_node(graph_id)",
-    "CREATE INDEX IF NOT EXISTS idx_canvas_node_ref ON canvas_node(ref_type, ref_id)",
-    "CREATE INDEX IF NOT EXISTS idx_canvas_edge_graph ON canvas_edge(graph_id)",
-    "CREATE INDEX IF NOT EXISTS idx_canvas_text_asset_project ON canvas_text_asset(project_id)",
-    r#"
+pub(crate) const NOVEL_PROJECT_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_novel_project_family()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -162,7 +101,70 @@ BEGIN
     RETURN NEW;
 END;
 $$
+"#;
+
+const VIDEO_CANVAS_UP_SQL: &[&str] = &[
+    "ALTER TABLE novel_project ADD COLUMN IF NOT EXISTS source_mode TEXT",
+    "UPDATE novel_project SET source_mode = CASE WHEN project_kind = 'text' THEN 'self' ELSE 'derived' END WHERE source_mode IS NULL OR source_mode = ''",
+    "ALTER TABLE novel_project ALTER COLUMN source_mode SET DEFAULT 'self'",
+    "ALTER TABLE novel_project ALTER COLUMN source_mode SET NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_novel_project_source_mode ON novel_project(source_mode)",
+    r#"
+CREATE TABLE IF NOT EXISTS canvas_graph (
+    id BIGSERIAL PRIMARY KEY,
+    project_id BIGINT NOT NULL REFERENCES novel_project(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    graph_kind TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    viewport_json JSONB,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+)
 "#,
+    r#"
+CREATE TABLE IF NOT EXISTS canvas_node (
+    id BIGSERIAL PRIMARY KEY,
+    graph_id BIGINT NOT NULL REFERENCES canvas_graph(id) ON DELETE CASCADE,
+    node_kind TEXT NOT NULL,
+    ref_type TEXT,
+    ref_id BIGINT,
+    config_json JSONB NOT NULL,
+    position_json JSONB NOT NULL,
+    state TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS canvas_edge (
+    id BIGSERIAL PRIMARY KEY,
+    graph_id BIGINT NOT NULL REFERENCES canvas_graph(id) ON DELETE CASCADE,
+    source_node_id BIGINT NOT NULL REFERENCES canvas_node(id) ON DELETE CASCADE,
+    source_port TEXT NOT NULL,
+    target_node_id BIGINT NOT NULL REFERENCES canvas_node(id) ON DELETE CASCADE,
+    target_port TEXT NOT NULL,
+    role TEXT NOT NULL,
+    config_json JSONB NOT NULL
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS canvas_text_asset (
+    id BIGSERIAL PRIMARY KEY,
+    project_id BIGINT NOT NULL REFERENCES novel_project(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    text_kind TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+)
+"#,
+    "CREATE INDEX IF NOT EXISTS idx_canvas_graph_project_kind ON canvas_graph(project_id, graph_kind)",
+    "CREATE INDEX IF NOT EXISTS idx_canvas_node_graph ON canvas_node(graph_id)",
+    "CREATE INDEX IF NOT EXISTS idx_canvas_node_ref ON canvas_node(ref_type, ref_id)",
+    "CREATE INDEX IF NOT EXISTS idx_canvas_edge_graph ON canvas_edge(graph_id)",
+    "CREATE INDEX IF NOT EXISTS idx_canvas_text_asset_project ON canvas_text_asset(project_id)",
+    NOVEL_PROJECT_FAMILY_FUNCTION_SQL,
     "DROP TRIGGER IF EXISTS trg_novel_project_family_update ON novel_project",
     r#"
 CREATE TRIGGER trg_novel_project_family_update

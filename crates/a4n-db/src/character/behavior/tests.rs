@@ -62,6 +62,7 @@ fn behavior_record_validation_normalizes_only_required_text_fields() {
     let validated = validate_behavior_record_input(InsertBehaviorRecordInput {
         profile_id: 7,
         chapter_number: 3,
+        source_kind: "ai_sync".to_string(),
         behavior_type: " dialogue ".to_string(),
         behavior_description: " 回应 ".to_string(),
         original_text: " 收到 ".to_string(),
@@ -86,6 +87,7 @@ async fn behavior_validation_precedes_database_access() {
         InsertBehaviorRecordInput {
             profile_id: 7,
             chapter_number: 0,
+            source_kind: "ai_sync".to_string(),
             behavior_type: "dialogue".to_string(),
             behavior_description: "回应".to_string(),
             original_text: "收到".to_string(),

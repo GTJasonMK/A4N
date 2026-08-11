@@ -2,19 +2,18 @@ use serde_json::{Value, json};
 
 use super::super::{
     ApiError, ServerState, TaskKind, character_ai_actions, character_conflict_actions,
-    finish_web_task, i64_arg, optional_i32_field, optional_string_field, register_web_task,
-    required_json_i32, sanitize_optional_task_id, string_action_result, string_arg, to_value,
-    web_fire_and_forget_progress_reporter, web_progress_reporter,
+    command_input, finish_web_task, i64_arg, optional_i32_field, optional_string_field,
+    register_web_task, sanitize_optional_task_id, sanitize_task_id, string_action_result,
+    string_arg, to_value, web_fire_and_forget_progress_reporter, web_progress_reporter,
 };
 
 macro_rules! character_ai_web_task_command {
     (
         $name:ident,
-        |$state:ident, $user_id:ident, $args:ident, $project_id:ident, $progress:ident|,
+        |$state:ident, $user_id:ident, $args:ident, $input:ident, $progress:ident|,
+        $input_ty:ty,
         $scope:path,
         $start_message:expr,
-        $success_message:expr,
-        ($($arg:ident : $arg_ty:ty = $parse:expr),* $(,)?),
         $run:expr $(,)?
     ) => {
         pub(in crate::routes::commands) async fn $name(
@@ -22,16 +21,15 @@ macro_rules! character_ai_web_task_command {
             $user_id: i64,
             $args: &Value,
         ) -> Result<Value, ApiError> {
-            let $project_id = i64_arg($args, "projectId")?;
-            $(let $arg: $arg_ty = $parse;)*
-            let scope = $scope($state.runtime(), $user_id, $project_id)
+            let $input: $input_ty = command_input($args, stringify!($name))?;
+            let scope = $scope($state.runtime(), $user_id, &$input)
                 .await
                 .map_err(ApiError::bad_request)?;
-            let task_id = sanitize_optional_task_id(optional_string_field($args, "taskId")?)?;
+            let task_id = sanitize_task_id(string_arg($args, "taskId")?)?;
             let task = register_web_task(
                 $state,
                 $user_id,
-                task_id.clone(),
+                Some(task_id.clone()),
                 TaskKind::LlmCall,
                 scope.project_id,
                 scope.total,
@@ -42,19 +40,19 @@ macro_rules! character_ai_web_task_command {
             let runtime_progress = character_ai_actions::CharacterAiProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
-                task_id.as_deref(),
+                Some(task_id.as_str()),
             );
             let $progress = &runtime_progress;
             let result = $run.await;
             let value = finish_web_task(
                 $state,
-                task_id,
+                Some(task_id),
                 string_action_result(
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
             )?;
-            Ok(value)
+            to_value(value)
         }
     };
 }
@@ -62,7 +60,7 @@ macro_rules! character_ai_web_task_command {
 macro_rules! character_ai_web_preview_command {
     (
         $name:ident,
-        |$state:ident, $user_id:ident, $args:ident, $project_id:ident|,
+        |$state:ident, $user_id:ident, $args:ident|,
         ($($arg:ident : $arg_ty:ty = $parse:expr),* $(,)?),
         $preview:expr $(,)?
     ) => {
@@ -71,7 +69,6 @@ macro_rules! character_ai_web_preview_command {
             $user_id: i64,
             $args: &Value,
         ) -> Result<Value, ApiError> {
-            let $project_id = i64_arg($args, "projectId")?;
             $(let $arg: $arg_ty = $parse;)*
             to_value($preview.await.map_err(ApiError::bad_request)?)
         }
@@ -130,8 +127,11 @@ pub(in crate::routes::commands) async fn discover_character_profiles(
 
 character_ai_web_preview_command!(
     preview_discover_character_profiles_request,
-    |state, user_id, args, project_id|,
-    (chapter_number: Option<i32> = optional_i32_field(args, "chapterNumber")?),
+    |state, user_id, args|,
+    (
+        project_id: i64 = i64_arg(args, "projectId")?,
+        chapter_number: Option<i32> = optional_i32_field(args, "chapterNumber")?,
+    ),
     character_ai_actions::preview_discover_character_profiles_request(
         state.runtime(),
         user_id,
@@ -142,75 +142,53 @@ character_ai_web_preview_command!(
 
 character_ai_web_task_command!(
     sync_all_character_profiles,
-    |state, user_id, args, project_id, progress|,
+    |state, user_id, args, input, progress|,
+    character_ai_actions::SyncAllCharacterProfilesInput,
     character_ai_actions::character_profile_sync_all_task_scope,
     "正在准备批量角色同步",
-    "批量角色同步完成",
-    (chapter_number: i32 =
-        required_json_i32(args, "chapterNumber", "sync_all_character_profiles")?),
     character_ai_actions::sync_all_character_profiles_to_chapter(
         state.runtime(),
         user_id,
-        project_id,
-        chapter_number,
+        input,
         Some(progress),
     ),
 );
 
 character_ai_web_preview_command!(
     preview_sync_all_character_profiles_request,
-    |state, user_id, args, project_id|,
-    (chapter_number: i32 = required_json_i32(
-        args,
-        "chapterNumber",
-        "preview_sync_all_character_profiles_request",
-    )?),
+    |state, user_id, args|,
+    (input: character_ai_actions::SyncAllCharacterProfilesInput =
+        command_input(args, "preview_sync_all_character_profiles_request")?),
     character_ai_actions::preview_sync_all_character_profiles_request(
         state.runtime(),
         user_id,
-        project_id,
-        chapter_number,
+        input,
     ),
 );
 
 character_ai_web_task_command!(
     sync_character_from_chapters,
-    |state, user_id, args, project_id, progress|,
+    |state, user_id, args, input, progress|,
+    character_ai_actions::SyncCharacterProfileInput,
     character_ai_actions::character_profile_sync_task_scope,
     "正在准备角色同步",
-    "角色同步完成",
-    (
-        name: String = string_arg(args, "name")?,
-        chapter_number: i32 =
-            required_json_i32(args, "chapterNumber", "sync_character_from_chapters")?,
-    ),
     character_ai_actions::sync_character_profile_from_chapters(
         state.runtime(),
         user_id,
-        project_id,
-        &name,
-        chapter_number,
+        input,
         Some(progress),
     ),
 );
 
 character_ai_web_preview_command!(
     preview_sync_character_from_chapters_request,
-    |state, user_id, args, project_id|,
-    (
-        name: String = string_arg(args, "name")?,
-        chapter_number: i32 = required_json_i32(
-            args,
-            "chapterNumber",
-            "preview_sync_character_from_chapters_request",
-        )?,
-    ),
+    |state, user_id, args|,
+    (input: character_ai_actions::SyncCharacterProfileInput =
+        command_input(args, "preview_sync_character_from_chapters_request")?),
     character_ai_actions::preview_sync_character_from_chapters_request(
         state.runtime(),
         user_id,
-        project_id,
-        &name,
-        chapter_number,
+        input,
     ),
 );
 

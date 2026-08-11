@@ -1,6 +1,8 @@
-use super::gateway::{LlmChatPayload, LlmGatewayProviderConfig, LlmProbePayload};
 use crate::dynamic_llm::config::{estimate_llm_tokens, model_capabilities, validated_timeout_secs};
 use a4n_core::{error::AppError, models::ai::llm_config};
+use a4n_llm::gateway::{
+    LlmGatewayPayload as LlmChatPayload, LlmGatewayProviderConfig, LlmProbePayload,
+};
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::Stream;

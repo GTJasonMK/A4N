@@ -6,17 +6,13 @@ use a4n_embedding_fastembed::{FastEmbedLocalModel, list_fastembed_local_models};
 
 use crate::AppState;
 
-use super::super::{
-    contracts::{EmbeddingModelExecution, LocalEmbeddingModelSummary},
-    host_adapter::embedding_model_execution,
-};
+use super::super::contracts::LocalEmbeddingModelSummary;
 
 pub async fn list_local_embedding_models(
     state: &AppState,
 ) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
-    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
-        return crate::sidecar_clients::embedding_model_operation(state.capabilities(), "list", "")
-            .await;
+    if state.runtime_profile().uses_sidecars() {
+        return crate::sidecar_clients::list_embedding_models(state.capabilities()).await;
     }
     list_local_embedding_models_in_cache(&state.default_fastembed_cache_dir())
 }
@@ -46,7 +42,6 @@ fn to_local_embedding_model_summary(model: FastEmbedLocalModel) -> LocalEmbeddin
         description: model.description,
         dimension: model.dimension,
         downloaded: model.downloaded,
-        cache_path: model.cache_path.to_string_lossy().to_string(),
         size_bytes: model.size_bytes,
     }
 }

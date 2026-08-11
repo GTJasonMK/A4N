@@ -118,34 +118,22 @@ fn fill_event_old_value_and_apply(
     let existing = attribute_value_in_state(state, &event.category, &event.key);
     match event.operation.as_str() {
         "add" => {
-            if existing.is_some() {
-                return Err(format!(
-                    "属性事件不一致：第 {} 章 add {}.{}，但该属性已存在",
-                    event.chapter_number, event.category, event.key
-                ));
-            }
             if event.new_value.is_null() {
                 return Err(format!(
                     "属性事件不一致：第 {} 章 add {}.{} 的 new_value 不能为空",
                     event.chapter_number, event.category, event.key
                 ));
             }
-            event.old_value = Value::Null;
+            event.old_value = existing.unwrap_or(Value::Null);
         }
         "modify" => {
-            let old_value = existing.ok_or_else(|| {
-                format!(
-                    "属性事件不一致：第 {} 章 modify {}.{}，但该属性不存在",
-                    event.chapter_number, event.category, event.key
-                )
-            })?;
             if event.new_value.is_null() {
                 return Err(format!(
                     "属性事件不一致：第 {} 章 modify {}.{} 的 new_value 不能为空",
                     event.chapter_number, event.category, event.key
                 ));
             }
-            event.old_value = old_value;
+            event.old_value = existing.unwrap_or(Value::Null);
         }
         "delete" => {
             let old_value = existing.ok_or_else(|| {

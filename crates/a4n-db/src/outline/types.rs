@@ -8,6 +8,8 @@ pub enum OutlineDbError {
     Database(#[from] sea_orm::DbErr),
     #[error("{0}")]
     InvalidArgument(String),
+    #[error("项目状态 {current} 不允许执行：{operation}")]
+    InvalidState { current: String, operation: String },
     #[error(transparent)]
     Generation(#[from] GenerationDbError),
 }

@@ -1,5 +1,5 @@
 use super::schema::{
-    CHAPTERS_PER_PART, STAGE_ORDER, progress_stages_mut, recalc_import_progress,
+    STAGE_ANALYSIS, STAGE_ORDER, progress_stages_mut, recalc_import_progress,
     required_stage_object_mut,
 };
 use serde_json::{Value, json};
@@ -8,15 +8,12 @@ fn import_stage_index(stage: &str) -> Option<usize> {
     STAGE_ORDER.iter().position(|key| *key == stage)
 }
 
-pub fn import_progress_resume_stage(progress: &Value, needs_part_outlines: bool) -> Option<String> {
+pub fn import_progress_resume_stage(progress: &Value) -> Option<String> {
     let status = progress.get("status").and_then(Value::as_str)?;
     if !matches!(status, "failed" | "cancelled" | "analyzing") {
         return None;
     }
     let stage = progress.get("current_stage").and_then(Value::as_str)?;
-    if stage == "generating_part_outlines" && !needs_part_outlines {
-        return None;
-    }
     import_stage_index(stage)?;
     progress
         .get("stages")
@@ -24,40 +21,17 @@ pub fn import_progress_resume_stage(progress: &Value, needs_part_outlines: bool)
         .and_then(|stages| stages.contains_key(stage).then(|| stage.to_string()))
 }
 
-pub fn import_progress_totals_match(
-    progress: &Value,
-    total_chapters: usize,
-    needs_part_outlines: bool,
-) -> bool {
+pub fn import_progress_totals_match(progress: &Value, total_chapters: usize) -> bool {
     let Some(stages) = progress.get("stages").and_then(Value::as_object) else {
         return false;
     };
-    let part_count = if needs_part_outlines {
-        total_chapters.div_ceil(CHAPTERS_PER_PART)
-    } else {
-        0
-    };
-    for (stage, expected) in [
-        ("generating_analysis_data", total_chapters),
-        ("generating_outlines", total_chapters),
-        ("extracting_blueprint", 1usize),
-        ("generating_part_outlines", part_count),
-    ] {
-        if stage == "generating_part_outlines" && !needs_part_outlines {
-            continue;
-        }
-        let Some(actual) = stages
-            .get(stage)
-            .and_then(|v| v.get("total"))
+    stages.len() == 1
+        && stages
+            .get(STAGE_ANALYSIS)
+            .and_then(|stage| stage.get("total"))
             .and_then(Value::as_u64)
-        else {
-            return false;
-        };
-        if actual as usize != expected {
-            return false;
-        }
-    }
-    true
+            .and_then(|total| usize::try_from(total).ok())
+            == Some(total_chapters)
 }
 
 pub fn resume_import_progress(progress: &mut Value, current_stage: &str) -> Result<(), String> {

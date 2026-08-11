@@ -73,9 +73,7 @@ fn validate_package_manifest_rejects_galgame_invalid_position() {
     let err = validate_package_manifest(&package)
         .expect_err("unknown Galgame line positions must be rejected");
 
-    assert!(err.contains("Galgame 行 position 无效"));
-    assert!(err.contains("line_id=2301"));
-    assert!(err.contains("position=foreground"));
+    assert!(err.contains("Galgame 行 2301 的演出投影列与 presentation_json 不一致"));
 }
 
 #[test]
@@ -92,17 +90,20 @@ fn validate_package_manifest_rejects_galgame_dialogue_without_speaker() {
 }
 
 #[test]
-fn validate_package_manifest_rejects_galgame_dialogue_without_expression() {
+fn validate_package_manifest_rejects_galgame_dialogue_projection_mismatch() {
     let mut package = package_with_galgame_project();
     package.text_core.character_profiles = vec![character_profile_record(601)];
     package.galgame_lines[0].line_type = "dialogue".to_string();
     package.galgame_lines[0].speaker_profile_id = Some(601);
+    package.galgame_lines[0].pose = Some("standing".to_string());
+    package.galgame_lines[0].position = Some("center".to_string());
+    package.galgame_lines[0].presentation_json = speaker_galgame_presentation_json(601, "neutral");
 
-    let err =
-        validate_package_manifest(&package).expect_err("dialogue lines must carry expression");
+    let err = validate_package_manifest(&package)
+        .expect_err("redundant presentation columns must match the canonical document");
 
-    assert!(err.contains("必须显式提供 expression"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("演出投影列与 presentation_json 不一致"));
+    assert!(err.contains("Galgame 行 2301"));
 }
 
 #[test]
@@ -112,11 +113,14 @@ fn validate_package_manifest_rejects_galgame_invalid_expression() {
     package.galgame_lines[0].line_type = "dialogue".to_string();
     package.galgame_lines[0].speaker_profile_id = Some(601);
     package.galgame_lines[0].expression = Some("ecstatic".to_string());
+    package.galgame_lines[0].pose = Some("standing".to_string());
+    package.galgame_lines[0].position = Some("center".to_string());
+    package.galgame_lines[0].presentation_json = speaker_galgame_presentation_json(601, "ecstatic");
 
     let err = validate_package_manifest(&package).expect_err("invalid expression must fail");
 
     assert!(err.contains("expression 无效"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("Galgame 行 2301"));
 }
 
 #[test]
@@ -127,74 +131,72 @@ fn validate_package_manifest_rejects_galgame_line_presentation_json_non_object()
     let err = validate_package_manifest(&package)
         .expect_err("Galgame presentation_json must remain an object in import packages");
 
-    assert!(err.contains("presentation_json 必须是 JSON 对象"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("presentation_json 不符合 v2 合同"));
+    assert!(err.contains("Galgame 行 2301"));
 }
 
 #[test]
 fn validate_package_manifest_rejects_galgame_line_cg_without_note() {
     let mut package = package_with_galgame_project();
-    package.galgame_lines[0].presentation_json = json!({
-        "cg": true,
-        "cg_importance": "normal"
-    });
+    let mut presentation = empty_galgame_presentation_json();
+    presentation["cg"] = json!(true);
+    presentation["cg_importance"] = json!("normal");
+    package.galgame_lines[0].presentation_json = presentation;
 
     let err = validate_package_manifest(&package)
         .expect_err("event CG directives in packages must include cg_note");
 
-    assert!(err.contains("启用事件 CG 时必须提供 cg_note"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("cg=true 时 cg_note 不能为空"));
+    assert!(err.contains("Galgame 行 2301"));
 }
 
 #[test]
 fn validate_package_manifest_rejects_galgame_line_invalid_cg_importance() {
     let mut package = package_with_galgame_project();
-    package.galgame_lines[0].presentation_json = json!({
-        "cg": true,
-        "cg_note": "雨中回头",
-        "cg_importance": "major"
-    });
+    let mut presentation = empty_galgame_presentation_json();
+    presentation["cg"] = json!(true);
+    presentation["cg_note"] = json!("雨中回头");
+    presentation["cg_importance"] = json!("major");
+    package.galgame_lines[0].presentation_json = presentation;
 
     let err = validate_package_manifest(&package)
         .expect_err("event CG importance in packages must use the controlled enum");
 
-    assert!(err.contains("cg_importance 无效"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("presentation_json 不符合 v2 合同"));
+    assert!(err.contains("major"));
 }
 
 #[test]
 fn validate_package_manifest_accepts_galgame_line_null_event_cg_fields() {
     let mut package = package_with_galgame_project();
-    package.galgame_lines[0].presentation_json = json!({
-        "cg": null,
-        "cg_importance": null
-    });
+    package.galgame_lines[0].presentation_json = empty_galgame_presentation_json();
 
-    validate_package_manifest(&package)
-        .expect("null event CG fields should match the Galgame save-layer defaults");
+    validate_package_manifest(&package).expect("disabled event CG fields remain null");
 }
 
 #[test]
-fn validate_package_manifest_accepts_galgame_line_empty_cg_importance_default() {
+fn validate_package_manifest_rejects_galgame_line_empty_cg_importance() {
     let mut package = package_with_galgame_project();
-    package.galgame_lines[0].presentation_json = json!({
-        "cg": true,
-        "cg_note": "雨中回头",
-        "cg_importance": " "
-    });
+    let mut presentation = empty_galgame_presentation_json();
+    presentation["cg"] = json!(true);
+    presentation["cg_note"] = json!("雨中回头");
+    presentation["cg_importance"] = json!(" ");
+    package.galgame_lines[0].presentation_json = presentation;
 
-    validate_package_manifest(&package)
-        .expect("empty cg_importance should match the Galgame save-layer default");
+    let err = validate_package_manifest(&package)
+        .expect_err("event CG importance must be an explicit canonical enum");
+
+    assert!(err.contains("presentation_json 不符合 v2 合同"));
 }
 
 #[test]
 fn validate_package_manifest_accepts_galgame_line_event_cg_contract() {
     let mut package = package_with_galgame_project();
-    package.galgame_lines[0].presentation_json = json!({
-        "cg": true,
-        "cg_note": "雨中回头",
-        "cg_importance": "critical"
-    });
+    let mut presentation = empty_galgame_presentation_json();
+    presentation["cg"] = json!(true);
+    presentation["cg_note"] = json!("雨中回头");
+    presentation["cg_importance"] = json!("critical");
+    package.galgame_lines[0].presentation_json = presentation;
 
     validate_package_manifest(&package)
         .expect("valid event CG directives should remain importable");

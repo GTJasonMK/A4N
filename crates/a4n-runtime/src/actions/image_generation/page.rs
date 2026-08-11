@@ -14,7 +14,7 @@ pub async fn preview_page_image_request(
 ) -> Result<ModelRequestPreview, String> {
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .media()
+        .orchestrator()
         .prepare_page_image_request_validated(
             &host,
             user_id,

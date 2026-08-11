@@ -95,7 +95,7 @@ async fn rag_upload_ingest_embeddings_inner(
     }
 
     state
-        .rag()
+        .orchestrator()
         .store_embedded_rag_records(project_id, embedded_inputs, embedding_identity.clone())
         .await
         .map_err(|error| error.to_string())?;
@@ -109,7 +109,7 @@ async fn rag_upload_ingest_embeddings_inner(
         0
     } else {
         let deleted = state
-            .rag()
+            .orchestrator()
             .delete_rag_records(DeleteRagRecordsInput {
                 project_id,
                 data_type: None,

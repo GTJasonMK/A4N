@@ -1,5 +1,5 @@
 mod prelude {
-    pub(super) use serde::Deserialize;
+    pub(super) use serde::{Deserialize, Serialize};
     pub(super) use tokio_util::sync::CancellationToken;
 }
 
@@ -15,7 +15,8 @@ pub use api::{
     resume_chapter_analysis_workflow_run,
 };
 pub use contracts::{
-    CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisProgress, GenerateChapterAnalysisInput,
+    CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult, ChapterAnalysisProgress,
+    GenerateChapterAnalysisInput,
 };
 pub use execution::generate_and_sync_chapter_analysis_with_progress;
 pub(crate) use host_port::RuntimeChapterAnalysisHostPort;

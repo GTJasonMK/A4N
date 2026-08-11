@@ -12,7 +12,6 @@ import {
   readCurrentUserId,
 } from "../api/authStorage";
 import {
-  changeUserPassword,
   getCurrentUser,
   loginUser,
   logoutUser,
@@ -40,7 +39,6 @@ interface AuthStore {
   oauthLogin: (provider: string, code: string) => Promise<UserSummary>;
   register: (username: string, email: string, password: string, inviteCode: string) => Promise<void>;
   logout: () => Promise<void>;
-  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   onUnauthorized: (message?: string) => void;
 }
 
@@ -211,15 +209,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     } finally {
       set({ user: null, loading: false, initialized: true });
       saveAuthSnapshot(null);
-    }
-  },
-
-  changePassword: async (oldPassword: string, newPassword: string) => {
-    set({ loading: true });
-    try {
-      await changeUserPassword(oldPassword, newPassword);
-    } finally {
-      set({ loading: false });
     }
   },
 

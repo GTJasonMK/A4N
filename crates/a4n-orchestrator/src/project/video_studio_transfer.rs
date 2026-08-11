@@ -50,8 +50,6 @@ impl From<String> for VideoStudioProjectTransferError {
 
 #[async_trait]
 pub trait VideoStudioProjectTransferHostPort: Send + Sync {
-    async fn verify_project_owner(&self, user_id: i64, project_id: i64) -> Result<(), AppError>;
-
     async fn render_export_package(
         &self,
         package: &VideoStudioProjectPackage,

@@ -4,7 +4,7 @@ use a4n_core::error::AppError;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::engine::PromptEngine;
+use crate::tera_engine::TeraPromptEngine;
 
 #[async_trait]
 pub trait PromptRenderer: Send + Sync {
@@ -17,10 +17,7 @@ pub trait PromptRenderer: Send + Sync {
 }
 
 #[async_trait]
-impl<T> PromptRenderer for T
-where
-    T: PromptEngine + ?Sized,
-{
+impl PromptRenderer for TeraPromptEngine {
     async fn render_prompt(
         &self,
         template_name: &str,

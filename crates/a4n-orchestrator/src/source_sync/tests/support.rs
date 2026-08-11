@@ -39,7 +39,15 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
                     "exit": [],
                     "focus_character_profile_id": 7,
                     "hold": false,
-                    "player_knowledge": []
+                    "player_knowledge": [],
+                    "cg": null,
+                    "cg_note": null,
+                    "cg_importance": null,
+                    "transition": null,
+                    "branch": null,
+                    "branch_id": null,
+                    "returns_to_scene_index": null,
+                    "after_beat_ref": null
                 }),
                 text_anchor_id: Some(9001),
                 choices: Vec::new(),

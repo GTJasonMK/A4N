@@ -1,22 +1,21 @@
-use a4n_core::models::chapter::chapter;
+use a4n_domain::project::ProjectStatus;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectStatusHistoryInput {
     pub project_id: i64,
-    pub from_status: String,
-    pub to_status: String,
+    pub from_status: ProjectStatus,
+    pub to_status: ProjectStatus,
     pub reason: Option<String>,
     pub changed_by: Option<String>,
     pub changed_at: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateProjectStatusRecordInput {
-    pub to_status: String,
-    pub history_from_status: String,
+    pub to_status: ProjectStatus,
+    pub history_from_status: ProjectStatus,
     pub history_reason: String,
     pub changed_by: Option<String>,
     pub changed_at: NaiveDateTime,
@@ -44,17 +43,7 @@ impl From<DbErr> for ProjectStatusWriteError {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ProjectStatusHistorySummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub from_status: String,
-    pub to_status: String,
-    pub reason: Option<String>,
-    pub changed_at: String,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ProjectStatusArtifacts {
     pub has_blueprint: bool,
     pub has_part_outline: bool,
@@ -78,12 +67,4 @@ impl ProjectStatusReadError {
     pub(super) fn database(operation: &'static str, source: DbErr) -> Self {
         Self::Database { operation, source }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChapterGenerationReadiness {
-    pub has_blueprint: bool,
-    pub has_chapter_outline: bool,
-    pub existing_chapter: Option<chapter::Model>,
-    pub previous_chapter: Option<chapter::Model>,
 }

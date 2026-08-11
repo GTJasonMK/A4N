@@ -19,10 +19,8 @@ use super::profile::RuntimeProfile;
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;
 
-/// 阶段 11：宿主组装壳。
-///
 /// 业务字段统一在 [`a4n_orchestrator::OrchestratorContext`]；本类型仅额外持有
-/// 进程生命周期相关的 managed sidecars，并通过窄 facade 暴露领域入口（禁止 Deref 回流）。
+/// 进程生命周期相关的 managed sidecars。
 #[derive(Clone)]
 pub struct AppState {
     /// 业务编排唯一入口（含原 AppState 业务字段）。
@@ -181,141 +179,8 @@ impl AppState {
         self.orchestrator.subscribe_internal_events()
     }
 
-    pub(crate) fn prompt_records(&self) -> super::prompt_records::PromptRecordsRuntimeFacade<'_> {
-        super::prompt_records::PromptRecordsRuntimeFacade::new(
-            &self.orchestrator,
-            self.runtime_profile,
-        )
-    }
-
-    pub(crate) fn admin(&self) -> super::admin::AdminRuntimeFacade<'_> {
-        super::admin::AdminRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn auth(&self) -> super::auth::AuthRuntimeFacade<'_> {
-        super::auth::AuthRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn collaboration(&self) -> super::collaboration::CollaborationRuntimeFacade<'_> {
-        super::collaboration::CollaborationRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_read(&self) -> super::project_read::ProjectReadRuntimeFacade<'_> {
-        super::project_read::ProjectReadRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_mutation(
-        &self,
-    ) -> super::project_mutation::ProjectMutationRuntimeFacade<'_> {
-        super::project_mutation::ProjectMutationRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_blueprint(
-        &self,
-    ) -> super::project_blueprint::ProjectBlueprintRuntimeFacade<'_> {
-        super::project_blueprint::ProjectBlueprintRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_duplication(
-        &self,
-    ) -> super::project_duplication::ProjectDuplicationRuntimeFacade<'_> {
-        super::project_duplication::ProjectDuplicationRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn video_studio_transfer(
-        &self,
-    ) -> super::video_studio_transfer::VideoStudioTransferRuntimeFacade<'_> {
-        super::video_studio_transfer::VideoStudioTransferRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_status(&self) -> super::project_status::ProjectStatusRuntimeFacade<'_> {
-        super::project_status::ProjectStatusRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_dependency_graph(
-        &self,
-    ) -> super::project_dependency_graph::ProjectDependencyGraphRuntimeFacade<'_> {
-        super::project_dependency_graph::ProjectDependencyGraphRuntimeFacade::new(
-            &self.orchestrator,
-        )
-    }
-
-    pub(crate) fn project_chapter_records(
-        &self,
-    ) -> super::project_chapter_records::ProjectChapterRecordsRuntimeFacade<'_> {
-        super::project_chapter_records::ProjectChapterRecordsRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_outline_records(
-        &self,
-    ) -> super::project_outline_records::ProjectOutlineRecordsRuntimeFacade<'_> {
-        super::project_outline_records::ProjectOutlineRecordsRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_scene_records(
-        &self,
-    ) -> super::project_scene_records::ProjectSceneRecordsRuntimeFacade<'_> {
-        super::project_scene_records::ProjectSceneRecordsRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn project_family(&self) -> super::project_family::ProjectFamilyRuntimeFacade<'_> {
-        super::project_family::ProjectFamilyRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn settings(&self) -> super::settings::SettingsRuntimeFacade<'_> {
-        super::settings::SettingsRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn import_review(&self) -> super::import_review::ImportReviewRuntimeFacade<'_> {
-        super::import_review::ImportReviewRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn export(&self) -> super::export::ExportRuntimeFacade<'_> {
-        super::export::ExportRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn asset(&self) -> super::asset::AssetRuntimeFacade<'_> {
-        super::asset::AssetRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn scene_profile(&self) -> super::scene_profile::SceneProfileRuntimeFacade<'_> {
-        super::scene_profile::SceneProfileRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn chapter_content(
-        &self,
-    ) -> super::chapter_content::ChapterContentRuntimeFacade<'_> {
-        super::chapter_content::ChapterContentRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn character(&self) -> super::character::CharacterRuntimeFacade<'_> {
-        super::character::CharacterRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn outline(&self) -> super::outline::OutlineRuntimeFacade<'_> {
-        super::outline::OutlineRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn portrait(&self) -> super::portrait::PortraitRuntimeFacade<'_> {
-        super::portrait::PortraitRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn rag(&self) -> super::rag::RagRuntimeFacade<'_> {
-        super::rag::RagRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn optimize(&self) -> super::optimize::OptimizeRuntimeFacade<'_> {
-        super::optimize::OptimizeRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn galgame(&self) -> super::galgame::GalgameRuntimeFacade<'_> {
-        super::galgame::GalgameRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn generation_tasks(
-        &self,
-    ) -> super::generation_tasks::GenerationTasksRuntimeFacade<'_> {
-        super::generation_tasks::GenerationTasksRuntimeFacade::new(&self.orchestrator)
+    pub(crate) fn orchestrator(&self) -> &a4n_orchestrator::OrchestratorContext {
+        &self.orchestrator
     }
 
     pub(crate) fn spawn_generation_execution(
@@ -369,78 +234,6 @@ impl AppState {
         crate::actions::generation_tasks::destructive_lifecycle::DestructiveLifecycleCoordinator,
     > {
         &self.destructive_lifecycle
-    }
-
-    pub(crate) fn video(&self) -> super::video::VideoRuntimeFacade<'_> {
-        super::video::VideoRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn canvas(&self) -> super::canvas::CanvasRuntimeFacade<'_> {
-        super::canvas::CanvasRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn source_sync(&self) -> super::source_sync::SourceSyncRuntimeFacade<'_> {
-        super::source_sync::SourceSyncRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn inspiration(&self) -> super::inspiration::InspirationRuntimeFacade<'_> {
-        super::inspiration::InspirationRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn profile_material(
-        &self,
-    ) -> super::profile_material::ProfileMaterialRuntimeFacade<'_> {
-        super::profile_material::ProfileMaterialRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn import_reverse(&self) -> super::import_reverse::ImportReverseRuntimeFacade<'_> {
-        super::import_reverse::ImportReverseRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn asset_lineage_sync(
-        &self,
-    ) -> super::asset_lineage_sync::AssetLineageSyncRuntimeFacade<'_> {
-        super::asset_lineage_sync::AssetLineageSyncRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn chapter_analysis(
-        &self,
-    ) -> super::chapter_analysis::ChapterAnalysisRuntimeFacade<'_> {
-        super::chapter_analysis::ChapterAnalysisRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn chapter_generation(
-        &self,
-    ) -> super::chapter_generation::ChapterGenerationRuntimeFacade<'_> {
-        super::chapter_generation::ChapterGenerationRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn import_analysis(
-        &self,
-    ) -> super::import_analysis::ImportAnalysisRuntimeFacade<'_> {
-        super::import_analysis::ImportAnalysisRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn task_queue(&self) -> super::task_queue::TaskQueueRuntimeFacade<'_> {
-        super::task_queue::TaskQueueRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn media(&self) -> super::media::MediaRuntimeFacade<'_> {
-        super::media::MediaRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn manga(&self) -> super::manga::MangaRuntimeFacade<'_> {
-        super::manga::MangaRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn workflow(&self) -> super::workflow::WorkflowRuntimeFacade<'_> {
-        super::workflow::WorkflowRuntimeFacade::new(&self.orchestrator)
-    }
-
-    pub(crate) fn shooting_script(
-        &self,
-    ) -> super::shooting_script::ShootingScriptRuntimeFacade<'_> {
-        super::shooting_script::ShootingScriptRuntimeFacade::new(&self.orchestrator)
     }
 
     pub fn dynamic_llm_provider_for_profile(

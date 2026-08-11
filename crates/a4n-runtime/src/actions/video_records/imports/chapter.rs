@@ -42,7 +42,7 @@ async fn create_imported_chapter_video(
     let properties = probe_video_properties(&source.path, "导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let prepared = state
-        .video()
+        .orchestrator()
         .create_imported_chapter_video_record_validated(
             project_id,
             chapter_id,
@@ -63,7 +63,7 @@ async fn create_imported_chapter_video(
     let prompt = prepared.prompt;
 
     let (output, output_path_str) = persist_imported_video_file(
-        &state.video(),
+        state.orchestrator(),
         state.data_dir(),
         record.id,
         &source.path,
@@ -105,7 +105,8 @@ async fn create_imported_chapter_video(
                             thumbnail_path.as_deref(),
                         )
                         .await;
-                    let delete_error = delete_video_record_error(&state.video(), record.id).await;
+                    let delete_error =
+                        delete_video_record_error(state.orchestrator(), record.id).await;
                     return Err(append_secondary_error(
                         append_secondary_error(
                             format!("导入视频已复制但首帧串联尾帧采集失败：{err}"),

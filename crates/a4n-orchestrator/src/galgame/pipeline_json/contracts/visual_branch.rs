@@ -1,3 +1,4 @@
+use a4n_domain::galgame::GalgameCgImportance;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +23,7 @@ pub struct GalgamePipelineEventCgPlan {
     pub scene_index: i32,
     pub line_index: i32,
     pub cg_note: String,
-    pub importance: String,
+    pub importance: GalgameCgImportance,
     pub source_span_ids: Vec<String>,
 }
 
@@ -72,7 +73,7 @@ pub(in crate::galgame::pipeline_json) struct EventCgPlanRaw {
     pub(in crate::galgame::pipeline_json) scene_index: i32,
     pub(in crate::galgame::pipeline_json) line_index: i32,
     pub(in crate::galgame::pipeline_json) cg_note: String,
-    pub(in crate::galgame::pipeline_json) importance: String,
+    pub(in crate::galgame::pipeline_json) importance: GalgameCgImportance,
     pub(in crate::galgame::pipeline_json) source_span_ids: Vec<String>,
 }
 

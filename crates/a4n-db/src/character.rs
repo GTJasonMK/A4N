@@ -17,6 +17,9 @@ pub use snapshot::*;
 pub use sync_persistence::*;
 pub use timeline::*;
 
+use a4n_core::models::character::attribute_event::{
+    SOURCE_KIND_AI_SYNC, SOURCE_KIND_LEGACY_UNKNOWN, SOURCE_KIND_USER,
+};
 use sea_orm::DbErr;
 
 #[derive(Debug, thiserror::Error)]
@@ -65,6 +68,22 @@ fn validate_chapter_number(chapter_number: i32) -> Result<(), CharacterDbError> 
         ))
     } else {
         Ok(())
+    }
+}
+
+pub(in crate::character) fn validate_timeline_source_kind(
+    source_kind: &str,
+) -> Result<String, CharacterDbError> {
+    let source_kind = source_kind.trim();
+    if matches!(
+        source_kind,
+        SOURCE_KIND_USER | SOURCE_KIND_AI_SYNC | SOURCE_KIND_LEGACY_UNKNOWN
+    ) {
+        Ok(source_kind.to_string())
+    } else {
+        Err(CharacterDbError::InvalidArgument(format!(
+            "角色时间线 source_kind 无效: {source_kind}"
+        )))
     }
 }
 

@@ -23,7 +23,7 @@ pub(super) async fn load_client_ingest_context(
     access::verify_project_editor(state, user_id, project_id)
         .await
         .map_err(|error| error.to_string())?;
-    let rag = state.rag();
+    let rag = state.orchestrator();
     let embedding_identity = crate::actions::rag_search::current_embedding_identity(&rag)
         .await
         .map_err(|error| error.to_string())?;

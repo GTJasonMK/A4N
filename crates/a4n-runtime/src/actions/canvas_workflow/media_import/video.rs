@@ -18,7 +18,7 @@ pub(super) async fn import_canvas_video_media(
 ) -> Result<ImportedCanvasMedia, String> {
     let host_port = RuntimeCanvasVideoImportHostPort { state, user_id };
     let result = state
-        .canvas()
+        .orchestrator()
         .import_canvas_video_validated(
             &host_port,
             CanvasVideoImportHostInput {
@@ -71,7 +71,7 @@ impl CanvasVideoImportHostPort for RuntimeCanvasVideoImportHostPort<'_> {
         .await
         .map_err(host_error)?;
         self.state
-            .video()
+            .orchestrator()
             .generated_video_by_id(summary.id)
             .await
             .map_err(|error| host_error(error.to_string()))?

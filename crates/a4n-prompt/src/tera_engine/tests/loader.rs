@@ -5,7 +5,6 @@ use a4n_core::error::AppError;
 
 use super::super::TeraPromptEngine;
 use super::support::{make_entry, write_test_registry};
-use crate::engine::PromptEngine;
 
 #[test]
 fn test_from_directory() {

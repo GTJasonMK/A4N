@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 
-use super::contracts::{MangaCharacterPortraitRef, MangaReferenceContext};
+use super::contracts::MangaCharacterPortraitRef;
 
-pub(in crate::manga) fn character_portraits_json(refs: &[MangaCharacterPortraitRef]) -> Value {
+fn character_portraits_json(refs: &[MangaCharacterPortraitRef]) -> Value {
     Value::Array(refs.iter().map(character_portrait_json).collect())
 }
 
@@ -20,11 +20,8 @@ fn character_portrait_json(portrait: &MangaCharacterPortraitRef) -> Value {
     })
 }
 
-pub(in crate::manga) fn manga_reference_assets_metadata(
-    reference_context: &MangaReferenceContext,
-) -> Value {
+pub(in crate::manga) fn manga_reference_assets_json(refs: &[MangaCharacterPortraitRef]) -> Value {
     json!({
-        "character_portraits": character_portraits_json(&reference_context.character_portraits),
-        "character_portrait_count": reference_context.character_portraits.len(),
+        "character_portraits": character_portraits_json(refs),
     })
 }

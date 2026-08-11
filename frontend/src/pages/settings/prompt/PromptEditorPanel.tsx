@@ -10,6 +10,7 @@ import { PromptHistoryPanel } from "./PromptHistoryPanel";
 
 interface PromptEditorPanelProps {
   prompt: PromptEntry | null;
+  reverseDependencies: string[];
   draft: string;
   dirty: boolean;
   saving: boolean;
@@ -21,6 +22,7 @@ interface PromptEditorPanelProps {
 
 export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
   prompt,
+  reverseDependencies,
   draft,
   dirty,
   saving,
@@ -67,18 +69,30 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
 
           <details
             open={advancedOpen}
-            onToggle={(event) => setAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)}
+            onToggle={(event) =>
+              setAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
+            }
             className="group mt-3 shrink-0 border-t border-book-border/35 pt-2"
           >
             <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 py-1 text-xs text-book-text-muted transition-colors hover:text-book-text-sub [&::-webkit-details-marker]:hidden">
-              <ChevronDown size={12} className="transition-transform group-open:rotate-180" />
+              <ChevronDown
+                size={12}
+                className="transition-transform group-open:rotate-180"
+              />
               高级工具
             </summary>
             {advancedOpen ? (
               <div className="mt-1 divide-y divide-book-border/35 border-t border-book-border/35">
                 <PromptHistoryPanel prompt={prompt} />
-                <ProjectOverridePanel prompt={prompt} content={prompt.content} dirty={dirty} />
-                <PromptAdvancedPanels prompt={prompt} />
+                <ProjectOverridePanel
+                  prompt={prompt}
+                  content={prompt.content}
+                  dirty={dirty}
+                />
+                <PromptAdvancedPanels
+                  prompt={prompt}
+                  reverseDependencies={reverseDependencies}
+                />
               </div>
             ) : null}
           </details>
@@ -118,20 +132,36 @@ const PromptEditorHeader: React.FC<{
             {prompt.description}
           </div>
         ) : null}
-        <div className={`mt-1 inline-flex items-center gap-1 text-small ${dirty ? "text-warning" : "text-book-text-muted"}`}>
+        <div
+          className={`mt-1 inline-flex items-center gap-1 text-small ${dirty ? "text-warning" : "text-book-text-muted"}`}
+        >
           {dirty ? null : <Check size={11} />}
-          {saving ? "正在保存…" : dirty ? "有未保存修改" : prompt.is_modified ? "已保存自定义内容" : "使用默认内容"}
+          {saving
+            ? "正在保存…"
+            : dirty
+              ? "有未保存修改"
+              : prompt.is_modified
+                ? "已保存自定义内容"
+                : "使用默认内容"}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {dirty || saving ? (
-          <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
+          <BookButton
+            variant="primary"
+            size="sm"
+            onClick={onSave}
+            disabled={saving}
+          >
             {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
             {saving ? "保存中…" : "保存"}
           </BookButton>
         ) : null}
         {resetting ? (
-          <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted" title="正在恢复默认内容">
+          <span
+            className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted"
+            title="正在恢复默认内容"
+          >
             <LoadingSpinner size="sm" />
           </span>
         ) : moreItems.length > 0 ? (
@@ -149,17 +179,37 @@ const PromptMetadata: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
         诊断信息
       </summary>
       <div className="mt-2 grid gap-1.5 border-l border-book-border/40 pl-2.5 text-book-text-muted">
-        <div>内部名称：<span className="font-mono text-book-text-sub">{prompt.name}</span></div>
-        <div>版本：<span className="font-mono text-book-text-sub">{prompt.version || "—"}</span></div>
-        <div>分类：<span className="font-mono text-book-text-sub">{prompt.category}</span></div>
+        <div>
+          内部名称：
+          <span className="font-mono text-book-text-sub">{prompt.name}</span>
+        </div>
+        <div>
+          版本：
+          <span className="font-mono text-book-text-sub">
+            {prompt.version || "—"}
+          </span>
+        </div>
+        <div>
+          分类：
+          <span className="font-mono text-book-text-sub">
+            {prompt.category}
+          </span>
+        </div>
         {prompt.used_by && prompt.used_by.length > 0 && (
-          <div>使用位置：<span className="font-mono text-book-text-sub">{prompt.used_by.join("、")}</span></div>
+          <div>
+            使用位置：
+            <span className="font-mono text-book-text-sub">
+              {prompt.used_by.join("、")}
+            </span>
+          </div>
         )}
         {(prompt.tags?.length || prompt.dependencies?.length) && (
           <div>
             {prompt.tags?.length ? `标签：${prompt.tags.join("、")}` : ""}
             {prompt.tags?.length && prompt.dependencies?.length ? " · " : ""}
-            {prompt.dependencies?.length ? `依赖：${prompt.dependencies.join("、")}` : ""}
+            {prompt.dependencies?.length
+              ? `依赖：${prompt.dependencies.join("、")}`
+              : ""}
           </div>
         )}
         {prompt.path && (

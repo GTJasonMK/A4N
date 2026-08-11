@@ -1,81 +1,32 @@
-use std::collections::HashMap;
-
-use a4n_core::{
-    dependency_conflict::DownstreamConflictStrategy, error::AppError,
-    models::chapter::chapter_manga_prompt,
+use a4n_api_contract::manga::{
+    BindMangaReferenceImageInput, MangaPipelineStatusSummary, OptimizeMangaPromptInput,
+    UpdateMangaPromptInput,
 };
+use a4n_core::{error::AppError, models::chapter::chapter_manga_prompt};
+use a4n_domain::DownstreamConflictStrategy;
 use a4n_prompt::rendering::PromptRenderer;
-use serde::{Deserialize, Serialize};
 
+use super::record_errors::manga_pipeline_db_error;
+use super::{
+    MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
+    MangaPipelineRequestPreviewStep, MangaPromptDownstreamCleanupPort,
+    MangaPromptOptimizationInput, ensure_manga_source_can_write, manga_pipeline_fingerprint,
+    resolve_manga_prompt_downstream_conflict,
+};
+use crate::workflow::{
+    ListWorkflowRunsInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
+    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
+};
 use crate::{
     OrchestratorContext, collaboration::ProjectAccessRole, project::required_text,
     shooting_script::ChapterShootingScriptSourceInput,
 };
-
-use super::{
-    MANGA_PAGE_PROMPT_TYPE, MangaGeneratePanelsInput, MangaPipelineRequestPreviewInput,
-    MangaPipelineRequestPreviewStep, MangaPipelineStartStage, MangaPromptDownstreamCleanupPort,
-    MangaPromptOptimizationInput, PIPELINE_STATUS_PROMPT_TYPE, ensure_manga_source_can_write,
-    manga_checkpoint_matches_source, manga_pipeline_business_key, manga_pipeline_fingerprint,
-    optional_layout_string, required_layout_bool, required_layout_i32, required_layout_string,
-    resolve_manga_prompt_downstream_conflict,
-};
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BindReferenceImageInput {
-    pub prompt_id: i64,
-    pub slot_id: String,
-    pub asset_kind: String,
-    pub asset_id: i64,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateMangaPromptInput {
-    pub prompt_id: i64,
-    pub image_prompt: String,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OptimizeMangaPromptRecordInput {
-    pub prompt_id: i64,
-    pub instruction: String,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MangaPipelineStatusSummary {
-    pub chapter_id: i64,
-    pub pending: i64,
-    pub generating: i64,
-    pub completed: i64,
-    pub failed: i64,
-    pub cancelled: i64,
-    pub pipeline_status: Option<String>,
-    pub stage: Option<String>,
-    pub current: Option<i32>,
-    pub total: Option<i32>,
-    pub message: Option<String>,
-    pub task_id: Option<String>,
-    pub can_cancel: bool,
-    pub can_resume: bool,
-    pub has_checkpoint: bool,
-    pub checkpoint_valid: bool,
-}
 
 pub struct MangaPipelineApplicationInput<'a> {
     pub project_id: i64,
     pub chapter_number: i32,
     pub task_id: &'a str,
     pub resume_from_checkpoint: bool,
-    pub start_from_stage: Option<MangaPipelineStartStage>,
     pub prompt_renderer: &'a dyn PromptRenderer,
 }
 
@@ -83,7 +34,6 @@ pub struct MangaPipelinePreviewApplicationInput<'a> {
     pub project_id: i64,
     pub chapter_number: i32,
     pub resume_from_checkpoint: bool,
-    pub start_from_stage: Option<MangaPipelineStartStage>,
     pub prompt_renderer: &'a dyn PromptRenderer,
 }
 
@@ -121,23 +71,19 @@ impl OrchestratorContext {
                 source.chapter_id,
                 &source.content,
                 &reference_context,
-                input.start_from_stage,
-                Some(input.task_id.to_string()),
+                input.task_id.to_string(),
                 input.resume_from_checkpoint,
             )
             .await?;
-        let variables = HashMap::new();
         let result = self
-            .generate_panels(MangaGeneratePanelsInput {
+            .generate_page_prompts(MangaGeneratePagePromptsInput {
                 chapter_id: source.chapter_id,
                 project_id: input.project_id,
                 prompt_renderer: input.prompt_renderer,
-                variables: &variables,
                 reference_context,
-                task_id: Some(input.task_id),
-                workflow_run_id: Some(workflow.id),
+                task_id: input.task_id,
+                workflow_run_id: workflow.id,
                 resume_from_checkpoint: input.resume_from_checkpoint,
-                start_from_stage: input.start_from_stage,
             })
             .await;
         self.finalize_workflow_outcome_result(workflow.id, result, "漫画流水线")
@@ -165,29 +111,20 @@ impl OrchestratorContext {
                 .id,
             )
         } else {
-            self.latest_workflow_run_by_business_key(&manga_pipeline_business_key(
-                input.project_id,
-                source.chapter_id,
-            ))
-            .await?
-            .filter(|run| run.input_fingerprint_json.as_ref() == Some(&workflow_fingerprint))
-            .map(|run| run.id)
+            None
         };
-        let variables = HashMap::new();
-        self.preview_generate_panels_requests(MangaPipelineRequestPreviewInput {
+        self.preview_generate_page_prompt_requests(MangaPipelineRequestPreviewInput {
             chapter_id: source.chapter_id,
             project_id: input.project_id,
             prompt_renderer: input.prompt_renderer,
-            variables: &variables,
             reference_context,
             workflow_run_id,
             resume_from_checkpoint: input.resume_from_checkpoint,
-            start_from_stage: input.start_from_stage,
         })
         .await
     }
 
-    pub async fn list_manga_panels_validated(
+    pub async fn list_manga_page_prompts_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -195,40 +132,42 @@ impl OrchestratorContext {
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
         self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Viewer)
             .await?;
-        self.manga_page_prompts_by_chapter(project_id, chapter_id, MANGA_PAGE_PROMPT_TYPE)
+        self.manga_page_prompts_by_chapter(project_id, chapter_id)
             .await
     }
 
     pub async fn bind_manga_reference_image_validated(
         &self,
         user_id: i64,
-        input: BindReferenceImageInput,
+        input: BindMangaReferenceImageInput,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<chapter_manga_prompt::Model, AppError> {
-        let slot_id =
-            required_text(&input.slot_id, "参考图槽位").map_err(AppError::InvalidArgument)?;
-        let asset_kind = required_text(&input.asset_kind, "参考图素材类型")
-            .map_err(AppError::InvalidArgument)?;
-        let panel = self.required_manga_page_prompt(input.prompt_id).await?;
-        self.verify_manga_permission(user_id, panel.project_id, ProjectAccessRole::Editor)
+        let character_name =
+            required_text(&input.character_name, "角色名称").map_err(AppError::InvalidArgument)?;
+        let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
+        self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
         let source = self
-            .chapter_manga_source_by_id(panel.chapter_id, panel.project_id, false)
+            .chapter_manga_source_by_id(page_prompt.chapter_id, page_prompt.project_id, false)
             .await?;
         ensure_manga_source_can_write(&source, "绑定漫画参考图")?;
         let downstream_image_id = resolve_manga_prompt_downstream_conflict(
-            &panel,
+            &page_prompt,
             input.downstream_strategy,
             "绑定参考图",
         )
         .map_err(AppError::InvalidArgument)?;
         let bound_asset = self
-            .manga_reference_bound_asset(panel.project_id, asset_kind, input.asset_id)
+            .manga_reference_bound_asset(page_prompt.project_id, input.asset_kind, input.asset_id)
             .await?;
-        let layout =
-            super::bind_reference_asset_in_layout(panel.layout.clone(), slot_id, bound_asset)
-                .map_err(AppError::InvalidArgument)?;
-        let updated = self.update_manga_page_prompt_layout(panel, layout).await?;
+        let layout = page_prompt.layout.clone().ok_or_else(|| {
+            AppError::InvalidArgument(format!("漫画页面提示词 #{} 缺少 layout", page_prompt.id))
+        })?;
+        let layout = super::bind_reference_asset_in_layout(layout, character_name, bound_asset)
+            .map_err(AppError::InvalidArgument)?;
+        let updated = self
+            .update_manga_page_prompt_layout(page_prompt, layout)
+            .await?;
         if let Some(image_id) = downstream_image_id {
             cleanup.delete_downstream_images(&[image_id]).await?;
         }
@@ -243,24 +182,24 @@ impl OrchestratorContext {
     ) -> Result<chapter_manga_prompt::Model, AppError> {
         let image_prompt = required_text(&input.image_prompt, "整页漫画提示词")
             .map_err(AppError::InvalidArgument)?;
-        let panel = self.required_manga_page_prompt(input.prompt_id).await?;
-        self.verify_manga_permission(user_id, panel.project_id, ProjectAccessRole::Editor)
+        let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
+        self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
         let source = self
-            .chapter_manga_source_by_id(panel.chapter_id, panel.project_id, false)
+            .chapter_manga_source_by_id(page_prompt.chapter_id, page_prompt.project_id, false)
             .await?;
         ensure_manga_source_can_write(&source, "修改整页漫画提示词")?;
-        if panel.image_prompt.trim() == image_prompt {
-            return Ok(panel);
+        if page_prompt.image_prompt.trim() == image_prompt {
+            return Ok(page_prompt);
         }
         let downstream_image_id = resolve_manga_prompt_downstream_conflict(
-            &panel,
+            &page_prompt,
             input.downstream_strategy,
             "修改提示词",
         )
         .map_err(AppError::InvalidArgument)?;
         let updated = self
-            .update_manga_page_prompt_image_prompt(panel, image_prompt.to_string())
+            .update_manga_page_prompt_image_prompt(page_prompt, image_prompt.to_string())
             .await?;
         if let Some(image_id) = downstream_image_id {
             cleanup.delete_downstream_images(&[image_id]).await?;
@@ -292,16 +231,19 @@ impl OrchestratorContext {
         downstream_strategy: DownstreamConflictStrategy,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<(), AppError> {
-        let panel = self.required_manga_page_prompt(prompt_id).await?;
-        self.verify_manga_permission(user_id, panel.project_id, ProjectAccessRole::Editor)
+        let page_prompt = self.required_manga_page_prompt(prompt_id).await?;
+        self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
         let source = self
-            .chapter_manga_source_by_id(panel.chapter_id, panel.project_id, false)
+            .chapter_manga_source_by_id(page_prompt.chapter_id, page_prompt.project_id, false)
             .await?;
         ensure_manga_source_can_write(&source, "删除漫画提示词")?;
-        let downstream_image_id =
-            resolve_manga_prompt_downstream_conflict(&panel, downstream_strategy, "删除提示词")
-                .map_err(AppError::InvalidArgument)?;
+        let downstream_image_id = resolve_manga_prompt_downstream_conflict(
+            &page_prompt,
+            downstream_strategy,
+            "删除提示词",
+        )
+        .map_err(AppError::InvalidArgument)?;
         if let Some(image_id) = downstream_image_id {
             cleanup.delete_downstream_images(&[image_id]).await?;
         }
@@ -316,13 +258,8 @@ impl OrchestratorContext {
     ) -> Result<MangaPipelineStatusSummary, AppError> {
         self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Viewer)
             .await?;
-        let rows = self
-            .manga_pipeline_status_rows(
-                project_id,
-                chapter_id,
-                MANGA_PAGE_PROMPT_TYPE,
-                PIPELINE_STATUS_PROMPT_TYPE,
-            )
+        let page_prompts = self
+            .manga_page_prompts_by_chapter(project_id, chapter_id)
             .await?;
         let mut summary = MangaPipelineStatusSummary {
             chapter_id,
@@ -342,59 +279,73 @@ impl OrchestratorContext {
             has_checkpoint: false,
             checkpoint_valid: false,
         };
-        for prompt in &rows.page_prompts {
+        for prompt in &page_prompts {
             match prompt.status.as_str() {
                 "pending" => summary.pending += 1,
                 "generating" => summary.generating += 1,
                 "completed" => summary.completed += 1,
                 "failed" => summary.failed += 1,
                 "cancelled" => summary.cancelled += 1,
-                _ => {}
+                status => {
+                    return Err(AppError::InvalidArgument(format!(
+                        "漫画页面提示词 #{} 包含未知状态: {status}",
+                        prompt.id
+                    )));
+                }
             }
         }
-        let layout = match rows.status_row.as_ref() {
-            Some(row) => Some(row.layout.clone().ok_or_else(|| {
-                AppError::InvalidArgument(format!("漫画流水线状态 #{} 缺少 layout", row.id))
-            })?),
-            None => None,
-        };
-        if let Some(layout) = layout.as_ref() {
-            summary.pipeline_status = Some(
-                required_layout_string(layout, "pipeline_status")
-                    .map_err(AppError::InvalidArgument)?,
-            );
-            summary.stage =
-                Some(required_layout_string(layout, "stage").map_err(AppError::InvalidArgument)?);
-            summary.current =
-                Some(required_layout_i32(layout, "current").map_err(AppError::InvalidArgument)?);
-            summary.total =
-                Some(required_layout_i32(layout, "total").map_err(AppError::InvalidArgument)?);
-            summary.message =
-                Some(required_layout_string(layout, "message").map_err(AppError::InvalidArgument)?);
-            summary.task_id =
-                optional_layout_string(layout, "task_id").map_err(AppError::InvalidArgument)?;
-            summary.has_checkpoint = match layout.get("checkpoint_data") {
-                Some(value) => value
-                    .as_object()
-                    .map(|map| !map.is_empty())
-                    .ok_or_else(|| {
-                        AppError::InvalidArgument(
-                            "漫画流水线 checkpoint_data 必须是对象".to_string(),
-                        )
-                    })?,
-                None => false,
-            };
-            summary.can_cancel =
-                required_layout_bool(layout, "can_cancel").map_err(AppError::InvalidArgument)?;
-            summary.can_resume =
-                required_layout_bool(layout, "can_resume").map_err(AppError::InvalidArgument)?;
+        let run = self
+            .workflow_runs(ListWorkflowRunsInput {
+                project_id: Some(project_id),
+                chapter_id: Some(chapter_id),
+                workflow_kind: Some("manga_pipeline".to_string()),
+                status: None,
+                resumable_only: None,
+                limit: Some(1),
+            })
+            .await?
+            .into_iter()
+            .next();
+        if let Some(run) = run {
+            summary.pipeline_status = Some(run.status.clone());
+            summary.stage = run.current_step_key.clone();
+            summary.task_id = run.active_task_id.clone();
+            summary.can_cancel = run.status == WORKFLOW_STATUS_RUNNING;
+            summary.message = run.error_message.clone();
+            if let Some(progress) = run.progress.as_ref() {
+                summary.current = Some(i32::try_from(progress.current).map_err(|_| {
+                    AppError::InvalidArgument("漫画流水线 current 超出 i32 范围".to_string())
+                })?);
+                summary.total = Some(i32::try_from(progress.total).map_err(|_| {
+                    AppError::InvalidArgument("漫画流水线 total 超出 i32 范围".to_string())
+                })?);
+                if summary.message.is_none() {
+                    summary.message = Some(progress.message.clone());
+                }
+            }
+            summary.has_checkpoint = self
+                .workflow_checkpoint_models(run.id)
+                .await?
+                .iter()
+                .any(|checkpoint| checkpoint.status == WORKFLOW_STATUS_COMPLETED);
             if summary.has_checkpoint {
                 let source = self
                     .chapter_manga_source_by_id(chapter_id, project_id, false)
                     .await?;
-                summary.checkpoint_valid = manga_checkpoint_matches_source(layout, &source)?;
-                summary.can_resume &= summary.checkpoint_valid;
+                let reference_context = self.manga_reference_context(project_id).await?;
+                let current_fingerprint =
+                    manga_pipeline_fingerprint(&source.content, &reference_context);
+                summary.checkpoint_valid =
+                    run.input_fingerprint_json.as_ref() == Some(&current_fingerprint);
             }
+            summary.can_resume = run.can_resume
+                && summary.checkpoint_valid
+                && matches!(
+                    run.status.as_str(),
+                    WORKFLOW_STATUS_FAILED
+                        | WORKFLOW_STATUS_CANCELLED
+                        | WORKFLOW_STATUS_INTERRUPTED
+                );
         }
         Ok(summary)
     }
@@ -411,29 +362,48 @@ impl OrchestratorContext {
             .chapter_manga_source_by_id(chapter_id, project_id, false)
             .await?;
         ensure_manga_source_can_write(&source, "取消漫画流水线")?;
-        self.cancel_manga_pipeline_records(project_id, chapter_id)
+        let run = self
+            .workflow_run_models(ListWorkflowRunsInput {
+                project_id: Some(project_id),
+                chapter_id: Some(chapter_id),
+                workflow_kind: Some("manga_pipeline".to_string()),
+                status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
+                resumable_only: None,
+                limit: Some(1),
+            })
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "no_running_manga_pipeline".to_string(),
+                operation: "取消漫画流水线".to_string(),
+            })?;
+        self.cancel_workflow_run_status_validated(run.id, Some("用户请求取消漫画流水线"))
+            .await?;
+        a4n_db::manga::cancel_manga_page_prompts(self.database.connection(), project_id, chapter_id)
             .await
+            .map_err(manga_pipeline_db_error)
     }
 
     pub async fn optimize_manga_prompt_record_validated(
         &self,
         user_id: i64,
-        input: OptimizeMangaPromptRecordInput,
+        input: OptimizeMangaPromptInput,
         prompt_renderer: &dyn PromptRenderer,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<chapter_manga_prompt::Model, AppError> {
-        let panel = self.required_manga_page_prompt(input.prompt_id).await?;
-        self.verify_manga_permission(user_id, panel.project_id, ProjectAccessRole::Editor)
+        let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
+        self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
         let downstream_image_id = resolve_manga_prompt_downstream_conflict(
-            &panel,
+            &page_prompt,
             input.downstream_strategy,
             "优化提示词",
         )
         .map_err(AppError::InvalidArgument)?;
         self.optimize_manga_prompt_validated(
             MangaPromptOptimizationInput {
-                panel,
+                page_prompt,
                 instruction: input.instruction,
                 downstream_image_ids: downstream_image_id.into_iter().collect(),
             },
@@ -452,16 +422,11 @@ impl OrchestratorContext {
                 "漫画提示词 ID 必须大于 0".to_string(),
             ));
         }
-        let panel = self
+        let page_prompt = self
             .manga_page_prompt_by_id(prompt_id)
             .await?
             .ok_or_else(|| AppError::NotFound("整页漫画提示词不存在".to_string()))?;
-        if panel.prompt_type != MANGA_PAGE_PROMPT_TYPE {
-            return Err(AppError::InvalidArgument(
-                "只能操作整页漫画提示词".to_string(),
-            ));
-        }
-        Ok(panel)
+        Ok(page_prompt)
     }
 
     async fn verify_manga_permission(

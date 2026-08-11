@@ -14,6 +14,7 @@ pub mod config_records;
 pub mod dependency_conflict;
 pub mod embedding_model;
 pub mod export_files;
+pub mod foreshadowing_records;
 pub mod galgame_records;
 pub mod generation_analytics;
 pub mod generation_tasks;
@@ -69,7 +70,7 @@ pub(crate) async fn sidecar_root_project_id(
         return Ok(None);
     }
     state
-        .collaboration()
+        .orchestrator()
         .collaboration_root_project(project_id)
         .await
         .map(|root| Some(root.id))

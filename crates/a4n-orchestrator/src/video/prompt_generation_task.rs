@@ -787,19 +787,13 @@ fn prompt_rows_revision(rows: &[ChapterVideoPromptSummary]) -> String {
     let mut digest = Sha256::new();
     let mut identity = rows
         .iter()
-        .map(|row| (row.id, row.updated_at.as_deref()))
+        .map(|row| (row.id, row.updated_at.as_str()))
         .collect::<Vec<_>>();
     identity.sort_unstable_by_key(|(id, _)| *id);
     for (id, updated_at) in identity {
         digest.update(id.to_le_bytes());
-        match updated_at {
-            Some(updated_at) => {
-                digest.update([1]);
-                digest.update((updated_at.len() as u64).to_le_bytes());
-                digest.update(updated_at.as_bytes());
-            }
-            None => digest.update([0]),
-        }
+        digest.update((updated_at.len() as u64).to_le_bytes());
+        digest.update(updated_at.as_bytes());
     }
     format!("{:x}", digest.finalize())
 }
@@ -1130,8 +1124,8 @@ mod tests {
                 "segment_recipe_fingerprint": format!("recipe-{shot_number}"),
                 "video_execution_identity": execution_identity,
             })),
-            created_at: Some("2026-01-01 00:00:00".to_string()),
-            updated_at: Some(updated_at.to_string()),
+            created_at: "2026-01-01 00:00:00".to_string(),
+            updated_at: updated_at.to_string(),
         }
     }
 }

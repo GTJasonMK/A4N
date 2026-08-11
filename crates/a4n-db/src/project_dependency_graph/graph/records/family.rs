@@ -2,7 +2,10 @@ use a4n_core::{
     error::AppError,
     models::{
         ai::{generated_image, generated_video},
-        chapter::{chapter_manga_prompt, chapter_video_prompt},
+        chapter::{
+            chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
+            chapter_video_prompt,
+        },
         character::character_portrait,
     },
 };
@@ -28,9 +31,9 @@ pub(super) async fn load_family_asset_graph_records(
         .map_err(AppError::Database)?;
     let manga_prompts = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.is_in(family_project_ids.iter().copied()))
+        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
         .order_by_asc(chapter_manga_prompt::Column::ChapterId)
         .order_by_asc(chapter_manga_prompt::Column::PageNumber)
-        .order_by_asc(chapter_manga_prompt::Column::PanelNumber)
         .order_by_asc(chapter_manga_prompt::Column::Id)
         .all(db)
         .await

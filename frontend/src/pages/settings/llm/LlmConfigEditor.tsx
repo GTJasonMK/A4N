@@ -1,12 +1,16 @@
 import React from "react";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
-import { detectLlmConfigModels, detectServerLlmConfigModels } from "../../../api/config";
+import {
+  detectLlmConfigModels,
+  detectServerLlmConfigModels,
+} from "../../../api/config";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import type { LlmForm } from "./types";
 import type { LlmProviderDescriptor } from "../../../api/generated/config";
 import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
+import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 
 interface LlmConfigEditorProps {
   form: LlmForm;
@@ -29,8 +33,22 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
 }) => {
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
-  const detectModels = serverScope ? detectServerLlmConfigModels : detectLlmConfigModels;
-  const selectedProvider = providers.find((provider) => provider.id === form.provider);
+  const detectModels = serverScope
+    ? detectServerLlmConfigModels
+    : detectLlmConfigModels;
+  const selectedProvider = providers.find(
+    (provider) => provider.id === form.provider,
+  );
+  const modelDiscovery = buildModelDiscoveryField({
+    provider: form.provider,
+    baseUrl: form.api_base_url,
+    apiKey: form.api_key,
+    clearApiKey: form.clear_api_key,
+    configId,
+    hasApiKey: form.has_api_key,
+    readonly,
+    scope: serverScope ? "server" : "local",
+  });
 
   return (
     <>
@@ -61,7 +79,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
                 provider,
                 api_base_url:
                   !baseUrl || baseUrl === currentDefault
-                    ? nextDefault ?? ""
+                    ? (nextDefault ?? "")
                     : form.api_base_url,
               });
             }}
@@ -82,31 +100,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             placeholder="例如：deepseek-v4-flash / gpt-4o-mini / claude-3-5-sonnet"
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
-            discoveryKey={[
-              form.provider,
-              form.api_base_url.trim(),
-              serverScope ? "server" : "local",
-              configId ?? "new",
-              form.clear_api_key ? "cleared-key" : form.api_key.trim() ? "form-key" : "saved-key",
-            ].join("|")}
-            detectModels={() =>
-              detectModels({
-                provider: form.provider,
-                base_url: form.api_base_url,
-                api_key_encrypted: form.clear_api_key
-                  ? null
-                  : form.api_key.trim() || undefined,
-                config_id: configId ?? null,
-                use_saved_api_key: Boolean(
-                  !readonly &&
-                    configId != null &&
-                    configId > 0 &&
-                    form.has_api_key &&
-                    !form.clear_api_key &&
-                    !form.api_key.trim(),
-                ),
-              })
-            }
+            discoveryKey={modelDiscovery.discoveryKey}
+            detectModels={() => detectModels(modelDiscovery.input)}
           />
         </FormField>
       </div>
@@ -114,8 +109,12 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       <FormField label="接口地址" required>
         <BookInput
           value={form.api_base_url}
-          onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
-          placeholder={selectedProvider?.default_base_url ?? "https://api.example.com/v1"}
+          onChange={(event) =>
+            setForm({ ...form, api_base_url: event.target.value })
+          }
+          placeholder={
+            selectedProvider?.default_base_url ?? "https://api.example.com/v1"
+          }
           disabled={structureDisabled}
         />
       </FormField>
@@ -132,7 +131,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           type="password"
           value={form.api_key}
           onChange={(event) =>
-            setForm({ ...form, api_key: event.target.value, clear_api_key: false })
+            setForm({
+              ...form,
+              api_key: event.target.value,
+              clear_api_key: false,
+            })
           }
           placeholder="sk-..."
           autoComplete="off"
@@ -171,14 +174,19 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           />
         </FormField>
 
-        <FormField label="超时时间（秒）" hint="单次 LLM 请求等待响应的最长秒数；视频、漫画等长结构化任务建议不少于 300 秒">
+        <FormField
+          label="超时时间（秒）"
+          hint="单次 LLM 请求等待响应的最长秒数；视频、漫画等长结构化任务建议不少于 300 秒"
+        >
           <BookInput
             type="number"
             min={1}
             max={1800}
             step={1}
             value={String(form.timeout_secs)}
-            onChange={(event) => setForm({ ...form, timeout_secs: Number(event.target.value) })}
+            onChange={(event) =>
+              setForm({ ...form, timeout_secs: Number(event.target.value) })
+            }
             disabled={structureDisabled}
           />
         </FormField>
@@ -196,7 +204,10 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             step={1024}
             value={String(form.max_context_tokens)}
             onChange={(event) =>
-              setForm({ ...form, max_context_tokens: Number(event.target.value) })
+              setForm({
+                ...form,
+                max_context_tokens: Number(event.target.value),
+              })
             }
             disabled={structureDisabled}
           />
@@ -212,7 +223,10 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             step={256}
             value={String(form.max_output_tokens)}
             onChange={(event) =>
-              setForm({ ...form, max_output_tokens: Number(event.target.value) })
+              setForm({
+                ...form,
+                max_output_tokens: Number(event.target.value),
+              })
             }
             disabled={structureDisabled}
           />

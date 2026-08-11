@@ -10,7 +10,7 @@ use a4n_core::models::user::{invite_code, user};
 
 pub async fn list_all_users(state: &AppState) -> Result<Vec<AdminUserSummary>, String> {
     state
-        .admin()
+        .orchestrator()
         .all_user_summaries()
         .await
         .map_err(app_error_message)
@@ -21,8 +21,8 @@ pub async fn create_user(
     input: CreateUserInput,
 ) -> Result<AdminUserSummary, String> {
     let user = state
-        .admin()
-        .create_user(&input.username, &input.email, &input.password, &input.role)
+        .orchestrator()
+        .create_auth_user(&input.username, &input.email, &input.password, &input.role)
         .await
         .map_err(|error| error.to_string())?;
     Ok(admin_user_summary(&user))
@@ -30,7 +30,7 @@ pub async fn create_user(
 
 pub async fn list_invite_codes(state: &AppState) -> Result<Vec<InviteCodeSummary>, String> {
     state
-        .admin()
+        .orchestrator()
         .invite_code_summaries()
         .await
         .map_err(app_error_message)
@@ -42,8 +42,8 @@ pub async fn create_invite_code(
     input: CreateInviteCodeInput,
 ) -> Result<InviteCodeSummary, String> {
     let code = state
-        .admin()
-        .create_invite_code(&input.code, Some(caller_user_id))
+        .orchestrator()
+        .create_invite_code_record(&input.code, Some(caller_user_id))
         .await
         .map_err(|error| error.to_string())?;
     Ok(invite_code_summary(&code))
@@ -55,8 +55,8 @@ pub async fn update_user_role(
     input: UpdateUserRoleInput,
 ) -> Result<AdminUserSummary, String> {
     let user = state
-        .admin()
-        .update_user_role(user_id, &input.role)
+        .orchestrator()
+        .update_auth_user_role(user_id, &input.role)
         .await
         .map_err(|error| error.to_string())?;
     Ok(admin_user_summary(&user))

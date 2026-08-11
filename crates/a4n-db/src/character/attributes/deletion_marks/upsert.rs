@@ -38,6 +38,7 @@ where
             }
             active.consecutive_count = Set(next_count);
             active.last_marked_chapter = Set(input.chapter_number);
+            active.source_kind = Set(input.source_kind);
             active.reason = Set(input.reason);
             active.evidence = Set(input.evidence);
             active.updated_at = Set(now);
@@ -47,6 +48,7 @@ where
 
     protagonist_deletion_mark::ActiveModel {
         profile_id: Set(input.profile_id),
+        source_kind: Set(input.source_kind),
         category: Set(input.category),
         key: Set(input.key),
         chapter_number: Set(input.chapter_number),

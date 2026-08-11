@@ -51,9 +51,6 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub error_message: Option<String>,
 
-    /// Canonical timeline item for an inserted-segment video.
-    pub timeline_item_id: Option<i64>,
-
     #[sea_orm(column_type = "Json")]
     pub metadata_json: Option<serde_json::Value>,
 

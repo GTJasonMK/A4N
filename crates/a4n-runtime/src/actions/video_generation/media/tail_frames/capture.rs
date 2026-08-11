@@ -25,7 +25,7 @@ pub(crate) async fn capture_video_tail_frame_asset(
             .map_err(|err| format!("无法读取尾帧图片元数据：{err}"))?
             .len() as i64;
         let image = state
-            .video()
+            .orchestrator()
             .create_video_tail_frame_record_validated(
                 video,
                 chapter_id,

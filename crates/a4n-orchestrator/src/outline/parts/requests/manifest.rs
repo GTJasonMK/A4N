@@ -24,11 +24,19 @@ pub(super) fn build_part_outline_context_manifest(
 ) -> Result<LlmContextManifest, AppError> {
     let mut ledger = LlmContextLedger::new();
     let blueprint_hash = source_content_sha256(&serde_json::to_string(blueprint_context)?);
+    let blueprint_available = blueprint_context["blueprint_available"]
+        .as_bool()
+        .unwrap_or(true);
     ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
         scope_kind: ("project").into(),
         pack_kind: ("outline_blueprint_context").into(),
         source_refs_json: Some(json!({
-            "source": "novel_blueprint",
+            "source": if blueprint_available {
+                "novel_blueprint_and_formal_materials"
+            } else {
+                "formal_project_materials"
+            },
+            "blueprint_available": blueprint_available,
             "content_sha256": blueprint_hash,
         })),
         config_identity_json: json!({

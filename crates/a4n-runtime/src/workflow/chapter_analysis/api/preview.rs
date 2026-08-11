@@ -2,7 +2,6 @@ use crate::{
     actions::request_preview::{
         ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
     },
-    prompt_renderer::RuntimePromptRenderer,
     state::AppState,
 };
 
@@ -16,10 +15,10 @@ pub async fn preview_chapter_analysis_request(
     chapter_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     preflight_generate_chapter_analysis(state, user_id, chapter_id).await?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let (chapter, steps) = state
-        .chapter_analysis()
-        .prepare_chapter_analysis_preview_validated(chapter_id, &prompt_renderer)
+        .orchestrator()
+        .prepare_chapter_analysis_preview_validated(chapter_id, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(
@@ -38,10 +37,10 @@ pub async fn preview_resume_chapter_analysis_sync_request(
     chapter_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     preflight_resume_chapter_analysis_sync(state, user_id, chapter_id).await?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let (chapter, steps) = state
-        .chapter_analysis()
-        .prepare_resume_chapter_analysis_preview_validated(chapter_id, &prompt_renderer)
+        .orchestrator()
+        .prepare_resume_chapter_analysis_preview_validated(chapter_id, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(

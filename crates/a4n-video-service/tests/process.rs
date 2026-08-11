@@ -30,7 +30,6 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/status").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/delete").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/request_preview").await;
-    assert_protected_route_rejects_invalid_auth(&base_url, "/video/probe").await;
     assert_route_rejects_malformed_json(&base_url, "/video/generate/events").await;
     assert_route_rejects_oversized_json(&base_url, "/video/models", 8 * 1024 * 1024).await;
     assert_route_rejects_oversized_json(&base_url, "/video/generate/events", 8 * 1024 * 1024).await;
@@ -192,12 +191,6 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
         .expect("video preview should cross the independent process");
     assert_eq!(preview.status, ServiceStatus::Ok);
     assert!(preview.payload.expect("video preview payload")["request"].is_object());
-    let probe = client
-        .probe(preview_request)
-        .await
-        .expect("video probe should cross the independent process");
-    assert_eq!(probe.status, ServiceStatus::Ok);
-    assert_eq!(probe.payload.expect("video probe payload")["ok"], true);
     preview_provider.stop().await;
 
     let remote_secret_events = video_generation_events(

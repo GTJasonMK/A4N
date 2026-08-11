@@ -138,9 +138,9 @@ pub use sync_projection::{
 pub use sync_rules::{
     CharacterSyncRange, CharacterSyncRangeMode, analysis_profile_sync_skip_reason,
     character_profile_skipped_result, character_profile_sync_business_key,
-    character_profile_sync_mode_label,
-    character_profile_sync_stage_call_key, character_profile_sync_workflow_fingerprint,
-    character_sync_range, character_sync_start_chapter, profile_first_seen_chapter,
+    character_profile_sync_mode_label, character_profile_sync_stage_call_key,
+    character_profile_sync_workflow_fingerprint, character_sync_range,
+    character_sync_range_with_first_seen, character_sync_start_chapter, profile_first_seen_chapter,
     profile_sync_skip_reason, validate_character_sync_target_chapter,
     validate_contiguous_character_sync_range,
 };

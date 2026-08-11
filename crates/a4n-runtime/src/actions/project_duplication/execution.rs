@@ -12,7 +12,7 @@ pub async fn duplicate_project(
 ) -> Result<novel_project::Model, String> {
     let mut host_port = RuntimeProjectDuplicationHostPort::new(state);
     state
-        .project_duplication()
+        .orchestrator()
         .duplicate_project_validated(
             DuplicateProjectApplicationInput {
                 user_id,
@@ -34,7 +34,7 @@ pub async fn branch_project(
 ) -> Result<novel_project::Model, String> {
     let host_port = RuntimeProjectDuplicationHostPort::new(state);
     state
-        .project_duplication()
+        .orchestrator()
         .branch_project_validated(
             BranchProjectApplicationInput {
                 user_id,

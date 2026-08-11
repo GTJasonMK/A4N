@@ -7,8 +7,7 @@ use a4n_core::source_spans::SourceSpan;
 use a4n_db::shooting_script::ParsedChapterShootingScript;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::pipeline_prompt::MangaContextManifestInput;
-use super::super::{MangaPipelineStartStage, OrchestratorContext};
+use super::super::OrchestratorContext;
 
 #[derive(Debug, Clone)]
 pub struct MangaPipelineRequestPreviewStep {
@@ -27,16 +26,16 @@ pub(super) struct MangaPreviewCallInput<'a> {
     pub(super) call_key: String,
     pub(super) call_order: i32,
     pub(super) restore_from_checkpoint: bool,
-    pub(super) manifest: MangaContextManifestInput<'a>,
+    pub(super) prompt_renderer: &'a dyn PromptRenderer,
+    pub(super) project_id: i64,
+    pub(super) variables: &'a HashMap<String, Value>,
+    pub(super) user_content: String,
     pub(super) temperature: f32,
 }
 
 pub(super) enum MangaPreviewCall {
     Ready(Box<ChatRequest>),
-    Restored {
-        response_text: String,
-        parsed_output: Value,
-    },
+    Restored { parsed_output: Value },
 }
 
 pub(super) struct MangaPreviewContext<'a> {
@@ -47,28 +46,15 @@ pub(super) struct MangaPreviewContext<'a> {
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) workflow_run_id: Option<i64>,
     pub(super) resume_from_checkpoint: bool,
-    pub(super) start_from_stage: Option<MangaPipelineStartStage>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) variables: HashMap<String, Value>,
     pub(super) reference_assets: Value,
 }
 
-impl MangaPreviewContext<'_> {
-    pub(super) fn should_restore_stage(&self, stage_order: i32) -> bool {
-        super::super::pipeline_state::should_restore_manga_stage_checkpoint(
-            self.resume_from_checkpoint,
-            self.start_from_stage,
-            stage_order,
-        )
-    }
-}
-
 pub(super) struct MangaEarlyExtraction {
-    pub(super) events_out: String,
     pub(super) events_json: Value,
     pub(super) characters_json: Value,
-    pub(super) speech_out: String,
     pub(super) speech_json: Value,
 }
 

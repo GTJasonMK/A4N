@@ -1,30 +1,41 @@
 use std::collections::BTreeSet;
 
 use a4n_core::error::AppError;
-use a4n_core::models::{
-    galgame::{galgame_line, galgame_scene},
-    project::source_snapshot_chapter,
-};
+use a4n_core::models::{galgame::galgame_scene, project::source_snapshot_chapter};
 use serde_json::json;
 
-use crate::galgame::{GALGAME_ENTITY_LINE, GALGAME_TARGET_CG};
+use crate::galgame::{GALGAME_ENTITY_LINE, GALGAME_TARGET_CG, GalgameLine};
 use a4n_db::project::ProjectFamilyContext;
 
 use super::super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft, GalgameSpecInput};
 use super::super::drafts::galgame_asset_plan_item_draft;
-use super::super::presentation::event_cg_directive;
 use super::required_json_string;
 
 pub(super) fn event_cg_asset_plan_draft(
     context: &ProjectFamilyContext,
     scene: &galgame_scene::Model,
     chapter: &source_snapshot_chapter::Model,
-    line: &galgame_line::Model,
+    line: &GalgameLine,
     scene_anchor_ids: &BTreeSet<i64>,
 ) -> Result<Option<GalgameAssetPlanItemDraft>, AppError> {
-    let Some(cg_directive) = event_cg_directive(&line.presentation_json, line.id)? else {
+    if line.presentation_json.cg != Some(true) {
         return Ok(None);
-    };
+    }
+    let cg_note =
+        line.presentation_json
+            .cg_note
+            .as_deref()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "galgame_asset_plan".to_string(),
+                operation: format!("Galgame 行 {} 缺少 cg_note", line.id),
+            })?;
+    let cg_importance =
+        line.presentation_json
+            .cg_importance
+            .ok_or_else(|| AppError::InvalidState {
+                current: "galgame_asset_plan".to_string(),
+                operation: format!("Galgame 行 {} 缺少 cg_importance", line.id),
+            })?;
     let canonical_key = format!("galgame:{}:cg:line:{}", context.project.id, line.id);
     let line_anchor_ids = line.text_anchor_id.into_iter().collect::<BTreeSet<_>>();
     let anchor_ids = if line_anchor_ids.is_empty() {
@@ -51,8 +62,8 @@ pub(super) fn event_cg_asset_plan_draft(
             "location": scene.location,
             "time_of_day": scene.time_of_day,
         },
-        "cg_note": cg_directive.note,
-        "cg_importance": cg_directive.importance,
+        "cg_note": cg_note,
+        "cg_importance": cg_importance,
     });
     let canonical_key = required_json_string(&params_json, "canonical_key")?;
     galgame_asset_plan_item_draft(

@@ -1,7 +1,7 @@
 use super::{read_import_media_package_zip, render_export_zip_package};
 use crate::state::RuntimeProfile;
-use a4n_capabilities::{A4nCapabilities, JsonResponse};
-use a4n_export_core::{ExportRenderZipInput, ExportZipPackageInput};
+use a4n_capabilities::A4nCapabilities;
+use a4n_export_core::{ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput};
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingExportClient;
 use serde_json::json;
@@ -95,7 +95,6 @@ async fn export_sidecar_request_carries_explicit_project_scope() {
 
     assert!(!zip_bytes.is_empty());
     assert_eq!(client.render_zip_call_count(), 1);
-    assert_eq!(client.render_json_call_count(), 0);
     let request = client
         .last_render_zip_request()
         .expect("recorded export request");
@@ -106,19 +105,19 @@ async fn export_sidecar_request_carries_explicit_project_scope() {
     assert!(request.secret_policy.is_deny_all());
 }
 
-fn successful_export_zip_response() -> JsonResponse {
+fn successful_export_zip_response() -> ServiceResponse<ExportRenderZipOutput> {
     let input = ExportRenderZipInput::from_package_input(zip_package_input());
     let output = a4n_export_core::render_zip(input).expect("render ZIP output");
     ok_response(output)
 }
 
-fn ok_response<T: serde::Serialize>(payload: T) -> JsonResponse {
+fn ok_response<T>(payload: T) -> ServiceResponse<T> {
     ServiceResponse {
         status: ServiceStatus::Ok,
         trace_id: Some("test-export".to_string()),
         usage: None,
         artifact_refs: Vec::new(),
-        payload: Some(serde_json::to_value(payload).expect("serialize export output")),
+        payload: Some(payload),
         error: None,
     }
 }

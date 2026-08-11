@@ -1,14 +1,5 @@
 use super::*;
 
-pub(in crate::asset_lineage_sync) fn manga_generation_kinds(
-    prompt_type: &str,
-) -> Option<(&'static str, &'static str)> {
-    match prompt_type {
-        MANGA_PAGE_PROMPT_TYPE => Some(("manga_page", "image_prompt")),
-        _ => None,
-    }
-}
-
 pub(in crate::asset_lineage_sync) fn video_generation_kinds(
     prompt_type: &str,
     workflow_mode: &str,

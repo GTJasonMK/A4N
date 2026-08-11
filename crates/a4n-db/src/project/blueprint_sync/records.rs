@@ -2,12 +2,47 @@ use super::super::{ProjectMutationError, required_text, validate_positive_i64};
 use a4n_core::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
-use chrono::Utc;
+use chrono::NaiveDateTime;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QueryOrder, Set,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
+    QueryOrder, Statement,
 };
-use serde_json::Value;
+
+const BLUEPRINT_SOURCE_REVIEW_SQL: &str = r#"
+SELECT (
+    EXISTS (
+        SELECT 1 FROM "novel_project"
+        WHERE "id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "chapter"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "chapter_outline"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "part_outline"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "blueprint_character"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "blueprint_relationship"
+        WHERE "project_id" = $1 AND "created_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "protagonist_profile"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "object_profile"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "scene_profile"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    ) OR EXISTS (
+        SELECT 1 FROM "foreshadowing_index"
+        WHERE "project_id" = $1 AND "updated_at" > $2
+    )
+) AS "needs_review"
+"#;
 
 pub async fn blueprint_characters_for_project<C>(
     db: &C,
@@ -50,6 +85,25 @@ where
         .await
 }
 
+pub async fn blueprint_sources_need_review<C>(
+    db: &C,
+    project_id: i64,
+    reviewed_at: NaiveDateTime,
+) -> Result<bool, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            BLUEPRINT_SOURCE_REVIEW_SQL,
+            [project_id.into(), reviewed_at.into()],
+        ))
+        .await?
+        .ok_or_else(|| DbErr::Custom("查询蓝图来源复核状态未返回结果".to_string()))?;
+    row.try_get("", "needs_review")
+}
+
 pub async fn blueprint_versions_by_project(
     db: &DatabaseConnection,
     project_id: i64,
@@ -79,26 +133,4 @@ pub async fn blueprint_version_by_project_version(
         .one(db)
         .await
         .map_err(ProjectMutationError::Database)
-}
-
-pub async fn update_blueprint_world_setting(
-    db: &DatabaseConnection,
-    project_id: i64,
-    world_setting: Value,
-) -> Result<Option<novel_blueprint::Model>, ProjectMutationError> {
-    validate_positive_i64(project_id, "project_id")
-        .map_err(ProjectMutationError::InvalidArgument)?;
-    let Some(blueprint) = novel_blueprint::Entity::find()
-        .filter(novel_blueprint::Column::ProjectId.eq(project_id))
-        .one(db)
-        .await?
-    else {
-        return Ok(None);
-    };
-
-    let mut active: novel_blueprint::ActiveModel = blueprint.into();
-    active.world_setting = Set(Some(world_setting));
-    active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active.update(db).await?;
-    Ok(Some(updated))
 }

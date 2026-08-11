@@ -1,4 +1,8 @@
 use super::*;
+use a4n_domain::galgame::{
+    GalgameFacingV2, GalgameLinePresentationSchemaVersion, GalgameStageLayerV2,
+    GalgameStagePositionV2, GalgameVisibleCastMemberV2,
+};
 use serde_json::{Value, json};
 
 fn directing_beat_json(beat_index: u32, source_span_id: &str) -> Value {
@@ -281,7 +285,7 @@ fn parses_character_staging_contract() {
 #[test]
 fn validates_exit_against_post_line_visible_cast() {
     let mut presentation = GalgameLinePresentationV2 {
-        schema_version: "galgame_line_presentation_v2".to_string(),
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
         visible_cast: vec![GalgameVisibleCastMemberV2 {
             character_profile_id: 7,
             expression: "neutral".to_string(),
@@ -491,7 +495,10 @@ fn parses_visual_plan_contract() {
     .expect("visual plan");
 
     assert_eq!(parsed.backgrounds.len(), 1);
-    assert_eq!(parsed.event_cgs[0].importance, "high");
+    assert_eq!(
+        parsed.event_cgs[0].importance,
+        super::super::GalgameCgImportance::High
+    );
 }
 
 #[test]
@@ -574,11 +581,4 @@ fn rejects_branch_design_option_without_return_scene() {
         err.to_string()
             .contains("missing field `returns_to_scene_index`")
     );
-}
-
-#[test]
-fn parse_galgame_json_object_rejects_markdown_fence() {
-    let err = parse_galgame_json_object("```json\n{}\n```", "galgame").expect_err("markdown fence");
-
-    assert!(err.to_string().contains("代码围栏"));
 }

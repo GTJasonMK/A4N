@@ -22,8 +22,8 @@ pub(in crate::video) fn video_generation_asset_fingerprint(
 #[cfg(test)]
 pub(in crate::video::prompt_records) fn db_video_prompt_update_input(
     input: VideoPromptUpdateInput<'_>,
-) -> a4n_db::video_prompt::UpdateChapterVideoPromptInput {
-    a4n_db::video_prompt::UpdateChapterVideoPromptInput {
+) -> a4n_db::video_prompt::ChapterVideoPromptPatch {
+    a4n_db::video_prompt::ChapterVideoPromptPatch {
         visual_prompt: input.visual_prompt.map(ToString::to_string),
         motion_prompt: input
             .motion_prompt

@@ -182,55 +182,6 @@ export interface DiscoverCharacterProfilesResult {
   }>;
 }
 
-export interface SyncCharacterProfileResult {
-  status: string;
-  name: string;
-  chapters_analyzed: number;
-  sync_range: {
-    from: number;
-    to: number;
-  };
-  synced_chapter: number;
-  changes_applied: number;
-  behaviors_recorded: number;
-  classification_suggestions_applied: number;
-  deletions_marked: number;
-  deletions_executed: number;
-  deleted_deletion_marks: number;
-  rewound_deletion_marks: number;
-  implicit_reviews_checked: number;
-  implicit_reviews_applied: number;
-  snapshot_hash: string;
-  state_indexes_upserted: number;
-  deleted_state_rag: number;
-  state_rag_indexed_count: number;
-  state_rag_indexed: boolean;
-  state_rag_error: string | null;
-  deleted_attribute_event_rag: number;
-  attribute_event_rag_indexed_count: number;
-  attribute_event_rag_indexed: boolean;
-  attribute_event_rag_error: string | null;
-}
-
-export interface SyncAllCharacterProfilesResult {
-  status: string;
-  target_chapter: number | null;
-  total: number;
-  synced: Array<{
-    name: string;
-    result: SyncCharacterProfileResult;
-  }>;
-  skipped: Array<{
-    name: string;
-    synced_chapter: number;
-    reason: string;
-  }>;
-  failed: Array<{
-    name: string;
-    error: string;
-  }>;
-}
-
 export interface RollbackToChapterResult {
   deleted_events: number;
   deleted_snapshots: number;

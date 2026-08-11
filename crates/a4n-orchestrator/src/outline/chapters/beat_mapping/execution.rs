@@ -11,8 +11,9 @@ use crate::workflow::{
 
 use super::super::super::chapter_contract::{
     chapter_outline_batch_response_schema, parse_chapter_outline_batch, required_i32,
-    sync_chapter_outlines_by_number_transaction,
+    sync_chapter_outlines_by_number_in,
 };
+use super::super::super::context::lock_outline_generation_sources;
 use super::super::super::{
     BeatMappingApplyInput, OrchestratorContext, ensure_response_not_truncated, report_progress,
 };
@@ -181,13 +182,21 @@ impl OrchestratorContext {
                 ),
             )?;
         }
-        sync_chapter_outlines_by_number_transaction(
-            &self.database,
+        let tx = lock_outline_generation_sources(
+            self.database.connection(),
+            project_id,
+            &prepared.context.source_snapshot,
+        )
+        .await?;
+        let outlines = sync_chapter_outlines_by_number_in(
+            &tx,
             project_id,
             Some(prepared.part.id),
             chapters,
             now,
         )
-        .await
+        .await?;
+        tx.commit().await.map_err(AppError::Database)?;
+        Ok(outlines)
     }
 }

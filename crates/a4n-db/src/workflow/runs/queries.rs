@@ -88,6 +88,7 @@ pub async fn workflow_runs_by_project_kind(
         .filter(workflow_run::Column::ProjectId.eq(project_id))
         .filter(workflow_run::Column::WorkflowKind.eq(workflow_kind))
         .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
         .all(db)
         .await
         .map_err(WorkflowReadError::Database)
@@ -224,4 +225,12 @@ pub(super) async fn locked_latest_workflow_run_by_business_key_model(
         .one(tx)
         .await
         .map_err(WorkflowReadError::Database)
+}
+
+pub async fn latest_workflow_run_by_business_key_for_update(
+    tx: &sea_orm::DatabaseTransaction,
+    business_key: &str,
+) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
+    let business_key = required_text(business_key.to_string(), "business_key")?;
+    locked_latest_workflow_run_by_business_key_model(tx, &business_key).await
 }

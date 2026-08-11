@@ -1,11 +1,8 @@
 use super::super::{
     ChapterContentImportError, ImportChapterContentInput, ImportChapterContentTarget,
 };
-use a4n_core::models::chapter::{
-    chapter::{self, STATUS_IMPORTED},
-    chapter_outline,
-};
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use a4n_core::models::chapter::chapter::{self, STATUS_IMPORTED};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 pub async fn upsert_import_chapter_content<C>(
     db: &C,
@@ -15,8 +12,14 @@ pub async fn upsert_import_chapter_content<C>(
 where
     C: ConnectionTrait,
 {
-    let chapter = upsert_chapter(db, target.existing, &input).await?;
-    upsert_import_outline(db, &input).await?;
+    let mut chapter = upsert_chapter(db, target.existing, &input).await?;
+    chapter.outline_id = crate::project::link_chapter_to_project_outline_if_needed(
+        db,
+        input.project_id,
+        input.chapter_number,
+    )
+    .await
+    .map_err(ChapterContentImportError::database)?;
     Ok(chapter)
 }
 
@@ -68,59 +71,4 @@ where
     .insert(db)
     .await
     .map_err(ChapterContentImportError::database)
-}
-
-async fn upsert_import_outline<C>(
-    db: &C,
-    input: &ImportChapterContentInput,
-) -> Result<(), ChapterContentImportError>
-where
-    C: ConnectionTrait,
-{
-    let outline_title = input
-        .normalized_title
-        .clone()
-        .or_else(|| Some(format!("第{}章", input.chapter_number)));
-    let outline_summary = format!("导入章节：{}字，摘要待生成", input.word_count);
-    let existing_outline = chapter_outline::Entity::find()
-        .filter(chapter_outline::Column::ProjectId.eq(input.project_id))
-        .filter(chapter_outline::Column::ChapterNumber.eq(input.chapter_number))
-        .one(db)
-        .await
-        .map_err(ChapterContentImportError::database)?;
-
-    if let Some(outline) = existing_outline {
-        let mut active: chapter_outline::ActiveModel = outline.into();
-        active.title = Set(outline_title);
-        active.summary = Set(Some(outline_summary));
-        active.word_count_target = Set(Some(input.word_count));
-        active.updated_at = Set(input.now);
-        active
-            .update(db)
-            .await
-            .map_err(ChapterContentImportError::database)?;
-    } else {
-        chapter_outline::ActiveModel {
-            project_id: Set(input.project_id),
-            part_id: Set(None),
-            chapter_number: Set(input.chapter_number),
-            title: Set(outline_title),
-            summary: Set(Some(outline_summary)),
-            beats: Set(None),
-            key_scenes: Set(None),
-            pacing_score: Set(None),
-            foreshadowing_setup: Set(None),
-            foreshadowing_payoff: Set(None),
-            characters_involved: Set(None),
-            word_count_target: Set(Some(input.word_count)),
-            status: Set("draft".to_string()),
-            created_at: Set(input.now),
-            updated_at: Set(input.now),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(ChapterContentImportError::database)?;
-    }
-    Ok(())
 }

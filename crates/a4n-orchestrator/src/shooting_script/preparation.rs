@@ -1,24 +1,24 @@
 use std::collections::HashMap;
 
 use a4n_core::{
-    config::app_config::llm_token_profiles, error::AppError, source_spans::source_spans_for_content,
+    config::app_config::llm_token_profiles,
+    error::AppError,
+    source_spans::{source_span_prompt_values, source_spans_for_content},
 };
 use serde_json::json;
 
 use crate::OrchestratorContext;
 
-use super::{
-    contracts::{
-        CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-        CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT, CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
-        CHAPTER_SHOOTING_SCRIPT_WORKFLOW, ChapterShootingScriptSourceInput,
-        PreparedChapterShootingScriptRequest, RegenerateChapterShootingScriptInput,
-    },
-    input::shooting_script_user_payload,
+use super::ChapterShootingScriptSourceInput;
+use super::contracts::{
+    CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_SKELETON_PROMPT,
+    CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT, CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
+    CHAPTER_SHOOTING_SCRIPT_WORKFLOW, PreparedChapterShootingScriptRequest,
+    RegenerateChapterShootingScriptInput,
 };
 
 impl OrchestratorContext {
-    pub(crate) async fn prepare_chapter_shooting_script_request(
+    pub(in crate::shooting_script) async fn prepare_chapter_shooting_script_request(
         &self,
         input: RegenerateChapterShootingScriptInput,
     ) -> Result<PreparedChapterShootingScriptRequest, AppError> {
@@ -60,7 +60,20 @@ impl OrchestratorContext {
             &HashMap::new(),
             Some(input.project_id),
         )?;
-        let user_payload = shooting_script_user_payload(&source, &source_spans);
+        let user_payload = json!({
+            "source": {
+                "root_project_id": source.root_project_id,
+                "source_chapter_id": source.source_chapter_id,
+                "chapter_number": source.chapter_number,
+                "title": source.title,
+                "summary": source.summary,
+                "analysis": source.analysis_data_json,
+                "content": source.content,
+                "content_sha256": source.content_sha256,
+                "source_revision_key": source.source_revision_key,
+            },
+            "source_spans": source_span_prompt_values(&source_spans),
+        });
         let input_fingerprint_json = json!({
             "workflow": CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
             "stages": {

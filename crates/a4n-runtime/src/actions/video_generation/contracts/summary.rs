@@ -25,7 +25,7 @@ pub(crate) fn video_to_summary(v: &generated_video::Model) -> GeneratedVideoSumm
         error_message: v.error_message.clone(),
         metadata_json: v.metadata_json.clone(),
         is_favorite: v.is_favorite,
-        created_at: Some(v.created_at.to_string()),
-        updated_at: Some(v.updated_at.to_string()),
+        created_at: v.created_at.to_string(),
+        updated_at: v.updated_at.to_string(),
     }
 }

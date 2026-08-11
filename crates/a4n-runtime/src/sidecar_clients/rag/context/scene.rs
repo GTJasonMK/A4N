@@ -16,7 +16,7 @@ pub(crate) fn scene_rag_sync_operation_trace_id(
         }
         SceneRagSyncTraceSource::Independent => Ok(format!(
             "scene_rag_sync:{project_id}:{}",
-            rag_operation_timestamp()
+            rag_operation_timestamp()?
         )),
         SceneRagSyncTraceSource::CurrentOperation => {
             current_rag_operation_trace_id().ok_or_else(|| {

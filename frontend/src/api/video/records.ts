@@ -221,7 +221,7 @@ export async function previewChapterVideoRequest(
   chapterId: Id,
   promptId: Id,
   configId?: Id | null,
-  promptOverride?: PreviewChapterVideoPromptOverrideInput | null,
+  promptOverride?: PreviewChapterVideoPromptOverrideInput,
 ): Promise<ModelRequestPreview> {
   const normalizedConfigId = normalizeVideoConfigId(configId);
   return apiInvoke<ModelRequestPreview>("preview_chapter_video_request", {
@@ -230,7 +230,7 @@ export async function previewChapterVideoRequest(
     chapterId: idNum(chapterId, "章节 ID"),
     promptId: idNum(promptId, "视频提示词 ID"),
     configId: normalizedConfigId,
-    promptOverride: promptOverride ?? null,
+    ...(promptOverride === undefined ? {} : { promptOverride }),
     ...(usesLocalRuntimeSettings() && normalizedConfigId != null
       ? {
           runtime_config_snapshot: buildRuntimeConfigSnapshot({

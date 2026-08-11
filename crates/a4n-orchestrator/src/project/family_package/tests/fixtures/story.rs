@@ -170,6 +170,7 @@ pub(in crate::project::family_package::tests) fn object_profile_record(
     object_profile::Model {
         id,
         project_id: 1,
+        ownership_kind: "legacy_unknown".to_string(),
         name: "旧怀表".to_string(),
         normalized_name: "旧怀表".to_string(),
         aliases_json: json!([]),
@@ -196,6 +197,7 @@ pub(in crate::project::family_package::tests) fn scene_profile_record(
     scene_profile::Model {
         id,
         project_id: 1,
+        ownership_kind: "legacy_unknown".to_string(),
         name: "雨夜车站".to_string(),
         normalized_name: "雨夜车站".to_string(),
         aliases_json: json!([]),

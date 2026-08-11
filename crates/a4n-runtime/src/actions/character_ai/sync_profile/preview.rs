@@ -1,5 +1,5 @@
 use super::super::{CharacterAiPreviewStep, SyncCharacterProfileInput};
-use crate::{AppState, actions::access, prompt_renderer::RuntimePromptRenderer};
+use crate::{AppState, actions::access};
 use a4n_orchestrator::character::CharacterProfileSyncApplicationInput;
 
 pub(crate) async fn character_sync_preview_steps(
@@ -25,10 +25,10 @@ pub(in crate::actions::character_ai) async fn character_sync_preview_steps_for_i
     state: &AppState,
     input: CharacterProfileSyncApplicationInput,
 ) -> Result<Vec<CharacterAiPreviewStep>, String> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     state
-        .character()
-        .prepare_character_profile_sync_preview_validated(input, &prompt_renderer)
+        .orchestrator()
+        .prepare_character_profile_sync_preview_validated(input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())
         .map(|steps| {

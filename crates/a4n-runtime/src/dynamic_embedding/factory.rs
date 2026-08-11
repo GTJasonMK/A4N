@@ -23,7 +23,7 @@ pub fn make_provider_from_model(
     let fastembed_cache_dir = resolve_fastembed_cache_dir(
         model.local_model_path.as_deref(),
         default_fastembed_cache_dir,
-    );
+    )?;
     make_provider(ResolvedEmbeddingConfig {
         name: model.name.clone(),
         backend: model.backend.clone(),

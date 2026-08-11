@@ -18,8 +18,8 @@ pub use part_context::{
 #[cfg(test)]
 pub use persistence::sync_chapter_outlines_by_number;
 pub use persistence::{
-    insert_chapter_outline_from_json, sync_chapter_outlines_by_number_transaction,
-    update_chapter_outline_from_json,
+    insert_chapter_outline_from_json, sync_chapter_outlines_by_number_in,
+    update_chapter_outline_from_json_in,
 };
 pub use prompt::{
     beat_mapping_manifest_user_message, chapter_outline_generation_manifest_user_message,

@@ -1,7 +1,6 @@
 //! 导入审核 application 输入门禁（无 DB）。
 
-use a4n_core::{error::AppError, models::project::import_review_queue};
-use a4n_db::import_review::ModifyImportReviewInput;
+use a4n_core::error::AppError;
 use a4n_import_core::dedup;
 
 use super::ImportDedupResult;
@@ -37,79 +36,9 @@ pub(crate) fn calculate_import_dedup(
     })
 }
 
-/// 接受前必须已有分析结果。
-pub(crate) fn ensure_import_review_ready_for_accept(
-    review: &import_review_queue::Model,
-) -> Result<(), AppError> {
-    if review.analysis_result.is_none() {
-        return Err(AppError::InvalidArgument(format!(
-            "导入审核缺少分析结果: review_id={}",
-            review.id
-        )));
-    }
-    Ok(())
-}
-
-/// 规范化修改并接受的输入：trim 正文与摘要空白。
-pub(crate) fn normalize_modify_import_review_input(
-    input: ModifyImportReviewInput,
-) -> ModifyImportReviewInput {
-    ModifyImportReviewInput {
-        content: input
-            .content
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty()),
-        analysis_result: input.analysis_result,
-        ai_summary: input
-            .ai_summary
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty()),
-        ai_characters: input.ai_characters,
-        ai_world_setting: input.ai_world_setting,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn ensure_ready_for_accept_rejects_missing_analysis() {
-        let review = import_review_queue::Model {
-            id: 9,
-            project_id: 1,
-            filename: "a.txt".into(),
-            file_type: "txt".into(),
-            detected_encoding: None,
-            parsed_chapters: 1,
-            dedup_paragraphs: 0,
-            dedup_rate: None,
-            analysis_result: None,
-            review_status: "reviewing".into(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        };
-        let err = ensure_import_review_ready_for_accept(&review).expect_err("missing analysis");
-        assert!(matches!(
-            err,
-            AppError::InvalidArgument(message) if message.contains("缺少分析结果")
-        ));
-    }
-
-    #[test]
-    fn normalize_modify_trims_and_drops_blank_text() {
-        let input = normalize_modify_import_review_input(ModifyImportReviewInput {
-            content: Some("  正文  ".into()),
-            analysis_result: Some(json!({})),
-            ai_summary: Some("   ".into()),
-            ai_characters: None,
-            ai_world_setting: None,
-        });
-        assert_eq!(input.content.as_deref(), Some("正文"));
-        assert_eq!(input.ai_summary, None);
-        assert!(input.analysis_result.is_some());
-    }
 
     #[test]
     fn calculate_import_dedup_returns_match_and_nearest_distance() {

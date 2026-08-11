@@ -29,7 +29,7 @@ pub(crate) fn rag_ingest_operation_trace_id(
 
     Ok(format!(
         "rag_ingest:{project_id}:{}",
-        rag_operation_timestamp()
+        rag_operation_timestamp()?
     ))
 }
 
@@ -41,7 +41,7 @@ pub(crate) fn rag_client_ingest_operation_trace_id(project_id: i64) -> Result<St
     }
     Ok(format!(
         "rag_client_ingest:{project_id}:{}",
-        rag_operation_timestamp()
+        rag_operation_timestamp()?
     ))
 }
 

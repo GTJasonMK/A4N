@@ -56,7 +56,7 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn plan_galgame_pipeline_as
             input_fingerprint_json: Some(json!({
                 "project_id": execution.project_id,
                 "source_snapshot_id": execution.prompt_context.source_snapshot_id,
-                "galgame_script_id": detail.script.id,
+                "galgame_script_id": detail.id,
             })),
             checkpoint_json: Some(json!({
                 "background_specs": asset_plan.summary.background_specs,
@@ -67,7 +67,7 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn plan_galgame_pipeline_as
                 "reused_specs": asset_plan.summary.reused_specs,
             })),
             artifacts_json: Some(json!({
-                "galgame_script_id": detail.script.id,
+                "galgame_script_id": detail.id,
                 "generation_spec_count": asset_plan.summary.background_specs
                     + asset_plan.summary.portrait_expression_specs
                     + asset_plan.summary.event_cg_specs,

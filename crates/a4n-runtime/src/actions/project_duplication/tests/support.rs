@@ -10,7 +10,7 @@ use a4n_core::models::{
     },
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 use a4n_db::project::{
     ProjectDuplicateError, branch_text_project_record, duplicate_derived_project_record,
     duplicate_text_project_record,
@@ -86,11 +86,13 @@ async fn insert_blueprint_graph(db: &DatabaseConnection, project_id: i64) {
         project_id: Set(project_id),
         version: Set("1.1".to_string()),
         change_description: Set(Some("保存旧版本".to_string())),
-        blueprint_data: Set(json!({"title": "旧城疑云"})),
-        world_setting_snapshot: Set(Some(json!({"city": "旧城"}))),
-        characters_snapshot: Set(Some(json!([{"name": "林岚"}]))),
-        relationships_snapshot: Set(Some(json!([]))),
-        synopsis_snapshot: Set(Some("旧梗概".to_string())),
+        blueprint_data: Set(json!({
+            "title": "旧城疑云",
+            "full_synopsis": "旧梗概",
+            "world_setting": {"city": "旧城"},
+            "characters": [{"name": "林岚"}],
+            "relationships": [],
+        })),
         created_at: Set(fixed_time()),
         created_by: Set(Some("user".to_string())),
         ..Default::default()

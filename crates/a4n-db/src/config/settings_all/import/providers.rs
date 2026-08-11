@@ -1,4 +1,3 @@
-mod defaults;
 mod embedding;
 mod image;
 mod llm;

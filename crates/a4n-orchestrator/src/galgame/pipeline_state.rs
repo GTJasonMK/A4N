@@ -1,10 +1,6 @@
 mod restore;
-mod stage;
 
-pub use restore::{parse_galgame_start_stage, should_restore_galgame_stage_checkpoint};
-pub use stage::{
-    GALGAME_PIPELINE_TOTAL_STEPS, GalgamePipelineStartStage, galgame_pipeline_stage_keys,
-};
+pub use restore::should_restore_galgame_stage_checkpoint;
 
 #[cfg(test)]
 mod tests;

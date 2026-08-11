@@ -4,6 +4,7 @@ use serde_json::Value;
 pub struct InsertBehaviorRecordInput {
     pub profile_id: i64,
     pub chapter_number: i32,
+    pub source_kind: String,
     pub behavior_type: String,
     pub behavior_description: String,
     pub original_text: String,

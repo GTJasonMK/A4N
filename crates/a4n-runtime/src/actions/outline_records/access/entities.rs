@@ -1,4 +1,3 @@
-use crate::state::{CollaborationRuntimeFacade, ProjectOutlineRecordsRuntimeFacade};
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::{chapter_outline, part_outline};
 use a4n_orchestrator::collaboration::ProjectAccessRole;
@@ -17,8 +16,8 @@ pub(in crate::actions::outline_records) fn ensure_chapter_outline_belongs_to_pro
 }
 
 pub(in crate::actions::outline_records) async fn ensure_chapter_outline_access(
-    collaboration: &CollaborationRuntimeFacade<'_>,
-    outline_records: &ProjectOutlineRecordsRuntimeFacade<'_>,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
+    outline_records: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_id: i64,
     outline_id: i64,
@@ -35,8 +34,8 @@ pub(in crate::actions::outline_records) async fn ensure_chapter_outline_access(
 }
 
 pub(in crate::actions::outline_records) async fn ensure_part_access(
-    collaboration: &CollaborationRuntimeFacade<'_>,
-    outline_records: &ProjectOutlineRecordsRuntimeFacade<'_>,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
+    outline_records: &a4n_orchestrator::OrchestratorContext,
     user_id: i64,
     project_id: i64,
     part_id: i64,

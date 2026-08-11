@@ -14,7 +14,7 @@ use super::{
     ChapterContentApplication, CharacterApplication, CollaborationApplication, ConfigApplication,
     ExportApplication, GalgameApplication, GenerationApplication, ImportReverseApplication,
     ImportReviewApplication, InspirationApplication, LlmContextApplication, MangaApplication,
-    OptimizeApplication, OrchestratorContext, OutlineApplication, ProfileMaterialApplication,
+    OptimizeApplication, OrchestratorContext, ProfileMaterialApplication,
     ProjectBlueprintApplication, ProjectChapterContextApplication,
     ProjectChapterRecordsApplication, ProjectDependencyGraphApplication,
     ProjectDuplicationApplication, ProjectFamilyApplication, ProjectMutationApplication,
@@ -47,7 +47,7 @@ impl OrchestratorContext {
         chapter: ChapterGenerationService,
         rag_store: Arc<dyn VectorStore>,
         task_queue: Arc<PersistentTaskQueue>,
-        engine: Arc<dyn a4n_prompt::engine::PromptEngine>,
+        engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
         snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
     ) -> Self {
         let admin = AdminApplication::new(db.clone());
@@ -67,7 +67,6 @@ impl OrchestratorContext {
         let llm_context = LlmContextApplication::new(db.clone());
         let manga = MangaApplication::new(db.clone());
         let optimize = OptimizeApplication::new(db.clone());
-        let outline = OutlineApplication::new(db.clone());
         let profile_material = ProfileMaterialApplication::new(db.clone());
         let project_blueprint = ProjectBlueprintApplication::new(db.clone());
         let project_chapter_context = ProjectChapterContextApplication::new(db.clone());
@@ -108,7 +107,6 @@ impl OrchestratorContext {
             llm_context,
             manga,
             optimize,
-            outline,
             profile_material,
             project_blueprint,
             project_chapter_context,

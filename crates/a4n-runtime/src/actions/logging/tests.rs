@@ -39,8 +39,8 @@ fn read_recent_logs_returns_tail_lines() {
     let result = read_recent_logs(
         &dir,
         ReadLogsInput {
-            lines: Some(2),
-            days_ago: Some(0),
+            lines: 2,
+            days_ago: 0,
         },
     )
     .expect("read recent logs");
@@ -57,8 +57,8 @@ fn read_recent_logs_reports_missing_day() {
     let result = read_recent_logs(
         &dir,
         ReadLogsInput {
-            lines: None,
-            days_ago: Some(0),
+            lines: 500,
+            days_ago: 0,
         },
     )
     .expect("read missing log");

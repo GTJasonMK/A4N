@@ -6,7 +6,7 @@ use super::super::TeraPromptEngine;
 use super::super::version::bump_version;
 
 impl TeraPromptEngine {
-    pub(in crate::tera_engine) async fn reset_prompt(&self, name: &str) -> Result<(), AppError> {
+    pub async fn reset(&self, name: &str) -> Result<(), AppError> {
         let _update_guard = self.update_lock.lock().await;
 
         let current = {

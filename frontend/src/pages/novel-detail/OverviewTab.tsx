@@ -20,6 +20,10 @@ import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
 import { ProjectCollaborationPanel } from "./overview/ProjectCollaborationPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
+import { reverseEngineerBlueprint } from "../../api/import";
+import { cancelWorkflow } from "../../api/streaming";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { isCancelledOperation } from "../../utils/cancellation";
 import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
 
 interface OverviewTabProps {
@@ -52,10 +56,12 @@ const EMPTY_BLUEPRINT_DRAFT: BlueprintEditorDraft = {
  */
 export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) => {
   const { addToast } = useToast();
+  const { runProgressTask } = useProgressTask();
   const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [refining, setRefining] = useState(false);
+  const [aggregatingBlueprint, setAggregatingBlueprint] = useState(false);
   const [synopsisOpen, setSynopsisOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [collabOpen, setCollabOpen] = useState(false);
@@ -66,7 +72,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
   const activeProjectIdRef = useRef(project.id);
   const loadSeqRef = useRef(0);
   const refineSeqRef = useRef(0);
+  const aggregateSeqRef = useRef(0);
   const refiningRef = useRef(false);
+  const aggregatingBlueprintRef = useRef(false);
   const blueprintSaveBusyRef = useRef(false);
   const mountedRef = useRef(false);
 
@@ -98,7 +106,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
       mountedRef.current = false;
       loadSeqRef.current += 1;
       refineSeqRef.current += 1;
+      aggregateSeqRef.current += 1;
       refiningRef.current = false;
+      aggregatingBlueprintRef.current = false;
       blueprintSaveBusyRef.current = false;
     };
   }, []);
@@ -130,7 +140,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
 
   useEffect(() => {
     refineSeqRef.current += 1;
+    aggregateSeqRef.current += 1;
     refiningRef.current = false;
+    aggregatingBlueprintRef.current = false;
     setSynopsisOpen(false);
     setVersionsOpen(false);
     setCollabOpen(false);
@@ -138,6 +150,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     setBlueprintSaving(false);
     blueprintSaveBusyRef.current = false;
     setRefining(false);
+    setAggregatingBlueprint(false);
   }, [project.id]);
 
   const handleRefine = async () => {
@@ -190,6 +203,79 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     navigate(`/inspiration/${project.id}`);
   };
 
+  const handleAggregateBlueprint = async () => {
+    if (!canEditProject) {
+      addToast("当前账号没有编辑此项目的权限", "error");
+      return;
+    }
+    if (aggregatingBlueprintRef.current) return;
+    const requestProjectId = project.id;
+    const requestSeq = aggregateSeqRef.current + 1;
+    aggregateSeqRef.current = requestSeq;
+    aggregatingBlueprintRef.current = true;
+    setAggregatingBlueprint(true);
+    const taskId = allocateHostTaskId("reverse-blueprint", requestProjectId);
+    try {
+      await runProgressTask(
+        {
+          cancelTaskId: taskId,
+          cancelTask: cancelWorkflow,
+          pollTaskProgress: true,
+          title: displayBlueprint ? "更新正式蓝图" : "归纳正式蓝图",
+          startMessage: "正在整理项目正文、简介、大纲和正式资料",
+          successMessage: "蓝图已归纳并写入正式资料",
+          errorMessage: "归纳蓝图失败",
+          total: 3,
+          cancelLabel: "停止归纳",
+          runningHint: "只有成功完成才会更新正式蓝图；失败或停止时保留原蓝图",
+        },
+        () =>
+          reverseEngineerBlueprint(
+            {
+              project_id: requestProjectId,
+              content_sample: "",
+              auto_context: true,
+              context_limit: 50,
+              variables: null,
+            },
+            taskId,
+          ),
+      );
+      if (
+        !isCurrentProject(requestProjectId) ||
+        aggregateSeqRef.current !== requestSeq
+      )
+        return;
+      await load();
+      if (
+        !isCurrentProject(requestProjectId) ||
+        aggregateSeqRef.current !== requestSeq
+      )
+        return;
+      await onRefresh();
+      if (
+        !isCurrentProject(requestProjectId) ||
+        aggregateSeqRef.current !== requestSeq
+      )
+        return;
+      addToast("蓝图已依据当前正式资料完成归纳", "success");
+    } catch (err) {
+      if (
+        !isCurrentProject(requestProjectId) ||
+        aggregateSeqRef.current !== requestSeq
+      )
+        return;
+      const message = extractErrorMessage(err, "归纳蓝图失败");
+      addToast(message, isCancelledOperation(message) ? "info" : "error");
+    } finally {
+      if (aggregateSeqRef.current === requestSeq)
+        aggregatingBlueprintRef.current = false;
+      if (isCurrentProject(requestProjectId) && aggregateSeqRef.current === requestSeq) {
+        setAggregatingBlueprint(false);
+      }
+    }
+  };
+
   const displayBlueprint = loadedProjectId === project.id ? blueprint : null;
   const displayLoading = loading || loadedProjectId !== project.id;
 
@@ -205,15 +291,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
       targetAudience: displayBlueprint?.target_audience ?? "",
       oneSentenceSummary: displayBlueprint?.one_sentence_summary ?? "",
       fullSynopsis: displayBlueprint?.full_synopsis ?? "",
-      totalChapters: String(
-        Math.max(
-          5,
-          project.current_chapter,
-          displayBlueprint?.total_chapters ??
-            project.total_chapters ??
-            project.target_chapters,
-        ),
-      ),
+      totalChapters:
+        displayBlueprint?.total_chapters != null
+          ? String(displayBlueprint.total_chapters)
+          : project.total_chapters != null
+            ? String(project.total_chapters)
+            : project.current_chapter > 0
+              ? String(project.current_chapter)
+              : "",
     });
     setBlueprintEditorOpen(true);
   };
@@ -225,8 +310,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
       addToast("请填写蓝图题材", "error");
       return;
     }
-    if (!Number.isInteger(totalChapters) || totalChapters < 5 || totalChapters > 10_000) {
-      addToast("总章节数必须是 5 到 10000 之间的整数", "error");
+    if (!Number.isInteger(totalChapters) || totalChapters < 1 || totalChapters > 10_000) {
+      addToast("总章节数必须是 1 到 10000 之间的整数", "error");
       return;
     }
     if (blueprintSaveBusyRef.current) return;
@@ -292,10 +377,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
           blueprint={displayBlueprint}
           loading={displayLoading}
           refining={refining}
+          aggregating={aggregatingBlueprint}
           canEditBlueprint={canEditProject}
           onOpenSynopsis={() => setSynopsisOpen(true)}
           onRefine={() => void handleRefine()}
           onEditBlueprint={handleOpenBlueprintEditor}
+          onAggregateBlueprint={() => void handleAggregateBlueprint()}
           onCreateBlueprint={handleCreateBlueprint}
         />
 
@@ -349,7 +436,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
             <BookInput
               label="总章节数 *"
               type="number"
-              min={5}
+              min={1}
               max={10000}
               value={blueprintDraft.totalChapters}
               disabled={blueprintSaving}

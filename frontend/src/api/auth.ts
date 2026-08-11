@@ -3,7 +3,6 @@ import {
   clearCurrentAuth,
   readCurrentRefreshToken,
   readCurrentSessionId,
-  requireCurrentUserId,
   writeCurrentAccessToken,
   writeCurrentRefreshToken,
   writeCurrentSessionId,
@@ -15,6 +14,7 @@ import type {
   LoginInput,
   RefreshTokenInput,
   RegisterInput,
+  RevokeSessionInput,
   SessionSummary,
   TokenPairSummary,
   UpdateProfileInput,
@@ -37,7 +37,7 @@ const persistAuthResult = (result: AuthResult): void => {
 };
 
 export async function getCurrentUser(): Promise<UserSummary> {
-  return apiInvoke<UserSummary>("get_current_user", { userId: requireCurrentUserId() });
+  return apiInvoke<UserSummary>("get_current_user");
 }
 
 export async function loginUser(username: string, password: string): Promise<AuthResult> {
@@ -70,9 +70,9 @@ export async function registerUser(
 
 export async function logoutUser(): Promise<void> {
   try {
-    await apiInvoke<void>("logout_user", {
-      userId: requireCurrentUserId(),
-      sessionId: requireCurrentSessionId(),
+    const input: RevokeSessionInput = { session_id: requireCurrentSessionId() };
+    await apiInvoke<void>("revoke_session", {
+      input,
     });
   } finally {
     clearCurrentAuth();
@@ -85,22 +85,15 @@ export async function changeUserPassword(
 ): Promise<void> {
   const input: ChangePasswordInput = { old_password: oldPassword, new_password: newPassword };
   await apiInvoke<void>("change_user_password", {
-    userId: requireCurrentUserId(),
     input,
   });
 }
 
-/** 后端 get_user(user_id) */
-export async function getUser(userId: number): Promise<UserSummary> {
-  return apiInvoke<UserSummary>("get_user", { userId });
-}
-
-/** 后端 update_user_profile(user_id, input: { email?, avatar_url? }) */
+/** 更新当前登录用户资料。 */
 export async function updateUserProfile(
-  userId: number,
   input: UpdateProfileInput,
 ): Promise<UserSummary> {
-  return apiInvoke<UserSummary>("update_user_profile", { userId, input });
+  return apiInvoke<UserSummary>("update_user_profile", { input });
 }
 
 /** 后端 refresh_token(input: { refresh_token, session_id }) */
@@ -118,9 +111,8 @@ export async function refreshToken(): Promise<TokenPair> {
   return pair;
 }
 
-/** 后端 list_sessions(user_id) */
 export async function listSessions(): Promise<SessionSummary[]> {
-  return apiInvoke<SessionSummary[]>("list_sessions", { userId: requireCurrentUserId() });
+  return apiInvoke<SessionSummary[]>("list_sessions");
 }
 
 export async function oauth2AuthorizeUrl(provider: string): Promise<string> {

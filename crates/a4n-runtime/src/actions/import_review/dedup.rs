@@ -8,7 +8,7 @@ pub async fn check_import_dedup(
     input: CheckImportDedupInput,
 ) -> Result<DedupResult, AppError> {
     let result = state
-        .import_review()
+        .orchestrator()
         .check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
         .await?;
     Ok(DedupResult {

@@ -43,6 +43,7 @@ pub async fn pending_foreshadowing_before_chapter(
         .filter(foreshadowing_index::Column::Status.ne("abandoned"))
         .order_by_desc(foreshadowing_index::Column::Importance)
         .order_by_desc(foreshadowing_index::Column::SetupChapter)
+        .order_by_asc(foreshadowing_index::Column::Id)
         .limit(limit)
         .all(db)
         .await
@@ -59,6 +60,7 @@ pub async fn pending_foreshadowing_for_project(
         .filter(foreshadowing_index::Column::Status.ne("abandoned"))
         .order_by_desc(foreshadowing_index::Column::Importance)
         .order_by_desc(foreshadowing_index::Column::SetupChapter)
+        .order_by_asc(foreshadowing_index::Column::Id)
         .limit(limit)
         .all(db)
         .await

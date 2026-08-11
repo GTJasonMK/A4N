@@ -1,4 +1,4 @@
-use crate::{AppState, prompt_renderer::RuntimePromptRenderer};
+use crate::AppState;
 use a4n_core::error::AppError;
 use a4n_orchestrator::character::{
     CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictTaskScope,
@@ -14,7 +14,7 @@ pub async fn character_conflict_task_scope(
     end_chapter: Option<i32>,
 ) -> Result<CharacterConflictTaskScope, AppError> {
     state
-        .character()
+        .orchestrator()
         .character_conflict_task_scope_validated(
             user_id,
             &CharacterConflictCheckInput {
@@ -37,9 +37,9 @@ pub async fn check_character_conflict(
     progress: CharacterConflictProgressReporter<'_>,
     active_task_id: Option<&str>,
 ) -> Result<Vec<Value>, AppError> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     state
-        .character()
+        .orchestrator()
         .check_character_conflict_validated(
             user_id,
             CharacterConflictCheckInput {
@@ -48,7 +48,7 @@ pub async fn check_character_conflict(
                 start_chapter,
                 end_chapter,
             },
-            &prompt_renderer,
+            prompt_renderer,
             progress,
             active_task_id,
         )

@@ -17,6 +17,7 @@ use crate::{
         CharacterProfileSyncStageTracePort,
     },
     object_discovery::{ObjectDiscoveryInput, ObjectDiscoveryProgress},
+    project::ChapterDerivedCleanupArtifacts,
     scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress},
     workflow::{
         CompletedWorkflowCheckpointInput, WorkflowRunFinalizeOutcome, required_checkpoint_field,
@@ -24,22 +25,25 @@ use crate::{
     },
 };
 
-use super::{
-    ChapterAnalysisInput, chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
-    chapter_analysis_run_input_matches, chapter_analysis_workflow_business_key,
-    chapter_analysis_workflow_run_input, ensure_previous_chapter_analysis_complete_from_rows,
-    require_completed_chapter_analysis_phase,
+use super::outputs::{
+    ensure_chapter_analysis_character_sync_completed, retrospective_chapter_outline_input,
 };
-use super::outputs::ensure_chapter_analysis_character_sync_completed;
+use super::{
+    CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+    ChapterAnalysisInput, chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
+    chapter_analysis_run_input_matches, chapter_analysis_run_uses_replacement_commit,
+    chapter_analysis_workflow_business_key, require_completed_chapter_analysis_phase,
+};
 
 pub const CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL: u32 = 100;
 const STEP_FACTS: &str = "chapter_analysis.facts";
 const STEP_DERIVED_SYNC: &str = "chapter_analysis.derived_sync";
-const STEP_SYNC_OUTPUTS: &str = "chapter_analysis.sync_outputs";
-const STEP_OBJECT_DISCOVERY: &str = "chapter_analysis.object_discovery";
-const STEP_CHARACTER_DISCOVERY: &str = "chapter_analysis.character_discovery";
-const STEP_SCENE_SYNC: &str = "chapter_analysis.scene_sync";
-const STEP_CHARACTER_SYNC: &str = "chapter_analysis.character_sync";
+pub const CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS: &str = "chapter_analysis.sync_outputs";
+pub const CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC: &str = "chapter_analysis.outline_sync";
+pub const CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY: &str = "chapter_analysis.object_discovery";
+pub const CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY: &str = "chapter_analysis.character_discovery";
+pub const CHAPTER_ANALYSIS_STEP_SCENE_SYNC: &str = "chapter_analysis.scene_sync";
+pub const CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC: &str = "chapter_analysis.character_sync";
 const STEP_REFRESH_STATUS: &str = "chapter_analysis.refresh_status";
 
 pub type ChapterAnalysisApplicationProgressReporter<'a> =
@@ -115,12 +119,6 @@ impl ChapterAnalysisApplicationProgress<'_> {
 
 #[async_trait]
 pub trait ChapterAnalysisHostPort: ChapterDerivedCleanupHostPort + Send + Sync {
-    async fn sync_chapter_rag_records(
-        &self,
-        chapter: &chapter::Model,
-        workflow_run_id: i64,
-    ) -> Result<(), AppError>;
-
     fn scene_profile_sync_host_port(&self) -> &dyn SceneProfileSyncHostPort;
 }
 
@@ -191,8 +189,17 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<(chapter::Model, Vec<ChapterAnalysisPreviewStep>), AppError> {
         let chapter = self
-            .preflight_chapter_analysis_validated(chapter_id, true)
+            .preflight_resume_chapter_analysis_validated(chapter_id)
             .await?;
+        let run = self.resumable_chapter_analysis_run(&chapter).await?;
+        if !self
+            .chapter_analysis_run_has_saved_analysis(&run, &chapter)
+            .await?
+        {
+            return self
+                .prepare_chapter_analysis_preview_validated(chapter_id, prompt_renderer)
+                .await;
+        }
         let object_preview = self
             .prepare_object_discovery_request_preview_validated(
                 ObjectDiscoveryInput {
@@ -297,8 +304,17 @@ impl OrchestratorContext {
             self.ensure_chapter_analysis_sync_resume_needed(&chapter)
                 .await?;
         }
-        self.ensure_previous_chapter_analysis_complete(&chapter, "章节结构化分析")
+        Ok(chapter)
+    }
+
+    pub async fn preflight_resume_chapter_analysis_validated(
+        &self,
+        chapter_id: i64,
+    ) -> Result<chapter::Model, AppError> {
+        let chapter = self
+            .preflight_chapter_analysis_validated(chapter_id, false)
             .await?;
+        self.resumable_chapter_analysis_run(&chapter).await?;
         Ok(chapter)
     }
 
@@ -312,26 +328,7 @@ impl OrchestratorContext {
     ) -> Result<chapter::Model, AppError> {
         self.run_chapter_analysis_inner(
             chapter_id,
-            true,
-            prompt_renderer,
-            host_port,
-            progress,
-            character_trace_port,
-        )
-        .await
-    }
-
-    pub async fn run_chapter_analysis_after_content_postprocess_validated(
-        &self,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn ChapterAnalysisHostPort,
-        progress: ChapterAnalysisApplicationProgress<'_>,
-        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<chapter::Model, AppError> {
-        self.run_chapter_analysis_inner(
-            chapter_id,
-            false,
+            None,
             prompt_renderer,
             host_port,
             progress,
@@ -350,26 +347,25 @@ impl OrchestratorContext {
     ) -> Result<chapter::Model, AppError> {
         progress.report(0, "正在检查已保存的章节分析")?;
         let chapter = self
-            .preflight_chapter_analysis_validated(chapter_id, true)
+            .preflight_resume_chapter_analysis_validated(chapter_id)
             .await?;
-        if let Some(run) = self
-            .latest_workflow_run_by_business_key(&chapter_analysis_workflow_business_key(
-                chapter.project_id,
-                chapter.id,
-            ))
-            .await?
-            && chapter_analysis_run_input_matches(&run.input_fingerprint_json, &chapter)
-            && run.can_resume
-        {
-            self.mark_workflow_running_validated(run.id).await?;
+        let resumable = self.resumable_chapter_analysis_run(&chapter).await?;
+        let has_saved_analysis = self
+            .chapter_analysis_run_has_saved_analysis(&resumable, &chapter)
+            .await?;
+        let workflow_run = self.mark_workflow_running_validated(resumable.id).await?;
+        if !has_saved_analysis {
+            return self
+                .run_chapter_analysis_inner(
+                    chapter_id,
+                    Some(workflow_run),
+                    prompt_renderer,
+                    host_port,
+                    progress,
+                    character_trace_port,
+                )
+                .await;
         }
-        let workflow_run = self
-            .begin_workflow_run_validated(chapter_analysis_workflow_run_input(
-                &chapter,
-                STEP_DERIVED_SYNC,
-                progress.active_task_id,
-            ))
-            .await?;
         progress.report(45, "已找到结构化分析，正在继续同步派生数据")?;
         let result = self
             .sync_project_state_after_chapter_analysis(
@@ -419,20 +415,40 @@ impl OrchestratorContext {
                 operation: "从旧的章节结构化分析断点恢复".to_string(),
             });
         }
-
-        if chapter.analysis_data.is_some() {
-            self.resume_chapter_analysis_sync_validated(
-                chapter_id,
-                prompt_renderer,
-                host_port,
-                ChapterAnalysisApplicationProgress::default(),
-                character_trace_port,
-            )
+        let latest = self
+            .latest_workflow_run_by_business_key(&chapter_analysis_workflow_business_key(
+                chapter.project_id,
+                chapter.id,
+            ))
+            .await?
+            .ok_or_else(|| AppError::NotFound("章节结构化分析工作流不存在".to_string()))?;
+        if latest.id != run.id {
+            return Err(AppError::InvalidState {
+                current: "chapter_analysis_workflow_replaced".to_string(),
+                operation: "恢复已被更新运行取代的章节分析".to_string(),
+            });
+        }
+        let has_saved_analysis = self
+            .chapter_analysis_run_has_saved_analysis(&latest, &chapter)
             .await?;
+        let running = self.mark_workflow_running_validated(run.id).await?;
+        if has_saved_analysis {
+            let result = self
+                .sync_project_state_after_chapter_analysis(
+                    &chapter,
+                    running.id,
+                    prompt_renderer,
+                    host_port,
+                    ChapterAnalysisApplicationProgress::default(),
+                    character_trace_port,
+                )
+                .await;
+            self.finalize_chapter_analysis_application(running.id, result)
+                .await?;
         } else {
             self.run_chapter_analysis_inner(
                 chapter_id,
-                false,
+                Some(running),
                 prompt_renderer,
                 host_port,
                 ChapterAnalysisApplicationProgress::default(),
@@ -447,32 +463,39 @@ impl OrchestratorContext {
     async fn run_chapter_analysis_inner(
         &self,
         chapter_id: i64,
-        cleanup_before_analysis: bool,
+        resumed_workflow_run: Option<workflow_run::Model>,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn ChapterAnalysisHostPort,
         progress: ChapterAnalysisApplicationProgress<'_>,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<chapter::Model, AppError> {
         progress.report(0, "正在检查章节正文")?;
-        let mut chapter = self
+        let chapter = self
             .preflight_chapter_analysis_validated(chapter_id, false)
             .await?;
 
-        if cleanup_before_analysis {
-            progress.report(5, "正在清理旧的章节派生数据")?;
-            self.postprocess_chapter_before_analysis(&chapter, host_port)
-                .await?;
-            chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
-        }
-
         progress.report(10, "正在读取章节并校验角色同步前置条件")?;
-        let workflow_run = self
-            .begin_workflow_run_validated(chapter_analysis_workflow_run_input(
-                &chapter,
-                STEP_FACTS,
-                progress.active_task_id,
-            ))
-            .await?;
+        let workflow_run = match resumed_workflow_run {
+            Some(run) => {
+                if run.status != crate::workflow::WORKFLOW_STATUS_RUNNING
+                    || !chapter_analysis_run_input_matches(&run.input_fingerprint_json, &chapter)
+                {
+                    return Err(AppError::InvalidState {
+                        current: "chapter_analysis_resume_source_changed".to_string(),
+                        operation: "恢复章节结构化分析".to_string(),
+                    });
+                }
+                run
+            }
+            None => {
+                self.begin_chapter_analysis_workflow_run(
+                    &chapter,
+                    STEP_FACTS,
+                    progress.active_task_id,
+                )
+                .await?
+            }
+        };
         progress.report(20, "正在调用模型生成结构化分析")?;
         let analysis_reporter = |current: u32, total: u32, message: &str| {
             progress.subprogress(current, total, 20, 45, message)
@@ -480,17 +503,20 @@ impl OrchestratorContext {
         let mut mapped_analysis_progress =
             |current: u32, total: u32, message: &str| analysis_reporter(current, total, message);
         let result = async {
-            self.analyze_and_store_chapter(ChapterAnalysisInput {
-                chapter_id,
-                prompt_renderer,
-                progress: Some(&mut mapped_analysis_progress),
-                stream_reporter: progress.stream_reporter,
-                cancel_token: progress.cancel_token,
-                workflow_run_id: Some(workflow_run.id),
-            })
-            .await?;
+            let updated = self
+                .analyze_and_store_chapter(
+                    ChapterAnalysisInput {
+                        chapter,
+                        prompt_renderer,
+                        progress: Some(&mut mapped_analysis_progress),
+                        stream_reporter: progress.stream_reporter,
+                        cancel_token: progress.cancel_token,
+                        workflow_run_id: Some(workflow_run.id),
+                    },
+                    host_port,
+                )
+                .await?;
             progress.report(45, "结构化分析已保存，正在读取章节")?;
-            let updated = self.chapter_by_id_for_analysis(chapter_id).await?;
             self.sync_project_state_after_chapter_analysis(
                 &updated,
                 workflow_run.id,
@@ -507,15 +533,6 @@ impl OrchestratorContext {
             .await
     }
 
-    async fn postprocess_chapter_before_analysis(
-        &self,
-        chapter: &chapter::Model,
-        host_port: &dyn ChapterAnalysisHostPort,
-    ) -> Result<(), AppError> {
-        self.postprocess_chapter_after_content_change_validated(host_port, chapter.id)
-            .await
-    }
-
     #[allow(clippy::too_many_arguments)]
     async fn sync_project_state_after_chapter_analysis(
         &self,
@@ -526,9 +543,19 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<(), AppError> {
+        self.finish_chapter_analysis_replacement_cleanup(
+            chapter,
+            workflow_run_id,
+            host_port,
+            progress,
+        )
+        .await?;
         self.mark_workflow_current_step(workflow_run_id, STEP_DERIVED_SYNC)
             .await?;
-        progress.report(50, "正在同步章节分析、伏笔和 RAG")?;
+        progress.report(50, "正在同步本章章纲")?;
+        self.sync_retrospective_outline_phase(chapter, workflow_run_id, progress)
+            .await?;
+        progress.report(54, "正在同步章节分析、伏笔和 RAG")?;
         self.sync_analysis_outputs_phase(chapter, workflow_run_id, host_port, progress)
             .await?;
         self.sync_object_discovery_phase(chapter, workflow_run_id, prompt_renderer, progress)
@@ -558,6 +585,73 @@ impl OrchestratorContext {
         progress.report(100, "章节分析和项目状态同步已完成")
     }
 
+    async fn sync_retrospective_outline_phase(
+        &self,
+        chapter: &chapter::Model,
+        workflow_run_id: i64,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+    ) -> Result<(), AppError> {
+        if self
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,
+            )
+            .await?
+            .is_some()
+        {
+            progress.report(54, "本章章纲同步已从断点恢复")?;
+            return Ok(());
+        }
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC)
+            .await?;
+        let input = retrospective_chapter_outline_input(
+            chapter,
+            chapter_analysis_phase_fingerprint(chapter, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC),
+        )
+        .map_err(|error| AppError::InvalidState {
+            current: "chapter_analysis_outline".to_string(),
+            operation: error.to_string(),
+        })?;
+        let outcome = a4n_db::project::upsert_retrospective_chapter_outline_checked(
+            self.database.connection(),
+            input,
+            a4n_db::project::ChapterSourceSnapshot::from(chapter),
+        )
+        .await
+        .map_err(crate::project::project_outline_record_error_to_app_error)?;
+        let name = outcome
+            .outline
+            .title
+            .clone()
+            .unwrap_or_else(|| format!("第{}章章纲", chapter.chapter_number));
+        let result = match outcome.action {
+            a4n_db::project::RetrospectiveChapterOutlineAction::Created => {
+                json!({ "created": [{ "name": name, "outline_id": outcome.outline.id }] })
+            }
+            a4n_db::project::RetrospectiveChapterOutlineAction::Updated => {
+                json!({ "updated": [{ "name": name, "outline_id": outcome.outline.id }] })
+            }
+            a4n_db::project::RetrospectiveChapterOutlineAction::Unchanged => {
+                json!({ "existing": [{ "name": name, "outline_id": outcome.outline.id }] })
+            }
+            a4n_db::project::RetrospectiveChapterOutlineAction::Preserved => {
+                json!({ "preserved": [{ "name": name, "outline_id": outcome.outline.id }] })
+            }
+        };
+        self.save_chapter_analysis_phase(
+            workflow_run_id,
+            chapter,
+            CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,
+            8,
+            json!({
+                "completed": true,
+                "result": result
+            }),
+        )
+        .await
+    }
+
     async fn sync_analysis_outputs_phase(
         &self,
         chapter: &chapter::Model,
@@ -566,16 +660,21 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
     ) -> Result<(), AppError> {
         if self
-            .completed_chapter_analysis_phase(workflow_run_id, chapter, STEP_SYNC_OUTPUTS)
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS,
+            )
             .await?
             .is_some()
         {
             progress.report(58, "章节分析输出同步已从断点恢复")?;
             return Ok(());
         }
-        self.mark_workflow_current_step(workflow_run_id, STEP_SYNC_OUTPUTS)
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS)
             .await?;
-        self.sync_chapter_analysis_foreshadowing_outputs(chapter)
+        let foreshadowing_result = self
+            .sync_chapter_analysis_foreshadowing_outputs(chapter)
             .await
             .map_err(|error| AppError::InvalidState {
                 current: "chapter_analysis_outputs".to_string(),
@@ -587,9 +686,12 @@ impl OrchestratorContext {
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
-            STEP_SYNC_OUTPUTS,
+            CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS,
             10,
-            json!({ "completed": true }),
+            json!({
+                "completed": true,
+                "result": { "foreshadowing": foreshadowing_result }
+            }),
         )
         .await
     }
@@ -602,7 +704,11 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
     ) -> Result<(), AppError> {
         if self
-            .completed_chapter_analysis_phase(workflow_run_id, chapter, STEP_OBJECT_DISCOVERY)
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY,
+            )
             .await?
             .is_some()
         {
@@ -610,7 +716,7 @@ impl OrchestratorContext {
             return Ok(());
         }
         progress.report(58, "正在识别本章关键物体并同步物体档案")?;
-        self.mark_workflow_current_step(workflow_run_id, STEP_OBJECT_DISCOVERY)
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY)
             .await?;
         let reporter = |current: u32, total: u32, message: &str| {
             progress.subprogress(current, total, 58, 68, message)
@@ -634,7 +740,7 @@ impl OrchestratorContext {
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
-            STEP_OBJECT_DISCOVERY,
+            CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY,
             20,
             json!({ "completed": true, "result": result }),
         )
@@ -649,15 +755,23 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
     ) -> Result<Value, AppError> {
         if let Some(checkpoint) = self
-            .completed_chapter_analysis_phase(workflow_run_id, chapter, STEP_CHARACTER_DISCOVERY)
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY,
+            )
             .await?
         {
             progress.report(78, "角色发现已从断点恢复")?;
-            return required_checkpoint_field(&checkpoint, STEP_CHARACTER_DISCOVERY, "result")
-                .map_err(workflow_contract_error);
+            return required_checkpoint_field(
+                &checkpoint,
+                CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY,
+                "result",
+            )
+            .map_err(workflow_contract_error);
         }
         progress.report(68, "正在发现本章新出场角色")?;
-        self.mark_workflow_current_step(workflow_run_id, STEP_CHARACTER_DISCOVERY)
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY)
             .await?;
         let reporter = |current: u32, total: u32, message: &str| {
             progress.subprogress(current, total, 68, 78, message)
@@ -681,7 +795,7 @@ impl OrchestratorContext {
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
-            STEP_CHARACTER_DISCOVERY,
+            CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY,
             30,
             json!({ "completed": true, "result": result.clone() }),
         )
@@ -698,7 +812,11 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
     ) -> Result<(), AppError> {
         if self
-            .completed_chapter_analysis_phase(workflow_run_id, chapter, STEP_SCENE_SYNC)
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_SCENE_SYNC,
+            )
             .await?
             .is_some()
         {
@@ -706,7 +824,7 @@ impl OrchestratorContext {
             return Ok(());
         }
         progress.report(78, "正在同步本章场景档案和场景内状态")?;
-        self.mark_workflow_current_step(workflow_run_id, STEP_SCENE_SYNC)
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_SCENE_SYNC)
             .await?;
         let reporter = |current: u32, total: u32, message: &str| {
             let _ = progress.subprogress(current, total, 78, 88, message);
@@ -716,27 +834,28 @@ impl OrchestratorContext {
             progress.cancel_token,
             progress.active_task_id,
         );
-        self.sync_scene_profiles_for_chapters_validated(
-            chapter.project_id,
-            Some(chapter.chapter_number),
-            prompt_renderer,
-            host_port.scene_profile_sync_host_port(),
-            Some(&scene_progress),
-        )
-        .await
-        .map_err(|error| match error {
-            AppError::Cancelled => AppError::Cancelled,
-            error => AppError::InvalidState {
-                current: "chapter_analysis_scene_sync".to_string(),
-                operation: error.to_string(),
-            },
-        })?;
+        let result = self
+            .sync_scene_profiles_for_chapters_validated(
+                chapter.project_id,
+                Some(chapter.chapter_number),
+                prompt_renderer,
+                host_port.scene_profile_sync_host_port(),
+                Some(&scene_progress),
+            )
+            .await
+            .map_err(|error| match error {
+                AppError::Cancelled => AppError::Cancelled,
+                error => AppError::InvalidState {
+                    current: "chapter_analysis_scene_sync".to_string(),
+                    operation: error.to_string(),
+                },
+            })?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
-            STEP_SCENE_SYNC,
+            CHAPTER_ANALYSIS_STEP_SCENE_SYNC,
             40,
-            json!({ "completed": true }),
+            json!({ "completed": true, "result": result }),
         )
         .await
     }
@@ -752,7 +871,11 @@ impl OrchestratorContext {
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<(), AppError> {
         if self
-            .completed_chapter_analysis_phase(workflow_run_id, chapter, STEP_CHARACTER_SYNC)
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
+            )
             .await?
             .is_some()
         {
@@ -760,7 +883,7 @@ impl OrchestratorContext {
             return Ok(());
         }
         progress.report(88, "正在同步角色档案、事件和状态索引")?;
-        self.mark_workflow_current_step(workflow_run_id, STEP_CHARACTER_SYNC)
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC)
             .await?;
         let reporter = |current: u32, total: u32, message: &str| {
             progress.subprogress(current, total, 88, 97, message)
@@ -784,7 +907,7 @@ impl OrchestratorContext {
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
-            STEP_CHARACTER_SYNC,
+            CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
             50,
             json!({ "completed": true, "result": sync_result }),
         )
@@ -841,6 +964,146 @@ impl OrchestratorContext {
             .transpose()
     }
 
+    async fn finish_chapter_analysis_replacement_cleanup(
+        &self,
+        chapter: &chapter::Model,
+        workflow_run_id: i64,
+        host_port: &dyn ChapterAnalysisHostPort,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+    ) -> Result<(), AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        if !chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+            return Ok(());
+        }
+        if self
+            .completed_chapter_analysis_phase(
+                workflow_run_id,
+                chapter,
+                CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP,
+            )
+            .await?
+            .is_some()
+        {
+            progress.report(50, "旧章节派生资料清理已从断点恢复")?;
+            return Ok(());
+        }
+
+        let artifacts = self
+            .chapter_analysis_replacement_cleanup_artifacts(&run, chapter)
+            .await?
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_chapter_analysis_replacement_commit".to_string(),
+                operation: "恢复章节分析替换后的外部清理".to_string(),
+            })?;
+        host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP)
+            .await?;
+        progress.report(47, "正在清理旧章节分析对应的外部资料")?;
+        host_port
+            .finish_chapter_derived_cleanup(
+                chapter.project_id,
+                chapter.id,
+                chapter.chapter_number,
+                artifacts,
+            )
+            .await?;
+        self.save_chapter_analysis_phase(
+            workflow_run_id,
+            chapter,
+            CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP,
+            7,
+            json!({ "completed": true }),
+        )
+        .await
+    }
+
+    pub async fn chapter_analysis_run_has_saved_analysis(
+        &self,
+        run: &workflow_run::Model,
+        chapter: &chapter::Model,
+    ) -> Result<bool, AppError> {
+        if run.workflow_kind != "chapter_analysis"
+            || run.project_id != Some(chapter.project_id)
+            || run.chapter_id != Some(chapter.id)
+            || !chapter_analysis_run_input_matches(&run.input_fingerprint_json, chapter)
+        {
+            return Ok(false);
+        }
+        if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+            let saved = self
+                .chapter_analysis_replacement_cleanup_artifacts(run, chapter)
+                .await?
+                .is_some();
+            if !saved {
+                return Ok(false);
+            }
+        }
+        let Some(analysis) = chapter.analysis_data.as_ref() else {
+            return Ok(false);
+        };
+        validate_saved_chapter_analysis(analysis).map_err(|error| AppError::InvalidState {
+            current: format!("invalid_saved_chapter_analysis: {error}"),
+            operation: "读取章节分析工作流保存状态".to_string(),
+        })?;
+        Ok(true)
+    }
+
+    async fn chapter_analysis_replacement_cleanup_artifacts(
+        &self,
+        run: &workflow_run::Model,
+        chapter: &chapter::Model,
+    ) -> Result<Option<ChapterDerivedCleanupArtifacts>, AppError> {
+        if !chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+            return Ok(None);
+        }
+        let Some(checkpoint) = self
+            .completed_chapter_analysis_phase(
+                run.id,
+                chapter,
+                CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+            )
+            .await?
+        else {
+            return Ok(None);
+        };
+        replacement_cleanup_artifacts_from_checkpoint(&checkpoint).map(Some)
+    }
+
+    async fn resumable_chapter_analysis_run(
+        &self,
+        chapter: &chapter::Model,
+    ) -> Result<workflow_run::Model, AppError> {
+        let run = self
+            .latest_workflow_run_by_business_key(&chapter_analysis_workflow_business_key(
+                chapter.project_id,
+                chapter.id,
+            ))
+            .await?
+            .ok_or_else(|| AppError::NotFound("没有可恢复的章节结构化分析".to_string()))?;
+        if !chapter_analysis_run_input_matches(&run.input_fingerprint_json, chapter) {
+            return Err(AppError::InvalidState {
+                current: "chapter_analysis_input_changed".to_string(),
+                operation: "恢复章节结构化分析".to_string(),
+            });
+        }
+        if let Some(reason) = chapter_analysis_resume_block_reason(&run, chapter) {
+            return Err(AppError::InvalidState {
+                current: run.status.clone(),
+                operation: reason.to_string(),
+            });
+        }
+        if !run.can_resume {
+            return Err(AppError::InvalidState {
+                current: run.status.clone(),
+                operation: run
+                    .resume_block_reason
+                    .clone()
+                    .unwrap_or_else(|| "该章节结构化分析不可恢复".to_string()),
+            });
+        }
+        Ok(run)
+    }
+
     async fn save_chapter_analysis_phase(
         &self,
         workflow_run_id: i64,
@@ -857,25 +1120,6 @@ impl OrchestratorContext {
             checkpoint_json,
         })
         .await
-    }
-
-    async fn ensure_previous_chapter_analysis_complete(
-        &self,
-        chapter: &chapter::Model,
-        operation: &str,
-    ) -> Result<(), AppError> {
-        let previous = self
-            .chapters_before_number(chapter.project_id, chapter.chapter_number)
-            .await?;
-        ensure_previous_chapter_analysis_complete_from_rows(
-            operation,
-            chapter.chapter_number,
-            &previous,
-        )
-        .map_err(|error| AppError::InvalidState {
-            current: "previous_chapter_analysis_incomplete".to_string(),
-            operation: error.to_string(),
-        })
     }
 
     async fn ensure_chapter_analysis_sync_resume_needed(
@@ -953,6 +1197,21 @@ fn workflow_contract_error(error: impl ToString) -> AppError {
     }
 }
 
+fn replacement_cleanup_artifacts_from_checkpoint(
+    checkpoint: &Value,
+) -> Result<ChapterDerivedCleanupArtifacts, AppError> {
+    let artifacts = required_checkpoint_field(
+        checkpoint,
+        CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+        "cleanup_artifacts",
+    )
+    .map_err(workflow_contract_error)?;
+    serde_json::from_value(artifacts).map_err(|error| AppError::InvalidState {
+        current: "chapter_analysis_replacement_commit".to_string(),
+        operation: format!("章节分析替换清理产物合同无效: {error}"),
+    })
+}
+
 fn blocked_preview_step(
     key: impl Into<String>,
     title: impl Into<String>,
@@ -1023,5 +1282,32 @@ mod tests {
                 "scene_entity_state_extraction",
             ]
         );
+    }
+
+    #[test]
+    fn replacement_commit_cleanup_artifacts_round_trip() {
+        let checkpoint = json!({
+            "completed": true,
+            "cleanup_artifacts": {
+                "stale_profile_ids": [7],
+                "media_file_paths": ["projects/1/old.png"],
+                "scene_records_changed": true
+            }
+        });
+
+        let artifacts = replacement_cleanup_artifacts_from_checkpoint(&checkpoint)
+            .expect("valid replacement cleanup artifacts should restore");
+
+        assert_eq!(artifacts.stale_profile_ids, vec![7]);
+        assert_eq!(artifacts.media_file_paths, vec!["projects/1/old.png"]);
+        assert!(artifacts.scene_records_changed);
+    }
+
+    #[test]
+    fn replacement_commit_requires_cleanup_artifacts() {
+        let error = replacement_cleanup_artifacts_from_checkpoint(&json!({"completed": true}))
+            .expect_err("missing replacement cleanup artifacts must fail explicitly");
+
+        assert!(error.to_string().contains("cleanup_artifacts"));
     }
 }

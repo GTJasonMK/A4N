@@ -84,7 +84,6 @@ export async function syncBlueprintMaterials(
   const normalizedProjectId = idNum(projectId);
   try {
     const result = await apiInvoke<BlueprintMutationResult>("sync_blueprint_materials", {
-      userId: currentUserId(),
       projectId: normalizedProjectId,
     });
     return result.warnings;

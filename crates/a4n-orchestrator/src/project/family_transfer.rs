@@ -55,8 +55,6 @@ impl From<String> for ProjectFamilyTransferError {
 
 #[async_trait]
 pub trait ProjectFamilyTransferHostPort: Send + Sync {
-    async fn verify_project_owner(&self, user_id: i64, project_id: i64) -> Result<(), AppError>;
-
     async fn render_export_package(
         &self,
         package: &ProjectFamilyPackage,

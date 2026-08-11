@@ -3,55 +3,22 @@ use a4n_core::{
     models::generation::{generation_spec, prompt_artifact},
 };
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashMap};
 
 use super::{
-    GALGAME_CG_IMPORTANCE, GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE,
-    GALGAME_ENTITY_SCENE, GALGAME_EXPRESSIONS, GALGAME_TARGET_BACKGROUND, GALGAME_TARGET_CG,
-    GALGAME_TARGET_PORTRAIT_EXPRESSION, GalgameMediaBindingResult, GalgamePortraitSpecTargetInput,
-    GalgamePromptArtifactUpsertInput, GalgameTargetContext,
+    GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE,
+    GALGAME_EXPRESSIONS, GALGAME_TARGET_BACKGROUND, GALGAME_TARGET_CG,
+    GALGAME_TARGET_PORTRAIT_EXPRESSION, GalgameAssetGenerationItem, GalgameAssetGenerationSummary,
+    GalgameCgImportance, GalgameGenerationTargetKind, GalgameMediaBindingSummary, GalgameMediaRole,
+    GalgameMediaTargetKind, GalgamePortraitSpecTargetInput, GalgamePromptArtifactUpsertInput,
+    GalgameTargetContext, GalgameTargetEntityKind, RunGalgameAssetGenerationInput,
 };
 use crate::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING};
 use crate::{OrchestratorContext, media::GeneratedImageSummary, portrait::PortraitSummary};
 
 const GALGAME_PORTRAIT_VARIANT_STYLE: &str =
     "Galgame 视觉小说角色立绘表情差分；必须保持参考图中的角色身份、服装、体型比例和美术风格一致。";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GalgameAssetGenerationApplicationInput {
-    pub project_id: i64,
-    #[serde(default)]
-    pub generation_spec_ids: Vec<i64>,
-    #[serde(default)]
-    pub config_id: Option<i64>,
-    #[serde(default)]
-    pub limit: Option<usize>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GalgameAssetGenerationApplicationItem {
-    pub generation_spec_id: i64,
-    pub target_kind: String,
-    pub target_entity_kind: String,
-    pub target_entity_id: i64,
-    pub status: String,
-    pub prompt_artifact_id: Option<i64>,
-    pub generated_image_id: Option<i64>,
-    pub portrait_id: Option<i64>,
-    pub media_asset_id: Option<i64>,
-    pub binding_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GalgameAssetGenerationApplicationSummary {
-    pub project_id: i64,
-    pub generated_count: usize,
-    pub skipped_completed_count: usize,
-    pub items: Vec<GalgameAssetGenerationApplicationItem>,
-}
 
 #[async_trait]
 pub trait GalgameAssetGenerationHostPort: Send + Sync {
@@ -85,8 +52,8 @@ pub struct GalgameVisualImageGenerationInput {
     pub config_id: Option<i64>,
     pub chapter_id: Option<i64>,
     pub generation_spec_id: i64,
-    pub target_kind: String,
-    pub target_entity_kind: String,
+    pub target_kind: GalgameGenerationTargetKind,
+    pub target_entity_kind: GalgameTargetEntityKind,
     pub target_entity_id: i64,
 }
 
@@ -96,7 +63,7 @@ pub struct GalgamePortraitImageGenerationInput {
     pub character_name: String,
     pub style: String,
     pub expression: String,
-    pub pose: Option<String>,
+    pub pose: String,
     pub reference_image_ids: Vec<i64>,
 }
 
@@ -105,8 +72,8 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn GalgameAssetGenerationHostPort,
         user_id: i64,
-        input: GalgameAssetGenerationApplicationInput,
-    ) -> Result<GalgameAssetGenerationApplicationSummary, AppError> {
+        input: RunGalgameAssetGenerationInput,
+    ) -> Result<GalgameAssetGenerationSummary, AppError> {
         validate_input(&input)?;
         let specs = self
             .galgame_asset_generation_specs(
@@ -120,7 +87,7 @@ impl OrchestratorContext {
                 input.limit,
             )
             .await?;
-        let mut summary = GalgameAssetGenerationApplicationSummary {
+        let mut summary = GalgameAssetGenerationSummary {
             project_id: input.project_id,
             generated_count: 0,
             skipped_completed_count: 0,
@@ -154,9 +121,9 @@ impl OrchestratorContext {
 
 struct GalgameVisualSpecPlan {
     target_entity_id: i64,
-    target_kind: &'static str,
-    target_entity_kind: &'static str,
-    role: &'static str,
+    target_kind: GalgameGenerationTargetKind,
+    target: GalgameMediaTargetKind,
+    role: GalgameMediaRole,
     prompt_kind: &'static str,
     image_type: &'static str,
     template_name: &'static str,
@@ -179,18 +146,18 @@ impl GalgameVisualSpecPlan {
         match (spec.target_kind.as_str(), spec.target_entity_kind.as_str()) {
             (GALGAME_TARGET_BACKGROUND, GALGAME_ENTITY_SCENE) => Ok(Self {
                 target_entity_id,
-                target_kind: GALGAME_TARGET_BACKGROUND,
-                target_entity_kind: GALGAME_ENTITY_SCENE,
-                role: crate::media::MEDIA_BINDING_ROLE_BACKGROUND,
+                target_kind: GalgameGenerationTargetKind::GalgameBackground,
+                target: GalgameMediaTargetKind::GalgameScene,
+                role: GalgameMediaRole::Background,
                 prompt_kind: "background_image_prompt",
                 image_type: "galgame_background",
                 template_name: "galgame_background_image_prompt",
             }),
             (GALGAME_TARGET_CG, GALGAME_ENTITY_LINE) => Ok(Self {
                 target_entity_id,
-                target_kind: GALGAME_TARGET_CG,
-                target_entity_kind: GALGAME_ENTITY_LINE,
-                role: crate::media::MEDIA_BINDING_ROLE_CG,
+                target_kind: GalgameGenerationTargetKind::GalgameCg,
+                target: GalgameMediaTargetKind::GalgameLine,
+                role: GalgameMediaRole::Cg,
                 prompt_kind: "event_cg_prompt",
                 image_type: "galgame_cg",
                 template_name: "galgame_event_cg_prompt",
@@ -201,20 +168,27 @@ impl GalgameVisualSpecPlan {
             ))),
         }
     }
+
+    fn target_entity_kind(&self) -> GalgameTargetEntityKind {
+        match self.target {
+            GalgameMediaTargetKind::GalgameScene => GalgameTargetEntityKind::GalgameScene,
+            GalgameMediaTargetKind::GalgameLine => GalgameTargetEntityKind::GalgameLine,
+        }
+    }
 }
 
 async fn run_visual_spec(
     context: &OrchestratorContext,
     host: &dyn GalgameAssetGenerationHostPort,
     user_id: i64,
-    input: &GalgameAssetGenerationApplicationInput,
+    input: &RunGalgameAssetGenerationInput,
     spec: &generation_spec::Model,
-) -> Result<(GalgameAssetGenerationApplicationItem, bool), AppError> {
+) -> Result<(GalgameAssetGenerationItem, bool), AppError> {
     let plan = GalgameVisualSpecPlan::from_spec(spec)?;
     let target_context = context
         .galgame_media_target_context_validated(
             input.project_id,
-            plan.target_entity_kind,
+            plan.target,
             plan.target_entity_id,
         )
         .await?;
@@ -236,8 +210,8 @@ async fn run_visual_spec(
                 config_id: input.config_id,
                 chapter_id: spec.source_chapter_id,
                 generation_spec_id: spec.id,
-                target_kind: spec.target_kind.clone(),
-                target_entity_kind: spec.target_entity_kind.clone(),
+                target_kind: plan.target_kind,
+                target_entity_kind: plan.target_entity_kind(),
                 target_entity_id: plan.target_entity_id,
             },
         )
@@ -264,10 +238,10 @@ async fn run_visual_spec(
         .mark_galgame_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
         .await?;
     Ok((
-        GalgameAssetGenerationApplicationItem {
+        GalgameAssetGenerationItem {
             generation_spec_id: spec.id,
-            target_kind: spec.target_kind.clone(),
-            target_entity_kind: spec.target_entity_kind.clone(),
+            target_kind: plan.target_kind,
+            target_entity_kind: plan.target_entity_kind(),
             target_entity_id: plan.target_entity_id,
             status: WORKFLOW_STATUS_COMPLETED.to_string(),
             prompt_artifact_id: Some(prompt.id),
@@ -285,7 +259,7 @@ async fn run_portrait_spec(
     host: &dyn GalgameAssetGenerationHostPort,
     user_id: i64,
     spec: &generation_spec::Model,
-) -> Result<(GalgameAssetGenerationApplicationItem, bool), AppError> {
+) -> Result<(GalgameAssetGenerationItem, bool), AppError> {
     let plan = GalgamePortraitSpecPlan::from_spec(spec)?;
     let profile = context
         .galgame_portrait_spec_target_profile(
@@ -403,19 +377,16 @@ fn visual_prompt_variables(
             .cloned()
             .unwrap_or(Value::Null),
     );
-    if plan.target_kind == GALGAME_TARGET_CG {
+    if plan.target_kind == GalgameGenerationTargetKind::GalgameCg {
         let line = required_object(&spec.params_json, "line", spec.id)?;
         required_string(line, "text", "line.text", spec.id)?;
         let cg_note = required_string(&spec.params_json, "cg_note", "cg_note", spec.id)?;
-        validate_cg_importance(&spec.params_json, spec.id)?;
+        let cg_importance = required_cg_importance(&spec.params_json, spec.id)?;
         variables.insert("line".to_string(), line.clone());
         variables.insert("cg_note".to_string(), Value::String(cg_note.to_string()));
         variables.insert(
             "cg_importance".to_string(),
-            spec.params_json
-                .get("cg_importance")
-                .cloned()
-                .unwrap_or(Value::Null),
+            Value::String(cg_importance.to_string()),
         );
     }
     Ok(variables)
@@ -426,16 +397,16 @@ async fn completed_visual(
     host: &dyn GalgameAssetGenerationHostPort,
     spec: &generation_spec::Model,
     plan: &GalgameVisualSpecPlan,
-) -> Result<Option<GalgameAssetGenerationApplicationItem>, AppError> {
+) -> Result<Option<GalgameAssetGenerationItem>, AppError> {
     if spec.status != WORKFLOW_STATUS_COMPLETED {
         return Ok(None);
     }
     let records = context
         .completed_galgame_visual_binding_records(
             spec,
-            plan.target_entity_kind,
+            plan.target_entity_kind().as_str(),
             plan.target_entity_id,
-            plan.role,
+            plan.role.as_str(),
         )
         .await?;
     let path = records
@@ -453,10 +424,10 @@ async fn completed_visual(
         records.asset.id,
         records.provenance.request_snapshot_json.as_ref(),
     )?;
-    Ok(Some(GalgameAssetGenerationApplicationItem {
+    Ok(Some(GalgameAssetGenerationItem {
         generation_spec_id: spec.id,
-        target_kind: spec.target_kind.clone(),
-        target_entity_kind: spec.target_entity_kind.clone(),
+        target_kind: plan.target_kind,
+        target_entity_kind: plan.target_entity_kind(),
         target_entity_id: plan.target_entity_id,
         status: WORKFLOW_STATUS_COMPLETED.to_string(),
         prompt_artifact_id: records.provenance.prompt_artifact_id,
@@ -472,17 +443,12 @@ async fn completed_portrait(
     host: &dyn GalgameAssetGenerationHostPort,
     spec: &generation_spec::Model,
     plan: &GalgamePortraitSpecPlan,
-) -> Result<Option<GalgameAssetGenerationApplicationItem>, AppError> {
+) -> Result<Option<GalgameAssetGenerationItem>, AppError> {
     if spec.status != WORKFLOW_STATUS_COMPLETED {
         return Ok(None);
     }
     let portrait = context
-        .completed_galgame_portrait_record(
-            spec,
-            plan.profile_id,
-            &plan.expression,
-            plan.pose.as_deref(),
-        )
+        .completed_galgame_portrait_record(spec, plan.profile_id, &plan.expression, &plan.pose)
         .await?;
     host.validate_data_file(&portrait.image_path, "Galgame 立绘差分")?;
     Ok(Some(portrait_item(spec, plan, portrait.id)))
@@ -492,11 +458,11 @@ fn portrait_item(
     spec: &generation_spec::Model,
     plan: &GalgamePortraitSpecPlan,
     portrait_id: i64,
-) -> GalgameAssetGenerationApplicationItem {
-    GalgameAssetGenerationApplicationItem {
+) -> GalgameAssetGenerationItem {
+    GalgameAssetGenerationItem {
         generation_spec_id: spec.id,
-        target_kind: spec.target_kind.clone(),
-        target_entity_kind: spec.target_entity_kind.clone(),
+        target_kind: GalgameGenerationTargetKind::PortraitExpression,
+        target_entity_kind: GalgameTargetEntityKind::CharacterProfile,
         target_entity_id: plan.profile_id,
         status: WORKFLOW_STATUS_COMPLETED.to_string(),
         prompt_artifact_id: None,
@@ -513,7 +479,7 @@ async fn persist_visual_asset(
     plan: &GalgameVisualSpecPlan,
     prompt: &prompt_artifact::Model,
     image: &GeneratedImageSummary,
-) -> Result<GalgameMediaBindingResult, AppError> {
+) -> Result<GalgameMediaBindingSummary, AppError> {
     let generated = context
         .galgame_generated_image_by_id(image.id, spec.project_id)
         .await?;
@@ -540,9 +506,9 @@ async fn persist_visual_asset(
         .bind_galgame_media_validated(super::BindGalgameMediaInput {
             project_id: spec.project_id,
             media_asset_id: asset.id,
-            target_kind: plan.target_entity_kind.to_string(),
+            target_kind: plan.target,
             target_id: plan.target_entity_id,
-            role: plan.role.to_string(),
+            role: plan.role,
         })
         .await
     {
@@ -566,7 +532,7 @@ async fn persist_visual_asset(
 struct GalgamePortraitSpecPlan {
     profile_id: i64,
     expression: String,
-    pose: Option<String>,
+    pose: String,
     position_samples: Vec<String>,
     source_line_ids: Vec<i64>,
 }
@@ -607,11 +573,10 @@ impl GalgamePortraitSpecPlan {
                 spec.id
             )));
         }
-        let pose = owned_string(&spec.params_json, "pose");
-        let variant = pose
-            .as_deref()
-            .map(|p| format!("expression:{expression}:pose:{p}"))
-            .unwrap_or_else(|| format!("expression:{expression}"));
+        let pose = owned_string(&spec.params_json, "pose").ok_or_else(|| {
+            AppError::InvalidArgument(format!("Galgame 立绘差分缺少 pose: {}", spec.id))
+        })?;
+        let variant = format!("expression:{expression}:pose:{pose}");
         let expected = format!(
             "galgame:{}:portrait:{}:{}",
             spec.project_id, profile_id, variant
@@ -655,7 +620,7 @@ fn validate_visual_spec(
         )));
     }
     match plan.target_kind {
-        GALGAME_TARGET_BACKGROUND => {
+        GalgameGenerationTargetKind::GalgameBackground => {
             let expected = format!(
                 "galgame:{}:background:scene:{}",
                 spec.project_id, plan.target_entity_id
@@ -672,7 +637,7 @@ fn validate_visual_spec(
             )?;
             validate_i64_equals(spec, source, "source_chapter_id", target.source_chapter_id)?;
         }
-        GALGAME_TARGET_CG => {
+        GalgameGenerationTargetKind::GalgameCg => {
             let line_id = target.line_id.ok_or_else(|| {
                 AppError::InvalidArgument(format!("CG 目标缺少 line_id: {}", spec.id))
             })?;
@@ -683,12 +648,12 @@ fn validate_visual_spec(
             let scene = required_object(&spec.params_json, "scene", spec.id)?;
             validate_i64_equals(spec, scene, "id", target.scene_id)?;
             required_string(&spec.params_json, "cg_note", "cg_note", spec.id)?;
-            validate_cg_importance(&spec.params_json, spec.id)?;
+            required_cg_importance(&spec.params_json, spec.id)?;
         }
-        other => {
+        GalgameGenerationTargetKind::PortraitExpression => {
             return Err(AppError::InvalidArgument(format!(
-                "不支持的 Galgame 视觉 target_kind: spec_id={}, target_kind={other}",
-                spec.id
+                "不支持的 Galgame 视觉 target_kind: spec_id={}, target_kind={}",
+                spec.id, plan.target_kind
             )));
         }
     }
@@ -850,28 +815,13 @@ fn required_string_array(value: &Value, field: &str, id: i64) -> Result<Vec<Stri
         })
         .collect()
 }
-fn validate_cg_importance(value: &Value, id: i64) -> Result<(), AppError> {
-    let Some(raw) = value.get("cg_importance") else {
-        return Ok(());
-    };
-    if raw.is_null() {
-        return Ok(());
-    };
-    let value = raw
-        .as_str()
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .ok_or_else(|| AppError::InvalidArgument(format!("cg_importance 无效: spec_id={id}")))?;
-    if GALGAME_CG_IMPORTANCE.contains(&value) {
-        Ok(())
-    } else {
-        Err(AppError::InvalidArgument(format!(
-            "cg_importance 无效: spec_id={id}"
-        )))
-    }
+fn required_cg_importance(value: &Value, id: i64) -> Result<GalgameCgImportance, AppError> {
+    let importance = required_string(value, "cg_importance", "cg_importance", id)?;
+    GalgameCgImportance::parse(importance)
+        .ok_or_else(|| AppError::InvalidArgument(format!("cg_importance 无效: spec_id={id}")))
 }
 
-fn validate_input(input: &GalgameAssetGenerationApplicationInput) -> Result<(), AppError> {
+fn validate_input(input: &RunGalgameAssetGenerationInput) -> Result<(), AppError> {
     if input.project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
     }
@@ -957,6 +907,7 @@ mod tests {
             Some(7),
             json!({
                 "expression": "smile",
+                "pose": "standing",
                 "canonical_key": "wrong",
                 "source_line_ids": [1],
                 "position_samples": ["left"]
@@ -966,8 +917,9 @@ mod tests {
     }
 
     #[test]
-    fn cg_importance_rejects_unknown_values() {
-        assert!(validate_cg_importance(&json!({"cg_importance": "critical"}), 1).is_ok());
-        assert!(validate_cg_importance(&json!({"cg_importance": "invalid"}), 1).is_err());
+    fn cg_importance_is_required_and_rejects_unknown_values() {
+        assert!(required_cg_importance(&json!({"cg_importance": "critical"}), 1).is_ok());
+        assert!(required_cg_importance(&json!({}), 1).is_err());
+        assert!(required_cg_importance(&json!({"cg_importance": "invalid"}), 1).is_err());
     }
 }

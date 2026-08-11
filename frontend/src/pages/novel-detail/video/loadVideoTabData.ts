@@ -5,7 +5,6 @@ import {
 import { listWorkflowRuns, type WorkflowRun } from "../../../api/streaming";
 import {
   loadVideoSegmentPlanDraftDetail,
-  getChapterVideoTimeline,
   listChapterVideoPrompts,
   listVideoConfigs,
   listVideosByChapter,
@@ -15,7 +14,6 @@ import {
   type VideoGenConfig,
   type VideoSegmentExecutionRecipe,
   type VideoSegmentPlanDraftDetail,
-  type VideoTimelineSummary,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
@@ -45,7 +43,6 @@ interface VideoTabData {
   videos: GeneratedVideo[];
   images: GeneratedImage[];
   activeVideoConfig: VideoGenConfig | null;
-  timeline: VideoTimelineSummary;
 }
 
 const invalidSegmentPlanWorkflowInput = (
@@ -315,12 +312,11 @@ export const loadVideoTabData = async (
   const uniqueImageProjectIds = Array.from(
     new Set(imageProjectIds.filter((id) => Number.isFinite(id) && id > 0)),
   );
-  const [prompts, videos, images, configs, timeline] = await Promise.all([
+  const [prompts, videos, images, configs] = await Promise.all([
     listChapterVideoPrompts(projectId, chapter.id),
     listVideosByChapter(projectId, chapter.id),
     listVideoReferenceImages(projectId, chapter.id, uniqueImageProjectIds),
     listVideoConfigs(),
-    getChapterVideoTimeline({ project_id: projectId, chapter_id: chapter.id }),
   ]);
 
   return {
@@ -328,6 +324,5 @@ export const loadVideoTabData = async (
     videos,
     images,
     activeVideoConfig: configs.find((config) => config.is_default) ?? null,
-    timeline,
   };
 };

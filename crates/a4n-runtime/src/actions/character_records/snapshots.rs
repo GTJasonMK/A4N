@@ -14,7 +14,7 @@ pub async fn list_snapshots(
     input: ListSnapshotsInput,
 ) -> Result<Vec<SnapshotReferenceSummary>, String> {
     let snapshots = state
-        .character()
+        .orchestrator()
         .snapshot_references_for_user_validated(
             user_id,
             input.profile_id,
@@ -32,7 +32,7 @@ pub async fn get_profile_state_at_chapter(
     input: GetProfileStateAtChapterInput,
 ) -> Result<ProfileChapterStateSummary, String> {
     let snapshot = state
-        .character()
+        .orchestrator()
         .profile_snapshot_for_user_at_chapter_validated(
             user_id,
             input.profile_id,
@@ -49,7 +49,7 @@ pub async fn get_snapshot(
     input: GetSnapshotInput,
 ) -> Result<SnapshotSummary, String> {
     let snapshot = state
-        .character()
+        .orchestrator()
         .character_snapshot_for_user_by_hash_validated(user_id, &input.content_hash)
         .await
         .map_err(|error| error.to_string())?;
@@ -69,7 +69,7 @@ pub async fn diff_profile_chapters(
     input: DiffProfileChaptersInput,
 ) -> Result<SnapshotDeltaSummary, String> {
     let delta = state
-        .character()
+        .orchestrator()
         .diff_profile_snapshots_for_user_validated(
             user_id,
             input.profile_id,
@@ -91,7 +91,7 @@ pub async fn check_profile_sync_conflict(
     input: CheckProfileSyncConflictInput,
 ) -> Result<ProfileSyncConflictSummary, String> {
     let conflict = state
-        .character()
+        .orchestrator()
         .character_sync_conflict_for_user_validated(user_id, input.profile_id)
         .await
         .map_err(|error| error.to_string())?;

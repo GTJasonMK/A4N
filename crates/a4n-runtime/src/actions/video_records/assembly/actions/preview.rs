@@ -84,7 +84,7 @@ pub async fn assemble_chapter_videos(
             match paths {
                 Ok(paths) => {
                     if let Err(cleanup_error) = state
-                        .project_family()
+                        .orchestrator()
                         .insert_file_artifact_cleanup_intent(
                             project_id,
                             format!(

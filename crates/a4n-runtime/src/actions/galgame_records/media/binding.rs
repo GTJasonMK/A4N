@@ -1,4 +1,4 @@
-use super::super::GalgameMediaBindingResult;
+use super::super::GalgameMediaBindingSummary;
 use super::{BindGalgameMediaInput, UnbindGalgameMediaInput};
 use crate::AppState;
 
@@ -6,9 +6,9 @@ pub async fn bind_galgame_media(
     state: &AppState,
     user_id: i64,
     input: BindGalgameMediaInput,
-) -> Result<GalgameMediaBindingResult, String> {
+) -> Result<GalgameMediaBindingSummary, String> {
     state
-        .galgame()
+        .orchestrator()
         .bind_galgame_media_for_user_validated(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
@@ -20,7 +20,7 @@ pub async fn unbind_galgame_media(
     input: UnbindGalgameMediaInput,
 ) -> Result<u64, String> {
     state
-        .galgame()
+        .orchestrator()
         .unbind_galgame_media_for_user_validated(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)

@@ -33,7 +33,7 @@ pub async fn get_workflow_progress_events(
             .into_iter()
             .rev()
             .take(limit)
-            .map(task_progress_event_summary)
+            .map(|event| task_progress_event_summary(&task_id, event))
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
@@ -46,7 +46,7 @@ pub async fn get_workflow_progress_events(
         });
     }
     if let Some(task) = state
-        .workflow()
+        .orchestrator()
         .persisted_task_by_id(&task_id)
         .await
         .map_err(app_error_message)?
@@ -62,14 +62,14 @@ pub async fn get_workflow_progress_events(
         };
     }
     if let Some(run) = state
-        .workflow()
+        .orchestrator()
         .workflow_run_model_by_active_task_id(&task_id)
         .await
         .map_err(app_error_message)?
     {
         verify_workflow_run_access(state, user_id, &run).await?;
         return state
-            .workflow()
+            .orchestrator()
             .workflow_progress_events(run.id, limit)
             .await
             .map_err(app_error_message)
@@ -93,13 +93,13 @@ async fn workflow_progress_events_for_user(
     limit: usize,
 ) -> Result<Vec<TaskProgressEventSummary>, String> {
     let run = state
-        .workflow()
+        .orchestrator()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)?;
     verify_workflow_run_summary_access(state, user_id, &run).await?;
     state
-        .workflow()
+        .orchestrator()
         .workflow_progress_events(workflow_run_id, limit)
         .await
         .map_err(app_error_message)

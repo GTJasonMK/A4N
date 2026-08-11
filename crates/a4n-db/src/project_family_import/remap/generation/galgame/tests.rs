@@ -113,3 +113,15 @@ fn portrait_remap_requires_non_empty_expression() {
         "Galgame 立绘差分 params_json 缺少 expression"
     );
 }
+
+#[test]
+fn portrait_remap_requires_non_empty_pose() {
+    let mut maps = ImportIdMaps::default();
+    maps.project_ids.insert(1, 101);
+    maps.character_profile_ids.insert(2, 202);
+    let mut params = object(json!({"character_profile_id": 2, "expression": "smile"}));
+
+    let error = remap_galgame_portrait_params(&spec(1, 2), &mut params, &maps).unwrap_err();
+
+    assert_eq!(error.to_string(), "Galgame 立绘差分 params_json 缺少 pose");
+}

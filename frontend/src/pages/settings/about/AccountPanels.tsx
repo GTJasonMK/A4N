@@ -7,7 +7,7 @@ import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
 import {
   changeUserPassword,
-  getUser,
+  getCurrentUser,
   listSessions,
   refreshToken,
   updateUserProfile,
@@ -73,7 +73,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     setBusy(false);
     void (async () => {
       try {
-        const user = await getUser(requestUserId);
+        const user = await getCurrentUser();
         if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
         savedProfileRef.current = {
           email: textInputValue(user.email),
@@ -104,8 +104,8 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     busyRef.current = true;
     setBusy(true);
     try {
-      const user = await updateUserProfile(requestUserId, {
-        email: nonEmptyText(requestEmail),
+      const user = await updateUserProfile({
+        email: requestEmail.trim(),
         avatar_url: nonEmptyText(requestAvatar),
       });
       if (!isCurrentUser(requestUserId) || saveSeqRef.current !== requestSeq) return;

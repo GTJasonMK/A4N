@@ -52,7 +52,7 @@ fn valid_plan() -> MangaPagePlanV3 {
 }
 
 #[test]
-fn validates_structured_page_and_panel_plan() {
+fn validates_structured_page_plan() {
     valid_plan().validate().expect("valid manga page plan");
 }
 

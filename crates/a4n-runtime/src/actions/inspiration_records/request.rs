@@ -5,7 +5,6 @@ use crate::actions::request_preview::{
     ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state, model_request_preview,
 };
 use crate::actions::template_variables::parse_template_variables_app_error_from_ref_with_message;
-use crate::prompt_renderer::RuntimePromptRenderer;
 use a4n_core::error::AppError;
 use a4n_orchestrator::inspiration::InspirationPreviewInput;
 
@@ -19,14 +18,14 @@ pub async fn preview_inspiration_request(
         input.variables.as_ref(),
         INSPIRATION_VARIABLES_ERROR,
     )?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .inspiration()
+        .orchestrator()
         .prepare_inspiration_request_validated(InspirationPreviewInput {
             project_id: input.project_id,
             user_input: &input.user_input,
             variables: &variables,
-            prompt_renderer: &prompt_renderer,
+            prompt_renderer: prompt_renderer,
         })
         .await?;
     Ok(model_request_preview(

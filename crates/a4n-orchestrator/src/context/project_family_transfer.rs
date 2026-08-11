@@ -4,6 +4,7 @@ use a4n_db::project_family_import::{
 };
 
 use super::OrchestratorContext;
+use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
     ExportedProjectFamilyPackage, FamilyImportMediaPayload,
@@ -23,16 +24,17 @@ impl OrchestratorContext {
     where
         Host: ProjectFamilyTransferHostPort,
     {
-        host_port
-            .verify_project_owner(input.user_id, input.root_project_id)
-            .await?;
-        let project = self
-            .project_by_id_or_transfer_error(input.root_project_id)
-            .await?;
+        self.verify_project_permission(
+            input.root_project_id,
+            input.user_id,
+            ProjectAccessRole::Owner,
+        )
+        .await?;
         let selection = self
             .project_family
             .export_selection(input.root_project_id, input.include_derived_projects)
             .await?;
+        let project = selection.root.clone();
         let package = self
             .assemble_project_family_transfer_package(selection, "project_family")
             .await?;
@@ -54,25 +56,19 @@ impl OrchestratorContext {
     where
         Host: ProjectFamilyTransferHostPort,
     {
-        host_port
-            .verify_project_owner(input.user_id, input.derived_project_id)
-            .await?;
-        let project = self
-            .project_by_id_or_transfer_error(input.derived_project_id)
-            .await?;
-        let root_project_id = project.root_project_id.ok_or_else(|| {
-            ProjectFamilyTransferError::Message(format!(
-                "派生项目缺少 root_project_id: {}",
-                project.id
-            ))
-        })?;
-        host_port
-            .verify_project_owner(input.user_id, root_project_id)
-            .await?;
+        self.verify_project_permission(
+            input.derived_project_id,
+            input.user_id,
+            ProjectAccessRole::Owner,
+        )
+        .await?;
         let selection = self
             .project_family
             .derived_export_selection(input.derived_project_id)
             .await?;
+        let project = selection.derived_projects.first().cloned().ok_or_else(|| {
+            ProjectFamilyTransferError::Message("派生项目导出选择为空".to_string())
+        })?;
         let package = self
             .assemble_project_family_transfer_package(selection, "derived_project")
             .await?;
@@ -122,16 +118,6 @@ impl OrchestratorContext {
             }
         };
         import_result_with_file_rollback(import_result, host_port).await
-    }
-
-    async fn project_by_id_or_transfer_error(
-        &self,
-        project_id: i64,
-    ) -> Result<novel_project::Model, ProjectFamilyTransferError> {
-        self.project_read
-            .by_id(project_id)
-            .await?
-            .ok_or_else(|| ProjectFamilyTransferError::Message(format!("项目不存在: {project_id}")))
     }
 
     async fn assemble_project_family_transfer_package(

@@ -10,6 +10,8 @@ pub enum SceneProfileDbError {
     NotFound(String),
     #[error("{0}")]
     InvalidArgument(String),
+    #[error("状态无效：当前状态 {current}，不允许操作 {operation}")]
+    InvalidState { current: String, operation: String },
 }
 
 impl From<crate::generation::GenerationDbError> for SceneProfileDbError {
@@ -20,6 +22,18 @@ impl From<crate::generation::GenerationDbError> for SceneProfileDbError {
             }
             crate::generation::GenerationDbError::NotFound(message) => Self::NotFound(message),
             crate::generation::GenerationDbError::Database(error) => Self::Database(error),
+        }
+    }
+}
+
+impl From<crate::text_anchor::TextAnchorDbError> for SceneProfileDbError {
+    fn from(error: crate::text_anchor::TextAnchorDbError) -> Self {
+        match error {
+            crate::text_anchor::TextAnchorDbError::Database(error) => Self::Database(error),
+            crate::text_anchor::TextAnchorDbError::NotFound(message) => Self::NotFound(message),
+            crate::text_anchor::TextAnchorDbError::InvalidArgument(message) => {
+                Self::InvalidArgument(message)
+            }
         }
     }
 }
@@ -51,6 +65,12 @@ pub struct SceneProfileRecordDraft {
     pub scene_ref: String,
     pub scene_profile_id: Option<i64>,
     pub input: SceneProfileRecordInput,
+}
+
+#[derive(Debug, Clone)]
+pub struct SceneProfileEvidenceRecordInput {
+    pub scene_ref: String,
+    pub text_anchor_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone)]

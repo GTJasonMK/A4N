@@ -1,14 +1,14 @@
 use super::super::super::types::{
-    SettingsAllConfigImportError, SettingsAllLlmConfigImportRow, settings_all_config_database,
+    SettingsAllConfigImportError, SettingsAllLlmConfigRow, settings_all_config_database,
 };
-use super::defaults::clear_llm_defaults;
+use crate::config::{ProviderConfigKind, clear_provider_config_defaults};
 use a4n_core::models::ai::llm_config;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 pub(in crate::config::settings_all::import) async fn import_llm_config_row<C>(
     db: &C,
-    row: SettingsAllLlmConfigImportRow,
+    row: SettingsAllLlmConfigRow,
     overwrite: bool,
     now: NaiveDateTime,
 ) -> Result<bool, SettingsAllConfigImportError>
@@ -20,13 +20,15 @@ where
         .one(db)
         .await
         .map_err(|source| settings_all_config_database("读取现有 LLM 配置失败", source))?;
+    if row.is_default && (overwrite || existing.is_none()) {
+        clear_provider_config_defaults(db, ProviderConfigKind::Llm, None)
+            .await
+            .map_err(|source| settings_all_config_database("清除既有默认 LLM 配置失败", source))?;
+    }
 
     match (existing, overwrite) {
         (Some(_), false) => Ok(false),
         (Some(existing), true) => {
-            if row.is_default {
-                clear_llm_defaults(db).await?;
-            }
             let mut active: llm_config::ActiveModel = existing.into();
             active.provider = Set(row.provider);
             active.base_url = Set(row.base_url);
@@ -46,9 +48,6 @@ where
             Ok(true)
         }
         (None, _) => {
-            if row.is_default {
-                clear_llm_defaults(db).await?;
-            }
             llm_config::ActiveModel {
                 name: Set(row.name),
                 provider: Set(row.provider),

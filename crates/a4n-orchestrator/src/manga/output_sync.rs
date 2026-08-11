@@ -3,4 +3,4 @@ pub mod errors;
 mod sync;
 mod traces;
 
-pub(super) use contracts::MangaPromptDraft;
+pub(super) use contracts::MangaPagePromptDraft;

@@ -54,6 +54,7 @@ async fn part_outline_request_moves_blueprint_and_previous_parts_into_manifest()
             "characters": [{"name": "林烬", "motivation": "查明真相"}],
         }),
         previous_parts: std::slice::from_ref(&previous_part),
+        source_snapshot: &json!({"chapters": []}),
         prompt_renderer: &engine,
         variables: &HashMap::new(),
     })

@@ -570,6 +570,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast("章节标题和章节摘要至少填写一项", "error");
       return;
     }
+    if (!o.updated_at) {
+      addToast("章节大纲版本缺失，请刷新后重试", "error");
+      return;
+    }
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     const formSnapshot = { ...editForm };
@@ -578,6 +582,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const result = await saveChapterOutline({
         project_id: requestProjectId,
         outline_id: o.id,
+        expected_updated_at: o.updated_at,
         chapter_number: o.chapter_number,
         title: formSnapshot.title,
         summary: formSnapshot.summary,
@@ -622,6 +627,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const result = await saveChapterOutline({
         project_id: requestProjectId,
         outline_id: null,
+        expected_updated_at: null,
         chapter_number: form.chapterNumber,
         title: form.title,
         summary: form.summary,
@@ -693,6 +699,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast("分部大纲不属于当前项目，无法保存", "error");
       return;
     }
+    if (editor.part && !editor.part.updated_at) {
+      addToast("分部大纲版本缺失，请刷新后重试", "error");
+      return;
+    }
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setManualSaving("part");
@@ -700,6 +710,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const result = await savePartOutline({
         project_id: requestProjectId,
         part_id: editor.part?.id ?? null,
+        expected_updated_at: editor.part?.updated_at ?? null,
         part_number: form.partNumber,
         start_chapter: form.startChapter,
         end_chapter: form.endChapter,
@@ -823,13 +834,14 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast("章纲列表已变化，请重新选择", "error");
       return;
     }
-    const count = requestOutlines.length - outlineIndex;
+    const targets = requestOutlines.slice(outlineIndex);
+    const count = targets.length;
     const lastChapterNumber = requestOutlines[requestOutlines.length - 1]?.chapter_number;
     const ok = await confirmDialog({
       title: "删除后续章纲",
       message:
         `确认删除第 ${o.chapter_number} 章及其之后所有章纲？` +
-        `\n\n将删除第 ${o.chapter_number} 章到第 ${lastChapterNumber} 章，共 ${count} 个章纲。`,
+        `\n\n将删除第 ${o.chapter_number} 章到第 ${lastChapterNumber} 章，共 ${count} 个章纲；已有正文会保留。`,
       confirmText: "删除",
       dialogType: "danger",
     });
@@ -841,19 +853,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       finishConfirmAction();
       return;
     }
-    const currentOutlines = outlinesRef.current;
-    const currentIndex = currentOutlines.findIndex((x) => x.id === o.id);
-    const currentCount = currentIndex < 0 ? 0 : currentOutlines.length - currentIndex;
-    const currentLastChapterNumber = currentOutlines[currentOutlines.length - 1]?.chapter_number;
-    if (
-      currentIndex < 0 ||
-      currentCount !== count ||
-      currentLastChapterNumber !== lastChapterNumber
-    ) {
-      finishConfirmAction();
-      addToast("章纲列表已变化，请重新确认删除范围", "error");
-      return;
-    }
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) {
       finishConfirmAction();
@@ -862,7 +861,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     finishConfirmAction();
     setDelActing(deleteChapterOutlinesFromAction(o.id));
     try {
-      const result = await deleteLatestChapterOutlines(requestProjectId, count);
+      const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addOutlineMutationToast(`已删除最近 ${count} 个章纲`, result.warnings);
       await load();
@@ -883,7 +882,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       return;
     }
     const requestPartCount = delPartCount;
-    const availableParts = partsRef.current.length;
+    const requestParts = partsRef.current;
+    const availableParts = requestParts.length;
     if (requestPartCount <= 0 || requestPartCount > availableParts) {
       addToast(`输入 1 ~ ${availableParts} 之间的数字`, "error");
       return;
@@ -891,7 +891,9 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
       title: "删除分部大纲",
-      message: `删除最近 ${requestPartCount} 个分部？不可撤销。`,
+      message:
+        `删除最近 ${requestPartCount} 个分部？不可撤销。` +
+        "\n\n这些分部范围内的章节大纲会保留，并转为未归属。",
       confirmText: "删除",
       dialogType: "danger",
     });
@@ -903,11 +905,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       finishConfirmAction();
       return;
     }
-    if (requestPartCount > partsRef.current.length) {
-      finishConfirmAction();
-      addToast("分部列表已变化，请重新确认删除数量", "error");
-      return;
-    }
+    const targets = requestParts.slice(-requestPartCount);
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) {
       finishConfirmAction();
@@ -916,7 +914,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     finishConfirmAction();
     setDelActing(DELETE_LATEST_PARTS_ACTION);
     try {
-      const result = await deleteLatestParts(requestProjectId, requestPartCount);
+      const result = await deleteLatestParts(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addOutlineMutationToast(`已删除最近 ${requestPartCount} 个分部`, result.warnings);
       await load();
@@ -937,7 +935,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       return;
     }
     const requestChapterCount = delChapterCount;
-    const availableOutlines = outlinesRef.current.length;
+    const requestOutlines = outlinesRef.current;
+    const availableOutlines = requestOutlines.length;
     if (requestChapterCount <= 0 || requestChapterCount > availableOutlines) {
       addToast(`输入 1 ~ ${availableOutlines} 之间的数字`, "error");
       return;
@@ -945,7 +944,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
       title: "删除章纲",
-      message: `删除最近 ${requestChapterCount} 个章纲？不可撤销。`,
+      message: `删除最近 ${requestChapterCount} 个章纲？不可撤销。已有正文会保留。`,
       confirmText: "删除",
       dialogType: "danger",
     });
@@ -957,11 +956,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       finishConfirmAction();
       return;
     }
-    if (requestChapterCount > outlinesRef.current.length) {
-      finishConfirmAction();
-      addToast("章纲列表已变化，请重新确认删除数量", "error");
-      return;
-    }
+    const targets = requestOutlines.slice(-requestChapterCount);
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) {
       finishConfirmAction();
@@ -970,7 +965,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     finishConfirmAction();
     setDelActing(DELETE_LATEST_CHAPTER_OUTLINES_ACTION);
     try {
-      const result = await deleteLatestChapterOutlines(requestProjectId, requestChapterCount);
+      const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addOutlineMutationToast(
         `已删除最近 ${requestChapterCount} 个章纲`,
@@ -1182,7 +1177,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           projectId={projectId}
           parts={parts}
           outlines={outlines}
-          partCount={partCount}
           chaptersPerPart={chaptersPerPart}
           delPartCount={delPartCount}
           delChapterCount={delChapterCount}

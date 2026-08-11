@@ -12,7 +12,6 @@ pub(super) fn generic_canvas_node_request_preview(
         graph_id: input.graph_id,
         node_id: input.node_id,
         node_kind: node.node_kind.clone(),
-        status: "preview".to_string(),
         note: "预览只展示画布节点配置和输入覆盖，不调用外部 provider。真实 provider 组装将在画布执行器接入节点类型后启用。"
             .to_string(),
         request: json!({
@@ -55,7 +54,6 @@ pub(super) fn blocked_canvas_node_request_preview(
         graph_id: input.graph_id,
         node_id: input.node_id,
         node_kind: node.node_kind.clone(),
-        status: "blocked".to_string(),
         note: format!("当前节点暂时无法构造真实 provider 请求：{reason}"),
         request: json!({
             "status": "blocked",

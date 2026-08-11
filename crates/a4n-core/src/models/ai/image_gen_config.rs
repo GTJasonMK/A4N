@@ -18,7 +18,6 @@ pub struct Model {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    #[sea_orm(column_type = "Json")]
     pub is_default: bool,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,

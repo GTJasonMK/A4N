@@ -2,12 +2,10 @@ use std::collections::HashMap;
 
 use a4n_core::error::AppError;
 use a4n_db::workflow;
-use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
-use a4n_llm::context::context_aware_system_user_request;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -15,26 +13,24 @@ use super::super::contracts::{
     MANGA_PIPELINE_MAX_TOKENS_PROFILE, MANGA_PIPELINE_WORKFLOW, MangaLlmCallInput,
     MangaPreparedLlmCall,
 };
-use super::manifest_summary::manga_request_context_manifest_summary;
-
 async fn build_manga_chat_request(
     prompt_renderer: &dyn PromptRenderer,
     prompt_name: &str,
     project_id: i64,
     variables: &HashMap<String, Value>,
-    manifest: LlmContextManifest,
+    user_content: String,
     temperature: f32,
 ) -> Result<ChatRequest, AppError> {
     let sys = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
-    Ok(context_aware_system_user_request(
+    Ok(ChatRequest::system_user(
         sys,
-        manifest,
+        user_content,
         Some(temperature),
         None,
         Some(MANGA_PIPELINE_MAX_TOKENS_PROFILE.into()),
-    )?
+    )
     .with_json_response_format()
     .with_trace_context(LlmTraceContext {
         project_id: Some(project_id),
@@ -61,7 +57,7 @@ pub(in crate::manga) async fn prepare_manga_llm_call(
         call_key,
         call_order,
         variables,
-        manifest,
+        user_content,
         temperature,
     } = input;
     let mut request = build_manga_chat_request(
@@ -69,12 +65,10 @@ pub(in crate::manga) async fn prepare_manga_llm_call(
         prompt_name,
         project_id,
         variables,
-        manifest,
+        user_content,
         temperature,
     )
     .await?;
-    let context_manifest_summary_json =
-        manga_request_context_manifest_summary(request.context_manifest_json.as_ref())?;
     if let Some(trace_context) = request.trace_context.as_mut() {
         trace_context.workflow_run_id = workflow_run_id;
         trace_context.call_key = Some(call_key.clone());
@@ -84,7 +78,6 @@ pub(in crate::manga) async fn prepare_manga_llm_call(
         "prompt_name": prompt_name,
         "project_id": project_id,
         "request": fingerprint_request_json,
-        "context_manifest_summary": context_manifest_summary_json.clone(),
     });
     let input_fingerprint_sha256 =
         workflow::llm_call_checkpoint_fingerprint_sha256(&input_fingerprint_json)
@@ -103,6 +96,5 @@ pub(in crate::manga) async fn prepare_manga_llm_call(
         call_key,
         call_order,
         input_fingerprint_json,
-        context_manifest_summary_json,
     })
 }

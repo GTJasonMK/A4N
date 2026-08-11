@@ -102,11 +102,6 @@ pub(in crate::galgame) fn validate_staged_presentation(
     speaker_profile_id: Option<i64>,
     context: &str,
 ) -> Result<(), AppError> {
-    if presentation.schema_version != "galgame_line_presentation_v2" {
-        return Err(invalid(format!(
-            "{context}.lines[].presentation.schema_version 必须是 galgame_line_presentation_v2"
-        )));
-    }
     let mut visible = std::collections::BTreeSet::new();
     for cast in &presentation.visible_cast {
         if cast.character_profile_id <= 0 || !visible.insert(cast.character_profile_id) {
@@ -114,15 +109,15 @@ pub(in crate::galgame) fn validate_staged_presentation(
                 "{context}.lines[].presentation.visible_cast 角色 ID 必须为正整数且不能重复"
             )));
         }
-        if !GALGAME_EXPRESSIONS.contains(&cast.expression.trim()) {
+        if !GALGAME_EXPRESSIONS.contains(&cast.expression.as_str()) {
             return Err(invalid(format!(
                 "{context}.lines[].presentation.visible_cast.expression 无效: {}",
                 cast.expression
             )));
         }
-        if cast.pose.trim().is_empty() {
+        if cast.pose.trim().is_empty() || cast.pose.trim() != cast.pose {
             return Err(invalid(format!(
-                "{context}.lines[].presentation.visible_cast.pose 不能为空"
+                "{context}.lines[].presentation.visible_cast.pose 必须是规范化非空字符串"
             )));
         }
     }

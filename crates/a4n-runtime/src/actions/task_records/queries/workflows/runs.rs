@@ -19,7 +19,7 @@ pub async fn list_workflow_runs_for_user(
         access::verify_project_editor_string(state, user_id, project_id).await?;
     }
     let runs = state
-        .workflow()
+        .orchestrator()
         .workflow_runs(input)
         .await
         .map_err(app_error_message)?;
@@ -38,7 +38,7 @@ pub async fn get_workflow_run_detail_for_user(
     input: GetWorkflowRunInput,
 ) -> Result<WorkflowRunDetailSummary, String> {
     let detail = state
-        .workflow()
+        .orchestrator()
         .workflow_run_detail(input)
         .await
         .map_err(app_error_message)?;

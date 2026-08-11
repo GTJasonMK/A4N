@@ -30,12 +30,16 @@ export interface LoginInput {
 
 export interface UpdateProfileInput {
   avatar_url?: string | null;
-  email?: string | null;
+  email?: string;
 }
 
 export interface ChangePasswordInput {
   new_password: string;
   old_password: string;
+}
+
+export interface RevokeSessionInput {
+  session_id: string;
 }
 
 export interface SessionSummary {

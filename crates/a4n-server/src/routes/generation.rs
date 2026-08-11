@@ -2,8 +2,8 @@ use super::auth::authenticated_user;
 use super::error::GenerationApiError;
 use crate::state::ServerState;
 use a4n_api_contract::generation_tasks::{
-    CancelGenerationTaskInput, GenerationTaskHistoryPage, GenerationTaskHistoryQuery,
-    GenerationTaskSummary,
+    CancelGenerationTaskInput, GenerationTaskHandle, GenerationTaskHistoryPage,
+    GenerationTaskHistoryQuery, GenerationTaskSummary, HostErrorResponse, generation_start_path,
 };
 use a4n_api_contract::{
     blueprint::{StartBlueprintGenerationInput, StartBlueprintRefinementInput},
@@ -54,18 +54,15 @@ pub(super) struct HistoryListQuery {
     cursor: Option<String>,
 }
 
-fn generation_start_input<T>(
+fn split_generation_start_body(
     mut body: Value,
 ) -> Result<
     (
-        T,
+        Value,
         Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
     ),
     GenerationApiError,
->
-where
-    T: DeserializeOwned,
-{
+> {
     let runtime_config_snapshot =
         a4n_runtime::runtime_config::snapshot_from_args(&body).map_err(|message| {
             GenerationApiError::bad_request("generation_request_invalid", message)
@@ -77,13 +74,19 @@ where
         )
     })?;
     fields.remove("runtime_config_snapshot");
-    let input = serde_json::from_value(body).map_err(|error| {
+    Ok((body, runtime_config_snapshot))
+}
+
+fn decode_generation_start_input<T>(input: Value) -> Result<T, GenerationApiError>
+where
+    T: DeserializeOwned,
+{
+    serde_json::from_value(input).map_err(|error| {
         GenerationApiError::bad_request(
             "generation_request_invalid",
             format!("generation 请求无效: {error}"),
         )
-    })?;
-    Ok((input, runtime_config_snapshot))
+    })
 }
 
 async fn authenticated_generation_user_id(
@@ -101,8 +104,109 @@ async fn authenticated_generation_user_id(
         })
 }
 
+async fn start_generation(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    input: Value,
+    runtime_config_snapshot: Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
+    command: &str,
+) -> Option<Result<GenerationTaskHandle, GenerationApiError>> {
+    macro_rules! start {
+        ($input:ty, $action:path) => {{
+            match decode_generation_start_input::<$input>(input) {
+                Ok(input) => a4n_runtime::runtime_config::request_scope(
+                    user_id,
+                    runtime_config_snapshot,
+                    ($action)(runtime, user_id, input),
+                )
+                .await
+                .map_err(map_access_error),
+                Err(error) => Err(error),
+            }
+        }};
+    }
+
+    let result = match command {
+        "start_chapter_generation" => start!(
+            StartChapterGenerationInput,
+            a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed
+        ),
+        "start_inspiration_generation" => start!(
+            StartInspirationGenerationInput,
+            a4n_runtime::host_api::inspiration_records::start_inspiration_generation_typed
+        ),
+        "start_blueprint_generation" => start!(
+            StartBlueprintGenerationInput,
+            a4n_runtime::host_api::blueprint_records::start_blueprint_generation_typed
+        ),
+        "start_blueprint_refinement" => start!(
+            StartBlueprintRefinementInput,
+            a4n_runtime::host_api::blueprint_records::start_blueprint_refinement_typed
+        ),
+        "start_outline_generation" => start!(
+            StartOutlineGenerationInput,
+            a4n_runtime::host_api::outline_records::start_outline_generation_typed
+        ),
+        "start_portrait_generation" => start!(
+            StartPortraitGenerationInput,
+            a4n_runtime::host_api::portrait_generation::start_portrait_generation_typed
+        ),
+        "start_image_generation" => start!(
+            StartImageGenerationInput,
+            a4n_runtime::host_api::image_generation::start_image_generation_typed
+        ),
+        "start_video_generation" => start!(
+            StartVideoGenerationInput,
+            a4n_runtime::host_api::video_generation::start_video_generation_typed
+        ),
+        "start_optimize_chat_generation" => start!(
+            StartOptimizeChatGenerationInput,
+            a4n_runtime::host_api::optimize::start_optimize_chat_generation_typed
+        ),
+        "start_optimize_analysis_generation" => start!(
+            StartOptimizeAnalysisGenerationInput,
+            a4n_runtime::host_api::optimize::start_optimize_analysis_generation_typed
+        ),
+        "start_optimize_patch_generation" => start!(
+            StartOptimizePatchGenerationInput,
+            a4n_runtime::host_api::optimize::start_optimize_patch_generation_typed
+        ),
+        _ => return None,
+    };
+    Some(result)
+}
+
+pub async fn dispatch_generation_start(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    args: &Value,
+    command: &str,
+) -> Option<Result<GenerationTaskHandle, HostErrorResponse>> {
+    generation_start_path(command)?;
+    let runtime_config_snapshot = match a4n_runtime::runtime_config::snapshot_from_args(&args) {
+        Ok(snapshot) => snapshot,
+        Err(message) => {
+            return Some(Err(GenerationApiError::bad_request(
+                "generation_request_invalid",
+                message,
+            )
+            .into_body()));
+        }
+    };
+    let Some(input) = args.get("input").cloned() else {
+        return Some(Err(GenerationApiError::bad_request(
+            "generation_request_invalid",
+            "generation 请求缺少 input",
+        )
+        .into_body()));
+    };
+    start_generation(runtime, user_id, input, runtime_config_snapshot, command)
+        .await
+        .map(|result| result.map_err(GenerationApiError::into_body))
+}
+
 macro_rules! generation_start_route {
-    ($name:ident, $input:ty, $action:path) => {
+    ($name:ident, $command:literal) => {
         pub(super) async fn $name(
             State(state): State<ServerState>,
             headers: HeaderMap,
@@ -115,14 +219,16 @@ macro_rules! generation_start_route {
             GenerationApiError,
         > {
             let user_id = authenticated_generation_user_id(&state, &headers).await?;
-            let (input, runtime_config_snapshot) = generation_start_input::<$input>(body)?;
-            let handle = a4n_runtime::runtime_config::request_scope(
+            let (input, runtime_config_snapshot) = split_generation_start_body(body)?;
+            let handle = start_generation(
+                state.runtime(),
                 user_id,
+                input,
                 runtime_config_snapshot,
-                ($action)(state.runtime(), user_id, input),
+                $command,
             )
             .await
-            .map_err(map_access_error)?;
+            .expect("generation route command must be registered")?;
             let status = if handle.status.is_terminal() {
                 StatusCode::OK
             } else {
@@ -133,61 +239,20 @@ macro_rules! generation_start_route {
     };
 }
 
-generation_start_route!(
-    start_chapter,
-    StartChapterGenerationInput,
-    a4n_runtime::host_api::chapter_generation::start_chapter_generation
-);
-generation_start_route!(
-    start_inspiration,
-    StartInspirationGenerationInput,
-    a4n_runtime::host_api::inspiration_records::start_inspiration_generation
-);
-generation_start_route!(
-    start_blueprint,
-    StartBlueprintGenerationInput,
-    a4n_runtime::host_api::blueprint_records::start_blueprint_generation
-);
-generation_start_route!(
-    start_blueprint_refinement,
-    StartBlueprintRefinementInput,
-    a4n_runtime::host_api::blueprint_records::start_blueprint_refinement
-);
-generation_start_route!(
-    start_outline,
-    StartOutlineGenerationInput,
-    a4n_runtime::host_api::outline_records::start_outline_generation
-);
-generation_start_route!(
-    start_portrait,
-    StartPortraitGenerationInput,
-    a4n_runtime::host_api::portrait_generation::start_portrait_generation
-);
-generation_start_route!(
-    start_image,
-    StartImageGenerationInput,
-    a4n_runtime::host_api::image_generation::start_image_generation
-);
-generation_start_route!(
-    start_video,
-    StartVideoGenerationInput,
-    a4n_runtime::host_api::video_generation::start_video_generation
-);
-generation_start_route!(
-    start_optimize_chat,
-    StartOptimizeChatGenerationInput,
-    a4n_runtime::host_api::optimize::start_optimize_chat_generation
-);
+generation_start_route!(start_chapter, "start_chapter_generation");
+generation_start_route!(start_inspiration, "start_inspiration_generation");
+generation_start_route!(start_blueprint, "start_blueprint_generation");
+generation_start_route!(start_blueprint_refinement, "start_blueprint_refinement");
+generation_start_route!(start_outline, "start_outline_generation");
+generation_start_route!(start_portrait, "start_portrait_generation");
+generation_start_route!(start_image, "start_image_generation");
+generation_start_route!(start_video, "start_video_generation");
+generation_start_route!(start_optimize_chat, "start_optimize_chat_generation");
 generation_start_route!(
     start_optimize_analysis,
-    StartOptimizeAnalysisGenerationInput,
-    a4n_runtime::host_api::optimize::start_optimize_analysis_generation
+    "start_optimize_analysis_generation"
 );
-generation_start_route!(
-    start_optimize_patch,
-    StartOptimizePatchGenerationInput,
-    a4n_runtime::host_api::optimize::start_optimize_patch_generation
-);
+generation_start_route!(start_optimize_patch, "start_optimize_patch_generation");
 
 pub(super) async fn task(
     State(state): State<ServerState>,
@@ -388,7 +453,7 @@ pub(super) async fn cancel(
         ));
     }
     let user_id = authenticated_generation_user_id(&state, &headers).await?;
-    let handle = generation_actions::cancel_generation_task(state.runtime(), user_id, input)
+    let handle = generation_actions::cancel_generation_task_typed(state.runtime(), user_id, input)
         .await
         .map_err(map_terminal_error)?;
     Ok((StatusCode::ACCEPTED, Json(handle)))
@@ -611,36 +676,36 @@ mod tests {
     #[test]
     fn generation_start_separates_runtime_snapshot_from_task_input() {
         let secret = "sk-request-only";
-        let (input, snapshot) =
-            generation_start_input::<StartImageGenerationInput>(serde_json::json!({
-                "meta": {
-                    "start_request_id": "00000000-0000-4000-8000-000000000001",
-                    "retry_of_task_id": null
-                },
-                "project_id": 5,
-                "operation": {
-                    "kind": "scene",
-                    "prompt": "雨夜车站",
-                    "config_id": null,
-                    "chapter_id": 9
-                },
-                "runtime_config_snapshot": {
-                    "schema_version": 1,
-                    "image": {
-                        "id": 1,
-                        "name": "request image config",
-                        "backend": "openai-compatible-image",
-                        "base_url": "https://example.test/v1",
-                        "api_key_encrypted": secret,
-                        "model": "image-test",
-                        "max_concurrent": 1,
-                        "default_width": 512,
-                        "default_height": 512,
-                        "is_default": true
-                    }
+        let (input, snapshot) = split_generation_start_body(serde_json::json!({
+            "meta": {
+                "start_request_id": "00000000-0000-4000-8000-000000000001",
+                "retry_of_task_id": null
+            },
+            "project_id": 5,
+            "operation": {
+                "kind": "scene",
+                "prompt": "雨夜车站",
+                "config_id": null,
+                "chapter_id": 9
+            },
+            "runtime_config_snapshot": {
+                "schema_version": 1,
+                "image": {
+                    "id": 1,
+                    "name": "request image config",
+                    "backend": "openai-compatible-image",
+                    "base_url": "https://example.test/v1",
+                    "api_key_encrypted": secret,
+                    "model": "image-test",
+                    "max_concurrent": 1,
+                    "default_width": 512,
+                    "default_height": 512,
+                    "is_default": true
                 }
-            }))
-            .unwrap();
+            }
+        }))
+        .unwrap();
+        let input = decode_generation_start_input::<StartImageGenerationInput>(input).unwrap();
 
         assert_eq!(input.project_id, 5);
         assert_eq!(

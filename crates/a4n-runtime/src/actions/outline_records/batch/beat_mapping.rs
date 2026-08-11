@@ -8,8 +8,8 @@ pub async fn preview_apply_beat_mapping_request(
     input: ApplyBeatMappingInput,
 ) -> Result<ModelRequestPreview, AppError> {
     ensure_part_access(
-        &state.collaboration(),
-        &state.project_outline_records(),
+        state.orchestrator(),
+        state.orchestrator(),
         user_id,
         input.project_id,
         input.part_id,
@@ -17,7 +17,7 @@ pub async fn preview_apply_beat_mapping_request(
     .await?;
     let part_id = input.part_id;
     let request = state
-        .outline()
+        .orchestrator()
         .preview_apply_beat_mapping_validated(input)
         .await?;
     single_request_preview(

@@ -15,7 +15,7 @@ where
         .await
         .map_err(|error| BlueprintRestoreError::database("读取恢复目标项目失败", error))?
         .ok_or(BlueprintRestoreError::ProjectNotFound { project_id })?;
-    let previous_status = StateValidator::parse_status(&project.status).map_err(|_| {
+    let previous_status = parse_project_status(&project.status).map_err(|_| {
         BlueprintRestoreError::InvalidProjectStatus {
             project_id,
             status: project.status.clone(),
@@ -50,14 +50,12 @@ where
         return Ok(None);
     }
 
-    let from = previous_status.as_str().to_string();
-    let to = next_status.as_str().to_string();
     insert_project_status_history(
         db,
         ProjectStatusHistoryInput {
             project_id,
-            from_status: from.clone(),
-            to_status: to.clone(),
+            from_status: previous_status,
+            to_status: next_status,
             reason: Some("蓝图版本恢复".to_string()),
             changed_by: Some("system".to_string()),
             changed_at: now,
@@ -66,8 +64,8 @@ where
     .await
     .map_err(|source| BlueprintRestoreError::StatusWrite { source })?;
     Ok(Some(BlueprintRestoreStatusChange {
-        from,
-        to,
+        from: previous_status,
+        to: next_status,
         changed_at: now,
     }))
 }

@@ -48,7 +48,7 @@ pub async fn drain_cleanup_outbox(
         match kind {
             CleanupKind::FileArtifact => {
                 if let Some(claim) = state
-                    .project_family()
+                    .orchestrator()
                     .claim_file_artifact_cleanup(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -64,7 +64,7 @@ pub async fn drain_cleanup_outbox(
             }
             CleanupKind::MediaWorkflowReset => {
                 if let Some(claim) = state
-                    .project_family()
+                    .orchestrator()
                     .claim_media_workflow_v2_reset(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -80,7 +80,7 @@ pub async fn drain_cleanup_outbox(
             }
             CleanupKind::ProjectDeletion => {
                 if let Some(claim) = state
-                    .project_family()
+                    .orchestrator()
                     .claim_project_deletion_cleanup(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -95,7 +95,7 @@ pub async fn drain_cleanup_outbox(
             }
             CleanupKind::Generation => {
                 if let Some(claim) = state
-                    .project_family()
+                    .orchestrator()
                     .claim_generation_cleanup(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -149,8 +149,8 @@ pub fn spawn_cleanup_worker(state: AppState) {
 
 async fn expire_generation_snapshot_bodies(state: &AppState) {
     match state
-        .generation_tasks()
-        .expire_snapshot_bodies(GENERATION_SNAPSHOT_TTL_LIMIT)
+        .orchestrator()
+        .expire_generation_snapshot_bodies(GENERATION_SNAPSHOT_TTL_LIMIT)
         .await
     {
         Ok(expired) if expired > 0 => {
@@ -163,8 +163,8 @@ async fn expire_generation_snapshot_bodies(state: &AppState) {
 
 async fn purge_expired_generation_task_trees(state: &AppState) {
     match state
-        .generation_tasks()
-        .purge_expired_task_trees(GENERATION_TASK_TREE_TTL_LIMIT)
+        .orchestrator()
+        .purge_expired_generation_task_trees(GENERATION_TASK_TREE_TTL_LIMIT)
         .await
     {
         Ok(deleted) if deleted > 0 => {
@@ -177,7 +177,7 @@ async fn purge_expired_generation_task_trees(state: &AppState) {
 
 async fn purge_completed_cleanup_audits(state: &AppState) {
     match state
-        .project_family()
+        .orchestrator()
         .purge_completed_cleanup_audits(CLEANUP_AUDIT_TTL_LIMIT)
         .await
     {

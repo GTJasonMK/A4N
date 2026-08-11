@@ -11,39 +11,7 @@ use super::super::super::{
     service_error_string, service_request_with_context_provider_secret_policy,
     sidecar_context_for_workflow_operation_with_root,
 };
-use super::super::{
-    contracts::{ImageProviderProbeOutput, image_provider_payload},
-    events::handle_image_generation_event,
-};
-
-pub(crate) async fn probe_image_config(
-    capabilities: &A4nCapabilities,
-    config: &image_gen_config::Model,
-    request: ImageGenerationRequest,
-) -> Result<(), String> {
-    let client = capabilities
-        .image
-        .clone()
-        .ok_or_else(|| missing_sidecar_capability_message("image"))?;
-    let payload = image_provider_payload(config, request)?;
-    let response = client
-        .probe(service_request_with_context_provider_secret_policy(
-            SidecarRequestContext::current_global(),
-            "image",
-            a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
-            payload,
-        )?)
-        .await
-        .map_err(service_error_string)?;
-    let output: ImageProviderProbeOutput = response_payload(response, "image")?;
-    if !output.ok {
-        return Err("image sidecar probe 返回 ok=false".to_string());
-    }
-    if output.request_preview.is_null() {
-        return Err("image sidecar probe 返回空 request_preview".to_string());
-    }
-    Ok(())
-}
+use super::super::{contracts::image_provider_payload, events::handle_image_generation_event};
 
 pub(crate) async fn preview_image_provider_request(
     capabilities: &A4nCapabilities,

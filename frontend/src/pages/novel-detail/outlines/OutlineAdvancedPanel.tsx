@@ -10,6 +10,7 @@ import { extractErrorMessage } from "../../../api";
 import {
   getChapterOutlinesPacing,
   getGenerationProgress,
+  outlineRecordTargets,
   previewApplyBeatMappingRequest,
   previewBatchGeneratePartOutlinesRequest,
   previewContinuePartOutlinesRequest,
@@ -28,7 +29,6 @@ import type { RunOutlineGeneration } from "./useOutlineGeneration";
 interface OutlineAdvancedPanelProps {
   projectId: number;
   parts: PartOutline[];
-  partCount: number | null;
   chaptersPerPart: number | null;
   runGeneration: RunOutlineGeneration;
   disabled?: boolean;
@@ -167,7 +167,6 @@ function AdvancedActionRow({
 export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   projectId,
   parts,
-  partCount,
   chaptersPerPart,
   runGeneration,
   disabled = false,
@@ -767,12 +766,22 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
   const handleRegenAllParts = async () => {
     const requestProjectId = projectId;
-    const requestPartCount = partCount;
     const requestChaptersPerPart = chaptersPerPart;
+    let expectedParts: ReturnType<typeof outlineRecordTargets>;
+    try {
+      expectedParts = outlineRecordTargets(parts);
+    } catch (error) {
+      addToast(extractErrorMessage(error, "无法确认当前分部版本"), "error");
+      return;
+    }
+    const requestPartCount = expectedParts.length;
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
-      title: "重新生成分部",
-      message: "重新生成所有部大纲？已有内容会被覆盖。",
+      title: "重新生成所有分部",
+      message:
+        `保持当前 ${requestPartCount} 部数量，重新生成全部分部规划？` +
+        `\n\n${requestChaptersPerPart == null ? "沿用现有章节跨度" : `每部按 ${requestChaptersPerPart} 章重新划分`}；` +
+        "已有分部内容会被覆盖，章节大纲只会重新归属，不会删除。",
       confirmText: "重新生成",
       dialogType: "warning",
     });
@@ -804,7 +813,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           project_id: requestProjectId,
           operation: {
             kind: "regenerate_parts",
-            part_count: requestPartCount,
+            expected_parts: expectedParts,
             chapters_per_part: requestChaptersPerPart,
             variables: null,
           },
@@ -831,14 +840,20 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
   const handlePreviewRegenAllParts = async () => {
     const requestProjectId = projectId;
-    const requestPartCount = partCount;
     const requestChaptersPerPart = chaptersPerPart;
+    let expectedParts: ReturnType<typeof outlineRecordTargets>;
+    try {
+      expectedParts = outlineRecordTargets(parts);
+    } catch (error) {
+      addToast(extractErrorMessage(error, "无法确认当前分部版本"), "error");
+      return;
+    }
     await openPreview(
       requestProjectId,
       () =>
         previewRegeneratePartsRequest({
           project_id: requestProjectId,
-          part_count: requestPartCount,
+          expected_parts: expectedParts,
           chapters_per_part: requestChaptersPerPart,
         }),
       "预览重生成所有部提示词失败",
@@ -1131,11 +1146,11 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           />
           <AdvancedActionRow
             title="重新生成所有分部"
-            description="覆盖全部分部规划，执行前会再次确认。"
+            description="保持当前分部数量，重写完整阶段规划；改变部数请使用追加或删除。"
             actionLabel="重新规划"
             actionBusyLabel="规划中…"
             busy={regenPartsBusy}
-            disabled={controlsDisabled}
+            disabled={controlsDisabled || parts.length === 0}
             warning
             onPreview={handlePreviewRegenAllParts}
             onAction={handleRegenAllParts}

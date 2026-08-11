@@ -1,8 +1,7 @@
 /**
  * 项目状态机
  *
- * 6 个状态枚举（顺序即推进顺序）：
- *   draft → blueprint_ready → part_outlines_ready → chapter_outlines_ready → writing → completed
+ * 6 个进度摘要。非线性创作可以跳过不存在的蓝图或大纲阶段。
  */
 
 import type { NovelProject } from "../api/project";

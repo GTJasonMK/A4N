@@ -11,7 +11,7 @@ pub(super) async fn import_canvas_image(
     input: ImportCanvasMediaInput,
 ) -> Result<ImportedCanvasMedia, String> {
     let result = state
-        .canvas()
+        .orchestrator()
         .import_canvas_image_validated(CanvasImageImportHostInput {
             user_id,
             project_id: input.project_id,

@@ -39,6 +39,7 @@ fn reverse_blueprint_plan_preserves_existing_chapter_count() {
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: Some(100),
             existing_blueprint_total_chapters: Some(51),
+            next_version: "1.1".to_string(),
         },
         applied_at(),
     )
@@ -50,6 +51,7 @@ fn reverse_blueprint_plan_preserves_existing_chapter_count() {
         record.chapters_per_part,
         Some(crate::project::CHAPTERS_PER_PART)
     );
+    assert_eq!(record.current_version, "1.1");
 }
 
 #[test]
@@ -59,6 +61,7 @@ fn reverse_blueprint_plan_rejects_conflicting_chapter_count() {
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: Some(100),
             existing_blueprint_total_chapters: Some(50),
+            next_version: "1.1".to_string(),
         },
         applied_at(),
     )
@@ -74,6 +77,7 @@ fn reverse_blueprint_plan_rejects_mismatched_part_outline_flag() {
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: None,
             existing_blueprint_total_chapters: None,
+            next_version: "1.0".to_string(),
         },
         applied_at(),
     )
@@ -89,6 +93,7 @@ fn reverse_blueprint_plan_uses_shared_part_outline_threshold() {
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: None,
             existing_blueprint_total_chapters: None,
+            next_version: "1.0".to_string(),
         },
         applied_at(),
     )
@@ -98,6 +103,7 @@ fn reverse_blueprint_plan_uses_shared_part_outline_threshold() {
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: None,
             existing_blueprint_total_chapters: None,
+            next_version: "1.0".to_string(),
         },
         applied_at(),
     )

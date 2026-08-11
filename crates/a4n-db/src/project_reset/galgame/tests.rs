@@ -96,13 +96,11 @@ fn galgame_reset_outcome_projects_cleanup_counts() {
     assert_eq!(outcome.result.deleted_conversations, 51);
     assert_eq!(outcome.result.deleted_tasks, 61);
     assert_eq!(outcome.media_paths, vec!["media/a.png"]);
-    assert!(outcome.published_status_change);
 }
 
 #[test]
-fn galgame_reset_outcome_does_not_publish_draft_to_draft_transition() {
+fn galgame_reset_outcome_preserves_previous_draft_status() {
     let outcome = galgame_reset_outcome(input(ProjectStatus::Draft));
 
-    assert!(!outcome.published_status_change);
     assert_eq!(outcome.previous_status, ProjectStatus::Draft);
 }

@@ -1,7 +1,7 @@
 use a4n_core::models::character::protagonist_profile;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 
 use crate::character::CharacterDbError;
@@ -16,6 +16,23 @@ where
     C: ConnectionTrait,
 {
     profile_by_id(db, profile_id)
+        .await?
+        .ok_or_else(|| CharacterDbError::NotFound(format!("角色档案不存在: {profile_id}")))
+}
+
+pub(in crate::character) async fn require_profile_for_update<C>(
+    db: &C,
+    profile_id: i64,
+) -> Result<protagonist_profile::Model, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    let mut query = protagonist_profile::Entity::find_by_id(profile_id);
+    if db.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    query
+        .one(db)
         .await?
         .ok_or_else(|| CharacterDbError::NotFound(format!("角色档案不存在: {profile_id}")))
 }

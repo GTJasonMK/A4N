@@ -11,7 +11,7 @@ pub(super) async fn try_dispatch(
         "add_image_config" => add_image_config(state, user_id, args).await?,
         "update_image_config" => update_image_config(state, user_id, args).await?,
         "remove_image_config" => remove_image_config(state, user_id, args).await?,
-        "activate_image_config" => activate_image_config(state, user_id, args).await?,
+        "set_default_image_config" => set_default_image_config(state, user_id, args).await?,
         "test_image_config" => test_image_config(state, user_id, args).await?,
         "preview_test_image_config_request" => {
             preview_test_image_config_request(state, user_id, args).await?
@@ -45,6 +45,10 @@ pub(super) async fn try_dispatch(
         "create_scene_profile" => create_scene_profile(state, user_id, args).await?,
         "update_scene_profile" => update_scene_profile(state, user_id, args).await?,
         "delete_scene_profile" => delete_scene_profile(state, user_id, args).await?,
+        "list_foreshadowing" => list_foreshadowing(state, user_id, args).await?,
+        "create_foreshadowing" => create_foreshadowing(state, user_id, args).await?,
+        "update_foreshadowing" => update_foreshadowing(state, user_id, args).await?,
+        "delete_foreshadowing" => delete_foreshadowing(state, user_id, args).await?,
         "generate_scene_profile_image_prompt" => {
             generate_scene_profile_image_prompt(state, user_id, args).await?
         }

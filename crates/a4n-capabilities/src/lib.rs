@@ -14,9 +14,9 @@ mod transport;
 pub use a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY as EVENT_QUEUE_CAPACITY;
 
 pub use contracts::{
-    A4nCapabilities, CapabilityClient, CapabilityResult, EmbeddingClient, ExportClient,
-    ImageClient, ImportClient, JsonRequest, JsonResponse, LlmClient, PromptClient, RagClient,
-    VideoClient,
+    A4nCapabilities, CapabilityClient, CapabilityResult, EmbeddingClient, EmbeddingModelOperation,
+    ExportClient, ImageClient, ImportClient, JsonRequest, JsonResponse, LlmClient, PromptClient,
+    RagClient, VideoClient,
 };
 pub use embedding::HttpEmbeddingClient;
 pub use llm::HttpLlmClient;

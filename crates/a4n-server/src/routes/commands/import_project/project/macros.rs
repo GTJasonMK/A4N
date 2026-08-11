@@ -1,5 +1,4 @@
 use crate::routes::commands::{ApiError, project_records_actions, to_value};
-use crate::routes::projects::project_summary_with_family_for_user;
 use crate::state::ServerState;
 use a4n_core::models::project::novel_project;
 use serde_json::Value;
@@ -9,7 +8,15 @@ pub(super) async fn project_summary_value(
     user_id: i64,
     project: &novel_project::Model,
 ) -> Result<Value, ApiError> {
-    to_value(project_summary_with_family_for_user(state, user_id, project).await?)
+    to_value(
+        project_records_actions::project_summary_with_family_for_user(
+            state.runtime(),
+            user_id,
+            project,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
 }
 
 pub(super) async fn project_summaries_value(

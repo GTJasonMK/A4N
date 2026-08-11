@@ -32,7 +32,7 @@ pub async fn push_assembled_chapter_video(
         return Err("当前视频生成流程还没有可推送的成片片段".to_string());
     }
     let prepared = state
-        .video()
+        .orchestrator()
         .create_assembly_push_record_validated(
             project_id,
             chapter_id,

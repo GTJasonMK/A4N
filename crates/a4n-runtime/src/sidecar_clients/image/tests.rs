@@ -1,5 +1,5 @@
 use super::events::handle_image_generation_event;
-use super::operations::{generate_image, preview_image_provider_request, probe_image_config};
+use super::operations::{generate_image, preview_image_provider_request};
 use crate::state::RuntimeProfile;
 use a4n_capabilities::{A4nCapabilities, JsonResponse};
 use a4n_core::error::AppError;
@@ -162,35 +162,6 @@ fn image_generation_terminal_events_preserve_failure_and_cancel_semantics() {
 }
 
 #[tokio::test]
-async fn image_connectivity_uses_probe_without_generation() {
-    let client = Arc::new(
-        RecordingImageClient::new().with_probe_response(successful_image_probe_response()),
-    );
-    let capabilities = A4nCapabilities::empty().with_image(client.clone());
-
-    probe_image_config(&capabilities, &image_config(), image_request())
-        .await
-        .expect("image probe");
-
-    assert_eq!(client.probe_call_count(), 1);
-    assert_eq!(client.generate_call_count(), 0);
-    let request = client.last_probe_request().expect("recorded probe request");
-    assert!(request.secret_policy.is_local_user_secret_only());
-    assert_eq!(request.payload["backend"], "openai-compatible-image");
-    assert_eq!(request.payload["api_key"], "test-key");
-    assert_eq!(request.payload["request"]["prompt"], "test image");
-}
-
-#[tokio::test]
-async fn image_probe_missing_capability_fails_without_generation_fallback() {
-    let error = probe_image_config(&A4nCapabilities::empty(), &image_config(), image_request())
-        .await
-        .expect_err("missing image probe capability must fail");
-
-    assert!(error.contains("image sidecar capability 未配置"));
-}
-
-#[tokio::test]
 async fn image_provider_preview_uses_typed_capability_request() {
     let client = Arc::new(
         RecordingImageClient::new().with_preview_response(successful_image_preview_response()),
@@ -208,7 +179,6 @@ async fn image_provider_preview_uses_typed_capability_request() {
     .expect("image provider preview");
 
     assert_eq!(client.preview_call_count(), 1);
-    assert_eq!(client.probe_call_count(), 0);
     assert_eq!(client.generate_call_count(), 0);
     assert_eq!(preview["request"]["model"], "image-model");
     let request = client
@@ -263,13 +233,6 @@ fn successful_image_generation_events() -> Vec<CapabilityTaskEvent> {
 fn successful_image_preview_response() -> JsonResponse {
     image_response(json!({
         "request": {"model": "image-model", "prompt": "test image"}
-    }))
-}
-
-fn successful_image_probe_response() -> JsonResponse {
-    image_response(json!({
-        "ok": true,
-        "request_preview": {"request": {"model": "image-model"}}
     }))
 }
 

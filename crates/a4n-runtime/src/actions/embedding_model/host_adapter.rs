@@ -1,17 +1,7 @@
 //! Host 适配：runtime profile 与下载结果定位（非 pure rules）。
 
-use super::contracts::{EmbeddingModelExecution, LocalEmbeddingModelSummary};
+use super::contracts::LocalEmbeddingModelSummary;
 use a4n_core::error::AppError;
-
-pub(super) fn embedding_model_execution(
-    profile: crate::state::RuntimeProfile,
-) -> EmbeddingModelExecution {
-    if profile.uses_sidecars() {
-        EmbeddingModelExecution::Sidecar
-    } else {
-        EmbeddingModelExecution::HostLocal
-    }
-}
 
 pub(super) fn downloaded_model_summary(
     models: Vec<LocalEmbeddingModelSummary>,

@@ -11,7 +11,9 @@ use chrono::Utc;
 use crate::media::MEDIA_BINDING_ROLE_BACKGROUND;
 
 use super::super::{
-    GALGAME_ENTITY_SCENE, GalgamePersistValidationScope, galgame_media_binding_summaries,
+    GALGAME_ENTITY_SCENE, GalgameFacingV2, GalgameLinePresentationDocumentV2,
+    GalgameLinePresentationSchemaVersion, GalgamePersistValidationScope, GalgameStageLayerV2,
+    GalgameStagePositionV2, GalgameVisibleCastMemberV2, galgame_media_binding_summaries,
     galgame_pipeline_prompt_context_from_record, galgame_script_detail_from_read_model,
 };
 use super::fixtures::{
@@ -35,12 +37,11 @@ fn media_binding_summaries_reject_missing_asset_instead_of_dropping_binding() {
         .expect_err("missing media asset must not be silently dropped");
 
     assert!(matches!(
-        err,
-        AppError::InvalidState { ref operation, .. }
-            if operation == "load_galgame_media_bindings"
+        &err,
+        AppError::InvalidState { current, .. } if current == "galgame_read_model"
     ));
-    assert!(err.to_string().contains("binding_id=10"));
-    assert!(err.to_string().contains("media_asset_id=99"));
+    assert!(err.to_string().contains("Galgame 媒体绑定 10"));
+    assert!(err.to_string().contains("不存在的资产 99"));
 }
 
 #[test]
@@ -84,8 +85,40 @@ fn pipeline_prompt_context_record_rejects_empty_chapters() {
 
 #[test]
 fn script_detail_read_model_groups_lines_choices_refs_and_media() {
-    let mut line = test_line_with(10, Some(100), Some("smile"), None, Some("center"));
+    let mut line = test_line_with(
+        10,
+        Some(100),
+        Some("smile"),
+        Some("standing"),
+        Some("center"),
+    );
     line.scene_id = 30;
+    line.speaker_profile_id = Some(7);
+    line.presentation_json = serde_json::to_value(GalgameLinePresentationDocumentV2 {
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
+        visible_cast: vec![GalgameVisibleCastMemberV2 {
+            character_profile_id: 7,
+            expression: "smile".to_string(),
+            pose: "standing".to_string(),
+            position: GalgameStagePositionV2::Center,
+            facing: GalgameFacingV2::Front,
+            layer: GalgameStageLayerV2::Front,
+        }],
+        enter: Vec::new(),
+        exit: Vec::new(),
+        focus_character_profile_id: Some(7),
+        hold: false,
+        player_knowledge: Vec::new(),
+        cg: None,
+        cg_note: None,
+        cg_importance: None,
+        transition: None,
+        branch: None,
+        branch_id: None,
+        returns_to_scene_index: None,
+        after_beat_ref: None,
+    })
+    .expect("presentation json");
     let read_model = GalgameScriptDetailReadModel {
         script: test_script(1),
         speaker_profiles: vec![test_profile(7, "林晓雨")],
@@ -108,7 +141,7 @@ fn script_detail_read_model_groups_lines_choices_refs_and_media() {
 
     let detail = galgame_script_detail_from_read_model(read_model).expect("script detail");
 
-    assert_eq!(detail.script.id, 1);
+    assert_eq!(detail.id, 1);
     assert_eq!(detail.speaker_profiles[0].id, 7);
     assert_eq!(detail.text_anchors[0].id, 100);
     assert_eq!(detail.media_bindings[0].asset.id, 300);

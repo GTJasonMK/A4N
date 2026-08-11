@@ -1,6 +1,4 @@
-use crate::{
-    AppState, actions::request_preview::ModelRequestPreview, prompt_renderer::RuntimePromptRenderer,
-};
+use crate::{AppState, actions::request_preview::ModelRequestPreview};
 use a4n_orchestrator::optimize::optimization_analysis_variables;
 
 use super::super::{
@@ -20,14 +18,14 @@ pub async fn preview_create_optimization_analysis_session_request(
         permissions.as_ref(),
         input.agent_instruction.as_deref(),
     );
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .optimize()
+        .orchestrator()
         .build_create_optimize_analysis_preview_request_for_user_validated(
             user_id,
             input.project_id,
             input.chapter_number,
-            &prompt_renderer,
+            prompt_renderer,
             &variables,
         )
         .await
@@ -47,13 +45,13 @@ pub async fn preview_prepare_optimization_analysis_session_request(
         permissions.as_ref(),
         input.agent_instruction.as_deref(),
     );
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .optimize()
+        .orchestrator()
         .build_prepare_optimize_analysis_preview_request_for_user_validated(
             user_id,
             input.session_id,
-            &prompt_renderer,
+            prompt_renderer,
             &variables,
         )
         .await

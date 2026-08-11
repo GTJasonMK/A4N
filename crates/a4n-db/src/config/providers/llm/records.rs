@@ -86,28 +86,6 @@ where
     active.update(db).await.map_err(AppError::Database)
 }
 
-pub async fn set_default_llm_config_record<C>(
-    db: &C,
-    model: llm_config::Model,
-) -> Result<llm_config::Model, AppError>
-where
-    C: ConnectionTrait,
-{
-    llm_config::Entity::update_many()
-        .col_expr(
-            llm_config::Column::IsDefault,
-            sea_orm::sea_query::Expr::value(false),
-        )
-        .filter(llm_config::Column::IsDefault.eq(true))
-        .exec(db)
-        .await
-        .map_err(AppError::Database)?;
-
-    let mut active: llm_config::ActiveModel = model.into();
-    active.is_default = Set(true);
-    active.update(db).await.map_err(AppError::Database)
-}
-
 pub async fn delete_llm_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>
 where
     C: ConnectionTrait,

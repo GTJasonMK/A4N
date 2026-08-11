@@ -119,6 +119,29 @@ pub async fn sync_part_outlines_and_assign_chapters_transaction(
     .map_err(outline_db_error)
 }
 
+pub async fn sync_part_outlines_and_assign_chapters_in<C>(
+    db: &C,
+    project_id: i64,
+    drafts: Vec<PartOutlineDraft>,
+    now: chrono::NaiveDateTime,
+) -> Result<Vec<part_outline::Model>, AppError>
+where
+    C: ConnectionTrait,
+{
+    let mut parsed = Vec::with_capacity(drafts.len());
+    for draft in drafts {
+        parsed.push(part_outline_sync_draft_from_json(
+            draft.part_number,
+            draft.start_chapter,
+            draft.end_chapter,
+            &draft.data,
+        )?);
+    }
+    outline_db::sync_part_outline_records_and_assign_chapters_in(db, project_id, parsed, now)
+        .await
+        .map_err(outline_db_error)
+}
+
 #[cfg(test)]
 pub async fn sync_chapter_outline_part_assignments<C>(
     db: &C,
@@ -195,9 +218,32 @@ pub async fn update_part_outline_and_rebind_chapters_transaction(
     .map_err(outline_db_error)
 }
 
+pub async fn update_part_outline_and_rebind_chapters_in<C>(
+    db: &C,
+    project_id: i64,
+    existing: part_outline::Model,
+    part_number: i32,
+    start_chapter: i32,
+    end_chapter: i32,
+    part_json: &Value,
+    now: chrono::NaiveDateTime,
+) -> Result<part_outline::Model, AppError>
+where
+    C: ConnectionTrait,
+{
+    let draft =
+        part_outline_sync_draft_from_json(part_number, start_chapter, end_chapter, part_json)?;
+    outline_db::update_part_outline_and_rebind_chapters_in(db, project_id, existing, draft, now)
+        .await
+        .map_err(outline_db_error)
+}
+
 fn outline_db_error(error: OutlineDbError) -> AppError {
     match error {
         OutlineDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        OutlineDbError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
         OutlineDbError::Database(err) => AppError::Database(err),
         OutlineDbError::Generation(err) => crate::generation::generation_error(err),
     }

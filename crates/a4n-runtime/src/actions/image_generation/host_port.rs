@@ -171,7 +171,7 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
 
     async fn sync_project_asset_lineage(&self, project_id: i64) -> Result<(), AppError> {
         self.state
-            .asset_lineage_sync()
+            .orchestrator()
             .sync_project_asset_lineage(project_id)
             .await
             .map(|_| ())

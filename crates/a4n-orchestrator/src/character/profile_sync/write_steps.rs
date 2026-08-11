@@ -1,4 +1,5 @@
 use a4n_core::error::AppError;
+use a4n_core::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
 use serde_json::Value;
 
 use super::super::{
@@ -178,6 +179,7 @@ fn behavior_record_input(
     Ok(InsertBehaviorRecordInput {
         profile_id,
         chapter_number: required_i32(behavior, "chapter_number").map_err(invalid_argument)?,
+        source_kind: SOURCE_KIND_AI_SYNC.to_string(),
         behavior_type: required_string(behavior, "behavior_type").map_err(invalid_argument)?,
         behavior_description: required_string(behavior, "behavior_description")
             .map_err(invalid_argument)?,

@@ -1,4 +1,56 @@
+use std::collections::HashMap;
+
+use a4n_core::error::AppError;
+use a4n_prompt::rendering::PromptRenderer;
+use async_trait::async_trait;
+use serde_json::Value;
+
 use super::*;
+use crate::manga::pipeline_prompt::{MangaLlmCallInput, prepare_manga_llm_call};
+
+struct TestPromptRenderer;
+
+#[async_trait]
+impl PromptRenderer for TestPromptRenderer {
+    async fn render_prompt(
+        &self,
+        template_name: &str,
+        _variables: &HashMap<String, Value>,
+        _project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        assert_eq!(template_name, "manga_character_binding");
+        Ok("system prompt".to_string())
+    }
+}
+
+#[tokio::test]
+async fn manga_llm_request_sends_dynamic_payload_once() {
+    let marker = "unique-manga-payload-marker";
+    let variables = HashMap::new();
+    let prepared = prepare_manga_llm_call(MangaLlmCallInput {
+        prompt_renderer: &TestPromptRenderer,
+        prompt_name: "manga_character_binding",
+        project_id: 7,
+        workflow_run_id: None,
+        call_key: "manga:test".to_string(),
+        call_order: 1,
+        variables: &variables,
+        user_content: marker.to_string(),
+        temperature: 0.3,
+    })
+    .await
+    .expect("manga request should build");
+
+    let sent = prepared
+        .request
+        .messages
+        .iter()
+        .map(|message| message.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(sent.matches(marker).count(), 1);
+    assert!(prepared.request.context_manifest_json.is_none());
+}
 
 #[test]
 fn build_manga_step_user_message_uses_json_payload() {
@@ -94,7 +146,8 @@ fn manga_item_extraction_input_exposes_available_source_span_ids() {
         }]
     });
 
-    let input = manga_item_extraction_input(step2.clone(), step3.clone());
+    let input = manga_item_extraction_input(step2.clone(), step3.clone())
+        .expect("valid item extraction input");
     let ids = input["available_source_span_ids"].as_array().unwrap();
 
     assert_eq!(
@@ -102,7 +155,7 @@ fn manga_item_extraction_input_exposes_available_source_span_ids() {
         &vec![json!("ch1:s1:f1"), json!("ch1:s2:f1"), json!("ch1:s3:f1")]
     );
     assert_eq!(
-        manga_item_available_source_span_ids(&step2, &step3),
+        manga_item_available_source_span_ids(&step2, &step3).expect("valid source span IDs"),
         vec!["ch1:s1:f1", "ch1:s2:f1", "ch1:s3:f1"]
     );
 }

@@ -24,7 +24,7 @@ pub async fn validate_settings_all_config_import_defaults(
     ensure_single_default_after_import(
         "默认 LLM 配置",
         &existing_llm,
-        &input.llm_configs,
+        &input.rows.llm_configs,
         input.overwrite,
         DefaultImportPolicy::PreserveIfConfigured,
         |row| row.name.as_str(),
@@ -47,7 +47,7 @@ pub async fn validate_settings_all_config_import_defaults(
     ensure_single_default_after_import(
         "默认 Embedding 配置",
         &existing_embedding,
-        &input.embedding_configs,
+        &input.rows.embedding_configs,
         input.overwrite,
         DefaultImportPolicy::Required,
         |row| row.name.as_str(),
@@ -70,7 +70,7 @@ pub async fn validate_settings_all_config_import_defaults(
     ensure_single_default_after_import(
         "默认图片配置",
         &existing_image,
-        &input.image_configs,
+        &input.rows.image_configs,
         input.overwrite,
         DefaultImportPolicy::PreserveIfConfigured,
         |row| row.name.as_str(),
@@ -93,7 +93,7 @@ pub async fn validate_settings_all_config_import_defaults(
     ensure_single_default_after_import(
         "默认视频配置",
         &existing_video,
-        &input.video_configs,
+        &input.rows.video_configs,
         input.overwrite,
         DefaultImportPolicy::PreserveIfConfigured,
         |row| row.name.as_str(),

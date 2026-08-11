@@ -8,8 +8,9 @@ use serde_json::Value;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::OrchestratorContext;
+use super::super::super::context::lock_outline_generation_sources;
 use super::super::super::part_contract::{
-    update_part_outline_and_rebind_chapters_transaction, update_part_outline_from_json,
+    update_part_outline_and_rebind_chapters_in, update_part_outline_from_json,
 };
 use super::super::contracts::PartOutlineJsonInput;
 use super::preparation::{
@@ -60,15 +61,22 @@ impl OrchestratorContext {
                 requested_part_count: 1,
                 blueprint_context: &prepared.context.blueprint_payload,
                 previous_parts: &prepared.previous_parts,
+                source_snapshot: &prepared.context.source_snapshot,
                 prompt_renderer,
                 variables,
                 workflow_run_id,
             })
             .await?;
         let now = Utc::now().naive_utc();
+        let tx = lock_outline_generation_sources(
+            self.database.connection(),
+            prepared.project_id,
+            &prepared.context.source_snapshot,
+        )
+        .await?;
         let updated = if prepared.rebind_chapter_outlines {
-            update_part_outline_and_rebind_chapters_transaction(
-                &self.database,
+            update_part_outline_and_rebind_chapters_in(
+                &tx,
                 prepared.project_id,
                 prepared.target.clone(),
                 prepared.target.part_number,
@@ -80,7 +88,7 @@ impl OrchestratorContext {
             .await?
         } else {
             update_part_outline_from_json(
-                self.database.connection(),
+                &tx,
                 prepared.target.clone(),
                 prepared.target.part_number,
                 prepared.target.start_chapter,
@@ -90,8 +98,9 @@ impl OrchestratorContext {
             )
             .await?
         };
-        self.record_part_outline_generation_run(&updated, &generated, "重新生成分部大纲")
+        self.record_part_outline_generation_run(&tx, &updated, &generated, "重新生成分部大纲")
             .await?;
+        tx.commit().await.map_err(AppError::Database)?;
         Ok(updated)
     }
 }

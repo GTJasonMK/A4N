@@ -12,18 +12,13 @@ use crate::{
 
 use super::{
     ImportProjectAnalysisSummary,
-    blueprint::upsert_import_blueprint,
     chapter_outline::importable_chapters,
     lifecycle::cancelled_import_analysis_summary,
-    progress::{
-        STAGE_ANALYSIS, STAGE_BLUEPRINT, STAGE_OUTLINES, import_analysis_cancelled,
-        progress_stage_completed,
-    },
+    progress::{STAGE_ANALYSIS, import_analysis_cancelled},
     summary::completed_import_stage,
     workflow::{
         ImportAnalysisStageResult, PreparedImportAnalysisRun, complete_import_project_analysis,
-        prepare_import_project_analysis, record_import_analysis_failure,
-        run_import_analysis_outlines, run_import_analysis_parts, save_import_stage,
+        prepare_import_project_analysis, record_import_analysis_failure, save_import_stage,
     },
 };
 
@@ -46,9 +41,7 @@ impl OrchestratorContext {
         let result = self
             .execute_import_project_analysis(
                 project_id,
-                &prepared.project,
-                &mut prepared.chapters,
-                prepared.needs_part_outlines,
+                &prepared.chapters,
                 &mut prepared.progress,
                 prompt_renderer,
                 chapter_analysis_host_port,
@@ -82,7 +75,7 @@ impl OrchestratorContext {
                 operation: "预览导入项目分析请求".to_string(),
             });
         }
-        let mut steps = Vec::with_capacity(chapters.len() * 4 + 2);
+        let mut steps = Vec::with_capacity(chapters.len() * 4 + 1);
         for chapter in chapters {
             for request in self
                 .build_chapter_analysis_requests(chapter.id, prompt_renderer)
@@ -108,27 +101,13 @@ impl OrchestratorContext {
             ),
             request: None,
         });
-        steps.push(ChapterAnalysisPreviewStep {
-            key: "import_analysis_reverse_blueprint".to_string(),
-            title: "导入蓝图反推请求".to_string(),
-            prompt_name: Some("reverse_blueprint".to_string()),
-            status: "blocked".to_string(),
-            note: Some(
-                "该请求依赖前序章节分析和大纲更新后的上下文，运行前无法提前构造真实请求"
-                    .to_string(),
-            ),
-            request: None,
-        });
         Ok(steps)
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn execute_import_project_analysis(
         &self,
         project_id: i64,
-        project: &a4n_core::models::project::novel_project::Model,
-        chapters: &mut Vec<chapter::Model>,
-        needs_part_outlines: bool,
+        chapters: &[chapter::Model],
         progress: &mut Value,
         prompt_renderer: &dyn PromptRenderer,
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
@@ -152,93 +131,26 @@ impl OrchestratorContext {
             {
                 ImportAnalysisStageResult::Complete(value) => analyzed = value,
                 ImportAnalysisStageResult::Cancelled(value) => {
-                    let outlined = completed_import_stage(progress, STAGE_OUTLINES, total_chapters)
-                        .map_err(import_analysis_error)?;
-                    return cancelled_import_analysis_summary(
-                        self,
-                        project_id,
-                        progress,
-                        value,
-                        outlined,
-                        needs_part_outlines,
-                        chapters.len(),
-                    )
-                    .await
-                    .map_err(import_analysis_error);
+                    return cancelled_import_analysis_summary(self, project_id, value)
+                        .await
+                        .map_err(import_analysis_error);
                 }
             }
         } else {
             analyzed = total_chapters;
         }
 
-        *chapters = importable_chapters(self, project_id)
-            .await
-            .map_err(import_analysis_error)?;
-        let mut outlined = completed_import_stage(progress, STAGE_OUTLINES, chapters.len())
-            .map_err(import_analysis_error)?;
-        if outlined < chapters.len() {
-            match run_import_analysis_outlines(self, project_id, chapters, outlined, progress)
-                .await
-                .map_err(import_analysis_error)?
-            {
-                ImportAnalysisStageResult::Complete(value) => outlined = value,
-                ImportAnalysisStageResult::Cancelled(value) => {
-                    return cancelled_import_analysis_summary(
-                        self,
-                        project_id,
-                        progress,
-                        analyzed,
-                        value,
-                        needs_part_outlines,
-                        chapters.len(),
-                    )
-                    .await
-                    .map_err(import_analysis_error);
-                }
-            }
-        } else {
-            outlined = chapters.len();
-        }
-
-        self.run_import_analysis_blueprint_stage(
-            project,
-            project_id,
-            chapters,
-            needs_part_outlines,
-            progress,
-            prompt_renderer,
-        )
-        .await?;
         if import_analysis_cancelled(self, project_id)
             .await
             .map_err(import_analysis_error)?
         {
-            return cancelled_import_analysis_summary(
-                self,
-                project_id,
-                progress,
-                analyzed,
-                outlined,
-                needs_part_outlines,
-                chapters.len(),
-            )
-            .await
-            .map_err(import_analysis_error);
-        }
-        let generated_parts =
-            run_import_analysis_parts(self, project_id, chapters, needs_part_outlines, progress)
+            return cancelled_import_analysis_summary(self, project_id, analyzed)
                 .await
-                .map_err(import_analysis_error)?;
-        complete_import_project_analysis(
-            self,
-            project_id,
-            progress,
-            analyzed,
-            outlined,
-            generated_parts,
-        )
-        .await
-        .map_err(import_analysis_error)
+                .map_err(import_analysis_error);
+        }
+        complete_import_project_analysis(self, project_id, progress, analyzed)
+            .await
+            .map_err(import_analysis_error)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -260,7 +172,10 @@ impl OrchestratorContext {
             STAGE_ANALYSIS,
             analyzed,
             total,
-            format!("正在分析第{}章", chapters[analyzed].chapter_number),
+            format!(
+                "正在分析并同步第{}章资料",
+                chapters[analyzed].chapter_number
+            ),
         )
         .await
         .map_err(import_analysis_error)?;
@@ -278,7 +193,7 @@ impl OrchestratorContext {
                 STAGE_ANALYSIS,
                 analyzed,
                 total,
-                format!("正在分析第{}章", chapter.chapter_number),
+                format!("正在分析并同步第{}章资料", chapter.chapter_number),
             )
             .await
             .map_err(import_analysis_error)?;
@@ -311,73 +226,12 @@ impl OrchestratorContext {
             STAGE_ANALYSIS,
             total,
             total,
-            "分析数据生成完成".to_owned(),
+            "逐章分析与资料同步完成".to_owned(),
         )
         .await
         .map_err(import_analysis_error)?;
         Ok(ImportAnalysisStageResult::Complete(total))
     }
-
-    async fn run_import_analysis_blueprint_stage(
-        &self,
-        project: &a4n_core::models::project::novel_project::Model,
-        project_id: i64,
-        chapters: &[chapter::Model],
-        needs_part_outlines: bool,
-        progress: &mut Value,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<(), AppError> {
-        if progress_stage_completed(progress, STAGE_BLUEPRINT).map_err(import_analysis_error)? >= 1
-        {
-            return Ok(());
-        }
-        save_import_stage(
-            self,
-            project_id,
-            progress,
-            STAGE_BLUEPRINT,
-            0,
-            1,
-            "正在生成导入蓝图".to_owned(),
-        )
-        .await
-        .map_err(import_analysis_error)?;
-        upsert_import_blueprint(self, project, chapters, needs_part_outlines)
-            .await
-            .map_err(import_analysis_error)?;
-        let applied = self
-            .reverse_apply_blueprint_from_context_validated(project_id, 50, prompt_renderer)
-            .await?;
-        let character_count = required_applied_count(&applied, "character_count")?;
-        let relationship_count = required_applied_count(&applied, "relationship_count")?;
-        tracing::info!(
-            project_id,
-            character_count,
-            relationship_count,
-            "项目蓝图反推完成"
-        );
-        save_import_stage(
-            self,
-            project_id,
-            progress,
-            STAGE_BLUEPRINT,
-            1,
-            1,
-            "导入蓝图已生成".to_owned(),
-        )
-        .await
-        .map_err(import_analysis_error)
-    }
-}
-
-fn required_applied_count(value: &Value, field: &str) -> Result<u64, AppError> {
-    value
-        .get(field)
-        .and_then(Value::as_u64)
-        .ok_or_else(|| AppError::InvalidState {
-            current: "reverse_blueprint_result".to_string(),
-            operation: format!("读取非负整数字段 {field}"),
-        })
 }
 
 fn import_analysis_error(error: impl ToString) -> AppError {
@@ -400,19 +254,6 @@ fn import_chapter_analysis_error(error: AppError, chapter_number: i32) -> AppErr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn reverse_blueprint_counts_are_strict() {
-        assert_eq!(
-            required_applied_count(&json!({"character_count": 2}), "character_count").unwrap(),
-            2
-        );
-        assert!(required_applied_count(&json!({}), "character_count").is_err());
-        assert!(
-            required_applied_count(&json!({"character_count": -1}), "character_count").is_err()
-        );
-    }
 
     #[test]
     fn imported_chapter_analysis_preserves_cancellation() {

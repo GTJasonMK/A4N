@@ -75,7 +75,7 @@ pub(in crate::actions::video_records) async fn mark_imported_video_completed(
         }
     };
     match state
-        .video()
+        .orchestrator()
         .mark_generated_video_completed_and_link_prompt(
             record_id,
             output_path_str,
@@ -87,14 +87,14 @@ pub(in crate::actions::video_records) async fn mark_imported_video_completed(
         .await
     {
         Ok(_) => state
-            .video()
+            .orchestrator()
             .update_generated_video_duration_record(record_id, duration_secs)
             .await
             .map_err(|error| format!("{failure_prefix}实际时长回写失败：{error}")),
         Err(err) => {
             let can_adopt = a4n_orchestrator::video::can_adopt_authoritative_video_completion(&err);
             let primary_error = format!("{failure_prefix}：{err}");
-            let authoritative = match state.video().generated_video_by_id(record_id).await {
+            let authoritative = match state.orchestrator().generated_video_by_id(record_id).await {
                 Ok(authoritative) => authoritative,
                 Err(lookup_error) => {
                     return Err(append_secondary_error(
@@ -151,7 +151,7 @@ pub(in crate::actions::video_records) async fn mark_imported_video_completed(
             }) {
                 return Err(append_secondary_error(primary_error, cleanup_error));
             }
-            let delete_error = delete_video_record_error(&state.video(), record_id).await;
+            let delete_error = delete_video_record_error(state.orchestrator(), record_id).await;
             Err(append_secondary_error(
                 append_secondary_error(primary_error, cleanup_error),
                 delete_error,

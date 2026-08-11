@@ -10,6 +10,8 @@ pub enum AssetDbError {
     NotFound(String),
     #[error("{0}")]
     InvalidArgument(String),
+    #[error("状态无效：当前状态 {current}，不允许操作 {operation}")]
+    InvalidState { current: String, operation: String },
 }
 
 impl From<crate::generation::GenerationDbError> for AssetDbError {
@@ -22,6 +24,24 @@ impl From<crate::generation::GenerationDbError> for AssetDbError {
             crate::generation::GenerationDbError::Database(error) => Self::Database(error),
         }
     }
+}
+
+impl From<crate::text_anchor::TextAnchorDbError> for AssetDbError {
+    fn from(error: crate::text_anchor::TextAnchorDbError) -> Self {
+        match error {
+            crate::text_anchor::TextAnchorDbError::Database(error) => Self::Database(error),
+            crate::text_anchor::TextAnchorDbError::NotFound(message) => Self::NotFound(message),
+            crate::text_anchor::TextAnchorDbError::InvalidArgument(message) => {
+                Self::InvalidArgument(message)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectProfileEvidenceRecordInput {
+    pub normalized_name: String,
+    pub text_anchor_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone)]

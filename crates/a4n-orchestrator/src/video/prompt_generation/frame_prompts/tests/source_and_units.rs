@@ -5,7 +5,7 @@ fn video_units_only_add_action_bridge_for_preserved_action() {
     let mut first = segment(1);
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
         transition_type: "match_cut".to_string(),
-        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("角色推门动作连续完成".to_string()),
         preserved_sound: None,
         required_cut_point: None,
@@ -37,7 +37,7 @@ fn environment_action_bridge_does_not_require_fake_actor() {
     first.performance_plan.action_script.clear();
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
         transition_type: "match_cut".to_string(),
-        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("霓虹反光从街面滑入后巷水洼".to_string()),
         preserved_sound: None,
         required_cut_point: None,
@@ -55,7 +55,7 @@ fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
     let mut first = segment(1);
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
         transition_type: "match_cut".to_string(),
-        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("角色推门动作连续完成".to_string()),
         preserved_sound: None,
         required_cut_point: None,
@@ -76,7 +76,7 @@ fn sound_only_or_cut_metadata_does_not_create_action_bridge() {
     let mut first = segment(1);
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
         transition_type: "hard_cut".to_string(),
-        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: None,
         preserved_sound: Some("门铃声延续".to_string()),
         required_cut_point: Some("铃声响起时切换".to_string()),

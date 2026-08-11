@@ -1,10 +1,10 @@
-use a4n_core::state::validator::StateValidator;
+use a4n_core::state::validator::parse_project_status as parse_canonical_project_status;
 use a4n_domain::project::ProjectStatus;
 
 use crate::project::duplicate::ProjectDuplicateError;
 
 pub(super) fn parse_project_status(status: &str) -> Result<ProjectStatus, ProjectDuplicateError> {
-    StateValidator::parse_status(status)
+    parse_canonical_project_status(status)
         .map_err(|_| ProjectDuplicateError::InvalidArgument(format!("未知项目状态：{status}")))
 }
 

@@ -12,7 +12,7 @@ use crate::handlers::events::{
 };
 #[cfg(feature = "fastembed")]
 use crate::protocol::service_error;
-use crate::protocol::{error_response, validate_embedding_request, validate_service_request};
+use crate::protocol::{validate_embedding_request, validate_service_request};
 use crate::{contracts::EmbedTextsPayload, handlers::embedding::embedding_provider};
 #[cfg(feature = "fastembed")]
 use a4n_embedding::provider::DownloadProgress;
@@ -109,19 +109,14 @@ fn embedding_payload_requires_batch_size() {
 
 #[test]
 #[cfg(feature = "fastembed")]
-fn model_operation_requires_a_model_when_one_is_used() {
-    let list = serde_json::from_value::<ModelPayload>(serde_json::json!({
-        "operation": "list"
-    }))
-    .expect("list does not need a model");
-    assert!(list.model.is_none());
-    assert!(list.required_model().is_err());
+fn model_operation_requires_a_nonblank_model() {
+    let missing = serde_json::from_value::<ModelPayload>(serde_json::json!({}))
+        .expect_err("model operation payload requires a model field");
+    assert!(missing.to_string().contains("missing field `model`"));
 
-    let delete = serde_json::from_value::<ModelPayload>(serde_json::json!({
-        "operation": "delete"
-    }))
-    .expect("operation payload should deserialize before model validation");
-    assert!(delete.required_model().is_err());
+    let blank = serde_json::from_value::<ModelPayload>(serde_json::json!({ "model": "  " }))
+        .expect("blank model is validated after deserialization");
+    assert!(blank.required_model().is_err());
 }
 
 #[test]
@@ -237,7 +232,7 @@ fn rejects_incompatible_protocol_version() {
     let mut request = service_request(serde_json::json!({}));
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
     let response: ServiceResponse<()> =
-        error_response(&request, validate_service_request(&request).unwrap_err());
+        request.error_response(validate_service_request(&request).unwrap_err());
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
     let error = response.error.expect("version mismatch error");

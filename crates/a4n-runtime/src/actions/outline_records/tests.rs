@@ -32,6 +32,7 @@ fn sample_outline(project_id: i64, pacing_score: Option<f32>) -> chapter_outline
 fn update_chapter_outline_input_requires_project_id() {
     let err = serde_json::from_value::<UpdateChapterOutlineInput>(json!({
         "outline_id": 42,
+        "expected_updated_at": "2026-06-06 10:00:00",
         "title": "新标题"
     }))
     .expect_err("project_id must be required");
@@ -40,10 +41,23 @@ fn update_chapter_outline_input_requires_project_id() {
 }
 
 #[test]
+fn update_chapter_outline_input_requires_expected_updated_at() {
+    let err = serde_json::from_value::<UpdateChapterOutlineInput>(json!({
+        "project_id": 7,
+        "outline_id": 42,
+        "title": "新标题"
+    }))
+    .expect_err("existing outline updates must carry the opened version");
+
+    assert!(err.to_string().contains("expected_updated_at"));
+}
+
+#[test]
 fn update_chapter_outline_input_rejects_unknown_fields() {
     let err = serde_json::from_value::<UpdateChapterOutlineInput>(json!({
         "project_id": 7,
         "outline_id": 42,
+        "expected_updated_at": "2026-06-06 10:00:00",
         "title": "新标题",
         "projectId": 7
     }))
@@ -57,6 +71,7 @@ fn update_chapter_outline_input_accepts_only_valid_provided_fields() {
     let input = serde_json::from_value::<UpdateChapterOutlineInput>(json!({
         "project_id": 7,
         "outline_id": 42,
+        "expected_updated_at": "2026-06-06 10:00:00",
         "title": "  新标题  ",
         "summary": "新概要",
         "beats": ["推进"],
@@ -78,7 +93,8 @@ fn update_chapter_outline_input_rejects_null_or_blank_text_fields() {
     ] {
         let mut payload = json!({
             "project_id": 7,
-            "outline_id": 42
+            "outline_id": 42,
+            "expected_updated_at": "2026-06-06 10:00:00"
         });
         payload[field] = value;
 
@@ -98,7 +114,8 @@ fn update_chapter_outline_input_rejects_non_array_structured_fields() {
     ] {
         let mut payload = json!({
             "project_id": 7,
-            "outline_id": 42
+            "outline_id": 42,
+            "expected_updated_at": "2026-06-06 10:00:00"
         });
         payload[field] = value;
 
@@ -118,6 +135,18 @@ fn ensure_chapter_outline_belongs_to_project_rejects_mismatch() {
         .expect_err("cross-project update must fail");
 
     assert!(err.to_string().contains("不属于项目 2"));
+}
+
+#[test]
+fn chapter_outline_summary_exposes_derived_source() {
+    let outline = sample_outline(1, None);
+
+    let summary = chapter_outline_summary(&outline, Some("retrospective_analysis"));
+
+    assert_eq!(
+        summary.source_kind.as_deref(),
+        Some("retrospective_analysis")
+    );
 }
 
 #[test]

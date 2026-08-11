@@ -6,11 +6,11 @@ use a4n_core::error::AppError;
 use a4n_core::models::project::{profile_evidence, text_anchor};
 use a4n_db::DbHandle;
 use a4n_db::text_anchor::{
-    CurrentChapterContentAnchorRows, TextAnchorDbError, TextAnchorEvidenceInput,
-    TextAnchorProfileKind,
+    CurrentChapterContentAnchorRows, TextAnchorEvidenceInput, TextAnchorProfileKind,
 };
 
 use super::OrchestratorContext;
+use crate::text_anchor::text_anchor_db_error;
 
 #[derive(Clone)]
 pub(super) struct TextAnchorApplication {
@@ -73,13 +73,21 @@ impl TextAnchorApplication {
         .await
         .map_err(text_anchor_db_error)
     }
-}
 
-fn text_anchor_db_error(error: TextAnchorDbError) -> AppError {
-    match error {
-        TextAnchorDbError::Database(error) => AppError::Database(error),
-        TextAnchorDbError::NotFound(message) => AppError::NotFound(message),
-        TextAnchorDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
+    async fn earliest_current_profile_evidence_chapter(
+        &self,
+        root_project_id: i64,
+        profile_kind: TextAnchorProfileKind,
+        profile_id: i64,
+    ) -> Result<Option<i32>, AppError> {
+        a4n_db::text_anchor::earliest_current_profile_evidence_chapter(
+            self.connection(),
+            root_project_id,
+            profile_kind,
+            profile_id,
+        )
+        .await
+        .map_err(text_anchor_db_error)
     }
 }
 
@@ -147,6 +155,17 @@ impl OrchestratorContext {
                 profile_id,
                 refs,
             )
+            .await
+    }
+
+    pub(crate) async fn earliest_current_profile_evidence_chapter(
+        &self,
+        root_project_id: i64,
+        profile_kind: TextAnchorProfileKind,
+        profile_id: i64,
+    ) -> Result<Option<i32>, AppError> {
+        self.text_anchor
+            .earliest_current_profile_evidence_chapter(root_project_id, profile_kind, profile_id)
             .await
     }
 }

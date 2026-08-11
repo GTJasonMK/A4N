@@ -21,7 +21,7 @@ pub async fn create_project(
     let description = optional_text(input.description.as_deref());
     let project_type = required_optional_text(input.project_type.as_deref(), "项目类型")?;
     let project = state
-        .project_mutation()
+        .orchestrator()
         .create_project_validated(
             user_id,
             title.to_string(),
@@ -41,17 +41,17 @@ pub async fn create_derived_project(
     let title = required_text(&input.title, "项目标题")?;
     let description = required_optional_text(input.description.as_deref(), "项目简介")?;
     let root = state
-        .collaboration()
+        .orchestrator()
         .collaboration_root_project(input.root_project_id)
         .await
         .map_err(|error| error.to_string())?;
     state
-        .collaboration()
+        .orchestrator()
         .verify_project_permission(input.root_project_id, user_id, ProjectAccessRole::Editor)
         .await
         .map_err(|error| error.to_string())?;
     let project = state
-        .project_mutation()
+        .orchestrator()
         .create_derived_project_validated(
             root.user_id,
             CreateDerivedProjectParams {
@@ -79,7 +79,7 @@ pub async fn create_freeform_video_project(
     let title = required_text(&input.title, "项目标题")?;
     let description = optional_text(input.description.as_deref());
     let project = state
-        .project_mutation()
+        .orchestrator()
         .create_freeform_video_project_validated(
             user_id,
             CreateFreeformVideoProjectParams {
@@ -100,7 +100,7 @@ pub async fn update_project(
 ) -> Result<ProjectSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let project = state
-        .project_mutation()
+        .orchestrator()
         .update_project_validated(project_id, input.title, input.description)
         .await
         .map_err(app_error_message)?;

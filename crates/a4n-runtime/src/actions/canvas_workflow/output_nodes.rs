@@ -1,15 +1,13 @@
 use a4n_core::models::canvas::canvas_node;
 use a4n_orchestrator::canvas::CanvasOutputNodeExecutionInput;
 
-use crate::state::CanvasRuntimeFacade;
-
 use super::{
     CanvasGraphDocument, CanvasRunSummary,
     node_lifecycle::{CanvasRunHandle, runtime_summary},
 };
 
 pub(in crate::actions::canvas_workflow) async fn run_canvas_output_node(
-    canvas: &CanvasRuntimeFacade<'_>,
+    canvas: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     graph_id: i64,
     node: &canvas_node::Model,

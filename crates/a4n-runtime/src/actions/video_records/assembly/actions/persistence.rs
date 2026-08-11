@@ -32,7 +32,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => Err(append_secondary_error(
             error,
-            delete_video_record_error(&state.video(), record_id).await,
+            delete_video_record_error(state.orchestrator(), record_id).await,
         )),
     }
 }

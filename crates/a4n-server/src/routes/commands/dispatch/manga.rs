@@ -7,7 +7,7 @@ pub(super) async fn try_dispatch(
     cmd: &str,
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
-        "list_manga_panels" => list_manga_panels(state, user_id, args).await?,
+        "list_manga_page_prompts" => list_manga_page_prompts(state, user_id, args).await?,
         "bind_manga_reference_image" => bind_manga_reference_image(state, user_id, args).await?,
         "update_manga_prompt" => update_manga_prompt(state, user_id, args).await?,
         "optimize_manga_prompt" => optimize_manga_prompt(state, user_id, args).await?,

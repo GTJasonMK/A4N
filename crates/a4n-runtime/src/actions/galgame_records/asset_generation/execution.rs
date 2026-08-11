@@ -4,7 +4,6 @@ use super::{
 };
 use crate::actions::{image_generation, portrait_generation};
 use crate::file_utils::canonicalize_data_file_path;
-use crate::prompt_renderer::RuntimePromptRenderer;
 use a4n_core::error::AppError;
 use a4n_orchestrator::{
     galgame::{
@@ -23,7 +22,7 @@ pub async fn plan_galgame_assets(
     input: GalgameProjectInput,
 ) -> Result<GalgameAssetPlan, String> {
     state
-        .galgame()
+        .orchestrator()
         .plan_galgame_assets_for_user_validated(user_id, input.project_id)
         .await
         .map_err(|err| err.to_string())
@@ -36,7 +35,7 @@ pub async fn run_galgame_asset_generation(
 ) -> Result<GalgameAssetGenerationSummary, String> {
     let host_port = RuntimeGalgameAssetGenerationHostPort { state };
     state
-        .galgame()
+        .orchestrator()
         .run_galgame_asset_generation_for_user_validated(&host_port, user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
@@ -54,7 +53,7 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
         variables: &std::collections::HashMap<String, serde_json::Value>,
         project_id: i64,
     ) -> Result<String, AppError> {
-        RuntimePromptRenderer::new(self.state)
+        self.state
             .render_prompt(template_name, variables, Some(project_id))
             .await
             .map_err(|error| AppError::InvalidState {
@@ -78,8 +77,8 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
                 config_id: input.config_id,
                 chapter_id: input.chapter_id,
                 generation_spec_id: input.generation_spec_id,
-                target_kind: input.target_kind,
-                target_entity_kind: input.target_entity_kind,
+                target_kind: input.target_kind.to_string(),
+                target_entity_kind: input.target_entity_kind.to_string(),
                 target_entity_id: input.target_entity_id,
                 workflow_run_id: None,
             },
@@ -102,7 +101,7 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
                 character_name: input.character_name,
                 style: Some(input.style),
                 expressions: Some(vec![input.expression]),
-                pose: input.pose,
+                pose: Some(input.pose),
                 reference_image_ids: input.reference_image_ids,
             },
         )

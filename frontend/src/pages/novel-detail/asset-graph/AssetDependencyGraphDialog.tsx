@@ -142,10 +142,6 @@ export const AssetDependencyGraphDialog: React.FC<
   }, [loadGraph, open]);
 
   useEffect(() => {
-    if (!open) setPromptViewer(null);
-  }, [open]);
-
-  useEffect(() => {
     if (!open) return undefined;
     const handleThemeApplied = () => setThemeVersion((version) => version + 1);
     window.addEventListener(THEME_APPLIED_EVENT, handleThemeApplied);

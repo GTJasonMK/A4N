@@ -11,10 +11,12 @@ interface SynopsisCardProps {
   blueprint: Blueprint | null;
   loading: boolean;
   refining: boolean;
+  aggregating: boolean;
   canEditBlueprint: boolean;
   onOpenSynopsis: () => void;
   onRefine: () => void;
   onEditBlueprint: () => void;
+  onAggregateBlueprint: () => void;
   onCreateBlueprint: () => void;
 }
 
@@ -22,10 +24,12 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
   blueprint,
   loading,
   refining,
+  aggregating,
   canEditBlueprint,
   onOpenSynopsis,
   onRefine,
   onEditBlueprint,
+  onAggregateBlueprint,
   onCreateBlueprint,
 }) => (
   <BookCard className="flex min-h-0 flex-col overflow-hidden">
@@ -35,7 +39,7 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
         <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
           {blueprint
             ? [blueprint.genre, blueprint.tone].filter(Boolean).join(" · ") || "蓝图核心叙事摘要"
-            : "从灵感对话建立故事蓝图"}
+            : "从现有资料归纳、直接录入或从灵感对话开始"}
         </p>
       </div>
       {blueprint ? (
@@ -46,7 +50,19 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
                 {
                   label: "编辑蓝图",
                   onClick: onEditBlueprint,
-                  disabled: refining,
+                  disabled: refining || aggregating,
+                },
+                {
+                  label: aggregating
+                    ? "正在依据当前资料更新…"
+                    : "依据当前资料更新蓝图",
+                  icon: aggregating ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Sparkles size={12} />
+                  ),
+                  onClick: onAggregateBlueprint,
+                  disabled: refining || aggregating,
                 },
                 {
                   label: refining ? "正在优化蓝图…" : "优化蓝图",
@@ -56,7 +72,7 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
                     <Sparkles size={12} />
                   ),
                   onClick: onRefine,
-                  disabled: refining,
+                  disabled: refining || aggregating,
                 },
               ]}
             />
@@ -82,13 +98,36 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
         canEditBlueprint ? (
           <div className="flex h-full min-h-28 flex-col items-center justify-center gap-3 text-center">
             <p className="max-w-md text-xs leading-relaxed text-book-text-muted">
-              已有设定可以直接录入正式蓝图；只有想法时再从灵感对话开始。
+              已有正文或设定可以直接归纳正式蓝图；也可以手工录入。只有想法时再从灵感对话开始。
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              <BookButton size="sm" onClick={onEditBlueprint}>
+              <BookButton
+                size="sm"
+                disabled={aggregating}
+                onClick={onAggregateBlueprint}
+              >
+                {aggregating ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <LoadingSpinner size="sm" /> 正在归纳…
+                  </span>
+                ) : (
+                  "依据现有资料归纳蓝图"
+                )}
+              </BookButton>
+              <BookButton
+                variant="secondary"
+                size="sm"
+                disabled={aggregating}
+                onClick={onEditBlueprint}
+              >
                 直接录入蓝图
               </BookButton>
-              <BookButton variant="secondary" size="sm" onClick={onCreateBlueprint}>
+              <BookButton
+                variant="secondary"
+                size="sm"
+                disabled={aggregating}
+                onClick={onCreateBlueprint}
+              >
                 开始灵感对话
               </BookButton>
             </div>

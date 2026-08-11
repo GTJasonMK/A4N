@@ -78,7 +78,7 @@ async fn disabled_vector_store_keeps_reads_explicit_and_drop_idempotent() {
     let store = DisabledVectorStore::new(RuntimeProfile::Minimal);
 
     let err = store
-        .list_collections()
+        .metadata_by_ids("missing", &["missing".to_string()])
         .await
         .expect_err("disabled RAG must fail visibly");
 

@@ -7,7 +7,13 @@ pub(super) async fn try_dispatch(
     cmd: &str,
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
-        "get_user" => get_user(state, user_id, args).await?,
+        "list_all_users" => admin::list_all_users(state, user_id, args).await?,
+        "create_user" => admin::create_user(state, user_id, args).await?,
+        "list_invite_codes" => admin::list_invite_codes(state, user_id, args).await?,
+        "create_invite_code" => admin::create_invite_code(state, user_id, args).await?,
+        "update_user_role" => admin::update_user_role(state, user_id, args).await?,
+        "disable_user" => admin::disable_user(state, user_id, args).await?,
+        "get_current_user" => get_current_user(state, user_id, args).await?,
         "update_user_profile" => update_user_profile(state, user_id, args).await?,
         "change_user_password" => change_user_password(state, user_id, args).await?,
         "list_sessions" => list_sessions(state, user_id, args).await?,
@@ -21,10 +27,6 @@ pub(super) async fn try_dispatch(
         "prompt_version_diff" => prompt_version_diff(state, user_id, args).await?,
         "prompt_validate_variables" => prompt_validate_variables(state, user_id, args).await?,
         "prompt_render_ab" => prompt_render_ab(state, user_id, args).await?,
-        "prompt_get_dependencies" => prompt_get_dependencies(state, user_id, args).await?,
-        "prompt_get_reverse_dependencies" => {
-            prompt_get_reverse_dependencies(state, user_id, args).await?
-        }
         "prompt_list_categories" => prompt_list_categories(state, user_id, args).await?,
         "get_user_usage" => admin::get_user_usage(state, user_id, args).await?,
         "get_token_summary" => admin::get_token_summary(state, user_id, args).await?,
@@ -81,17 +83,12 @@ pub(super) async fn try_dispatch(
         "preview_send_optimization_message_request" => {
             preview_send_optimization_message_request(state, user_id, args).await?
         }
-        "import_uploaded_file" => import_uploaded_file(state, user_id, args).await?,
+        "import_project_text_upload" => import_project_text_upload(state, user_id, args).await?,
         "list_import_queue" => list_import_queue(state, user_id, args).await?,
-        "start_import_analysis" => start_import_analysis(state, user_id, args).await?,
-        "update_import_status" => update_import_status(state, user_id, args).await?,
         "delete_import_review" => delete_import_review(state, user_id, args).await?,
-        "get_import_review" => get_import_review(state, user_id, args).await?,
         "accept_import_review" => accept_import_review(state, user_id, args).await?,
-        "modify_import_review" => modify_import_review(state, user_id, args).await?,
         "reject_import_review" => reject_import_review(state, user_id, args).await?,
         "batch_accept_reviews" => batch_accept_reviews(state, user_id, args).await?,
-        "get_import_analysis_status" => get_import_analysis_status(state, user_id, args).await?,
         "cancel_import_analysis" => cancel_import_analysis(state, user_id, args).await?,
         "check_import_dedup" => check_import_dedup(state, user_id, args).await?,
         "export_txt_data" => export_txt_data(state, user_id, args).await?,

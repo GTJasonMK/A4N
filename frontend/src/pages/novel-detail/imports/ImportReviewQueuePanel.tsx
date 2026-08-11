@@ -2,8 +2,8 @@ import React from "react";
 import { Check, CheckCheck, Eye, Sparkles, Square, Trash2, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type {
-  ImportAnalysisStatus,
   ImportReview,
+  ImportReviewStatus,
   ProjectImportAnalysisProgress,
 } from "../../../api/import";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
@@ -18,7 +18,6 @@ export type ReviewAction = "accept" | "reject" | "delete";
 interface ImportReviewQueuePanelProps {
   reviews: ImportReview[];
   loading: boolean;
-  analysis: ImportAnalysisStatus[];
   projectProgress: ProjectImportAnalysisProgress | null;
   selected: Set<number>;
   analyzeBusy: boolean;
@@ -39,7 +38,6 @@ interface ImportReviewQueuePanelProps {
 export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   reviews,
   loading,
-  analysis,
   projectProgress,
   selected,
   analyzeBusy,
@@ -73,7 +71,12 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   const reviewActionBusy = actBusy !== null;
   const reviewSelectionLocked =
     batchBusy || reviewActionBusy || externalBusy || analysisStatus === "analyzing";
-  const visibleAnalysis = analysis.filter((item) => item.count > 0);
+  const visibleAnalysis = Object.entries(
+    reviews.reduce<Partial<Record<ImportReviewStatus, number>>>((counts, review) => {
+      counts[review.review_status] = (counts[review.review_status] ?? 0) + 1;
+      return counts;
+    }, {}),
+  ).map(([status, count]) => ({ status: status as ImportReviewStatus, count }));
 
   return (
     <section className="space-y-3">
@@ -210,17 +213,17 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
         <EmptyHint text={loading ? "加载中…" : "暂无待审核内容。"} />
       ) : (
         <ul className="grid gap-2">
-          {reviews.map((review) => (
-            <li
-              key={review.id}
-              className="a4n-flat-surface p-3 text-xs"
-            >
+          {reviews.map((review) => {
+            const reviewSelectable =
+              review.review_status === "pending" && !reviewSelectionLocked;
+            return (
+            <li key={review.id} className="a4n-flat-surface p-3 text-xs">
               <div className="flex flex-wrap items-start gap-2">
                 <button
                   type="button"
                   aria-pressed={selected.has(review.id)}
                   aria-label={`选择 ${review.filename}`}
-                  disabled={reviewSelectionLocked}
+                  disabled={!reviewSelectable}
                   onClick={() => onToggleSelect(review.id)}
                   className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border transition-colors focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-50 ${
                     selected.has(review.id)
@@ -242,24 +245,20 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                       {review.filename}
                     </span>
                     <span className="mt-1 block text-small text-book-text-muted">
-                      {review.file_type.toUpperCase()} · {getOperationStatusLabel(review.review_status)} ·{" "}
-                      {review.parsed_chapters} 章
-                      {review.dedup_rate != null
-                        ? ` · 去重 ${(review.dedup_rate * 100).toFixed(0)}%`
-                        : ""}
+                      {getOperationStatusLabel(review.review_status)}
                     </span>
                   </button>
                 </div>
                 {!reviewSelectionLocked ? (
                   <Dropdown
                     items={[
-                      ...(review.review_status !== "accepted"
-                        ? [{ label: "接受审核", icon: <Check size={12} />, onClick: () => void onAct(review.id, "accept") }]
+                      ...(review.review_status === "pending"
+                        ? [
+                            { label: "接受审核", icon: <Check size={12} />, onClick: () => void onAct(review.id, "accept") },
+                            { label: "拒绝审核", icon: <X size={12} />, onClick: () => void onAct(review.id, "reject") },
+                            { type: "divider" as const },
+                          ]
                         : []),
-                      ...(review.review_status !== "rejected"
-                        ? [{ label: "拒绝审核", icon: <X size={12} />, onClick: () => void onAct(review.id, "reject") }]
-                        : []),
-                      { type: "divider" as const },
                       {
                         label: "删除审核记录",
                         icon: <Trash2 size={12} />,
@@ -271,7 +270,8 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                 ) : null}
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

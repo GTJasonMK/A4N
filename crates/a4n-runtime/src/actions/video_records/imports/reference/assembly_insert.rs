@@ -51,7 +51,7 @@ async fn create_assembly_insert_video(
     let properties = probe_video_properties(&source.path, "插入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video()
+        .orchestrator()
         .create_imported_assembly_insert_video_record_validated(
             project_id,
             chapter_id,
@@ -71,7 +71,7 @@ async fn create_assembly_insert_video(
         .map_err(app_error_message)?;
 
     let (output, output_path_str) = persist_imported_video_file(
-        &state.video(),
+        state.orchestrator(),
         state.data_dir(),
         record.id,
         &source.path,

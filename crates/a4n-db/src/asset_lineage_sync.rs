@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use a4n_core::models::{
     ai::{generated_image, generated_video},
-    chapter::{chapter_manga_prompt, chapter_video_prompt},
+    chapter::{
+        chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
+        chapter_video_prompt,
+    },
     project::{project_source_snapshot, source_snapshot_chapter},
 };
 use sea_orm::{
@@ -22,8 +25,6 @@ use persistence::{
 };
 
 const CANONICAL_SCHEMA_VERSION: u64 = 1;
-const PIPELINE_STATUS_PROMPT_TYPE: &str = "pipeline_status";
-const MANGA_PAGE_PROMPT_TYPE: &str = "page_generation";
 const PROJECT_KIND_TEXT: &str = "text";
 const SOURCE_MODE_SELF: &str = "self";
 const SOURCE_MODE_FREEFORM: &str = "freeform";

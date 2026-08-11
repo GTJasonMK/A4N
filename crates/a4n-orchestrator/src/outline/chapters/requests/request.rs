@@ -85,6 +85,7 @@ pub(in crate::outline::chapters) fn build_context_aware_chapter_outline_request(
         input_fingerprint_sha256: Some(source_content_sha256(&serde_json::to_string(&json!({
             "blueprint_context": context.blueprint_payload,
             "part_outlines": context.parts.iter().map(part_context_json).collect::<Vec<_>>(),
+            "source_snapshot_sha256": source_content_sha256(&serde_json::to_string(&context.source_snapshot)?),
             "range": {
                 "start_chapter": start_chapter,
                 "count": count,

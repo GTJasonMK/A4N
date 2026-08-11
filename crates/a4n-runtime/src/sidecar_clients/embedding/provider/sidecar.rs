@@ -164,8 +164,4 @@ impl EmbeddingProvider for SidecarEmbeddingProvider {
         let model = self.resolve_default_model().await?;
         self.embed_via_sidecar(model, texts).await
     }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        self.embed_one("测试".to_string()).await.map(|_| true)
-    }
 }

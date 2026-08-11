@@ -4,8 +4,9 @@ use super::super::{
     sync_types::{CHARACTER_PROFILE_SYNC_STEPS, CharacterProgressScope},
 };
 use crate::{
-    AppState, actions::access, prompt_renderer::RuntimePromptRenderer,
-    sidecar_clients::scope_rag_operation_trace,
+    AppState,
+    actions::access,
+    sidecar_clients::{rag_operation_timestamp, scope_rag_operation_trace},
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::character::{
@@ -47,9 +48,9 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
         CHARACTER_PROFILE_SYNC_STEPS,
         &format!("{display_name}：正在读取角色档案和可同步章节"),
     )?;
-    let trace_id = character_profile_sync_rag_trace_id(&input);
+    let trace_id = character_profile_sync_rag_trace_id(&input)?;
     scope_rag_operation_trace(trace_id, async {
-        let prompt_renderer = RuntimePromptRenderer::new(state);
+        let prompt_renderer = state;
         let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
         let report_progress = |current: u32, total: u32, message: &str| {
             progress.report(current, total, message).map_err(|error| {
@@ -64,10 +65,10 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
             })
         };
         state
-            .character()
+            .orchestrator()
             .run_character_profile_sync_validated(
                 input,
-                &prompt_renderer,
+                prompt_renderer,
                 Some(CharacterProfileSyncProgress {
                     reporter: Some(&report_progress),
                     active_task_id: progress.progress.and_then(|progress| progress.task_id),
@@ -80,7 +81,9 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
     .await
 }
 
-fn character_profile_sync_rag_trace_id(input: &CharacterProfileSyncApplicationInput) -> String {
+fn character_profile_sync_rag_trace_id(
+    input: &CharacterProfileSyncApplicationInput,
+) -> Result<String, String> {
     let subject = match &input.subject {
         CharacterProfileSyncSubject::ByName { project_id, name } => {
             format!("{project_id}:name:{name}")
@@ -89,11 +92,9 @@ fn character_profile_sync_rag_trace_id(input: &CharacterProfileSyncApplicationIn
             format!("{}:profile:{}", profile.project_id, profile.id)
         }
     };
-    let timestamp = chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros());
-    format!(
+    Ok(format!(
         "character_profile_sync:{subject}:{}:{timestamp}",
-        input.target_chapter
-    )
+        input.target_chapter,
+        timestamp = rag_operation_timestamp()?,
+    ))
 }

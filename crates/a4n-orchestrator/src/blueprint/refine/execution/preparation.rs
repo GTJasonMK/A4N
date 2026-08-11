@@ -22,16 +22,29 @@ pub(super) async fn prepare_blueprint_refine(
     prompt_renderer: &dyn PromptRenderer,
     variables: &HashMap<String, Value>,
 ) -> Result<PreparedBlueprintRefine, AppError> {
-    let blueprint = context
-        .load_blueprint(project_id)
-        .await?
+    let source_rows = a4n_db::outline::load_outline_generation_source_rows(
+        context.database.connection(),
+        project_id,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+    if source_rows.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
+        return Err(AppError::InvalidState {
+            current: source_rows.project.lifecycle_gate.clone(),
+            operation: "优化故事蓝图".to_string(),
+        });
+    }
+    let expected_source_snapshot =
+        a4n_db::outline::outline_generation_source_snapshot(&source_rows);
+    let blueprint = source_rows
+        .blueprint
+        .clone()
         .ok_or_else(|| AppError::NotFound("蓝图不存在".to_string()))?;
-    let characters = context.load_blueprint_characters(project_id).await?;
-    let relationships = context.load_blueprint_relationships(project_id).await?;
-    let blueprint_context = blueprint_llm_context(&blueprint, &characters, &relationships);
-    let next_version = context
-        .next_blueprint_version(project_id, Some(blueprint.current_version.as_str()))
-        .await?;
+    let blueprint_context = blueprint_llm_context(
+        &blueprint,
+        &source_rows.blueprint_characters,
+        &source_rows.blueprint_relationships,
+    );
 
     let prompt_content = prompt_renderer
         .render_prompt("blueprint_optimization", variables, Some(project_id))
@@ -54,6 +67,7 @@ pub(super) async fn prepare_blueprint_refine(
             "blueprint_id": blueprint.id,
             "current_version": &blueprint.current_version,
             "blueprint_context": &blueprint_context,
+            "source_snapshot": &expected_source_snapshot,
         },
     });
     let call_key = format!("blueprint_refine:project:{project_id}");
@@ -92,8 +106,7 @@ pub(super) async fn prepare_blueprint_refine(
         .map_err(workflow_write_app_error)?;
 
     Ok(PreparedBlueprintRefine {
-        blueprint,
-        next_version,
+        expected_source_snapshot,
         request,
         input_fingerprint_json,
         call_key,

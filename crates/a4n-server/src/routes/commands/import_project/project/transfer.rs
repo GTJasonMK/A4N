@@ -5,11 +5,6 @@ use crate::routes::commands::{ApiError, command_input, project_transfer_actions}
 use crate::state::ServerState;
 use serde_json::Value;
 
-project_web_input_summary_command!(
-    import_project_full_upload,
-    project_transfer_actions::ImportProjectFullUploadInput,
-    project_transfer_actions::import_project_full_upload
-);
 project_web_input_value_command!(
     export_project_family_data,
     project_transfer_actions::ExportProjectFamilyDataInput,
@@ -31,7 +26,7 @@ pub(in crate::routes::commands) async fn import_project_family_upload(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: project_transfer_actions::ImportProjectFamilyUploadInput =
+    let input: project_transfer_actions::ImportProjectPackageUploadInput =
         command_input(args, "import_project_family_upload")?;
     let projects =
         project_transfer_actions::import_project_family_upload(state.runtime(), user_id, input)
@@ -42,6 +37,6 @@ pub(in crate::routes::commands) async fn import_project_family_upload(
 
 project_web_input_summary_command!(
     import_video_studio_project_upload,
-    project_transfer_actions::ImportVideoStudioProjectUploadInput,
+    project_transfer_actions::ImportProjectPackageUploadInput,
     project_transfer_actions::import_video_studio_project_upload
 );

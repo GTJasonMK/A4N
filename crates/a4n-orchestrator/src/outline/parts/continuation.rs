@@ -5,7 +5,7 @@ use a4n_core::models::chapter::part_outline;
 use a4n_llm::provider::ChatRequest;
 use chrono::Utc;
 
-use crate::outline::context::load_part_generation_context;
+use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
 use crate::outline::part_contract::{
     ensure_continue_part_request, ensure_no_part_outline_conflict, insert_part_outline_from_json,
     validate_part_outline_request,
@@ -53,14 +53,21 @@ impl OrchestratorContext {
                 requested_part_count: 1,
                 blueprint_context: &context.blueprint_payload,
                 previous_parts: &context.parts,
+                source_snapshot: &context.source_snapshot,
                 prompt_renderer,
                 variables,
                 workflow_run_id,
             })
             .await?;
         let now = Utc::now().naive_utc();
-        let part = insert_part_outline_from_json(
+        let tx = lock_outline_generation_sources(
             self.database.connection(),
+            project_id,
+            &context.source_snapshot,
+        )
+        .await?;
+        let part = insert_part_outline_from_json(
+            &tx,
             project_id,
             part_number,
             start_chapter,
@@ -69,8 +76,9 @@ impl OrchestratorContext {
             now,
         )
         .await?;
-        self.record_part_outline_generation_run(&part, &generated, "续写分部大纲")
+        self.record_part_outline_generation_run(&tx, &part, &generated, "续写分部大纲")
             .await?;
+        tx.commit().await.map_err(AppError::Database)?;
         Ok(part)
     }
 
@@ -104,6 +112,7 @@ impl OrchestratorContext {
             requested_part_count: 1,
             blueprint_context: &context.blueprint_payload,
             previous_parts: &context.parts,
+            source_snapshot: &context.source_snapshot,
             prompt_renderer,
             variables,
         })

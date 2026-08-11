@@ -1,8 +1,8 @@
 use a4n_core::{error::AppError, models::ai::video_gen_config};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 
 use super::contracts::{VideoConfigCreateRecordInput, VideoConfigUpdateRecordInput};
@@ -93,29 +93,6 @@ where
     active.default_fps = Set(input.default_fps);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
-}
-
-pub async fn set_default_video_config_record(
-    db: &DatabaseConnection,
-    model: video_gen_config::Model,
-) -> Result<video_gen_config::Model, AppError> {
-    let txn = db.begin().await.map_err(AppError::Database)?;
-    video_gen_config::Entity::update_many()
-        .col_expr(
-            video_gen_config::Column::IsDefault,
-            sea_orm::sea_query::Expr::value(false),
-        )
-        .filter(video_gen_config::Column::IsDefault.eq(true))
-        .exec(&txn)
-        .await
-        .map_err(AppError::Database)?;
-
-    let mut active: video_gen_config::ActiveModel = model.into();
-    active.is_default = Set(true);
-    active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active.update(&txn).await.map_err(AppError::Database)?;
-    txn.commit().await.map_err(AppError::Database)?;
-    Ok(updated)
 }
 
 pub async fn delete_video_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>

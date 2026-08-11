@@ -1,6 +1,6 @@
 use crate::AppState;
 use crate::actions::image_records;
-pub use a4n_core::dependency_conflict::DownstreamConflictStrategy;
+pub use a4n_domain::DownstreamConflictStrategy;
 
 pub(crate) fn parse_downstream_conflict_strategy(
     value: &str,

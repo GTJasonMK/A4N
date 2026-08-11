@@ -4,13 +4,13 @@ use a4n_video::VideoGenerationResult;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::actions::video_generation::VideoGenerationProgress;
-use crate::state::{CollaborationRuntimeFacade, RuntimeProfile};
+use crate::state::RuntimeProfile;
 
 use a4n_orchestrator::video::VIDEO_GENERATION_PROGRESS_TOTAL;
 
 pub(in crate::actions) async fn video_sidecar_root_project_id(
     runtime_profile: RuntimeProfile,
-    collaboration: &CollaborationRuntimeFacade<'_>,
+    collaboration: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
 ) -> Result<Option<i64>, String> {
     if !runtime_profile.uses_sidecars() {

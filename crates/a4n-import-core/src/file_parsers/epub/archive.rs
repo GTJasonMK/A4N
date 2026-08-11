@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ImportTransformError;
 
 use super::helpers::order_epub_html_entries;
@@ -9,8 +7,7 @@ mod entries;
 use entries::scan_epub_entries;
 
 pub(super) struct EpubArchiveContent {
-    pub metadata: HashMap<String, String>,
-    pub warnings: Vec<String>,
+    pub title: Option<String>,
     pub text_content: String,
 }
 
@@ -20,9 +17,10 @@ pub(super) fn read_epub_archive(data: &[u8]) -> Result<EpubArchiveContent, Impor
         .map_err(|e| ImportTransformError::InvalidDocument(format!("无法打开 EPUB 文件: {e}")))?;
 
     let entries = scan_epub_entries(&mut archive)?;
-    let mut warnings = Vec::new();
     if entries.html_entries.is_empty() {
-        warnings.push("EPUB 中未找到 XHTML/HTML 内容文件。".to_string());
+        return Err(ImportTransformError::InvalidDocument(
+            "EPUB 中未找到 XHTML/HTML 内容文件".to_string(),
+        ));
     }
 
     let mut text_content = String::new();
@@ -32,8 +30,7 @@ pub(super) fn read_epub_archive(data: &[u8]) -> Result<EpubArchiveContent, Impor
     }
 
     Ok(EpubArchiveContent {
-        metadata: entries.metadata,
-        warnings,
+        title: entries.title,
         text_content,
     })
 }

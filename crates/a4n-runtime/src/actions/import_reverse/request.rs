@@ -5,7 +5,6 @@ use crate::actions::request_preview::{
     ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state, model_request_preview,
 };
 use crate::actions::template_variables::parse_template_variables_app_error_from_ref_with_message;
-use crate::prompt_renderer::RuntimePromptRenderer;
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_orchestrator::import_reverse::ReverseEngineerPreviewInput;
@@ -16,14 +15,14 @@ pub(super) async fn build_reverse_request_for_user(
     input: &ReverseEngineerInput,
     target: ReverseEngineeringTarget,
 ) -> Result<ChatRequest, AppError> {
-    super::api::reverse_engineer_task_scope(state, user_id, input, false).await?;
+    super::api::reverse_engineer_task_scope(state, user_id, input).await?;
     let variables = parse_template_variables_app_error_from_ref_with_message(
         input.variables.as_ref(),
         REVERSE_VARIABLES_ERROR,
     )?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     state
-        .import_reverse()
+        .orchestrator()
         .prepare_reverse_engineer_request_validated(ReverseEngineerPreviewInput {
             project_id: input.project_id,
             manual_sample: &input.content_sample,
@@ -31,7 +30,7 @@ pub(super) async fn build_reverse_request_for_user(
             context_limit: input.context_limit,
             variables: &variables,
             target,
-            prompt_renderer: &prompt_renderer,
+            prompt_renderer: prompt_renderer,
         })
         .await
 }

@@ -7,8 +7,8 @@ use a4n_orchestrator::{
         ChapterAnalysisOutputError, ChapterAnalysisResumeBlockReason,
         chapter_analysis_foreshadowing_drafts, chapter_analysis_phase_fingerprint,
         chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
-        chapter_analysis_workflow_business_key, chapter_analysis_workflow_fingerprint,
-        chapter_analysis_workflow_run_input, ensure_chapter_analysis_character_sync_completed,
+        chapter_analysis_run_uses_replacement_commit, chapter_analysis_workflow_business_key,
+        chapter_analysis_workflow_fingerprint, chapter_analysis_workflow_run_input,
         require_completed_chapter_analysis_phase,
     },
     workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING},
@@ -127,6 +127,34 @@ fn resume_input_matches_only_same_chapter_identity() {
         &changed_project
     ));
     assert!(!chapter_analysis_run_input_matches(&None, &chapter));
+
+    let mut changed_version = chapter.clone();
+    changed_version.updated_at += chrono::Duration::seconds(1);
+    assert!(!chapter_analysis_run_input_matches(
+        &fingerprint,
+        &changed_version
+    ));
+}
+
+#[test]
+fn repeated_analysis_uses_distinct_revisions_for_the_same_source() {
+    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let first = chapter_analysis_workflow_run_input(&chapter, "chapter_analysis.facts", None)
+        .input_fingerprint_json
+        .expect("first analysis fingerprint should exist");
+    let second = chapter_analysis_workflow_run_input(&chapter, "chapter_analysis.facts", None)
+        .input_fingerprint_json
+        .expect("second analysis fingerprint should exist");
+
+    assert_ne!(first, second);
+    assert!(chapter_analysis_run_uses_replacement_commit(&Some(
+        first.clone()
+    )));
+    assert!(chapter_analysis_run_input_matches(&Some(first), &chapter));
+    assert!(chapter_analysis_run_input_matches(&Some(second), &chapter));
+    assert!(!chapter_analysis_run_uses_replacement_commit(&Some(
+        chapter_analysis_workflow_fingerprint(&chapter)
+    )));
 }
 
 #[test]
@@ -318,25 +346,6 @@ fn foreshadowing_drafts_keep_invalid_priority_structured() {
         } if description == "优先级异常伏笔 [mystery] 原文: 异常原文"
     ));
     assert!(error.to_string().contains("伏笔优先级非法: urgent"));
-}
-
-#[test]
-fn character_sync_incomplete_preserves_failed_profile_details() {
-    ensure_chapter_analysis_character_sync_completed(&json!({"failed": []}))
-        .expect("empty failure list should complete");
-
-    let error = ensure_chapter_analysis_character_sync_completed(&json!({
-        "status": "completed_with_errors",
-        "failed": [{"name": "林岚", "error": "模型响应缺少字段"}]
-    }))
-    .expect_err("failed profile sync must remain visible");
-
-    assert!(matches!(
-        &error,
-        ChapterAnalysisOutputError::CharacterSyncIncomplete { failed: 1, .. }
-    ));
-    assert!(error.to_string().contains("失败 1 个"));
-    assert!(error.to_string().contains("林岚: 模型响应缺少字段"));
 }
 
 fn workflow_run_row(

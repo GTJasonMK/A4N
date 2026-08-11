@@ -59,13 +59,29 @@ describe("profileFormBaseAttributes", () => {
     expect(
       profileFormFromProfile({
         id: 7,
+        project_id: 3,
         name: "林舟",
+        gender: "女",
+        age: "25",
+        base_attributes: {
+          explicit_attributes: { gender: "女", age: "25", background: "记者" },
+          implicit_attributes: { personality: "克制" },
+          social_attributes: {},
+        },
         last_synced_chapter: 0,
         current_state: {
           explicit_attributes: { gender: "女", age: "25", background: "记者" },
           implicit_attributes: { personality: "克制" },
           social_attributes: {},
         },
+        character_arc: null,
+        voice_fingerprint: null,
+        appearance: null,
+        background: "记者",
+        personality: "克制",
+        attribute_counts: { explicit: 3, implicit: 1, social: 0 },
+        created_at: null,
+        updated_at: null,
       }),
     ).toMatchObject({
       name: "林舟",

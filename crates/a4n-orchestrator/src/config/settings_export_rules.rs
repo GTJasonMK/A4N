@@ -9,148 +9,45 @@ use a4n_core::{
     error::AppError,
 };
 use a4n_llm::provider::normalize_extra_body_json;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
     config::{
-        LLM_MAX_TOKENS_SETTING_KEY, SettingsAllConfigImportCounts, SettingsAllConfigImportInput,
-        SettingsAllEmbeddingConfigImportRow, SettingsAllImageConfigImportRow,
-        SettingsAllImportTableCounts, SettingsAllLlmConfigImportRow,
-        SettingsAllSystemSettingImportRow, SettingsAllThemeImportRow,
-        SettingsAllVideoConfigImportRow,
+        LLM_MAX_TOKENS_SETTING_KEY, SettingsAllConfigImportCounts, SettingsAllEmbeddingConfigRow,
+        SettingsAllImageConfigRow, SettingsAllImportTableCounts, SettingsAllLlmConfigRow,
+        SettingsAllSystemSettingRow, SettingsAllThemeRow, SettingsAllVideoConfigRow,
     },
     video::{VideoConfigParams, validate_video_config_params},
 };
 
+pub const SETTINGS_ALL_FORMAT_VERSION: &str = "3.0";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AllConfigsExport {
     pub version: String,
     pub export_time: String,
-    pub export_type: String,
-    pub llm_configs: Vec<LlmRow>,
-    pub embedding_configs: Vec<EmbeddingRow>,
-    pub image_configs: Vec<ImageRow>,
-    pub video_configs: Vec<VideoRow>,
+    pub llm_configs: Vec<SettingsAllLlmConfigRow>,
+    pub embedding_configs: Vec<SettingsAllEmbeddingConfigRow>,
+    pub image_configs: Vec<SettingsAllImageConfigRow>,
+    pub video_configs: Vec<SettingsAllVideoConfigRow>,
     pub prompts_modified: Vec<PromptRow>,
-    pub themes: Vec<ThemeRow>,
-    pub system_settings: Vec<SystemSettingRow>,
+    pub themes: Vec<SettingsAllThemeRow>,
+    pub system_settings: Vec<SettingsAllSystemSettingRow>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmRow {
-    pub name: String,
-    pub provider: String,
-    pub base_url: String,
-    #[serde(deserialize_with = "deserialize_required_optional_string")]
-    pub api_key_encrypted: Option<String>,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub timeout_secs: i32,
-    pub max_context_tokens: i32,
-    pub max_output_tokens: i32,
-    #[serde(default)]
-    pub extra_body_json: Option<Value>,
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmbeddingRow {
-    pub name: String,
-    pub backend: String,
-    pub base_url: Option<String>,
-    #[serde(deserialize_with = "deserialize_required_optional_string")]
-    pub api_key_encrypted: Option<String>,
-    pub model: String,
-    pub dimension: i32,
-    pub batch_size: i32,
-    pub local_model_path: Option<String>,
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageRow {
-    pub name: String,
-    pub backend: String,
-    pub base_url: Option<String>,
-    #[serde(deserialize_with = "deserialize_required_optional_string")]
-    pub api_key_encrypted: Option<String>,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
-    #[serde(default)]
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VideoRow {
-    pub name: String,
-    pub backend: String,
-    pub base_url: Option<String>,
-    #[serde(deserialize_with = "deserialize_required_optional_string")]
-    pub api_key_encrypted: Option<String>,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
-    pub default_duration_secs: i32,
-    pub min_duration_secs: i32,
-    pub max_duration_secs: i32,
-    pub duration_mode: String,
-    pub supported_durations_json: Option<Value>,
-    pub default_fps: i32,
-    #[serde(default)]
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PromptRow {
     pub name: String,
     pub content: String,
-    pub title: Option<String>,
-    pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThemeRow {
-    pub user_id: Option<i64>,
-    pub name: String,
-    pub mode: String,
-    pub css_variables: Value,
-    pub is_system_default: bool,
-    pub is_active: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SystemSettingRow {
-    pub key: String,
-    pub value: Value,
-    pub category: String,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ImportAllConfigsInput {
-    pub settings_json: String,
-    pub overwrite: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImportAllResult {
-    pub success: bool,
-    pub message: String,
-    pub details: Vec<String>,
-}
-
-/// 导出头 version / export_type 契约。
-pub fn validate_all_configs_export_header(version: &str, export_type: &str) -> Result<(), String> {
-    if version != "2.0" {
-        return Err(format!("version 不匹配：期望 '2.0'，收到 '{version}'"));
-    }
-    if export_type != "all" {
+pub fn validate_all_configs_export_version(version: &str) -> Result<(), String> {
+    if version != SETTINGS_ALL_FORMAT_VERSION {
         return Err(format!(
-            "export_type 不匹配：期望 'all'，收到 '{export_type}'"
+            "version 不匹配：期望 '{SETTINGS_ALL_FORMAT_VERSION}'，收到 '{version}'"
         ));
     }
     Ok(())
@@ -208,7 +105,6 @@ pub fn validate_default_named_rows<T>(
     rows: &[T],
     is_default: impl Fn(&T) -> bool,
     name: impl for<'a> Fn(&'a T) -> &'a str,
-    validate: impl Fn(&str, &T) -> Result<(), String>,
 ) -> Result<(), String> {
     ensure_at_most_one_default(kind, rows.iter().filter(|row| is_default(*row)).count())?;
 
@@ -218,13 +114,12 @@ pub fn validate_default_named_rows<T>(
         let label = format!("{kind} #{}", index + 1);
         let name = required_text(name(row), &label, "name")?;
         ensure_unique_identity(&mut seen_names, &identity_kind, name)?;
-        validate(&label, row)?;
     }
     Ok(())
 }
 
 pub(super) fn validate_all_configs_export(incoming: &AllConfigsExport) -> Result<(), String> {
-    validate_all_configs_export_header(&incoming.version, &incoming.export_type)?;
+    validate_all_configs_export_version(&incoming.version)?;
     validate_provider_rows(incoming)?;
     validate_setting_rows(incoming)
 }
@@ -235,54 +130,19 @@ pub(super) fn normalize_all_configs_export(incoming: &mut AllConfigsExport) -> R
     Ok(())
 }
 
-pub(super) fn settings_all_config_import_input(
-    incoming: &AllConfigsExport,
-    overwrite: bool,
-) -> SettingsAllConfigImportInput {
-    SettingsAllConfigImportInput {
-        overwrite,
-        llm_configs: incoming.llm_configs.iter().map(llm_import_row).collect(),
-        embedding_configs: incoming
-            .embedding_configs
-            .iter()
-            .map(embedding_import_row)
-            .collect(),
-        image_configs: incoming
-            .image_configs
-            .iter()
-            .map(image_import_row)
-            .collect(),
-        video_configs: incoming
-            .video_configs
-            .iter()
-            .map(video_import_row)
-            .collect(),
-        themes: incoming.themes.iter().map(theme_import_row).collect(),
-        system_settings: incoming
-            .system_settings
-            .iter()
-            .map(system_setting_import_row)
-            .collect(),
-    }
-}
-
-pub(super) fn import_result_from_counts(
+pub(super) fn import_details_from_counts(
     counts: SettingsAllConfigImportCounts,
     prompt_imported: usize,
-) -> ImportAllResult {
-    ImportAllResult {
-        success: true,
-        message: "全量导入完成".to_string(),
-        details: vec![
-            import_detail("LLM 配置", counts.llm),
-            import_detail("嵌入配置", counts.embedding),
-            import_detail("图片配置", counts.image),
-            import_detail("视频配置", counts.video),
-            format!("提示词：导入 {prompt_imported}"),
-            import_detail("主题", counts.theme),
-            import_detail("系统设置", counts.system_settings),
-        ],
-    }
+) -> Vec<String> {
+    vec![
+        import_detail("LLM 配置", counts.llm),
+        import_detail("嵌入配置", counts.embedding),
+        import_detail("图片配置", counts.image),
+        import_detail("视频配置", counts.video),
+        format!("提示词：导入 {prompt_imported}"),
+        import_detail("主题", counts.theme),
+        import_detail("系统设置", counts.system_settings),
+    ]
 }
 
 fn validate_provider_rows(incoming: &AllConfigsExport) -> Result<(), String> {
@@ -292,33 +152,18 @@ fn validate_provider_rows(incoming: &AllConfigsExport) -> Result<(), String> {
         &incoming.embedding_configs,
         |row| row.is_default,
         |row| &row.name,
-        |label, row| {
-            a4n_core::config::validate_embedding_config_params(embedding_params_from_row(row))
-                .map(|_| ())
-                .map_err(|error| format!("{label} {error}"))
-        },
     )?;
     validate_default_named_rows(
         "图片配置",
         &incoming.image_configs,
         |row| row.is_default,
         |row| &row.name,
-        |label, row| {
-            a4n_core::config::validate_image_config_params(image_params_from_row(row))
-                .map(|_| ())
-                .map_err(|error| format!("{label} {error}"))
-        },
     )?;
     validate_default_named_rows(
         "视频配置",
         &incoming.video_configs,
         |row| row.is_default,
         |row| &row.name,
-        |label, row| {
-            validate_video_config_params(video_params_from_row(row))
-                .map(|_| ())
-                .map_err(|error| format!("{label} {error}"))
-        },
     )
 }
 
@@ -328,26 +173,23 @@ fn validate_llm_rows(incoming: &AllConfigsExport) -> Result<(), String> {
         &incoming.llm_configs,
         |row| row.is_default,
         |row| &row.name,
-        |label, row| {
-            required_text(&row.provider, label, "provider")?;
-            required_text(&row.base_url, label, "base_url")?;
-            required_text(&row.model, label, "model")?;
-            positive_i32(row.max_concurrent, label, "max_concurrent")?;
-            positive_i32(row.timeout_secs, label, "timeout_secs")?;
-            positive_i32(row.max_context_tokens, label, "max_context_tokens")?;
-            positive_i32(row.max_output_tokens, label, "max_output_tokens")?;
-            if row.max_output_tokens >= row.max_context_tokens {
-                return Err(format!(
-                    "{label} max_output_tokens 必须小于 max_context_tokens"
-                ));
-            }
-            normalize_extra_body_json(row.extra_body_json.clone())
-                .map(|_| ())
-                .map_err(|error| {
-                    format!("{label} extra_body_json 无效：{}", plain_app_error(error))
-                })
-        },
-    )
+    )?;
+    for (index, row) in incoming.llm_configs.iter().enumerate() {
+        let label = format!("LLM 配置 #{}", index + 1);
+        required_text(&row.provider, &label, "provider")?;
+        required_text(&row.base_url, &label, "base_url")?;
+        required_text(&row.model, &label, "model")?;
+        positive_i32(row.max_concurrent, &label, "max_concurrent")?;
+        positive_i32(row.timeout_secs, &label, "timeout_secs")?;
+        positive_i32(row.max_context_tokens, &label, "max_context_tokens")?;
+        positive_i32(row.max_output_tokens, &label, "max_output_tokens")?;
+        if row.max_output_tokens >= row.max_context_tokens {
+            return Err(format!(
+                "{label} max_output_tokens 必须小于 max_context_tokens"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn normalize_provider_rows(incoming: &mut AllConfigsExport) -> Result<(), String> {
@@ -406,18 +248,11 @@ fn validate_setting_rows(incoming: &AllConfigsExport) -> Result<(), String> {
     for (index, row) in incoming.themes.iter().enumerate() {
         let label = format!("主题 #{}", index + 1);
         let name = required_text(&row.name, &label, "name")?;
-        required_text(&row.mode, &label, "mode")?;
-        let scope = row
-            .user_id
-            .map(|user_id| user_id.to_string())
-            .unwrap_or_else(|| "system".to_string());
-        ensure_unique_identity(
-            &mut theme_keys,
-            "主题 user_id/name",
-            format!("{scope}:{name}"),
-        )?;
-        if row.is_active {
-            ensure_unique_identity(&mut active_scopes, "主题 active user_id", &scope)?;
+        if !theme_keys.insert((row.user_id, name.to_string())) {
+            return Err(format!("主题 user_id/name 重复：{:?}/{name}", row.user_id));
+        }
+        if row.is_active && !active_scopes.insert(row.user_id) {
+            return Err(format!("主题 active user_id 重复：{:?}", row.user_id));
         }
     }
 
@@ -440,7 +275,6 @@ fn normalize_setting_rows(incoming: &mut AllConfigsExport) {
     }
     for row in &mut incoming.themes {
         trim_string(&mut row.name);
-        trim_string(&mut row.mode);
     }
     for row in &mut incoming.system_settings {
         trim_string(&mut row.key);
@@ -473,7 +307,7 @@ fn validate_llm_max_tokens_setting(
     Ok(())
 }
 
-fn embedding_params_from_row(row: &EmbeddingRow) -> CreateEmbeddingConfigParams {
+fn embedding_params_from_row(row: &SettingsAllEmbeddingConfigRow) -> CreateEmbeddingConfigParams {
     CreateEmbeddingConfigParams {
         name: row.name.clone(),
         backend: row.backend.clone(),
@@ -486,7 +320,10 @@ fn embedding_params_from_row(row: &EmbeddingRow) -> CreateEmbeddingConfigParams 
     }
 }
 
-fn apply_embedding_params_to_row(row: &mut EmbeddingRow, params: CreateEmbeddingConfigParams) {
+fn apply_embedding_params_to_row(
+    row: &mut SettingsAllEmbeddingConfigRow,
+    params: CreateEmbeddingConfigParams,
+) {
     row.name = params.name;
     row.backend = params.backend;
     row.base_url = params.base_url;
@@ -497,11 +334,11 @@ fn apply_embedding_params_to_row(row: &mut EmbeddingRow, params: CreateEmbedding
     row.local_model_path = params.local_model_path;
 }
 
-fn image_params_from_row(row: &ImageRow) -> CreateImageConfigParams {
+fn image_params_from_row(row: &SettingsAllImageConfigRow) -> CreateImageConfigParams {
     CreateImageConfigParams {
         name: row.name.clone(),
         backend: row.backend.clone(),
-        base_url: row.base_url.clone().unwrap_or_default(),
+        base_url: row.base_url.clone(),
         api_key_encrypted: row.api_key_encrypted.clone(),
         model: row.model.clone(),
         max_concurrent: row.max_concurrent,
@@ -510,10 +347,10 @@ fn image_params_from_row(row: &ImageRow) -> CreateImageConfigParams {
     }
 }
 
-fn apply_image_params_to_row(row: &mut ImageRow, params: CreateImageConfigParams) {
+fn apply_image_params_to_row(row: &mut SettingsAllImageConfigRow, params: CreateImageConfigParams) {
     row.name = params.name;
     row.backend = params.backend;
-    row.base_url = Some(params.base_url);
+    row.base_url = params.base_url;
     row.api_key_encrypted = params.api_key_encrypted;
     row.model = params.model;
     row.max_concurrent = params.max_concurrent;
@@ -521,11 +358,11 @@ fn apply_image_params_to_row(row: &mut ImageRow, params: CreateImageConfigParams
     row.default_height = params.default_height;
 }
 
-fn video_params_from_row(row: &VideoRow) -> VideoConfigParams {
+fn video_params_from_row(row: &SettingsAllVideoConfigRow) -> VideoConfigParams {
     VideoConfigParams {
         name: row.name.clone(),
         backend: row.backend.clone(),
-        base_url: row.base_url.clone().unwrap_or_default(),
+        base_url: row.base_url.clone(),
         api_key_encrypted: row.api_key_encrypted.clone(),
         model: row.model.clone(),
         max_concurrent: row.max_concurrent,
@@ -540,10 +377,10 @@ fn video_params_from_row(row: &VideoRow) -> VideoConfigParams {
     }
 }
 
-fn apply_video_params_to_row(row: &mut VideoRow, params: VideoConfigParams) {
+fn apply_video_params_to_row(row: &mut SettingsAllVideoConfigRow, params: VideoConfigParams) {
     row.name = params.name;
     row.backend = params.backend;
-    row.base_url = Some(params.base_url);
+    row.base_url = params.base_url;
     row.api_key_encrypted = params.api_key_encrypted;
     row.model = params.model;
     row.max_concurrent = params.max_concurrent;
@@ -555,90 +392,6 @@ fn apply_video_params_to_row(row: &mut VideoRow, params: VideoConfigParams) {
     row.duration_mode = params.duration_mode;
     row.supported_durations_json = params.supported_durations_json;
     row.default_fps = params.default_fps;
-}
-
-fn llm_import_row(row: &LlmRow) -> SettingsAllLlmConfigImportRow {
-    SettingsAllLlmConfigImportRow {
-        name: row.name.clone(),
-        provider: row.provider.clone(),
-        base_url: row.base_url.clone(),
-        api_key_encrypted: row.api_key_encrypted.clone(),
-        model: row.model.clone(),
-        max_concurrent: row.max_concurrent,
-        timeout_secs: row.timeout_secs,
-        max_context_tokens: row.max_context_tokens,
-        max_output_tokens: row.max_output_tokens,
-        extra_body_json: row.extra_body_json.clone(),
-        is_default: row.is_default,
-    }
-}
-
-fn embedding_import_row(row: &EmbeddingRow) -> SettingsAllEmbeddingConfigImportRow {
-    SettingsAllEmbeddingConfigImportRow {
-        name: row.name.clone(),
-        backend: row.backend.clone(),
-        base_url: row.base_url.clone(),
-        api_key_encrypted: row.api_key_encrypted.clone(),
-        model: row.model.clone(),
-        dimension: row.dimension,
-        batch_size: row.batch_size,
-        local_model_path: row.local_model_path.clone(),
-        is_default: row.is_default,
-    }
-}
-
-fn image_import_row(row: &ImageRow) -> SettingsAllImageConfigImportRow {
-    SettingsAllImageConfigImportRow {
-        name: row.name.clone(),
-        backend: row.backend.clone(),
-        base_url: row.base_url.clone(),
-        api_key_encrypted: row.api_key_encrypted.clone(),
-        model: row.model.clone(),
-        max_concurrent: row.max_concurrent,
-        default_width: row.default_width,
-        default_height: row.default_height,
-        is_default: row.is_default,
-    }
-}
-
-fn video_import_row(row: &VideoRow) -> SettingsAllVideoConfigImportRow {
-    SettingsAllVideoConfigImportRow {
-        name: row.name.clone(),
-        backend: row.backend.clone(),
-        base_url: row.base_url.clone(),
-        api_key_encrypted: row.api_key_encrypted.clone(),
-        model: row.model.clone(),
-        max_concurrent: row.max_concurrent,
-        default_width: row.default_width,
-        default_height: row.default_height,
-        default_duration_secs: row.default_duration_secs,
-        min_duration_secs: row.min_duration_secs,
-        max_duration_secs: row.max_duration_secs,
-        duration_mode: row.duration_mode.clone(),
-        supported_durations_json: row.supported_durations_json.clone(),
-        default_fps: row.default_fps,
-        is_default: row.is_default,
-    }
-}
-
-fn theme_import_row(row: &ThemeRow) -> SettingsAllThemeImportRow {
-    SettingsAllThemeImportRow {
-        user_id: row.user_id,
-        name: row.name.clone(),
-        mode: row.mode.clone(),
-        css_variables: row.css_variables.clone(),
-        is_system_default: row.is_system_default,
-        is_active: row.is_active,
-    }
-}
-
-fn system_setting_import_row(row: &SystemSettingRow) -> SettingsAllSystemSettingImportRow {
-    SettingsAllSystemSettingImportRow {
-        key: row.key.clone(),
-        value: row.value.clone(),
-        category: row.category.clone(),
-        description: row.description.clone(),
-    }
 }
 
 fn import_detail(label: &str, counts: SettingsAllImportTableCounts) -> String {
@@ -658,13 +411,6 @@ fn plain_app_error(error: AppError) -> String {
     }
 }
 
-fn deserialize_required_optional_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Option::<String>::deserialize(deserializer)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,9 +418,8 @@ mod tests {
 
     fn full_export() -> AllConfigsExport {
         serde_json::from_value(json!({
-            "version": "2.0",
+            "version": "3.0",
             "export_time": "2026-07-23T00:00:00Z",
-            "export_type": "all",
             "llm_configs": [],
             "embedding_configs": [],
             "image_configs": [],
@@ -688,9 +433,8 @@ mod tests {
 
     #[test]
     fn header_and_shared_helpers() {
-        validate_all_configs_export_header("2.0", "all").unwrap();
-        assert!(validate_all_configs_export_header("1.0", "all").is_err());
-        assert!(validate_all_configs_export_header("2.0", "partial").is_err());
+        validate_all_configs_export_version("3.0").unwrap();
+        assert!(validate_all_configs_export_version("2.0").is_err());
 
         ensure_at_most_one_default("主题", 1).unwrap();
         assert!(ensure_at_most_one_default("主题", 2).is_err());
@@ -716,14 +460,10 @@ mod tests {
             PromptRow {
                 name: " prompt ".to_string(),
                 content: "first".to_string(),
-                title: None,
-                description: None,
             },
             PromptRow {
                 name: "prompt".to_string(),
                 content: "second".to_string(),
-                title: None,
-                description: None,
             },
         ];
 
@@ -735,7 +475,7 @@ mod tests {
     #[test]
     fn normalization_reuses_provider_validators() {
         let mut export = full_export();
-        export.llm_configs.push(LlmRow {
+        export.llm_configs.push(SettingsAllLlmConfigRow {
             name: " main ".to_string(),
             provider: " openai ".to_string(),
             base_url: " https://example.com/v1 ".to_string(),
@@ -768,9 +508,10 @@ mod tests {
             "timeout_secs": 30,
             "max_context_tokens": 8192,
             "max_output_tokens": 2048,
+            "extra_body_json": null,
             "is_default": true
         });
 
-        assert!(serde_json::from_value::<LlmRow>(value).is_err());
+        assert!(serde_json::from_value::<SettingsAllLlmConfigRow>(value).is_err());
     }
 }

@@ -23,7 +23,7 @@ pub(in crate::actions::task_records) async fn verify_task_access(
     task_id: &str,
 ) -> Result<(), String> {
     if let Some(task) = state
-        .workflow()
+        .orchestrator()
         .persisted_task_by_id(task_id)
         .await
         .map_err(app_error_message)?

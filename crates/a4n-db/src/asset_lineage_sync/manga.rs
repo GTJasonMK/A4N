@@ -19,15 +19,6 @@ where
     ) else {
         return Ok(None);
     };
-    let Some((target_kind, prompt_kind)) = manga_generation_kinds(&row.prompt_type) else {
-        push_unsupported_prompt_type_warning(
-            summary,
-            "chapter_manga_prompt",
-            row.id,
-            &row.prompt_type,
-        );
-        return Ok(None);
-    };
     let Some(status) = canonical_spec_status(&row.status) else {
         push_unsupported_status_warning(summary, "chapter_manga_prompt", row.id, &row.status);
         return Ok(None);
@@ -39,14 +30,10 @@ where
         "legacy_table": "chapter_manga_prompt",
         "legacy_id": row.id,
         "asset_family": "manga",
-        "prompt_type": row.prompt_type,
         "page_number": row.page_number,
-        "panel_number": row.panel_number,
         "dialogue_text": row.dialogue_text,
         "characters_in_frame": row.characters_in_frame,
         "layout": row.layout,
-        "camera_angle": row.camera_angle,
-        "dialogue_position": row.dialogue_position,
         "generated_image_id": row.generated_image_id,
     });
     let spec = upsert_generation_spec(
@@ -59,7 +46,7 @@ where
             source_snapshot_id: source.source_snapshot_id,
             source_chapter_id: source.source_chapter_id,
             source_snapshot_chapter_id: source.source_snapshot_chapter_id,
-            target_kind: target_kind.to_string(),
+            target_kind: "manga_page".to_string(),
             target_entity_kind: "chapter_manga_prompt".to_string(),
             target_entity_id: Some(row.id),
             status: status.to_string(),
@@ -74,7 +61,7 @@ where
     let artifact = upsert_prompt_artifact(
         db,
         spec.id,
-        prompt_kind,
+        "image_prompt",
         &row.image_prompt,
         row.created_at,
         row.updated_at,

@@ -1,8 +1,8 @@
 import { apiInvoke } from "../index";
-import type { ImportFileResult, ImportUploadedFileInput } from "./types";
+import type { ImportProjectTextUploadInput, ImportReview } from "./types";
 
-export async function importUploadedFile(
-  input: ImportUploadedFileInput,
-): Promise<ImportFileResult> {
-  return apiInvoke<ImportFileResult>("import_uploaded_file", { input });
+export async function importProjectTextUpload(
+  input: ImportProjectTextUploadInput,
+): Promise<ImportReview[]> {
+  return apiInvoke<ImportReview[]>("import_project_text_upload", { input });
 }

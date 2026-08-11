@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::actions::chapter_content::ChapterSummary;
 
 pub const CHAPTER_ANALYSIS_PROGRESS_TOTAL: u32 = 100;
 pub type ChapterAnalysisProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
@@ -7,6 +8,12 @@ pub type ChapterAnalysisProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Sen
 #[serde(deny_unknown_fields)]
 pub struct GenerateChapterAnalysisInput {
     pub chapter_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChapterAnalysisMutationResult {
+    pub chapter: ChapterSummary,
+    pub warnings: Vec<String>,
 }
 
 pub struct ChapterAnalysisProgress<'a> {

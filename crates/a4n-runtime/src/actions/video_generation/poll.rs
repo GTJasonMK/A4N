@@ -6,7 +6,7 @@ pub async fn poll_video_job(
     video_id: i64,
 ) -> Result<GeneratedVideoSummary, String> {
     let video = state
-        .video()
+        .orchestrator()
         .generated_video_by_id(video_id)
         .await
         .map_err(crate::actions::app_error_message)?

@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 use a4n_core::source_spans::SourceSpan;
 use a4n_core::source_spans::resolve_source_span_text;
 
-use super::fields::{reject_manga_unknown_fields, required_manga_string};
+use super::fields::{reject_manga_unknown_fields, required_manga_enum, required_manga_string};
 
 pub(in crate::manga::pipeline_prompt::validation) fn validate_manga_source_span_id_array(
     value: &Value,
@@ -52,11 +52,32 @@ pub(in crate::manga::pipeline_prompt::validation) fn validate_manga_characters_o
             ],
             &item_path,
         )?;
-        required_manga_string(character, "name", &item_path)?;
+        let canonical_name = required_manga_string(character, "name", &item_path)?;
+        if canonical_name != name.trim() {
+            return Err(AppError::InvalidArgument(format!(
+                "{item_path}.name 必须与角色对象 key 一致"
+            )));
+        }
         required_manga_string(character, "appearance", &item_path)?;
         required_manga_string(character, "personality", &item_path)?;
-        required_manga_string(character, "role", &item_path)?;
-        required_manga_string(character, "gender", &item_path)?;
+        required_manga_enum(
+            character,
+            "role",
+            &item_path,
+            &[
+                "protagonist",
+                "antagonist",
+                "supporting",
+                "minor",
+                "background",
+            ],
+        )?;
+        required_manga_enum(
+            character,
+            "gender",
+            &item_path,
+            &["male", "female", "unknown"],
+        )?;
         required_manga_string(character, "age_description", &item_path)?;
         validate_manga_source_span_id_array(
             character,

@@ -1,12 +1,13 @@
+use std::collections::HashMap;
+
 use a4n_core::{
     error::AppError,
     models::chapter::{chapter_outline, part_outline},
-    models::project::novel_blueprint,
 };
 use a4n_db::{
     DbHandle,
     project::{
-        ImportBlueprintUpsertInput, ImportChapterOutlineUpsertInput, ImportPartOutlineUpsertInput,
+        DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
         OutlineGenerationProgressRows, ProjectChapterOutlineUpdateInput,
     },
 };
@@ -42,20 +43,37 @@ impl ProjectOutlineRecordsApplication {
         .map_err(project_outline_record_error_to_app_error)
     }
 
+    async fn formal_chapter_outline_by_project_number(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<Option<chapter_outline::Model>, AppError> {
+        a4n_db::project::formal_chapter_outline_by_project_number(
+            self.database.connection(),
+            project_id,
+            chapter_number,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
+
+    async fn chapter_outline_source_kinds_for_ids(
+        &self,
+        outline_ids: &[i64],
+    ) -> Result<HashMap<i64, String>, AppError> {
+        a4n_db::project::chapter_outline_source_kinds_for_ids(
+            self.database.connection(),
+            outline_ids,
+        )
+        .await
+        .map_err(project_outline_record_error_to_app_error)
+    }
+
     async fn chapter_outline_by_id(
         &self,
         outline_id: i64,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
         a4n_db::project::chapter_outline_by_id(self.database.connection(), outline_id)
-            .await
-            .map_err(project_outline_record_error_to_app_error)
-    }
-
-    async fn upsert_import_chapter_outline(
-        &self,
-        input: ImportChapterOutlineUpsertInput,
-    ) -> Result<chapter_outline::Model, AppError> {
-        a4n_db::project::upsert_import_chapter_outline(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
     }
@@ -71,20 +89,38 @@ impl ProjectOutlineRecordsApplication {
             .map_err(project_chapter_outline_update_error_to_app_error)
     }
 
-    async fn upsert_import_part_outline(
+    async fn save_manual_chapter_outline_validated(
         &self,
-        input: ImportPartOutlineUpsertInput,
-    ) -> Result<part_outline::Model, AppError> {
-        a4n_db::project::upsert_import_part_outline(self.database.connection(), input)
+        input: ManualChapterOutlineSaveInput,
+    ) -> Result<chapter_outline::Model, AppError> {
+        a4n_db::project::save_manual_chapter_outline(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
     }
 
-    async fn upsert_import_blueprint(
+    async fn save_manual_part_outline_validated(
         &self,
-        input: ImportBlueprintUpsertInput,
-    ) -> Result<novel_blueprint::Model, AppError> {
-        a4n_db::project::upsert_import_blueprint(self.database.connection(), input)
+        input: ManualPartOutlineSaveInput,
+    ) -> Result<part_outline::Model, AppError> {
+        a4n_db::project::save_manual_part_outline(self.database.connection(), input)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn delete_latest_part_outline_records_validated(
+        &self,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<(), AppError> {
+        a4n_db::project::delete_latest_part_outline_records(self.database.connection(), input)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn delete_latest_chapter_outline_records_validated(
+        &self,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<(), AppError> {
+        a4n_db::project::delete_latest_chapter_outline_records(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
     }
@@ -137,21 +173,31 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn formal_chapter_outline_by_project_number(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<Option<chapter_outline::Model>, AppError> {
+        self.project_outline_records
+            .formal_chapter_outline_by_project_number(project_id, chapter_number)
+            .await
+    }
+
+    pub async fn chapter_outline_source_kinds_for_ids(
+        &self,
+        outline_ids: &[i64],
+    ) -> Result<HashMap<i64, String>, AppError> {
+        self.project_outline_records
+            .chapter_outline_source_kinds_for_ids(outline_ids)
+            .await
+    }
+
     pub async fn chapter_outline_by_id(
         &self,
         outline_id: i64,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
         self.project_outline_records
             .chapter_outline_by_id(outline_id)
-            .await
-    }
-
-    pub(crate) async fn upsert_import_chapter_outline(
-        &self,
-        input: ImportChapterOutlineUpsertInput,
-    ) -> Result<chapter_outline::Model, AppError> {
-        self.project_outline_records
-            .upsert_import_chapter_outline(input)
             .await
     }
 
@@ -165,21 +211,39 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn upsert_import_part_outline(
+    pub async fn save_manual_chapter_outline_validated(
         &self,
-        input: ImportPartOutlineUpsertInput,
-    ) -> Result<part_outline::Model, AppError> {
+        input: ManualChapterOutlineSaveInput,
+    ) -> Result<chapter_outline::Model, AppError> {
         self.project_outline_records
-            .upsert_import_part_outline(input)
+            .save_manual_chapter_outline_validated(input)
             .await
     }
 
-    pub(crate) async fn upsert_import_blueprint(
+    pub async fn save_manual_part_outline_validated(
         &self,
-        input: ImportBlueprintUpsertInput,
-    ) -> Result<novel_blueprint::Model, AppError> {
+        input: ManualPartOutlineSaveInput,
+    ) -> Result<part_outline::Model, AppError> {
         self.project_outline_records
-            .upsert_import_blueprint(input)
+            .save_manual_part_outline_validated(input)
+            .await
+    }
+
+    pub async fn delete_latest_part_outline_records_validated(
+        &self,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<(), AppError> {
+        self.project_outline_records
+            .delete_latest_part_outline_records_validated(input)
+            .await
+    }
+
+    pub async fn delete_latest_chapter_outline_records_validated(
+        &self,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<(), AppError> {
+        self.project_outline_records
+            .delete_latest_chapter_outline_records_validated(input)
             .await
     }
 
@@ -229,6 +293,12 @@ fn normalize_chapter_outline_update_input(
             "章节大纲 ID 必须大于 0".to_string(),
         ));
     }
+    let expected_updated_at = input.expected_updated_at.trim().to_string();
+    if expected_updated_at.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "缺少章节大纲资料版本，请刷新后重试".to_string(),
+        ));
+    }
     let title = match input.title {
         Some(value) => Some(require_non_empty_outline_text(&value, "title")?),
         None => None,
@@ -248,6 +318,7 @@ fn normalize_chapter_outline_update_input(
     Ok(ProjectChapterOutlineUpdateInput {
         project_id: input.project_id,
         outline_id: input.outline_id,
+        expected_updated_at,
         title,
         summary,
         beats,

@@ -1,4 +1,4 @@
-use super::{command_input, i64_arg, string_arg, to_value, u64_arg};
+use super::{command_input, i64_arg, require_admin_caller, string_arg, to_value, u64_arg};
 use crate::state::ServerState;
 use a4n_runtime::host_api::admin_records as admin_records_actions;
 use serde_json::Value;
@@ -84,10 +84,39 @@ admin_web_json_command!(get_admin_overview, |state, user_id, _args| {
     admin_records_actions::get_admin_overview_for_admin(state.runtime(), user_id).await?
 });
 
-fn require_admin_caller(authenticated_user_id: i64, args: &Value) -> Result<(), ApiError> {
-    let caller_user_id = i64_arg(args, "callerUserId")?;
-    if caller_user_id != authenticated_user_id {
-        return Err(ApiError::forbidden("请求用户与登录用户不一致"));
-    }
-    Ok(())
-}
+admin_web_json_command!(list_all_users, |state, user_id, _args| {
+    admin_records_actions::list_all_users_for_admin(state.runtime(), user_id).await?
+});
+
+admin_web_json_command!(create_user, |state, user_id, args| {
+    let input: admin_records_actions::CreateUserInput = command_input(args, "create_user")?;
+    admin_records_actions::create_user_for_admin(state.runtime(), user_id, input).await?
+});
+
+admin_web_json_command!(list_invite_codes, |state, user_id, _args| {
+    admin_records_actions::list_invite_codes_for_admin(state.runtime(), user_id).await?
+});
+
+admin_web_json_command!(create_invite_code, |state, user_id, args| {
+    let input: admin_records_actions::CreateInviteCodeInput =
+        command_input(args, "create_invite_code")?;
+    admin_records_actions::create_invite_code_for_admin(state.runtime(), user_id, input).await?
+});
+
+admin_web_json_command!(update_user_role, |state, user_id, args| {
+    let target_user_id = i64_arg(args, "userId")?;
+    let input: admin_records_actions::UpdateUserRoleInput =
+        command_input(args, "update_user_role")?;
+    admin_records_actions::update_user_role_for_admin(
+        state.runtime(),
+        user_id,
+        target_user_id,
+        input,
+    )
+    .await?
+});
+
+admin_web_unit_command!(disable_user, |state, user_id, args| {
+    let target_user_id = i64_arg(args, "userId")?;
+    admin_records_actions::disable_user_for_admin(state.runtime(), user_id, target_user_id).await?;
+});

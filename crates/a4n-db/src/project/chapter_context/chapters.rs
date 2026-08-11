@@ -26,12 +26,15 @@ pub async fn character_sync_chapters(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
-    chapter::Entity::find()
+    Ok(chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(ProjectChapterContextError::Database)
+        .map_err(ProjectChapterContextError::Database)?
+        .into_iter()
+        .filter(|chapter| chapter.has_available_content() && !chapter.is_generating())
+        .collect())
 }
 
 pub async fn chapters_before_number(

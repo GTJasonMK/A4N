@@ -11,8 +11,6 @@ pub async fn complete_import_project_analysis(
     project_id: i64,
     progress: &mut Value,
     analyzed_chapters: usize,
-    outlined_chapters: usize,
-    generated_parts: usize,
 ) -> Result<ImportProjectAnalysisSummary, String> {
     finish_import_progress(progress)?;
     save_import_progress(context, project_id, progress).await?;
@@ -24,7 +22,5 @@ pub async fn complete_import_project_analysis(
     Ok(ImportProjectAnalysisSummary {
         progress: progress.clone(),
         analyzed_chapters,
-        outlined_chapters,
-        generated_parts,
     })
 }

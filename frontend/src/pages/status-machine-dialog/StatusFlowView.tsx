@@ -9,8 +9,6 @@ interface StatusFlowViewProps {
 
 export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus }) => {
   const currentIndex = PROJECT_STATUSES.indexOf(currentStatus);
-  const completedSteps = currentIndex + 1;
-  const progress = (completedSteps / PROJECT_STATUSES.length) * 100;
 
   return (
     <section className="a4n-context-bar !block">
@@ -19,16 +17,10 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
         <strong className="truncate text-sm font-semibold text-book-text-main">
           {getProjectStatusText(currentStatus)}
         </strong>
-        <span className="ml-auto shrink-0 text-caption tabular-nums text-book-text-muted">
-          {completedSteps} / {PROJECT_STATUSES.length}
-        </span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-book-bg-tertiary">
-        <div
-          className="h-full rounded-full bg-book-primary/75 transition-[width] duration-300"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
+      <p className="mt-1 text-caption text-book-text-muted">
+        阶段只概括当前已有产物；自由创作可以跳过未建立的蓝图或大纲。
+      </p>
       <details className="group mt-2 text-caption text-book-text-muted">
         <summary className="flex w-fit cursor-pointer list-none items-center gap-1 transition-colors hover:text-book-text-main [&::-webkit-details-marker]:hidden">
           <span>查看完整流程</span>
@@ -39,12 +31,11 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
         </summary>
         <div
           className="a4n-mobile-scroll-rail custom-scrollbar mt-2 max-w-full overflow-x-auto pb-1"
-          aria-label="完整项目阶段流程"
+          aria-label="项目阶段摘要选项"
         >
           <ol className="flex min-w-max flex-nowrap items-baseline gap-x-1.5 leading-relaxed">
             {PROJECT_STATUSES.map((status, index) => {
               const isCurrent = currentIndex === index;
-              const isPast = currentIndex > index;
               return (
                 <React.Fragment key={status}>
                   <li
@@ -52,9 +43,7 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
                     className={`shrink-0 border-b py-0.5 transition-colors ${
                       isCurrent
                         ? "border-book-primary font-semibold text-book-primary"
-                        : isPast
-                          ? "border-transparent text-book-text-muted"
-                          : "border-transparent text-book-text-sub"
+                        : "border-transparent text-book-text-sub"
                     }`}
                   >
                     {getProjectStatusText(status)}

@@ -1,16 +1,16 @@
 use serde_json::json;
 
 use super::super::{
-    GALGAME_PIPELINE_TOTAL_STEPS, GalgameCharacterStaging, GalgameLinePresentationV2,
-    GalgamePipelineBackgroundPlan, GalgamePipelineBeatRefV3, GalgamePipelineEventCgPlan,
-    GalgamePipelineLineDraft, GalgamePipelineLineStaged, GalgamePipelineSceneLineDraft,
-    GalgamePipelineSceneLineStaged, GalgamePipelineStartStage, GalgameScriptAdaptation,
-    GalgameVisualPlan, LINE_TYPE_NARRATION,
+    GALGAME_PIPELINE_TOTAL_STEPS, GalgameCgImportance, GalgameCharacterStaging,
+    GalgameLinePresentationSchemaVersion, GalgameLinePresentationV2, GalgamePipelineBackgroundPlan,
+    GalgamePipelineBeatRefV3, GalgamePipelineEventCgPlan, GalgamePipelineLineDraft,
+    GalgamePipelineLineStaged, GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged,
+    GalgamePipelineStartStage, GalgameScriptAdaptation, GalgameVisualPlan, LINE_TYPE_NARRATION,
 };
 
 fn narration_presentation() -> GalgameLinePresentationV2 {
     GalgameLinePresentationV2 {
-        schema_version: "galgame_line_presentation_v2".to_string(),
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
         visible_cast: Vec::new(),
         enter: Vec::new(),
         exit: Vec::new(),
@@ -235,14 +235,14 @@ fn source_sync_scene_regeneration_visual_plan_rejects_extra_scene_event_cg() {
                 scene_index: 1,
                 line_index: 1,
                 cg_note: "抬头看天".to_string(),
-                importance: "normal".to_string(),
+                importance: GalgameCgImportance::Normal,
                 source_span_ids: vec!["ch1:ta1".to_string()],
             },
             GalgamePipelineEventCgPlan {
                 scene_index: 2,
                 line_index: 1,
                 cg_note: "不能跨场".to_string(),
-                importance: "normal".to_string(),
+                importance: GalgameCgImportance::Normal,
                 source_span_ids: vec!["ch1:ta2".to_string()],
             },
         ],

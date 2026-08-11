@@ -6,20 +6,6 @@ use super::{
     variables::non_empty_trimmed,
     word_count::{ChapterGenerationWordCountRange, format_generation_word_count_requirement},
 };
-use crate::OrchestratorContext;
-
-impl OrchestratorContext {
-    pub async fn required_chapter_generation_outline(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<chapter_outline::Model, String> {
-        self.chapter_outline_by_project_number(project_id, chapter_number)
-            .await
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("项目 {project_id} 第 {chapter_number} 章大纲未找到"))
-    }
-}
 
 fn format_chapter_outline_for_generation(
     outline: &chapter_outline::Model,
@@ -64,14 +50,16 @@ pub fn merge_generation_outline_text(
 ) -> Result<String, String> {
     let mut sections = Vec::new();
     let mut has_outline_source = false;
+    let writing_instruction = writing_instruction.and_then(non_empty_trimmed);
+    let chapter_title = chapter_title
+        .and_then(non_empty_trimmed)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("第{chapter_number}章"));
 
     if let Some(outline) = db_outline {
-        let title = chapter_title
-            .and_then(non_empty_trimmed)
-            .ok_or_else(|| format!("第 {chapter_number} 章缺少标题，无法构建章节生成大纲"))?;
         sections.push(format_chapter_outline_for_generation(
             outline,
-            title,
+            &chapter_title,
             word_count_range,
         )?);
         has_outline_source = true;
@@ -88,11 +76,20 @@ pub fn merge_generation_outline_text(
     }
 
     if !has_outline_source {
-        return Err(format!("第 {chapter_number} 章缺少章节大纲，无法生成正文"));
+        let Some(brief) = writing_instruction else {
+            return Err(format!(
+                "第 {chapter_number} 章缺少可用章节大纲或本章创作简报，无法生成正文"
+            ));
+        };
+        sections.push(format!(
+            "## 当前任务\n章节编号: 第{chapter_number}章\n章节标题: {chapter_title}\n本章创作简报:\n{brief}"
+        ));
     }
 
-    if let Some(instruction) = writing_instruction.map(str::trim).filter(|s| !s.is_empty()) {
-        sections.push(format!("## 写作指令\n{instruction}"));
+    if has_outline_source {
+        if let Some(instruction) = writing_instruction {
+            sections.push(format!("## 写作指令\n{instruction}"));
+        }
     }
 
     if let Some(range) = word_count_range {
@@ -102,11 +99,11 @@ pub fn merge_generation_outline_text(
     Ok(sections.join("\n\n"))
 }
 
-pub fn required_generation_chapter_title(
+pub fn generation_chapter_title(
     chapter_number: i32,
     outline: Option<&chapter_outline::Model>,
     title_hint: Option<&str>,
-) -> Result<String, String> {
+) -> String {
     title_hint
         .and_then(non_empty_trimmed)
         .map(str::to_string)
@@ -116,7 +113,7 @@ pub fn required_generation_chapter_title(
                 .and_then(non_empty_trimmed)
                 .map(str::to_string)
         })
-        .ok_or_else(|| format!("第 {chapter_number} 章缺少标题，无法生成正文"))
+        .unwrap_or_else(|| format!("第{chapter_number}章"))
 }
 
 pub(super) fn push_optional_text(lines: &mut Vec<String>, label: &str, value: Option<&str>) {

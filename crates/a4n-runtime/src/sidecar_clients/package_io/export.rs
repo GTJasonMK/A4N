@@ -1,13 +1,14 @@
 use a4n_capabilities::A4nCapabilities;
 use a4n_export_core::{
-    ExportDocumentKind, ExportRenderJsonInput, ExportRenderJsonOutput, ExportRenderZipInput,
-    ExportRenderZipOutput, ExportZipPackageInput,
+    ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput,
 };
 use serde::Serialize;
 
 use crate::state::RuntimeProfile;
 
-use super::super::{pure_transform_service_request, response_payload, service_error_string};
+use super::super::{
+    pure_transform_typed_service_request, service_error_string, typed_response_payload,
+};
 
 pub(crate) async fn render_export_json(
     profile: RuntimeProfile,
@@ -15,14 +16,14 @@ pub(crate) async fn render_export_json(
     input: ExportRenderJsonInput,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
-) -> Result<ExportRenderJsonOutput, String> {
+) -> Result<String, String> {
     if profile.uses_sidecars() {
         let client = capabilities
             .export
             .clone()
             .ok_or_else(|| "export sidecar capability 未配置，无法执行导出渲染".to_string())?;
         let response = client
-            .render_json(pure_transform_service_request(
+            .render_json(pure_transform_typed_service_request(
                 a4n_service_protocol::EXPORT_RENDER_CAPABILITY_VERSION,
                 input,
                 project_id,
@@ -30,7 +31,7 @@ pub(crate) async fn render_export_json(
             )?)
             .await
             .map_err(service_error_string)?;
-        return response_payload(response, "export");
+        return typed_response_payload(response, "export");
     }
 
     a4n_export_core::render_json(input).map_err(|err| err.to_string())
@@ -54,7 +55,6 @@ where
             profile,
             capabilities,
             ExportRenderJsonInput {
-                kind: ExportDocumentKind::GenericJson,
                 payload,
                 pretty: true,
             },
@@ -62,7 +62,7 @@ where
             root_project_id,
         )
         .await?;
-        return Ok(rendered.content.into_bytes());
+        return Ok(rendered.into_bytes());
     }
 
     a4n_export_core::render_json_manifest_pretty(payload, label).map_err(|err| err.to_string())
@@ -81,7 +81,7 @@ pub(crate) async fn render_export_zip_package(
             .clone()
             .ok_or_else(|| "export sidecar capability 未配置，无法执行 zip 渲染".to_string())?;
         let response = client
-            .render_zip(pure_transform_service_request(
+            .render_zip(pure_transform_typed_service_request(
                 a4n_service_protocol::EXPORT_RENDER_CAPABILITY_VERSION,
                 ExportRenderZipInput::from_package_input(input),
                 project_id,
@@ -89,7 +89,7 @@ pub(crate) async fn render_export_zip_package(
             )?)
             .await
             .map_err(service_error_string)?;
-        let output: ExportRenderZipOutput = response_payload(response, "export")?;
+        let output: ExportRenderZipOutput = typed_response_payload(response, "export")?;
         if output.content_type != "application/zip" {
             return Err(format!(
                 "export sidecar 返回非法 content_type: {}",

@@ -9,20 +9,20 @@ use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 
 use crate::contracts::ModelPayload;
-use crate::protocol::{error_response, result_response, validate_service_request};
+use crate::protocol::{result_response, validate_service_request};
 
 pub(crate) async fn list_models(
-    Json(request): Json<ServiceRequest<ModelPayload>>,
+    Json(request): Json<ServiceRequest<()>>,
 ) -> Json<ServiceResponse<serde_json::Value>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
-    let result = request.payload.validate_operation("list").and_then(|_| {
+    let result = (|| {
         let cache_dir = resolve_cache_dir()?;
         list_fastembed_local_models(&cache_dir).and_then(|models| {
             serde_json::to_value(models).map_err(a4n_core::error::AppError::from)
         })
-    });
+    })();
     Json(result_response(&request, result))
 }
 
@@ -30,10 +30,7 @@ pub(crate) async fn model_download_info(
     Json(request): Json<ServiceRequest<ModelPayload>>,
 ) -> Json<ServiceResponse<serde_json::Value>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    if let Err(error) = request.payload.validate_operation("download_info") {
-        return Json(result_response(&request, Err(error)));
+        return Json(request.error_response(error));
     }
     let result = async {
         let model = request.payload.required_model()?.to_string();
@@ -47,20 +44,16 @@ pub(crate) async fn model_download_info(
 
 pub(crate) async fn delete_model(
     Json(request): Json<ServiceRequest<ModelPayload>>,
-) -> Json<ServiceResponse<serde_json::Value>> {
+) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    if let Err(error) = request.payload.validate_operation("delete") {
-        return Json(result_response(&request, Err(error)));
+        return Json(request.error_response(error));
     }
     let model = match request.payload.required_model() {
         Ok(model) => model,
         Err(error) => return Json(result_response(&request, Err(error))),
     };
-    let result = resolve_cache_dir().and_then(|cache_dir| {
-        delete_fastembed_model(model, &cache_dir).map(|_| serde_json::Value::Null)
-    });
+    let result =
+        resolve_cache_dir().and_then(|cache_dir| delete_fastembed_model(model, &cache_dir));
     Json(result_response(&request, result))
 }
 

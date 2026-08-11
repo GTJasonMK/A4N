@@ -16,7 +16,7 @@ pub use a4n_domain::{
 pub struct ModelDiscoveryInput {
     pub provider: String,
     pub base_url: String,
-    pub api_key_encrypted: Option<String>,
+    pub api_key: Option<String>,
     #[serde(deserialize_with = "deserialize_required_config_id")]
     pub config_id: Option<i64>,
     pub use_saved_api_key: bool,
@@ -227,40 +227,11 @@ pub struct UpdateVideoConfigInput {
     pub default_fps: i32,
 }
 
-pub const USAGE_GUIDE_MAX_CHARS: usize = 100_000;
-pub const USAGE_GUIDE_MAX_BLOCKS: usize = 200;
-pub const USAGE_GUIDE_MAX_IMAGES: usize = 20;
-pub const USAGE_GUIDE_IMAGE_MAX_BYTES: usize = 8 * 1024 * 1024;
-pub const USAGE_GUIDE_IMAGE_MAX_PIXELS: u64 = 40_000_000;
-pub const USAGE_GUIDE_NEW_IMAGES_MAX_BYTES: usize = 20 * 1024 * 1024;
-pub const USAGE_GUIDE_IMAGE_FILE_NAME_MAX_CHARS: usize = 255;
-pub const USAGE_GUIDE_IMAGE_PATH_PREFIX: &str = "usage-guide/images/";
-pub const USAGE_GUIDE_IMAGE_MAX_BASE64_CHARS: usize = USAGE_GUIDE_IMAGE_MAX_BYTES.div_ceil(3) * 4;
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum UsageGuideBlockKind {
-    Text,
-    Image,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct UsageGuideBlock {
-    pub kind: UsageGuideBlockKind,
-    pub text: Option<String>,
-    pub image_path: Option<String>,
-    pub file_name: Option<String>,
-    pub mime_type: Option<String>,
-    #[schemars(length(max = USAGE_GUIDE_IMAGE_MAX_BASE64_CHARS))]
-    pub data_base64: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct UsageGuideDocument {
-    #[schemars(length(max = USAGE_GUIDE_MAX_BLOCKS))]
-    pub blocks: Vec<UsageGuideBlock>,
+pub struct ImportAllConfigsInput {
+    pub settings_json: String,
+    pub overwrite: bool,
 }
 
 fn deserialize_required_config_id<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
@@ -272,7 +243,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{ModelDiscoveryInput, UpdateLlmInput, VideoConfigInput, VideoDurationMode};
+    use super::{
+        ImportAllConfigsInput, ModelDiscoveryInput, UpdateLlmInput, VideoConfigInput,
+        VideoDurationMode,
+    };
     use serde_json::json;
 
     #[test]
@@ -284,11 +258,29 @@ mod tests {
     }
 
     #[test]
+    fn full_config_import_contract_is_strict() {
+        let input: ImportAllConfigsInput = serde_json::from_value(json!({
+            "settings_json": "{}",
+            "overwrite": false
+        }))
+        .unwrap();
+        assert_eq!(input.settings_json, "{}");
+        assert!(
+            serde_json::from_value::<ImportAllConfigsInput>(json!({
+                "settings_json": "{}",
+                "overwrite": false,
+                "legacy_mode": true
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn discovery_scope_fields_are_required() {
         let input: ModelDiscoveryInput = serde_json::from_value(json!({
             "provider": "openai",
             "base_url": "https://example.invalid",
-            "api_key_encrypted": null,
+            "api_key": null,
             "config_id": null,
             "use_saved_api_key": false
         }))
@@ -299,7 +291,7 @@ mod tests {
             serde_json::from_value::<ModelDiscoveryInput>(json!({
                 "provider": "openai",
                 "base_url": "https://example.invalid",
-                "api_key_encrypted": null,
+                "api_key": null,
                 "use_saved_api_key": false
             }))
             .is_err()
@@ -308,7 +300,7 @@ mod tests {
             serde_json::from_value::<ModelDiscoveryInput>(json!({
                 "provider": "openai",
                 "base_url": "https://example.invalid",
-                "api_key_encrypted": null,
+                "api_key": null,
                 "config_id": null
             }))
             .is_err()

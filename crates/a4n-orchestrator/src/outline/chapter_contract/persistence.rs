@@ -76,6 +76,25 @@ pub async fn sync_chapter_outlines_by_number_transaction(
     .map_err(outline_db_error)
 }
 
+pub async fn sync_chapter_outlines_by_number_in<C>(
+    db: &C,
+    project_id: i64,
+    part_id: Option<i64>,
+    chapters: Vec<Value>,
+    now: chrono::NaiveDateTime,
+) -> Result<Vec<chapter_outline::Model>, AppError>
+where
+    C: ConnectionTrait,
+{
+    let mut drafts = Vec::with_capacity(chapters.len());
+    for chapter_json in &chapters {
+        drafts.push(chapter_outline_sync_draft_from_json(chapter_json)?);
+    }
+    outline_db::sync_chapter_outline_records_by_number(db, project_id, part_id, drafts, now)
+        .await
+        .map_err(outline_db_error)
+}
+
 pub async fn insert_chapter_outline_from_json<C>(
     db: &C,
     project_id: i64,
@@ -92,7 +111,20 @@ where
         .map_err(outline_db_error)
 }
 
-pub async fn update_chapter_outline_from_json<C>(
+pub async fn update_chapter_outline_from_json(
+    db: &sea_orm::DatabaseConnection,
+    existing: chapter_outline::Model,
+    part_id: Option<i64>,
+    chapter_json: &Value,
+    now: chrono::NaiveDateTime,
+) -> Result<chapter_outline::Model, AppError> {
+    let draft = chapter_outline_sync_draft_from_json(chapter_json)?;
+    outline_db::update_chapter_outline_record_transaction(db, existing, part_id, &draft, now)
+        .await
+        .map_err(outline_db_error)
+}
+
+pub async fn update_chapter_outline_from_json_in<C>(
     db: &C,
     existing: chapter_outline::Model,
     part_id: Option<i64>,
@@ -111,6 +143,9 @@ where
 pub fn outline_db_error(error: OutlineDbError) -> AppError {
     match error {
         OutlineDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        OutlineDbError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
         OutlineDbError::Database(err) => AppError::Database(err),
         OutlineDbError::Generation(err) => crate::generation::generation_error(err),
     }

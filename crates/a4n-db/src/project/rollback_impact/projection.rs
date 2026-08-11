@@ -1,36 +1,17 @@
-use super::contracts::{ProjectRollbackImpactQuery, ProjectRollbackImpactSummary};
 use super::facts::ProjectRollbackImpactFacts;
+use a4n_core::state::rollback::CleanupAction;
+use a4n_domain::project::ProjectRollbackImpactSummary;
 
 pub(in crate::project::rollback_impact) fn rollback_impacts_from_facts(
-    query: &ProjectRollbackImpactQuery,
+    actions: &[CleanupAction],
     facts: &ProjectRollbackImpactFacts,
 ) -> Result<Vec<ProjectRollbackImpactSummary>, super::contracts::ProjectRollbackImpactReadError> {
     let mut impacts = Vec::new();
 
-    if query.delete_chapters {
+    if actions.contains(&CleanupAction::DeleteChapters) {
         impacts.push(ProjectRollbackImpactSummary {
-            kind: "delete_chapters".to_string(),
             title: "删除章节正文与派生数据".to_string(),
-            tables: vec![
-                "chapters".to_string(),
-                "chapter_manga_prompts".to_string(),
-                "chapter_video_prompts".to_string(),
-                "chapter_scenes".to_string(),
-                "object_profile".to_string(),
-                "scene_profile".to_string(),
-                "scene_occurrence".to_string(),
-                "scene_transition".to_string(),
-                "scene_entity_state".to_string(),
-                "generated_images".to_string(),
-                "generated_videos".to_string(),
-                "task_queue".to_string(),
-                "task_dependency".to_string(),
-                "rag_index".to_string(),
-            ],
-            count: Some(impact_len_i32(
-                facts.chapter_numbers.len(),
-                "章节数量",
-            )?),
+            count: impact_len_i32(facts.chapter_numbers.len(), "章节数量")?,
             chapter_start: facts.chapter_numbers.iter().min().copied(),
             chapter_end: facts.chapter_numbers.iter().max().copied(),
             part_start: None,
@@ -49,12 +30,10 @@ pub(in crate::project::rollback_impact) fn rollback_impacts_from_facts(
         });
     }
 
-    if query.delete_chapter_outlines {
+    if actions.contains(&CleanupAction::DeleteChapterOutlines) {
         impacts.push(ProjectRollbackImpactSummary {
-            kind: "delete_chapter_outlines".to_string(),
             title: "删除章节大纲".to_string(),
-            tables: vec!["chapter_outlines".to_string()],
-            count: Some(impact_len_i32(facts.outline_numbers.len(), "章节大纲数量")?),
+            count: impact_len_i32(facts.outline_numbers.len(), "章节大纲数量")?,
             chapter_start: facts.outline_numbers.iter().min().copied(),
             chapter_end: facts.outline_numbers.iter().max().copied(),
             part_start: None,
@@ -63,12 +42,10 @@ pub(in crate::project::rollback_impact) fn rollback_impacts_from_facts(
         });
     }
 
-    if query.delete_part_outlines {
+    if actions.contains(&CleanupAction::DeletePartOutlines) {
         impacts.push(ProjectRollbackImpactSummary {
-            kind: "delete_part_outlines".to_string(),
             title: "删除分部大纲".to_string(),
-            tables: vec!["part_outlines".to_string()],
-            count: Some(impact_len_i32(facts.part_numbers.len(), "分部大纲数量")?),
+            count: impact_len_i32(facts.part_numbers.len(), "分部大纲数量")?,
             chapter_start: None,
             chapter_end: None,
             part_start: facts.part_numbers.iter().min().copied(),
@@ -77,32 +54,23 @@ pub(in crate::project::rollback_impact) fn rollback_impacts_from_facts(
         });
     }
 
-    if query.delete_blueprint_versions {
+    if actions.contains(&CleanupAction::DeleteBlueprintVersions) {
         impacts.push(ProjectRollbackImpactSummary {
-            kind: "delete_blueprint_versions".to_string(),
             title: "删除蓝图与版本".to_string(),
-            tables: vec![
-                "novel_blueprint".to_string(),
-                "blueprint_version".to_string(),
-                "blueprint_character".to_string(),
-                "blueprint_relationship".to_string(),
-            ],
-            count: Some(
-                [
-                    facts.novel_blueprint_count,
-                    facts.blueprint_version_count,
-                    facts.blueprint_character_count,
-                    facts.blueprint_relationship_count,
-                ]
-                .into_iter()
-                .try_fold(0_i32, |total, count| {
-                    total.checked_add(count).ok_or_else(|| {
-                        super::contracts::ProjectRollbackImpactReadError::InvalidArgument(
-                            "蓝图回滚影响总数超出 i32 范围".to_string(),
-                        )
-                    })
-                })?,
-            ),
+            count: [
+                facts.novel_blueprint_count,
+                facts.blueprint_version_count,
+                facts.blueprint_character_count,
+                facts.blueprint_relationship_count,
+            ]
+            .into_iter()
+            .try_fold(0_i32, |total, count| {
+                total.checked_add(count).ok_or_else(|| {
+                    super::contracts::ProjectRollbackImpactReadError::InvalidArgument(
+                        "蓝图回滚影响总数超出 i32 范围".to_string(),
+                    )
+                })
+            })?,
             chapter_start: None,
             chapter_end: None,
             part_start: None,

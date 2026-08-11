@@ -5,7 +5,7 @@ use super::{
 };
 use a4n_core::{
     models::project::{blueprint_version, novel_blueprint, novel_project},
-    state::validator::StateValidator,
+    state::validator::parse_project_status,
 };
 use a4n_domain::project::ProjectStatus;
 use chrono::{NaiveDateTime, Utc};

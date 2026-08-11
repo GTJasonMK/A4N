@@ -76,25 +76,10 @@ async fn apply_profile_seed_to_existing<C>(
 where
     C: ConnectionTrait,
 {
-    if profile.last_synced_chapter > 0 {
-        return supplement_synced_profile_from_seed(db, profile, seed, now).await;
-    }
-    if profile.base_attributes == seed.base_attributes
-        && profile.current_state == seed.base_attributes
-        && profile.character_arc == seed.character_arc
-    {
-        return Ok(());
-    }
-    let mut active: protagonist_profile::ActiveModel = profile.into();
-    active.base_attributes = Set(seed.base_attributes.clone());
-    apply_profile_current_state(&mut active, seed.base_attributes.clone());
-    active.character_arc = Set(seed.character_arc.clone());
-    active.updated_at = Set(now);
-    active.update(db).await?;
-    Ok(())
+    supplement_profile_from_seed(db, profile, seed, now).await
 }
 
-async fn supplement_synced_profile_from_seed<C>(
+async fn supplement_profile_from_seed<C>(
     db: &C,
     profile: protagonist_profile::Model,
     seed: &BlueprintProfileSeed,

@@ -11,7 +11,7 @@ pub async fn list_behaviors(
 ) -> Result<Vec<BehaviorRecordSummary>, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let records = state
-        .character()
+        .orchestrator()
         .behavior_records_by_profile(
             input.profile_id,
             input.chapter_from,

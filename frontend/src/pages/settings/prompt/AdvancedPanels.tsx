@@ -5,8 +5,6 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
 import {
-  promptGetDependencies,
-  promptGetReverseDependencies,
   promptRender,
   promptRenderAb,
   promptValidateVariables,
@@ -15,26 +13,21 @@ import {
 } from "../../../api/prompt";
 import { PromptProjectSelect } from "./PromptProjectSelect";
 
-export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
+export const PromptAdvancedPanels: React.FC<{
+  prompt: PromptEntry;
+  reverseDependencies: string[];
+}> = ({ prompt, reverseDependencies }) => {
   const { addToast } = useToast();
   const mountedRef = useRef(true);
   const scopeRef = useRef({ name: prompt.name, token: 0 });
-  const graphSeqRef = useRef(0);
   const validateSeqRef = useRef(0);
   const validateInputVersionRef = useRef(0);
   const directRenderSeqRef = useRef(0);
   const abRenderSeqRef = useRef(0);
   const renderInputVersionRef = useRef(0);
-  const graphLoadingRef = useRef(false);
   const validateBusyRef = useRef(false);
   const directRenderBusyRef = useRef(false);
   const abRenderBusyRef = useRef(false);
-
-  // 依赖图
-  const [graphLoading, setGraphLoading] = useState(false);
-  const [graphLoaded, setGraphLoaded] = useState(false);
-  const [deps, setDeps] = useState<string[]>([]);
-  const [reverseDeps, setReverseDeps] = useState<string[]>([]);
 
   // 变量校验
   const [varsInput, setVarsInput] = useState<string>("");
@@ -55,11 +48,9 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      graphSeqRef.current += 1;
       validateSeqRef.current += 1;
       directRenderSeqRef.current += 1;
       abRenderSeqRef.current += 1;
-      graphLoadingRef.current = false;
       validateBusyRef.current = false;
       directRenderBusyRef.current = false;
       abRenderBusyRef.current = false;
@@ -69,20 +60,14 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
   useEffect(() => {
     const token = scopeRef.current.token + 1;
     scopeRef.current = { name: prompt.name, token };
-    graphSeqRef.current += 1;
     validateSeqRef.current += 1;
     validateInputVersionRef.current += 1;
     directRenderSeqRef.current += 1;
     abRenderSeqRef.current += 1;
     renderInputVersionRef.current += 1;
-    graphLoadingRef.current = false;
     validateBusyRef.current = false;
     directRenderBusyRef.current = false;
     abRenderBusyRef.current = false;
-    setGraphLoading(false);
-    setGraphLoaded(false);
-    setDeps([]);
-    setReverseDeps([]);
     setValidateBusy(false);
     setMissingVars(null);
     setAbBusy(false);
@@ -125,36 +110,6 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
   const handleRenderVariablesChange = (value: string) => {
     resetRenderResults();
     setAbVarsJson(value);
-  };
-
-  const loadGraph = async () => {
-    if (graphLoadingRef.current) return;
-    const targetScope = { name: prompt.name, token: scopeRef.current.token };
-    const requestSeq = graphSeqRef.current + 1;
-    graphSeqRef.current = requestSeq;
-    graphLoadingRef.current = true;
-    setGraphLoading(true);
-    try {
-      const [d, rd] = await Promise.all([
-        promptGetDependencies(targetScope.name),
-        promptGetReverseDependencies(targetScope.name),
-      ]);
-      if (!isCurrentScope(targetScope) || graphSeqRef.current !== requestSeq) return;
-      setGraphLoaded(true);
-      setDeps(d);
-      setReverseDeps(rd);
-    } catch (err) {
-      if (isCurrentScope(targetScope) && graphSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, "加载依赖图失败"), "error");
-      }
-    } finally {
-      if (graphSeqRef.current === requestSeq) {
-        graphLoadingRef.current = false;
-      }
-      if (isCurrentScope(targetScope) && graphSeqRef.current === requestSeq) {
-        setGraphLoading(false);
-      }
-    }
   };
 
   const handleValidate = async () => {
@@ -321,51 +276,32 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
   return (
     <>
       <details className="py-2.5">
-        <summary
-          className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5"
-          onClick={(e) => {
-            if (!graphLoaded && !graphLoading) {
-              e.preventDefault();
-              void loadGraph();
-              const el = e.currentTarget.parentElement as HTMLDetailsElement | null;
-              if (el) el.open = true;
-            }
-          }}
-        >
+        <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
           <NetworkIcon size={11} /> 依赖图 / 反向依赖
         </summary>
         <div className="mt-2 text-small">
-          {graphLoading ? (
-            <div className="text-book-text-muted inline-flex items-center gap-1.5">
-              <LoadingSpinner size="sm" /> 加载中…
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-book-text-muted mb-1">依赖（→）</div>
+              {prompt.dependencies.length === 0 ? (
+                <div className="italic text-book-text-muted">无</div>
+              ) : (
+                <div className="break-words font-mono text-book-text-sub">
+                  {prompt.dependencies.join("、")}
+                </div>
+              )}
             </div>
-          ) : (
-            <>
-              <div className="mb-1.5 flex items-center gap-2">
-                <BookButton variant="secondary" size="sm" onClick={loadGraph}>
-                  刷新
-                </BookButton>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-book-text-muted mb-1">依赖（→）</div>
-                  {deps.length === 0 ? (
-                    <div className="italic text-book-text-muted">无</div>
-                  ) : (
-                    <div className="break-words font-mono text-book-text-sub">{deps.join("、")}</div>
-                  )}
+            <div>
+              <div className="text-book-text-muted mb-1">反向依赖（←）</div>
+              {reverseDependencies.length === 0 ? (
+                <div className="italic text-book-text-muted">无</div>
+              ) : (
+                <div className="break-words font-mono text-book-text-sub">
+                  {reverseDependencies.join("、")}
                 </div>
-                <div>
-                  <div className="text-book-text-muted mb-1">反向依赖（←）</div>
-                  {reverseDeps.length === 0 ? (
-                    <div className="italic text-book-text-muted">无</div>
-                  ) : (
-                    <div className="break-words font-mono text-book-text-sub">{reverseDeps.join("、")}</div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
         </div>
       </details>
 
@@ -384,12 +320,13 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
             placeholder="如：title, chapter_number, character_name"
           />
           <div className="flex items-center gap-2">
-            <BookButton variant="secondary" size="sm" onClick={handleValidate} disabled={validateBusy}>
-              {validateBusy ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                "校验"
-              )}
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={handleValidate}
+              disabled={validateBusy}
+            >
+              {validateBusy ? <LoadingSpinner size="sm" /> : "校验"}
             </BookButton>
             {missingVars !== null && missingVars.length === 0 && (
               <span className="text-success">✓ 所有占位符已覆盖</span>
@@ -426,19 +363,21 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
             placeholder='{"title": "示例", "chapter": 1}'
           />
           <div className="flex items-center gap-2 flex-wrap">
-            <BookButton variant="secondary" size="sm" onClick={handleDirectRender} disabled={renderBusy}>
-              {renderBusy ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                "直接渲染"
-              )}
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={handleDirectRender}
+              disabled={renderBusy}
+            >
+              {renderBusy ? <LoadingSpinner size="sm" /> : "直接渲染"}
             </BookButton>
-            <BookButton variant="primary" size="sm" onClick={handleAbRender} disabled={abBusy}>
-              {abBusy ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                "当前/原始对照"
-              )}
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={handleAbRender}
+              disabled={abBusy}
+            >
+              {abBusy ? <LoadingSpinner size="sm" /> : "当前/原始对照"}
             </BookButton>
           </div>
           {renderResult !== null && (

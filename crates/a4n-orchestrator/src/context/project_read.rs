@@ -6,10 +6,9 @@ use a4n_db::DbHandle;
 use super::OrchestratorContext;
 use crate::project::{
     ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
-    ProjectProgressSummary, ProjectRollbackImpactQuery, ProjectRollbackImpactSummary,
-    ProjectStatusHistorySummary, project_basic_record_error_to_app_error,
+    ProjectProgressSummary, project_basic_record_error_to_app_error,
     project_family_metadata_read_error_to_app_error, project_mutation_error_to_app_error,
-    project_progress_read_error_to_app_error, project_rollback_impact_read_error_to_app_error,
+    project_progress_read_error_to_app_error,
 };
 
 #[derive(Clone)]
@@ -56,24 +55,6 @@ impl ProjectReadApplication {
         a4n_db::project::project_progress_summaries(self.database.connection(), queries)
             .await
             .map_err(project_progress_read_error_to_app_error)
-    }
-
-    async fn rollback_impacts(
-        &self,
-        query: ProjectRollbackImpactQuery,
-    ) -> Result<Vec<ProjectRollbackImpactSummary>, AppError> {
-        a4n_db::project::project_rollback_impacts(self.database.connection(), query)
-            .await
-            .map_err(project_rollback_impact_read_error_to_app_error)
-    }
-
-    async fn status_history(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<ProjectStatusHistorySummary>, AppError> {
-        a4n_db::project::project_status_history(self.database.connection(), project_id)
-            .await
-            .map_err(project_mutation_error_to_app_error)
     }
 
     async fn ids(&self) -> Result<Vec<i64>, AppError> {
@@ -131,20 +112,6 @@ impl OrchestratorContext {
         queries: &[ProjectProgressQuery],
     ) -> Result<HashMap<i64, ProjectProgressSummary>, AppError> {
         self.project_read.progress_summaries(queries).await
-    }
-
-    pub async fn project_rollback_impacts(
-        &self,
-        query: ProjectRollbackImpactQuery,
-    ) -> Result<Vec<ProjectRollbackImpactSummary>, AppError> {
-        self.project_read.rollback_impacts(query).await
-    }
-
-    pub async fn project_status_history(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<ProjectStatusHistorySummary>, AppError> {
-        self.project_read.status_history(project_id).await
     }
 
     pub async fn project_ids(&self) -> Result<Vec<i64>, AppError> {

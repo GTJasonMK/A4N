@@ -1,4 +1,4 @@
-use crate::protocol::{error_response, validate_service_request};
+use crate::protocol::validate_service_request;
 use a4n_service_protocol::{
     PROMPT_RENDER_CAPABILITY_VERSION as PROMPT_CAPABILITY_VERSION, PROTOCOL_VERSION,
     ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
@@ -21,7 +21,7 @@ fn rejects_incompatible_protocol_version_with_trace() {
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
 
     let response: ServiceResponse<()> =
-        error_response(&request, validate_service_request(&request).unwrap_err());
+        request.error_response(validate_service_request(&request).unwrap_err());
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
@@ -36,7 +36,7 @@ fn rejects_secret_forwarding_policy() {
     request.secret_policy = a4n_service_protocol::SecretForwardingPolicy::local_user_secret();
 
     let response: ServiceResponse<()> =
-        error_response(&request, validate_service_request(&request).unwrap_err());
+        request.error_response(validate_service_request(&request).unwrap_err());
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));

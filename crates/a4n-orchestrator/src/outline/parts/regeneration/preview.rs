@@ -50,6 +50,7 @@ async fn preview_regenerate_part_request(
         requested_part_count: 1,
         blueprint_context: &prepared.context.blueprint_payload,
         previous_parts: &prepared.previous_parts,
+        source_snapshot: &prepared.context.source_snapshot,
         prompt_renderer,
         variables,
     })

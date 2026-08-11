@@ -10,8 +10,8 @@ pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v5";
 pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v3";
 pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v4";
 pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v7";
-pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v2";
-pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v2";
+pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v3";
+pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v3";
 
 pub const PROMPT_SERVICE_NAME: &str = "prompt";
 pub const LLM_SERVICE_NAME: &str = "llm";

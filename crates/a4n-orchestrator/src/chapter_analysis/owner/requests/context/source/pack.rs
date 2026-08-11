@@ -9,7 +9,7 @@ use a4n_llm::context::{
 };
 use serde_json::json;
 
-use crate::chapter_analysis::owner::prompt::required_chapter_title;
+use crate::chapter_analysis::owner::prompt::chapter_display_title;
 
 pub fn add_chapter_analysis_source_pack(
     ledger: &mut LlmContextLedger,
@@ -17,7 +17,7 @@ pub fn add_chapter_analysis_source_pack(
     source_spans: &[SourceSpan],
 ) -> Result<(), AppError> {
     let content_sha256 = source_text_hash(&ch.content);
-    let chapter_title = required_chapter_title(ch)?;
+    let chapter_title = chapter_display_title(ch);
     ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
         scope_kind: ("chapter").into(),
         pack_kind: ("chapter_analysis_source").into(),
@@ -42,7 +42,7 @@ pub fn add_chapter_analysis_source_pack(
                     "kind": "chapter_source",
                     "chapter_id": ch.id,
                     "chapter_number": ch.chapter_number,
-                    "chapter_title": chapter_title,
+                    "chapter_title": chapter_title.as_str(),
                     "content": ch.content,
                     "source_spans": source_span_prompt_values(source_spans),
                 }),
@@ -53,7 +53,7 @@ pub fn add_chapter_analysis_source_pack(
                     "kind": "chapter_source",
                     "chapter_id": ch.id,
                     "chapter_number": ch.chapter_number,
-                    "chapter_title": chapter_title,
+                    "chapter_title": chapter_title.as_str(),
                     "source_spans": source_span_prompt_values(source_spans),
                 }),
             ),
@@ -63,7 +63,7 @@ pub fn add_chapter_analysis_source_pack(
                     "kind": "chapter_source",
                     "chapter_id": ch.id,
                     "chapter_number": ch.chapter_number,
-                    "chapter_title": chapter_title,
+                    "chapter_title": chapter_title.as_str(),
                     "content_sha256": content_sha256,
                     "source_span_count": source_spans.len(),
                 }),

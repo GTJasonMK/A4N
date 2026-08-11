@@ -1,8 +1,8 @@
 use crate::OrchestratorContext;
 use a4n_core::error::AppError;
 pub use a4n_db::scene_profile::{
-    SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileRecordDraft,
-    SceneProfileRecordInput, SceneSyncRecordInput, SceneSyncRecordResult,
+    SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileEvidenceRecordInput,
+    SceneProfileRecordDraft, SceneProfileRecordInput, SceneSyncRecordInput, SceneSyncRecordResult,
     SceneTransitionRecordInput,
 };
 mod application;
@@ -45,6 +45,9 @@ pub(crate) fn scene_profile_db_error(
         }
         a4n_db::scene_profile::SceneProfileDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
+        }
+        a4n_db::scene_profile::SceneProfileDbError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
         }
     }
 }

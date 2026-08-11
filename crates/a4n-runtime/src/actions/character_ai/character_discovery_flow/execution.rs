@@ -5,7 +5,6 @@ use serde_json::Value;
 use crate::{
     AppState,
     actions::{access, character_ai::CharacterAiProgress},
-    prompt_renderer::RuntimePromptRenderer,
 };
 
 pub async fn discover_character_profiles_for_chapters(
@@ -18,7 +17,7 @@ pub async fn discover_character_profiles_for_chapters(
     access::verify_project_editor(state, user_id, project_id)
         .await
         .map_err(|err| err.to_string())?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let reporter = |current, total, message: &str| match progress {
         Some(progress) => progress
             .report(current, total, message, "角色发现已停止")
@@ -27,7 +26,7 @@ pub async fn discover_character_profiles_for_chapters(
     };
     let stream_reporter = |text: &str| match progress {
         Some(progress) => progress.stream_text(text),
-        None => {},
+        None => {}
     };
     let application_progress = progress.map(|progress| CharacterDiscoveryProgress {
         reporter: Some(&reporter),
@@ -36,13 +35,13 @@ pub async fn discover_character_profiles_for_chapters(
         active_task_id: progress.task_id,
     });
     state
-        .character()
+        .orchestrator()
         .discover_character_profiles_validated(
             CharacterDiscoveryInput {
                 project_id,
                 chapter_number,
             },
-            &prompt_renderer,
+            prompt_renderer,
             application_progress,
         )
         .await

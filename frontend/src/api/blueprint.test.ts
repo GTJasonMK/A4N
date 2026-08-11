@@ -64,7 +64,6 @@ describe("blueprint formal result and material sync", () => {
 
     await expect(syncBlueprintMaterials(7)).resolves.toEqual([]);
     expect(mocks.apiInvoke).toHaveBeenCalledWith("sync_blueprint_materials", {
-      userId: 42,
       projectId: 7,
     });
   });

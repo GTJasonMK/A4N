@@ -1,4 +1,4 @@
-pub(super) const GALGAME_SCRIPT_FAMILY_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_SCRIPT_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_script_family()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -47,7 +47,7 @@ END;
 $$
 "#;
 
-pub(super) const GALGAME_SCENE_FAMILY_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_SCENE_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_scene_family()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -126,7 +126,7 @@ END;
 $$
 "#;
 
-pub(super) const GALGAME_SCENE_LINK_FAMILY_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_SCENE_LINK_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_scene_link_family()
 RETURNS trigger
 LANGUAGE plpgsql

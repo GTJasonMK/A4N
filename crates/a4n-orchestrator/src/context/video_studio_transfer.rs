@@ -3,6 +3,7 @@ use a4n_db::canvas::{VideoStudioProjectImportMediaError, VideoStudioProjectImpor
 use chrono::Utc;
 
 use super::OrchestratorContext;
+use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ExportVideoStudioProjectApplicationInput, ExportedVideoStudioProject, ImportMediaPayload,
     ImportVideoStudioProjectApplicationInput, VideoStudioProjectTransferError,
@@ -19,8 +20,7 @@ impl OrchestratorContext {
     where
         Host: VideoStudioProjectTransferHostPort,
     {
-        host_port
-            .verify_project_owner(input.user_id, input.project_id)
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Owner)
             .await?;
         let project = self
             .project_read

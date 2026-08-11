@@ -1,7 +1,5 @@
 import React, { useCallback } from "react";
 import {
-  activateImageConfig,
-  activateServerImageConfig,
   addImageConfig,
   addServerImageConfig,
   listImageConfigs,
@@ -10,6 +8,8 @@ import {
   previewServerTestImageConfigRequest,
   removeImageConfig,
   removeServerImageConfig,
+  setDefaultImageConfig,
+  setDefaultServerImageConfig,
   SYSTEM_IMAGE_CONFIG_ID,
   testImageConfig,
   testServerImageConfig,
@@ -61,7 +61,8 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
       return {
         ...toImageItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_IMAGE_CONFIG_ID,
-        deleteDisabledReason: "系统默认图片模板由管理员维护，不能在用户配置页删除。",
+        deleteDisabledReason:
+          "系统默认图片模板由管理员维护，不能在用户配置页删除。",
       };
     });
     return { items, catalog: providerCatalog };
@@ -81,8 +82,12 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
       validate={validateImageForm}
       activeLabel={serverScope ? "全局默认" : "当前默认"}
       activateText={serverScope ? "设为全局默认" : "设为默认"}
-      activateSuccessMessage={serverScope ? "已设为系统全局默认" : "已设为当前默认"}
-      activateErrorMessage={serverScope ? "设置系统全局默认失败" : "设置默认失败"}
+      activateSuccessMessage={
+        serverScope ? "已设为系统全局默认" : "已设为当前默认"
+      }
+      activateErrorMessage={
+        serverScope ? "设置系统全局默认失败" : "设置默认失败"
+      }
       formatItem={formatImageItem}
       renderEditor={(form, setForm, context) => (
         <ImageConfigEditor
@@ -91,12 +96,16 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
           configId={context.selectedId}
           serverScope={serverScope}
           readonly={context.readonly}
-          templateLocked={!serverScope && context.selectedId === SYSTEM_IMAGE_CONFIG_ID}
+          templateLocked={
+            !serverScope && context.selectedId === SYSTEM_IMAGE_CONFIG_ID
+          }
           providers={catalog?.image ?? []}
         />
       )}
       onCreate={async (f) => {
-        await (serverScope ? addServerImageConfig : addImageConfig)(toCreateImageInput(f));
+        await (serverScope ? addServerImageConfig : addImageConfig)(
+          toCreateImageInput(f),
+        );
       }}
       onUpdate={async (id, f) => {
         await (serverScope ? updateServerImageConfig : updateImageConfig)(
@@ -106,12 +115,18 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
       }}
       onDelete={serverScope ? removeServerImageConfig : removeImageConfig}
       onActivate={async (id) => {
-        await (serverScope ? activateServerImageConfig : activateImageConfig)(id);
+        await (
+          serverScope ? setDefaultServerImageConfig : setDefaultImageConfig
+        )(id);
       }}
       onTest={async (id) => {
         await (serverScope ? testServerImageConfig : testImageConfig)(id);
       }}
-      onPreviewTest={serverScope ? previewServerTestImageConfigRequest : previewTestImageConfigRequest}
+      onPreviewTest={
+        serverScope
+          ? previewServerTestImageConfigRequest
+          : previewTestImageConfigRequest
+      }
     />
   );
 };

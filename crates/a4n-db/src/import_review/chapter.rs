@@ -41,13 +41,11 @@ fn required_import_chapter_title(
     analysis: &Value,
     review_id: i64,
 ) -> Result<String, ImportReviewMutationError> {
-    json_string(analysis, "modified_title")
-        .or_else(|| json_string(analysis, "chapter_title"))
-        .ok_or_else(|| {
-            ImportReviewMutationError::InvalidArgument(format!(
-                "导入审核缺少章节标题，无法接受。请在审核中补充标题后再接受: review_id={review_id}"
-            ))
-        })
+    json_string(analysis, "chapter_title").ok_or_else(|| {
+        ImportReviewMutationError::InvalidArgument(format!(
+            "导入审核缺少章节标题，无法接受。请在审核中补充标题后再接受: review_id={review_id}"
+        ))
+    })
 }
 
 fn ensure_chapter_not_generating(
@@ -70,29 +68,22 @@ pub(super) async fn upsert_imported_chapter_from_review<C>(
 where
     C: ConnectionTrait,
 {
-    let analysis = review.analysis_result.as_ref().ok_or_else(|| {
+    let analysis = &review.analysis_result;
+    let chapter_number = required_import_chapter_number(analysis, review.id)?;
+    let title = required_import_chapter_title(analysis, review.id)?;
+    let content = json_string(analysis, "content").ok_or_else(|| {
         ImportReviewMutationError::InvalidArgument(format!(
-            "导入审核缺少分析结果: review_id={}",
+            "导入审核缺少完整正文，无法接受。请重新导入该文件后再接受: review_id={}",
             review.id
         ))
     })?;
-    let chapter_number = required_import_chapter_number(analysis, review.id)?;
-    let title = required_import_chapter_title(analysis, review.id)?;
-    let content = json_string(analysis, "modified_content")
-        .or_else(|| json_string(analysis, "content"))
-        .ok_or_else(|| {
-            ImportReviewMutationError::InvalidArgument(format!(
-                "导入审核缺少完整正文，无法接受。请重新导入该文件后再接受: review_id={}",
-                review.id
-            ))
-        })?;
     let word_count = i32::try_from(content.chars().count()).map_err(|_| {
         ImportReviewMutationError::InvalidArgument(format!(
             "导入章节正文字符数超出 i32 范围: review_id={}",
             review.id
         ))
     })?;
-    let summary = json_string(analysis, "modified_summary");
+    let summary = json_string(analysis, "summary");
     let now = Utc::now().naive_utc();
     let existing = chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(review.project_id))

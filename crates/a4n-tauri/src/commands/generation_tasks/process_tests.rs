@@ -127,8 +127,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             true
         })
         .invoke_handler(tauri::generate_handler![
-            crate::commands::image::start_image_generation,
-            crate::commands::task::cancel_generation_task,
+            crate::commands::dispatch::invoke_host_command,
             super::subscribe_generation_task,
             super::get_generation_task_summary,
         ])
@@ -150,8 +149,9 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             chapter_id: None,
         },
     };
-    let handle: GenerationTaskHandle = invoke(
+    let handle: GenerationTaskHandle = invoke_host(
         &main_window,
+        owner.id,
         "start_image_generation",
         json!({"userId": owner.id, "input": input}),
     )
@@ -323,8 +323,9 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         expected_bytes
     );
 
-    let cancelled: GenerationTaskHandle = invoke(
+    let cancelled: GenerationTaskHandle = invoke_host(
         &remount_window,
+        owner.id,
         "start_image_generation",
         json!({
             "userId": owner.id,
@@ -355,8 +356,9 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         }),
     )
     .unwrap();
-    let cancel_handle: GenerationTaskHandle = invoke(
+    let cancel_handle: GenerationTaskHandle = invoke_host(
         &remount_window,
+        owner.id,
         "cancel_generation_task",
         json!({
             "userId": owner.id,
@@ -454,4 +456,17 @@ fn invoke<T: DeserializeOwned>(
         body.deserialize()
             .expect("Tauri IPC response must deserialize")
     })
+}
+
+fn invoke_host<T: DeserializeOwned>(
+    window: &WebviewWindow<MockRuntime>,
+    user_id: i64,
+    command: &str,
+    args: Value,
+) -> Result<T, Value> {
+    invoke(
+        window,
+        "invoke_host_command",
+        json!({ "command": command, "args": args, "userId": user_id }),
+    )
 }

@@ -4,7 +4,9 @@ use super::super::super::sync::{
 };
 use crate::state::AppState;
 use a4n_core::rag::RagDataType;
-use a4n_orchestrator::rag::{protagonist_rag_record_label, protagonist_rag_records};
+use a4n_orchestrator::rag::{
+    RagSyncContext, protagonist_rag_record_label, protagonist_rag_records,
+};
 
 pub(crate) async fn ingest_protagonists_inner(
     state: &AppState,
@@ -12,13 +14,12 @@ pub(crate) async fn ingest_protagonists_inner(
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
-    let mut sync = state
-        .rag()
-        .rag_sync_context_for_data_type(project_id, RagDataType::Protagonist)
-        .await
-        .map_err(|error| error.to_string())?;
+    let mut sync =
+        RagSyncContext::for_data_type(state.orchestrator(), project_id, RagDataType::Protagonist)
+            .await
+            .map_err(|error| error.to_string())?;
     let profiles = state
-        .rag()
+        .orchestrator()
         .protagonist_profiles_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

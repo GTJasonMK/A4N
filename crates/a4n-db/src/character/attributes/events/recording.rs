@@ -5,8 +5,8 @@ use super::super::{
 use super::validation::validate_operation;
 use crate::character::{
     CharacterDbError, CharacterProfileCurrentStateUpdate, profile_current_state_fields,
-    require_non_empty, require_profile, update_profile_current_state, validate_category,
-    validate_chapter_number,
+    require_non_empty, require_profile_for_update, update_profile_current_state, validate_category,
+    validate_chapter_number, validate_timeline_source_kind,
 };
 use a4n_core::models::character::attribute_event;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
@@ -35,6 +35,7 @@ where
     attribute_event::ActiveModel {
         profile_id: Set(input.profile_id),
         chapter_number: Set(input.chapter_number),
+        source_kind: Set(input.source_kind),
         timestamp: Set(chrono::Utc::now().naive_utc()),
         category: Set(input.category),
         key: Set(input.key),
@@ -61,18 +62,20 @@ where
     let category = input.category.trim().to_string();
     let key = require_non_empty(&input.key, "属性 key")?;
     let operation = input.operation.trim().to_string();
+    let source_kind = validate_timeline_source_kind(&input.source_kind)?;
     let change_description = require_non_empty(&input.change_description, "属性变更摘要")?;
     let cause = require_non_empty(&input.cause, "属性变更原因")?;
     let evidence = require_non_empty(&input.evidence, "属性变更证据")?;
     validate_category(&category)?;
     validate_operation(&operation)?;
 
-    let profile = require_profile(db, input.profile_id).await?;
+    let profile = require_profile_for_update(db, input.profile_id).await?;
     let event = insert_attribute_event(
         db,
         CharacterAttributeEventInsertInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
+            source_kind,
             category: category.clone(),
             key: key.clone(),
             operation: operation.clone(),

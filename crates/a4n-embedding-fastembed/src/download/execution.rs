@@ -11,6 +11,7 @@ use a4n_core::error::AppError;
 use a4n_embedding::provider::DownloadProgress;
 
 use super::client::{build_download_client, ensure_not_cancelled};
+use super::contracts::download_byte_totals;
 use super::metadata::collect_required_download_files_for_download;
 use super::progress::{AggregatedDownloadProgress, format_bytes, send_download_progress};
 use super::transfer::download_required_file;
@@ -130,11 +131,13 @@ async fn prefetch_fastembed_model_files(
     ensure_not_cancelled(cancel_token)?;
     let cache_repo = Cache::new(cache_dir.to_path_buf())
         .repo(Repo::new(info.model_code.clone(), RepoType::Model));
-    let total_size_bytes = files.iter().map(|file| file.size_bytes).sum::<u64>();
-    let cached_size_bytes = files
-        .iter()
-        .map(|file| file.downloaded_size_bytes)
-        .sum::<u64>();
+    let (total_size_bytes, cached_size_bytes) = download_byte_totals(&files)?;
+    if total_size_bytes == 0 {
+        return Err(format!(
+            "fastembed 模型下载信息未包含有效文件大小：{}",
+            info.model_code
+        ));
+    }
 
     send_download_progress(
         progress_tx,
@@ -146,7 +149,7 @@ async fn prefetch_fastembed_model_files(
         ),
     );
 
-    if cached_size_bytes >= total_size_bytes {
+    if cached_size_bytes == total_size_bytes {
         send_download_progress(
             progress_tx,
             total_size_bytes,

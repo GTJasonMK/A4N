@@ -1,24 +1,17 @@
 mod assembly;
 mod context;
 mod contracts;
-pub mod errors;
+pub(crate) mod errors;
 mod generation;
-mod input;
 mod preparation;
 mod progress;
-mod screenplay;
 mod stage;
-#[cfg(test)]
-mod tests;
 mod workflow_rules;
 
+pub use a4n_api_contract::shooting_script::ChapterShootingScriptSourceInput;
 pub use contracts::{
-    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptSourceInput,
-    ChapterShootingScriptUnitProgress, EditChapterShootingScriptInput, EditedChapterShootingScript,
-    RegenerateChapterShootingScriptInput, ResolvedChapterShootingScript,
-    ShootingScriptProgressReporter, ShootingScriptStreamReporter,
+    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptUnitProgress,
+    EditedChapterShootingScript, ResolvedChapterShootingScript, ShootingScriptProgressReporter,
+    ShootingScriptStreamReporter,
 };
-pub use workflow_rules::{
-    chapter_shooting_script_business_key, chapter_shooting_script_workflow_fingerprint,
-    chapter_shooting_script_workflow_run_input,
-};
+pub(crate) use workflow_rules::chapter_shooting_script_workflow_run_input;

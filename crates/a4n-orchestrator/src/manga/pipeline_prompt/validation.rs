@@ -3,6 +3,7 @@ mod early;
 mod late;
 mod synthesis;
 
+pub(in crate::manga::pipeline_prompt) use common::required_manga_string;
 pub(in crate::manga) use early::{
     validate_manga_character_binding_source_span_ids,
     validate_manga_speech_selection_source_span_ids,

@@ -1,10 +1,8 @@
 //! 角色同步范围与跳过判定纯规则（无 DB）。
 
+use a4n_api_contract::character::{CharacterProfileSkippedResult, CharacterProfileSyncSkipReason};
 use a4n_core::models::chapter::chapter;
 use a4n_core::models::character::protagonist_profile;
-use a4n_api_contract::character::{
-    CharacterProfileSkippedResult, CharacterProfileSyncSkipReason,
-};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
@@ -202,7 +200,23 @@ pub fn character_sync_range(
     target_chapter: i32,
     mode: CharacterSyncRangeMode,
 ) -> Option<CharacterSyncRange> {
-    let first_seen = profile_first_seen_chapter(profile).unwrap_or(1);
+    character_sync_range_with_first_seen(
+        profile,
+        target_chapter,
+        mode,
+        profile_first_seen_chapter(profile),
+    )
+}
+
+pub fn character_sync_range_with_first_seen(
+    profile: &protagonist_profile::Model,
+    target_chapter: i32,
+    mode: CharacterSyncRangeMode,
+    first_seen_chapter: Option<i32>,
+) -> Option<CharacterSyncRange> {
+    let first_seen = first_seen_chapter
+        .filter(|chapter| *chapter > 0)
+        .unwrap_or(1);
     if first_seen > target_chapter {
         return None;
     }
@@ -336,6 +350,27 @@ mod tests {
             character_sync_range(&p, 5, CharacterSyncRangeMode::Incremental).expect("range");
         assert_eq!(range.start_chapter, 3);
         assert_eq!(range.clear_to_chapter, 5);
+    }
+
+    #[test]
+    fn current_text_evidence_can_start_an_unsynced_formal_profile_at_the_target_chapter() {
+        let mut p = profile(0, 1);
+        p.base_attributes = json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {}
+        });
+
+        let range = character_sync_range_with_first_seen(
+            &p,
+            7,
+            CharacterSyncRangeMode::AnalysisResyncFromTarget,
+            Some(7),
+        )
+        .expect("current text evidence should define the first synchronizable chapter");
+
+        assert_eq!(range.start_chapter, 7);
+        assert_eq!(range.clear_to_chapter, 7);
     }
 
     #[test]

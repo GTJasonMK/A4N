@@ -1,7 +1,9 @@
 use a4n_core::models::{
+    asset::object_profile,
     chapter::{chapter, chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, novel_blueprint, novel_project},
+    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
+    scene::scene_profile,
 };
 use chrono::NaiveDateTime;
 use serde_json::Value;
@@ -14,6 +16,8 @@ pub enum ImportReverseDbError {
     NotFound(String),
     #[error("{0}")]
     InvalidArgument(String),
+    #[error("{0}")]
+    Internal(String),
 }
 
 impl From<crate::project::BlueprintSyncError> for ImportReverseDbError {
@@ -23,6 +27,18 @@ impl From<crate::project::BlueprintSyncError> for ImportReverseDbError {
                 Self::InvalidArgument(message)
             }
             crate::project::BlueprintSyncError::Database(error) => Self::Database(error),
+        }
+    }
+}
+
+impl From<crate::blueprint::BlueprintDbError> for ImportReverseDbError {
+    fn from(error: crate::blueprint::BlueprintDbError) -> Self {
+        match error {
+            crate::blueprint::BlueprintDbError::Database(error) => Self::Database(error),
+            crate::blueprint::BlueprintDbError::InvalidArgument(message)
+            | crate::blueprint::BlueprintDbError::NotFound(message) => {
+                Self::InvalidArgument(message)
+            }
         }
     }
 }
@@ -41,7 +57,10 @@ pub struct ReverseBlueprintContextRows {
     pub foreshadowing: Vec<foreshadowing_index::Model>,
     pub existing_blueprint: Option<novel_blueprint::Model>,
     pub blueprint_characters: Vec<blueprint_character::Model>,
+    pub blueprint_relationships: Vec<blueprint_relationship::Model>,
     pub protagonist_profiles: Vec<protagonist_profile::Model>,
+    pub objects: Vec<object_profile::Model>,
+    pub scenes: Vec<scene_profile::Model>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +87,7 @@ pub struct ReversePartOutlineApplyRow {
 pub struct ReverseBlueprintApplyPlanRecord {
     pub project_total_chapters: Option<i32>,
     pub existing_blueprint_total_chapters: Option<i32>,
+    pub next_version: String,
 }
 
 #[derive(Debug, Clone)]
@@ -84,6 +104,7 @@ pub struct ReverseBlueprintApplyRecord {
     pub total_chapters: Option<i32>,
     pub needs_part_outlines: bool,
     pub chapters_per_part: Option<i32>,
+    pub current_version: String,
 }
 
 #[derive(Debug, Clone)]
@@ -102,8 +123,9 @@ pub struct ReverseBlueprintApplyDraft {
     pub relationships: Vec<crate::project::BlueprintRelationshipDraft>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReverseBlueprintApplyResult {
     pub character_count: usize,
     pub relationship_count: usize,
+    pub version: String,
 }

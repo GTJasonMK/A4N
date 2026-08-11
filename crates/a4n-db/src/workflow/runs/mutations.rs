@@ -73,7 +73,7 @@ pub(super) async fn resume_workflow_run_model_in_transaction(
         .map_err(WorkflowWriteError::Database)
 }
 
-pub(super) async fn upsert_workflow_run_in_transaction(
+pub async fn upsert_workflow_run_in_transaction(
     tx: &sea_orm::DatabaseTransaction,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {

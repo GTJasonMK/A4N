@@ -32,12 +32,8 @@ import {
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
   listChapterVideoPrompts,
-  commitInsertedSegmentDraft,
-  deleteInsertedSegment,
-  moveInsertedSegment,
   previewReferenceMediaVideoRequest,
   selectSegmentVideo,
-  startChapterVideoInsertedSegmentDraft,
   startVideoGeneration,
   updateChapterVideoSegmentRecipe,
   updateVideoSegmentPlanDraftRecipe,
@@ -48,8 +44,6 @@ import {
   type ReferenceMediaVideoInput,
   type VideoGenConfig,
   type VideoSegmentExecutionRecipe,
-  type InsertedSegmentGenerationOptions,
-  type VideoTimelineSummary,
 } from "../../api/video";
 import { usePersistedState } from "../../hooks/usePersistedState";
 import { EmptyHint, type ChapterRow } from "./shared";
@@ -69,10 +63,6 @@ import { ImageActionDialog } from "./images/ImageActionDialog";
 import { VideoAssemblyWorkspace } from "./video/VideoAssemblyWorkspace";
 import { VideoPlanningWorkspace } from "./video/VideoPlanningWorkspace";
 import { VideoGenerationWorkspace } from "./video/VideoGenerationWorkspace";
-import {
-  InsertedSegmentTimelinePanel,
-  type InsertedSegmentTimelinePanelHandle,
-} from "./video/InsertedSegmentTimelinePanel";
 import { VideoMaterialWorkspace } from "./video/VideoMaterialWorkspace";
 import { VideoPostProcessWorkspace } from "./video/VideoPostProcessWorkspace";
 import {
@@ -336,9 +326,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     [setWorkspaceTabState],
   );
   const [prompts, setPrompts] = useState<ChapterVideoPrompt[]>([]);
-  const [timeline, setTimeline] = useState<VideoTimelineSummary | null>(null);
-  const insertedSegmentPanelRef =
-    useRef<InsertedSegmentTimelinePanelHandle>(null);
   const [segmentPlanPreview, setSegmentPlanPreview] = useState<
     Record<string, unknown>[]
   >([]);
@@ -1077,59 +1064,37 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedSegmentNumber,
     videos,
   ]);
-  const { mixedAdoptedVideoIds, unavailableMixedSegmentNumbers } =
-    useMemo(() => {
-      const adoptedVideoIds = new Set<number>();
-      const unavailableSegmentNumbers: number[] = [];
-      for (const card of segmentCardState.cards) {
-        const recipe = effectiveRecipeBySegment.get(card.segmentNumber);
-        const fingerprint = recipeFingerprintBySegment.get(card.segmentNumber);
-        const video =
-          recipe?.adopted_video_id == null
-            ? null
-            : videos.find((row) => row.id === recipe.adopted_video_id);
-        const valid =
-          video &&
-          video.status === "completed" &&
-          Boolean(video.file_path?.trim()) &&
-          videoExecutionSegmentIdentityMatchesVideo(
-            video,
-            frameSegmentPlanPromptForCards,
-            card.segmentNumber,
-            fingerprint,
-          );
-        if (valid) adoptedVideoIds.add(video.id);
-        else unavailableSegmentNumbers.push(card.segmentNumber);
-      }
-      for (const item of timeline?.items ?? []) {
-        if (
-          item.kind !== "inserted" ||
-          item.status !== "active" ||
-          item.generated_video_id == null
-        ) {
-          continue;
-        }
-        const video = videos.find((row) => row.id === item.generated_video_id);
-        if (
-          video?.status === "completed" &&
-          Boolean(video.file_path?.trim()) &&
-          video.timeline_item_id === item.id
-        ) {
-          adoptedVideoIds.add(video.id);
-        }
-      }
-      return {
-        mixedAdoptedVideoIds: adoptedVideoIds,
-        unavailableMixedSegmentNumbers: unavailableSegmentNumbers,
-      };
-    }, [
-      effectiveRecipeBySegment,
-      frameSegmentPlanPromptForCards,
-      recipeFingerprintBySegment,
-      segmentCardState.cards,
-      timeline,
-      videos,
-    ]);
+  const { adoptedVideoIds, unavailableSegmentNumbers } = useMemo(() => {
+    const adoptedVideoIds = new Set<number>();
+    const unavailableSegmentNumbers: number[] = [];
+    for (const card of segmentCardState.cards) {
+      const recipe = effectiveRecipeBySegment.get(card.segmentNumber);
+      const fingerprint = recipeFingerprintBySegment.get(card.segmentNumber);
+      const video =
+        recipe?.adopted_video_id == null
+          ? null
+          : videos.find((row) => row.id === recipe.adopted_video_id);
+      const valid =
+        video &&
+        video.status === "completed" &&
+        Boolean(video.file_path?.trim()) &&
+        videoExecutionSegmentIdentityMatchesVideo(
+          video,
+          frameSegmentPlanPromptForCards,
+          card.segmentNumber,
+          fingerprint,
+        );
+      if (valid) adoptedVideoIds.add(video.id);
+      else unavailableSegmentNumbers.push(card.segmentNumber);
+    }
+    return { adoptedVideoIds, unavailableSegmentNumbers };
+  }, [
+    effectiveRecipeBySegment,
+    frameSegmentPlanPromptForCards,
+    recipeFingerprintBySegment,
+    segmentCardState.cards,
+    videos,
+  ]);
   const allCurrentFramePrompts = useMemo(
     () =>
       prompts.filter((prompt) => {
@@ -1706,7 +1671,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           videos: videoRows,
           images: imageRows,
           activeVideoConfig: nextActiveVideoConfig,
-          timeline: nextTimeline,
         },
         shootingScript,
         shootingProgress,
@@ -1724,7 +1688,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       setActiveVideoConfig(nextActiveVideoConfig);
       setVideos(videoRows);
       setImages(imageRows);
-      setTimeline(nextTimeline);
       setShootingScenes(
         shootingProgress?.script.scenes ?? shootingScript?.script.scenes ?? [],
       );
@@ -1779,7 +1742,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setSegmentPlanDraftError(null);
     setVideos([]);
     setImages([]);
-    setTimeline(null);
     setShootingScenes([]);
     setActiveVideoConfig(null);
     setLoadedDataKey(null);
@@ -2346,259 +2308,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     } catch {
       // persistSegmentRecipe 已显示错误。
     }
-  };
-
-  const handleGenerateInsertedSegment = async (
-    input: InsertedSegmentGenerationOptions,
-  ): Promise<number | null> => {
-    const actionKey = "generate-inserted-segment";
-    const requestScope = videoActionScopeKey;
-    if (!chapter) {
-      addToast("当前章节不存在，无法生成插入片段", "error");
-      return null;
-    }
-    if (!beginVideoAction(actionKey)) return null;
-    try {
-      const handle = await startChapterVideoInsertedSegmentDraft(
-        projectId,
-        chapter.id,
-        input,
-      );
-      let workflowRunId: number | null = null;
-      await runGenerationProgressTaskThen(
-        runProgressTask,
-        handle,
-        {
-          title: "生成插入片段描述",
-          startMessage: "正在读取前后片段并生成插入描述",
-          successMessage: "插入片段描述已生成",
-          errorMessage: "插入片段描述生成失败",
-          total: 100,
-          cancelLabel: "停止生成",
-        },
-        async (task) => {
-          const result = task.resultRef;
-          if (result?.kind !== "inserted_segment_draft") {
-            throw new Error("插入片段生成完成，但没有返回可提交的草稿身份");
-          }
-          const parsed = Number(result.id);
-          if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-            throw new Error("插入片段草稿 workflow ID 无效");
-          }
-          workflowRunId = parsed;
-        },
-      );
-      if (!isCurrentVideoActionScope(requestScope)) return null;
-      addToast("插入片段描述已生成，请确认后提交", "success");
-      return workflowRunId;
-    } catch (error) {
-      if (isCurrentVideoActionScope(requestScope)) {
-        const message = extractErrorMessage(error, "插入片段描述生成失败");
-        if (!isCancelledOperation(message)) addToast(message, "error");
-      }
-      return null;
-    } finally {
-      finishVideoAction(actionKey);
-    }
-  };
-
-  const handleCommitInsertedSegment = async (
-    timelineId: number,
-    expectedRevision: number,
-    workflowRunId: number,
-  ): Promise<boolean> => {
-    const actionKey = "commit-inserted-segment";
-    const requestScope = videoActionScopeKey;
-    if (!beginVideoAction(actionKey)) return false;
-    try {
-      const nextTimeline = await commitInsertedSegmentDraft({
-        timeline_id: timelineId,
-        expected_timeline_revision: expectedRevision,
-        workflow_run_id: workflowRunId,
-      });
-      if (!isCurrentVideoActionScope(requestScope)) return false;
-      setTimeline(nextTimeline);
-      addToast("插入片段已提交到时间线", "success");
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(
-            refreshError,
-            "插入片段已提交，但刷新页面数据失败",
-          ),
-          "error",
-        );
-      }
-      return true;
-    } catch (error) {
-      if (!isCurrentVideoActionScope(requestScope)) return false;
-      const message = extractErrorMessage(error, "提交插入片段失败");
-      addToast(
-        message.includes("timeline_revision_conflict")
-          ? `${message}；表单已保留，请重新生成描述后提交`
-          : message,
-        "error",
-      );
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(refreshError, "刷新视频时间线失败"),
-          "error",
-        );
-      }
-      return false;
-    } finally {
-      finishVideoAction(actionKey);
-    }
-  };
-
-  const handleMoveInsertedSegment = async (input: {
-    timeline_id: number;
-    expected_timeline_revision: number;
-    timeline_item_id: number;
-    previous_item_id: number | null;
-    next_item_id: number | null;
-  }): Promise<void> => {
-    const actionKey = `move-inserted-segment-${input.timeline_item_id}`;
-    const requestScope = videoActionScopeKey;
-    if (!beginVideoAction(actionKey)) return;
-    try {
-      const nextTimeline = await moveInsertedSegment(input);
-      if (!isCurrentVideoActionScope(requestScope)) return;
-      setTimeline(nextTimeline);
-      addToast("插入片段位置已更新", "success");
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(
-            refreshError,
-            "片段位置已更新，但刷新页面数据失败",
-          ),
-          "error",
-        );
-      }
-    } catch (error) {
-      if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(error, "移动插入片段失败"), "error");
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(refreshError, "刷新视频时间线失败"),
-          "error",
-        );
-      }
-    } finally {
-      finishVideoAction(actionKey);
-    }
-  };
-
-  const handleDeleteInsertedSegment = async (input: {
-    timeline_id: number;
-    expected_timeline_revision: number;
-    timeline_item_id: number;
-  }): Promise<void> => {
-    const actionKey = `delete-inserted-segment-${input.timeline_item_id}`;
-    const requestScope = videoActionScopeKey;
-    if (!beginVideoAction(actionKey)) return;
-    try {
-      const nextTimeline = await deleteInsertedSegment(input);
-      if (!isCurrentVideoActionScope(requestScope)) return;
-      setTimeline(nextTimeline);
-      addToast("插入片段已从时间线移除", "success");
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(
-            refreshError,
-            "插入片段已删除，但刷新页面数据失败",
-          ),
-          "error",
-        );
-      }
-    } catch (error) {
-      if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(error, "删除插入片段失败"), "error");
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(refreshError, "刷新视频时间线失败"),
-          "error",
-        );
-      }
-    } finally {
-      finishVideoAction(actionKey);
-    }
-  };
-
-  const handleGenerateInsertedVideo = async (
-    prompt: ChapterVideoPrompt,
-  ): Promise<void> => {
-    const actionKey = `generate-inserted-video-${prompt.id}`;
-    const requestScope = videoActionScopeKey;
-    if (!chapter || !beginVideoAction(actionKey)) return;
-    try {
-      const handle = await startVideoGeneration({
-        project_id: projectId,
-        operation: {
-          kind: "chapter",
-          chapter_id: chapter.id,
-          prompt_id: prompt.id,
-          config_id: activeVideoConfig?.id ?? null,
-        },
-      });
-      await runGenerationProgressTaskThen(
-        runProgressTask,
-        handle,
-        {
-          title: `生成插入片段视频 #${prompt.id}`,
-          startMessage: "正在准备插入片段视频",
-          successMessage: "插入片段视频已生成",
-          errorMessage: "插入片段视频生成失败",
-          total: 100,
-          cancelLabel: "停止生成",
-        },
-        async (task) => {
-          await verifyVideoGenerationResult(task, projectId, chapter.id);
-        },
-      );
-      if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast("插入片段视频已生成", "success");
-      try {
-        await loadAll();
-      } catch (refreshError) {
-        addToast(
-          extractErrorMessage(refreshError, "视频已生成，但刷新页面数据失败"),
-          "error",
-        );
-      }
-    } catch (error) {
-      if (isCurrentVideoActionScope(requestScope)) {
-        const message = extractErrorMessage(error, "插入片段视频生成失败");
-        if (!isCancelledOperation(message)) addToast(message, "error");
-      }
-    } finally {
-      finishVideoAction(actionKey);
-    }
-  };
-
-  const handleUpdateInsertedPrompt = async (
-    prompt: ChapterVideoPrompt,
-    input: {
-      visual_prompt: string;
-      motion_prompt: string;
-      negative_prompt: string;
-    },
-  ): Promise<void> => {
-    await handleSavePromptRow(prompt, {
-      ...input,
-      duration_secs: prompt.duration_secs,
-    });
   };
 
   const handleCopyChatVideoPrompt = async (prompt: ChapterVideoPrompt) => {
@@ -3199,9 +2908,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             projectId={projectId}
             chapter={chapter}
             videos={videos}
-            timeline={timeline}
-            adoptedVideoIds={mixedAdoptedVideoIds}
-            unavailableSegmentNumbers={unavailableMixedSegmentNumbers}
+            adoptedVideoIds={adoptedVideoIds}
+            unavailableSegmentNumbers={unavailableSegmentNumbers}
             onToast={addToast}
             onRefresh={loadAll}
           />
@@ -3222,7 +2930,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               selectedSegmentNumber={selectedSegmentNumber}
               planningDraftVisible={segmentPlanDraftVisible}
               finalPromptBlockedReasons={finalPromptBlockedReasons}
-              timeline={timeline}
               selectedPrompt={selectedPrompt}
               selectedPromptId={selectedPromptId}
               selectedPromptStale={selectedPromptStale}
@@ -3253,12 +2960,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               onActivateSegment={handleActivateSegment}
               onCloseSegmentConfig={handleCloseSegmentConfig}
               onDeletePrompt={(prompt) => void handleDeletePromptRow(prompt)}
-              onInsertSegment={(gap) =>
-                insertedSegmentPanelRef.current?.openCreate(gap)
-              }
-              onOpenInsertedSegment={(timelineItemId) =>
-                insertedSegmentPanelRef.current?.openEdit(timelineItemId)
-              }
               onWorkflowModeChange={handleSegmentWorkflowModeChange}
               onFirstFrameSourceChange={handleFirstFrameSourceChange}
               onContinuitySourceChange={handleContinuitySourceChange}
@@ -3300,30 +3001,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           </div>
         )}
       </div>
-      {workspaceTab === "video" ? (
-        <InsertedSegmentTimelinePanel
-          ref={insertedSegmentPanelRef}
-          timeline={timeline}
-          prompts={prompts}
-          videos={videos}
-          referenceImages={selectableReferenceImages}
-          defaultStyle={options.style}
-          defaultPromptOutputLanguage={options.promptOutputLanguage}
-          defaultDurationSecs={options.durationSecs}
-          defaultDurationOptions={options.durationOptions}
-          defaultAspectRatio={options.aspectRatio}
-          loading={loading}
-          acting={acting}
-          onGenerate={handleGenerateInsertedSegment}
-          onCommit={handleCommitInsertedSegment}
-          onMove={handleMoveInsertedSegment}
-          onDelete={handleDeleteInsertedSegment}
-          onGenerateVideo={handleGenerateInsertedVideo}
-          onUpdatePrompt={handleUpdateInsertedPrompt}
-          onPreviewVideo={handlePreviewVideoRequestForVideo}
-          onDeleteVideo={handleDeleteVideo}
-        />
-      ) : null}
       <ImageActionDialog
         image={imageDetails}
         busyId={imageBusyId}

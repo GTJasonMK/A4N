@@ -1,24 +1,23 @@
-use super::contracts::StartGalgamePipelineInput;
+use super::contracts::PreviewGalgamePipelineInput;
 use crate::AppState;
 use crate::actions::request_preview::{
     ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state, model_request_preview,
 };
-use crate::prompt_renderer::RuntimePromptRenderer;
 
 pub async fn preview_galgame_pipeline_request(
     state: &AppState,
     user_id: i64,
-    input: StartGalgamePipelineInput,
+    input: PreviewGalgamePipelineInput,
 ) -> Result<ModelRequestPreview, String> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let prepared = state
-        .galgame()
+        .orchestrator()
         .prepare_galgame_pipeline_preview_for_user_validated(
             user_id,
             input.project_id,
-            input.start_from_stage.as_deref(),
+            input.start_from_stage,
             input.resume_from_checkpoint,
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await
         .map_err(crate::actions::app_error_message)?;

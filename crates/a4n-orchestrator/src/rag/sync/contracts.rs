@@ -17,10 +17,6 @@ pub enum RagSyncError {
     Delete { message: String },
     #[error("参数无效：{message}")]
     InvalidDeleteInput { message: String },
-    #[error("向量检索失败：{message}")]
-    DeleteChapter { message: String },
-    #[error("向量检索失败：{message}")]
-    ClearProject { message: String },
     #[error("清理过期 RAG 记录失败: {message}")]
     DeleteStale { message: String },
     #[error("清理过期 RAG 记录数量超过 u32 上限：{deleted}")]

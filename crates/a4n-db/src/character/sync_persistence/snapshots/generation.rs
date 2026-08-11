@@ -52,6 +52,10 @@ pub(in crate::character::sync_persistence) fn enrich_character_sync_generation_r
         json!(write_summary.deletions_executed),
     );
     object.insert(
+        "protected_attributes".to_string(),
+        json!(write_summary.protected_attributes),
+    );
+    object.insert(
         "state_indexes_upserted".to_string(),
         json!(state_index_count),
     );

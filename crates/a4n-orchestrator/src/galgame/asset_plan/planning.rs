@@ -2,8 +2,8 @@ use a4n_core::error::AppError;
 
 use crate::galgame::{OrchestratorContext, validate_positive_id};
 
+use super::GalgameAssetPlan;
 use super::collection::collect_galgame_asset_plan_drafts;
-use super::contracts::GalgameAssetPlan;
 use super::persistence::persist_galgame_asset_plan;
 
 impl OrchestratorContext {

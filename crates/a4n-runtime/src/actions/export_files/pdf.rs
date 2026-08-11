@@ -12,7 +12,7 @@ pub async fn export_pdf_data(
 ) -> Result<ExportFileData, String> {
     export_pdf_task_scope(state, user_id, project_id).await?;
     state
-        .export()
+        .orchestrator()
         .run_export_pdf_validated(project_id, progress)
         .await
         .map_err(|error| error.to_string())

@@ -62,7 +62,7 @@ pub use a4n_db::video::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
     UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
 };
-pub use a4n_db::video_prompt::{UpdateChapterVideoPromptInput, VideoPromptDownstreamDependencies};
+pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 
 pub use assembly_clip_rules::{
     ASSEMBLY_INSERT_VIDEO_TYPE, AssemblyClipOrderAnchor, CHAPTER_VIDEO_TYPE,
@@ -92,9 +92,8 @@ pub use chapter_video_generation::{
     GenerateChapterVideoInput, GenerateChapterVideosBatchInput, ResolvedChapterVideoImageInputs,
 };
 pub use chapter_video_request_rules::{
-    BoundaryFrameImageIds, ChapterVideoProviderRequestContext,
-    PreviewChapterVideoPromptOverrideInput, ProviderPromptImageBinding, append_provider_input_note,
-    append_video_request_prompt_length_context,
+    BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
+    append_provider_input_note, append_video_request_prompt_length_context,
     build_video_generation_provider_preview_prompt_with_renderer,
     build_video_generation_provider_prompt_with_renderer, provider_specific_negative_prompt,
     video_request_prompt_length_context,
@@ -142,8 +141,7 @@ pub use materials::is_project_reusable_video_material_image;
 pub(crate) use materials::is_video_frame_input_metadata;
 pub use prompt_application::{
     ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, GeneratePromptOptionsInput,
-    LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
-    UpdateChapterVideoPromptInput as VideoPromptUpdateApplicationInput,
+    LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
     UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
     VideoPromptDownstreamCleanupPort, VideoSegmentPlanDraftSummary,
 };

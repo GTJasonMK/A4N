@@ -17,7 +17,7 @@ pub async fn apply_optimization_patches(
         .map(orchestrator_patch)
         .collect::<Vec<_>>();
     state
-        .optimize()
+        .orchestrator()
         .apply_optimize_patches_validated(ApplyOptimizePatchesApplicationInput {
             user_id,
             session_id: input.session_id,

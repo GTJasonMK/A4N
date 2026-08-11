@@ -14,7 +14,7 @@ pub(crate) async fn ingest_scene_transitions_inner(
     let mut stats = IngestStats::default();
     let profile_names = scene_profile_names(state, project_id).await?;
     let transitions = state
-        .rag()
+        .orchestrator()
         .scene_transitions_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

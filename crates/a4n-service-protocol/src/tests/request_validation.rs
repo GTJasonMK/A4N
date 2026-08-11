@@ -11,7 +11,26 @@ use crate::{
     IMPORT_TRANSFORM_CAPABILITY_VERSION, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME,
     PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PROTOCOL_VERSION, RequiredSecretPolicy,
     SecretForwardingPolicy, SecretMaterialScope, ServiceErrorCode, ServiceRequestContext,
-    TraceContext, VIDEO_SERVICE_NAME, known_service_health_for_host,
+    ServiceStatus, TraceContext, VIDEO_SERVICE_NAME, known_service_health_for_host,
     validate_known_service_request_envelope, validate_provider_api_key_secret_policy,
     validate_service_request_context, validate_service_request_envelope,
 };
+
+#[test]
+fn execute_known_service_rejects_before_running_the_operation() {
+    let mut request = service_request("import-transform-v0", json!({}));
+    request.trace_context.trace_id = "trace-execute".to_string();
+
+    let response = request.execute_known_service(
+        IMPORT_SERVICE_NAME,
+        |_| -> Result<(), &str> { panic!("invalid request must not execute") },
+        |_| unreachable!(),
+    );
+
+    assert_eq!(response.status, ServiceStatus::Error);
+    assert_eq!(response.trace_id.as_deref(), Some("trace-execute"));
+    assert_eq!(
+        response.error.expect("version error").code,
+        ServiceErrorCode::VersionMismatch
+    );
+}

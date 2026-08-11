@@ -1,10 +1,11 @@
+use std::collections::HashMap;
+
 use a4n_core::error::AppError;
-use serde_json::json;
 
 use crate::shooting_script::ChapterShootingScriptSourceInput;
 use a4n_core::source_spans::source_spans_for_content;
 
-use super::super::reference_assets::{character_portraits_json, format_character_portrait_context};
+use super::super::reference_assets::manga_reference_assets_json;
 use super::super::{MangaPipelineRequestPreviewInput, OrchestratorContext};
 use super::contracts::{MangaPipelineRequestPreviewStep, MangaPreviewContext};
 use super::early_extraction::preview_early_extraction;
@@ -12,7 +13,7 @@ use super::late_extraction::preview_late_extraction;
 use super::planning::preview_planning;
 
 impl OrchestratorContext {
-    pub(crate) async fn preview_generate_panels_requests(
+    pub(crate) async fn preview_generate_page_prompt_requests(
         &self,
         input: MangaPipelineRequestPreviewInput<'_>,
     ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError> {
@@ -20,11 +21,9 @@ impl OrchestratorContext {
             chapter_id,
             project_id,
             prompt_renderer,
-            variables,
             reference_context,
             workflow_run_id,
             resume_from_checkpoint,
-            start_from_stage,
         } = input;
         let resolved = self
             .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
@@ -37,22 +36,7 @@ impl OrchestratorContext {
         let chapter_content = source.content.clone();
         let source_spans =
             source_spans_for_content(chapter_id, source.chapter_number, &chapter_content);
-        let mut vars = variables.clone();
-        vars.insert("chapter_content".into(), json!(chapter_content));
-        vars.insert(
-            "source_content_sha256".into(),
-            json!(&source.content_sha256),
-        );
-        let character_portraits = character_portraits_json(&reference_context.character_portraits);
-        vars.insert("character_portraits".into(), character_portraits.clone());
-        vars.insert(
-            "character_portrait_count".into(),
-            json!(reference_context.character_portraits.len()),
-        );
-        let reference_assets = json!({
-            "character_portraits": character_portraits,
-            "character_portrait_summary": format_character_portrait_context(&reference_context),
-        });
+        let reference_assets = manga_reference_assets_json(&reference_context.character_portraits);
         let context = MangaPreviewContext {
             service: self,
             chapter_id,
@@ -61,10 +45,9 @@ impl OrchestratorContext {
             prompt_renderer,
             workflow_run_id,
             resume_from_checkpoint,
-            start_from_stage,
             chapter_content,
             source_spans,
-            variables: vars,
+            variables: HashMap::new(),
             reference_assets,
         };
 

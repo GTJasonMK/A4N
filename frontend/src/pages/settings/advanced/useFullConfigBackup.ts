@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
-import { exportAllConfigsJson, importAllConfigs } from "../../../api/theme";
+import { exportAllConfigsJson, importAllConfigs } from "../../../api/config";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
@@ -11,11 +11,14 @@ const FULL_CONFIG_SCOPE =
   "LLM / Embedding / Image / Video / Prompts / Themes / SystemSettings";
 
 const createDefaultConfigFileName = () => {
-  const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "");
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "");
   return `a4n-config-${timestamp}.json`;
 };
 
-export const useFullConfigBackup = (onImported?: () => Promise<void> | void) => {
+export const useFullConfigBackup = () => {
   const { addToast } = useToast();
   const { user } = useAuthStore();
   const [overwrite, setOverwrite] = useState(false);
@@ -23,56 +26,58 @@ export const useFullConfigBackup = (onImported?: () => Promise<void> | void) => 
   const [importing, setImporting] = useState(false);
   const [lastExportPath, setLastExportPath] = useState("");
   const mountedRef = useRef(true);
-  const exportSeqRef = useRef(0);
-  const importSeqRef = useRef(0);
-  const exportingRef = useRef(false);
-  const importingRef = useRef(false);
+  const activeUserIdRef = useRef<number | null>(user?.id ?? null);
+  const operationInFlightRef = useRef(false);
+
+  activeUserIdRef.current = user?.id ?? null;
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      exportSeqRef.current += 1;
-      importSeqRef.current += 1;
-      exportingRef.current = false;
-      importingRef.current = false;
+      operationInFlightRef.current = false;
     };
   }, []);
 
+  const isCurrentUser = (userId: number | null) =>
+    mountedRef.current && activeUserIdRef.current === userId;
+
   const handleExport = async () => {
-    if (exportingRef.current || importingRef.current) return;
-    const requestSeq = exportSeqRef.current + 1;
-    exportSeqRef.current = requestSeq;
-    exportingRef.current = true;
+    if (operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
+    const requestUserId = user?.id ?? null;
     setExporting(true);
     try {
       const fileName = createDefaultConfigFileName();
       const settingsJson = await exportAllConfigsJson();
-      if (!mountedRef.current || exportSeqRef.current !== requestSeq) return;
-      downloadTextFile(fileName, settingsJson, "application/json;charset=utf-8");
+      if (!isCurrentUser(requestUserId)) return;
+      downloadTextFile(
+        fileName,
+        settingsJson,
+        "application/json;charset=utf-8",
+      );
       setLastExportPath(fileName);
       addToast(`已导出全量配置文件：${fileName}`, "success");
     } catch (err) {
-      if (!mountedRef.current || exportSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "导出全量配置失败"), "error");
+      if (isCurrentUser(requestUserId)) {
+        addToast(extractErrorMessage(err, "导出全量配置失败"), "error");
+      }
     } finally {
-      if (exportSeqRef.current === requestSeq) exportingRef.current = false;
-      if (mountedRef.current && exportSeqRef.current === requestSeq) setExporting(false);
+      operationInFlightRef.current = false;
+      if (mountedRef.current) setExporting(false);
     }
   };
 
   const handleImportFile = async (file: File) => {
-    if (exportingRef.current || importingRef.current) return;
-    const requestSeq = importSeqRef.current + 1;
-    importSeqRef.current = requestSeq;
-    importingRef.current = true;
+    if (operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
     setImporting(true);
     const requestOverwrite = overwrite;
     const requestUserId = user?.id ?? null;
     let errorFallback = "读取配置文件失败";
     try {
       const settingsJson = await file.text();
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserId)) return;
 
       const trimmedSettingsJson = settingsJson.trim();
       if (!trimmedSettingsJson) {
@@ -89,24 +94,23 @@ export const useFullConfigBackup = (onImported?: () => Promise<void> | void) => 
         dialogType: "warning",
       });
       if (!ok) return;
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserId)) return;
 
       errorFallback = "导入全量配置失败";
-      const result = await importAllConfigs(trimmedSettingsJson, requestOverwrite);
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-      addToast(
-        `${result.message}：${result.details.join("；") || "无明细"}`,
-        result.success ? "success" : "error",
-      );
-      await onImported?.();
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+      const details = await importAllConfigs({
+        settings_json: trimmedSettingsJson,
+        overwrite: requestOverwrite,
+      });
+      if (!isCurrentUser(requestUserId)) return;
+      addToast(`全量导入完成：${details.join("；")}`, "success");
       await loadAndApplyActiveTheme(requestUserId);
     } catch (err) {
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, errorFallback), "error");
+      if (isCurrentUser(requestUserId)) {
+        addToast(extractErrorMessage(err, errorFallback), "error");
+      }
     } finally {
-      if (importSeqRef.current === requestSeq) importingRef.current = false;
-      if (mountedRef.current && importSeqRef.current === requestSeq) setImporting(false);
+      operationInFlightRef.current = false;
+      if (mountedRef.current) setImporting(false);
     }
   };
 

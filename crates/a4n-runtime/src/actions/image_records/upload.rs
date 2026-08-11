@@ -13,7 +13,7 @@ pub async fn upload_image(
     input: UploadImageInput,
 ) -> Result<GeneratedImageSummary, String> {
     let prepared = state
-        .media()
+        .orchestrator()
         .prepare_imported_image_upload_for_user_validated(
             user_id,
             project_id,
@@ -23,10 +23,9 @@ pub async fn upload_image(
                 data_base64: input.data_base64,
                 image_type: input.image_type,
                 prompt: input.prompt,
-                model: input.model,
                 chapter_id: input.chapter_id,
                 panel_id: input.panel_id,
-                metadata_json: input.metadata_json,
+                metadata_json: input.metadata_json.map(serde_json::Value::Object),
             },
         )
         .await

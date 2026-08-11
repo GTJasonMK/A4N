@@ -5,8 +5,9 @@ use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
 use crate::scene_profile::{
-    SceneProfileDraft, SceneSyncInput, SceneSyncRecordResult, normalize_scene_profile_record_input,
-    normalize_scene_sync_record_input, scene_profile_db_error,
+    SceneProfileDraft, SceneProfileEvidenceRecordInput, SceneSyncInput, SceneSyncRecordResult,
+    normalize_scene_profile_record_input, normalize_scene_sync_record_input,
+    scene_profile_db_error,
 };
 
 #[derive(Clone)]
@@ -84,7 +85,9 @@ impl SceneProfileApplication {
         project_id: i64,
         chapter_id: i64,
         chapter_number: i32,
+        source: a4n_db::project::ChapterSourceSnapshot,
         input: SceneSyncInput,
+        profile_evidence: Vec<SceneProfileEvidenceRecordInput>,
         generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
     ) -> Result<SceneSyncRecordResult, AppError> {
         let sync_input = normalize_scene_sync_record_input(input)?;
@@ -93,7 +96,9 @@ impl SceneProfileApplication {
             project_id,
             chapter_id,
             chapter_number,
+            source,
             sync_input,
+            profile_evidence,
             generation_run,
         )
         .await
@@ -191,7 +196,9 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         chapter_number: i32,
+        source: a4n_db::project::ChapterSourceSnapshot,
         input: SceneSyncInput,
+        profile_evidence: Vec<SceneProfileEvidenceRecordInput>,
         generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
     ) -> Result<SceneSyncRecordResult, AppError> {
         self.scene_profile
@@ -199,7 +206,9 @@ impl OrchestratorContext {
                 project_id,
                 chapter_id,
                 chapter_number,
+                source,
                 input,
+                profile_evidence,
                 generation_run,
             )
             .await

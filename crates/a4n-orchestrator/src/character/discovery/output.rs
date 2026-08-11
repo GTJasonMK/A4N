@@ -6,7 +6,7 @@ use a4n_core::{
     json_contract::reject_unknown_fields,
     models::{chapter::chapter, project::text_anchor},
     profile_text::normalize_importance_value,
-    source_spans::{anchor_quote_with_chapter_number, reject_deprecated_output_fields},
+    source_spans::anchor_quote_with_chapter_number,
 };
 use serde_json::{Value, json};
 
@@ -67,12 +67,6 @@ fn normalize_discovered_character(
     let implicit_attributes = required_discovery_object(character, "implicit_attributes")?;
     let social_attributes = required_discovery_object(character, "social_attributes")?;
     let evidence_path = format!("characters[{index}]");
-    reject_deprecated_output_fields(
-        character,
-        &evidence_path,
-        &["evidence", "evidence_span_id"],
-        "evidence_anchor_id",
-    )?;
     reject_unknown_fields(
         character,
         &evidence_path,

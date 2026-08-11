@@ -10,9 +10,8 @@ pub(in crate::rag_ingest) async fn cleanup_stale_records(
     progress: &mut Option<&mut RagIngestProgress<'_>>,
     label: &str,
 ) -> Result<(), String> {
-    let deleted = state
-        .rag()
-        .cleanup_rag_sync_stale(sync)
+    let deleted = sync
+        .cleanup_stale(state.orchestrator())
         .await
         .map_err(|error| error.to_string())?;
     if deleted > 0 {

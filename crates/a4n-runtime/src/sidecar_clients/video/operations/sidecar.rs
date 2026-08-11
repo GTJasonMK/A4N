@@ -7,8 +7,8 @@ use a4n_video::{VideoGenerationRequest, VideoJobDeleteOutcome, VideoJobState, Vi
 use serde_json::Value;
 
 use super::super::super::{
-    SidecarRequestContext, global_provider_service_request, missing_sidecar_capability_message,
-    response_payload, service_error_string, service_request_with_context_provider_secret_policy,
+    SidecarRequestContext, missing_sidecar_capability_message, response_payload,
+    service_error_string, service_request_with_context_provider_secret_policy,
     sidecar_context_for_workflow_operation_with_root,
 };
 use super::super::contracts::{
@@ -42,34 +42,6 @@ pub(crate) async fn preview_video_provider_request(
         return Err("video sidecar request preview 为空".to_string());
     }
     Ok(preview)
-}
-
-pub(super) async fn probe_video_via_sidecar(
-    client: Arc<dyn VideoClient>,
-    config: &video_gen_config::Model,
-) -> Result<(), String> {
-    let params = validate_video_config_model(config)?;
-    let request = VideoGenerationRequest {
-        prompt: "test connectivity".to_string(),
-        negative_prompt: None,
-        width: params.default_width,
-        height: params.default_height,
-        duration_secs: params.default_duration_secs,
-        fps: params.default_fps,
-        model: params.model.clone(),
-        media: a4n_video::VideoMediaInput::None,
-    };
-    let payload = video_provider_payload(config, request, None, None)?;
-    let response = client
-        .probe(global_provider_service_request(
-            "video",
-            a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
-            payload,
-        )?)
-        .await
-        .map_err(service_error_string)?;
-    let _: Value = response_payload(response, "video")?;
-    Ok(())
 }
 
 pub(super) async fn poll_video_via_sidecar(

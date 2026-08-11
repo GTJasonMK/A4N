@@ -626,7 +626,7 @@ export function useVideoRecordActions({
 
   const openVideoRequestPreview = async (
     promptId: number,
-    promptOverride: PreviewChapterVideoPromptOverrideInput | null = null,
+    promptOverride?: PreviewChapterVideoPromptOverrideInput,
   ) => {
     if (!chapter) return;
     await openVideoRequestPreviewData(
@@ -667,7 +667,7 @@ export function useVideoRecordActions({
     }
     await openVideoRequestPreview(
       selectedPrompt.id,
-      selectedPromptDirty ? promptPreviewOverride(draft) : null,
+      selectedPromptDirty ? promptPreviewOverride(draft) : undefined,
     );
   };
 

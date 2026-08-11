@@ -31,9 +31,16 @@ pub(super) async fn execute_import_reverse_call(
     .await
     .map_err(workflow_read_app_error)?
     {
+        let artifacts = checkpoint.artifacts_json.clone();
         let checkpoint_json = workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
             .map_err(crate::workflow::workflow_checkpoint_contract_app_error)?;
-        return restored_import_reverse_checkpoint(checkpoint_json, &prompt_name);
+        let output = restored_import_reverse_checkpoint(checkpoint_json, &prompt_name)?;
+        return crate::import_reverse::candidate::reverse_candidate_checkpoint_response(
+            workflow_run_id,
+            &prompt_name,
+            output,
+            artifacts.as_ref(),
+        );
     }
 
     let response = context.stream_complete_llm(request.clone()).await?;
@@ -64,6 +71,21 @@ pub(super) async fn execute_import_reverse_call(
         .await?;
     let repair_artifact = repaired.artifact_summary();
     let output = repaired.output;
+    let output_fingerprint_sha256 =
+        a4n_db::generation::generation_checkpoint_fingerprint_sha256(&output)
+            .map_err(AppError::Serialization)?;
+    let candidate = crate::import_reverse::candidate::reverse_candidate_proposal(
+        workflow_run_id,
+        &prompt_name,
+        &output_fingerprint_sha256,
+    );
+    let candidate_response =
+        crate::import_reverse::candidate::reverse_candidate_checkpoint_response(
+            workflow_run_id,
+            &prompt_name,
+            output.clone(),
+            Some(&json!({"candidate": candidate.clone()})),
+        )?;
     let usage_json = response
         .usage
         .as_ref()
@@ -86,10 +108,11 @@ pub(super) async fn execute_import_reverse_call(
             }),
             artifacts_json: Some(json!({
                 "structured_repair": repair_artifact,
+                "candidate": candidate,
             })),
         },
     )
     .await
     .map_err(workflow_write_app_error)?;
-    Ok(output)
+    Ok(candidate_response)
 }

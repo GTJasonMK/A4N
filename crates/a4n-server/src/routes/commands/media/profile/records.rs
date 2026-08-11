@@ -1,8 +1,8 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, command_input, downstream_strategy_arg, i64_arg,
-    object_profile_records_actions, scene_profile_records_actions, to_value,
+    ApiError, ServerState, command_input, downstream_strategy_arg, foreshadowing_records_actions,
+    i64_arg, object_profile_records_actions, scene_profile_records_actions, to_value,
 };
 
 macro_rules! profile_record_web_commands {
@@ -98,3 +98,59 @@ profile_record_web_commands!(
     "sceneProfileId",
     scene_profile_id,
 );
+
+pub(in crate::routes::commands) async fn list_foreshadowing(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: foreshadowing_records_actions::ListForeshadowingInput =
+        command_input(args, "list_foreshadowing")?;
+    to_value(
+        foreshadowing_records_actions::list_foreshadowing(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?,
+    )
+}
+
+pub(in crate::routes::commands) async fn create_foreshadowing(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: foreshadowing_records_actions::CreateForeshadowingInput =
+        command_input(args, "create_foreshadowing")?;
+    to_value(
+        foreshadowing_records_actions::create_foreshadowing(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?,
+    )
+}
+
+pub(in crate::routes::commands) async fn update_foreshadowing(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: foreshadowing_records_actions::UpdateForeshadowingInput =
+        command_input(args, "update_foreshadowing")?;
+    to_value(
+        foreshadowing_records_actions::update_foreshadowing(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?,
+    )
+}
+
+pub(in crate::routes::commands) async fn delete_foreshadowing(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: foreshadowing_records_actions::DeleteForeshadowingInput =
+        command_input(args, "delete_foreshadowing")?;
+    to_value(
+        foreshadowing_records_actions::delete_foreshadowing(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?,
+    )
+}

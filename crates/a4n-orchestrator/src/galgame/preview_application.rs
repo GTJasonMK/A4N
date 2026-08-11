@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_core::{config::app_config::llm_token_profiles, error::AppError};
 use a4n_llm::provider::{ChatMessage, ChatRequest};
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::{
     OrchestratorContext,
@@ -15,8 +15,7 @@ use super::{
     branch_design_from_value, character_staging_from_value, galgame_branch_design_user_message,
     galgame_character_staging_user_message, galgame_script_adaptation_user_message,
     galgame_shooting_script_projection, galgame_visual_planning_user_message,
-    parse_galgame_start_stage, script_adaptation_from_value, shooting_script_projection_from_value,
-    visual_plan_from_value,
+    script_adaptation_from_value, shooting_script_projection_from_value, visual_plan_from_value,
 };
 
 const CHECKPOINT_SCENES: &str = "scenes";
@@ -47,11 +46,10 @@ impl OrchestratorContext {
     pub async fn prepare_galgame_pipeline_preview_validated(
         &self,
         project_id: i64,
-        start_from_stage: Option<&str>,
+        start_from_stage: Option<GalgamePipelineStartStage>,
         resume_from_checkpoint: bool,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<GalgamePipelinePreviewRequest>, AppError> {
-        let start_from_stage = parse_galgame_start_stage(start_from_stage)?;
         let context = self.galgame_pipeline_prompt_context(project_id).await?;
         let checkpoints = self
             .load_galgame_preview_checkpoint_inputs(
@@ -174,10 +172,9 @@ impl OrchestratorContext {
                 .await?,
             );
         }
-        if stage_filter(GalgamePipelineStartStage::ScriptAdaptation) {
-            let branch_design = branch_design
-                .cloned()
-                .unwrap_or_else(|| json!({"choices": []}));
+        if stage_filter(GalgamePipelineStartStage::ScriptAdaptation)
+            && let Some(branch_design) = branch_design
+        {
             requests.push(
                 build_preview_request(
                     prompt_renderer,
@@ -187,7 +184,7 @@ impl OrchestratorContext {
                     galgame_script_adaptation_user_message(
                         &context.chapters,
                         shooting_script_projection,
-                        &branch_design,
+                        branch_design,
                     )?,
                 )
                 .await?,

@@ -406,18 +406,14 @@ BEGIN
         THEN
             RAISE EXCEPTION 'Galgame CG 生成意图 cg_note 必须是非空字符串';
         END IF;
-        IF params ? 'cg_importance'
-           AND jsonb_typeof(params -> 'cg_importance') IS DISTINCT FROM 'null'
+        IF jsonb_typeof(params -> 'cg_importance') IS DISTINCT FROM 'string'
+           OR NULLIF(BTRIM(params ->> 'cg_importance'), '') IS NULL
         THEN
-            IF jsonb_typeof(params -> 'cg_importance') IS DISTINCT FROM 'string' THEN
-                RAISE EXCEPTION 'Galgame CG 生成意图 cg_importance 必须是字符串';
-            END IF;
-            params_cg_importance := NULLIF(BTRIM(params ->> 'cg_importance'), '');
-            IF params_cg_importance IS NOT NULL
-               AND params_cg_importance NOT IN ('normal', 'high', 'critical')
-            THEN
-                RAISE EXCEPTION 'Galgame CG 生成意图 cg_importance 无效';
-            END IF;
+            RAISE EXCEPTION 'Galgame CG 生成意图 cg_importance 必须是非空字符串';
+        END IF;
+        params_cg_importance := BTRIM(params ->> 'cg_importance');
+        IF params_cg_importance NOT IN ('normal', 'high', 'critical') THEN
+            RAISE EXCEPTION 'Galgame CG 生成意图 cg_importance 无效';
         END IF;
     ELSIF NEW.target_kind = 'portrait_expression'
        AND NEW.target_entity_kind = 'character_profile'
@@ -460,35 +456,23 @@ BEGIN
             RAISE EXCEPTION 'Galgame 立绘差分 expression 无效';
         END IF;
 
-        params_pose := NULL;
-        IF params ? 'pose'
-           AND jsonb_typeof(params -> 'pose') IS DISTINCT FROM 'null'
+        IF jsonb_typeof(params -> 'pose') IS DISTINCT FROM 'string'
+           OR NULLIF(BTRIM(params ->> 'pose'), '') IS NULL
         THEN
-            IF jsonb_typeof(params -> 'pose') IS DISTINCT FROM 'string' THEN
-                RAISE EXCEPTION 'Galgame 立绘差分 pose 必须是字符串';
-            END IF;
-            params_pose := NULLIF(BTRIM(params ->> 'pose'), '');
+            RAISE EXCEPTION 'Galgame 立绘差分 pose 必须是非空字符串';
         END IF;
+        params_pose := BTRIM(params ->> 'pose');
 
         IF jsonb_typeof(params -> 'canonical_key') IS DISTINCT FROM 'string' THEN
             RAISE EXCEPTION 'Galgame 立绘差分 canonical_key 缺失';
         END IF;
-        IF params_pose IS NULL THEN
-            expected_key := format(
-                'galgame:%s:portrait:%s:expression:%s',
-                NEW.project_id,
-                target_id,
-                params_expression
-            );
-        ELSE
-            expected_key := format(
-                'galgame:%s:portrait:%s:expression:%s:pose:%s',
-                NEW.project_id,
-                target_id,
-                params_expression,
-                params_pose
-            );
-        END IF;
+        expected_key := format(
+            'galgame:%s:portrait:%s:expression:%s:pose:%s',
+            NEW.project_id,
+            target_id,
+            params_expression,
+            params_pose
+        );
         IF NULLIF(BTRIM(params ->> 'canonical_key'), '') IS DISTINCT FROM expected_key THEN
             RAISE EXCEPTION 'Galgame 立绘差分 canonical_key 与目标不一致';
         END IF;
@@ -540,7 +524,7 @@ BEGIN
             WHERE line_row.id IS NULL
                OR line_row.speaker_profile_id IS DISTINCT FROM target_id
                OR NULLIF(BTRIM(COALESCE(line_row.expression, '')), '') IS DISTINCT FROM params_expression
-               OR COALESCE(NULLIF(BTRIM(line_row.pose), ''), '') IS DISTINCT FROM COALESCE(params_pose, '')
+               OR NULLIF(BTRIM(line_row.pose), '') IS DISTINCT FROM params_pose
                OR script_row.project_id IS DISTINCT FROM NEW.project_id
                OR script_row.root_project_id IS DISTINCT FROM NEW.root_project_id
                OR script_row.source_snapshot_id IS DISTINCT FROM NEW.source_snapshot_id
@@ -1009,6 +993,7 @@ mod tests {
             "Galgame 背景生成意图 scene.id 与目标场不一致",
             "Galgame CG 生成意图 scene.id 与目标行所属场不一致",
             "Galgame 立绘差分目标角色必须属于源快照",
+            "Galgame 立绘差分 pose 必须是非空字符串",
             "Galgame 立绘差分 source_line_ids 行上下文不一致",
             "Galgame 立绘差分 position_samples 与 source_line_ids 行站位不一致",
             "生成意图已有媒体引用必须属于更新后的同一项目族且指向已完成媒体资产",

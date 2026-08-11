@@ -8,14 +8,14 @@ use chrono::NaiveDateTime;
 use serde_json::{Value, json};
 
 use super::{
-    checkpoint::{OptimizedMangaPromptFields, restored_manga_prompt_optimization_checkpoint},
     contracts::MangaPromptOptimizationInput,
-    execution::{manga_prompt_optimization_llm_error, required_manga_prompt_optimization_input},
-    request::{
-        build_manga_prompt_optimization_request, manga_prompt_optimization_input_fingerprint,
+    execution::{
+        OptimizedMangaPromptFields, manga_prompt_optimization_llm_error,
+        required_manga_prompt_optimization_input,
     },
+    request::build_manga_prompt_optimization_request,
 };
-use crate::manga::MANGA_PAGE_PROMPT_TYPE;
+use a4n_core::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
 
 struct TestPromptRenderer;
 
@@ -39,7 +39,7 @@ impl PromptRenderer for TestPromptRenderer {
     }
 }
 
-fn panel() -> chapter_manga_prompt::Model {
+fn page_prompt() -> chapter_manga_prompt::Model {
     let now = NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")
         .expect("valid timestamp");
     chapter_manga_prompt::Model {
@@ -47,15 +47,12 @@ fn panel() -> chapter_manga_prompt::Model {
         chapter_id: 22,
         project_id: 33,
         page_number: 1,
-        panel_number: 0,
         prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
         image_prompt: "旧提示词".to_string(),
         dialogue_text: Some("你好".to_string()),
         characters_in_frame: Some(json!(["主角"])),
         layout: Some(json!({"style": "cinematic"})),
         generated_image_id: Some(44),
-        camera_angle: Some("俯拍".to_string()),
-        dialogue_position: Some("左上".to_string()),
         status: "completed".to_string(),
         created_at: now,
         updated_at: now,
@@ -65,7 +62,7 @@ fn panel() -> chapter_manga_prompt::Model {
 #[test]
 fn input_contract_trims_instruction_and_rejects_invalid_downstream_id() {
     let required = required_manga_prompt_optimization_input(MangaPromptOptimizationInput {
-        panel: panel(),
+        page_prompt: page_prompt(),
         instruction: "  增强构图  ".to_string(),
         downstream_image_ids: vec![44],
     })
@@ -73,7 +70,7 @@ fn input_contract_trims_instruction_and_rejects_invalid_downstream_id() {
     assert_eq!(required.instruction, "增强构图");
 
     let err = required_manga_prompt_optimization_input(MangaPromptOptimizationInput {
-        panel: panel(),
+        page_prompt: page_prompt(),
         instruction: "增强构图".to_string(),
         downstream_image_ids: vec![0],
     })
@@ -99,65 +96,20 @@ fn output_rejects_unknown_fields() {
     assert!(err.to_string().contains("unknown field"));
 }
 
-#[test]
-fn checkpoint_revalidates_output_and_restores_repaired_parsed_output() {
-    let checkpoint = json!({
-        "output": {"image_prompt": "断点里的提示词"},
-        "response_content": r#"{"image_prompt":"响应里的提示词"}"#,
-        "parsed_output": {"image_prompt": "  断点里的提示词  "},
-        "usage": null,
-        "finish_reason": "stop",
-    });
-    let (output, usage, finish_reason) = restored_manga_prompt_optimization_checkpoint(
-        &checkpoint,
-        "optimize_manga_prompt:prompt:1",
-    )
-    .expect("repaired checkpoint should restore parsed_output");
-    assert_eq!(output.parsed_image_prompt, "  断点里的提示词  ");
-    assert_eq!(output.image_prompt, "断点里的提示词");
-    assert_eq!(usage, None);
-    assert_eq!(finish_reason.as_deref(), Some("stop"));
-}
-
-#[test]
-fn checkpoint_rejects_mismatched_output_and_truncated_finish_reason() {
-    let mismatch = json!({
-        "output": {"image_prompt": "另一份提示词"},
-        "response_content": "原始响应",
-        "parsed_output": {"image_prompt": "断点里的提示词"},
-        "usage": null,
-        "finish_reason": "stop",
-    });
-    let err =
-        restored_manga_prompt_optimization_checkpoint(&mismatch, "optimize_manga_prompt:prompt:1")
-            .expect_err("mismatched checkpoint should fail");
-    assert!(err.to_string().contains("必须等于 parsed_output"));
-
-    let truncated = json!({
-        "output": {"image_prompt": "断点里的提示词"},
-        "response_content": "原始响应",
-        "parsed_output": {"image_prompt": "断点里的提示词"},
-        "usage": null,
-        "finish_reason": "length",
-    });
-    let err =
-        restored_manga_prompt_optimization_checkpoint(&truncated, "optimize_manga_prompt:prompt:1")
-            .expect_err("truncated checkpoint should fail");
-    assert!(err.to_string().contains("不能用于恢复"));
-}
-
 #[tokio::test]
-async fn request_uses_context_manifest_json_mode_and_stable_fingerprint() {
-    let panel = panel();
-    let request = build_manga_prompt_optimization_request(&TestPromptRenderer, &panel, "增强构图")
-        .await
-        .expect("request should build");
+async fn request_sends_one_payload_without_context_manifest() {
+    let page_prompt = page_prompt();
+    let request =
+        build_manga_prompt_optimization_request(&TestPromptRenderer, &page_prompt, "增强构图")
+            .await
+            .expect("request should build");
     assert_eq!(request.response_format, Some(ResponseFormat::json_object()));
-    let manifest = request
-        .context_manifest_json
-        .as_ref()
-        .expect("context manifest should exist");
-    assert!(manifest.to_string().contains("source_artifact"));
+    assert!(request.context_manifest_json.is_none());
+    let payload: Value =
+        serde_json::from_str(&request.messages[1].content).expect("payload should be JSON");
+    assert_eq!(payload["current_prompt"]["image_prompt"], "旧提示词");
+    assert_eq!(payload["current_prompt"]["dialogue_text"], "你好");
+    assert_eq!(payload["instruction"], "增强构图");
     let trace = request
         .trace_context
         .as_ref()
@@ -167,15 +119,8 @@ async fn request_uses_context_manifest_json_mode_and_stable_fingerprint() {
         trace.call_key.as_deref(),
         Some("optimize_manga_prompt:prompt:11")
     );
-
-    let fingerprint = manga_prompt_optimization_input_fingerprint(
-        &panel,
-        "增强构图",
-        json!({"request": "stable"}),
-    );
-    assert_eq!(fingerprint["source_refs"]["layout"], panel.layout.unwrap());
     assert_eq!(
-        fingerprint["source_refs"]["characters_in_frame"],
-        panel.characters_in_frame.unwrap()
+        trace.input_fingerprint_sha256.as_deref().map(str::len),
+        Some(64)
     );
 }

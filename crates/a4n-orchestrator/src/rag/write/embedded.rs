@@ -41,7 +41,7 @@ pub async fn store_embedded_rag_records_in_store(
                 id,
                 embedding,
                 metadata: normalize_metadata(project_id, &text, metadata, &embedding_identity)?,
-                content: Some(text),
+                content: text,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

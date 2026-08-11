@@ -1,7 +1,7 @@
 //! 项目 Host 输入与复制/重置路径的纯校验规则（无 DB、无运行时依赖）。
 
 use a4n_core::models::project::novel_project;
-use a4n_core::state::validator::StateValidator;
+use a4n_core::state::validator::parse_project_status;
 
 use super::{PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM};
 
@@ -49,7 +49,7 @@ pub fn optional_text(value: Option<&str>) -> String {
 /// 解析并规范化项目状态字符串（用于分支创建等）。
 pub fn required_project_status(value: &str, field: &str) -> Result<String, String> {
     let value = required_text(value, field)?;
-    let status = StateValidator::parse_status(value).map_err(|e| e.to_string())?;
+    let status = parse_project_status(value).map_err(|e| e.to_string())?;
     Ok(status.as_str().to_string())
 }
 

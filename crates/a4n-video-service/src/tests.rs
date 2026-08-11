@@ -65,10 +65,8 @@ fn rejects_incompatible_protocol_version_with_trace() {
     let mut request = provider_request(video_payload(""), false);
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
 
-    let response: ServiceResponse<()> = error_response(
-        &request,
-        validate_video_provider_request(&request).unwrap_err(),
-    );
+    let response: ServiceResponse<()> =
+        request.error_response(validate_video_provider_request(&request).unwrap_err());
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));

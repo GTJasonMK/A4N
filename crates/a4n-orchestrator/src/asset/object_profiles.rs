@@ -2,7 +2,8 @@
 
 use a4n_core::error::AppError;
 use a4n_core::profile_text::{
-    normalize_aliases, normalize_required_text_set, required_text, validate_importance,
+    normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
+    validate_importance,
 };
 use a4n_db::asset::ObjectProfileRecordInput;
 use serde_json::json;
@@ -73,7 +74,7 @@ pub fn normalize_object_profile_record_input(
 
 fn normalize_record_input(draft: ObjectProfileDraft) -> Result<ObjectProfileRecordInput, AppError> {
     let normalized = normalize_object_name(&draft.name)?;
-    let draft = normalize_draft(draft)?;
+    let draft = normalize_manual_draft(draft)?;
     Ok(object_profile_record_input(draft, normalized))
 }
 
@@ -122,6 +123,33 @@ fn normalize_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfileDraft, 
         .location_context
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    validate_object_chapter_range(&draft)?;
+    draft.evidence = normalize_required_text_set(draft.evidence, "物体证据")?;
+    draft.image_prompt_seed = required_text(&draft.image_prompt_seed, "物体图片提示词种子")?;
+    Ok(draft)
+}
+
+fn normalize_manual_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfileDraft, AppError> {
+    draft.name = required_text(&draft.name, "物体名称")?;
+    draft.aliases = normalize_aliases(draft.aliases);
+    draft.object_type = normalize_optional_object_type(&draft.object_type)?;
+    draft.importance = normalize_optional_importance(&draft.importance, "物体重要性")?;
+    draft.visual_description = draft.visual_description.trim().to_string();
+    draft.material_and_state = draft.material_and_state.trim().to_string();
+    draft.story_usage = draft.story_usage.trim().to_string();
+    draft.visual_usage = draft.visual_usage.trim().to_string();
+    draft.generation_usage = draft.generation_usage.trim().to_string();
+    draft.location_context = draft
+        .location_context
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    validate_object_chapter_range(&draft)?;
+    draft.evidence = normalize_text_set(draft.evidence);
+    draft.image_prompt_seed = draft.image_prompt_seed.trim().to_string();
+    Ok(draft)
+}
+
+fn validate_object_chapter_range(draft: &ObjectProfileDraft) -> Result<(), AppError> {
     if draft.first_seen_chapter <= 0 || draft.last_seen_chapter <= 0 {
         return Err(AppError::InvalidArgument(
             "物体首次/最近出现章节必须大于 0".to_string(),
@@ -132,9 +160,25 @@ fn normalize_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfileDraft, 
             "物体最近出现章节不能早于首次出现章节".to_string(),
         ));
     }
-    draft.evidence = normalize_required_text_set(draft.evidence, "物体证据")?;
-    draft.image_prompt_seed = required_text(&draft.image_prompt_seed, "物体图片提示词种子")?;
-    Ok(draft)
+    Ok(())
+}
+
+fn normalize_optional_object_type(value: &str) -> Result<String, AppError> {
+    let value = value.trim();
+    if value.is_empty() {
+        Ok(String::new())
+    } else {
+        normalize_object_type_value(value)
+    }
+}
+
+fn normalize_optional_importance(value: &str, field_name: &str) -> Result<String, AppError> {
+    let value = value.trim();
+    if value.is_empty() {
+        Ok(String::new())
+    } else {
+        validate_importance(value, field_name)
+    }
 }
 
 pub fn normalize_object_type_value(value: &str) -> Result<String, AppError> {
@@ -187,5 +231,30 @@ mod tests {
         assert!(
             matches!(err, AppError::InvalidArgument(message) if message.contains("物体类型无效"))
         );
+    }
+
+    #[test]
+    fn manual_object_profile_allows_name_only() {
+        let input = normalize_object_profile_record_input(ObjectProfileDraft {
+            name: " 旧怀表 ".to_string(),
+            aliases: Vec::new(),
+            object_type: String::new(),
+            importance: String::new(),
+            visual_description: String::new(),
+            material_and_state: String::new(),
+            story_usage: String::new(),
+            visual_usage: String::new(),
+            generation_usage: String::new(),
+            location_context: None,
+            first_seen_chapter: 1,
+            last_seen_chapter: 1,
+            evidence: Vec::new(),
+            image_prompt_seed: String::new(),
+        })
+        .expect("manual profile should accept sparse known data");
+
+        assert_eq!(input.name, "旧怀表");
+        assert!(input.object_type.is_empty());
+        assert!(input.evidence_json.as_array().is_some_and(Vec::is_empty));
     }
 }

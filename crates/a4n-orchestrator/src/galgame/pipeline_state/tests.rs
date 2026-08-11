@@ -1,28 +1,6 @@
-use a4n_core::error::AppError;
+use a4n_domain::galgame::GalgamePipelineStartStage;
 
-use super::{
-    GalgamePipelineStartStage, galgame_pipeline_stage_keys, parse_galgame_start_stage,
-    should_restore_galgame_stage_checkpoint,
-};
-
-#[test]
-fn parses_all_galgame_pipeline_start_stages() {
-    for key in galgame_pipeline_stage_keys() {
-        assert!(
-            GalgamePipelineStartStage::parse(key).is_some(),
-            "stage should parse: {key}"
-        );
-    }
-}
-
-#[test]
-fn rejects_unknown_galgame_pipeline_start_stage() {
-    let err = parse_galgame_start_stage(Some("unknown_stage")).expect_err("unknown stage");
-
-    assert!(matches!(err, AppError::InvalidArgument(_)));
-    assert!(err.to_string().contains("unknown_stage"));
-    assert!(err.to_string().contains("shooting_script_projection"));
-}
+use super::should_restore_galgame_stage_checkpoint;
 
 #[test]
 fn clears_downstream_checkpoints_when_restarting_from_staging() {

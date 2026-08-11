@@ -1,12 +1,9 @@
-use a4n_core::{
-    error::AppError,
-    shooting_script::{
-        ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-        ShootingTransitionContractV1,
-    },
-    source_spans::SourceSpan,
-};
+use a4n_core::{error::AppError, source_spans::SourceSpan};
 use a4n_db::{project::ResolvedChapterSource, shooting_script::ParsedChapterShootingScript};
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
+    ShootingTransitionContractV1,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,20 +24,6 @@ pub type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
 pub(super) struct ShootingScriptStageResult<T> {
     pub(super) output: T,
     pub(super) restored: bool,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub(super) struct ChapterScreenplayPlan {
-    pub(super) directing_statement: ShootingDirectingStatementV1,
-    pub(super) units: Vec<ScreenplayPlanUnit>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub(super) struct ChapterScreenplayLayoutV1 {
-    pub(super) schema_version: String,
-    pub(super) directing_statement: ShootingDirectingStatementV1,
-    pub(super) units: Vec<ScreenplayLayoutUnitV1>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -79,8 +62,7 @@ pub(super) struct ScreenplayLayoutUnitDetailV1 {
     pub(super) exit_state: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub(super) struct ScreenplayLayoutUnitV1 {
     pub(super) scene_identity: String,
     pub(super) sequence_index: u32,
@@ -108,8 +90,7 @@ pub(super) struct ScreenplayUnitAdaptationV1 {
     pub(super) performance_facts: Vec<ScreenplayPerformanceFactV1>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub(super) struct ScreenplayPlanUnit {
     pub(super) scene_identity: String,
     pub(super) sequence_index: u32,
@@ -146,19 +127,11 @@ pub(super) struct ScreenplayPerformanceFactV1 {
     pub(super) required: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct ChapterShootingScriptSourceInput {
-    pub project_id: i64,
-    pub source_chapter_id: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct RegenerateChapterShootingScriptInput {
-    pub project_id: i64,
-    pub source_chapter_id: i64,
-    pub workflow_run_id: i64,
+#[derive(Debug, Clone)]
+pub(super) struct RegenerateChapterShootingScriptInput {
+    pub(super) project_id: i64,
+    pub(super) source_chapter_id: i64,
+    pub(super) workflow_run_id: i64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -177,23 +150,15 @@ pub struct ChapterShootingScriptUnitProgress {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct PreparedChapterShootingScriptRequest {
-    pub(crate) source: ResolvedChapterSource,
-    pub(crate) source_spans: Vec<SourceSpan>,
-    pub(crate) input_fingerprint_sha256: String,
-    pub(crate) existing: Option<ParsedChapterShootingScript>,
-    pub(crate) skeleton_system_prompt: String,
-    pub(crate) layout_unit_system_prompt: String,
-    pub(crate) unit_adaptation_system_prompt: String,
-    pub(crate) design_unit_system_prompt: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct EditChapterShootingScriptInput {
-    pub record_id: i64,
-    pub expected_revision: i32,
-    pub script: ChapterShootingScriptV1,
+pub(super) struct PreparedChapterShootingScriptRequest {
+    pub(super) source: ResolvedChapterSource,
+    pub(super) source_spans: Vec<SourceSpan>,
+    pub(super) input_fingerprint_sha256: String,
+    pub(super) existing: Option<ParsedChapterShootingScript>,
+    pub(super) skeleton_system_prompt: String,
+    pub(super) layout_unit_system_prompt: String,
+    pub(super) unit_adaptation_system_prompt: String,
+    pub(super) design_unit_system_prompt: String,
 }
 
 #[derive(Debug, Clone)]

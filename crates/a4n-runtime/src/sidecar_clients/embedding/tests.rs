@@ -1,7 +1,7 @@
 use super::super::required_sidecar_client;
 use super::contracts::{
-    EmbeddingTextsOutput, embedding_connectivity_output_matches,
-    embedding_connectivity_test_payload, embedding_model_operation_payload,
+    EmbeddingTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
+    validate_embedding_connectivity_output,
 };
 use super::download::{
     download_embedding_model_events, handle_embedding_download_event,
@@ -104,9 +104,8 @@ fn embedded_provider_factories_do_not_require_sidecar_capability() {
 
 #[test]
 fn embedding_model_sidecar_payload_never_forwards_host_cache_path() {
-    let payload = embedding_model_operation_payload("download_info", "test-model");
+    let payload = embedding_model_payload("test-model");
 
-    assert_eq!(payload.operation, "download_info");
     assert_eq!(payload.model, "test-model");
 }
 
@@ -116,8 +115,7 @@ fn embedding_connectivity_payload_omits_host_cache_path_and_keeps_explicit_model
     model.local_model_path = Some("/host/private/cache".to_string());
     model.batch_size = 16;
 
-    let payload =
-        embedding_connectivity_test_payload(&model, "test").expect("connectivity payload");
+    let payload = embedding_connectivity_test_payload(&model).expect("connectivity payload");
 
     assert_eq!(payload.model, "test-model");
     assert_eq!(payload.backend, "fastembed");
@@ -138,7 +136,7 @@ fn embedding_connectivity_response_checks_identity_count_and_vector_dimension() 
         },
         embeddings: vec![vec![0.1, 0.2, 0.3]],
     };
-    assert!(embedding_connectivity_output_matches(&matching, 3));
+    validate_embedding_connectivity_output(&matching, 3).expect("matching output");
 
     let wrong_identity = EmbeddingTextsOutput {
         identity: EmbeddingModelIdentity {
@@ -147,19 +145,19 @@ fn embedding_connectivity_response_checks_identity_count_and_vector_dimension() 
         },
         embeddings: matching.embeddings.clone(),
     };
-    assert!(!embedding_connectivity_output_matches(&wrong_identity, 3));
+    assert!(validate_embedding_connectivity_output(&wrong_identity, 3).is_err());
 
     let wrong_count = EmbeddingTextsOutput {
         identity: matching.identity.clone(),
         embeddings: vec![vec![0.1, 0.2, 0.3], vec![0.1, 0.2, 0.3]],
     };
-    assert!(!embedding_connectivity_output_matches(&wrong_count, 3));
+    assert!(validate_embedding_connectivity_output(&wrong_count, 3).is_err());
 
     let wrong_vector = EmbeddingTextsOutput {
         identity: matching.identity,
         embeddings: vec![vec![0.1, 0.2]],
     };
-    assert!(!embedding_connectivity_output_matches(&wrong_vector, 3));
+    assert!(validate_embedding_connectivity_output(&wrong_vector, 3).is_err());
 }
 
 #[tokio::test]
@@ -171,11 +169,10 @@ async fn embedding_connectivity_uses_typed_capability_and_deny_all_request() {
     let mut model = embedding_model("fastembed");
     model.local_model_path = Some("/host/private/cache".to_string());
 
-    let connected = test_embedding_config_via_sidecar(&capabilities, &model, "test")
+    test_embedding_config_via_sidecar(&capabilities, &model)
         .await
         .expect("sidecar connectivity test");
 
-    assert!(connected);
     assert_eq!(client.embed_call_count(), 1);
     let request = client.last_embed_request().expect("recorded embed request");
     assert!(request.secret_policy.is_deny_all());
@@ -195,11 +192,9 @@ async fn api_embedding_connectivity_forwards_secret_only_with_local_user_policy(
     model.base_url = Some("https://provider.example/v1".to_string());
     model.api_key_encrypted = Some("secret-key".to_string());
 
-    assert!(
-        test_embedding_config_via_sidecar(&capabilities, &model, "test")
-            .await
-            .expect("API embedding connectivity test")
-    );
+    test_embedding_config_via_sidecar(&capabilities, &model)
+        .await
+        .expect("API embedding connectivity test");
     let request = client.last_embed_request().expect("recorded embed request");
     assert!(request.secret_policy.is_local_user_secret_only());
     assert_eq!(request.payload["base_url"], "https://provider.example/v1");
@@ -214,7 +209,6 @@ fn embedding_download_events_map_progress_and_completed_payload() {
         Some(serde_json::json!({
             "downloaded_bytes": 21,
             "total_bytes": 42,
-            "percent": 50.0,
             "message": "downloading"
         })),
         None,

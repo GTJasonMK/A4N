@@ -4,9 +4,8 @@ mod generation;
 mod read;
 
 pub use contracts::{
-    ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-    EditChapterShootingScriptRecordInput, EditedChapterShootingScriptView,
-    GenerateChapterShootingScriptInput, GetChapterShootingScriptInput,
+    ChapterShootingScriptSourceInput, ChapterShootingScriptUnitProgressView,
+    ChapterShootingScriptView, EditChapterShootingScriptInput, EditedChapterShootingScriptView,
 };
 pub use edit::edit_chapter_shooting_script;
 pub use generation::{

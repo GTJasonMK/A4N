@@ -1,6 +1,6 @@
 use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::SceneProfileSyncRequestContext;
-use super::validation::{reject_deprecated_evidence_fields, validate_id_in_set};
+use super::validation::validate_id_in_set;
 use crate::scene_profile::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SceneEntityStateDraft,
     normalize_scene_entity_state_key_value, normalize_scene_entity_type_value,
@@ -20,7 +20,6 @@ pub(super) fn parse_scene_entity_states(
     for (index, state) in entity_states.iter().enumerate() {
         let path = format!("entity_states[{index}]");
         ensure_object(state, &path)?;
-        reject_deprecated_evidence_fields(state, &path, "source_anchor_ids")?;
         reject_unknown_fields(
             state,
             &path,

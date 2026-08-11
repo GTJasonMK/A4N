@@ -27,7 +27,7 @@ pub(crate) async fn resolve_image_config(
     }
 
     state
-        .settings()
+        .orchestrator()
         .resolve_image_config(config_id)
         .await
         .map_err(|err| err.to_string())
@@ -37,7 +37,7 @@ pub(super) async fn resolve_system_default_image_template_with_user_key(
     state: &AppState,
 ) -> Result<image_gen_config::Model, String> {
     let mut model = state
-        .settings()
+        .orchestrator()
         .resolve_image_config(None)
         .await
         .map_err(|err| err.to_string())?;

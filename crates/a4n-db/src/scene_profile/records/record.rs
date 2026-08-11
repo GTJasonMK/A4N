@@ -9,6 +9,7 @@ pub async fn create_scene_profile_record<C>(
     db: &C,
     project_id: i64,
     input: SceneProfileRecordInput,
+    ownership_kind: &str,
 ) -> SceneProfileDbResult<scene_profile::Model>
 where
     C: ConnectionTrait,
@@ -16,6 +17,7 @@ where
     let now = Utc::now().naive_utc();
     scene_profile::ActiveModel {
         project_id: Set(project_id),
+        ownership_kind: Set(ownership_kind.to_string()),
         name: Set(input.name),
         normalized_name: Set(input.normalized_name),
         aliases_json: Set(input.aliases_json),
@@ -46,11 +48,13 @@ pub async fn replace_scene_profile_record<C>(
     db: &C,
     existing: scene_profile::Model,
     input: SceneProfileRecordInput,
+    ownership_kind: &str,
 ) -> SceneProfileDbResult<scene_profile::Model>
 where
     C: ConnectionTrait,
 {
     let mut active: scene_profile::ActiveModel = existing.into();
+    active.ownership_kind = Set(ownership_kind.to_string());
     active.name = Set(input.name);
     active.normalized_name = Set(input.normalized_name);
     active.aliases_json = Set(input.aliases_json);

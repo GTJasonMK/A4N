@@ -100,7 +100,7 @@ pub struct SaveBlueprintInput {
     pub one_sentence_summary: Option<String>,
     #[schemars(length(max = 131072))]
     pub full_synopsis: Option<String>,
-    #[schemars(range(min = 5, max = 10000))]
+    #[schemars(range(min = 1, max = 10000))]
     pub total_chapters: i32,
 }
 

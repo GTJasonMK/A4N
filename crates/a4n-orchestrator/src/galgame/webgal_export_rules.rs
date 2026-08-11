@@ -1,46 +1,14 @@
 //! WebGAL 导出纯规则（无 DB、无 Host 路径 IO）。
 
-use serde_json::Value;
 use std::path::Path;
 
-use crate::media::{MEDIA_BINDING_ROLE_BGM, MEDIA_BINDING_ROLE_SFX};
+use a4n_domain::galgame::{GalgameMediaRole, GalgameTransition};
 
-/// 将行 position 映射为 WebGAL figure 位置。
-pub fn webgal_figure_position(
-    value: Option<&str>,
-    line_id: i64,
-) -> Result<Option<&'static str>, String> {
+/// 将强类型转场映射为 WebGAL 参数串。
+pub fn webgal_transition_args(value: Option<GalgameTransition>) -> &'static str {
     match value {
-        Some("left") => Ok(Some("left")),
-        Some("center") => Ok(Some("center")),
-        Some("right") => Ok(Some("right")),
-        Some(value) if value.trim().is_empty() => Ok(None),
-        Some(value) => Err(format!(
-            "Galgame 行 {line_id} position 无效，无法导出 WebGAL: {value}"
-        )),
-        None => Ok(None),
-    }
-}
-
-/// 从 presentation_json 解析 WebGAL transition 参数串。
-pub fn webgal_transition_args(value: &Value, line_id: i64) -> Result<&'static str, String> {
-    let object = value
-        .as_object()
-        .ok_or_else(|| format!("Galgame 行 {line_id} presentation_json 必须是 JSON 对象"))?;
-    let Some(value) = object.get("transition") else {
-        return Ok("");
-    };
-    if value.is_null() {
-        return Ok("");
-    }
-    let transition = value
-        .as_str()
-        .ok_or_else(|| format!("Galgame 行 {line_id} transition 必须是字符串"))?
-        .trim();
-    match transition {
-        "" | "fade" | "dissolve" => Ok(""),
-        "cut" => Ok(" -duration=0 -enterDuration=0 -exitDuration=0"),
-        other => Err(format!("Galgame 行 {line_id} transition 不支持: {other}")),
+        Some(GalgameTransition::Cut) => " -duration=0 -enterDuration=0 -exitDuration=0",
+        Some(GalgameTransition::Fade | GalgameTransition::Dissolve) | None => "",
     }
 }
 
@@ -63,10 +31,13 @@ pub fn media_file_extension(file_path: &str) -> Result<String, String> {
 }
 
 /// WebGAL 角色约束下的媒体扩展名（音频仅 mp3/wav/ogg）。
-pub fn media_file_extension_for_webgal_role(file_path: &str, role: &str) -> Result<String, String> {
+pub fn media_file_extension_for_webgal_role(
+    file_path: &str,
+    role: GalgameMediaRole,
+) -> Result<String, String> {
     let extension = media_file_extension(file_path)?;
     match role {
-        MEDIA_BINDING_ROLE_BGM | MEDIA_BINDING_ROLE_SFX
+        GalgameMediaRole::Bgm | GalgameMediaRole::Sfx
             if !matches!(extension.as_str(), "mp3" | "wav" | "ogg") =>
         {
             Err(format!(
@@ -79,12 +50,12 @@ pub fn media_file_extension_for_webgal_role(file_path: &str, role: &str) -> Resu
 }
 
 /// 导出包文件名 stem 净化。
-pub fn sanitize_export_file_stem(value: &str) -> String {
+pub fn sanitize_export_file_stem(value: &str) -> Result<String, String> {
     let stem = value
         .trim()
         .chars()
         .map(|ch| {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+            if ch.is_alphanumeric() || matches!(ch, '-' | '_') {
                 ch
             } else if ch.is_whitespace() {
                 '_'
@@ -97,9 +68,9 @@ pub fn sanitize_export_file_stem(value: &str) -> String {
         .trim_matches('_')
         .to_string();
     if stem.is_empty() {
-        "galgame".to_string()
+        Err("Galgame 标题无法生成有效导出文件名".to_string())
     } else {
-        stem
+        Ok(stem)
     }
 }
 
@@ -129,39 +100,27 @@ pub fn webgal_arg(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
-    fn figure_position_and_transition() {
-        assert_eq!(
-            webgal_figure_position(Some("left"), 1).unwrap(),
-            Some("left")
-        );
-        assert!(webgal_figure_position(Some("top"), 1).is_err());
-        assert_eq!(webgal_transition_args(&json!({}), 1).unwrap(), "");
-        assert_eq!(
-            webgal_transition_args(&json!({"transition": null}), 1).unwrap(),
-            ""
-        );
-        assert!(
-            webgal_transition_args(&json!({"transition": "cut"}), 1)
-                .unwrap()
-                .contains("duration=0")
-        );
+    fn transition_mapping() {
+        assert_eq!(webgal_transition_args(None), "");
+        assert!(webgal_transition_args(Some(GalgameTransition::Cut)).contains("duration=0"));
     }
 
     #[test]
     fn media_extension_and_sanitize() {
         assert_eq!(media_file_extension("a/b.PNG").unwrap(), "png");
-        assert!(media_file_extension_for_webgal_role("a.mp4", MEDIA_BINDING_ROLE_BGM).is_err());
+        assert!(media_file_extension_for_webgal_role("a.mp4", GalgameMediaRole::Bgm).is_err());
         assert_eq!(
-            media_file_extension_for_webgal_role("a.ogg", MEDIA_BINDING_ROLE_SFX).unwrap(),
+            media_file_extension_for_webgal_role("a.ogg", GalgameMediaRole::Sfx).unwrap(),
             "ogg"
         );
-        assert_eq!(sanitize_export_file_stem("  My Script!  "), "My_Script");
-        assert_eq!(sanitize_export_file_stem("   "), "galgame");
-        // 非 ASCII 字母数字会被替换为 '-'，最终可能回落到默认 stem
-        assert_eq!(sanitize_export_file_stem("雨夜"), "galgame");
+        assert_eq!(
+            sanitize_export_file_stem("  My Script!  ").unwrap(),
+            "My_Script"
+        );
+        assert!(sanitize_export_file_stem("   ").is_err());
+        assert_eq!(sanitize_export_file_stem("雨夜").unwrap(), "雨夜");
     }
 
     #[test]

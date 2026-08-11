@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use a4n_api_contract::chapter::StartChapterGenerationInput;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_embedding::provider::EmbeddingModelIdentity;
@@ -10,11 +12,9 @@ use crate::{
         ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
         model_request_preview,
     },
-    prompt_renderer::RuntimePromptRenderer,
 };
 
 pub use a4n_orchestrator::chapter_generation::{
-    FinishChapterGenerationRagContextInput, GenerationRagContext,
     PreparedGenerationRagEmbeddingRequest,
     PreviewChapterGenerationInput as PreviewChapterPromptInput,
 };
@@ -34,20 +34,16 @@ pub async fn start_chapter_generation_typed(
     user_id: i64,
     input: StartChapterGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
-    let runtime_embedding_identity = if input.chapter_number > 1
-        && input
-            .client_rag_context
-            .as_deref()
-            .map(str::trim)
-            .unwrap_or_default()
-            .is_empty()
-    {
+    let has_client_rag_payload = input.client_rag_embedding_identity.is_some()
+        || input.client_rag_query_fingerprint.is_some()
+        || input.client_rag_query_vectors.is_some();
+    let runtime_embedding_identity = if input.chapter_number > 1 && !has_client_rag_payload {
         runtime_embedding_identity().map_err(GenerationTaskAccessError::InvalidArgument)?
     } else {
         None
     };
     let start = state
-        .chapter_generation()
+        .orchestrator()
         .start_chapter_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -58,18 +54,18 @@ pub async fn start_chapter_generation_typed(
     let handle = start.handle.clone();
     let worker_input = input;
     state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(&worker_state);
         if let Err(error) = worker_state
-            .chapter_generation()
+            .orchestrator()
             .run_chapter_generation_task(
                 ChapterGenerationApplicationContext {
-                    prompt_renderer: &prompt_renderer,
+                    prompt_renderer: prompt_renderer,
                     runtime_embedding_identity,
                 },
                 worker_input,
                 handle.clone(),
-                &host_port,
+                Arc::new(host_port),
             )
             .await
         {
@@ -94,13 +90,13 @@ pub async fn preview_chapter_prompt(
     } else {
         None
     };
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let preview = state
-        .chapter_generation()
+        .orchestrator()
         .preview_chapter_generation_request_validated(
             user_id,
             ChapterGenerationApplicationContext {
-                prompt_renderer: &prompt_renderer,
+                prompt_renderer: prompt_renderer,
                 runtime_embedding_identity,
             },
             input,
@@ -132,23 +128,12 @@ pub async fn prepare_chapter_generation_rag_embedding(
     input: PreviewChapterPromptInput,
 ) -> Result<PreparedGenerationRagEmbeddingRequest, String> {
     state
-        .chapter_generation()
+        .orchestrator()
         .prepare_chapter_generation_rag_embedding_validated(
             user_id,
             input,
             runtime_embedding_identity()?,
         )
-        .await
-}
-
-pub async fn finish_chapter_generation_rag_context(
-    state: &AppState,
-    user_id: i64,
-    input: FinishChapterGenerationRagContextInput,
-) -> Result<GenerationRagContext, String> {
-    state
-        .chapter_generation()
-        .finish_chapter_generation_rag_context_validated(user_id, input)
         .await
 }
 

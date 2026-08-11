@@ -122,28 +122,6 @@ where
     active.update(db).await.map_err(AppError::Database)
 }
 
-pub async fn set_default_embedding_config_record<C>(
-    db: &C,
-    model: embedding_config::Model,
-) -> Result<embedding_config::Model, AppError>
-where
-    C: ConnectionTrait,
-{
-    embedding_config::Entity::update_many()
-        .col_expr(
-            embedding_config::Column::IsDefault,
-            sea_orm::sea_query::Expr::value(false),
-        )
-        .filter(embedding_config::Column::IsDefault.eq(true))
-        .exec(db)
-        .await
-        .map_err(AppError::Database)?;
-
-    let mut active: embedding_config::ActiveModel = model.into();
-    active.is_default = Set(true);
-    active.update(db).await.map_err(AppError::Database)
-}
-
 pub async fn delete_embedding_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>
 where
     C: ConnectionTrait,

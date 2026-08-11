@@ -8,13 +8,13 @@ use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 
 use crate::contracts::{EmbedTextsOutput, EmbedTextsPayload};
-use crate::protocol::{error_response, result_response, validate_embedding_request};
+use crate::protocol::{result_response, validate_embedding_request};
 
 pub(crate) async fn embed_texts(
     Json(request): Json<ServiceRequest<EmbedTextsPayload>>,
 ) -> Json<ServiceResponse<EmbedTextsOutput>> {
     if let Err(error) = validate_embedding_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = async {
         let provider = embedding_provider(&request.payload)?;

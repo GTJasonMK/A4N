@@ -1,5 +1,4 @@
 use super::output::project_enhanced_rag_search_output;
-use crate::state::RagRuntimeFacade;
 use a4n_core::error::AppError;
 
 use super::super::contract_identity_to_provider;
@@ -9,7 +8,7 @@ use super::super::{
 };
 
 pub(super) async fn execute_enhanced_rag_search_with_vectors(
-    rag: &RagRuntimeFacade<'_>,
+    rag: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     input: RagEnhancedSearchWithVectorsInput,
 ) -> Result<RagEnhancedSearchOutput, AppError> {
@@ -26,7 +25,7 @@ pub(super) async fn execute_enhanced_rag_search_with_vectors(
 }
 
 pub(super) async fn execute_enhanced_rag_search(
-    rag: &RagRuntimeFacade<'_>,
+    rag: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     base_query: &str,
     top_k: usize,

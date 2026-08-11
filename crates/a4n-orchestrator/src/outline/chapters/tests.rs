@@ -49,6 +49,7 @@ async fn chapter_outline_request_moves_blueprint_and_parts_into_manifest() {
             "one_sentence_summary": "调查星潮真相",
         }),
         parts: vec![part.clone()],
+        source_snapshot: json!({}),
     };
     let variables = HashMap::new();
     let request = build_chapter_outline_request(ChapterOutlineRequestInput {

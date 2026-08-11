@@ -46,5 +46,6 @@ pub(in crate::import_reverse) fn resolve_reverse_blueprint_apply_record(
         total_chapters: effective_total_chapters,
         needs_part_outlines,
         chapters_per_part: needs_part_outlines.then_some(crate::project::CHAPTERS_PER_PART),
+        current_version: apply_plan.next_version.clone(),
     })
 }

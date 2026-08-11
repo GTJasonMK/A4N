@@ -10,9 +10,9 @@ pub async fn export_batch_data(
     input: BatchExportInput,
     progress: &ExportProgress<'_>,
 ) -> Result<Vec<ExportFileData>, String> {
-    export_batch_task_scope(state, user_id, &input).await?;
+    export_batch_task_scope(state, user_id, input.project_id).await?;
     state
-        .export()
+        .orchestrator()
         .run_batch_export_validated(input, progress)
         .await
         .map_err(|error| error.to_string())

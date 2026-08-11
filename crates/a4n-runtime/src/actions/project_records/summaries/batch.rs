@@ -6,7 +6,7 @@ use crate::AppState;
 use crate::actions::app_error_message;
 
 use super::super::contracts::{ProjectSummary, contract_progress_summary};
-use super::projection::{apply_project_access_info, apply_project_family_metadata, to_summary};
+use super::projection::to_summary;
 
 pub async fn project_summaries_with_family_for_user(
     state: &AppState,
@@ -18,7 +18,7 @@ pub async fn project_summaries_with_family_for_user(
         .map(ProjectFamilyMetadataQuery::from_project)
         .collect();
     let family_metadata_by_project_id = state
-        .project_read()
+        .orchestrator()
         .project_family_metadata_batch(&family_queries)
         .await
         .map_err(app_error_message)?;
@@ -27,7 +27,7 @@ pub async fn project_summaries_with_family_for_user(
         .map(ProjectAccessInfoQuery::from_project)
         .collect();
     let access_infos = state
-        .collaboration()
+        .orchestrator()
         .project_access_info_batch(&access_queries, user_id)
         .await
         .map_err(app_error_message)?;
@@ -36,15 +36,14 @@ pub async fn project_summaries_with_family_for_user(
         .map(ProjectProgressQuery::from_project)
         .collect();
     let progress_by_project_id = state
-        .project_read()
+        .orchestrator()
         .project_progress_summaries(&progress_queries)
         .await
         .map_err(app_error_message)?;
 
     let mut summaries = Vec::with_capacity(projects.len());
     for project in projects {
-        let mut summary = to_summary(project);
-        summary.progress = contract_progress_summary(
+        let progress = contract_progress_summary(
             progress_by_project_id
                 .get(&project.id)
                 .cloned()
@@ -53,12 +52,10 @@ pub async fn project_summaries_with_family_for_user(
         let family_metadata = family_metadata_by_project_id
             .get(&project.id)
             .ok_or_else(|| format!("项目缺少族元数据: {}", project.id))?;
-        apply_project_family_metadata(&mut summary, family_metadata);
         let info = access_infos
             .get(&project.id)
             .ok_or_else(|| format!("项目缺少协作访问信息: {}", project.id))?;
-        apply_project_access_info(&mut summary, info);
-        summaries.push(summary);
+        summaries.push(to_summary(project, family_metadata, info, progress)?);
     }
     Ok(summaries)
 }

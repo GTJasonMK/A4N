@@ -4,7 +4,7 @@ use a4n_domain::project::ProjectStatus;
 
 /// 检查从前状态到后状态是否为合法前进转换
 ///
-/// 前进转换：Draft → BlueprintReady → PartOutlinesReady → ChapterOutlinesReady → Writing → Completed
+/// 项目状态是已有正式产物的进度摘要，非线性创作允许跳过不存在的中间产物。
 pub fn is_valid_forward(from: ProjectStatus, to: ProjectStatus) -> bool {
     valid_forward_targets(from).contains(&to)
 }
@@ -17,13 +17,25 @@ pub fn is_valid_rollback(from: ProjectStatus, to: ProjectStatus) -> bool {
 /// 获取前向转换的所有合法目标状态
 pub fn valid_forward_targets(from: ProjectStatus) -> &'static [ProjectStatus] {
     match from {
-        ProjectStatus::Draft => &[ProjectStatus::BlueprintReady],
+        ProjectStatus::Draft => &[
+            ProjectStatus::BlueprintReady,
+            ProjectStatus::PartOutlinesReady,
+            ProjectStatus::ChapterOutlinesReady,
+            ProjectStatus::Writing,
+            ProjectStatus::Completed,
+        ],
         ProjectStatus::BlueprintReady => &[
             ProjectStatus::PartOutlinesReady,
             ProjectStatus::ChapterOutlinesReady,
+            ProjectStatus::Writing,
+            ProjectStatus::Completed,
         ],
-        ProjectStatus::PartOutlinesReady => &[ProjectStatus::ChapterOutlinesReady],
-        ProjectStatus::ChapterOutlinesReady => &[ProjectStatus::Writing],
+        ProjectStatus::PartOutlinesReady => &[
+            ProjectStatus::ChapterOutlinesReady,
+            ProjectStatus::Writing,
+            ProjectStatus::Completed,
+        ],
+        ProjectStatus::ChapterOutlinesReady => &[ProjectStatus::Writing, ProjectStatus::Completed],
         ProjectStatus::Writing => &[ProjectStatus::Completed],
         ProjectStatus::Completed => &[],
     }
@@ -42,8 +54,8 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_forward_draft_to_writing() {
-        assert!(!is_valid_forward(
+    fn test_nonlinear_forward_draft_to_writing() {
+        assert!(is_valid_forward(
             ProjectStatus::Draft,
             ProjectStatus::Writing
         ));

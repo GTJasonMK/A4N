@@ -1,36 +1,22 @@
-use std::future::Future;
+use crate::{
+    AppState,
+    actions::{
+        admin_records::{AdminPermission, require_admin_permission},
+        app_error_message,
+    },
+};
 
 pub use crate::actions::request_preview::{ModelRequestPreview, ModelRequestPreviewStep};
 pub use a4n_api_contract::config::ModelDiscoveryInput;
 pub use a4n_model_discovery::{DiscoveredModel, ModelDiscoveryResult};
 
-pub(super) async fn model_discovery_api_key<F, Fut>(
-    provided_api_key: Option<&str>,
-    load_saved_api_key: F,
-) -> Result<Option<String>, String>
-where
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = Result<Option<String>, String>>,
-{
-    if let Some(api_key) = provided_api_key
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return Ok(Some(api_key.to_string()));
-    }
-    Ok(load_saved_api_key()
-        .await?
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty()))
-}
-
-pub(super) fn required_existing_config_id(
-    config_id: Option<i64>,
-    label: &str,
-) -> Result<i64, String> {
-    config_id
-        .filter(|value| *value > 0)
-        .ok_or_else(|| format!("{label}模型探测需要有效的已保存配置 ID"))
+pub(super) async fn require_config_admin(
+    state: &AppState,
+    caller_user_id: i64,
+) -> Result<(), String> {
+    require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
+        .await
+        .map_err(app_error_message)
 }
 
 pub(super) fn validate_runtime_snapshot_config_id(
@@ -44,11 +30,4 @@ pub(super) fn validate_runtime_snapshot_config_id(
     Err(format!(
         "runtime_config_snapshot.{config_kind}.id 必须等于 config_id：snapshot_id={snapshot_id}, config_id={config_id}",
     ))
-}
-
-pub(super) fn positive_i32_as_usize(value: i32, label: &str) -> Result<usize, String> {
-    usize::try_from(value)
-        .ok()
-        .filter(|value| *value > 0)
-        .ok_or_else(|| format!("{label} 必须为正整数"))
 }

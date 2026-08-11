@@ -1,7 +1,6 @@
 mod client;
 mod config;
 mod context;
-mod flow;
 mod local;
 mod output;
 mod routing;
@@ -14,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
-use a4n_api_contract::auth::ChangePasswordInput;
+use a4n_api_contract::auth::{ChangePasswordInput, RevokeSessionInput};
 use a4n_api_contract::command_manifest as catalog;
 use a4n_api_contract::project::CreateProjectInput;
 use anyhow::{Context, Result, bail};
@@ -23,7 +22,6 @@ use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use reqwest::{Method, Response};
 use serde_json::{Map, Value, json};
 use tokio::io::AsyncWriteExt;
-use uuid::Uuid;
 
 use client::{ApiBody, ApiClient, JsonRequest};
 use config::{StoredConfig, resolve_config_path};
@@ -171,11 +169,6 @@ enum Command {
         #[command(subcommand)]
         command: WorkflowCommand,
     },
-    /// 执行、校验和恢复可版本化的 Agent flow
-    Flow {
-        #[command(subcommand)]
-        command: FlowCommand,
-    },
     /// 下载 Server 管理的媒体文件
     Media {
         #[command(subcommand)]
@@ -226,10 +219,8 @@ enum AuthCommand {
     },
     /// 修改当前用户资料
     UpdateProfile {
-        #[arg(long, conflicts_with = "clear_email")]
-        email: Option<String>,
         #[arg(long)]
-        clear_email: bool,
+        email: Option<String>,
         #[arg(long, conflicts_with = "clear_avatar_url")]
         avatar_url: Option<String>,
         #[arg(long)]
@@ -432,38 +423,6 @@ enum WorkflowCommand {
 }
 
 #[derive(Debug, Subcommand)]
-enum FlowCommand {
-    /// 列出目录中的 flow JSON
-    List {
-        #[arg(long, default_value = "flows", value_name = "DIR")]
-        directory: PathBuf,
-    },
-    /// 校验 flow 并显示执行计划
-    Validate { file: PathBuf },
-    /// 执行新 flow
-    Run {
-        file: PathBuf,
-        #[arg(long, value_name = "PATH")]
-        journal: Option<PathBuf>,
-        #[arg(long)]
-        dry_run: bool,
-        /// 允许 spec 中已显式标记的危险步骤
-        #[arg(long)]
-        allow_destructive: bool,
-    },
-    /// 从 journal 继续未完成 flow
-    Resume {
-        journal: PathBuf,
-        /// 允许 spec 中已显式标记的危险步骤
-        #[arg(long)]
-        allow_destructive: bool,
-        /// 对无法证明幂等的中断步骤也显式重新执行
-        #[arg(long)]
-        rerun_incomplete: bool,
-    },
-}
-
-#[derive(Debug, Subcommand)]
 enum LocalCommand {
     /// 迁移数据库并在后台启动本地 Server
     Start {
@@ -580,7 +539,6 @@ impl Command {
             Self::Project { command } => format!("project {}", command.label()),
             Self::Chapter { command } => format!("chapter {}", command.label()),
             Self::Workflow { command } => format!("workflow {}", command.label()),
-            Self::Flow { command } => format!("flow {}", command.label()),
             Self::Media { command } => format!("media {}", command.label()),
             Self::Config { command } => format!("config {}", command.label()),
             Self::Context { command } => format!("context {}", command.label()),
@@ -663,17 +621,6 @@ impl WorkflowCommand {
             Self::Resume { .. } => "resume",
             Self::Cancel { .. } => "cancel",
             Self::Watch { .. } => "watch",
-        }
-    }
-}
-
-impl FlowCommand {
-    fn label(&self) -> &'static str {
-        match self {
-            Self::List { .. } => "list",
-            Self::Validate { .. } => "validate",
-            Self::Run { .. } => "run",
-            Self::Resume { .. } => "resume",
         }
     }
 }
@@ -1000,7 +947,6 @@ async fn execute_command(runtime: &mut CliRuntime, command: Command) -> Result<(
         Command::Project { command } => run_project(runtime, command, &output).await,
         Command::Chapter { command } => run_chapter(runtime, command, &output).await,
         Command::Workflow { command } => run_workflow(runtime, command, &output).await,
-        Command::Flow { command } => run_flow(runtime, command, &output).await,
         Command::Media { command } => run_media(&mut runtime.client, command, &output).await,
         Command::Config { command } => run_config(&mut runtime.client, command, &output),
         Command::Context { command } => run_context(runtime, command, &output).await,
@@ -1207,7 +1153,6 @@ async fn invoke_call(
         "change_user_password" => Some("auth change-password"),
         "revoke_session" => Some("auth revoke-session"),
         "oauth2_callback" => Some("auth oauth-callback"),
-        "logout_user" => Some("auth logout"),
         _ => None,
     };
     if let Some(replacement) = auth_command {
@@ -1341,12 +1286,10 @@ async fn run_auth(
         AuthCommand::ChangePassword { passwords_stdin } => {
             let (old_password, new_password) = read_password_pair(passwords_stdin)?;
             let secrets = [old_password.clone(), new_password.clone()];
-            let user = client.current_user().await?;
             client
                 .send_json(routing::command_request(
                     "change_user_password",
                     json!({
-                        "userId": user.id,
                         "input": ChangePasswordInput { old_password, new_password }
                     }),
                 )?)
@@ -1356,23 +1299,25 @@ async fn run_auth(
         }
         AuthCommand::UpdateProfile {
             email,
-            clear_email,
             avatar_url,
             clear_avatar_url,
         } => {
-            let email = optional_update(email, clear_email);
-            let avatar_url = optional_update(avatar_url, clear_avatar_url);
-            if email.is_none() && avatar_url.is_none() {
-                bail!("至少提供 --email、--clear-email、--avatar-url 或 --clear-avatar-url 之一");
+            if email.is_none() && avatar_url.is_none() && !clear_avatar_url {
+                bail!("至少提供 --email、--avatar-url 或 --clear-avatar-url 之一");
             }
             let mut input = Map::new();
-            insert_nullable_update(&mut input, "email", email);
-            insert_nullable_update(&mut input, "avatar_url", avatar_url);
-            let user = client.current_user().await?;
+            if let Some(email) = email {
+                input.insert("email".to_string(), Value::String(email));
+            }
+            if clear_avatar_url {
+                input.insert("avatar_url".to_string(), Value::Null);
+            } else if let Some(avatar_url) = avatar_url {
+                input.insert("avatar_url".to_string(), Value::String(avatar_url));
+            }
             let value = client
                 .send_json(routing::command_request(
                     "update_user_profile",
-                    json!({ "userId": user.id, "input": Value::Object(input) }),
+                    json!({ "input": Value::Object(input) }),
                 )?)
                 .await?;
             print_json(&value, output)
@@ -1398,7 +1343,11 @@ async fn run_auth(
             client
                 .send_json(routing::command_request(
                     "revoke_session",
-                    json!({ "sessionId": session_id }),
+                    json!({
+                        "input": RevokeSessionInput {
+                            session_id: session_id.clone()
+                        }
+                    }),
                 )?)
                 .await?;
             let revoked_current = current_session.as_deref() == Some(session_id.as_str());
@@ -2086,402 +2035,6 @@ fn workflow_contract_error(workflow_run_id: i64, message: &str, details: Value) 
     .into()
 }
 
-async fn run_flow(
-    runtime: &mut CliRuntime,
-    command: FlowCommand,
-    output: &OutputOptions,
-) -> Result<()> {
-    match command {
-        FlowCommand::List { directory } => print_json(&flow::list_flows(&directory)?, output),
-        FlowCommand::Validate { file } => {
-            let loaded = flow::load_flow(&file)?;
-            print_json(&flow_plan(&loaded), output)
-        }
-        FlowCommand::Run {
-            file,
-            journal,
-            dry_run,
-            allow_destructive,
-        } => {
-            let loaded = flow::load_flow(&file)?;
-            if dry_run {
-                return print_json(&flow_plan(&loaded), output);
-            }
-            let mut state = flow::FlowJournal::new(&loaded)?;
-            let journal_path =
-                journal.unwrap_or_else(|| flow::default_journal_path(&loaded.path, &state.run_id));
-            let _journal_lock = config::lock_config(&journal_path)?;
-            if journal_path.exists() {
-                bail!(
-                    "flow journal 已存在；使用 flow resume 或指定新路径: {}",
-                    journal_path.display()
-                );
-            }
-            state.save_unlocked(&journal_path)?;
-            print_json(
-                &json!({
-                    "flow": loaded.spec.name,
-                    "run_id": state.run_id,
-                    "journal": journal_path,
-                    "status": "started",
-                }),
-                output,
-            )?;
-            execute_flow(
-                runtime,
-                &loaded,
-                &journal_path,
-                &mut state,
-                allow_destructive,
-                false,
-                output,
-            )
-            .await
-        }
-        FlowCommand::Resume {
-            journal,
-            allow_destructive,
-            rerun_incomplete,
-        } => {
-            let _journal_lock = config::lock_config(&journal)?;
-            let mut state = flow::load_journal_unlocked(&journal)?;
-            let loaded = flow::load_flow(&state.flow_path)?;
-            flow::verify_journal(&loaded, &state)?;
-            execute_flow(
-                runtime,
-                &loaded,
-                &journal,
-                &mut state,
-                allow_destructive,
-                rerun_incomplete,
-                output,
-            )
-            .await
-        }
-    }
-}
-
-fn flow_plan(flow: &flow::LoadedFlow) -> Value {
-    json!({
-        "valid": true,
-        "version": flow.spec.version,
-        "name": flow.spec.name,
-        "description": flow.spec.description,
-        "path": flow.path,
-        "sha256": flow.sha256,
-        "steps": flow.spec.steps.iter().map(flow::action_summary).collect::<Vec<_>>(),
-    })
-}
-
-async fn execute_flow(
-    runtime: &mut CliRuntime,
-    loaded: &flow::LoadedFlow,
-    journal_path: &Path,
-    journal: &mut flow::FlowJournal,
-    allow_destructive: bool,
-    rerun_incomplete: bool,
-    output: &OutputOptions,
-) -> Result<()> {
-    if journal.status == "completed" {
-        return print_json(
-            &json!({
-                "flow": journal.flow_name,
-                "run_id": journal.run_id,
-                "journal": journal_path,
-                "status": "completed",
-                "already_completed": true,
-            }),
-            output,
-        );
-    }
-    journal.status = "running".into();
-    journal.save_unlocked(journal_path)?;
-
-    for index in 0..loaded.spec.steps.len() {
-        let step = &loaded.spec.steps[index];
-        let prior_status = journal.steps[index].status.clone();
-        if prior_status == "completed" {
-            continue;
-        }
-        if matches!(prior_status.as_str(), "running" | "failed")
-            && flow::effective_resume_policy(step) == flow::ResumePolicy::Manual
-            && !rerun_incomplete
-        {
-            journal.status = "blocked".into();
-            journal.save_unlocked(journal_path)?;
-            return Err(output::CliError::new(
-                "flow_resume_confirmation_required",
-                "confirmation",
-                format!(
-                    "flow step `{}` 无法证明幂等；确认服务端状态后使用 --rerun-incomplete",
-                    step.id
-                ),
-                10,
-            )
-            .with_details(json!({
-                "step_id": step.id,
-                "prior_status": prior_status,
-                "journal": journal_path,
-            }))
-            .into());
-        }
-
-        journal.steps[index].status = "running".into();
-        journal.steps[index].started_at_epoch_ms = Some(flow::now_epoch_ms()?);
-        journal.steps[index].error = None;
-        journal.save_unlocked(journal_path)?;
-
-        let results = journal.results();
-        match execute_flow_step(
-            runtime,
-            step,
-            &results,
-            &journal.run_id,
-            allow_destructive,
-            output,
-        )
-        .await
-        {
-            Ok(result) => {
-                print_json(
-                    &json!({ "flow_step": step.id, "result": flow::redact_result(&result) }),
-                    output,
-                )?;
-                journal.steps[index].result = flow::capture_result(&result, &step.capture)?;
-                journal.steps[index].status = "completed".into();
-                journal.steps[index].completed_at_epoch_ms = Some(flow::now_epoch_ms()?);
-                journal.save_unlocked(journal_path)?;
-            }
-            Err(error) => {
-                journal.steps[index].status = "failed".into();
-                journal.steps[index].error =
-                    Some("flow step 执行失败；查看本次命令的结构化错误".into());
-                journal.status = "failed".into();
-                journal.save_unlocked(journal_path)?;
-                return Err(error);
-            }
-        }
-    }
-
-    journal.status = "completed".into();
-    journal.save_unlocked(journal_path)?;
-    print_json(
-        &json!({
-            "flow": journal.flow_name,
-            "run_id": journal.run_id,
-            "journal": journal_path,
-            "status": "completed",
-        }),
-        output,
-    )
-}
-
-async fn execute_flow_step(
-    runtime: &mut CliRuntime,
-    step: &flow::FlowStep,
-    results: &std::collections::HashMap<String, Value>,
-    run_id: &str,
-    allow_destructive: bool,
-    output: &OutputOptions,
-) -> Result<Value> {
-    match &step.action {
-        flow::FlowAction::Call {
-            command,
-            args,
-            set_base64,
-            set_text,
-            save_base64,
-            save_text,
-            force,
-            allow_destructive: step_allows_destructive,
-        } => {
-            if (catalog::is_destructive(command) || *force)
-                && (!*step_allows_destructive || !allow_destructive)
-            {
-                return Err(output::CliError::new(
-                    "destructive_confirmation_required",
-                    "confirmation",
-                    format!(
-                        "flow step `{}` 需要 spec allow_destructive=true 和 CLI --allow-destructive",
-                        step.id
-                    ),
-                    10,
-                )
-                .into());
-            }
-            let mut args = flow::render(args, &runtime.context, results, run_id)?;
-            ensure_flow_request_identity(command, &mut args, run_id, &step.id)?;
-            let set_base64 = render_file_bindings(set_base64, &runtime.context, results, run_id)?;
-            let set_text = render_file_bindings(set_text, &runtime.context, results, run_id)?;
-            let save_base64 = render_file_bindings(save_base64, &runtime.context, results, run_id)?;
-            let save_text = render_file_bindings(save_text, &runtime.context, results, run_id)?;
-            invoke_call(
-                &mut runtime.client,
-                &runtime.context,
-                command,
-                args,
-                CallFiles {
-                    set_base64: &set_base64,
-                    set_text: &set_text,
-                    save_base64: &save_base64,
-                    save_text: &save_text,
-                    force: *force,
-                },
-            )
-            .await
-        }
-        flow::FlowAction::TaskWatch {
-            task_id,
-            attempt,
-            after_sequence,
-        } => {
-            let task_id = flow_scalar(
-                flow::render(task_id, &runtime.context, results, run_id)?,
-                "task_id",
-            )?;
-            watch_generation_task(
-                &mut runtime.client,
-                &task_id,
-                *attempt,
-                *after_sequence,
-                output,
-            )
-            .await?;
-            runtime
-                .client
-                .send_json(get_request(&task_path(&task_id, *attempt, "")?))
-                .await
-        }
-        flow::FlowAction::WorkflowWatch {
-            workflow_run_id,
-            interval_ms,
-            timeout_seconds,
-        } => {
-            let workflow_run_id = flow_i64(
-                flow::render(workflow_run_id, &runtime.context, results, run_id)?,
-                "workflow_run_id",
-            )?;
-            let user_id = bind_current_user(runtime).await?;
-            watch_workflow(
-                &mut runtime.client,
-                user_id,
-                workflow_run_id,
-                *interval_ms,
-                *timeout_seconds,
-                output,
-            )
-            .await?;
-            workflow_detail(&mut runtime.client, user_id, workflow_run_id, false).await
-        }
-        flow::FlowAction::MediaDownload {
-            media_path,
-            output: output_path,
-            force,
-        } => {
-            if *force && !allow_destructive {
-                return Err(output::CliError::new(
-                    "destructive_confirmation_required",
-                    "confirmation",
-                    format!("flow step `{}` 覆盖文件需要 --allow-destructive", step.id),
-                    10,
-                )
-                .into());
-            }
-            let media_path =
-                render_flow_string(media_path, &runtime.context, results, run_id, "media_path")?;
-            let output_path = PathBuf::from(render_flow_string(
-                output_path,
-                &runtime.context,
-                results,
-                run_id,
-                "output",
-            )?);
-            download_media(&mut runtime.client, &media_path, &output_path, *force).await
-        }
-    }
-}
-
-fn render_file_bindings(
-    bindings: &[flow::FileBinding],
-    context: &SessionContext,
-    results: &std::collections::HashMap<String, Value>,
-    run_id: &str,
-) -> Result<Vec<String>> {
-    bindings
-        .iter()
-        .map(|binding| {
-            let path = render_flow_string(&binding.path, context, results, run_id, "file path")?;
-            Ok(format!("{}={path}", binding.pointer))
-        })
-        .collect()
-}
-
-fn render_flow_string(
-    input: &str,
-    context: &SessionContext,
-    results: &std::collections::HashMap<String, Value>,
-    run_id: &str,
-    field: &str,
-) -> Result<String> {
-    flow_scalar(
-        flow::render(&Value::String(input.into()), context, results, run_id)?,
-        field,
-    )
-}
-
-fn flow_scalar(value: Value, field: &str) -> Result<String> {
-    match value {
-        Value::String(value) => Ok(value),
-        Value::Number(value) => Ok(value.to_string()),
-        Value::Bool(value) => Ok(value.to_string()),
-        _ => bail!("flow {field} 必须解析为 string/number/bool"),
-    }
-}
-
-fn flow_i64(value: Value, field: &str) -> Result<i64> {
-    let value = match value {
-        Value::Number(value) => value.as_i64(),
-        Value::String(value) => value.parse().ok(),
-        _ => None,
-    }
-    .ok_or_else(|| anyhow::anyhow!("flow {field} 必须解析为整数"))?;
-    validate_positive_id(value, field)?;
-    Ok(value)
-}
-
-fn ensure_flow_request_identity(
-    command: &str,
-    args: &mut Value,
-    run_id: &str,
-    step_id: &str,
-) -> Result<()> {
-    if catalog::command_idempotency(command) != Some("client_request_id") {
-        return Ok(());
-    }
-    let args = args
-        .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("flow call args 必须是 object"))?;
-    let input = args.entry("input").or_insert_with(|| json!({}));
-    let input = input
-        .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("flow call input 必须是 object"))?;
-    let meta = input.entry("meta").or_insert_with(|| json!({}));
-    let meta = meta
-        .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("flow call input.meta 必须是 object"))?;
-    meta.entry("start_request_id").or_insert_with(|| {
-        Value::String(
-            Uuid::new_v5(
-                &Uuid::NAMESPACE_URL,
-                format!("a4n-flow:{run_id}:{step_id}").as_bytes(),
-            )
-            .to_string(),
-        )
-    });
-    meta.entry("retry_of_task_id").or_insert(Value::Null);
-    Ok(())
-}
-
 async fn watch_generation_task(
     client: &mut ApiClient,
     task_id: &str,
@@ -3028,20 +2581,6 @@ fn trim_secret_line(value: String) -> Result<String> {
     Ok(value)
 }
 
-fn optional_update(value: Option<String>, clear: bool) -> Option<Option<String>> {
-    if clear { Some(None) } else { value.map(Some) }
-}
-
-fn insert_nullable_update(
-    input: &mut Map<String, Value>,
-    key: &str,
-    value: Option<Option<String>>,
-) {
-    if let Some(value) = value {
-        input.insert(key.to_string(), value.map_or(Value::Null, Value::String));
-    }
-}
-
 fn output_body(body: ApiBody, output: &OutputOptions) -> Result<()> {
     if body
         .content_type
@@ -3151,9 +2690,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        SessionContext, apply_context_args, catalog, insert_nullable_update, optional_update,
-        prepare_outputs, query_path, read_json_source, request_secret_values, save_outputs,
-        set_json_pointer,
+        SessionContext, apply_context_args, catalog, prepare_outputs, query_path, read_json_source,
+        request_secret_values, save_outputs, set_json_pointer,
     };
 
     #[test]
@@ -3200,20 +2738,11 @@ mod tests {
     }
 
     #[test]
-    fn profile_updates_preserve_missing_and_explicit_null() {
-        let mut input = serde_json::Map::new();
-        insert_nullable_update(&mut input, "email", optional_update(None, false));
-        insert_nullable_update(&mut input, "avatar_url", optional_update(None, true));
-        assert!(!input.contains_key("email"));
-        assert!(input["avatar_url"].is_null());
-    }
-
-    #[test]
     fn call_context_injects_user_and_admin_caller_ids() {
         let mut context = SessionContext::load(None, "http://localhost/api").unwrap();
         context.bind_user(7).unwrap();
         let mut user_args = json!({});
-        let user_descriptor = catalog::command_descriptor("get_user").unwrap();
+        let user_descriptor = catalog::command_descriptor("detect_llm_config_models").unwrap();
         apply_context_args(&mut user_args, &user_descriptor, &context).unwrap();
         assert_eq!(user_args["userId"], 7);
 

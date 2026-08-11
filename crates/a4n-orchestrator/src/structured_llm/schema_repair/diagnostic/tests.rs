@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
-use a4n_core::{error::AppError, shooting_script::ShootingSceneV1};
+use a4n_core::error::AppError;
+use a4n_domain::shooting_script::ShootingSceneV1;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};

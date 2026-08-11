@@ -1,6 +1,8 @@
 use super::super::types::CharacterDeletionMarkRewindSummary;
 use super::rules::retained_deletion_mark_count;
-use a4n_core::models::character::protagonist_deletion_mark;
+use a4n_core::models::character::{
+    attribute_event::SOURCE_KIND_AI_SYNC, protagonist_deletion_mark,
+};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
@@ -14,11 +16,42 @@ pub async fn rewind_deletion_marks_after<C>(
 where
     C: ConnectionTrait,
 {
-    let marks = protagonist_deletion_mark::Entity::find()
+    rewind_deletion_marks_after_with_source(db, profile_id, chapter_number, None).await
+}
+
+pub(in crate::character) async fn rewind_ai_deletion_marks_after<C>(
+    db: &C,
+    profile_id: i64,
+    chapter_number: i32,
+) -> Result<CharacterDeletionMarkRewindSummary, DbErr>
+where
+    C: ConnectionTrait,
+{
+    rewind_deletion_marks_after_with_source(
+        db,
+        profile_id,
+        chapter_number,
+        Some(SOURCE_KIND_AI_SYNC),
+    )
+    .await
+}
+
+async fn rewind_deletion_marks_after_with_source<C>(
+    db: &C,
+    profile_id: i64,
+    chapter_number: i32,
+    source_kind: Option<&str>,
+) -> Result<CharacterDeletionMarkRewindSummary, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let mut query = protagonist_deletion_mark::Entity::find()
         .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
-        .filter(protagonist_deletion_mark::Column::LastMarkedChapter.gt(chapter_number))
-        .all(db)
-        .await?;
+        .filter(protagonist_deletion_mark::Column::LastMarkedChapter.gt(chapter_number));
+    if let Some(source_kind) = source_kind {
+        query = query.filter(protagonist_deletion_mark::Column::SourceKind.eq(source_kind));
+    }
+    let marks = query.all(db).await?;
 
     let now = Utc::now().naive_utc();
     let mut summary = CharacterDeletionMarkRewindSummary::default();

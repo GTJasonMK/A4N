@@ -54,15 +54,6 @@ fn family_with_snapshot_chapters(
 }
 
 #[test]
-fn maps_legacy_manga_prompt_types_to_canonical_kinds() {
-    assert_eq!(
-        manga_generation_kinds(MANGA_PAGE_PROMPT_TYPE),
-        Some(("manga_page", "image_prompt"))
-    );
-    assert_eq!(manga_generation_kinds("unknown"), None);
-}
-
-#[test]
 fn maps_supported_video_prompt_types_and_rejects_removed_types() {
     assert_eq!(
         video_generation_kinds("removed_video_analysis", "boundary_frames"),

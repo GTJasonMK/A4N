@@ -1,7 +1,5 @@
 use serde_json::json;
 
-use a4n_db::source_sync::galgame_portrait_spec_references_lines;
-
 use super::super::decisions::{
     PreparedSourceSyncDecisionContext, parse_decision_payload,
     prepared_galgame_scene_regeneration_decision, require_galgame_scene_regeneration_plan,
@@ -187,43 +185,4 @@ fn regenerate_scene_apply_plan_rejects_incomplete_stage_outputs() {
     .expect_err("apply plan must preserve full stage_outputs");
 
     assert!(err.to_string().contains("stage_outputs 缺少"));
-}
-
-#[test]
-fn regenerate_scene_detects_portrait_specs_referencing_deleted_lines() {
-    let deleted_line_ids = std::collections::BTreeSet::from([10, 11]);
-
-    assert!(galgame_portrait_spec_references_lines(
-        &json!({
-            "asset_kind": "portrait_expression",
-            "source_line_ids": [9, 10]
-        }),
-        &deleted_line_ids
-    ));
-    assert!(!galgame_portrait_spec_references_lines(
-        &json!({
-            "asset_kind": "portrait_expression",
-            "source_line_ids": [12, 13]
-        }),
-        &deleted_line_ids
-    ));
-}
-
-#[test]
-fn regenerate_scene_ignores_malformed_portrait_source_line_ids_for_cleanup_match() {
-    let deleted_line_ids = std::collections::BTreeSet::from([10]);
-
-    assert!(!galgame_portrait_spec_references_lines(
-        &json!({
-            "asset_kind": "portrait_expression",
-            "source_line_ids": ["10"]
-        }),
-        &deleted_line_ids
-    ));
-    assert!(!galgame_portrait_spec_references_lines(
-        &json!({
-            "asset_kind": "portrait_expression"
-        }),
-        &deleted_line_ids
-    ));
 }

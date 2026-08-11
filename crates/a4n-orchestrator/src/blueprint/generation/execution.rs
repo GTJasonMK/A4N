@@ -96,6 +96,20 @@ impl OrchestratorContext {
             }
         };
         let workflow_run_id = workflow.id;
+        let expected_source_snapshot = match blueprint_generation_source_snapshot(self, project_id)
+            .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                return fail_blueprint_generation_execution(
+                    self,
+                    execution,
+                    Some(workflow_run_id),
+                    app_generation_error("generation_persist_failed", "blueprint_prepare", error),
+                )
+                .await;
+            }
+        };
 
         if let Err(error) = publish_blueprint_progress(
             &publisher,
@@ -344,38 +358,6 @@ impl OrchestratorContext {
             }
         };
 
-        let existing = match self.load_blueprint(project_id).await {
-            Ok(existing) => existing,
-            Err(error) => {
-                return fail_blueprint_generation_execution(
-                    self,
-                    execution,
-                    Some(workflow_run_id),
-                    app_generation_error("generation_persist_failed", "blueprint_persist", error),
-                )
-                .await;
-            }
-        };
-        let next_version = match self
-            .next_blueprint_version(
-                project_id,
-                existing
-                    .as_ref()
-                    .map(|value| value.current_version.as_str()),
-            )
-            .await
-        {
-            Ok(version) => version,
-            Err(error) => {
-                return fail_blueprint_generation_execution(
-                    self,
-                    execution,
-                    Some(workflow_run_id),
-                    app_generation_error("generation_persist_failed", "blueprint_persist", error),
-                )
-                .await;
-            }
-        };
         let completion_slot: Arc<Mutex<Option<BlueprintCompletionOutcome>>> =
             Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
@@ -388,8 +370,7 @@ impl OrchestratorContext {
             trace_requests,
             assembled_content,
             parsed,
-            existing,
-            next_version,
+            expected_source_snapshot,
             model_name: self.llm_model_name(),
         };
         let snapshot = session.snapshot();
@@ -476,6 +457,25 @@ impl OrchestratorContext {
         .map_err(|error| format!("蓝图已保存，但 workflow 完成状态写入失败: {error}"))?;
         Ok(())
     }
+}
+
+async fn blueprint_generation_source_snapshot(
+    context: &OrchestratorContext,
+    project_id: i64,
+) -> Result<Value, AppError> {
+    let rows = a4n_db::outline::load_outline_generation_source_rows(
+        context.database.connection(),
+        project_id,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+    if rows.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
+        return Err(AppError::InvalidState {
+            current: rows.project.lifecycle_gate,
+            operation: "生成故事蓝图".to_string(),
+        });
+    }
+    Ok(a4n_db::outline::outline_generation_source_snapshot(&rows))
 }
 
 async fn publish_blueprint_progress(

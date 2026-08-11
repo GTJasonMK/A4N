@@ -60,7 +60,7 @@ pub fn is_valid_snapshot_profile_kind(kind: &str) -> bool {
     matches!(kind, "character" | "object" | "scene")
 }
 
-pub use super::json_field_rules::required_json_i64_field;
+use super::json_field_rules::required_json_i64_field;
 
 /// 校验快照 payload 身份与哈希（调用方已解析 snapshot 根项目 id）。
 pub fn validate_snapshot_payload_identity(

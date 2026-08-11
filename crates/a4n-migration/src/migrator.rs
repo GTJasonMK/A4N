@@ -71,6 +71,14 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::profile_record_ownership::Migration),
             Box::new(crate::migrations::blueprint_version_snapshot_cleanup::Migration),
             Box::new(crate::migrations::canvas_node_ref_contract_cleanup::Migration),
+            Box::new(crate::migrations::manga_page_prompt_contract_cleanup::Migration),
+            Box::new(crate::migrations::manga_reference_binding_contract_cleanup::Migration),
+            Box::new(crate::migrations::manga_reference_binding_payload_cleanup::Migration),
+            Box::new(crate::migrations::theme_config_integrity_contract::Migration),
+            Box::new(crate::migrations::provider_default_config_integrity_contract::Migration),
+            Box::new(crate::migrations::galgame_presentation_contract_cleanup::Migration),
+            Box::new(crate::migrations::chapter_video_timeline_retirement::Migration),
+            Box::new(crate::migrations::import_review_contract_cleanup::Migration),
         ]
     }
 }
@@ -120,17 +128,11 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(20)
+                .take(22)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "shooting_script_transition_type_canonicalization",
-                "generation_task_persistence",
-                "cleanup_outbox_generation_scope",
-                "generation_snapshot_retention",
-                "generation_snapshot_hash_contract",
-                "segment_card_video_workflow",
                 "segment_execution_recipe_identity",
                 "segment_recipe_adoption_repair",
                 "chapter_video_prompt_execution_identity",
@@ -145,6 +147,14 @@ mod tests {
                 "profile_record_ownership",
                 "blueprint_version_snapshot_cleanup",
                 "canvas_node_ref_contract_cleanup",
+                "manga_page_prompt_contract_cleanup",
+                "manga_reference_binding_contract_cleanup",
+                "manga_reference_binding_payload_cleanup",
+                "theme_config_integrity_contract",
+                "provider_default_config_integrity_contract",
+                "galgame_presentation_contract_cleanup",
+                "chapter_video_timeline_retirement",
+                "import_review_contract_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

@@ -1,10 +1,9 @@
 use a4n_core::error::AppError;
-use a4n_db::{
-    DbHandle,
-    project_dependency_graph::{AssetDependencyGraph, AssetGraphNodeDetail},
-};
+use a4n_db::DbHandle;
+use a4n_domain::project::{AssetDependencyGraph, AssetGraphNodeDetail};
 
 use super::OrchestratorContext;
+use crate::collaboration::ProjectAccessRole;
 
 #[derive(Clone)]
 pub(super) struct ProjectDependencyGraphApplication {
@@ -39,18 +38,24 @@ impl ProjectDependencyGraphApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn asset_dependency_graph(
+    pub async fn asset_dependency_graph_for_user_validated(
         &self,
+        user_id: i64,
         project_id: i64,
     ) -> Result<AssetDependencyGraph, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
         self.project_dependency_graph.graph(project_id).await
     }
 
-    pub async fn asset_dependency_graph_node_detail(
+    pub async fn asset_dependency_graph_node_detail_for_user_validated(
         &self,
+        user_id: i64,
         project_id: i64,
         node_id: &str,
     ) -> Result<AssetGraphNodeDetail, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
         self.project_dependency_graph
             .node_detail(project_id, node_id)
             .await

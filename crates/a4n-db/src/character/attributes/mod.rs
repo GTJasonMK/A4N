@@ -12,10 +12,11 @@ pub use state::*;
 pub use types::*;
 
 use super::{
-    CharacterDbError, require_non_empty, require_profile, validate_category,
-    validate_chapter_number,
+    CharacterDbError, require_non_empty, require_profile_for_update, validate_category,
+    validate_chapter_number, validate_timeline_source_kind,
 };
 use a4n_core::models::character::attribute_event;
+use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::Value;
 use types::CharacterAttributeDeletionRecordInput;
@@ -32,6 +33,7 @@ where
     let key = require_non_empty(&input.key, "属性 key")?;
     let event_cause = require_non_empty(&input.event_cause, "删除原因")?;
     let evidence = require_non_empty(&input.evidence, "删除证据")?;
+    let source_kind = validate_timeline_source_kind(&input.source_kind)?;
     validate_category(&category)?;
     if input.mark_count <= 0 {
         return Err(CharacterDbError::InvalidArgument(
@@ -39,7 +41,7 @@ where
         ));
     }
 
-    let profile = require_profile(db, input.profile_id).await?;
+    let profile = require_profile_for_update(db, input.profile_id).await?;
     let old_value = state::attribute_value_in_state(&profile.current_state, &category, &key)
         .ok_or_else(|| CharacterDbError::NotFound(format!("角色属性不存在: {category}.{key}")))?;
     let change_description =
@@ -49,6 +51,7 @@ where
         CharacterAttributeEventInsertInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
+            source_kind,
             category: category.clone(),
             key: key.clone(),
             operation: "delete".to_string(),
@@ -87,11 +90,23 @@ pub async fn execute_ready_attribute_deletion_in<C>(
 where
     C: ConnectionTrait,
 {
+    execute_ready_attribute_deletion_from_source_in(db, input, SOURCE_KIND_USER).await
+}
+
+pub(in crate::character) async fn execute_ready_attribute_deletion_from_source_in<C>(
+    db: &C,
+    input: CharacterAttributeDeletionExecutionInput,
+    source_kind: &str,
+) -> Result<(attribute_event::Model, i32), CharacterDbError>
+where
+    C: ConnectionTrait,
+{
     validate_chapter_number(input.chapter_number)?;
     let category = input.category.trim().to_string();
     let key = require_non_empty(&input.key, "属性 key")?;
     let event_cause = require_non_empty(&input.event_cause, "删除原因")?;
     let evidence = require_non_empty(&input.evidence, "删除证据")?;
+    let source_kind = validate_timeline_source_kind(source_kind)?;
     validate_category(&category)?;
 
     let mark =
@@ -116,6 +131,7 @@ where
         db,
         CharacterAttributeDeletionRecordInput {
             profile_id: input.profile_id,
+            source_kind,
             category,
             key,
             mark_count: count,
@@ -137,7 +153,7 @@ where
 {
     let profile_id = input.profile_id;
     let tx = db.begin().await?;
-    let profile = require_profile(&tx, profile_id).await?;
+    let profile = require_profile_for_update(&tx, profile_id).await?;
     let (event, consecutive_count) = execute_ready_attribute_deletion_in(&tx, input).await?;
     tx.commit().await?;
     Ok(CharacterAttributeDeletionExecutionResult {

@@ -2,7 +2,6 @@ use a4n_core::config::validate_image_config_model;
 use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 pub(super) fn image_provider_payload(
     config: &image_gen_config::Model,
@@ -66,13 +65,6 @@ pub(super) struct ImageGenerationOutput {
     pub(super) bytes_base64: String,
     pub(super) format: String,
     pub(super) model: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct ImageProviderProbeOutput {
-    pub(super) ok: bool,
-    pub(super) request_preview: Value,
 }
 
 #[cfg(test)]

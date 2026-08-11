@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::shooting_script::ShootingCoverageV1;
+use a4n_domain::shooting_script::ShootingCoverageV1;
 use serde_json::Value;
 
 pub(super) fn single_shooting_script_projection() -> GalgameShootingScriptProjection {
@@ -74,7 +74,7 @@ pub(super) fn directing_beat(beat_index: u32, source_span_id: &str) -> GalgamePi
 
 pub(super) fn narration_presentation() -> GalgameLinePresentationV2 {
     GalgameLinePresentationV2 {
-        schema_version: "galgame_line_presentation_v2".to_string(),
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
         visible_cast: Vec::new(),
         enter: Vec::new(),
         exit: Vec::new(),
@@ -86,7 +86,7 @@ pub(super) fn narration_presentation() -> GalgameLinePresentationV2 {
 
 pub(super) fn speaker_presentation(profile_id: i64, expression: &str) -> GalgameLinePresentationV2 {
     GalgameLinePresentationV2 {
-        schema_version: "galgame_line_presentation_v2".to_string(),
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
         visible_cast: vec![GalgameVisibleCastMemberV2 {
             character_profile_id: profile_id,
             expression: expression.to_string(),

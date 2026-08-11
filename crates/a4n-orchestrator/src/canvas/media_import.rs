@@ -86,7 +86,6 @@ impl OrchestratorContext {
                     data_base64: input.data_base64,
                     image_type: "canvas_image".to_string(),
                     prompt: input.prompt,
-                    model: Some("external-import".to_string()),
                     chapter_id: None,
                     panel_id: None,
                     metadata_json: Some(json!({
@@ -247,13 +246,13 @@ fn persist_imported_canvas_image(
     extension: &str,
     bytes: &[u8],
 ) -> Result<(String, i64), AppError> {
-    let (path, mut output_file) =
-        create_imported_image_output(data_dir, project_id, chapter_id, extension).map_err(
-            |operation| AppError::InvalidState {
-                current: "canvas_image_import".to_string(),
-                operation,
-            },
-        )?;
+    let (path, mut output_file) = create_imported_image_output(
+        data_dir, project_id, chapter_id, extension,
+    )
+    .map_err(|operation| AppError::InvalidState {
+        current: "canvas_image_import".to_string(),
+        operation,
+    })?;
     if let Err(error) = output_file.write_all(bytes) {
         let _ = std::fs::remove_file(&path);
         return Err(AppError::InvalidState {

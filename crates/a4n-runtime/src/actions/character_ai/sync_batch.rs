@@ -6,8 +6,9 @@ use super::{
     SyncAllCharacterProfilesResult,
 };
 use crate::{
-    AppState, actions::access, prompt_renderer::RuntimePromptRenderer,
-    sidecar_clients::scope_rag_operation_trace,
+    AppState,
+    actions::access,
+    sidecar_clients::{rag_operation_timestamp, scope_rag_operation_trace},
 };
 
 pub async fn sync_all_character_profiles_to_chapter(
@@ -19,7 +20,7 @@ pub async fn sync_all_character_profiles_to_chapter(
     access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let trace_port =
         super::sync_trace::RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
     let report_progress = |current: u32, total: u32, message: &str| {
@@ -37,17 +38,19 @@ pub async fn sync_all_character_profiles_to_chapter(
         Ok(())
     };
     scope_rag_operation_trace(
-        batch_character_sync_trace_id("all", input.project_id, input.chapter_number),
-        state.character().run_all_character_profile_sync_validated(
-            input.project_id,
-            input.chapter_number,
-            &prompt_renderer,
-            CharacterProfileBatchProgress {
-                reporter: Some(&report_progress),
-                active_task_id: progress.and_then(|progress| progress.task_id),
-            },
-            Some(&trace_port),
-        ),
+        batch_character_sync_trace_id("all", input.project_id, input.chapter_number)?,
+        state
+            .orchestrator()
+            .run_all_character_profile_sync_validated(
+                input.project_id,
+                input.chapter_number,
+                prompt_renderer,
+                CharacterProfileBatchProgress {
+                    reporter: Some(&report_progress),
+                    active_task_id: progress.and_then(|progress| progress.task_id),
+                },
+                Some(&trace_port),
+            ),
     )
     .await
     .map_err(|error| error.to_string())
@@ -61,13 +64,13 @@ pub(crate) async fn sync_all_character_profiles_preview_steps(
     access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     state
-        .character()
+        .orchestrator()
         .prepare_all_character_profile_sync_preview_validated(
             input.project_id,
             input.chapter_number,
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await
         .map_err(|error| error.to_string())
@@ -94,9 +97,13 @@ fn preview_step(step: CharacterProfileSyncPreviewStep) -> CharacterAiPreviewStep
     }
 }
 
-fn batch_character_sync_trace_id(scope: &str, project_id: i64, chapter_number: i32) -> String {
-    let timestamp = chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros());
-    format!("character_profile_sync_batch:{scope}:{project_id}:{chapter_number}:{timestamp}")
+fn batch_character_sync_trace_id(
+    scope: &str,
+    project_id: i64,
+    chapter_number: i32,
+) -> Result<String, String> {
+    Ok(format!(
+        "character_profile_sync_batch:{scope}:{project_id}:{chapter_number}:{}",
+        rag_operation_timestamp()?
+    ))
 }

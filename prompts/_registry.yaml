@@ -464,8 +464,8 @@ prompts:
     tags: ["manga", "character", "binding"]
     version: "1.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "chapter_shooting_design_unit"
     description: "漫画流水线第 1 步：基于共享导演事件投影、正文和角色立绘绑定本章出场角色身份与外观"
@@ -477,8 +477,8 @@ prompts:
     tags: ["manga", "speech", "dialogue", "narration"]
     version: "1.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "manga_character_binding"
     description: "漫画流水线第 2 步：基于导演事件窗口和角色绑定选择关键对白、想法与旁白"
@@ -490,8 +490,8 @@ prompts:
     tags: ["manga", "scene", "visual-anchor"]
     version: "1.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "chapter_shooting_design_unit"
     description: "漫画流水线第 3 步：基于导演事件窗口抽取场景边界、地点氛围和视觉锚点"
@@ -503,8 +503,8 @@ prompts:
     tags: ["manga", "item", "extraction"]
     version: "1.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "manga_speech_selection"
       - "manga_visual_anchor_extraction"
@@ -517,8 +517,8 @@ prompts:
     tags: ["manga", "synthesis", "planning"]
     version: "1.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "chapter_shooting_design_unit"
       - "manga_speech_selection"
@@ -533,8 +533,8 @@ prompts:
     tags: ["manga", "planning", "panel", "text-layer", "directing"]
     version: "2.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "manga_chapter_comic_synthesis"
     description: "漫画流水线第 6 步：从共享导演计划生成严格 PagePlan、PanelPlan、气泡与文字层合同"
@@ -546,8 +546,8 @@ prompts:
     tags: ["manga", "drawing", "page", "prompt"]
     version: "2.0.0"
     used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
+      - "MangaService.generate_page_prompts"
+      - "MangaService.preview_generate_page_prompt_requests"
     dependencies:
       - "manga_page_planning"
     description: "漫画流水线第 7 步：把已验证 PagePlan/PanelPlan 无损编排为完整漫画页最终 prompt"
@@ -783,18 +783,6 @@ prompts:
     dependencies:
       - "chapter_shooting_design_unit"
     description: "按单个导演镜头生成片段规划，系统再合并为全章连续 segment 列表"
-
-  chapter_video_inserted_segment:
-    path: "novel/08_video/chapter_video_inserted_segment.md"
-    title: "章节视频插入片段草稿"
-    category: "video"
-    tags: ["video", "segment", "inserted"]
-    version: "1.0"
-    used_by:
-      - "VideoService.generate_inserted_segment_draft"
-    dependencies:
-      - "chapter_video_builder_rules"
-    description: "依据时间线邻接项和用户要求生成尚未提交的插入片段视频描述"
 
   chapter_video_frame_prompts:
     path: "novel/08_video/chapter_video_frame_prompts.md"

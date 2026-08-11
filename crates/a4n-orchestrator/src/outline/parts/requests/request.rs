@@ -23,6 +23,7 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
         requested_part_count,
         blueprint_context,
         previous_parts,
+        source_snapshot,
         prompt_renderer,
         variables,
     } = input;
@@ -65,6 +66,7 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
         input_fingerprint_sha256: Some(source_content_sha256(&serde_json::to_string(&json!({
             "blueprint_context": blueprint_context,
             "previous_parts": previous_parts.iter().map(part_context_json).collect::<Vec<_>>(),
+            "source_snapshot_sha256": source_content_sha256(&serde_json::to_string(source_snapshot)?),
             "generation_request": {
                 "chapters_per_part": chapters_per_part,
                 "requested_part_count": requested_part_count,
@@ -86,6 +88,7 @@ pub(in crate::outline::parts) fn part_outline_call_fingerprint_json(
     chapters_per_part: i32,
     requested_part_count: i32,
     request: &ChatRequest,
+    source_snapshot: &Value,
 ) -> Result<Value, AppError> {
     Ok(json!({
         "schema_version": 1,
@@ -97,6 +100,7 @@ pub(in crate::outline::parts) fn part_outline_call_fingerprint_json(
         "max_tokens": request.max_tokens,
         "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
+        "source_snapshot_sha256": source_content_sha256(&serde_json::to_string(source_snapshot)?),
         "target": {
             "part_number": part_num,
             "start_chapter": start_ch,

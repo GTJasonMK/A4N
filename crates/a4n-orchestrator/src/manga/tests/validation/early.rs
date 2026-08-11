@@ -30,6 +30,37 @@ fn validate_manga_character_stage_source_span_ids() {
 }
 
 #[test]
+fn validate_manga_character_binding_rejects_name_different_from_object_key() {
+    let source_spans = source_spans_for_content(7, 1, "林晓雨推开门。");
+    let character_span_id = source_spans
+        .iter()
+        .find(|span| span.text.contains("林晓雨"))
+        .expect("character span")
+        .id
+        .clone();
+
+    let error = validate_manga_character_binding_source_span_ids(
+        &json!({
+            "characters": {
+                "林晓雨": {
+                    "name": "陌生人",
+                    "appearance": "短发，浅色外套",
+                    "personality": "谨慎",
+                    "role": "protagonist",
+                    "gender": "female",
+                    "age_description": "青年",
+                    "source_span_ids": [character_span_id]
+                }
+            }
+        }),
+        &source_spans,
+    )
+    .expect_err("character name and object key must use one canonical identity");
+
+    assert!(error.to_string().contains("name 必须与角色对象 key 一致"));
+}
+
+#[test]
 fn validate_manga_character_binding_source_span_ids_rejects_missing_or_unknown_id() {
     let source_spans = source_spans_for_content(7, 1, "林晓雨推开门。");
     let missing = validate_manga_character_binding_source_span_ids(

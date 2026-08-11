@@ -1,10 +1,10 @@
 use super::ObjectProfileSummary;
-use crate::{actions::profile_materials, state::ProfileMaterialRuntimeFacade};
+use crate::actions::profile_materials;
 use a4n_core::models::asset::object_profile;
 use a4n_orchestrator::profile_material::PROFILE_KIND_OBJECT;
 
 pub(super) async fn to_summary(
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     profile: &object_profile::Model,
 ) -> Result<ObjectProfileSummary, String> {
     let generated_image_count = profile_materials::count_profile_material_images(
@@ -24,6 +24,7 @@ pub(super) fn to_summary_with_image_count(
     ObjectProfileSummary {
         id: profile.id,
         project_id: profile.project_id,
+        ownership_kind: profile.ownership_kind.clone(),
         name: profile.name.clone(),
         normalized_name: profile.normalized_name.clone(),
         aliases_json: profile.aliases_json.clone(),

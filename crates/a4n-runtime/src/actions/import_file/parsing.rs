@@ -1,53 +1,25 @@
-use a4n_import_core::dedup;
-use a4n_import_core::file_parsers::{DocxParser, EpubParser, TxtParser};
-
-use super::{ImportFileResult, ParsedChapterSummary};
+use a4n_import_core::file_parsers::{DocxParser, EpubParser, ParsedChapter, TxtParser};
 
 pub(super) fn parse_import_file_bytes(
     file_type: &str,
     file_bytes: &[u8],
-) -> Result<ImportFileResult, String> {
+    document_title: &str,
+) -> Result<Vec<ParsedChapter>, String> {
     let parse_result = match file_type.trim().to_ascii_lowercase().as_str() {
-        "txt" | "md" | "markdown" => {
+        "txt" | "markdown" => {
             let text = std::str::from_utf8(file_bytes)
                 .map_err(|error| format!("无法解析文本编码: {error}"))?;
             TxtParser::new()
-                .parse(text)
+                .parse(text, document_title)
                 .map_err(|error| format!("章节解析失败: {error}"))?
         }
         "epub" => EpubParser
-            .parse(file_bytes)
+            .parse(file_bytes, document_title)
             .map_err(|error| format!("EPUB 解析失败: {error}"))?,
         "docx" => DocxParser
-            .parse(file_bytes)
+            .parse(file_bytes, document_title)
             .map_err(|error| format!("DOCX 解析失败: {error}"))?,
         other => return Err(format!("不支持的文件类型: {other}")),
     };
-    let chapters = parse_result
-        .chapters
-        .iter()
-        .map(|chapter| {
-            let hash = dedup::compute_simhash(&chapter.content, 3);
-            ParsedChapterSummary {
-                number: chapter.number,
-                title: chapter.title.clone(),
-                content: chapter.content.clone(),
-                content_hash: Some(format!("{:016x}", hash.0)),
-            }
-        })
-        .collect::<Vec<_>>();
-    let total_words = chapters.iter().try_fold(0_i32, |total, chapter| {
-        let chapter_words = i32::try_from(chapter.content.chars().count())
-            .map_err(|_| format!("第 {} 章正文字符数超出 i32 范围", chapter.number))?;
-        total
-            .checked_add(chapter_words)
-            .ok_or_else(|| "导入文件正文总字符数超出 i32 范围".to_string())
-    })?;
-
-    Ok(ImportFileResult {
-        chapters,
-        detected_encoding: parse_result.detected_encoding,
-        total_words,
-        warnings: parse_result.warnings,
-    })
+    Ok(parse_result.chapters)
 }

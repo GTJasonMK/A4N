@@ -18,7 +18,7 @@ impl<'a> RagIngestProgress<'a> {
     ) -> Self {
         Self {
             current: 0,
-            total: total.max(1),
+            total,
             reporter,
             cancel_token,
         }
@@ -32,11 +32,17 @@ impl<'a> RagIngestProgress<'a> {
 
     pub fn advance(&mut self, amount: u32, message: impl AsRef<str>) -> Result<(), String> {
         self.check_cancelled()?;
-        self.current = self
+        let current = self
             .current
             .checked_add(amount)
-            .ok_or_else(|| format!("RAG 同步进度超过 u32 上限：{} + {amount}", self.current))?
-            .min(self.total);
+            .ok_or_else(|| format!("RAG 同步进度超过 u32 上限：{} + {amount}", self.current))?;
+        if current > self.total {
+            return Err(format!(
+                "RAG 同步进度超过声明总量：{current} > {}",
+                self.total
+            ));
+        }
+        self.current = current;
         self.report(message.as_ref());
         Ok(())
     }

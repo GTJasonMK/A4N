@@ -14,6 +14,7 @@ export type VideoWorkflowMode =
 export type {
   ChapterVideoPrompt,
   DownstreamConflictStrategy,
+  PreviewChapterVideoPromptOverrideInput,
 } from "../generated/host";
 
 type VideoGenConfigBase = Omit<
@@ -75,13 +76,6 @@ export type UpdateVideoConfigInput = Omit<
   supported_durations_json?: number[] | null;
 };
 
-export interface PreviewChapterVideoPromptOverrideInput {
-  visual_prompt?: string | null;
-  motion_prompt?: string | null;
-  negative_prompt?: string | null;
-  duration_secs?: number | null;
-  reference_image_ids_json?: unknown | null;
-}
 import type {
   UpdateVideoConfigInput as ApiUpdateVideoConfigInput,
   VideoConfigInput,

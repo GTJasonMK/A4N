@@ -2,7 +2,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 use chrono::Utc;
 
-use crate::outline::context::load_part_generation_context;
+use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
 use crate::outline::part_contract::{
     insert_part_outline_from_json, validate_existing_parts_for_plan,
 };
@@ -25,7 +25,7 @@ impl OrchestratorContext {
             progress,
             workflow_run_id,
         } = input;
-        let context = load_part_generation_context(
+        let mut context = load_part_generation_context(
             self.database.connection(),
             project_id,
             part_count,
@@ -69,13 +69,20 @@ impl OrchestratorContext {
                     requested_part_count: context.requested_part_count,
                     blueprint_context: &context.blueprint_payload,
                     previous_parts: &results,
+                    source_snapshot: &context.source_snapshot,
                     prompt_renderer,
                     variables,
                     workflow_run_id,
                 })
                 .await?;
-            let part = insert_part_outline_from_json(
+            let tx = lock_outline_generation_sources(
                 self.database.connection(),
+                project_id,
+                &context.source_snapshot,
+            )
+            .await?;
+            let part = insert_part_outline_from_json(
+                &tx,
                 project_id,
                 part_num,
                 start_ch,
@@ -84,9 +91,17 @@ impl OrchestratorContext {
                 Utc::now().naive_utc(),
             )
             .await?;
-            self.record_part_outline_generation_run(&part, &generated, "生成分部大纲")
+            self.record_part_outline_generation_run(&tx, &part, &generated, "生成分部大纲")
                 .await?;
-            results.push(part);
+            tx.commit().await.map_err(AppError::Database)?;
+            context = load_part_generation_context(
+                self.database.connection(),
+                project_id,
+                Some(context.requested_part_count),
+                Some(context.chapters_per_part),
+            )
+            .await?;
+            results = context.parts.clone();
             report_progress(
                 progress,
                 progress_index + 1,

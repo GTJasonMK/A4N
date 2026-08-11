@@ -20,8 +20,8 @@ pub(super) fn attribute_counts(value: &Value) -> Result<AttributeCountsSummary, 
 
 pub(super) fn profile_summary(
     p: &protagonist_profile::Model,
-) -> Result<ProtagonistProfileSummary, String> {
-    Ok(ProtagonistProfileSummary {
+) -> Result<CharacterProfileSummary, String> {
+    Ok(CharacterProfileSummary {
         id: p.id,
         project_id: p.project_id,
         name: p.name.clone(),

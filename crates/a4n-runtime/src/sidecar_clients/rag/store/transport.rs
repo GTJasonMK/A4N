@@ -58,15 +58,9 @@ impl SidecarVectorStore {
             RagOperation::SearchText => self.client.search_text(request).await,
             RagOperation::Search => self.client.search(request).await,
             RagOperation::Delete => self.client.delete(request).await,
-            RagOperation::CollectionExists => self.client.collection_exists(request).await,
-            RagOperation::Count => self.client.count(request).await,
             RagOperation::DropCollection => self.client.drop_collection(request).await,
-            RagOperation::ListCollections => self.client.list_collections(request).await,
-            RagOperation::UpdateMetadata => self.client.update_metadata(request).await,
             RagOperation::MetadataByIds => self.client.metadata_by_ids(request).await,
             RagOperation::MetadataByFilter => self.client.metadata_by_filter(request).await,
-            RagOperation::HealthCheck => self.client.health_check(request).await,
-            RagOperation::CompletenessReport => self.client.completeness_report(request).await,
             RagOperation::CompletenessReportByIds => {
                 self.client.completeness_report_by_ids(request).await
             }
@@ -81,15 +75,9 @@ pub(super) enum RagOperation {
     SearchText,
     Search,
     Delete,
-    CollectionExists,
-    Count,
     DropCollection,
-    ListCollections,
-    UpdateMetadata,
     MetadataByIds,
     MetadataByFilter,
-    HealthCheck,
-    CompletenessReport,
     CompletenessReportByIds,
 }
 
@@ -100,15 +88,9 @@ impl RagOperation {
             Self::SearchText => "rag.search_text",
             Self::Search => "rag.search",
             Self::Delete => "rag.delete",
-            Self::CollectionExists => "rag.collection_exists",
-            Self::Count => "rag.count",
             Self::DropCollection => "rag.drop_collection",
-            Self::ListCollections => "rag.list_collections",
-            Self::UpdateMetadata => "rag.update_metadata",
             Self::MetadataByIds => "rag.metadata_by_ids",
             Self::MetadataByFilter => "rag.metadata_by_filter",
-            Self::HealthCheck => "rag.health_check",
-            Self::CompletenessReport => "rag.completeness_report",
             Self::CompletenessReportByIds => "rag.completeness_report_by_ids",
         }
     }

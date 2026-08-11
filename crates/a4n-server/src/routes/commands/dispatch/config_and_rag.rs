@@ -16,18 +16,15 @@ pub(super) async fn try_dispatch(
         "import_theme" => import_theme(state, user_id, args).await?,
         "export_all_configs_json" => export_all_configs_json(state, user_id, args).await?,
         "import_all_configs" => import_all_configs(state, user_id, args).await?,
-        "get_theme_css_variables" => get_theme_css_variables(state, user_id, args).await?,
         "list_llm_config" => list_llm_config(state, user_id, args).await?,
         "create_llm_config" => create_llm_config(state, user_id, args).await?,
         "update_llm_config" => update_llm_config(state, user_id, args).await?,
         "set_default_llm_config" => set_default_llm_config(state, user_id, args).await?,
         "delete_llm_config" => delete_llm_config(state, user_id, args).await?,
         "get_llm_max_tokens_config" => get_llm_max_tokens_config(state, user_id, args).await?,
-        "get_usage_guide" => get_usage_guide(state, user_id, args).await?,
         "update_llm_max_tokens_config" => {
             update_llm_max_tokens_config(state, user_id, args).await?
         }
-        "update_usage_guide" => update_usage_guide(state, user_id, args).await?,
         "list_embedding_config" => list_embedding_config(state, user_id, args).await?,
         "create_embedding_config" => create_embedding_config(state, user_id, args).await?,
         "update_embedding_config" => update_embedding_config(state, user_id, args).await?,

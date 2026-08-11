@@ -1,10 +1,9 @@
 use super::contracts::{
-    CapabilityClient, CapabilityResult, EmbeddingClient, JsonRequest, JsonResponse,
+    CapabilityClient, CapabilityResult, EmbeddingClient, EmbeddingModelOperation, JsonRequest,
+    JsonResponse,
 };
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_service_protocol::{
-    CapabilityTaskEvent, EMBEDDING_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceHealth,
-};
+use a4n_service_protocol::{CapabilityTaskEvent, EMBEDDING_SERVICE_NAME, ServiceHealth};
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
@@ -67,19 +66,14 @@ impl EmbeddingClient for HttpEmbeddingClient {
             .await
     }
 
-    async fn model_operation(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        let operation = request
-            .payload
-            .get("operation")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| {
-                ServiceError::non_retryable(
-                    ServiceErrorCode::ConfigurationError,
-                    "embedding model operation is required",
-                )
-            })?;
-        let path = embedding_model_operation_path(operation)?;
-        self.transport.post_json(path, request).await
+    async fn model_operation(
+        &self,
+        operation: EmbeddingModelOperation,
+        request: JsonRequest,
+    ) -> CapabilityResult<JsonResponse> {
+        self.transport
+            .post_json(embedding_model_operation_path(operation), request)
+            .await
     }
 
     async fn download_model_events(
@@ -95,14 +89,10 @@ impl EmbeddingClient for HttpEmbeddingClient {
 
 pub(super) const EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH: &str = "/embedding/model/download/events";
 
-pub(super) fn embedding_model_operation_path(operation: &str) -> CapabilityResult<&'static str> {
+pub(super) fn embedding_model_operation_path(operation: EmbeddingModelOperation) -> &'static str {
     match operation {
-        "list" => Ok("/embedding/models"),
-        "download_info" => Ok("/embedding/model/download_info"),
-        "delete" => Ok("/embedding/model/delete"),
-        _ => Err(ServiceError::non_retryable(
-            ServiceErrorCode::ConfigurationError,
-            format!("unsupported embedding model operation: {operation}"),
-        )),
+        EmbeddingModelOperation::List => "/embedding/models",
+        EmbeddingModelOperation::DownloadInfo => "/embedding/model/download_info",
+        EmbeddingModelOperation::Delete => "/embedding/model/delete",
     }
 }

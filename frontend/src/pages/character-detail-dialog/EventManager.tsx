@@ -209,11 +209,15 @@ export const EventManager: React.FC<{
     saveInFlightRef.current = false;
     setSaving(false);
     setChapterNumber(defaultChapter);
-    setKey("");
+    const nextCategory = initialCategory.trim() || "explicit";
+    const nextKey = initialKey.trim();
+    setMode(nextKey ? "modify" : "add");
+    setCategory(nextCategory);
+    setKey(nextKey);
     setValueText("");
     setCause("");
     setEvidence("");
-  }, [defaultChapter, profileId]);
+  }, [defaultChapter, initialCategory, initialKey, profileId]);
 
   const resetFilters = async () => {
     const nextScopeKey = eventLoadKey(profileId, "", "", "", "", "");

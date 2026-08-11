@@ -1,4 +1,5 @@
 use a4n_core::{
+    error::AppError,
     models::{
         chapter::chapter,
         generation::{workflow_checkpoint, workflow_run},
@@ -12,11 +13,15 @@ use a4n_db::workflow::{
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::project::ChapterDerivedCleanupArtifacts;
+use crate::{OrchestratorContext, project::ChapterDerivedCleanupArtifacts};
+
+use super::ChapterDerivedCleanupHostPort;
 
 pub const CHAPTER_CONTENT_SYNC_WORKFLOW_KIND: &str = "chapter_content_sync";
 pub(crate) const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanup_plan";
-const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
+pub(crate) const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
+pub const CHAPTER_CONTENT_SYNC_RAG_STEP: &str = "chapter_content_sync.current_rag";
+pub(crate) const CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP: &str = "chapter_content_sync.postprocess";
 
 pub(crate) fn chapter_content_sync_workflow_business_key(
     project_id: i64,
@@ -81,10 +86,6 @@ pub fn chapter_content_sync_current_rag_intent(
                 .and_then(Value::as_bool)
         })
         .flatten()
-}
-
-pub(crate) fn chapter_content_sync_invalidates_analysis(run: &workflow_run::Model) -> bool {
-    chapter_content_sync_current_rag_intent(&run.input_fingerprint_json) != Some(false)
 }
 
 fn chapter_content_sync_run_fingerprint(
@@ -152,6 +153,54 @@ pub(crate) fn chapter_content_sync_checkpoint_input(
     })
 }
 
+pub(crate) fn chapter_content_sync_completed_checkpoint_input(
+    run: &workflow_run::Model,
+    step_key: &str,
+    step_order: i32,
+) -> UpsertWorkflowCheckpointInput {
+    UpsertWorkflowCheckpointInput {
+        workflow_run_id: run.id,
+        step_key: step_key.to_string(),
+        step_order,
+        status: WORKFLOW_STATUS_COMPLETED.to_string(),
+        input_fingerprint_sha256: None,
+        input_fingerprint_json: run.input_fingerprint_json.clone(),
+        checkpoint_json: Some(json!({ "completed": true })),
+        artifacts_json: None,
+        generation_run_ids_json: None,
+        error_message: None,
+        completed: true,
+    }
+}
+
+pub(crate) fn chapter_content_sync_checkpoint_completed(
+    run: &workflow_run::Model,
+    checkpoint: Option<&workflow_checkpoint::Model>,
+    step_key: &str,
+) -> Result<bool, String> {
+    let Some(checkpoint) = checkpoint else {
+        return Ok(false);
+    };
+    if checkpoint.step_key != step_key {
+        return Err(format!(
+            "章节资料同步 checkpoint step_key 无效: expected={step_key}, actual={}",
+            checkpoint.step_key
+        ));
+    }
+    if checkpoint.status != WORKFLOW_STATUS_COMPLETED
+        || checkpoint.input_fingerprint_json != run.input_fingerprint_json
+        || checkpoint
+            .checkpoint_json
+            .as_ref()
+            .and_then(|value| value.get("completed"))
+            .and_then(Value::as_bool)
+            != Some(true)
+    {
+        return Err(format!("章节资料同步 checkpoint {step_key} 合同无效"));
+    }
+    Ok(true)
+}
+
 pub(crate) fn chapter_content_sync_checkpoint_artifacts(
     run: &workflow_run::Model,
     checkpoint: &workflow_checkpoint::Model,
@@ -186,6 +235,197 @@ fn parse_cleanup_artifacts(
         .ok_or_else(|| "章节资料同步 checkpoint 缺少 cleanup artifacts".to_string())?;
     serde_json::from_value(value)
         .map_err(|error| format!("章节资料同步 cleanup artifacts 合同无效: {error}"))
+}
+
+impl OrchestratorContext {
+    pub(crate) async fn settle_chapter_content_sync_run(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        run: &workflow_run::Model,
+    ) -> Result<chapter::Model, AppError> {
+        let result = self.execute_chapter_content_sync_run(host_port, run).await;
+        self.finalize_workflow_result(
+            run.id,
+            result,
+            Some("章节资料同步已完成，但工作流终态写入失败"),
+        )
+        .await
+    }
+
+    pub async fn resume_chapter_content_sync_workflow_run_validated(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        requested_run: &workflow_run::Model,
+    ) -> Result<chapter::Model, AppError> {
+        let chapter = self.chapter_content_sync_chapter(requested_run).await?;
+        let lock = self.chapter_content_sync_lock(chapter.project_id, chapter.chapter_number);
+        let _guard = lock.lock_owned().await;
+        let run = self.workflow_run_model_by_id(requested_run.id).await?;
+        self.require_current_chapter_content_sync_run(&run).await?;
+        if !run.can_resume {
+            return Err(AppError::InvalidState {
+                current: run.status,
+                operation: run
+                    .resume_block_reason
+                    .unwrap_or_else(|| "恢复章节资料同步".to_string()),
+            });
+        }
+        let run = self.mark_workflow_running_validated(run.id).await?;
+        self.settle_chapter_content_sync_run(host_port, &run).await
+    }
+
+    async fn execute_chapter_content_sync_run(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        run: &workflow_run::Model,
+    ) -> Result<chapter::Model, AppError> {
+        if run.status != WORKFLOW_STATUS_RUNNING {
+            return Err(AppError::InvalidState {
+                current: run.status.clone(),
+                operation: "执行章节资料同步".to_string(),
+            });
+        }
+        let chapter = self.require_current_chapter_content_sync_run(run).await?;
+        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
+        let cleanup_checkpoint = checkpoints
+            .iter()
+            .find(|checkpoint| checkpoint.step_key == CHAPTER_CONTENT_SYNC_CLEANUP_STEP)
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("chapter_content_sync_run_id={}", run.id),
+                operation: "读取章节资料清理计划".to_string(),
+            })?;
+        let artifacts = chapter_content_sync_checkpoint_artifacts(run, cleanup_checkpoint)
+            .map_err(|operation| AppError::InvalidState {
+                current: format!("chapter_content_sync_run_id={}", run.id),
+                operation,
+            })?;
+
+        if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP)? {
+            self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP)
+                .await?;
+            host_port
+                .finish_chapter_derived_cleanup(
+                    chapter.project_id,
+                    chapter.id,
+                    chapter.chapter_number,
+                    artifacts,
+                )
+                .await?;
+            self.require_current_chapter_content_sync_run(run).await?;
+            self.upsert_workflow_checkpoint(chapter_content_sync_completed_checkpoint_input(
+                run,
+                CHAPTER_CONTENT_SYNC_EXTERNAL_STEP,
+                20,
+            ))
+            .await?;
+        }
+
+        let chapter = self.require_current_chapter_content_sync_run(run).await?;
+        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
+        if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_RAG_STEP)? {
+            self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_RAG_STEP)
+                .await?;
+            if chapter_content_sync_should_sync_current_rag(&run.input_fingerprint_json) {
+                host_port.sync_chapter_rag_records(&chapter, run.id).await?;
+                self.require_current_chapter_content_sync_run(run).await?;
+            }
+            self.upsert_workflow_checkpoint(chapter_content_sync_completed_checkpoint_input(
+                run,
+                CHAPTER_CONTENT_SYNC_RAG_STEP,
+                30,
+            ))
+            .await?;
+        }
+
+        let chapter = self.require_current_chapter_content_sync_run(run).await?;
+        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
+        if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP)?
+        {
+            self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP)
+                .await?;
+            if chapter.has_available_content() {
+                self.process_chapter(chapter.id).await?;
+            }
+            self.refresh_project_current_chapter(chapter.project_id)
+                .await?;
+            self.sync_project_status_from_artifacts(chapter.project_id)
+                .await?;
+            self.require_current_chapter_content_sync_run(run).await?;
+            self.upsert_workflow_checkpoint(chapter_content_sync_completed_checkpoint_input(
+                run,
+                CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP,
+                40,
+            ))
+            .await?;
+        }
+
+        self.require_current_chapter_content_sync_run(run).await
+    }
+
+    async fn chapter_content_sync_chapter(
+        &self,
+        run: &workflow_run::Model,
+    ) -> Result<chapter::Model, AppError> {
+        if run.workflow_kind != CHAPTER_CONTENT_SYNC_WORKFLOW_KIND
+            || run.scope_table.as_deref() != Some("chapter")
+            || run.scope_id != run.chapter_id
+        {
+            return Err(AppError::InvalidState {
+                current: format!("workflow_kind={}", run.workflow_kind),
+                operation: "读取章节资料同步目标".to_string(),
+            });
+        }
+        let chapter_id = run.chapter_id.ok_or_else(|| AppError::InvalidState {
+            current: "missing_chapter_id".to_string(),
+            operation: "读取章节资料同步目标".to_string(),
+        })?;
+        self.chapter_by_id_for_analysis(chapter_id).await
+    }
+
+    async fn require_current_chapter_content_sync_run(
+        &self,
+        run: &workflow_run::Model,
+    ) -> Result<chapter::Model, AppError> {
+        let chapter = self.chapter_content_sync_chapter(run).await?;
+        let latest = self
+            .latest_workflow_run_by_business_key(&chapter_content_sync_workflow_business_key(
+                chapter.project_id,
+                chapter.id,
+            ))
+            .await?
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_chapter_content_sync_run".to_string(),
+                operation: "执行章节资料同步".to_string(),
+            })?;
+        if latest.id != run.id
+            || run.project_id != Some(chapter.project_id)
+            || !chapter_content_sync_run_input_matches(&run.input_fingerprint_json, &chapter)
+        {
+            return Err(AppError::InvalidState {
+                current: "chapter_content_sync_replaced".to_string(),
+                operation: "执行已被新正文取代的章节资料同步".to_string(),
+            });
+        }
+        Ok(chapter)
+    }
+}
+
+fn content_sync_phase_completed(
+    run: &workflow_run::Model,
+    checkpoints: &[workflow_checkpoint::Model],
+    step_key: &str,
+) -> Result<bool, AppError> {
+    chapter_content_sync_checkpoint_completed(
+        run,
+        checkpoints
+            .iter()
+            .find(|checkpoint| checkpoint.step_key == step_key),
+        step_key,
+    )
+    .map_err(|operation| AppError::InvalidState {
+        current: format!("chapter_content_sync_run_id={}", run.id),
+        operation,
+    })
 }
 
 #[cfg(test)]

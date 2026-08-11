@@ -21,7 +21,7 @@ pub async fn apply_assembly_postprocess_edit(
     input: ApplyAssemblyPostprocessEditInput,
 ) -> Result<GeneratedVideoSummary, String> {
     let plan = state
-        .video()
+        .orchestrator()
         .prepare_assembly_postprocess_edit_validated(push_video_id, &input.operation)
         .await
         .map_err(app_error_message)?;
@@ -51,7 +51,7 @@ pub async fn apply_assembly_postprocess_edit(
         .map(|properties| properties.duration_secs);
     let source_video_id = source.as_ref().and_then(|source| source.source_video_id);
     let prepared = state
-        .video()
+        .orchestrator()
         .create_assembly_postprocess_edit_record_validated(
             plan,
             AssemblyPostprocessEditRecordInput {

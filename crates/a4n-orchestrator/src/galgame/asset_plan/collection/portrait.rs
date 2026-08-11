@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::error::AppError;
-use a4n_core::models::galgame::galgame_line;
 
-use crate::galgame::{GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_TARGET_PORTRAIT_EXPRESSION};
+use crate::galgame::{
+    GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_TARGET_PORTRAIT_EXPRESSION, GalgameLine,
+};
 use a4n_db::project::ProjectFamilyContext;
 
 use super::super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft, GalgameSpecInput};
@@ -14,7 +15,7 @@ use super::required_json_string;
 
 pub(super) fn collect_portrait_asset_sample(
     context: &ProjectFamilyContext,
-    line: &galgame_line::Model,
+    line: &GalgameLine,
     scene_anchor_ids: &BTreeSet<i64>,
     portrait_drafts: &mut BTreeMap<String, GalgamePortraitAssetDraft>,
 ) {

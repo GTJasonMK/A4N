@@ -56,6 +56,7 @@ async fn attribute_mutation_contract_preserves_invalid_argument_and_database_err
         CharacterAttributeEventInsertInput {
             profile_id: 7,
             chapter_number: 0,
+            source_kind: "user".to_string(),
             category: "explicit".to_string(),
             key: "appearance".to_string(),
             operation: "modify".to_string(),

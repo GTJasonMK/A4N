@@ -3,17 +3,29 @@ use std::{
     sync::Arc,
 };
 
-use a4n_capabilities::{JsonRequest, JsonResponse, PromptClient};
+pub use a4n_api_contract::prompt::{
+    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
+    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
+    ValidateVarsInput, VersionDiffInput,
+};
+use a4n_capabilities::PromptClient;
 use a4n_core::error::AppError;
 use a4n_prompt::{
-    engine::{DependencyGraph, PromptEntry, PromptVersion},
-    variables::parse_template_variables,
+    contracts::{
+        CountOutput, PromptBatchUpdate, PromptEmptyPayload, PromptHydrateOverride,
+        PromptHydrateOverridesPayload, PromptListOutput, PromptNamePayload,
+        PromptRemoveProjectOverridePayload, PromptRenderAbOutput, PromptRenderOutput,
+        PromptRenderPayload, PromptSetProjectOverridePayload, PromptUpdateManyPayload,
+        PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
+        PromptVersionDiffPayload, PromptVersionHistoryOutput,
+    },
+    engine::{PromptCategory, PromptEntry, PromptVersion},
 };
 use a4n_service_protocol::{
     PROMPT_RENDER_CAPABILITY_VERSION, SchemaVersion, SecretForwardingPolicy, ServiceRequest,
-    ServiceStatus, TraceContext, sanitize_service_response, validate_service_request_context,
+    ServiceResponse, ServiceStatus, TraceContext, sanitize_service_response,
+    validate_service_request_context,
 };
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -21,7 +33,7 @@ use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
     prompt_override::{
-        ProjectOverrideIdentity, ProjectPromptOverrideSummary, normalize_project_override_identity,
+        ProjectOverrideIdentity, normalize_project_override_identity,
         validate_project_override_content,
     },
 };
@@ -45,217 +57,6 @@ impl PromptExecutionContext {
             runtime_config_snapshot,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PromptEntrySummary {
-    pub name: String,
-    pub title: String,
-    pub content: String,
-    pub description: Option<String>,
-    pub tags: Vec<String>,
-    pub category: String,
-    pub dependencies: Vec<String>,
-    pub is_modified: bool,
-    pub version: String,
-    pub modified_at: String,
-    #[serde(default)]
-    pub used_by: Vec<String>,
-    #[serde(default)]
-    pub path: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PromptVersionSummary {
-    pub version: String,
-    pub timestamp: String,
-    pub author: String,
-    pub message: String,
-    pub content_snapshot: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DependencyGraphOutput {
-    pub nodes: Vec<Value>,
-    pub edges: Vec<Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AbRenderResult {
-    pub version_a: String,
-    pub version_b: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RenderInput {
-    pub template_name: String,
-    pub variables: Option<Value>,
-    pub project_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdatePromptInput {
-    pub name: String,
-    pub content: String,
-    pub author: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SetOverrideInput {
-    pub project_id: i64,
-    pub name: String,
-    pub content: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RemoveOverrideInput {
-    pub project_id: i64,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct VersionDiffInput {
-    pub name: String,
-    pub version_a: String,
-    pub version_b: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ValidateVarsInput {
-    pub template_name: String,
-    pub variables: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AbRenderInput {
-    pub template_name: String,
-    pub variables: Option<Value>,
-    pub project_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CategoryInfo {
-    pub key: String,
-    pub label: Option<String>,
-    pub order: i32,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptBatchUpdate {
-    name: String,
-    content: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptUpdateManyPayload {
-    updates: Vec<PromptBatchUpdate>,
-    author: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptRenderPayload {
-    template_name: String,
-    variables: HashMap<String, Value>,
-    project_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptRenderOutput {
-    rendered: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptNamePayload {
-    name: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptListOutput {
-    prompts: Vec<PromptEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptVersionHistoryOutput {
-    versions: Vec<PromptVersion>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptVersionDiffPayload {
-    name: String,
-    version_a: String,
-    version_b: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptVersionDiffOutput {
-    diff: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptValidatePayload {
-    template_name: String,
-    variables: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptValidateOutput {
-    missing: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptRenderAbOutput {
-    version_a: String,
-    version_b: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptProjectOverridePayload {
-    project_id: i64,
-    name: String,
-    content: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptHydrateOverridesPayload {
-    overrides: Vec<PromptHydrateOverride>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PromptHydrateOverride {
-    project_id: i64,
-    name: String,
-    content: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CountOutput {
-    count: usize,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PromptDependencyGraphOutput {
-    graph: DependencyGraph,
 }
 
 impl OrchestratorContext {
@@ -322,7 +123,7 @@ impl OrchestratorContext {
                     context,
                     None,
                     None,
-                    serde_json::json!({}),
+                    PromptEmptyPayload::default(),
                 )?)
                 .await
                 .map_err(prompt_sidecar_error)?;
@@ -353,15 +154,28 @@ impl OrchestratorContext {
         context: &PromptExecutionContext,
         input: UpdatePromptInput,
     ) -> Result<PromptEntrySummary, AppError> {
+        let UpdatePromptInput {
+            name,
+            content,
+            author,
+        } = input;
         let entry = if let Some(client) = self.prompt_client_for_execution(context)? {
             let response = client
-                .update(prompt_service_request(context, None, None, input)?)
+                .update(prompt_service_request(
+                    context,
+                    None,
+                    None,
+                    PromptUpdatePayload {
+                        name,
+                        content,
+                        author,
+                    },
+                )?)
                 .await
                 .map_err(prompt_sidecar_error)?;
             prompt_response_payload(response)?
         } else {
-            self.prompt_update_entry(&input.name, input.content, &input.author)
-                .await?
+            self.prompt_update_entry(&name, content, &author).await?
         };
         Ok(prompt_entry_summary(&entry))
     }
@@ -385,8 +199,7 @@ impl OrchestratorContext {
             )?)
             .await
             .map_err(prompt_sidecar_error)?;
-        let _: Value = prompt_response_payload(response)?;
-        Ok(())
+        prompt_response_payload(response)
     }
 
     pub async fn prompt_version_history_validated(
@@ -419,17 +232,20 @@ impl OrchestratorContext {
         user_id: i64,
         input: RenderInput,
     ) -> Result<String, AppError> {
-        if let Some(project_id) = input.project_id {
+        let RenderInput {
+            template_name,
+            variables,
+            project_id,
+        } = input;
+        if let Some(project_id) = project_id {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        let variables = parse_template_variables(input.variables.as_ref())
-            .map_err(AppError::InvalidArgument)?;
         self.render_prompt_record_template_validated(
             context,
-            &input.template_name,
-            variables,
-            input.project_id,
+            &template_name,
+            variables.unwrap_or_default(),
+            project_id,
         )
         .await
     }
@@ -467,27 +283,31 @@ impl OrchestratorContext {
         &self,
         context: &PromptExecutionContext,
         user_id: i64,
-        input: AbRenderInput,
+        input: RenderInput,
     ) -> Result<AbRenderResult, AppError> {
-        if let Some(project_id) = input.project_id {
+        let RenderInput {
+            template_name,
+            variables,
+            project_id,
+        } = input;
+        if let Some(project_id) = project_id {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        let variables = parse_template_variables(input.variables.as_ref())
-            .map_err(AppError::InvalidArgument)?;
+        let variables = variables.unwrap_or_default();
         if let Some(client) = self.prompt_client_for_execution(context)? {
             let root_project_id = self
-                .hydrate_prompt_project_overrides(context, client.clone(), input.project_id)
+                .hydrate_prompt_project_overrides(context, client.clone(), project_id)
                 .await?;
             let response = client
                 .render_ab(prompt_service_request(
                     context,
-                    input.project_id,
+                    project_id,
                     root_project_id,
                     PromptRenderPayload {
-                        template_name: input.template_name,
+                        template_name,
                         variables,
-                        project_id: input.project_id,
+                        project_id,
                     },
                 )?)
                 .await
@@ -499,7 +319,7 @@ impl OrchestratorContext {
             });
         }
         let (version_a, version_b) =
-            self.prompt_render_ab(&input.template_name, &variables, input.project_id)?;
+            self.prompt_render_ab(&template_name, &variables, project_id)?;
         Ok(AbRenderResult {
             version_a,
             version_b,
@@ -582,8 +402,15 @@ impl OrchestratorContext {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let active_names = self.active_prompt_names(context).await?;
-        self.project_override_summaries(project_id, &active_names)
-            .await
+        Ok(self
+            .project_override_summaries(project_id, &active_names)
+            .await?
+            .into_iter()
+            .map(|item| ProjectPromptOverrideSummary {
+                prompt_name: item.prompt_name,
+                updated_at: item.updated_at,
+            })
+            .collect())
     }
 
     pub async fn prompt_version_diff_validated(
@@ -636,76 +463,26 @@ impl OrchestratorContext {
         )
     }
 
-    pub async fn prompt_dependency_graph_validated(
-        &self,
-        context: &PromptExecutionContext,
-    ) -> Result<DependencyGraphOutput, AppError> {
-        let graph = if let Some(client) = self.prompt_client_for_execution(context)? {
-            let response = client
-                .dependency_graph(prompt_service_request(
-                    context,
-                    None,
-                    None,
-                    serde_json::json!({}),
-                )?)
-                .await
-                .map_err(prompt_sidecar_error)?;
-            prompt_response_payload::<PromptDependencyGraphOutput>(response)?.graph
-        } else {
-            self.prompt_dependency_graph()
-        };
-        Ok(DependencyGraphOutput {
-            nodes: graph
-                .nodes
-                .iter()
-                .map(|node| serde_json::json!({"name": node.name, "category": node.category}))
-                .collect(),
-            edges: graph
-                .edges
-                .iter()
-                .map(|edge| serde_json::json!({"from": edge.from, "to": edge.to}))
-                .collect(),
-        })
-    }
-
-    pub async fn prompt_dependencies_validated(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<Vec<String>, AppError> {
-        Ok(self
-            .prompt_entry_for_execution(context, name)
-            .await?
-            .dependencies)
-    }
-
-    pub async fn prompt_reverse_dependencies_validated(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<Vec<String>, AppError> {
-        reverse_dependencies(&self.prompt_entries_for_execution(context).await?, name)
-            .map_err(AppError::NotFound)
-    }
-
     pub async fn list_prompt_categories_validated(
         &self,
         context: &PromptExecutionContext,
     ) -> Result<Vec<CategoryInfo>, AppError> {
-        if let Some(client) = self.prompt_client_for_execution(context)? {
-            let response = client
-                .categories(prompt_service_request(
-                    context,
-                    None,
-                    None,
-                    serde_json::json!({}),
-                )?)
-                .await
-                .map_err(prompt_sidecar_error)?;
-            return prompt_response_payload(response);
-        }
-        Ok(self
-            .prompt_registry_categories()?
+        let categories: Vec<PromptCategory> =
+            if let Some(client) = self.prompt_client_for_execution(context)? {
+                let response = client
+                    .categories(prompt_service_request(
+                        context,
+                        None,
+                        None,
+                        PromptEmptyPayload::default(),
+                    )?)
+                    .await
+                    .map_err(prompt_sidecar_error)?;
+                prompt_response_payload(response)?
+            } else {
+                self.prompt_categories()?
+            };
+        Ok(categories
             .into_iter()
             .map(|category| CategoryInfo {
                 key: category.key,
@@ -742,7 +519,7 @@ impl OrchestratorContext {
                 context,
                 None,
                 None,
-                serde_json::json!({}),
+                PromptEmptyPayload::default(),
             )?)
             .await
             .map_err(prompt_sidecar_error)?;
@@ -825,7 +602,7 @@ impl OrchestratorContext {
             )?)
             .await
             .map_err(prompt_sidecar_error)?;
-        let _: CountOutput = prompt_response_payload(response)?;
+        prompt_response_payload(response)?;
         Ok(Some(root_project_id))
     }
 
@@ -849,16 +626,15 @@ impl OrchestratorContext {
                 context,
                 Some(identity.project_id),
                 Some(root_project_id),
-                PromptProjectOverridePayload {
+                PromptSetProjectOverridePayload {
                     project_id: identity.project_id,
                     name: identity.name.clone(),
-                    content: Some(content),
+                    content,
                 },
             )?)
             .await
             .map_err(prompt_sidecar_error)?;
-        let _: Value = prompt_response_payload(response)?;
-        Ok(())
+        prompt_response_payload(response)
     }
 
     async fn remove_prompt_override_for_execution(
@@ -880,16 +656,14 @@ impl OrchestratorContext {
                 context,
                 Some(identity.project_id),
                 Some(root_project_id),
-                PromptProjectOverridePayload {
+                PromptRemoveProjectOverridePayload {
                     project_id: identity.project_id,
                     name: identity.name.clone(),
-                    content: None,
                 },
             )?)
             .await
             .map_err(prompt_sidecar_error)?;
-        let _: Value = prompt_response_payload(response)?;
-        Ok(())
+        prompt_response_payload(response)
     }
 
     async fn prompt_override_persistence_error(
@@ -922,12 +696,12 @@ impl OrchestratorContext {
     }
 }
 
-fn prompt_service_request(
+fn prompt_service_request<T>(
     context: &PromptExecutionContext,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
-    payload: impl Serialize,
-) -> Result<JsonRequest, AppError> {
+    payload: T,
+) -> Result<ServiceRequest<T>, AppError> {
     match (project_id, root_project_id) {
         (None, None) | (Some(_), Some(_)) => {}
         (Some(project_id), None) => {
@@ -957,30 +731,39 @@ fn prompt_service_request(
         runtime_config_snapshot: context.runtime_config_snapshot.clone(),
         secret_policy: SecretForwardingPolicy::deny_all(),
         capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
-        payload: serde_json::to_value(payload)?,
+        payload,
     };
     validate_service_request_context(&request)
         .map_err(|error| AppError::ConfigError(error.message))?;
     Ok(request)
 }
 
-fn prompt_response_payload<T: DeserializeOwned>(mut response: JsonResponse) -> Result<T, AppError> {
+fn prompt_response_payload<T>(mut response: ServiceResponse<T>) -> Result<T, AppError> {
     sanitize_service_response(&mut response).map_err(|error| {
         AppError::ConfigError(format!("prompt sidecar 返回非法 response：{error}"))
     })?;
     match response.status {
-        ServiceStatus::Ok => serde_json::from_value(response.payload.ok_or_else(|| {
-            AppError::ConfigError("prompt sidecar 返回成功但缺少 payload".to_string())
-        })?)
-        .map_err(|error| {
-            AppError::ConfigError(format!("prompt sidecar 响应 payload 解析失败：{error}"))
-        }),
-        ServiceStatus::Error => Err(AppError::ConfigError(
-            response
-                .error
-                .map(|error| error.message)
-                .unwrap_or_else(|| "prompt sidecar 返回未知错误".to_string()),
-        )),
+        ServiceStatus::Ok => {
+            if response.error.is_some() {
+                return Err(AppError::ConfigError(
+                    "prompt sidecar 返回成功状态但同时携带 error".to_string(),
+                ));
+            }
+            response.payload.ok_or_else(|| {
+                AppError::ConfigError("prompt sidecar 返回成功但缺少 payload".to_string())
+            })
+        }
+        ServiceStatus::Error => {
+            if response.payload.is_some() {
+                return Err(AppError::ConfigError(
+                    "prompt sidecar 返回错误状态但同时携带 payload".to_string(),
+                ));
+            }
+            let error = response.error.ok_or_else(|| {
+                AppError::ConfigError("prompt sidecar 返回错误状态但缺少 error".to_string())
+            })?;
+            Err(AppError::ConfigError(error.message))
+        }
     }
 }
 
@@ -999,7 +782,6 @@ fn prompt_entry_summary(entry: &PromptEntry) -> PromptEntrySummary {
         dependencies: entry.dependencies.clone(),
         is_modified: entry.is_modified,
         version: entry.version.clone(),
-        modified_at: entry.modified_at.to_string(),
         used_by: entry.used_by.clone(),
         path: entry.path.clone(),
     }
@@ -1011,71 +793,18 @@ fn prompt_version_summary(version: &PromptVersion) -> PromptVersionSummary {
         timestamp: version.timestamp.to_string(),
         author: version.author.clone(),
         message: version.message.clone(),
-        content_snapshot: version.content_snapshot.clone(),
     }
-}
-
-fn reverse_dependencies(entries: &[PromptEntry], name: &str) -> Result<Vec<String>, String> {
-    if !entries.iter().any(|entry| entry.name == name) {
-        return Err(format!("提示词不存在：{name}"));
-    }
-    Ok(entries
-        .iter()
-        .filter(|entry| {
-            entry
-                .dependencies
-                .iter()
-                .any(|dependency| dependency == name)
-        })
-        .map(|entry| entry.name.clone())
-        .collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
-
-    fn prompt_entry(name: &str, dependencies: &[&str]) -> PromptEntry {
-        PromptEntry {
-            name: name.to_string(),
-            title: name.to_string(),
-            content: name.to_string(),
-            description: None,
-            tags: Vec::new(),
-            category: "writing".to_string(),
-            dependencies: dependencies.iter().map(|value| value.to_string()).collect(),
-            is_modified: false,
-            version: "1.0".to_string(),
-            modified_at: Utc::now().naive_utc(),
-            used_by: Vec::new(),
-            path: None,
-        }
-    }
-
-    #[test]
-    fn reverse_dependencies_require_existing_prompt_and_return_dependents() {
-        let entries = vec![
-            prompt_entry("outline", &["blueprint"]),
-            prompt_entry("writing", &["outline"]),
-            prompt_entry("blueprint", &[]),
-        ];
-        assert_eq!(
-            reverse_dependencies(&entries, "outline").unwrap(),
-            vec!["writing".to_string()]
-        );
-        assert!(
-            reverse_dependencies(&entries, "missing")
-                .unwrap_err()
-                .contains("提示词不存在")
-        );
-    }
 
     #[test]
     fn prompt_request_rejects_incomplete_project_scope() {
         let context = PromptExecutionContext::new(true, Some(7), None);
         assert!(
-            prompt_service_request(&context, Some(42), None, serde_json::json!({}))
+            prompt_service_request(&context, Some(42), None, PromptEmptyPayload::default())
                 .unwrap_err()
                 .to_string()
                 .contains("缺少 root_project_id")
@@ -1084,11 +813,36 @@ mod tests {
             &context,
             Some(42),
             Some(3),
-            serde_json::json!({"project_id": 42}),
+            PromptSetProjectOverridePayload {
+                project_id: 42,
+                name: "writing".to_string(),
+                content: "content".to_string(),
+            },
         )
         .unwrap();
         assert_eq!(request.project_id, Some(42));
         assert_eq!(request.root_project_id, Some(3));
         assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
+    }
+
+    #[test]
+    fn prompt_response_rejects_inconsistent_status_payload_pairs() {
+        let response = ServiceResponse {
+            status: ServiceStatus::Ok,
+            trace_id: Some("trace-1".to_string()),
+            usage: None,
+            artifact_refs: Vec::new(),
+            payload: Some("payload".to_string()),
+            error: Some(a4n_service_protocol::ServiceError::non_retryable(
+                a4n_service_protocol::ServiceErrorCode::Internal,
+                "unexpected",
+            )),
+        };
+        assert!(
+            prompt_response_payload(response)
+                .unwrap_err()
+                .to_string()
+                .contains("同时携带 error")
+        );
     }
 }

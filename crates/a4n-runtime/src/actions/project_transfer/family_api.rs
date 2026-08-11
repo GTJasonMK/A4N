@@ -1,7 +1,7 @@
 use super::{
     contracts::{
         ExportDerivedProjectDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
-        ImportProjectFamilyUploadInput,
+        ImportProjectPackageUploadInput, PROJECT_FAMILY_PACKAGE_SUFFIX,
     },
     family_package::RuntimeProjectFamilyTransferHostPort,
     package_files::{
@@ -22,7 +22,7 @@ pub async fn export_project_family_data(
 ) -> Result<ExportProjectPackageData, String> {
     let host_port = RuntimeProjectFamilyTransferHostPort::new(state);
     let exported = state
-        .project_family()
+        .orchestrator()
         .export_project_family_package_validated(
             ExportProjectFamilyPackageApplicationInput {
                 user_id,
@@ -36,6 +36,7 @@ pub async fn export_project_family_data(
     Ok(export_package_data(
         &exported.project,
         exported.package_bytes,
+        PROJECT_FAMILY_PACKAGE_SUFFIX,
     ))
 }
 
@@ -46,7 +47,7 @@ pub async fn export_derived_project_data(
 ) -> Result<ExportProjectPackageData, String> {
     let host_port = RuntimeProjectFamilyTransferHostPort::new(state);
     let exported = state
-        .project_family()
+        .orchestrator()
         .export_derived_project_package_validated(
             ExportDerivedProjectPackageApplicationInput {
                 user_id,
@@ -59,19 +60,24 @@ pub async fn export_derived_project_data(
     Ok(export_package_data(
         &exported.project,
         exported.package_bytes,
+        PROJECT_FAMILY_PACKAGE_SUFFIX,
     ))
 }
 
 pub async fn import_project_family_upload(
     state: &AppState,
     user_id: i64,
-    input: ImportProjectFamilyUploadInput,
+    input: ImportProjectPackageUploadInput,
 ) -> Result<Vec<novel_project::Model>, String> {
-    validate_uploaded_project_file_name(&input.file_name, "zip", "项目族包")?;
+    validate_uploaded_project_file_name(
+        &input.file_name,
+        PROJECT_FAMILY_PACKAGE_SUFFIX,
+        "项目族包",
+    )?;
     let bytes = decode_uploaded_project_file(&input.data_base64, "项目族包")?;
     let mut host_port = RuntimeProjectFamilyTransferHostPort::new(state);
     state
-        .project_family()
+        .orchestrator()
         .import_project_family_package_validated(
             ImportProjectFamilyPackageApplicationInput {
                 user_id,

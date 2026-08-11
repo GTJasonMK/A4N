@@ -7,7 +7,7 @@ mod asset_generation_application;
 mod asset_plan;
 mod context;
 mod contracts;
-pub mod errors;
+mod errors;
 mod media_application;
 mod media_rules;
 mod mutations;
@@ -22,30 +22,18 @@ mod preview_application;
 mod read_models;
 mod rules;
 mod script_records;
-mod visual_params_rules;
 mod webgal_export_application;
 mod webgal_export_rules;
 
-pub(crate) use asset_plan::validate_presentation_json;
-pub use asset_plan::{
-    GalgameAssetPlan, GalgameAssetPlanItem, GalgameAssetPlanOutcome, GalgameAssetPlanSummary,
-};
 #[cfg(test)]
-use asset_plan::{GalgamePortraitAssetDraft, event_cg_directive, portrait_variant};
+use asset_plan::{GalgamePortraitAssetDraft, portrait_variant};
 use contracts::SCRIPT_STATUS_READY;
 
-pub use pipeline_workflow_rules::{
-    GALGAME_PIPELINE_MODE_FULL, GALGAME_PIPELINE_WORKFLOW_KIND, galgame_pipeline_business_key,
-    galgame_pipeline_workflow_fingerprint, galgame_pipeline_workflow_run_input,
-};
-pub use visual_params_rules::{
-    json_owned_string, required_visual_json_i64, required_visual_json_i64_array,
-    required_visual_json_object, required_visual_json_str, required_visual_json_string_array,
-    validate_galgame_visual_canonical_key, validate_optional_galgame_cg_importance,
-    validate_visual_json_i64_equals,
+use pipeline_workflow_rules::{
+    GALGAME_PIPELINE_WORKFLOW_KIND, galgame_pipeline_workflow_run_input,
 };
 
-pub use contracts::*;
+pub(crate) use contracts::*;
 pub(crate) use errors::{
     galgame_asset_plan_spec_record_error, galgame_context_record_error,
     galgame_generation_record_error, galgame_line_record_error, galgame_line_reorder_record_error,
@@ -55,24 +43,23 @@ pub(crate) use errors::{
 #[cfg(test)]
 use persistence::GalgamePersistValidationScope;
 pub(in crate::galgame) use pipeline_json::validate_staged_presentation;
-pub use pipeline_json::{
-    GalgameBranchDesign, GalgameCharacterStaging, GalgameFacingV2,
-    GalgameLinePresentationDocumentV2, GalgameLinePresentationV2, GalgamePipelineBackgroundPlan,
-    GalgamePipelineBeatRefV3, GalgamePipelineBranchSceneLineDraft,
-    GalgamePipelineBranchSceneLineStaged, GalgamePipelineChoiceOptionPlan,
-    GalgamePipelineChoicePlan, GalgamePipelineEventCgPlan, GalgamePipelineLineDraft,
-    GalgamePipelineLineStaged, GalgamePipelineScene, GalgamePipelineSceneLineDraft,
-    GalgamePipelineSceneLineStaged, GalgamePipelineShootingBeat, GalgameScriptAdaptation,
-    GalgameShootingScriptProjection, GalgameStageLayerV2, GalgameStagePositionV2,
-    GalgameVisibleCastMemberV2, GalgameVisualPlan, branch_design_from_value,
-    character_staging_from_value, parse_galgame_json_object, script_adaptation_from_value,
+pub(crate) use pipeline_json::{
+    GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelineBackgroundPlan,
+    GalgamePipelineBranchSceneLineStaged, GalgamePipelineChoicePlan, GalgamePipelineEventCgPlan,
+    GalgamePipelineLineStaged, GalgamePipelineScene, GalgamePipelineShootingBeat,
+    GalgameScriptAdaptation, GalgameShootingScriptProjection, GalgameVisualPlan,
+    branch_design_from_value, character_staging_from_value, script_adaptation_from_value,
     shooting_script_projection_from_value, visual_plan_from_value,
 };
-pub use pipeline_persist::{
+#[cfg(test)]
+use pipeline_json::{
+    GalgamePipelineLineDraft, GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged,
+};
+pub(crate) use pipeline_persist::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
     GalgameScriptPersistPlan, build_galgame_script_persist_plan,
 };
-pub use pipeline_prompt::{
+pub(crate) use pipeline_prompt::{
     GalgamePipelinePromptChapter, GalgamePipelinePromptSourceSpan,
     galgame_branch_design_user_message, galgame_character_staging_user_message,
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
@@ -84,56 +71,41 @@ pub(in crate::galgame) use pipeline_prompt::{
     galgame_visual_planning_session_user_message,
 };
 pub(crate) use pipeline_run::validate_source_sync_scene_regeneration_stage_outputs;
-pub use pipeline_run::{
-    GalgamePipelineProgressUpdate, GalgamePipelineRunOptions, GalgameProgressReporter,
-    GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
+pub use pipeline_run::{GalgamePipelineProgressUpdate, GalgameProgressReporter};
+pub(crate) use pipeline_run::{
+    GalgamePipelineRunOptions, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
     galgame_shooting_script_projection,
 };
-pub use pipeline_state::{
-    GALGAME_PIPELINE_TOTAL_STEPS, GalgamePipelineStartStage, galgame_pipeline_stage_keys,
-    parse_galgame_start_stage, should_restore_galgame_stage_checkpoint,
-};
+pub(crate) use pipeline_state::should_restore_galgame_stage_checkpoint;
 pub use preview_application::GalgamePipelinePreviewRequest;
+pub(crate) use read_models::galgame_line_from_model;
 #[cfg(test)]
 use read_models::galgame_media_binding_summaries;
 #[cfg(test)]
 use read_models::{
     galgame_pipeline_prompt_context_from_record, galgame_script_detail_from_read_model,
 };
-pub(crate) use rules::validate_and_project_presentation;
-use rules::{
-    ensure_json_object, normalize_optional_positive_id, normalize_optional_text, required_text,
-    to_i32, validate_positive_id, validate_scene_entry_kind,
-};
 pub(crate) use rules::{normalize_line_type, normalize_position, validate_line_semantics};
+use rules::{
+    normalize_optional_positive_id, normalize_optional_text, required_text, to_i32,
+    validate_positive_id, validate_scene_entry_kind,
+};
+pub(crate) use rules::{
+    parse_and_validate_presentation_projection, validate_and_project_presentation,
+};
 
 #[cfg(test)]
 mod tests;
 
-pub use a4n_db::galgame::{
-    CompletedGalgameVisualBindingRecords, GalgameAssetPlanSpecRecordError,
-    GalgameAssetPlanSpecRecordInput, GalgameAssetPlanningReadModel, GalgameGenerationRecordError,
-    GalgameGenerationSpecEntityRefRecordInput, GalgameGenerationSpecRefsRecordInput,
-    GalgameGenerationSpecTextAnchorRefRecordInput, GalgameGenerationSpecUpsert,
-    GalgameGenerationSpecUpsertInput, GalgameGenerationSpecUpsertOutcome,
-    GalgameMediaBindingReadModel, GalgameMediaBindingResult, GalgameMediaRecordError,
-    GalgamePersistValidationScopeReadModel, GalgamePipelinePromptChapterRecord,
-    GalgamePipelinePromptContextRecord, GalgamePortraitSpecTargetInput,
-    GalgamePromptArtifactUpsertInput, GalgameScriptDetailReadModel, GalgameTargetContext,
-    InsertGalgameLineRecordInput, PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput,
-    PersistGalgameSceneRecordInput, PersistGalgameScriptRecordInput,
-    ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput, UpdateGalgameSceneRecordInput,
-    validate_galgame_media_asset_source_context, validate_galgame_portrait_position_samples,
-    validate_galgame_portrait_spec_family_context, validate_galgame_portrait_spec_source_chapter,
+use a4n_db::galgame::{
+    GalgamePortraitSpecTargetInput, GalgamePromptArtifactUpsertInput, GalgameTargetContext,
 };
+
+#[cfg(test)]
+use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};
 
 pub use application::GalgamePipelineApplicationInput;
 pub use asset_generation_application::{
-    GalgameAssetGenerationApplicationInput, GalgameAssetGenerationApplicationItem,
-    GalgameAssetGenerationApplicationSummary, GalgameAssetGenerationHostPort,
-    GalgamePortraitImageGenerationInput, GalgameVisualImageGenerationInput,
-};
-pub use media_application::{
-    BindGalgameMediaInput, ImportGalgameAudioInput, PersistedGalgameAudioFile,
-    UnbindGalgameMediaInput,
+    GalgameAssetGenerationHostPort, GalgamePortraitImageGenerationInput,
+    GalgameVisualImageGenerationInput,
 };

@@ -3,8 +3,6 @@ mod helpers;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
-
 use crate::ImportTransformError;
 use regex::Regex;
 
@@ -40,7 +38,6 @@ impl TxtParser {
         document_title: &str,
     ) -> Result<ParseResult, ImportTransformError> {
         let mut chapters = chapters::split_into_chapters(&self.chapter_patterns, text)?;
-        let mut warnings = Vec::new();
         if chapters.is_empty() {
             let title = document_title.trim();
             if title.is_empty() {
@@ -52,17 +49,9 @@ impl TxtParser {
                 number: 1,
                 title: title.to_string(),
                 content: trim_imported_text(text).to_string(),
-                start_offset: 0,
-                end_offset: text.len(),
             });
-            warnings.push("未检测到章节标记，整个文本作为一个章节处理。".to_string());
         }
 
-        Ok(ParseResult {
-            chapters,
-            detected_encoding: "utf-8".to_string(),
-            metadata: HashMap::new(),
-            warnings,
-        })
+        Ok(ParseResult { chapters })
     }
 }

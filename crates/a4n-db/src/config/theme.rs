@@ -1,21 +1,10 @@
 use a4n_core::{error::AppError, models::user::theme_config};
+use a4n_domain::{ThemeCssVariables, ThemeMode};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder, Set, TransactionTrait,
 };
-use serde_json::Value;
-
-pub async fn list_user_themes(
-    db: &DatabaseConnection,
-    user_id: i64,
-) -> Result<Vec<theme_config::Model>, AppError> {
-    theme_config::Entity::find()
-        .filter(theme_config::Column::UserId.eq(user_id))
-        .all(db)
-        .await
-        .map_err(AppError::Database)
-}
 
 pub async fn list_themes_visible_to_user(
     db: &DatabaseConnection,
@@ -47,15 +36,15 @@ pub async fn create_theme(
     db: &DatabaseConnection,
     user_id: Option<i64>,
     name: &str,
-    mode: &str,
-    css_variables: Value,
+    mode: ThemeMode,
+    css_variables: ThemeCssVariables,
 ) -> Result<theme_config::Model, AppError> {
     let now = Utc::now().naive_utc();
     theme_config::ActiveModel {
         user_id: Set(user_id),
         name: Set(name.to_string()),
         mode: Set(mode.to_string()),
-        css_variables: Set(css_variables),
+        css_variables: Set(serde_json::to_value(css_variables)?),
         is_system_default: Set(false),
         is_active: Set(false),
         created_at: Set(now),
@@ -69,17 +58,11 @@ pub async fn create_theme(
 
 pub async fn update_theme(
     db: &DatabaseConnection,
-    theme_id: i64,
+    theme: theme_config::Model,
     name: Option<&str>,
-    mode: Option<&str>,
-    css_variables: Option<Value>,
+    mode: Option<ThemeMode>,
+    css_variables: Option<ThemeCssVariables>,
 ) -> Result<theme_config::Model, AppError> {
-    let theme = theme_config::Entity::find_by_id(theme_id)
-        .one(db)
-        .await
-        .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound("主题不存在".into()))?;
-
     let mut active: theme_config::ActiveModel = theme.into();
     if let Some(value) = name {
         active.name = Set(value.to_string());
@@ -88,7 +71,7 @@ pub async fn update_theme(
         active.mode = Set(value.to_string());
     }
     if let Some(value) = css_variables {
-        active.css_variables = Set(value);
+        active.css_variables = Set(serde_json::to_value(value)?);
     }
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)

@@ -41,7 +41,7 @@ impl VideoPromptDownstreamDependencies {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct UpdateChapterVideoPromptInput {
+pub struct ChapterVideoPromptPatch {
     pub visual_prompt: Option<String>,
     pub motion_prompt: Option<Option<String>>,
     pub negative_prompt: Option<Option<String>>,

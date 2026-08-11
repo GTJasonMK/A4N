@@ -48,7 +48,9 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             {exporting ? <LoadingSpinner size="sm" /> : <Download size={14} />}
             <span className="min-w-0 flex-1">
               <span className="block font-medium">导出配置文件</span>
-              <span className="mt-0.5 block text-small text-book-text-muted">保存一份完整配置备份</span>
+              <span className="mt-0.5 block text-small text-book-text-muted">
+                保存一份完整配置备份
+              </span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
           </button>
@@ -74,7 +76,9 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             {importing ? <LoadingSpinner size="sm" /> : <Upload size={14} />}
             <span className="min-w-0 flex-1">
               <span className="block font-medium">导入配置文件</span>
-              <span className="mt-0.5 block text-small text-book-text-muted">从 JSON 备份恢复配置</span>
+              <span className="mt-0.5 block text-small text-book-text-muted">
+                从 JSON 备份恢复配置
+              </span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
           </button>
@@ -101,7 +105,9 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
               <span className="min-w-0 flex-1">
                 <span className="block text-book-text-sub">覆盖同名项</span>
                 <span className="mt-0.5 block text-small text-book-text-muted">
-                  {overwrite ? "导入时替换已有同名配置" : "保留已有配置，只补充新项目"}
+                  {overwrite
+                    ? "导入时替换已有同名配置"
+                    : "保留已有配置，只补充新项目"}
                 </span>
               </span>
               <span

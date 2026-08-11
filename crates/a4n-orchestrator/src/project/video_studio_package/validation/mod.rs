@@ -14,7 +14,7 @@ use a4n_core::models::{
     project::novel_project,
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_core::state::validator::StateValidator;
+use a4n_core::state::validator::parse_project_status;
 
 use crate::canvas::validate_canvas_record_viewport_json as validate_canvas_viewport_json;
 use crate::media::{

@@ -4,7 +4,13 @@ pub use cleanup::cleanup_foreshadowing_for_chapter;
 mod contracts;
 pub use contracts::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingCleanupResult,
-    ForeshadowingDbError,
+    ForeshadowingDbError, ForeshadowingRecordInput,
+};
+
+mod records;
+pub use records::{
+    create_foreshadowing_record, delete_foreshadowing_record, foreshadowing_records_by_project,
+    update_foreshadowing_record,
 };
 
 mod rules;

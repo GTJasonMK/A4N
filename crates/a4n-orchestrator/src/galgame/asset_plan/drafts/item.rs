@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 
 use a4n_core::error::AppError;
-use a4n_db::galgame::{GalgameAssetPlanSpecRecordInput, GalgameGenerationSpecUpsert};
-
-use super::super::contracts::{
-    GalgameAssetPlanGroup, GalgameAssetPlanItem, GalgameAssetPlanItemDraft,
-    GalgameAssetPlanOutcome, GalgameAssetPlanSummary, GalgameSpecInput,
+use a4n_db::galgame::{
+    GalgameAssetPlanSpecRecordInput, GalgameGenerationSpecUpsert,
+    GalgameGenerationSpecUpsertOutcome,
 };
+
+use super::super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft, GalgameSpecInput};
+use super::super::{GalgameAssetPlanItem, GalgameAssetPlanOutcome, GalgameAssetPlanSummary};
 
 pub(in crate::galgame::asset_plan) fn galgame_asset_plan_item_draft(
     group: GalgameAssetPlanGroup,
@@ -42,7 +43,11 @@ pub(in crate::galgame::asset_plan) fn push_plan_item(
     canonical_key: String,
     label: String,
 ) -> Result<(), AppError> {
-    let outcome = GalgameAssetPlanOutcome::from(spec.outcome);
+    let outcome = match spec.outcome {
+        GalgameGenerationSpecUpsertOutcome::Created => GalgameAssetPlanOutcome::Created,
+        GalgameGenerationSpecUpsertOutcome::Updated => GalgameAssetPlanOutcome::Updated,
+        GalgameGenerationSpecUpsertOutcome::Reused => GalgameAssetPlanOutcome::Reused,
+    };
     match outcome {
         GalgameAssetPlanOutcome::Created => summary.created_specs += 1,
         GalgameAssetPlanOutcome::Updated => summary.updated_specs += 1,
@@ -61,8 +66,26 @@ pub(in crate::galgame::asset_plan) fn push_plan_item(
     items.push(GalgameAssetPlanItem {
         canonical_key,
         label,
-        target_kind: spec.model.target_kind.clone(),
-        target_entity_kind: spec.model.target_entity_kind.clone(),
+        target_kind: a4n_domain::galgame::GalgameGenerationTargetKind::parse(
+            &spec.model.target_kind,
+        )
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!(
+                "galgame_generation_spec_{}_invalid_target_kind:{}",
+                spec.model.id, spec.model.target_kind
+            ),
+            operation: "plan_galgame_assets".to_string(),
+        })?,
+        target_entity_kind: a4n_domain::galgame::GalgameTargetEntityKind::parse(
+            &spec.model.target_entity_kind,
+        )
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!(
+                "galgame_generation_spec_{}_invalid_target_entity_kind:{}",
+                spec.model.id, spec.model.target_entity_kind
+            ),
+            operation: "plan_galgame_assets".to_string(),
+        })?,
         target_entity_id,
         generation_spec_id: spec.model.id,
         status: spec.model.status.clone(),

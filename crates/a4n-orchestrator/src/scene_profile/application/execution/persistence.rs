@@ -3,14 +3,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     OrchestratorContext,
     generation::RecordCompletedGenerationRunInput,
-    scene_profile::{SceneSyncResult, scene_sync_result_from_record},
+    scene_profile::{
+        SceneProfileEvidenceRecordInput, SceneSyncResult, scene_sync_result_from_record,
+    },
 };
 use a4n_core::models::scene::scene_profile;
 use a4n_core::structured_progress::ProgressSpan;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
-use super::super::evidence::bind_scene_profile_evidence;
 use super::super::parsing::parse_scene_profile_sync_content;
 use super::super::progress::{
     SceneProfileSyncProgress, report_scene_profile_sync_progress, subspan,
@@ -74,13 +75,23 @@ pub(super) async fn persist_scene_profile_sync_chapter(
             .collect::<Vec<_>>(),
     )
     .map_err(|err| format!("LLM 消息序列化失败: {err}"))?;
+    let profile_evidence = parsed
+        .profile_evidence
+        .into_iter()
+        .map(|item| SceneProfileEvidenceRecordInput {
+            scene_ref: item.scene_ref,
+            text_anchor_ids: item.evidence_anchor_ids,
+        })
+        .collect();
     let result = scene_sync_result_from_record(
         state
             .replace_chapter_scene_sync_from_input_validated(
                 project_id,
                 context.chapter.id,
                 context.chapter.chapter_number,
+                a4n_db::project::ChapterSourceSnapshot::from(&context.chapter),
                 parsed.input,
+                profile_evidence,
                 RecordCompletedGenerationRunInput {
                     project_id,
                     workflow: "scene_profile_sync".to_string(),
@@ -123,7 +134,6 @@ pub(super) async fn persist_scene_profile_sync_chapter(
             .await
             .map_err(|error| error.to_string())?,
     );
-    bind_scene_profile_evidence(state, project_id, &parsed.profile_evidence, &result).await?;
     for id in &result.profile_ids {
         if profile_ids.insert(*id) {
             let profile = state
@@ -149,6 +159,7 @@ fn scene_profile_result(profile: &scene_profile::Model) -> Value {
     json!({
         "id": profile.id,
         "project_id": profile.project_id,
+        "ownership_kind": profile.ownership_kind,
         "name": profile.name,
         "normalized_name": profile.normalized_name,
         "aliases_json": profile.aliases_json,

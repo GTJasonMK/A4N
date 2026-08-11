@@ -4,7 +4,8 @@ use std::sync::{
 };
 
 use a4n_capabilities::{
-    CapabilityClient, CapabilityResult, EmbeddingClient, JsonRequest, JsonResponse,
+    CapabilityClient, CapabilityResult, EmbeddingClient, EmbeddingModelOperation, JsonRequest,
+    JsonResponse,
 };
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
@@ -82,7 +83,11 @@ impl EmbeddingClient for PendingEmbeddingDownloadClient {
         Err(unexpected_call("PendingEmbeddingDownloadClient", "embed"))
     }
 
-    async fn model_operation(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn model_operation(
+        &self,
+        _operation: EmbeddingModelOperation,
+        _request: JsonRequest,
+    ) -> CapabilityResult<JsonResponse> {
         Err(unexpected_call(
             "PendingEmbeddingDownloadClient",
             "model_operation",
@@ -165,7 +170,11 @@ impl EmbeddingClient for RecordingEmbeddingClient {
         Ok(self.embed_response.clone())
     }
 
-    async fn model_operation(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn model_operation(
+        &self,
+        _operation: EmbeddingModelOperation,
+        _request: JsonRequest,
+    ) -> CapabilityResult<JsonResponse> {
         Err(unexpected_call(
             "RecordingEmbeddingClient",
             "model_operation",

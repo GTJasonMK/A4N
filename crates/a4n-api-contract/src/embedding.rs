@@ -11,6 +11,7 @@ pub struct EmbeddingModelIdentity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct LocalEmbeddingModelSummary {
     pub name: String,
     pub model_code: String,
@@ -21,6 +22,7 @@ pub struct LocalEmbeddingModelSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EmbeddingModelDownloadInfoSummary {
     pub model_name: String,
     pub model_code: String,
@@ -49,6 +51,7 @@ pub struct CancelEmbeddingModelDownloadInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct LocalEmbeddingConfigInput {
     pub backend: String,
     pub model: String,
@@ -65,6 +68,7 @@ pub struct LocalEmbedTextsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct LocalEmbedTextsOutput {
     pub identity: EmbeddingModelIdentity,
     pub embeddings: Vec<Vec<f32>>,

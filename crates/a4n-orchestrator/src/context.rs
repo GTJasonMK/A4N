@@ -7,7 +7,6 @@ use a4n_db::DbHandle;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
-
 use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
 
@@ -83,7 +82,6 @@ use inspiration::InspirationApplication;
 use llm_context::LlmContextApplication;
 use manga::MangaApplication;
 use optimize::OptimizeApplication;
-use outline::OutlineApplication;
 use profile_material::ProfileMaterialApplication;
 use project_blueprint::ProjectBlueprintApplication;
 use project_chapter_context::ProjectChapterContextApplication;
@@ -96,7 +94,6 @@ use project_outline_records::ProjectOutlineRecordsApplication;
 use project_read::ProjectReadApplication;
 use project_scene_records::ProjectSceneRecordsApplication;
 use project_status::ProjectStatusApplication;
-pub use prompt_engine::PromptRegistryCategory;
 use prompt_override::PromptOverrideApplication;
 use rag::RagApplication;
 use scene_profile::SceneProfileApplication;
@@ -130,7 +127,6 @@ pub struct OrchestratorContext {
     llm_context: LlmContextApplication,
     manga: MangaApplication,
     optimize: OptimizeApplication,
-    outline: OutlineApplication,
     profile_material: ProfileMaterialApplication,
     project_blueprint: ProjectBlueprintApplication,
     project_chapter_context: ProjectChapterContextApplication,
@@ -165,7 +161,7 @@ pub struct OrchestratorContext {
     rag_store: Arc<dyn VectorStore>,
     task_queue: Arc<PersistentTaskQueue>,
     llm: Arc<dyn a4n_llm::provider::LlmProvider>,
-    engine: Arc<dyn a4n_prompt::engine::PromptEngine>,
+    engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
     snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
 }

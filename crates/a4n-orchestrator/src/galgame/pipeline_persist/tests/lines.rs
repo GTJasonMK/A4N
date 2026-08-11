@@ -153,10 +153,8 @@ fn stage_direction_text_does_not_infer_transition_instruction() {
     )
     .expect("stage direction persist plan");
 
-    assert!(
-        plan.scenes[0].lines[0]
-            .presentation_json
-            .get("transition")
-            .is_none()
+    assert_eq!(
+        plan.scenes[0].lines[0].presentation_json["transition"],
+        serde_json::Value::Null
     );
 }

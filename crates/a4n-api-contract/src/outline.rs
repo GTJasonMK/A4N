@@ -52,6 +52,9 @@ pub struct SaveChapterOutlineInput {
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub outline_id: Option<i64>,
+    /// 编辑既有章纲时必填；创建时为 `null`。
+    #[serde(default)]
+    pub expected_updated_at: Option<String>,
     #[schemars(range(min = 1))]
     pub chapter_number: i32,
     #[serde(default)]
@@ -68,6 +71,9 @@ pub struct SavePartOutlineInput {
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub part_id: Option<i64>,
+    /// 编辑既有分部时必填；创建时为 `null`。
+    #[serde(default)]
+    pub expected_updated_at: Option<String>,
     #[schemars(range(min = 1))]
     pub part_number: i32,
     #[schemars(range(min = 1))]
@@ -80,6 +86,24 @@ pub struct SavePartOutlineInput {
     pub summary: Option<String>,
     #[serde(default)]
     pub theme: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OutlineDeleteTarget {
+    #[schemars(range(min = 1))]
+    pub id: i64,
+    #[schemars(length(min = 1, max = 64))]
+    pub expected_updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteLatestOutlineRecordsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1, max = 1024))]
+    pub targets: Vec<OutlineDeleteTarget>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -129,8 +153,8 @@ pub enum OutlineGenerationOperation {
         variables: Option<BTreeMap<String, Value>>,
     },
     RegenerateParts {
-        #[schemars(range(min = 1))]
-        part_count: Option<i32>,
+        #[schemars(length(min = 1, max = 1024))]
+        expected_parts: Vec<OutlineDeleteTarget>,
         #[schemars(range(min = 1))]
         chapters_per_part: Option<i32>,
         variables: Option<BTreeMap<String, Value>>,

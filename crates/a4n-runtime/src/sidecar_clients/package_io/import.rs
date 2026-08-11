@@ -1,40 +1,14 @@
 use std::collections::HashMap;
 
 use a4n_capabilities::A4nCapabilities;
-use a4n_import_core::{
-    ImportNormalizeJsonInput, ImportNormalizeJsonOutput, ImportReadMediaPackageZipInput,
-    ImportReadMediaPackageZipOutput,
-};
+use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use serde_json::Value;
 
 use crate::state::RuntimeProfile;
 
-use super::super::{pure_transform_service_request, response_payload, service_error_string};
-
-pub(crate) async fn normalize_import_json(
-    profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
-    input: ImportNormalizeJsonInput,
-) -> Result<ImportNormalizeJsonOutput, String> {
-    if profile.uses_sidecars() {
-        let client = capabilities
-            .import
-            .clone()
-            .ok_or_else(|| "import sidecar capability 未配置，无法执行导入预处理".to_string())?;
-        let response = client
-            .normalize_json(pure_transform_service_request(
-                a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
-                input,
-                None,
-                None,
-            )?)
-            .await
-            .map_err(service_error_string)?;
-        return response_payload(response, "import");
-    }
-
-    a4n_import_core::normalize_json(input).map_err(|err| err.to_string())
-}
+use super::super::{
+    pure_transform_typed_service_request, service_error_string, typed_response_payload,
+};
 
 pub(crate) async fn read_import_media_package_zip(
     profile: RuntimeProfile,
@@ -56,7 +30,7 @@ pub(crate) async fn read_import_media_package_zip(
             manifest_label,
         );
         let response = client
-            .read_media_package_zip(pure_transform_service_request(
+            .read_media_package_zip(pure_transform_typed_service_request(
                 a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
                 input,
                 None,
@@ -64,7 +38,7 @@ pub(crate) async fn read_import_media_package_zip(
             )?)
             .await
             .map_err(service_error_string)?;
-        let output: ImportReadMediaPackageZipOutput = response_payload(response, "import")?;
+        let output: ImportReadMediaPackageZipOutput = typed_response_payload(response, "import")?;
         return output
             .into_manifest_and_entries_bytes()
             .map_err(|err| err.to_string());

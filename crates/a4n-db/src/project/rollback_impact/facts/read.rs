@@ -1,4 +1,4 @@
-use super::super::contracts::{ProjectRollbackImpactQuery, ProjectRollbackImpactReadError};
+use super::super::contracts::ProjectRollbackImpactReadError;
 use super::super::projection::rollback_impacts_from_facts;
 use super::ProjectRollbackImpactFacts;
 use super::blueprint::load_project_rollback_blueprint_facts;
@@ -10,18 +10,17 @@ use a4n_core::models::{
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     task::task_queue,
 };
+use a4n_core::state::rollback::CleanupAction;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 
 pub async fn project_rollback_impacts(
     db: &DatabaseConnection,
-    query: ProjectRollbackImpactQuery,
-) -> Result<
-    Vec<super::super::contracts::ProjectRollbackImpactSummary>,
-    ProjectRollbackImpactReadError,
-> {
-    crate::project::validate_positive_i64(query.project_id, "project_id")
+    project_id: i64,
+    actions: &[CleanupAction],
+) -> Result<Vec<a4n_domain::project::ProjectRollbackImpactSummary>, ProjectRollbackImpactReadError>
+{
+    crate::project::validate_positive_i64(project_id, "project_id")
         .map_err(ProjectRollbackImpactReadError::InvalidArgument)?;
-    let project_id = query.project_id;
 
     let chapter_rows = chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(project_id))
@@ -126,9 +125,12 @@ pub async fn project_rollback_impacts(
             })?,
         "项目场景实体状态数量",
     )?;
-    let blueprint_facts =
-        load_project_rollback_blueprint_facts(db, project_id, query.delete_blueprint_versions)
-            .await?;
+    let blueprint_facts = load_project_rollback_blueprint_facts(
+        db,
+        project_id,
+        actions.contains(&CleanupAction::DeleteBlueprintVersions),
+    )
+    .await?;
 
     let facts = ProjectRollbackImpactFacts {
         chapter_numbers,
@@ -148,5 +150,5 @@ pub async fn project_rollback_impacts(
         novel_blueprint_count: blueprint_facts.current_count,
     };
 
-    rollback_impacts_from_facts(&query, &facts)
+    rollback_impacts_from_facts(actions, &facts)
 }

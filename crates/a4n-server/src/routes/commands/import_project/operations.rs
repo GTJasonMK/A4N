@@ -1,6 +1,6 @@
 use super::super::{
-    ApiError, command_input, generation_analytics_actions, i64_arg, logging_actions,
-    require_admin_caller, storage_paths_actions, to_value,
+    ApiError, command_input, generation_analytics_actions, logging_actions, require_admin_caller,
+    storage_paths_actions, to_value,
 };
 use crate::state::ServerState;
 use serde_json::{Value, json};
@@ -10,7 +10,8 @@ pub(in crate::routes::commands) async fn get_storage_paths(
     user_id: i64,
     _args: &Value,
 ) -> Result<Value, ApiError> {
-    to_value(storage_paths_actions::get_storage_paths(state.runtime(), user_id).await?)
+    let _ = user_id;
+    to_value(storage_paths_actions::get_storage_paths(state.runtime()))
 }
 
 pub(in crate::routes::commands) async fn list_orphan_project_data_dirs(
@@ -18,12 +19,10 @@ pub(in crate::routes::commands) async fn list_orphan_project_data_dirs(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    require_admin_caller(state, user_id, args).await?;
-    let caller_user_id = i64_arg(args, "callerUserId")?;
-    let result =
-        storage_paths_actions::list_orphan_project_data_dirs(state.runtime(), caller_user_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    require_admin_caller(user_id, args)?;
+    let result = storage_paths_actions::list_orphan_project_data_dirs(state.runtime(), user_id)
+        .await
+        .map_err(ApiError::bad_request)?;
     to_value(result)
 }
 

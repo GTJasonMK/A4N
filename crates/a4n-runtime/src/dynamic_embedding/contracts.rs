@@ -34,13 +34,20 @@ pub fn model_identity_from_config(
 pub(crate) fn resolve_fastembed_cache_dir(
     value: Option<&str>,
     default_cache_dir: PathBuf,
-) -> PathBuf {
-    let cache_dir = value
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or(default_cache_dir);
-    effective_fastembed_cache_dir(cache_dir)
+) -> Result<PathBuf, AppError> {
+    let cache_dir = match value {
+        Some(value) => {
+            let value = value.trim();
+            if value.is_empty() {
+                return Err(AppError::ConfigError(
+                    "fastembed 本地模型缓存路径不能为空".to_string(),
+                ));
+            }
+            PathBuf::from(value)
+        }
+        None => default_cache_dir,
+    };
+    Ok(effective_fastembed_cache_dir(cache_dir))
 }
 
 pub(crate) fn positive_usize(value: i32, label: &str, name: &str) -> Result<usize, AppError> {

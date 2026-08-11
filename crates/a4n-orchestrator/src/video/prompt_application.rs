@@ -1,7 +1,9 @@
 use std::collections::{BTreeSet, HashMap};
 
+pub use a4n_api_contract::video::{
+    ChapterVideoPromptSummary, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
+};
 use a4n_core::{
-    dependency_conflict::DownstreamConflictStrategy,
     error::AppError,
     models::{
         ai::video_gen_config,
@@ -14,9 +16,11 @@ use a4n_core::{
         video_segment_recipes_for_plan_from_metadata,
     },
 };
+use a4n_db::video_prompt::ChapterVideoPromptPatch;
+use a4n_domain::DownstreamConflictStrategy;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -30,11 +34,10 @@ use crate::{
 
 use super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSource,
-    ChapterVideoSourceContext, UpdateChapterVideoPromptInput as DbUpdate, VideoPromptChunk,
-    VideoPromptDownstreamDependencies, VideoPromptOptimizationInput, VideoPromptProgress,
-    VideoPromptProgressUpdate, duration_capability_for_config,
-    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
-    update_video_segment_plan_draft_recipe_checkpoint,
+    ChapterVideoSourceContext, VideoPromptChunk, VideoPromptDownstreamDependencies,
+    VideoPromptOptimizationInput, VideoPromptProgress, VideoPromptProgressUpdate,
+    duration_capability_for_config, load_video_segment_plan_draft_checkpoints,
+    load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
     validate_prompt_options_with_reference_limit, validate_video_duration_for_config_secs,
     video_db_error,
 };
@@ -71,50 +74,12 @@ pub struct GenerateChapterVideoPromptInput {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ChapterVideoPromptSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub style: Option<String>,
-    pub prompt_type: String,
-    pub workflow_mode: String,
-    pub shot_number: i32,
-    pub title: Option<String>,
-    pub scene_summary: Option<String>,
-    pub visual_prompt: String,
-    pub motion_prompt: Option<String>,
-    pub negative_prompt: Option<String>,
-    pub duration_secs: i32,
-    pub aspect_ratio: Option<String>,
-    pub reference_image_ids_json: Option<Value>,
-    pub status: String,
-    pub generated_video_id: Option<i64>,
-    pub metadata_json: Option<Value>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct VideoSegmentPlanDraftSummary {
     pub run: WorkflowRunSummary,
     pub segments: Vec<VideoSegmentPlanV2>,
     pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
     pub completed_shot_count: usize,
     pub total_shot_count: usize,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateChapterVideoPromptInput {
-    pub visual_prompt: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub motion_prompt: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub negative_prompt: Option<Option<String>>,
-    #[serde(default)]
-    pub duration_secs: Option<i32>,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -134,14 +99,6 @@ pub struct UpdateVideoSegmentPlanDraftRecipeInput {
     pub source_shot_id: String,
     pub segment_index_in_shot: i32,
     pub recipe: VideoSegmentExecutionRecipeV1,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OptimizeChapterVideoPromptInput {
-    pub instruction: String,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
 }
 
 pub struct VideoPromptApplicationContext<'a> {
@@ -691,6 +648,11 @@ impl OrchestratorContext {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
+        if input.is_empty() {
+            return Err(AppError::InvalidArgument(
+                "至少需要更新一个视频提示词字段".to_string(),
+            ));
+        }
         if input.duration_secs.is_some_and(|value| value <= 0) {
             return Err(AppError::InvalidArgument(
                 "视频提示词 duration_secs 必须是正整数".to_string(),
@@ -741,7 +703,7 @@ impl OrchestratorContext {
         let row = self
             .update_chapter_video_prompt_with_policy(
                 prompt_id,
-                DbUpdate {
+                ChapterVideoPromptPatch {
                     visual_prompt: input.visual_prompt,
                     motion_prompt: input.motion_prompt,
                     negative_prompt: input.negative_prompt,
@@ -1328,8 +1290,8 @@ fn prompt_to_summary(prompt: &chapter_video_prompt::Model) -> ChapterVideoPrompt
         status: prompt.status.clone(),
         generated_video_id: prompt.generated_video_id,
         metadata_json: prompt.metadata_json.clone(),
-        created_at: Some(prompt.created_at.to_string()),
-        updated_at: Some(prompt.updated_at.to_string()),
+        created_at: prompt.created_at.to_string(),
+        updated_at: prompt.updated_at.to_string(),
     }
 }
 
@@ -1351,16 +1313,6 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), AppError> {
     } else {
         Ok(())
     }
-}
-
-fn deserialize_nullable_update_field<'de, D, T>(
-    deserializer: D,
-) -> Result<Option<Option<T>>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 #[cfg(test)]

@@ -10,7 +10,7 @@ use super::validation::{
 };
 
 impl TeraPromptEngine {
-    pub(in crate::tera_engine) async fn update_prompts(
+    pub async fn update_many(
         &self,
         updates: Vec<(String, String)>,
         author: &str,

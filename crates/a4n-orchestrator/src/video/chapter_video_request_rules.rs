@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
 use a4n_core::models::{ai::video_gen_config, chapter::chapter_video_prompt};
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_video::VideoGenerationRequest;
-use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value, json};
 
 use super::{
@@ -54,30 +54,6 @@ pub struct ChapterVideoProviderRequestContext {
     pub first_frame_image_url_available: bool,
     pub last_frame_image_url_available: bool,
     pub provider_input_note: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PreviewChapterVideoPromptOverrideInput {
-    #[serde(default)]
-    pub visual_prompt: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub motion_prompt: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub negative_prompt: Option<Option<String>>,
-    #[serde(default)]
-    pub duration_secs: Option<i32>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub reference_image_ids_json: Option<Option<Value>>,
-}
-
-fn deserialize_nullable_update_field<'de, D, T>(
-    deserializer: D,
-) -> Result<Option<Option<T>>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 pub fn append_provider_input_note(note: &mut Option<String>, addition: impl AsRef<str>) {
@@ -909,22 +885,6 @@ pub(crate) fn attach_chapter_video_snapshot_identity(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn preview_override_preserves_missing_and_explicit_null() {
-        let missing = serde_json::from_value::<PreviewChapterVideoPromptOverrideInput>(json!({}))
-            .expect("missing fields should deserialize");
-        assert_eq!(missing.motion_prompt, None);
-        assert_eq!(missing.reference_image_ids_json, None);
-
-        let cleared = serde_json::from_value::<PreviewChapterVideoPromptOverrideInput>(json!({
-            "motion_prompt": null,
-            "reference_image_ids_json": null
-        }))
-        .expect("explicit null should deserialize as a clear operation");
-        assert_eq!(cleared.motion_prompt, Some(None));
-        assert_eq!(cleared.reference_image_ids_json, Some(None));
-    }
 
     #[test]
     fn negative_prompt_and_length_context_are_stable() {

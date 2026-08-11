@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::character::protagonist_profile};
+use a4n_core::error::AppError;
+use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
 
 use crate::{
@@ -7,7 +8,10 @@ use crate::{
         RecordCompletedGenerationRunInput,
         json_field_rules::{required_string, required_value},
     },
-    text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind},
+    text_anchor::{
+        EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind,
+        text_anchor_db_error,
+    },
 };
 
 use super::{
@@ -44,6 +48,28 @@ impl OrchestratorContext {
         let mut created = Vec::new();
         let mut existing = Vec::new();
         let discovered_total = discovered.len().max(1);
+        let source_chapters = chapters
+            .iter()
+            .map(a4n_db::project::ChapterSourceSnapshot::from)
+            .collect::<Vec<_>>();
+        let tx = self
+            .database
+            .connection()
+            .begin()
+            .await
+            .map_err(AppError::Database)?;
+        if !a4n_db::chapter_content::chapter_source_snapshots_match_for_update(
+            &tx,
+            &source_chapters,
+        )
+        .await
+        .map_err(AppError::Database)?
+        {
+            return Err(AppError::InvalidState {
+                current: "chapter_source_changed".to_string(),
+                operation: "保存角色发现结果；章节正文已变化，请重新分析".to_string(),
+            });
+        }
 
         for (index, character) in discovered.into_iter().enumerate() {
             super::execution::report_character_discovery_progress(
@@ -58,7 +84,7 @@ impl OrchestratorContext {
                     .iter()
                     .find_map(|key| existing_key_profiles.get(key).copied())
                 {
-                    self.bind_character_profile_evidence(project_id, profile_id, &character)
+                    bind_character_profile_evidence_in(&tx, project_id, profile_id, &character)
                         .await?;
                 }
                 existing.push(json!({
@@ -76,64 +102,69 @@ impl OrchestratorContext {
 
             let base_attributes = discovered_character_base_attributes(&character)
                 .map_err(AppError::InvalidArgument)?;
-            let create_result = self
-                .create_profile_with_generation_run(
+            match a4n_db::character::create_profile_with_generation_run_in(
+                &tx,
+                project_id,
+                &name,
+                base_attributes,
+                RecordCompletedGenerationRunInput {
                     project_id,
-                    &name,
-                    base_attributes,
-                    RecordCompletedGenerationRunInput {
-                        project_id,
-                        workflow: "character_discovery".to_string(),
-                        step_key: "discover_character_profiles_for_chapters".to_string(),
-                        title: format!("角色发现: {name}"),
-                        model_kind: "llm".to_string(),
-                        provider: None,
-                        model: None,
-                        prompt_template_names_json: Some(json!(["character_discovery"])),
-                        prompt_template_hashes_json: None,
-                        rendered_messages_json: Some(messages_json.clone()),
-                        rendered_prompts_json: None,
-                        input_variables_json: Some(json!({
-                            "chapter_number": chapter_number,
-                            "analyzed_chapters": &analyzed_chapters,
-                            "character_name": &name,
-                            "text_anchor_count": text_anchors.len(),
-                        })),
-                        source_refs_json: Some(json!({
-                            "chapters": chapters.iter().map(|chapter| json!({
-                                "id": chapter.id,
-                                "chapter_number": chapter.chapter_number,
-                                "title": &chapter.title,
-                            })).collect::<Vec<_>>(),
-                        })),
-                        media_refs_json: None,
-                        request_json: Some(request_json.clone()),
-                        response_summary_json: Some(json!({
-                            "character_name": &name,
-                            "discovered_count": discovered_count,
-                            "response_chars": response_content.chars().count(),
-                        })),
-                        targets: Vec::new(),
-                    },
-                )
-                .await;
-            match create_result {
+                    workflow: "character_discovery".to_string(),
+                    step_key: "discover_character_profiles_for_chapters".to_string(),
+                    title: format!("角色发现: {name}"),
+                    model_kind: "llm".to_string(),
+                    provider: None,
+                    model: None,
+                    prompt_template_names_json: Some(json!(["character_discovery"])),
+                    prompt_template_hashes_json: None,
+                    rendered_messages_json: Some(messages_json.clone()),
+                    rendered_prompts_json: None,
+                    input_variables_json: Some(json!({
+                        "chapter_number": chapter_number,
+                        "analyzed_chapters": &analyzed_chapters,
+                        "character_name": &name,
+                        "text_anchor_count": text_anchors.len(),
+                    })),
+                    source_refs_json: Some(json!({
+                        "chapters": chapters.iter().map(|chapter| json!({
+                            "id": chapter.id,
+                            "chapter_number": chapter.chapter_number,
+                            "title": &chapter.title,
+                        })).collect::<Vec<_>>(),
+                    })),
+                    media_refs_json: None,
+                    request_json: Some(request_json.clone()),
+                    response_summary_json: Some(json!({
+                        "character_name": &name,
+                        "discovered_count": discovered_count,
+                        "response_chars": response_content.chars().count(),
+                    })),
+                    targets: Vec::new(),
+                },
+            )
+            .await
+            {
                 Ok(profile) => {
                     for key in keys {
                         existing_keys.insert(key.clone());
                         existing_key_profiles.insert(key, profile.id);
                     }
-                    self.bind_character_profile_evidence(project_id, profile.id, &character)
+                    bind_character_profile_evidence_in(&tx, project_id, profile.id, &character)
                         .await?;
                     created.push(profile_for_result(&profile).map_err(AppError::InvalidArgument)?);
                 }
-                Err(AppError::InvalidState { current, .. })
-                    if current == "character_profile_already_exists" =>
-                {
-                    let profile = self
-                        .existing_character_profile_by_name(project_id, &name)
-                        .await?;
-                    self.bind_character_profile_evidence(project_id, profile.id, &character)
+                Err(a4n_db::character::CharacterProfileCreateError::AlreadyExists { .. }) => {
+                    let profile = a4n_db::character::profile_by_project_name(
+                        &tx, project_id, &name,
+                    )
+                    .await
+                    .map_err(AppError::Database)?
+                    .ok_or_else(|| {
+                        AppError::NotFound(format!(
+                            "角色档案已存在但无法重新读取: project_id={project_id}, name={name}"
+                        ))
+                    })?;
+                    bind_character_profile_evidence_in(&tx, project_id, profile.id, &character)
                         .await?;
                     for key in keys {
                         existing_keys.insert(key.clone());
@@ -148,12 +179,13 @@ impl OrchestratorContext {
                     }));
                 }
                 Err(error) => {
-                    return Err(AppError::Internal(anyhow::anyhow!(
-                        "写入发现角色失败：{name}：{error}"
-                    )));
+                    return Err(
+                        crate::character::profiles::errors::character_profile_create_error(error),
+                    );
                 }
             }
         }
+        tx.commit().await.map_err(AppError::Database)?;
 
         Ok(json!({
             "status": "discovered",
@@ -164,48 +196,37 @@ impl OrchestratorContext {
             "existing": existing,
         }))
     }
+}
 
-    async fn bind_character_profile_evidence(
-        &self,
-        project_id: i64,
-        profile_id: i64,
-        character: &Value,
-    ) -> Result<(), AppError> {
-        let text_anchor_id = required_value(character, "evidence_anchor_id")
-            .map_err(AppError::InvalidArgument)?
-            .as_i64()
-            .ok_or_else(|| {
-                AppError::InvalidArgument(
-                    "角色发现字段 evidence_anchor_id 必须是 JSON 整数数字".to_string(),
-                )
-            })?;
-        self.merge_profile_evidence_records(
-            project_id,
-            None,
-            TextAnchorProfileKind::Character,
-            profile_id,
-            vec![TextAnchorEvidenceInput {
-                text_anchor_id,
-                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-            }],
-        )
-        .await
-        .map(|_| ())
-    }
-
-    async fn existing_character_profile_by_name(
-        &self,
-        project_id: i64,
-        name: &str,
-    ) -> Result<protagonist_profile::Model, AppError> {
-        self.protagonist_profiles_for_project(project_id)
-            .await?
-            .into_iter()
-            .find(|profile| profile.name == name)
-            .ok_or_else(|| {
-                AppError::NotFound(format!(
-                    "角色档案已存在但无法重新读取: project_id={project_id}, name={name}"
-                ))
-            })
-    }
+async fn bind_character_profile_evidence_in<C>(
+    db: &C,
+    project_id: i64,
+    profile_id: i64,
+    character: &Value,
+) -> Result<(), AppError>
+where
+    C: ConnectionTrait,
+{
+    let text_anchor_id = required_value(character, "evidence_anchor_id")
+        .map_err(AppError::InvalidArgument)?
+        .as_i64()
+        .ok_or_else(|| {
+            AppError::InvalidArgument(
+                "角色发现字段 evidence_anchor_id 必须是 JSON 整数数字".to_string(),
+            )
+        })?;
+    a4n_db::text_anchor::merge_profile_evidence_records(
+        db,
+        project_id,
+        None,
+        TextAnchorProfileKind::Character,
+        profile_id,
+        vec![TextAnchorEvidenceInput {
+            text_anchor_id,
+            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+        }],
+    )
+    .await
+    .map_err(text_anchor_db_error)
+    .map(|_| ())
 }

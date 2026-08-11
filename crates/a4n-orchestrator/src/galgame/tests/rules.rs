@@ -1,31 +1,65 @@
-use serde_json::json;
-
 use super::super::{
+    GalgameCgImportance, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
     LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN,
-    event_cg_directive, validate_line_semantics, validate_presentation_json,
-    validate_scene_entry_kind,
+    validate_and_project_presentation, validate_line_semantics, validate_scene_entry_kind,
 };
+
+fn empty_presentation() -> GalgameLinePresentationDocumentV2 {
+    GalgameLinePresentationDocumentV2 {
+        schema_version: GalgameLinePresentationSchemaVersion::V2,
+        visible_cast: Vec::new(),
+        enter: Vec::new(),
+        exit: Vec::new(),
+        focus_character_profile_id: None,
+        hold: false,
+        player_knowledge: Vec::new(),
+        cg: None,
+        cg_note: None,
+        cg_importance: None,
+        transition: None,
+        branch: None,
+        branch_id: None,
+        returns_to_scene_index: None,
+        after_beat_ref: None,
+    }
+}
 
 #[test]
 fn line_semantics_require_bound_dialogue_expression() {
-    let err = validate_line_semantics(LINE_TYPE_DIALOGUE, Some(1), None).expect_err("expression");
+    let err = validate_line_semantics(LINE_TYPE_DIALOGUE, Some(1), None, Some("standing"))
+        .expect_err("expression");
 
     assert!(err.to_string().contains("必须显式提供 expression"));
 }
 
 #[test]
 fn line_semantics_reject_invalid_expression() {
-    let err = validate_line_semantics(LINE_TYPE_DIALOGUE, Some(1), Some("ecstatic"))
-        .expect_err("invalid expression");
+    let err = validate_line_semantics(
+        LINE_TYPE_DIALOGUE,
+        Some(1),
+        Some("ecstatic"),
+        Some("standing"),
+    )
+    .expect_err("invalid expression");
 
     assert!(err.to_string().contains("表情无效"));
 }
 
 #[test]
-fn line_semantics_accept_bound_dialogue_expression() {
-    validate_line_semantics(LINE_TYPE_DIALOGUE, Some(1), Some("neutral"))
-        .expect("neutral expression");
-    validate_line_semantics(LINE_TYPE_MONOLOGUE, Some(1), Some("smile")).expect("smile expression");
+fn line_semantics_require_pose_and_accept_complete_speaking_lines() {
+    let err = validate_line_semantics(LINE_TYPE_DIALOGUE, Some(1), Some("neutral"), None)
+        .expect_err("pose");
+    assert!(err.to_string().contains("必须显式提供 pose"));
+
+    validate_line_semantics(
+        LINE_TYPE_DIALOGUE,
+        Some(1),
+        Some("neutral"),
+        Some("standing"),
+    )
+    .expect("neutral expression");
+    validate_line_semantics(LINE_TYPE_MONOLOGUE, Some(1), Some("smile"), Some("sitting"))
+        .expect("smile expression");
 }
 
 #[test]
@@ -39,76 +73,37 @@ fn scene_entry_kind_rejects_unknown_value() {
 }
 
 #[test]
-fn event_cg_directive_requires_note_when_enabled() {
-    let err = event_cg_directive(&json!({"cg": true}), 10)
+fn presentation_requires_complete_enabled_event_cg() {
+    let mut presentation = empty_presentation();
+    presentation.cg = Some(true);
+    let err = validate_and_project_presentation(&presentation, None, "test presentation")
         .expect_err("enabled event CG must provide a concrete note");
 
-    assert!(err.to_string().contains("必须提供 cg_note"));
+    assert!(err.to_string().contains("cg_note 不能为空"));
+
+    presentation.cg_note = Some("雨中回头".to_string());
+    let err = validate_and_project_presentation(&presentation, None, "test presentation")
+        .expect_err("enabled event CG must provide an explicit importance");
+    assert!(err.to_string().contains("cg_importance 不能为空"));
 }
 
 #[test]
-fn event_cg_directive_rejects_invalid_importance() {
-    let err = event_cg_directive(
-        &json!({
-            "cg": true,
-            "cg_note": "雨中回头",
-            "cg_importance": "major"
-        }),
-        10,
-    )
-    .expect_err("invalid importance must fail visibly");
+fn presentation_rejects_disabled_event_cg_metadata() {
+    let mut presentation = empty_presentation();
+    presentation.cg_note = Some("雨中回头".to_string());
+    let err = validate_and_project_presentation(&presentation, None, "test presentation")
+        .expect_err("disabled event CG must not retain metadata");
 
-    assert!(err.to_string().contains("cg_importance 无效"));
+    assert!(err.to_string().contains("cg 未启用时不能保留"));
 }
 
 #[test]
-fn event_cg_directive_accepts_note_and_importance() {
-    let directive = event_cg_directive(
-        &json!({
-            "cg": true,
-            "cg_note": "雨中回头",
-            "cg_importance": "critical"
-        }),
-        10,
-    )
-    .expect("event CG directive")
-    .expect("enabled directive");
+fn presentation_accepts_complete_event_cg() {
+    let mut presentation = empty_presentation();
+    presentation.cg = Some(true);
+    presentation.cg_note = Some("雨中回头".to_string());
+    presentation.cg_importance = Some(GalgameCgImportance::Critical);
 
-    assert_eq!(directive.note, "雨中回头");
-    assert_eq!(directive.importance, "critical");
-}
-
-#[test]
-fn presentation_json_save_contract_rejects_cg_without_note() {
-    let err = validate_presentation_json(&json!({"cg": true}), "Galgame 新增行")
-        .expect_err("save layer must reject empty event CG");
-
-    assert!(err.to_string().contains("必须提供 cg_note"));
-}
-
-#[test]
-fn presentation_json_save_contract_rejects_invalid_cg_importance() {
-    let err = validate_presentation_json(
-        &json!({
-            "cg_note": "雨中回头",
-            "cg_importance": "major"
-        }),
-        "Galgame 新增行",
-    )
-    .expect_err("save layer must reject invalid event CG importance");
-
-    assert!(err.to_string().contains("cg_importance 无效"));
-}
-
-#[test]
-fn presentation_json_save_contract_accepts_valid_event_cg() {
-    validate_presentation_json(
-        &json!({
-            "cg": true,
-            "cg_note": "雨中回头",
-            "cg_importance": "critical"
-        }),
-        "Galgame 新增行",
-    )
-    .expect("valid event CG presentation json");
+    validate_and_project_presentation(&presentation, None, "test presentation")
+        .expect("complete event CG presentation");
 }

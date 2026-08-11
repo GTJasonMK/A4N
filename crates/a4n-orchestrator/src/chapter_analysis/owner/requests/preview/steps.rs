@@ -13,8 +13,17 @@ pub(super) async fn build_preview_steps(
     prompt_renderer: &dyn PromptRenderer,
     source_spans: &[SourceSpan],
     facts_placeholder: &Value,
+    pending_foreshadowing: &Value,
 ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
     let mut steps = vec![build_facts_preview_step(ch, prompt_renderer, source_spans).await?];
-    steps.extend(build_derived_preview_steps(ch, prompt_renderer, facts_placeholder).await?);
+    steps.extend(
+        build_derived_preview_steps(
+            ch,
+            prompt_renderer,
+            facts_placeholder,
+            pending_foreshadowing,
+        )
+        .await?,
+    );
     Ok(steps)
 }

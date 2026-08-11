@@ -22,7 +22,7 @@ pub fn service_catalog() -> Result<Vec<ServiceCatalogEntry>, serde_json::Error> 
 
 pub fn service_catalog_entry(name: &str) -> Option<ServiceCatalogEntry> {
     service_catalog()
-        .ok()?
+        .expect("embedded service catalog must be valid")
         .into_iter()
         .find(|entry| entry.name == name)
 }

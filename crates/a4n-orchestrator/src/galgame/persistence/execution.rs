@@ -2,9 +2,9 @@ use a4n_core::error::AppError;
 
 use super::{records::galgame_script_record_input, validation::GalgamePersistValidationScope};
 use crate::galgame::{
-    GalgameScriptDetail, GalgameScriptPersistPlan, OrchestratorContext, ensure_json_object,
-    galgame_script_record_error, validate_line_semantics, validate_positive_id,
-    validate_scene_entry_kind,
+    GalgameScriptDetail, GalgameScriptPersistPlan, OrchestratorContext,
+    galgame_script_record_error, parse_and_validate_presentation_projection,
+    validate_line_semantics, validate_positive_id, validate_scene_entry_kind,
 };
 
 impl OrchestratorContext {
@@ -44,8 +44,16 @@ impl OrchestratorContext {
                     &line.line_type,
                     line.speaker_profile_id,
                     line.expression.as_deref(),
+                    line.pose.as_deref(),
                 )?;
-                ensure_json_object(&line.presentation_json, "presentation_json")?;
+                parse_and_validate_presentation_projection(
+                    &line.presentation_json,
+                    line.speaker_profile_id,
+                    line.expression.as_deref(),
+                    line.pose.as_deref(),
+                    line.position.as_deref(),
+                    &format!("Galgame persist 第 {} 行", line.line_index),
+                )?;
                 if let Some(speaker_profile_id) = line.speaker_profile_id {
                     validation_scope.validate_speaker_profile(&context, speaker_profile_id)?;
                 }

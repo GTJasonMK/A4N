@@ -1,6 +1,6 @@
 use crate::app::RagServiceState;
 use crate::contracts::{QueryPayload, SearchPayload, SearchTextPayload};
-use crate::protocol::{error_response, result_response, validate_service_request};
+use crate::protocol::{result_response, validate_service_request};
 use a4n_rag_core::vector_store::SearchResult;
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -10,7 +10,7 @@ pub(crate) async fn query(
     Json(request): Json<ServiceRequest<QueryPayload>>,
 ) -> Json<ServiceResponse<Vec<SearchResult>>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let result = state
@@ -30,7 +30,7 @@ pub(crate) async fn search_text(
     Json(request): Json<ServiceRequest<SearchTextPayload>>,
 ) -> Json<ServiceResponse<Vec<SearchResult>>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let result = state
@@ -50,7 +50,7 @@ pub(crate) async fn search(
     Json(request): Json<ServiceRequest<SearchPayload>>,
 ) -> Json<ServiceResponse<Vec<SearchResult>>> {
     if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let payload = request.payload.clone();
     let result = state

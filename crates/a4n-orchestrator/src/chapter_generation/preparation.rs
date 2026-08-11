@@ -3,7 +3,7 @@ mod reference_context;
 mod variables;
 mod word_count;
 
-pub use outline::{merge_generation_outline_text, required_generation_chapter_title};
+pub use outline::{generation_chapter_title, merge_generation_outline_text};
 pub use reference_context::{
     compact_json_text, is_meaningful_json_value, outline_character_names, truncate_text_chars,
 };

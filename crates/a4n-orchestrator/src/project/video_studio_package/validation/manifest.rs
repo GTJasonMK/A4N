@@ -26,7 +26,7 @@ pub(super) fn validate_package_manifest(
     }
     crate::project::validate_freeform_video_project(&package.project, "视频画布项目包")?;
     normalize_project_type(&package.project.project_type).map_err(|err| err.to_string())?;
-    StateValidator::parse_status(&package.project.status).map_err(|err| err.to_string())?;
+    parse_project_status(&package.project.status).map_err(|err| err.to_string())?;
 
     let ids = validate_and_collect_manifest_ids(package)?;
     validate_canvas_records(package, &ids)?;

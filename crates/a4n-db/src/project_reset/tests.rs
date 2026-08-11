@@ -5,6 +5,7 @@ use a4n_core::models::{
     ai::{generated_image, generated_video},
     chapter::chapter,
     project::novel_project,
+    task::cleanup_outbox,
 };
 use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
@@ -143,7 +144,7 @@ fn database_error_keeps_sea_orm_source() {
 
 #[test]
 fn rollback_status_parse_error_is_invalid_argument() {
-    let error = a4n_core::state::validator::StateValidator::parse_status("unknown")
+    let error = a4n_core::state::validator::parse_project_status("unknown")
         .map_err(|error| ProjectResetDbError::InvalidArgument(error.to_string()))
         .expect_err("unknown status should fail");
 
@@ -188,7 +189,7 @@ async fn reset_returns_only_paths_unreferenced_after_transaction_cleanup() {
 }
 
 #[tokio::test]
-async fn rollback_returns_only_paths_unreferenced_after_chapter_cleanup() {
+async fn rollback_schedules_only_paths_unreferenced_after_chapter_cleanup() {
     let db = setup_db().await;
     let project = text_project(&db, "状态回退路径测试").await;
     let other_project = text_project(&db, "状态回退共享路径项目").await;
@@ -209,8 +210,8 @@ async fn rollback_returns_only_paths_unreferenced_after_chapter_cleanup() {
     let outcome = rollback_project_status_record(
         &db,
         project.id,
-        ProjectStatus::Writing.as_str(),
-        ProjectStatus::ChapterOutlinesReady.as_str(),
+        ProjectStatus::Writing,
+        ProjectStatus::ChapterOutlinesReady,
         Utc::now().naive_utc(),
     )
     .await
@@ -223,7 +224,18 @@ async fn rollback_returns_only_paths_unreferenced_after_chapter_cleanup() {
     assert!(outcome.needs_rag_clear);
     let mut expected_media_paths = vec![video_path, thumbnail_path];
     expected_media_paths.sort();
-    assert_eq!(outcome.media_paths, expected_media_paths);
+    let cleanup = cleanup_outbox::Entity::find()
+        .filter(cleanup_outbox::Column::DedupeKey.eq(format!(
+            "project-status-rollback:{}:chapter_outlines_ready",
+            project.id
+        )))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let payload: crate::cleanup_outbox::FileArtifactCleanupPayload =
+        serde_json::from_value(cleanup.payload_json).unwrap();
+    assert_eq!(payload.paths, expected_media_paths);
     assert_eq!(
         chapter::Entity::find()
             .filter(chapter::Column::ProjectId.eq(project.id))
@@ -310,10 +322,15 @@ async fn rollback_status_history_failure_rolls_back_cleanup_and_status() {
     .await
     .unwrap();
 
-    let error =
-        rollback_project_status_record(&db, project.id, "writing", "chapter_outlines_ready", now)
-            .await
-            .expect_err("history failure must roll back cleanup and status update");
+    let error = rollback_project_status_record(
+        &db,
+        project.id,
+        ProjectStatus::Writing,
+        ProjectStatus::ChapterOutlinesReady,
+        now,
+    )
+    .await
+    .expect_err("history failure must roll back cleanup and status update");
     assert!(error.to_string().contains("blocked status history"));
 
     db.execute_unprepared(&format!(

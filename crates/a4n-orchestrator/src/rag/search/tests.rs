@@ -49,13 +49,13 @@ async fn filtered_search_keeps_snapshot_scoped_results_isolated() {
                     id: "snapshot:1:10:chapter:100".to_string(),
                     embedding: vec![1.0, 0.0],
                     metadata: snapshot_text_metadata(1, 10, 100, 1000, "chapter"),
-                    content: Some("同一个根项目的旧快照内容".to_string()),
+                    content: "同一个根项目的旧快照内容".to_string(),
                 },
                 a4n_rag_core::vector_store::EmbeddingRecord {
                     id: "snapshot:1:20:chapter:100".to_string(),
                     embedding: vec![1.0, 0.0],
                     metadata: snapshot_text_metadata(1, 20, 100, 2000, "chapter"),
-                    content: Some("同一个根项目的新快照内容".to_string()),
+                    content: "同一个根项目的新快照内容".to_string(),
                 },
             ],
         )

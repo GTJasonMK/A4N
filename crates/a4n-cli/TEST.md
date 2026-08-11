@@ -14,7 +14,6 @@
 - `context.rs`: locked atomic persistence, server/user binding, hierarchical clearing.
 - `output.rs`: human/json/jsonl/agent-json stdout and error envelopes.
 - `shell.rs`: safe tokenization and shared command dispatch.
-- `flow.rs`: dry-run, journal state, interruption, resume and secret redaction.
 - `local.rs`: diagnostics, owned/external process state and safe shutdown decisions.
 
 ## Integration test inventory
@@ -38,7 +37,7 @@
 1. List and describe capabilities as JSON.
 2. Create a project and read its ID from structured output.
 3. Start a task, consume JSONL events, reconnect and observe the terminal status.
-4. Interrupt and resume a CLI flow.
+4. Combine `call` with task/workflow watching in a shell script.
 5. Verify destructive operations fail without explicit authorization and succeed with it.
 6. Download and verify an artifact.
 
@@ -47,7 +46,7 @@
 - Parse every JSON/JSONL stdout payload programmatically.
 - Verify failed terminal task events return a non-zero exit status.
 - Verify exported/downloaded files by size, expected format signature and hash when available.
-- Verify secrets never appear in stdout, stderr, history, context files or flow journals.
+- Verify secrets never appear in stdout, stderr, history or context files.
 - Verify failed overwrites leave the prior file unchanged.
 
 ## Release gates
@@ -66,7 +65,7 @@ Last focused run: 2026-07-31
 $ CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 timeout 60s \
     cargo test -p a4n-cli --target-dir /tmp/a4n-cli-target -- --test-threads=1
 
-running 41 tests
+running 36 tests
 test client::tests::api_paths_cannot_escape_the_configured_api_root ... ok
 test client::tests::concurrent_clients_reuse_the_single_rotated_token_pair ... ok
 test client::tests::environment_access_tokens_cannot_report_a_fake_logout ... ok
@@ -85,11 +84,6 @@ test config::tests::rejects_credentials_and_non_http_urls ... ok
 test context::tests::concurrent_context_updates_fail_instead_of_overwriting ... ok
 test context::tests::context_clears_children_and_rejects_other_server ... ok
 test context::tests::failed_persistence_does_not_mutate_in_memory_context ... ok
-test flow::tests::flow_capture_limits_persisted_results ... ok
-test flow::tests::flow_rejects_inline_secrets ... ok
-test flow::tests::flow_validates_and_preserves_typed_references ... ok
-test flow::tests::journal_preserves_completed_null_results ... ok
-test flow::tests::journal_rejects_false_completed_state ... ok
 test local::tests::blank_process_output_is_not_treated_as_a_live_process ... ok
 test local::tests::bundled_onnxruntime_is_added_to_the_server_loader_path ... ok
 test local::tests::installed_sidecars_support_portable_macos_and_system_layouts ... ok
@@ -109,18 +103,16 @@ test tests::file_json_pointers_create_inputs_and_decode_outputs_without_overwrit
 test tests::inline_json_and_query_values_are_parsed ... ok
 test tests::profile_updates_preserve_missing_and_explicit_null ... ok
 
-test result: ok. 41 passed; 0 failed; 0 ignored
+test result: ok. 36 passed; 0 failed; 0 ignored
 
-running 7 tests
+running 5 tests
 test agent_capabilities_and_safety_gates_work_outside_repository ... ok
 test connection_failures_use_the_network_exit_contract ... ok
 test failed_forced_download_preserves_existing_file ... ok
-test flow_redacts_server_echoed_secrets_and_blocks_unsafe_resume ... ok
-test flow_runs_captures_and_rejects_changed_source_on_resume ... ok
 test health_rejects_a_non_a4n_server ... ok
 test task_and_workflow_terminal_states_use_stable_exit_codes ... ok
 
-test result: ok. 7 passed; 0 failed; 0 ignored
+test result: ok. 5 passed; 0 failed; 0 ignored
 ```
 
 本轮额外通过的门禁：

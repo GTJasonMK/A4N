@@ -14,7 +14,7 @@ pub async fn list_images_by_project(
     project_id: i64,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     let rows = state
-        .media()
+        .orchestrator()
         .list_generated_images_for_user_validated(user_id, project_id)
         .await
         .map_err(app_error_message)?;
@@ -28,7 +28,7 @@ pub async fn list_images_by_chapter(
     chapter_id: i64,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     let rows = state
-        .media()
+        .orchestrator()
         .list_chapter_images_for_user_validated(user_id, project_id, chapter_id)
         .await
         .map_err(app_error_message)?;
@@ -41,7 +41,7 @@ pub async fn list_video_reference_images(
     input: ListVideoReferenceImagesInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     let rows = state
-        .media()
+        .orchestrator()
         .list_video_reference_images_for_user_validated(
             user_id,
             input.project_id,

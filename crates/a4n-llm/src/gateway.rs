@@ -27,7 +27,18 @@ pub struct LlmGatewayPayload {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct LlmProbePayload {
+    pub provider: LlmGatewayProviderConfig,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub request: Option<ChatRequest>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct LlmProbeOutput {
+    pub ok: bool,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub response_preview: Option<String>,
     #[serde(deserialize_with = "deserialize_required_option")]
     pub usage: Option<UsageInfo>,
     #[serde(deserialize_with = "deserialize_required_option")]
@@ -36,10 +47,13 @@ pub struct LlmProbeOutput {
 
 impl LlmProbeOutput {
     pub fn from_chat_response(response: ChatResponse) -> Result<Self, AppError> {
-        if response.message.content.trim().is_empty() {
+        let content = response.message.content.trim();
+        if content.is_empty() {
             return Err(AppError::LlmError("LLM 连接探测未收到有效响应".to_string()));
         }
         Ok(Self {
+            ok: true,
+            response_preview: Some(content.chars().take(200).collect()),
             usage: response.usage,
             finish_reason: response.finish_reason,
         })
@@ -56,7 +70,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput};
+    use super::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput, LlmProbePayload};
     use serde_json::json;
 
     #[test]
@@ -85,10 +99,39 @@ mod tests {
             .is_err()
         );
         assert!(
+            serde_json::from_value::<LlmProbePayload>(json!({
+                "provider": {
+                    "provider": "openai",
+                    "base_url": "https://example.invalid/v1",
+                    "model": "test",
+                    "api_key": null,
+                    "timeout_secs": 30,
+                    "extra_body_json": null
+                }
+            }))
+            .is_err()
+        );
+        assert!(
             serde_json::from_value::<LlmProbeOutput>(json!({
+                "ok": true,
+                "response_preview": "pong",
                 "finish_reason": "stop"
             }))
             .is_err()
         );
+    }
+
+    #[test]
+    fn probe_output_uses_the_shared_runtime_contract() {
+        let output = serde_json::from_value::<LlmProbeOutput>(json!({
+            "ok": true,
+            "response_preview": "pong",
+            "usage": null,
+            "finish_reason": "stop"
+        }))
+        .expect("probe output should deserialize");
+
+        assert!(output.ok);
+        assert_eq!(output.response_preview.as_deref(), Some("pong"));
     }
 }

@@ -8,9 +8,7 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use super::SidecarVectorStore;
-use super::outputs::{
-    BoolOutput, CollectionsOutput, CountOutput, DeletedOutput, EmptyOutput, MetadataOutput,
-};
+use super::outputs::{DeletedOutput, EmptyOutput, MetadataOutput};
 use super::transport::RagOperation;
 
 #[async_trait]
@@ -94,48 +92,11 @@ impl VectorStore for SidecarVectorStore {
         Ok(output.deleted)
     }
 
-    async fn collection_exists(&self, collection: &str) -> Result<bool, AppError> {
-        let output: BoolOutput = self
-            .call(
-                RagOperation::CollectionExists,
-                json!({ "collection": collection }),
-            )
-            .await?;
-        Ok(output.value)
-    }
-
-    async fn count(&self, collection: &str) -> Result<usize, AppError> {
-        let output: CountOutput = self
-            .call(RagOperation::Count, json!({ "collection": collection }))
-            .await?;
-        Ok(output.count)
-    }
-
     async fn drop_collection(&self, collection: &str) -> Result<(), AppError> {
         let _: EmptyOutput = self
             .call(
                 RagOperation::DropCollection,
                 json!({ "collection": collection }),
-            )
-            .await?;
-        Ok(())
-    }
-
-    async fn list_collections(&self) -> Result<Vec<String>, AppError> {
-        let output: CollectionsOutput = self.call(RagOperation::ListCollections, json!({})).await?;
-        Ok(output.collections)
-    }
-
-    async fn update_metadata(
-        &self,
-        collection: &str,
-        id: &str,
-        metadata: Value,
-    ) -> Result<(), AppError> {
-        let _: EmptyOutput = self
-            .call(
-                RagOperation::UpdateMetadata,
-                json!({ "collection": collection, "id": id, "metadata": metadata }),
             )
             .await?;
         Ok(())
@@ -167,23 +128,6 @@ impl VectorStore for SidecarVectorStore {
             )
             .await?;
         Ok(output.metadata)
-    }
-
-    async fn health_check(&self) -> Result<bool, AppError> {
-        let output: BoolOutput = self.call(RagOperation::HealthCheck, json!({})).await?;
-        Ok(output.value)
-    }
-
-    async fn completeness_report(
-        &self,
-        collection: &str,
-        expected_count: usize,
-    ) -> Result<CompletenessReport, AppError> {
-        self.call(
-            RagOperation::CompletenessReport,
-            json!({ "collection": collection, "expected_count": expected_count }),
-        )
-        .await
     }
 
     async fn completeness_report_by_ids(

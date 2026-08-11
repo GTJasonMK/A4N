@@ -15,10 +15,7 @@ use super::super::super::{
     response_payload, service_error_string,
 };
 use super::super::events::generate_video_via_sidecar;
-use super::sidecar::{
-    delete_video_via_sidecar, poll_video_via_sidecar, probe_video_via_sidecar,
-    video_status_via_sidecar,
-};
+use super::sidecar::{delete_video_via_sidecar, poll_video_via_sidecar, video_status_via_sidecar};
 
 pub(crate) async fn generate_video(
     profile: RuntimeProfile,
@@ -126,23 +123,6 @@ pub(crate) async fn delete_video_job(
         .delete(job_id)
         .await
         .map_err(|error| error.to_string())
-}
-
-pub(crate) async fn probe_video_config(
-    profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
-    config: &video_gen_config::Model,
-) -> Result<(), String> {
-    if profile.uses_sidecars() {
-        let client = capabilities
-            .video
-            .clone()
-            .ok_or_else(|| missing_sidecar_capability_message("video"))?;
-        return probe_video_via_sidecar(client, config).await;
-    }
-
-    pick_provider_for_config(config)?;
-    Ok(())
 }
 
 pub(crate) async fn discover_video_models(

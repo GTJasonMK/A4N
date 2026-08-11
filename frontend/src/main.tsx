@@ -2,12 +2,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import { THEME_MODE_STORAGE_KEY } from "./theme/activeTheme";
 import { installGlobalErrorHandlers, logger } from "./utils/logger";
 import {
   flushPortableStorage,
   initializePortableStorage,
-  readPortableItem,
 } from "./utils/portableStorage";
 import "./index.css";
 
@@ -28,13 +26,6 @@ async function bootstrap() {
   window.addEventListener("beforeunload", () => {
     void flushPortableStorage();
   });
-
-  const savedTheme = readPortableItem(THEME_MODE_STORAGE_KEY);
-  if (savedTheme === "dark") {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>

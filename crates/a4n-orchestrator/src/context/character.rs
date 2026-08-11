@@ -32,7 +32,6 @@ use crate::character::{
     validate_snapshot_range,
 };
 use crate::collaboration::ProjectAccessRole;
-use crate::generation::RecordCompletedGenerationRunInput;
 use crate::project::required_text;
 use profiles::errors::{
     character_portrait_record_error, character_portrait_rollback_error,
@@ -108,22 +107,22 @@ impl CharacterApplication {
         .map_err(character_profile_create_error)
     }
 
-    async fn create_profile_with_generation_run(
+    async fn update_initial_profile(
         &self,
         project_id: i64,
-        name: &str,
+        profile_id: i64,
+        expected_current_state: Value,
         base_attributes: Value,
-        generation_run: RecordCompletedGenerationRunInput,
     ) -> Result<protagonist_profile::Model, AppError> {
-        a4n_db::character::create_profile_with_generation_run(
+        a4n_db::character::update_initial_profile(
             self.database.connection(),
             project_id,
-            name,
+            profile_id,
+            expected_current_state,
             base_attributes,
-            generation_run,
         )
         .await
-        .map_err(character_profile_create_error)
+        .map_err(character_db_error)
     }
 
     async fn rollback_failed_portrait_creation_records(
@@ -419,6 +418,20 @@ impl CharacterApplication {
         .map_err(AppError::Database)
     }
 
+    async fn character_profile_state_through_chapter(
+        &self,
+        profile: &protagonist_profile::Model,
+        chapter_number: i32,
+    ) -> Result<Value, AppError> {
+        a4n_db::character::replay_profile_state_through_chapter(
+            self.database.connection(),
+            profile,
+            chapter_number,
+        )
+        .await
+        .map_err(character_db_error)
+    }
+
     async fn apply_character_sync_persistence_record(
         &self,
         input: CharacterSyncPersistenceInput,
@@ -522,15 +535,20 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn create_profile_with_generation_run(
+    pub async fn update_initial_profile_validated(
         &self,
         project_id: i64,
-        name: &str,
+        profile_id: i64,
+        expected_current_state: Value,
         base_attributes: Value,
-        generation_run: RecordCompletedGenerationRunInput,
     ) -> Result<protagonist_profile::Model, AppError> {
         self.character
-            .create_profile_with_generation_run(project_id, name, base_attributes, generation_run)
+            .update_initial_profile(
+                project_id,
+                profile_id,
+                expected_current_state,
+                base_attributes,
+            )
             .await
     }
 
@@ -831,6 +849,16 @@ impl OrchestratorContext {
     ) -> Result<Option<snapshot_reference::Model>, AppError> {
         self.character
             .snapshot_reference_by_chapter(profile_id, chapter_number)
+            .await
+    }
+
+    pub(crate) async fn character_profile_state_through_chapter(
+        &self,
+        profile: &protagonist_profile::Model,
+        chapter_number: i32,
+    ) -> Result<Value, AppError> {
+        self.character
+            .character_profile_state_through_chapter(profile, chapter_number)
             .await
     }
 

@@ -7,6 +7,16 @@ pub(super) async fn try_dispatch(
     cmd: &str,
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
+        "list_projects" => list_projects(state, user_id, args).await?,
+        "get_project" => get_project(state, user_id, args).await?,
+        "create_project" => create_project(state, user_id, args).await?,
+        "create_derived_project" => create_derived_project(state, user_id, args).await?,
+        "create_freeform_video_project" => {
+            create_freeform_video_project(state, user_id, args).await?
+        }
+        "list_source_snapshot_chapters" => {
+            list_source_snapshot_chapters(state, user_id, args).await?
+        }
         "prompt_set_project_override" => prompt_set_project_override(state, user_id, args).await?,
         "prompt_remove_project_override" => {
             prompt_remove_project_override(state, user_id, args).await?
@@ -30,12 +40,6 @@ pub(super) async fn try_dispatch(
             get_project_import_analysis_progress(state, user_id, args).await?
         }
         "run_import_project_analysis" => run_import_project_analysis(state, user_id, args).await?,
-        "apply_import_analysis_blueprint_candidate" => {
-            apply_import_analysis_blueprint_candidate(state, user_id, args).await?
-        }
-        "apply_import_analysis_part_outline_candidate" => {
-            apply_import_analysis_part_outline_candidate(state, user_id, args).await?
-        }
         "preview_import_project_analysis_request" => {
             preview_import_project_analysis_request(state, user_id, args).await?
         }
@@ -66,7 +70,6 @@ pub(super) async fn try_dispatch(
         "update_project_member_role" => update_project_member_role(state, user_id, args).await?,
         "remove_project_member" => remove_project_member(state, user_id, args).await?,
         "leave_project" => leave_project(state, user_id, args).await?,
-        "import_project_full_upload" => import_project_full_upload(state, user_id, args).await?,
         "export_project_family_data" => export_project_family_data(state, user_id, args).await?,
         "export_derived_project_data" => export_derived_project_data(state, user_id, args).await?,
         "import_project_family_upload" => {

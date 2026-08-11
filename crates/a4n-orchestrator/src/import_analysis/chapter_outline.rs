@@ -1,14 +1,19 @@
-mod aggregation;
-mod analysis;
-mod records;
+use a4n_core::models::chapter::chapter;
 
-#[cfg(test)]
-mod tests;
+use crate::OrchestratorContext;
 
-pub use aggregation::{
-    collect_analysis_strings, collect_chapter_summaries, collect_part_array_values,
-};
-pub use analysis::{analysis_metadata_array, analysis_value_path};
-#[cfg(test)]
-pub use records::required_chapter_title;
-pub use records::{chapter_outline_summary, importable_chapters, upsert_outline_from_chapter};
+pub async fn importable_chapters(
+    context: &OrchestratorContext,
+    project_id: i64,
+) -> Result<Vec<chapter::Model>, String> {
+    context
+        .import_analysis_chapter_candidates(project_id)
+        .await
+        .map_err(|err| err.to_string())
+        .map(|chapters| {
+            chapters
+                .into_iter()
+                .filter(|chapter| !chapter.content.trim().is_empty())
+                .collect()
+        })
+}

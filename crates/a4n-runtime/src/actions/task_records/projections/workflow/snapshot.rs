@@ -6,26 +6,19 @@ use super::events::task_progress_event_summary;
 pub(in crate::actions::task_records) fn task_manager_snapshot_to_workflow(
     snapshot: TaskSnapshot,
 ) -> WorkflowStateSummary {
+    let task_id = snapshot.task_id;
     let stage = snapshot.progress.message.clone();
     let percent = snapshot.progress.percent() * 100.0;
     WorkflowStateSummary {
-        task_id: snapshot.task_id.clone(),
-        status: if snapshot.cancelled {
-            "cancelled".to_string()
-        } else {
-            "running".to_string()
-        },
+        task_id: task_id.clone(),
+        status: "running".to_string(),
         project_id: snapshot.project_id,
         root_project_id: snapshot.root_project_id,
         source_snapshot_id: snapshot.source_snapshot_id,
         task_scope: snapshot.task_scope,
-        stage: Some(format!(
-            "{}: {}",
-            snapshot.task_type.as_str(),
-            snapshot.progress.message
-        )),
+        stage: Some(snapshot.progress.message.clone()),
         progress: Some(WorkflowProgressSummary {
-            task_id: snapshot.task_id,
+            task_id: task_id.clone(),
             stage,
             current: snapshot.progress.current,
             total: snapshot.progress.total,
@@ -37,7 +30,7 @@ pub(in crate::actions::task_records) fn task_manager_snapshot_to_workflow(
         progress_events: snapshot
             .progress_events
             .into_iter()
-            .map(task_progress_event_summary)
+            .map(|event| task_progress_event_summary(&task_id, event))
             .collect(),
         started_at: None,
         completed_at: None,

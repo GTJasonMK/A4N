@@ -51,6 +51,9 @@ pub(super) fn beat_mapping_call_fingerprint_json(
         "max_tokens": request.max_tokens,
         "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
+        "source_snapshot_sha256": a4n_core::source_spans::source_text_hash(
+            &serde_json::to_string(&prepared.context.source_snapshot)?
+        ),
         "target": {
             "part_id": prepared.part.id,
             "part_number": prepared.part.part_number,

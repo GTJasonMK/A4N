@@ -6,7 +6,7 @@ use super::{
     contracts::ForeshadowingAnalysisDraft,
     rules::{
         ForeshadowingResolutionAction, foreshadowing_matches_analysis_draft,
-        foreshadowing_resolution_action, foreshadowing_status_after_setup_resync,
+        foreshadowing_related_characters_after_setup_resync, foreshadowing_resolution_action,
     },
 };
 
@@ -52,23 +52,7 @@ fn resolution_action_is_idempotent_and_rejects_wrong_timeline() {
 }
 
 #[test]
-fn foreshadowing_setup_resync_preserves_terminal_status() {
-    assert_eq!(
-        foreshadowing_status_after_setup_resync("resolved", Some(12), "pending"),
-        "resolved"
-    );
-    assert_eq!(
-        foreshadowing_status_after_setup_resync("abandoned", None, "pending"),
-        "abandoned"
-    );
-    assert_eq!(
-        foreshadowing_status_after_setup_resync("pending", None, "active"),
-        "active"
-    );
-}
-
-#[test]
-fn analysis_draft_match_uses_preserved_status_and_payload_fields() {
+fn analysis_draft_only_fills_missing_related_characters() {
     let resolved = foreshadowing("resolved", Some(12));
     let matching = ForeshadowingAnalysisDraft {
         description: resolved.description.clone(),
@@ -82,20 +66,22 @@ fn analysis_draft_match_uses_preserved_status_and_payload_fields() {
         related_characters: Some(json!(["配角"])),
         ..matching.clone()
     };
-    assert!(!foreshadowing_matches_analysis_draft(
+    assert!(foreshadowing_matches_analysis_draft(
         &resolved,
         &changed_characters
     ));
 
-    let pending = foreshadowing("pending", None);
-    let changed_status = ForeshadowingAnalysisDraft {
-        description: pending.description.clone(),
-        status: "active".to_string(),
-        related_characters: pending.related_characters.clone(),
-        importance: pending.importance,
+    let mut missing = foreshadowing("pending", None);
+    missing.related_characters = None;
+    let discovered = ForeshadowingAnalysisDraft {
+        description: missing.description.clone(),
+        status: "pending".to_string(),
+        related_characters: Some(json!(["配角"])),
+        importance: 5,
     };
-    assert!(!foreshadowing_matches_analysis_draft(
-        &pending,
-        &changed_status
-    ));
+    assert!(!foreshadowing_matches_analysis_draft(&missing, &discovered));
+    assert_eq!(
+        foreshadowing_related_characters_after_setup_resync(&missing, &discovered),
+        Some(json!(["配角"]))
+    );
 }

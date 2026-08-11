@@ -1,18 +1,18 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_manga_prompt;
-use a4n_db::manga::{MangaPromptSyncDraft, sync_manga_prompts_by_chapter};
+use a4n_db::manga::{MangaPagePromptSyncDraft, sync_manga_page_prompts_by_chapter};
 use chrono::Utc;
 
 use super::super::OrchestratorContext;
-use super::contracts::MangaPromptDraft;
+use super::contracts::MangaPagePromptDraft;
 use super::errors::manga_pipeline_db_error;
 
 impl OrchestratorContext {
-    pub(in crate::manga) async fn sync_generated_outputs_by_chapter(
+    pub(in crate::manga) async fn sync_generated_page_prompts(
         &self,
         project_id: i64,
         chapter_id: i64,
-        drafts: Vec<MangaPromptDraft>,
+        drafts: Vec<MangaPagePromptDraft>,
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
         let now = Utc::now().naive_utc();
         let mut trace_bindings = Vec::new();
@@ -20,25 +20,21 @@ impl OrchestratorContext {
             .into_iter()
             .map(|draft| {
                 let generation_traces = draft.generation_traces;
-                let sync = MangaPromptSyncDraft {
+                let sync = MangaPagePromptSyncDraft {
                     chapter_id: draft.chapter_id,
                     project_id: draft.project_id,
                     page_number: draft.page_number,
-                    panel_number: draft.panel_number,
-                    prompt_type: draft.prompt_type,
                     image_prompt: draft.image_prompt,
                     dialogue_text: draft.dialogue_text,
                     characters_in_frame: draft.characters_in_frame,
                     layout: draft.layout,
-                    camera_angle: draft.camera_angle,
-                    dialogue_position: draft.dialogue_position,
                     status: draft.status,
                 };
                 (sync, generation_traces)
             })
             .collect::<Vec<_>>();
 
-        let rows = sync_manga_prompts_by_chapter(
+        let rows = sync_manga_page_prompts_by_chapter(
             self.database.connection(),
             project_id,
             chapter_id,
@@ -54,7 +50,7 @@ impl OrchestratorContext {
             }
         }
         for (row, trace) in trace_bindings {
-            self.record_chapter_manga_prompt_generation_run(&row, trace)
+            self.record_manga_page_prompt_generation_run(&row, trace)
                 .await?;
         }
         self.sync_project_asset_lineage_after_commit(project_id, "同步漫画输出资产谱系")

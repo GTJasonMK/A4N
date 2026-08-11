@@ -30,10 +30,6 @@ fn parses_markerless_document_as_single_named_chapter() {
     assert_eq!(result.chapters.len(), 1);
     assert_eq!(result.chapters[0].title, "单章作品");
     assert_eq!(result.chapters[0].content, text);
-    assert_eq!(
-        result.warnings,
-        ["未检测到章节标记，整个文本作为一个章节处理。"]
-    );
 }
 
 #[test]

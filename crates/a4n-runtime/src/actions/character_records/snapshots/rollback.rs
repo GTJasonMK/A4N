@@ -19,7 +19,7 @@ pub async fn rollback_to_chapter(
     )?;
     let result = crate::sidecar_clients::scope_rag_operation_trace(trace_id, async {
         state
-            .character()
+            .orchestrator()
             .rollback_character_profile_timeline_validated(input.profile_id, input.chapter_number)
             .await
             .map_err(|error| error.to_string())

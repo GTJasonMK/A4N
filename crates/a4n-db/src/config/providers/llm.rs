@@ -9,6 +9,6 @@ pub use contracts::{
 pub use output_caps::default_llm_output_cap_rows;
 pub use records::{
     create_llm_config_record, delete_llm_config_record, list_llm_config_records,
-    llm_config_record_by_id, set_default_llm_config_record, update_llm_config_record,
+    llm_config_record_by_id, update_llm_config_record,
 };
 pub use resolution::{default_llm_config, llm_config_by_id, resolve_llm_config};

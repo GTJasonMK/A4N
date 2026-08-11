@@ -46,7 +46,7 @@ async fn store_search_record(store: &MemoryVectorStore) {
                     "data_type": RagDataType::Chapter.as_str(),
                     "chapter_number": 6,
                 }),
-                content: Some("当前章节上下文".to_string()),
+                content: "当前章节上下文".to_string(),
             }],
         )
         .await

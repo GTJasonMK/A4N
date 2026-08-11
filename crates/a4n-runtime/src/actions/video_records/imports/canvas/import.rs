@@ -54,7 +54,7 @@ async fn create_imported_canvas_video(
     let probed = probe_video_properties(&source.path, "画布导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video()
+        .orchestrator()
         .create_imported_canvas_video_record_validated(
             project_id,
             prompt.as_deref(),
@@ -72,7 +72,7 @@ async fn create_imported_canvas_video(
         .map_err(crate::actions::app_error_message)?;
 
     let (_output, output_path_str) = persist_imported_video_file(
-        &state.video(),
+        state.orchestrator(),
         state.data_dir(),
         record.id,
         &source.path,

@@ -1,7 +1,4 @@
-mod logging;
-mod routes;
-mod state;
-
+use a4n_server::{ServerConfig, ServerState, api_router, init_tracing};
 use axum::Router;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
@@ -19,12 +16,12 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    logging::init_tracing()?;
+    init_tracing()?;
 
-    let config = state::ServerConfig::from_env()?;
+    let config = ServerConfig::from_env()?;
     let bind_addr = config.bind_addr;
     let frontend_dist = config.frontend_dist.clone();
-    let state = state::ServerState::new(config).await?;
+    let state = ServerState::new(config).await?;
     let app = router(state, frontend_dist);
 
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
@@ -53,14 +50,14 @@ async fn shutdown_signal() {
     tracing::info!("A4N Web server shutting down");
 }
 
-fn router(state: state::ServerState, frontend_dist: PathBuf) -> Router {
+fn router(state: ServerState, frontend_dist: PathBuf) -> Router {
     let index_file = frontend_dist.join("index.html");
     let static_files = ServeDir::new(frontend_dist)
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(index_file));
 
     Router::new()
-        .nest("/api", routes::api_router(state))
+        .nest("/api", api_router(state))
         .fallback_service(static_files)
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

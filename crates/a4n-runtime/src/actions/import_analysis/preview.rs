@@ -5,7 +5,6 @@ use crate::{
             ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
         },
     },
-    prompt_renderer::RuntimePromptRenderer,
     state::AppState,
 };
 
@@ -15,10 +14,10 @@ pub async fn preview_import_project_analysis_request(
     project_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let steps = state
-        .import_analysis()
-        .prepare_import_project_analysis_preview_validated(project_id, &prompt_renderer)
+        .orchestrator()
+        .prepare_import_project_analysis_preview_validated(project_id, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?
         .into_iter()

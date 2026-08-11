@@ -7,7 +7,7 @@ pub async fn set_profile_primary_material(
     input: SetProfilePrimaryMaterialInput,
 ) -> Result<ProfileMaterialGroup, String> {
     state
-        .profile_material()
+        .orchestrator()
         .set_profile_primary_material_validated(user_id, input)
         .await
         .map_err(|error| error.to_string())

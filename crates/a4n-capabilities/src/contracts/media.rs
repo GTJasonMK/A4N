@@ -11,7 +11,6 @@ pub trait ImageClient: CapabilityClient {
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()>;
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
 }
 
@@ -26,6 +25,5 @@ pub trait VideoClient: CapabilityClient {
     async fn status(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn delete(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
 }

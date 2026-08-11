@@ -2,7 +2,6 @@ use a4n_core::models::chapter::{chapter_outline, part_outline};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
-use super::ranges::latest_part_ids_to_delete;
 use super::*;
 
 fn part(id: i64, part_number: i32) -> part_outline::Model {
@@ -21,34 +20,6 @@ fn part(id: i64, part_number: i32) -> part_outline::Model {
         created_at: now,
         updated_at: now,
     }
-}
-
-#[test]
-fn latest_part_ids_to_delete_rejects_zero_count() {
-    let err = latest_part_ids_to_delete(&[part(1, 1)], 0).expect_err("zero delete count must fail");
-    assert!(err.to_string().contains("删除分部数量必须大于 0"));
-}
-
-#[test]
-fn latest_part_ids_to_delete_rejects_count_greater_than_existing_parts() {
-    let err = latest_part_ids_to_delete(&[part(1, 1), part(2, 2)], 3)
-        .expect_err("oversized delete count must fail");
-    assert!(err.to_string().contains("删除分部数量超过现有分部数量"));
-}
-
-#[test]
-fn latest_part_ids_to_delete_selects_latest_parts_by_list_order() {
-    let ids = latest_part_ids_to_delete(&[part(11, 1), part(12, 2), part(13, 3)], 2)
-        .expect("valid count should select latest parts");
-    assert_eq!(ids, vec![13, 12]);
-}
-
-#[test]
-fn latest_part_ids_to_delete_rejects_invalid_existing_parts() {
-    let err = latest_part_ids_to_delete(&[part(11, 1), part(12, 1)], 1)
-        .expect_err("ambiguous latest part state must fail before delete");
-    assert!(err.to_string().contains("重复分部大纲"));
-    assert!(err.to_string().contains("请先清理分部状态后再删除"));
 }
 
 #[test]

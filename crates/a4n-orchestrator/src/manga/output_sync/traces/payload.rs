@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_db::generation::{
     GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
     generation_checkpoint_fingerprint_sha256,
@@ -7,12 +7,12 @@ use a4n_db::generation::{
 use serde_json::json;
 
 use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
-use super::contracts::MangaGenerationTraceRecord;
+use super::contracts::MangaPageGenerationTraceRecord;
 
-pub(super) fn build_manga_generation_trace_record(
+pub(super) fn build_manga_page_generation_trace_record(
     row: &chapter_manga_prompt::Model,
     trace: MangaPromptGenerationTrace,
-) -> Result<MangaGenerationTraceRecord, AppError> {
+) -> Result<MangaPageGenerationTraceRecord, AppError> {
     let source_refs_json = row
         .layout
         .as_ref()
@@ -26,46 +26,31 @@ pub(super) fn build_manga_generation_trace_record(
             })
         })
     });
-    let call_key = trace.call_key.clone().ok_or_else(|| {
-        AppError::InvalidArgument(format!(
-            "漫画 LLM trace 缺少调用级 call_key: {}",
-            trace.prompt_name
-        ))
-    })?;
-    let input_fingerprint_json = trace.input_fingerprint_json.clone().ok_or_else(|| {
-        AppError::InvalidArgument(format!(
-            "漫画 LLM trace 缺少调用级 input_fingerprint_json: {}",
-            trace.prompt_name
-        ))
-    })?;
+    let input_fingerprint_json = trace.input_fingerprint_json.clone();
     let output_json = json!({
         "chapter_manga_prompt_id": row.id,
         "chapter_id": row.chapter_id,
-        "prompt_type": row.prompt_type.clone(),
         "page_number": row.page_number,
-        "panel_number": row.panel_number,
         "image_prompt": row.image_prompt.clone(),
         "dialogue_text": row.dialogue_text.clone(),
         "characters_in_frame": row.characters_in_frame.clone(),
         "layout": row.layout.clone(),
-        "camera_angle": row.camera_angle.clone(),
-        "dialogue_position": row.dialogue_position.clone(),
         "status": row.status.clone(),
     });
     let artifact_refs_json = json!({
         "targets": [{
-            "target_kind": row.prompt_type.clone(),
+            "target_kind": MANGA_PAGE_PROMPT_TYPE,
             "target_table": "chapter_manga_prompt",
             "target_id": row.id,
         }],
     });
 
-    Ok(MangaGenerationTraceRecord {
+    Ok(MangaPageGenerationTraceRecord {
         run: RecordCompletedGenerationRunInput {
             project_id: row.project_id,
             workflow: "manga_prompt_generation".to_string(),
             step_key: trace.prompt_name.clone(),
-            title: format!("漫画提示词生成: {}", row.prompt_type),
+            title: "漫画页面提示词生成".to_string(),
             model_kind: "llm".to_string(),
             provider: None,
             model: None,
@@ -79,20 +64,19 @@ pub(super) fn build_manga_generation_trace_record(
             request_json: Some(trace.request_json.clone()),
             response_summary_json: Some(json!({
                 "chapter_manga_prompt_id": row.id,
-                "prompt_type": row.prompt_type,
                 "page_number": row.page_number,
                 "output": trace.response_text.clone(),
                 "llm_usage": trace.usage.clone(),
             })),
             targets: vec![GenerationRunTraceTarget {
-                target_kind: row.prompt_type.clone(),
+                target_kind: MANGA_PAGE_PROMPT_TYPE.to_string(),
                 target_table: "chapter_manga_prompt".to_string(),
                 target_id: row.id,
             }],
         },
         checkpoint: GenerationRunCheckpointContext {
-            workflow_run_id: trace.workflow_run_id,
-            call_key: Some(call_key),
+            workflow_run_id: Some(trace.workflow_run_id),
+            call_key: Some(trace.call_key),
             input_fingerprint_sha256: Some(generation_checkpoint_fingerprint_sha256(
                 &input_fingerprint_json,
             )?),
@@ -100,7 +84,6 @@ pub(super) fn build_manga_generation_trace_record(
             raw_response_json: Some(json!({
                 "text": trace.response_text,
                 "usage": trace.usage,
-                "context_manifest_summary": trace.context_manifest_summary_json,
             })),
             parsed_output_json: Some(output_json),
             validation_json: None,

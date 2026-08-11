@@ -35,7 +35,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-const GALGAME_MEDIA_BINDING_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_MEDIA_BINDING_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_media_binding()
 RETURNS trigger
 LANGUAGE plpgsql

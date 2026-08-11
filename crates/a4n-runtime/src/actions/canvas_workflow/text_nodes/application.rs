@@ -17,7 +17,7 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_render_text_node(
     mode: &str,
 ) -> Result<CanvasRunSummary, String> {
     state
-        .canvas()
+        .orchestrator()
         .run_canvas_render_text_node_validated(CanvasTextNodeExecutionInput {
             project_id,
             graph_id,
@@ -42,7 +42,7 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_llm_text_node(
 ) -> Result<CanvasRunSummary, String> {
     let llm_port = RuntimeCanvasTextGenerationLlmPort::new(state);
     state
-        .canvas()
+        .orchestrator()
         .run_canvas_llm_text_node_validated(
             CanvasTextNodeExecutionInput {
                 project_id,

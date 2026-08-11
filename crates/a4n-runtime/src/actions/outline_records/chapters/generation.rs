@@ -8,15 +8,15 @@ pub async fn preview_generate_part_chapter_outlines_request(
     input: GeneratePartChapterOutlinesInput,
 ) -> Result<ModelRequestPreview, AppError> {
     ensure_part_access(
-        &state.collaboration(),
-        &state.project_outline_records(),
+        state.orchestrator(),
+        state.orchestrator(),
         user_id,
         input.project_id,
         input.part_id,
     )
     .await?;
     let steps = state
-        .outline()
+        .orchestrator()
         .preview_generate_part_chapter_outlines_validated(input)
         .await?;
     outline_preview(

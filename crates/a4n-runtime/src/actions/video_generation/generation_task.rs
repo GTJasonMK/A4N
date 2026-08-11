@@ -1,10 +1,7 @@
 use a4n_api_contract::{generation_tasks::GenerationTaskHandle, video::StartVideoGenerationInput};
 use a4n_orchestrator::GenerationTaskAccessError;
 
-use crate::{
-    AppState, actions::video_generation::provider_host::RuntimeVideoProviderHostPort,
-    prompt_renderer::RuntimePromptRenderer,
-};
+use crate::{AppState, actions::video_generation::provider_host::RuntimeVideoProviderHostPort};
 
 pub async fn start_video_generation_typed(
     state: &AppState,
@@ -12,7 +9,7 @@ pub async fn start_video_generation_typed(
     input: StartVideoGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .video()
+        .orchestrator()
         .start_video_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -24,16 +21,16 @@ pub async fn start_video_generation_typed(
     if input.operation.is_prompt_generation() {
         state.spawn_generation_execution(handle.task_id.clone(), async move {
             let runtime_video_config = crate::runtime_config::current_video_model();
-            let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+            let prompt_renderer = &worker_state;
             if let Err(error) = worker_state
-                .video()
+                .orchestrator()
                 .run_video_prompt_generation_task(
                     user_id,
                     input,
                     handle.clone(),
                     a4n_orchestrator::video::VideoPromptApplicationContext {
                         runtime_video_config: runtime_video_config.as_ref(),
-                        prompt_renderer: &prompt_renderer,
+                        prompt_renderer: prompt_renderer,
                     },
                 )
                 .await
@@ -50,7 +47,7 @@ pub async fn start_video_generation_typed(
         state.spawn_video_generation_execution(handle.task_id.clone(), async move {
             let host_port = RuntimeVideoProviderHostPort::new(&worker_state);
             if let Err(error) = worker_state
-                .video()
+                .orchestrator()
                 .run_video_generation_task(user_id, input, handle.clone(), &host_port)
                 .await
             {

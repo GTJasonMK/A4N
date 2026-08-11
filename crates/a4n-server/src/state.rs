@@ -76,6 +76,12 @@ impl ServerState {
     pub fn runtime(&self) -> &a4n_runtime::AppState {
         self.runtime.as_ref()
     }
+
+    pub(crate) fn from_runtime(runtime: a4n_runtime::AppState) -> Self {
+        Self {
+            runtime: Arc::new(runtime),
+        }
+    }
 }
 
 fn runtime_profile_for_server_host() -> Result<RuntimeProfile, AppError> {

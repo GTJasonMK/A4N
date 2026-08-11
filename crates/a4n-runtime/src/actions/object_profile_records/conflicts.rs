@@ -1,14 +1,11 @@
-use crate::{
-    actions::{
-        dependency_conflict::{DownstreamConflictStrategy, resolve_downstream_id_conflict},
-        profile_materials,
-    },
-    state::{AssetRuntimeFacade, ProfileMaterialRuntimeFacade},
+use crate::actions::{
+    dependency_conflict::{DownstreamConflictStrategy, resolve_downstream_id_conflict},
+    profile_materials,
 };
 use a4n_orchestrator::profile_material::PROFILE_KIND_OBJECT;
 
 pub(super) async fn object_profile_project_id(
-    asset: &AssetRuntimeFacade<'_>,
+    asset: &a4n_orchestrator::OrchestratorContext,
     object_profile_id: i64,
 ) -> Result<i64, String> {
     let profile = asset
@@ -19,7 +16,7 @@ pub(super) async fn object_profile_project_id(
 }
 
 pub(super) async fn resolve_object_profile_downstream_conflict(
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     object_profile_id: i64,
     strategy: DownstreamConflictStrategy,

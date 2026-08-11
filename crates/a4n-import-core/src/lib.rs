@@ -18,7 +18,7 @@ pub use archive::{
 };
 pub use contracts::*;
 pub use errors::ImportTransformError;
-pub use json::{normalize_json, parse_json_manifest, parse_json_manifest_value};
+pub use json::{parse_json_manifest, parse_json_manifest_value};
 pub use media_package::{
     read_media_package_zip, read_media_package_zip_bytes, read_media_package_zip_reader,
 };

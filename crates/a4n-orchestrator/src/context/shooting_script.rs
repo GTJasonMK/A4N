@@ -3,19 +3,20 @@
 //! 持有 `DbHandle`，封装章节共享拍摄剧本的加载、发布与编辑落库。
 //! LLM 生成编排仍在 `shooting_script/` 模块，但 DB 只经本 owner。
 
-use a4n_core::{error::AppError, shooting_script::ChapterShootingScriptV1};
+use a4n_api_contract::shooting_script::EditChapterShootingScriptInput;
+use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 use a4n_db::project::ResolvedChapterSource;
 use a4n_db::shooting_script::{
     EditStoredChapterShootingScriptInput, InsertChapterShootingScriptInput,
     ParsedChapterShootingScript, UpdateChapterShootingScriptInput,
 };
+use a4n_domain::shooting_script::ChapterShootingScriptV1;
 
 use super::OrchestratorContext;
 use crate::shooting_script::errors::{resolve_source_error, shooting_script_db_error};
 use crate::shooting_script::{
-    ChapterShootingScriptSourceInput, EditChapterShootingScriptInput, EditedChapterShootingScript,
-    ResolvedChapterShootingScript,
+    ChapterShootingScriptSourceInput, EditedChapterShootingScript, ResolvedChapterShootingScript,
 };
 
 /// 拍摄剧本领域 application owner。
@@ -94,10 +95,6 @@ impl ShootingScriptApplication {
         &self,
         input: EditChapterShootingScriptInput,
     ) -> Result<EditedChapterShootingScript, AppError> {
-        input
-            .script
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
         let outcome = a4n_db::shooting_script::edit_chapter_shooting_script_and_invalidate(
             self.connection(),
             EditStoredChapterShootingScriptInput {
@@ -144,7 +141,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn current_chapter_shooting_script(
+    pub(crate) async fn current_chapter_shooting_script(
         &self,
         input: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ResolvedChapterShootingScript>, AppError> {
@@ -167,7 +164,7 @@ impl OrchestratorContext {
         self.current_chapter_shooting_script(input).await
     }
 
-    pub async fn require_current_chapter_shooting_script(
+    pub(crate) async fn require_current_chapter_shooting_script(
         &self,
         input: ChapterShootingScriptSourceInput,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
@@ -208,30 +205,25 @@ impl OrchestratorContext {
         }
     }
 
-    pub async fn edit_current_chapter_shooting_script_validated(
+    pub async fn edit_current_chapter_shooting_script_for_user_validated(
         &self,
-        source: ChapterShootingScriptSourceInput,
+        user_id: i64,
         input: EditChapterShootingScriptInput,
     ) -> Result<EditedChapterShootingScript, AppError> {
-        let current = self.require_current_chapter_shooting_script(source).await?;
+        self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
+            .await?;
+        let current = self
+            .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
+                project_id: input.project_id,
+                source_chapter_id: input.source_chapter_id,
+            })
+            .await?;
         ensure_current_shooting_script_record_id(
             current.shooting_script.record.id,
             input.record_id,
         )?;
         self.shooting_script
             .edit_chapter_shooting_script(input)
-            .await
-    }
-
-    pub async fn edit_current_chapter_shooting_script_for_user_validated(
-        &self,
-        user_id: i64,
-        source: ChapterShootingScriptSourceInput,
-        input: EditChapterShootingScriptInput,
-    ) -> Result<EditedChapterShootingScript, AppError> {
-        self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
-            .await?;
-        self.edit_current_chapter_shooting_script_validated(source, input)
             .await
     }
 

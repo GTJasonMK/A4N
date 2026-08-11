@@ -16,14 +16,12 @@ pub struct RecordingImageClient {
     state: Arc<RecordingImageClientState>,
     generate_events: Option<Vec<CapabilityTaskEvent>>,
     preview_response: Option<JsonResponse>,
-    probe_response: Option<JsonResponse>,
 }
 
 #[derive(Default)]
 struct RecordingImageClientState {
     generate_requests: RequestLedger,
     preview_requests: RequestLedger,
-    probe_requests: RequestLedger,
 }
 
 impl RecordingImageClient {
@@ -41,11 +39,6 @@ impl RecordingImageClient {
         self
     }
 
-    pub fn with_probe_response(mut self, response: JsonResponse) -> Self {
-        self.probe_response = Some(response);
-        self
-    }
-
     pub fn generate_call_count(&self) -> usize {
         self.state.generate_requests.count()
     }
@@ -54,20 +47,12 @@ impl RecordingImageClient {
         self.state.preview_requests.count()
     }
 
-    pub fn probe_call_count(&self) -> usize {
-        self.state.probe_requests.count()
-    }
-
     pub fn last_generate_request(&self) -> Option<JsonRequest> {
         self.state.generate_requests.last()
     }
 
     pub fn last_preview_request(&self) -> Option<JsonRequest> {
         self.state.preview_requests.last()
-    }
-
-    pub fn last_probe_request(&self) -> Option<JsonRequest> {
-        self.state.probe_requests.last()
     }
 }
 
@@ -101,13 +86,6 @@ impl ImageClient for RecordingImageClient {
         self.preview_response
             .clone()
             .ok_or_else(|| unexpected_call("RecordingImageClient", "preview_request"))
-    }
-
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.state.probe_requests.record(request);
-        self.probe_response
-            .clone()
-            .ok_or_else(|| unexpected_call("RecordingImageClient", "probe"))
     }
 
     async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {

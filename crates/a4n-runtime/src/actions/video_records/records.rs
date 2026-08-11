@@ -14,7 +14,7 @@ pub async fn list_videos_by_chapter(
 ) -> Result<Vec<GeneratedVideoSummary>, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     let rows = state
-        .video()
+        .orchestrator()
         .list_video_records_by_chapter_validated(project_id, chapter_id)
         .await
         .map_err(app_error_message)?;
@@ -26,10 +26,10 @@ pub async fn toggle_video_favorite(
     user_id: i64,
     video_id: i64,
 ) -> Result<GeneratedVideoSummary, String> {
-    let video = required_generated_video(&state.video(), video_id).await?;
+    let video = required_generated_video(state.orchestrator(), video_id).await?;
     access::verify_project_editor_string(state, user_id, video.project_id).await?;
     let row = state
-        .video()
+        .orchestrator()
         .toggle_video_record_favorite_validated(video_id)
         .await
         .map_err(app_error_message)?;
@@ -42,10 +42,10 @@ pub async fn update_video(
     video_id: i64,
     input: UpdateGeneratedVideoInput,
 ) -> Result<GeneratedVideoSummary, String> {
-    let existing = required_generated_video(&state.video(), video_id).await?;
+    let existing = required_generated_video(state.orchestrator(), video_id).await?;
     access::verify_project_editor_string(state, user_id, existing.project_id).await?;
     let row = state
-        .video()
+        .orchestrator()
         .update_video_record_validated(video_id, input)
         .await
         .map_err(app_error_message)?;
@@ -62,7 +62,7 @@ pub async fn select_segment_video(
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let row = state
-        .video()
+        .orchestrator()
         .select_segment_video_validated(
             project_id,
             chapter_id,
@@ -79,7 +79,7 @@ pub async fn select_segment_video(
 }
 
 pub(super) async fn required_generated_video(
-    video: &crate::state::VideoRuntimeFacade<'_>,
+    video: &a4n_orchestrator::OrchestratorContext,
     video_id: i64,
 ) -> Result<generated_video::Model, String> {
     video

@@ -34,6 +34,7 @@ fn event() -> attribute_event::Model {
         id: 11,
         profile_id: 7,
         chapter_number: 3,
+        source_kind: attribute_event::SOURCE_KIND_AI_SYNC.to_string(),
         timestamp: chrono::Utc::now().naive_utc(),
         category: "implicit".to_string(),
         key: "谨慎".to_string(),

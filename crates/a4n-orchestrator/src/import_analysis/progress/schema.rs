@@ -1,40 +1,20 @@
 use chrono::Utc;
 use serde_json::{Map, Value, json};
 
-pub const CHAPTERS_PER_PART: usize = 25;
 pub const STAGE_ANALYSIS: &str = "generating_analysis_data";
-pub const STAGE_OUTLINES: &str = "generating_outlines";
-pub const STAGE_BLUEPRINT: &str = "extracting_blueprint";
-pub const STAGE_PARTS: &str = "generating_part_outlines";
-pub(super) const STAGE_ORDER: [&str; 4] =
-    [STAGE_ANALYSIS, STAGE_OUTLINES, STAGE_BLUEPRINT, STAGE_PARTS];
+pub(super) const STAGE_ORDER: [&str; 1] = [STAGE_ANALYSIS];
 
-pub fn initial_import_progress(total_chapters: usize, needs_part_outlines: bool) -> Value {
-    let part_count = if needs_part_outlines {
-        total_chapters.div_ceil(CHAPTERS_PER_PART)
-    } else {
-        0
-    };
+pub fn initial_import_progress(total_chapters: usize) -> Value {
     let mut stages = Map::new();
-    for (key, name, total) in [
-        (STAGE_ANALYSIS, "生成分析数据", total_chapters),
-        (STAGE_OUTLINES, "更新章节大纲", total_chapters),
-        (STAGE_BLUEPRINT, "反推蓝图信息", 1usize),
-        (STAGE_PARTS, "生成分部大纲", part_count),
-    ] {
-        if key == STAGE_PARTS && !needs_part_outlines {
-            continue;
-        }
-        stages.insert(
-            key.to_string(),
-            json!({
-                "name": name,
-                "completed": 0,
-                "total": total,
-                "status": "pending",
-            }),
-        );
-    }
+    stages.insert(
+        STAGE_ANALYSIS.to_string(),
+        json!({
+            "name": "逐章分析与资料同步",
+            "completed": 0,
+            "total": total_chapters,
+            "status": "pending",
+        }),
+    );
 
     json!({
         "status": "analyzing",
@@ -43,7 +23,6 @@ pub fn initial_import_progress(total_chapters: usize, needs_part_outlines: bool)
         "message": "正在初始化导入分析...",
         "started_at": Utc::now().naive_utc().to_string(),
         "error": null,
-        "needs_part_outlines": needs_part_outlines,
         "overall_progress": 0,
     })
 }

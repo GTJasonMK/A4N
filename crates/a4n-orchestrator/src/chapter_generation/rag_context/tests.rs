@@ -12,8 +12,9 @@ use super::preparation::build_chapter_generation_rag_search_filter;
 use super::projection::generation_rag_context_from_results;
 use super::query::{GenerationRagQueries, build_generation_rag_queries};
 use super::rules::{
-    generation_rag_search_data_types, metadata_i64, previous_chapter_range,
-    validate_generation_embedding_identity_match, validate_generation_query_vectors,
+    generation_rag_query_fingerprint, generation_rag_search_data_types, metadata_i64,
+    previous_chapter_range, validate_generation_embedding_identity_match,
+    validate_generation_query_vectors, validate_generation_rag_query_fingerprint,
 };
 use a4n_core::models::{chapter::chapter_outline, character::foreshadowing_index};
 use a4n_core::rag::RagDataType;
@@ -44,6 +45,33 @@ fn prepared_generation_search() -> PreparedGenerationRagSearch {
     }
 }
 
+#[test]
+fn generation_rag_query_fingerprint_binds_query_order_and_identity() {
+    let prepared = prepared_generation_search();
+    let fingerprint = generation_rag_query_fingerprint(
+        prepared.project_id,
+        prepared.chapter_number,
+        &prepared.queries,
+        &prepared.embedding_identity,
+    )
+    .expect("query fingerprint must build");
+    assert_eq!(fingerprint.len(), 64);
+    validate_generation_rag_query_fingerprint(&fingerprint, &prepared)
+        .expect("matching fingerprint must pass");
+
+    let mut changed_query = prepared_generation_search();
+    changed_query.queries.main_query.push_str("更新");
+    assert!(
+        validate_generation_rag_query_fingerprint(&fingerprint, &changed_query)
+            .expect_err("changed query must invalidate client vectors")
+            .contains("已过期")
+    );
+
+    let mut changed_identity = prepared_generation_search();
+    changed_identity.embedding_identity.model.push_str("-new");
+    assert!(validate_generation_rag_query_fingerprint(&fingerprint, &changed_identity).is_err());
+}
+
 async fn store_generation_search_record(store: &MemoryVectorStore) {
     store
         .add_embeddings(
@@ -57,7 +85,7 @@ async fn store_generation_search_record(store: &MemoryVectorStore) {
                     "chapter_number": 3,
                     "title": "第三章",
                 }),
-                content: Some("主角在密室发现旧钟线索。".to_string()),
+                content: "主角在密室发现旧钟线索。".to_string(),
             }],
         )
         .await

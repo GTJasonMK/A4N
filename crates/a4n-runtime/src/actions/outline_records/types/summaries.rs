@@ -1,43 +1,6 @@
+pub use a4n_api_contract::outline::{ChapterOutlineSummary, PartOutlineSummary};
 use a4n_core::models::chapter::{chapter_outline, part_outline};
 pub use a4n_orchestrator::outline::OutlineGenerationProgressSummary as GenerationProgressSummary;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PartOutlineSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub part_number: i32,
-    pub title: String,
-    pub start_chapter: i32,
-    pub end_chapter: i32,
-    pub summary: Option<String>,
-    pub theme: Option<String>,
-    pub key_events: Option<Value>,
-    pub character_focus: Option<Value>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChapterOutlineSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub part_id: Option<i64>,
-    pub chapter_number: i32,
-    pub title: Option<String>,
-    pub summary: Option<String>,
-    pub beats: Option<Value>,
-    pub key_scenes: Option<Value>,
-    pub pacing_score: Option<f32>,
-    pub foreshadowing_setup: Option<Value>,
-    pub foreshadowing_payoff: Option<Value>,
-    pub characters_involved: Option<Value>,
-    pub word_count_target: Option<i32>,
-    pub status: String,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
 
 pub(in crate::actions::outline_records) fn part_outline_summary(
     part: &part_outline::Model,
@@ -60,6 +23,7 @@ pub(in crate::actions::outline_records) fn part_outline_summary(
 
 pub(in crate::actions::outline_records) fn chapter_outline_summary(
     outline: &chapter_outline::Model,
+    source_kind: Option<&str>,
 ) -> ChapterOutlineSummary {
     ChapterOutlineSummary {
         id: outline.id,
@@ -75,6 +39,7 @@ pub(in crate::actions::outline_records) fn chapter_outline_summary(
         foreshadowing_payoff: outline.foreshadowing_payoff.clone(),
         characters_involved: outline.characters_involved.clone(),
         word_count_target: outline.word_count_target,
+        source_kind: source_kind.map(str::to_string),
         status: outline.status.clone(),
         created_at: Some(outline.created_at.to_string()),
         updated_at: Some(outline.updated_at.to_string()),

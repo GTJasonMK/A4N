@@ -31,7 +31,7 @@ impl TeraPromptEngine {
         Ok(engine)
     }
 
-    pub(super) async fn reload_defaults_from_directory(&self) -> Result<usize, AppError> {
+    pub async fn load_defaults(&self) -> Result<usize, AppError> {
         let _update_guard = self.update_lock.lock().await;
         self.reload_defaults_from_directory_locked()
     }

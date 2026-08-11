@@ -26,10 +26,9 @@ pub async fn get_project_asset_dependency_graph(
     user_id: i64,
     project_id: i64,
 ) -> Result<AssetDependencyGraph, String> {
-    access::verify_project_access_string(state, user_id, project_id).await?;
     state
-        .project_dependency_graph()
-        .asset_dependency_graph(project_id)
+        .orchestrator()
+        .asset_dependency_graph_for_user_validated(user_id, project_id)
         .await
         .map_err(|error| error.to_string())
 }
@@ -40,10 +39,9 @@ pub async fn get_project_asset_dependency_graph_node_detail(
     project_id: i64,
     node_id: String,
 ) -> Result<AssetGraphNodeDetail, String> {
-    access::verify_project_access_string(state, user_id, project_id).await?;
     state
-        .project_dependency_graph()
-        .asset_dependency_graph_node_detail(project_id, &node_id)
+        .orchestrator()
+        .asset_dependency_graph_node_detail_for_user_validated(user_id, project_id, &node_id)
         .await
         .map_err(|error| error.to_string())
 }
@@ -59,7 +57,7 @@ pub async fn list_projects(
 ) -> Result<PaginatedProjects, String> {
     let offset = project_list_offset(page, page_size)?;
     let page_result = state
-        .collaboration()
+        .orchestrator()
         .accessible_projects(AccessibleProjectListInput {
             user_id,
             offset,
@@ -87,7 +85,7 @@ pub async fn list_source_snapshot_chapters(
 ) -> Result<Vec<SourceSnapshotChapterSummary>, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     state
-        .project_family()
+        .orchestrator()
         .source_snapshot_chapters(project_id)
         .await
         .map_err(app_error_message)

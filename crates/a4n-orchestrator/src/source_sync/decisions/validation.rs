@@ -4,7 +4,7 @@ use a4n_core::error::AppError;
 
 use crate::galgame::{
     GalgameSceneRegenerationPlan, LINE_TYPE_CHOICE, SCENE_ENTRY_MAIN, normalize_line_type,
-    normalize_position, validate_line_semantics, validate_presentation_json,
+    normalize_position, parse_and_validate_presentation_projection, validate_line_semantics,
     validate_source_sync_scene_regeneration_stage_outputs,
 };
 
@@ -116,6 +116,7 @@ pub(in crate::source_sync) fn validate_galgame_scene_regeneration_plan_for_apply
             normalized_line_type,
             line.speaker_profile_id,
             line.expression.as_deref(),
+            line.pose.as_deref(),
         )?;
         if normalize_position(line.position.clone())? != line.position {
             return Err(AppError::InvalidArgument(format!(
@@ -123,8 +124,12 @@ pub(in crate::source_sync) fn validate_galgame_scene_regeneration_plan_for_apply
                 line.line_index
             )));
         }
-        validate_presentation_json(
+        parse_and_validate_presentation_projection(
             &line.presentation_json,
+            line.speaker_profile_id,
+            line.expression.as_deref(),
+            line.pose.as_deref(),
+            line.position.as_deref(),
             &format!("Galgame source sync 重建计划第 {} 行", line.line_index),
         )?;
         let Some(text_anchor_id) = line.text_anchor_id else {

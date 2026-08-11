@@ -39,12 +39,14 @@ export const config = {
       ? JSON.parse(readFileSync(statePath, "utf8")).entries
       : null;
     if (loginUsername && loginPassword) {
-      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+      const response = await fetch(`${apiBaseUrl}/api/commands/login_user`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          username: loginUsername,
-          password: loginPassword,
+          input: {
+            username: loginUsername,
+            password: loginPassword,
+          },
         }),
       });
       if (!response.ok) {

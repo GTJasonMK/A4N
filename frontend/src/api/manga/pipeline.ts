@@ -8,14 +8,12 @@ import { idNum, type ApiId as Id } from "../shared";
 export async function startMangaPipeline(
   projectId: Id,
   chapterNumber: number,
-  startFromStage: Host.MangaPipelineStartStage | null,
 ): Promise<string> {
   return apiInvoke<string>("start_manga_pipeline", {
     userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
-      start_from_stage: startFromStage,
     } satisfies Host.MangaPipelineStartInput,
   });
 }
@@ -23,14 +21,12 @@ export async function startMangaPipeline(
 export async function previewStartMangaPipelineRequest(
   projectId: Id,
   chapterNumber: number,
-  startFromStage: Host.MangaPipelineStartStage | null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_start_manga_pipeline_request", {
     userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
-      start_from_stage: startFromStage,
     } satisfies Host.MangaPipelineStartInput,
   });
 }

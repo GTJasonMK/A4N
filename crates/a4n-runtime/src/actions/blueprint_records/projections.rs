@@ -5,7 +5,10 @@ use crate::actions::request_preview::ChatStatusPreviewStep;
 
 use super::{BlueprintSummary, BlueprintVersionSummary};
 
-pub(super) fn blueprint_summary(bp: &novel_blueprint::Model) -> BlueprintSummary {
+pub(super) fn blueprint_summary(
+    bp: &novel_blueprint::Model,
+    sources_need_review: bool,
+) -> BlueprintSummary {
     BlueprintSummary {
         id: bp.id,
         project_id: bp.project_id,
@@ -18,28 +21,23 @@ pub(super) fn blueprint_summary(bp: &novel_blueprint::Model) -> BlueprintSummary
         full_synopsis: bp.full_synopsis.clone(),
         world_setting: bp.world_setting.clone(),
         current_version: bp.current_version.clone(),
-        needs_part_outlines: bp.needs_part_outlines,
         total_chapters: bp.total_chapters,
         chapters_per_part: bp.chapters_per_part,
-        avatar_svg: bp.avatar_svg.clone(),
-        avatar_animal: bp.avatar_animal.clone(),
-        created_at: Some(bp.created_at.to_string()),
-        updated_at: Some(bp.updated_at.to_string()),
+        source_review_status: if sources_need_review {
+            "needs_review"
+        } else {
+            "not_required"
+        }
+        .to_string(),
     }
 }
 
 pub(super) fn blueprint_version_summary(v: &blueprint_version::Model) -> BlueprintVersionSummary {
     BlueprintVersionSummary {
         id: v.id,
-        project_id: v.project_id,
         version: v.version.clone(),
         change_description: v.change_description.clone(),
-        blueprint_data: v.blueprint_data.clone(),
-        world_setting_snapshot: v.world_setting_snapshot.clone(),
-        characters_snapshot: v.characters_snapshot.clone(),
-        relationships_snapshot: v.relationships_snapshot.clone(),
-        synopsis_snapshot: v.synopsis_snapshot.clone(),
-        created_at: Some(v.created_at.to_string()),
+        created_at: v.created_at.to_string(),
         created_by: v.created_by.clone(),
     }
 }

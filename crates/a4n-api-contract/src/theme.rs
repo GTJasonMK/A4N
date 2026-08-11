@@ -1,13 +1,9 @@
-use std::collections::BTreeMap;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::serde_update::deserialize_non_null_update_field;
 
-pub use a4n_domain::ThemeMode;
-
-pub type ThemeCssVariables = BTreeMap<String, String>;
+pub use a4n_domain::{ThemeCssVariables, ThemeMode};
 
 /// 创建主题的 Web/Tauri 请求合同。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

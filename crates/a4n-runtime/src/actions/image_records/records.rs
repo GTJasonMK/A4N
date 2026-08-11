@@ -15,20 +15,23 @@ pub async fn update_image(
     image_id: i64,
     input: UpdateGeneratedImageInput,
 ) -> Result<GeneratedImageSummary, String> {
+    let clear_chapter_id = input.chapter_id.as_ref().is_some_and(Option::is_none);
+    let clear_panel_id = input.panel_id.as_ref().is_some_and(Option::is_none);
+    let clear_ai_score = input.ai_score.as_ref().is_some_and(Option::is_none);
     let row = state
-        .media()
+        .orchestrator()
         .update_generated_image_for_user_validated(
             user_id,
             image_id,
             UpdateImageRecord {
                 prompt: input.prompt,
                 image_type: input.image_type,
-                chapter_id: input.chapter_id,
-                clear_chapter_id: input.clear_chapter_id,
-                panel_id: input.panel_id,
-                clear_panel_id: input.clear_panel_id,
-                ai_score: input.ai_score,
-                clear_ai_score: input.clear_ai_score,
+                chapter_id: input.chapter_id.flatten(),
+                clear_chapter_id,
+                panel_id: input.panel_id.flatten(),
+                clear_panel_id,
+                ai_score: input.ai_score.flatten(),
+                clear_ai_score,
                 is_favorite: input.is_favorite,
             },
         )
@@ -43,7 +46,7 @@ pub async fn toggle_image_favorite(
     image_id: i64,
 ) -> Result<GeneratedImageSummary, String> {
     let row = state
-        .media()
+        .orchestrator()
         .toggle_generated_image_favorite_for_user_validated(user_id, image_id)
         .await
         .map_err(app_error_message)?;
@@ -57,7 +60,7 @@ pub async fn score_image(
     score: f32,
 ) -> Result<GeneratedImageSummary, String> {
     let row = state
-        .media()
+        .orchestrator()
         .update_generated_image_for_user_validated(
             user_id,
             image_id,

@@ -46,11 +46,14 @@ interface RuntimeConfigSnapshotOptions {
   includeProviderApiKeys?: boolean;
 }
 
-function withoutApiKey(config: unknown): unknown {
+function runtimeConfigPayload(config: unknown, includeApiKey: boolean): unknown {
   if (!config || typeof config !== "object" || Array.isArray(config)) return config;
   const sanitized = { ...(config as Record<string, unknown>) };
-  delete sanitized.api_key_encrypted;
-  delete sanitized.apiKeyEncrypted;
+  delete sanitized.has_api_key;
+  if (!includeApiKey) {
+    delete sanitized.api_key_encrypted;
+    delete sanitized.apiKeyEncrypted;
+  }
   return sanitized;
 }
 
@@ -73,10 +76,10 @@ export function buildRuntimeConfigSnapshot(
   const rawImage = hasImageOverride ? overrides.image : activeLocalImageConfig();
   const rawVideo = hasVideoOverride ? overrides.video : activeLocalVideoConfig();
   const rawEmbedding = hasEmbeddingOverride ? overrides.embedding : activeLocalEmbeddingConfig();
-  const llm = includeLlmApiKeys ? rawLlm : withoutApiKey(rawLlm);
-  const image = includeProviderApiKeys ? rawImage : withoutApiKey(rawImage);
-  const video = includeProviderApiKeys ? rawVideo : withoutApiKey(rawVideo);
-  const embedding = includeProviderApiKeys ? rawEmbedding : withoutApiKey(rawEmbedding);
+  const llm = runtimeConfigPayload(rawLlm, includeLlmApiKeys);
+  const image = runtimeConfigPayload(rawImage, includeProviderApiKeys);
+  const video = runtimeConfigPayload(rawVideo, includeProviderApiKeys);
+  const embedding = runtimeConfigPayload(rawEmbedding, includeProviderApiKeys);
   const llmDefaultSource = usesSystemDefaultLlmConfig() ? "system" : "local";
   const imageDefaultSource = usesSystemDefaultImageConfig() ? "system" : "local";
   const videoDefaultSource = usesSystemDefaultVideoConfig() ? "system" : "local";
@@ -92,15 +95,15 @@ export function buildRuntimeConfigSnapshot(
     includeProviderApiKeys && videoDefaultSource === "system" && !hasVideoOverride
       ? getSystemDefaultVideoApiKey()
       : null;
-  const llmConfigs = includeLlmApiKeys
-    ? listLocalLlmConfigs()
-    : listLocalLlmConfigs().map(withoutApiKey);
-  const imageConfigs = includeProviderApiKeys
-    ? listLocalImageConfigs()
-    : listLocalImageConfigs().map(withoutApiKey);
-  const videoConfigs = includeProviderApiKeys
-    ? listLocalVideoConfigs()
-    : listLocalVideoConfigs().map(withoutApiKey);
+  const llmConfigs = listLocalLlmConfigs().map((config) =>
+    runtimeConfigPayload(config, includeLlmApiKeys),
+  );
+  const imageConfigs = listLocalImageConfigs().map((config) =>
+    runtimeConfigPayload(config, includeProviderApiKeys),
+  );
+  const videoConfigs = listLocalVideoConfigs().map((config) =>
+    runtimeConfigPayload(config, includeProviderApiKeys),
+  );
   return {
     schema_version: 1,
     ...(llm ? { llm } : {}),

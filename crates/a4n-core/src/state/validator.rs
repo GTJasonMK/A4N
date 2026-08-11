@@ -4,33 +4,10 @@
 
 use a4n_domain::project::ProjectStatus;
 
-use super::transitions::is_valid_rollback;
-
 /// 解析项目状态的规范化存储值。
 pub fn parse_project_status(s: &str) -> Result<ProjectStatus, crate::error::AppError> {
     ProjectStatus::parse(s)
         .ok_or_else(|| crate::error::AppError::InvalidArgument(format!("未知项目状态：{s}")))
-}
-
-/// 兼容旧调用面：状态解析与回退校验的命名空间。
-pub struct StateValidator;
-
-impl StateValidator {
-    pub fn parse_status(s: &str) -> Result<ProjectStatus, crate::error::AppError> {
-        parse_project_status(s)
-    }
-
-    pub fn validate_rollback(from: &str, to: &str) -> Result<(), crate::error::AppError> {
-        let from_status = parse_project_status(from)?;
-        let to_status = parse_project_status(to)?;
-        if !is_valid_rollback(from_status, to_status) {
-            return Err(crate::error::AppError::InvalidState {
-                current: from.to_string(),
-                operation: format!("回退到状态 {to}"),
-            });
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]

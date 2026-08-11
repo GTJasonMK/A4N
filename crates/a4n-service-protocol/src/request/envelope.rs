@@ -1,6 +1,7 @@
 use super::context::ServiceRequestContext;
 use super::secrets::SecretForwardingPolicy;
 use super::trace::{SchemaVersion, TraceContext};
+use crate::{ServiceError, ServiceResponse, validate_known_service_request};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -22,6 +23,39 @@ pub struct ServiceRequest<T> {
 }
 
 impl<T> ServiceRequest<T> {
+    pub fn validate_known_service(&self, service_name: &str) -> Result<(), ServiceError> {
+        validate_known_service_request(self, service_name)
+    }
+
+    pub fn ok_response<U>(&self, payload: U) -> ServiceResponse<U> {
+        ServiceResponse::ok(self.trace_context.trace_id.clone(), payload)
+    }
+
+    pub fn error_response<U>(&self, error: ServiceError) -> ServiceResponse<U> {
+        ServiceResponse::error(self.trace_context.trace_id.clone(), error)
+    }
+
+    pub fn result_response<U, E>(
+        &self,
+        result: Result<U, E>,
+        map_error: impl FnOnce(E) -> ServiceError,
+    ) -> ServiceResponse<U> {
+        ServiceResponse::from_result(self.trace_context.trace_id.clone(), result, map_error)
+    }
+
+    pub fn execute_known_service<U, E>(
+        self,
+        service_name: &str,
+        operation: impl FnOnce(T) -> Result<U, E>,
+        map_error: impl FnOnce(E) -> ServiceError,
+    ) -> ServiceResponse<U> {
+        if let Err(error) = self.validate_known_service(service_name) {
+            return self.error_response(error);
+        }
+        let trace_id = self.trace_context.trace_id.clone();
+        ServiceResponse::from_result(trace_id, operation(self.payload), map_error)
+    }
+
     pub fn context(&self) -> ServiceRequestContext {
         ServiceRequestContext {
             request_id: self.request_id.clone(),

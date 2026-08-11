@@ -1,14 +1,10 @@
 //! 漫画导演计划驱动的七阶段生成流水线与漫画提示词账本。
 
-use std::collections::HashMap;
-
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::Value;
 
 use crate::OrchestratorContext;
 
 mod application;
-mod checkpoint;
 mod layout_rules;
 mod output_sync;
 mod pipeline_json;
@@ -17,71 +13,49 @@ mod pipeline_preview;
 mod pipeline_prompt;
 mod pipeline_run;
 mod pipeline_state;
-mod pipeline_status;
 mod prompt_optimization;
-mod prompt_optimization_workflow_rules;
 pub mod record_errors;
 mod reference_assets;
 mod shooting_script_projection;
 mod source;
 mod workflow;
 
-pub use application::{
-    BindReferenceImageInput, MangaPipelineApplicationInput, MangaPipelinePreviewApplicationInput,
-    MangaPipelineStatusSummary, OptimizeMangaPromptRecordInput, UpdateMangaPromptInput,
-};
-pub use layout_rules::{
-    bind_reference_asset_in_layout, optional_layout_string, required_layout_bool,
-    required_layout_i32, required_layout_string, resolve_manga_prompt_downstream_conflict,
-};
+pub use application::{MangaPipelineApplicationInput, MangaPipelinePreviewApplicationInput};
+pub use layout_rules::{bind_reference_asset_in_layout, resolve_manga_prompt_downstream_conflict};
 pub use pipeline_preview::MangaPipelineRequestPreviewStep;
-pub use pipeline_state::MangaPipelineStartStage;
+pub(in crate::manga) use pipeline_state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipelineStage};
 pub use prompt_optimization::{MangaPromptDownstreamCleanupPort, MangaPromptOptimizationInput};
 pub use reference_assets::{MangaCharacterPortraitRef, MangaReferenceContext};
-pub use source::{ensure_manga_source_can_write, manga_checkpoint_matches_source};
-pub use workflow::{
-    manga_pipeline_business_key, manga_pipeline_fingerprint, parse_manga_pipeline_start_stage,
-};
+pub use source::ensure_manga_source_can_write;
+pub use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
 
-pub const PIPELINE_STATUS_PROMPT_TYPE: &str = "pipeline_status";
-pub const MANGA_PAGE_PROMPT_TYPE: &str = "page_generation";
-pub const MANGA_PANEL_PLAN_TYPE: &str = "panel_plan";
-pub const PIPELINE_TOTAL_STEPS: i32 = 7;
-
-pub struct MangaGeneratePanelsInput<'a> {
+pub struct MangaGeneratePagePromptsInput<'a> {
     pub chapter_id: i64,
     pub project_id: i64,
     pub prompt_renderer: &'a dyn PromptRenderer,
-    pub variables: &'a HashMap<String, Value>,
     pub reference_context: MangaReferenceContext,
-    pub task_id: Option<&'a str>,
-    pub workflow_run_id: Option<i64>,
+    pub task_id: &'a str,
+    pub workflow_run_id: i64,
     pub resume_from_checkpoint: bool,
-    pub start_from_stage: Option<MangaPipelineStartStage>,
 }
 
 pub struct MangaPipelineRequestPreviewInput<'a> {
     pub chapter_id: i64,
     pub project_id: i64,
     pub prompt_renderer: &'a dyn PromptRenderer,
-    pub variables: &'a HashMap<String, Value>,
     pub reference_context: MangaReferenceContext,
     pub workflow_run_id: Option<i64>,
     pub resume_from_checkpoint: bool,
-    pub start_from_stage: Option<MangaPipelineStartStage>,
 }
 
 #[cfg(test)]
 mod tests;
 
-pub use a4n_db::manga::{MangaPipelineStatusRows, MangaPromptRecordError, MangaPromptUpdatedAt};
-
-pub(crate) use pipeline_status::contracts::{
-    MangaPipelineCheckpointInput, MangaPipelineStatusInput,
-};
+pub use a4n_db::manga::{MangaPromptRecordError, MangaPromptUpdatedAt};
 
 use crate::workflow::{
-    GetWorkflowRunInput, ListWorkflowRunsInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
+    GetWorkflowRunInput, ListWorkflowRunsInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_CANCELLED,
+    WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
     WORKFLOW_STATUS_RUNNING,
 };
 use a4n_core::error::AppError;
@@ -107,7 +81,10 @@ impl OrchestratorContext {
             .await?;
         let mut selected = None;
         for run in runs.into_iter().filter(|run| {
-            run.business_key == business_key
+            matches!(
+                run.status.as_str(),
+                WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED | WORKFLOW_STATUS_INTERRUPTED
+            ) && run.business_key == business_key
                 && run.input_fingerprint_json.as_ref() == Some(input_fingerprint)
         }) {
             let completed_checkpoint_count = self
@@ -120,6 +97,9 @@ impl OrchestratorContext {
                 .into_iter()
                 .filter(|checkpoint| checkpoint.status == WORKFLOW_STATUS_COMPLETED)
                 .count();
+            if completed_checkpoint_count == 0 {
+                continue;
+            }
             if selected
                 .as_ref()
                 .is_none_or(|(_, best_count)| completed_checkpoint_count > *best_count)
@@ -142,8 +122,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         content: &str,
         reference_context: &MangaReferenceContext,
-        start_from_stage: Option<MangaPipelineStartStage>,
-        task_id: Option<String>,
+        task_id: String,
         resume_from_checkpoint: bool,
     ) -> Result<workflow_run::Model, AppError> {
         if project_id <= 0 {
@@ -152,8 +131,6 @@ impl OrchestratorContext {
         if chapter_id <= 0 {
             return Err(AppError::InvalidArgument("章节 ID 必须大于 0".to_string()));
         }
-        let mode = start_from_stage.map(|stage| stage.key().to_string());
-        let step = start_from_stage.map(|stage| stage.key().to_string());
         let input_fingerprint = manga_pipeline_fingerprint(content, reference_context);
         let input = UpsertWorkflowRunInput {
             business_key: manga_pipeline_business_key(project_id, chapter_id),
@@ -164,12 +141,12 @@ impl OrchestratorContext {
             scope_table: Some("chapter".to_string()),
             scope_id: Some(chapter_id),
             chapter_id: Some(chapter_id),
-            mode,
+            mode: None,
             input_fingerprint_json: Some(input_fingerprint.clone()),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
-            current_step_key: step,
-            active_task_id: task_id,
-            can_resume: false,
+            current_step_key: None,
+            active_task_id: Some(task_id),
+            can_resume: true,
             resume_block_reason: None,
             error_message: None,
         };

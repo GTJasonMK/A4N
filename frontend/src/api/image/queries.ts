@@ -5,7 +5,6 @@ import { idNum, type ApiId as Id } from "../shared";
 
 export async function listImagesByProject(projectId: Id): Promise<GeneratedImage[]> {
   return apiInvoke<GeneratedImage[]>("list_images_by_project", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
   });
 }

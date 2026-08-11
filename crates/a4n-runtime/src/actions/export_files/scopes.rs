@@ -1,4 +1,4 @@
-use super::contracts::{BatchExportInput, ExportTaskScope};
+use super::contracts::ExportTaskScope;
 use crate::{AppState, actions::access::verify_project_editor_string};
 
 macro_rules! export_project_scope {
@@ -23,9 +23,9 @@ export_project_scope!(export_characters_json_task_scope, 2);
 pub async fn export_batch_task_scope(
     state: &AppState,
     user_id: i64,
-    input: &BatchExportInput,
+    project_id: i64,
 ) -> Result<ExportTaskScope, String> {
-    export_project_task_scope(state, user_id, input.project_id, 4).await
+    export_project_task_scope(state, user_id, project_id, 4).await
 }
 
 async fn export_project_task_scope(

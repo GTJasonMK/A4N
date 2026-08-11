@@ -14,7 +14,7 @@ pub async fn get_inspiration_history(
     validate_inspiration_history_limit(limit)?;
     access::verify_project_editor(state, user_id, project_id).await?;
     let messages = state
-        .inspiration()
+        .orchestrator()
         .inspiration_messages(project_id, limit)
         .await?;
     Ok(messages.iter().map(message_summary).collect())

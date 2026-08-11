@@ -24,8 +24,7 @@ impl EpubParser {
         let archive = read_epub_archive(data)?;
         parse_extracted_document(
             &archive.text_content,
-            archive.metadata,
-            archive.warnings,
+            archive.title.as_deref(),
             source_title,
         )
     }

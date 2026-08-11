@@ -17,7 +17,6 @@ pub struct FastEmbedLocalModel {
     pub description: String,
     pub dimension: usize,
     pub downloaded: bool,
-    pub cache_path: PathBuf,
     pub size_bytes: u64,
 }
 
@@ -172,7 +171,6 @@ pub(super) fn model_status_from_info(
         description: info.description,
         dimension: info.dim,
         downloaded,
-        cache_path,
         size_bytes,
     })
 }

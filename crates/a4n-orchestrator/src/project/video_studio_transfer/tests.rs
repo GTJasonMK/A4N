@@ -6,12 +6,10 @@ use std::{
     },
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{media::media_asset, project::novel_project},
-};
+use a4n_core::models::{media::media_asset, project::novel_project, user::user};
 use a4n_db::project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record};
 use async_trait::async_trait;
+use sea_orm::ActiveModelTrait;
 
 use crate::project::{
     ImportMediaPayload, MEDIA_FIELD_FILE, MEDIA_OWNER_MEDIA_ASSET, PACKAGE_MODE,
@@ -27,7 +25,6 @@ use super::{
 
 #[derive(Default)]
 struct TestVideoStudioTransferHost {
-    permission_calls: AtomicUsize,
     render_calls: AtomicUsize,
     read_calls: AtomicUsize,
     write_calls: AtomicUsize,
@@ -48,11 +45,6 @@ impl TestVideoStudioTransferHost {
 
 #[async_trait]
 impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
-    async fn verify_project_owner(&self, _user_id: i64, _project_id: i64) -> Result<(), AppError> {
-        self.permission_calls.fetch_add(1, Ordering::SeqCst);
-        Ok(())
-    }
-
     async fn render_export_package(
         &self,
         package: &VideoStudioProjectPackage,
@@ -95,10 +87,24 @@ impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
 }
 
 #[tokio::test]
-async fn export_application_owns_permission_lookup_rows_assembly_and_render_order() {
+async fn export_application_enforces_owner_before_rows_assembly_and_render() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 7).await;
+    let owner_user_id = insert_active_user(database.as_ref(), "owner").await;
+    let intruder_user_id = insert_active_user(database.as_ref(), "intruder").await;
+    let source = insert_freeform_project(database.as_ref(), owner_user_id).await;
     let host = TestVideoStudioTransferHost::default();
+
+    context
+        .export_video_studio_project_validated(
+            ExportVideoStudioProjectApplicationInput {
+                user_id: intruder_user_id,
+                project_id: source.id,
+            },
+            &host,
+        )
+        .await
+        .expect_err("非 Owner 不得导出视频画布项目包");
+    assert_eq!(host.render_calls.load(Ordering::SeqCst), 0);
 
     let exported = context
         .export_video_studio_project_validated(
@@ -113,7 +119,6 @@ async fn export_application_owns_permission_lookup_rows_assembly_and_render_orde
 
     assert_eq!(exported.project.id, source.id);
     assert_eq!(exported.package_bytes, vec![1, 2, 3]);
-    assert_eq!(host.permission_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.render_calls.load(Ordering::SeqCst), 1);
     let package = host.rendered_package.lock().expect("rendered package lock");
     let package = package.as_ref().expect("application 应组装导出包");
@@ -304,6 +309,28 @@ async fn setup() -> (OrchestratorContext, Arc<a4n_db::DatabaseConnection>) {
         .build()
         .await;
     (context, database)
+}
+
+async fn insert_active_user(database: &a4n_db::DatabaseConnection, label: &str) -> i64 {
+    let now = chrono::Utc::now().naive_utc();
+    user::ActiveModel {
+        username: sea_orm::Set(format!("video-studio-transfer-{label}")),
+        email: sea_orm::Set(format!("video-studio-transfer-{label}@example.test")),
+        password_hash: sea_orm::Set("test-password-hash".to_string()),
+        role: sea_orm::Set("user".to_string()),
+        oauth_provider: sea_orm::Set(None),
+        oauth_subject: sea_orm::Set(None),
+        avatar_url: sea_orm::Set(None),
+        is_active: sea_orm::Set(true),
+        created_at: sea_orm::Set(now),
+        updated_at: sea_orm::Set(now),
+        last_login_at: sea_orm::Set(None),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("测试用户应可写入")
+    .id
 }
 
 async fn insert_freeform_project(

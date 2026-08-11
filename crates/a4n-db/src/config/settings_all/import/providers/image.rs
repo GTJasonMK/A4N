@@ -1,14 +1,14 @@
 use super::super::super::types::{
-    SettingsAllConfigImportError, SettingsAllImageConfigImportRow, settings_all_config_database,
+    SettingsAllConfigImportError, SettingsAllImageConfigRow, settings_all_config_database,
 };
-use super::defaults::clear_image_defaults;
+use crate::config::{ProviderConfigKind, clear_provider_config_defaults};
 use a4n_core::models::ai::image_gen_config;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 pub(in crate::config::settings_all::import) async fn import_image_config_row<C>(
     db: &C,
-    row: SettingsAllImageConfigImportRow,
+    row: SettingsAllImageConfigRow,
     overwrite: bool,
     now: NaiveDateTime,
 ) -> Result<bool, SettingsAllConfigImportError>
@@ -20,13 +20,15 @@ where
         .one(db)
         .await
         .map_err(|source| settings_all_config_database("读取现有图片配置失败", source))?;
+    if row.is_default && (overwrite || existing.is_none()) {
+        clear_provider_config_defaults(db, ProviderConfigKind::Image, None)
+            .await
+            .map_err(|source| settings_all_config_database("清除既有默认图片配置失败", source))?;
+    }
 
     match (existing, overwrite) {
         (Some(_), false) => Ok(false),
         (Some(existing), true) => {
-            if row.is_default {
-                clear_image_defaults(db).await?;
-            }
             image_active_model_for_update(existing.into(), row, now)
                 .update(db)
                 .await
@@ -34,9 +36,6 @@ where
             Ok(true)
         }
         (None, _) => {
-            if row.is_default {
-                clear_image_defaults(db).await?;
-            }
             image_active_model_for_insert(row, now)
                 .insert(db)
                 .await
@@ -48,11 +47,11 @@ where
 
 fn image_active_model_for_update(
     mut active: image_gen_config::ActiveModel,
-    row: SettingsAllImageConfigImportRow,
+    row: SettingsAllImageConfigRow,
     now: NaiveDateTime,
 ) -> image_gen_config::ActiveModel {
     active.backend = Set(row.backend);
-    active.base_url = Set(row.base_url);
+    active.base_url = Set(Some(row.base_url));
     active.api_key_encrypted = Set(row.api_key_encrypted);
     active.model = Set(row.model);
     active.max_concurrent = Set(row.max_concurrent);
@@ -64,13 +63,13 @@ fn image_active_model_for_update(
 }
 
 fn image_active_model_for_insert(
-    row: SettingsAllImageConfigImportRow,
+    row: SettingsAllImageConfigRow,
     now: NaiveDateTime,
 ) -> image_gen_config::ActiveModel {
     image_gen_config::ActiveModel {
         name: Set(row.name),
         backend: Set(row.backend),
-        base_url: Set(row.base_url),
+        base_url: Set(Some(row.base_url)),
         api_key_encrypted: Set(row.api_key_encrypted),
         model: Set(row.model),
         max_concurrent: Set(row.max_concurrent),

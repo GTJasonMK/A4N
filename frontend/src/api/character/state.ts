@@ -1,8 +1,23 @@
 import { apiInvoke } from "../index";
 import { requireCurrentUserId as currentUserId } from "../authStorage";
+import type {
+  SyncCharacterProfileInput,
+  SyncCharacterProfileResult,
+} from "../generated/host";
 import type { ModelRequestPreview } from "../requestPreview";
-import type { SyncCharacterProfileResult } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
+
+function characterProfileSyncInput(
+  projectId: Id,
+  name: string,
+  chapterNumber: number,
+): SyncCharacterProfileInput {
+  return {
+    project_id: idNum(projectId),
+    name,
+    chapter_number: chapterNumber,
+  };
+}
 
 export interface CharacterConflictScope {
   startChapter?: number | null;
@@ -65,14 +80,13 @@ export async function syncCharacterFromChapters(
   projectId: Id,
   name: string,
   chapterNumber: number,
-  taskId?: string | null,
+  taskId: string,
 ): Promise<SyncCharacterProfileResult> {
+  const input = characterProfileSyncInput(projectId, name, chapterNumber);
   return apiInvoke<SyncCharacterProfileResult>("sync_character_from_chapters", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    name,
-    chapterNumber,
-    taskId: taskId ?? null,
+    input,
+    taskId,
   });
 }
 
@@ -81,10 +95,9 @@ export async function previewSyncCharacterFromChaptersRequest(
   name: string,
   chapterNumber: number,
 ): Promise<ModelRequestPreview> {
+  const input = characterProfileSyncInput(projectId, name, chapterNumber);
   return apiInvoke<ModelRequestPreview>("preview_sync_character_from_chapters_request", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    name,
-    chapterNumber,
+    input,
   });
 }

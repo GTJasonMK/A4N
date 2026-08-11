@@ -36,11 +36,59 @@ pub(super) fn optional_prompt_override(
     command: &str,
 ) -> Result<Option<video_generation_actions::PreviewChapterVideoPromptOverrideInput>, ApiError> {
     match args.get("promptOverride") {
-        None | Some(Value::Null) => Ok(None),
-        Some(value) => serde_json::from_value(value.clone())
-            .map(Some)
+        None => Ok(None),
+        Some(value) => {
+            let input = serde_json::from_value::<
+                video_generation_actions::PreviewChapterVideoPromptOverrideInput,
+            >(value.clone())
             .map_err(|error| {
                 ApiError::bad_request(format!("{command}.promptOverride 无效: {error}"))
-            }),
+            })?;
+            if input.is_empty() {
+                return Err(ApiError::bad_request(format!(
+                    "{command}.promptOverride 至少需要一个覆盖字段"
+                )));
+            }
+            Ok(Some(input))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::optional_prompt_override;
+
+    #[test]
+    fn prompt_override_rejects_null_empty_and_unknown_inputs() {
+        assert!(
+            optional_prompt_override(&json!({}), "preview_chapter_video_request")
+                .unwrap()
+                .is_none()
+        );
+
+        for value in [
+            json!(null),
+            json!({}),
+            json!({"visual_prompt": null}),
+            json!({"unknown": true}),
+        ] {
+            assert!(
+                optional_prompt_override(
+                    &json!({"promptOverride": value}),
+                    "preview_chapter_video_request"
+                )
+                .is_err()
+            );
+        }
+
+        let input = optional_prompt_override(
+            &json!({"promptOverride": {"motion_prompt": null}}),
+            "preview_chapter_video_request",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(input.motion_prompt, Some(None));
     }
 }

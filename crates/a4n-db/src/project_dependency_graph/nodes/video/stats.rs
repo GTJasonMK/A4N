@@ -1,10 +1,8 @@
 use a4n_core::models::chapter::chapter_video_prompt;
 
 use crate::project_dependency_graph::{
+    CHAPTER_VIDEO_PROMPT_TYPES, VIDEO_FRAME_PROMPT_TYPES, VIDEO_SEGMENT_PLAN_PROMPT_TYPES,
     helpers::prompt_type_in,
-    types::{
-        CHAPTER_VIDEO_PROMPT_TYPES, VIDEO_FRAME_PROMPT_TYPES, VIDEO_SEGMENT_PLAN_PROMPT_TYPES,
-    },
 };
 
 pub(super) struct VideoPromptStats {

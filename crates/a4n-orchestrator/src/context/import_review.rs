@@ -3,6 +3,7 @@ use a4n_core::{
     models::{chapter::chapter, project::import_review_queue},
 };
 use a4n_db::DbHandle;
+use serde_json::Value;
 
 use super::OrchestratorContext;
 use a4n_db::import_review::ImportReviewMutationError;
@@ -11,9 +12,7 @@ use crate::{
     chapter_content::ChapterDerivedCleanupHostPort,
     collaboration::ProjectAccessRole,
     import_review::{
-        AcceptedImportReview, ImportDedupResult, ImportReviewCreateInput, ModifyImportReviewInput,
-        calculate_import_dedup, ensure_import_review_ready_for_accept,
-        normalize_import_review_status, normalize_modify_import_review_input,
+        AcceptedImportReview, ImportDedupResult, ImportReviewCreateInput, calculate_import_dedup,
     },
 };
 
@@ -54,32 +53,6 @@ impl ImportReviewApplication {
             .map_err(AppError::Database)
     }
 
-    async fn delete_pending_import_reviews_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<u64, AppError> {
-        a4n_db::import_review::delete_pending_import_reviews_by_project(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(AppError::Database)
-    }
-
-    async fn update_import_review_status(
-        &self,
-        review_id: i64,
-        status: &str,
-    ) -> Result<import_review_queue::Model, AppError> {
-        a4n_db::import_review::update_import_review_status(
-            self.database.connection(),
-            review_id,
-            status,
-        )
-        .await
-        .map_err(import_review_mutation_error)
-    }
-
     async fn delete_import_review(&self, review_id: i64) -> Result<(), AppError> {
         a4n_db::import_review::delete_import_review(self.database.connection(), review_id)
             .await
@@ -90,21 +63,22 @@ impl ImportReviewApplication {
     async fn accept_import_review_validated(
         &self,
         review: import_review_queue::Model,
+        analysis_result: Option<Value>,
     ) -> Result<AcceptedImportReview, AppError> {
-        ensure_import_review_ready_for_accept(&review)?;
-        a4n_db::import_review::accept_import_review(self.database.connection(), review)
-            .await
-            .map_err(import_review_mutation_error)
+        a4n_db::import_review::accept_import_review(
+            self.database.connection(),
+            review.id,
+            analysis_result,
+        )
+        .await
+        .map_err(import_review_mutation_error)
     }
 
-    /// 规范化修改输入后修改分析结果并接受。
-    async fn modify_import_review_validated(
+    async fn reject_import_review(
         &self,
         review: import_review_queue::Model,
-        input: ModifyImportReviewInput,
-    ) -> Result<AcceptedImportReview, AppError> {
-        let input = normalize_modify_import_review_input(input);
-        a4n_db::import_review::modify_import_review(self.database.connection(), review, input)
+    ) -> Result<import_review_queue::Model, AppError> {
+        a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
             .await
             .map_err(import_review_mutation_error)
     }
@@ -131,20 +105,16 @@ fn import_review_mutation_error(error: ImportReviewMutationError) -> AppError {
 }
 
 impl OrchestratorContext {
-    pub async fn import_reviews_by_project(
+    pub async fn import_reviews_for_user_validated(
         &self,
+        user_id: i64,
         project_id: i64,
     ) -> Result<Vec<import_review_queue::Model>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
         self.import_review
             .import_reviews_by_project(project_id)
             .await
-    }
-
-    pub async fn import_review_by_id(
-        &self,
-        review_id: i64,
-    ) -> Result<Option<import_review_queue::Model>, AppError> {
-        self.import_review.import_review_by_id(review_id).await
     }
 
     pub(crate) async fn create_import_reviews(
@@ -154,38 +124,21 @@ impl OrchestratorContext {
         self.import_review.create_import_reviews(inputs).await
     }
 
-    pub(crate) async fn delete_pending_import_reviews_by_project(
+    pub async fn reject_import_review_for_user_validated(
         &self,
-        project_id: i64,
-    ) -> Result<u64, AppError> {
-        self.import_review
-            .delete_pending_import_reviews_by_project(project_id)
-            .await
-    }
-
-    /// 规范化状态后更新导入审核状态。
-    pub async fn update_import_review_status_validated(
-        &self,
-        review_id: i64,
-        status: &str,
-    ) -> Result<import_review_queue::Model, AppError> {
-        let status =
-            normalize_import_review_status(status).map_err(import_review_mutation_error)?;
-        self.import_review
-            .update_import_review_status(review_id, status)
-            .await
-    }
-
-    /// 拒绝导入审核（经状态规范化写路径）。
-    pub async fn reject_import_review(
-        &self,
+        user_id: i64,
         review_id: i64,
     ) -> Result<import_review_queue::Model, AppError> {
-        self.update_import_review_status_validated(review_id, "rejected")
-            .await
+        let review = self.import_review_for_editor(user_id, review_id).await?;
+        self.import_review.reject_import_review(review).await
     }
 
-    pub async fn delete_import_review(&self, review_id: i64) -> Result<(), AppError> {
+    pub async fn delete_import_review_for_user_validated(
+        &self,
+        user_id: i64,
+        review_id: i64,
+    ) -> Result<(), AppError> {
+        self.import_review_for_editor(user_id, review_id).await?;
         self.import_review.delete_import_review(review_id).await
     }
 
@@ -194,30 +147,13 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         review_id: i64,
+        analysis_result: Option<Value>,
         host_port: &dyn ChapterDerivedCleanupHostPort,
     ) -> Result<AcceptedImportReview, AppError> {
         let review = self.import_review_for_editor(user_id, review_id).await?;
         let accepted = self
             .import_review
-            .accept_import_review_validated(review)
-            .await?;
-        self.finish_import_review_acceptance(&accepted, host_port)
-            .await?;
-        Ok(accepted)
-    }
-
-    /// 修改并接受导入审核，并完成章节派生数据后处理。
-    pub async fn modify_import_review_for_user_validated(
-        &self,
-        user_id: i64,
-        review_id: i64,
-        input: ModifyImportReviewInput,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-    ) -> Result<AcceptedImportReview, AppError> {
-        let review = self.import_review_for_editor(user_id, review_id).await?;
-        let accepted = self
-            .import_review
-            .modify_import_review_validated(review, input)
+            .accept_import_review_validated(review, analysis_result)
             .await?;
         self.finish_import_review_acceptance(&accepted, host_port)
             .await?;
@@ -233,7 +169,7 @@ impl OrchestratorContext {
         let mut accepted = Vec::with_capacity(review_ids.len());
         for review_id in review_ids {
             match self
-                .accept_import_review_for_user_validated(user_id, *review_id, host_port)
+                .accept_import_review_for_user_validated(user_id, *review_id, None, host_port)
                 .await
             {
                 Ok(result) => accepted.push(result),
@@ -294,14 +230,17 @@ impl OrchestratorContext {
         accepted: &AcceptedImportReview,
         host_port: &dyn ChapterDerivedCleanupHostPort,
     ) -> Result<(), AppError> {
-        self.postprocess_chapter_after_content_change_validated(host_port, accepted.chapter_id)
+        if let Err(error) = self
+            .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id, true)
             .await
-            .map_err(|error| AppError::InvalidState {
-                current: format!(
-                    "review_id={} status={} chapter_id={}",
-                    accepted.review.id, accepted.review.review_status, accepted.chapter_id
-                ),
-                operation: format!("导入审核已落库，但章节后处理失败：{error}"),
-            })
+        {
+            tracing::warn!(
+                review_id = accepted.review.id,
+                chapter_id = accepted.chapter_id,
+                error = %error,
+                "导入审核已接受，章节派生资料同步待恢复"
+            );
+        }
+        Ok(())
     }
 }

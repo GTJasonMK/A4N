@@ -1,8 +1,8 @@
 use a4n_core::models::character::foreshadowing_index;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 use super::contracts::{ForeshadowingCleanupResult, ForeshadowingDbError};
@@ -36,18 +36,16 @@ where
     let now = Utc::now().naive_utc();
     let mut result = ForeshadowingCleanupResult::default();
     for item in affected {
-        if item.setup_chapter == chapter_number {
-            result.stale_ids.push(item.id);
-            foreshadowing_index::Entity::delete_by_id(item.id)
-                .exec(db)
-                .await?;
+        // 正文删除只撤销由该章形成的“已回收”事实；正式伏笔本身由用户显式删除。
+        if item.payoff_chapter != Some(chapter_number) {
             continue;
         }
         result.changed_ids.push(item.id);
+        let updated_at = std::cmp::max(now, item.updated_at + chrono::Duration::microseconds(1));
         let mut active: foreshadowing_index::ActiveModel = item.into();
         active.payoff_chapter = Set(None);
         active.status = Set("pending".to_string());
-        active.updated_at = Set(now);
+        active.updated_at = Set(updated_at);
         active.update(db).await?;
     }
     Ok(result)

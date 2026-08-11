@@ -7,7 +7,7 @@ use super::prompt::*;
 use super::rag::*;
 use super::transport::*;
 use a4n_export_core::ExportRenderZipOutput;
-use a4n_import_core::{ImportNormalizeJsonOutput, ImportReadMediaPackageZipInput};
+use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use a4n_service_protocol::{
     CapabilityTaskEventKind, EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, HealthStatus,
     IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME,
@@ -477,7 +477,7 @@ fn typed_response_conversion_preserves_error_without_payload_deserialization() {
         }),
     };
 
-    let typed: ServiceResponse<ImportNormalizeJsonOutput> =
+    let typed: ServiceResponse<ImportReadMediaPackageZipOutput> =
         from_json_response(response).expect("error response should not require payload");
 
     assert!(typed.payload.is_none());
@@ -490,35 +490,21 @@ fn typed_response_conversion_preserves_error_without_payload_deserialization() {
 #[test]
 fn embedding_model_operation_paths_are_explicit() {
     assert_eq!(
-        embedding_model_operation_path("list").expect("list path"),
+        embedding_model_operation_path(EmbeddingModelOperation::List),
         "/embedding/models"
     );
     assert_eq!(
-        embedding_model_operation_path("download_info").expect("download info path"),
+        embedding_model_operation_path(EmbeddingModelOperation::DownloadInfo),
         "/embedding/model/download_info"
     );
     assert_eq!(
-        embedding_model_operation_path("delete").expect("delete path"),
+        embedding_model_operation_path(EmbeddingModelOperation::Delete),
         "/embedding/model/delete"
     );
     assert_eq!(
         EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH,
         "/embedding/model/download/events"
     );
-}
-
-#[test]
-fn embedding_model_operation_path_rejects_unknown_operation() {
-    for operation in ["", "models", "download", "download_events"] {
-        let err = embedding_model_operation_path(operation).unwrap_err();
-
-        assert_eq!(err.code, ServiceErrorCode::ConfigurationError);
-        assert!(
-            err.message
-                .contains("unsupported embedding model operation")
-        );
-        assert_eq!(err.retryable, Some(false));
-    }
 }
 
 #[tokio::test]

@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use a4n_core::models::{generation::generation_spec, project::source_snapshot_profile};
 use serde_json::{Map, Value};
 
-use crate::galgame::GALGAME_CG_IMPORTANCE;
+use crate::galgame::GalgameCgImportance;
 use crate::project::snapshot_profile_key;
 
 /// 生成意图缺少 target_entity_id。
@@ -90,31 +90,6 @@ pub fn required_params_string(
     Ok(value.to_string())
 }
 
-/// 取可选字符串参数（空串视为 None）。
-pub fn optional_params_string(
-    object: &Map<String, Value>,
-    key: &str,
-    spec_id: i64,
-) -> Result<Option<String>, String> {
-    let Some(value) = object.get(key) else {
-        return Ok(None);
-    };
-    if value.is_null() {
-        return Ok(None);
-    }
-    let value = value.as_str().ok_or_else(|| {
-        format!(
-            "项目族导入包 Galgame 生成意图参数 {key} 必须是字符串: generation_spec_id={spec_id}"
-        )
-    })?;
-    let value = value.trim();
-    if value.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(value.to_string()))
-    }
-}
-
 /// 取非空正整数数组参数（去重）。
 pub fn required_params_i64_array(
     object: &Map<String, Value>,
@@ -183,15 +158,13 @@ pub fn required_params_string_array(
     Ok(values)
 }
 
-/// 可选 cg_importance 取值校验。
-pub fn validate_optional_galgame_cg_importance(
+/// 必填 cg_importance 取值校验。
+pub fn validate_required_galgame_cg_importance(
     object: &Map<String, Value>,
     spec_id: i64,
 ) -> Result<(), String> {
-    let Some(importance) = optional_params_string(object, "cg_importance", spec_id)? else {
-        return Ok(());
-    };
-    if !GALGAME_CG_IMPORTANCE.contains(&importance.as_str()) {
+    let importance = required_params_string(object, "cg_importance", spec_id)?;
+    if GalgameCgImportance::parse(&importance).is_none() {
         return Err(format!(
             "项目族导入包 Galgame 生成意图参数 cg_importance 无效: generation_spec_id={}, cg_importance={}",
             spec_id, importance
@@ -269,11 +242,12 @@ mod tests {
     }
 
     #[test]
-    fn cg_importance_accepts_known_values() {
+    fn cg_importance_is_required_and_accepts_known_values() {
         let object = map(json!({"cg_importance": "high"}));
-        assert!(validate_optional_galgame_cg_importance(&object, 1).is_ok());
+        assert!(validate_required_galgame_cg_importance(&object, 1).is_ok());
+        assert!(validate_required_galgame_cg_importance(&map(json!({})), 1).is_err());
         let bad = map(json!({"cg_importance": "urgent"}));
-        assert!(validate_optional_galgame_cg_importance(&bad, 1).is_err());
+        assert!(validate_required_galgame_cg_importance(&bad, 1).is_err());
     }
 
     #[test]

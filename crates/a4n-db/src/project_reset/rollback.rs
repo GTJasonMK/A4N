@@ -4,16 +4,12 @@ use super::*;
 pub async fn rollback_project_status_record(
     db: &DatabaseConnection,
     project_id: i64,
-    from_status: &str,
-    to_status: &str,
+    expected_from: ProjectStatus,
+    to: ProjectStatus,
     changed_at: NaiveDateTime,
 ) -> Result<ProjectStatusRollbackOutcome, ProjectResetDbError> {
     use a4n_core::models::chapter::{chapter, chapter_outline, part_outline};
 
-    let expected_from = StateValidator::parse_status(from_status)
-        .map_err(|error| ProjectResetDbError::InvalidArgument(error.to_string()))?;
-    let to = StateValidator::parse_status(to_status)
-        .map_err(|error| ProjectResetDbError::InvalidArgument(error.to_string()))?;
     let tx = db.begin().await?;
     let project = project_db::project_by_id_for_update(&tx, project_id)
         .await?
@@ -23,29 +19,23 @@ pub async fn rollback_project_status_record(
             project_kind: project.project_kind,
         });
     }
-    let actual_from = StateValidator::parse_status(&project.status).map_err(|_| {
-        ProjectResetDbError::InvalidState {
+    let actual_from =
+        parse_project_status(&project.status).map_err(|_| ProjectResetDbError::InvalidState {
             current: project.status.clone(),
             operation: "回退项目状态".to_string(),
-        }
-    })?;
+        })?;
     if actual_from != expected_from {
         return Err(ProjectResetDbError::StatusChanged {
             expected: expected_from.as_str().to_string(),
             actual: actual_from.as_str().to_string(),
         });
     }
-    StateValidator::validate_rollback(actual_from.as_str(), to.as_str()).map_err(|error| {
-        match error {
-            a4n_core::error::AppError::InvalidState { current, operation } => {
-                ProjectResetDbError::InvalidState { current, operation }
-            }
-            a4n_core::error::AppError::InvalidArgument(message) => {
-                ProjectResetDbError::InvalidArgument(message)
-            }
-            other => ProjectResetDbError::Internal(other.to_string()),
-        }
-    })?;
+    if !is_valid_rollback(actual_from, to) {
+        return Err(ProjectResetDbError::InvalidState {
+            current: actual_from.as_str().to_string(),
+            operation: format!("回退到状态 {}", to.as_str()),
+        });
+    }
     let actions = rollback_actions(actual_from, to);
     let needs_rag_clear = actions
         .iter()
@@ -90,8 +80,8 @@ pub async fn rollback_project_status_record(
         &tx,
         project,
         project_db::UpdateProjectStatusRecordInput {
-            to_status: to.as_str().to_string(),
-            history_from_status: actual_from.as_str().to_string(),
+            to_status: to,
+            history_from_status: actual_from,
             history_reason: "项目状态回退".to_string(),
             changed_by: Some("system".to_string()),
             changed_at,
@@ -100,17 +90,16 @@ pub async fn rollback_project_status_record(
     )
     .await?;
     project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, changed_at).await?;
-    let media_paths = crate::media::schedule_unreferenced_media_cleanup(
+    crate::media::schedule_unreferenced_media_cleanup(
         &tx,
         project_id,
         &candidate_media_paths,
-        format!("project-status-rollback:{project_id}:{to_status}"),
+        format!("project-status-rollback:{project_id}:{}", to.as_str()),
     )
     .await?;
     tx.commit().await?;
     Ok(ProjectStatusRollbackOutcome {
         project: updated,
-        media_paths,
         needs_rag_clear,
     })
 }

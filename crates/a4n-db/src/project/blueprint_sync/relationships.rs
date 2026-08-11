@@ -21,6 +21,31 @@ pub async fn sync_blueprint_relationships<C>(
 where
     C: ConnectionTrait,
 {
+    write_blueprint_relationships(db, project_id, relationships, now, true).await
+}
+
+pub async fn merge_blueprint_relationships<C>(
+    db: &C,
+    project_id: i64,
+    relationships: Vec<BlueprintRelationshipDraft>,
+    now: NaiveDateTime,
+) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+where
+    C: ConnectionTrait,
+{
+    write_blueprint_relationships(db, project_id, relationships, now, false).await
+}
+
+async fn write_blueprint_relationships<C>(
+    db: &C,
+    project_id: i64,
+    relationships: Vec<BlueprintRelationshipDraft>,
+    now: NaiveDateTime,
+    delete_missing: bool,
+) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+where
+    C: ConnectionTrait,
+{
     let mut seen_keys = HashSet::new();
     let mut incoming = Vec::with_capacity(relationships.len());
     for relationship in relationships {
@@ -69,6 +94,11 @@ where
             && !candidates.is_empty()
         {
             let existing = candidates.remove(0);
+            let draft = if delete_missing {
+                draft
+            } else {
+                supplement_relationship_draft(&existing, draft)
+            };
             if blueprint_relationship_matches(&existing, &draft) {
                 stats.unchanged += 1;
                 continue;
@@ -105,13 +135,49 @@ where
         }
     }
 
-    for stale in existing_by_key.into_values().flatten() {
-        blueprint_relationship::Entity::delete_by_id(stale.id)
-            .exec(db)
-            .await
-            .map_err(BlueprintSyncError::Database)?;
-        stats.deleted += 1;
+    if delete_missing {
+        for stale in existing_by_key.into_values().flatten() {
+            blueprint_relationship::Entity::delete_by_id(stale.id)
+                .exec(db)
+                .await
+                .map_err(BlueprintSyncError::Database)?;
+            stats.deleted += 1;
+        }
     }
 
     Ok(stats)
+}
+
+fn supplement_relationship_draft(
+    existing: &blueprint_relationship::Model,
+    incoming: BlueprintRelationshipDraft,
+) -> BlueprintRelationshipDraft {
+    BlueprintRelationshipDraft {
+        relationship_type: existing.relationship_type.clone(),
+        character_a: existing.character_a.clone(),
+        character_b: existing.character_b.clone(),
+        description: existing
+            .description
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .map(ToOwned::to_owned)
+            .or(incoming.description),
+        strength: existing.strength.or(incoming.strength),
+        evolution: existing
+            .evolution
+            .as_ref()
+            .filter(|value| !json_value_is_empty(value))
+            .cloned()
+            .or(incoming.evolution),
+    }
+}
+
+fn json_value_is_empty(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Null => true,
+        serde_json::Value::String(value) => value.trim().is_empty(),
+        serde_json::Value::Array(value) => value.is_empty(),
+        serde_json::Value::Object(value) => value.is_empty(),
+        serde_json::Value::Bool(_) | serde_json::Value::Number(_) => false,
+    }
 }

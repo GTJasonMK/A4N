@@ -1,12 +1,6 @@
 use super::errors::{MangaPipelineDbError, MangaPromptRecordError};
+use a4n_domain::manga::MANGA_PAGE_GENERATION_V2;
 use serde_json::Value;
-
-/// 漫画流水线状态记录；固定占用 page=0 / panel=0。
-pub const PIPELINE_STATUS_PROMPT_TYPE: &str = "pipeline_status";
-/// 漫画整页生成记录；固定占用 page>0 / panel=0。
-pub const MANGA_PAGE_PROMPT_TYPE: &str = "page_generation";
-/// 漫画格拍摄剧本记录；固定占用 page>0 / panel>0。
-pub const MANGA_PANEL_PLAN_TYPE: &str = "panel_plan";
 
 pub(in crate::manga) fn require_positive_manga_id(
     value: i64,
@@ -33,58 +27,27 @@ pub(in crate::manga) fn require_manga_text<'a>(
     Ok(value)
 }
 
-pub(in crate::manga) fn validate_manga_page_position(
+pub(in crate::manga) fn validate_manga_page_number(
     page_number: i32,
-    panel_number: i32,
 ) -> Result<(), MangaPromptRecordError> {
     if page_number <= 0 {
         return Err(MangaPromptRecordError::InvalidArgument(
             "page_number 必须是正整数".to_string(),
         ));
     }
-    if panel_number < 0 {
-        return Err(MangaPromptRecordError::InvalidArgument(
-            "panel_number 不能为负数".to_string(),
-        ));
-    }
     Ok(())
 }
 
-pub(in crate::manga) fn validate_manga_prompt_identity(
-    prompt_type: &str,
+pub(in crate::manga) fn validate_manga_page_prompt_layout(
     page_number: i32,
-    panel_number: i32,
     layout: Option<&Value>,
 ) -> Result<(), MangaPipelineDbError> {
-    match prompt_type {
-        MANGA_PAGE_PROMPT_TYPE => {
-            if page_number <= 0 || panel_number != 0 {
-                return Err(MangaPipelineDbError::InvalidArgument(
-                    "page_generation 必须使用 page_number>0 且 panel_number=0".to_string(),
-                ));
-            }
-            validate_v2_layout(layout, "manga_page_generation_v2")
-        }
-        MANGA_PANEL_PLAN_TYPE => {
-            if page_number <= 0 || panel_number <= 0 {
-                return Err(MangaPipelineDbError::InvalidArgument(
-                    "panel_plan 必须使用 page_number>0 且 panel_number>0".to_string(),
-                ));
-            }
-            validate_v2_layout(layout, "manga_panel_plan_v2")
-        }
-        PIPELINE_STATUS_PROMPT_TYPE => {
-            if page_number != 0 || panel_number != 0 {
-                return Err(MangaPipelineDbError::InvalidArgument(
-                    "pipeline_status 必须使用 page_number=0 且 panel_number=0".to_string(),
-                ));
-            }
-            Ok(())
-        }
-        other => Err(MangaPipelineDbError::InvalidArgument(format!(
-            "不支持的漫画 prompt_type: {other}"
-        ))),
+    if page_number <= 0 {
+        return Err(MangaPipelineDbError::InvalidArgument(
+            "page_generation 必须使用 page_number>0".to_string(),
+        ));
     }
+    validate_v2_layout(layout, MANGA_PAGE_GENERATION_V2)
 }
 
 fn validate_v2_layout(

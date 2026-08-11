@@ -1,4 +1,29 @@
 use super::*;
+use std::collections::BTreeSet;
+
+pub(crate) fn galgame_portrait_spec_references_lines(
+    params_json: &serde_json::Value,
+    line_ids: &BTreeSet<i64>,
+) -> Result<bool, String> {
+    let source_line_ids = params_json
+        .get("source_line_ids")
+        .and_then(serde_json::Value::as_array)
+        .filter(|items| !items.is_empty())
+        .ok_or_else(|| "Galgame 立绘差分 source_line_ids 必须是非空数组".to_string())?;
+    let mut seen = BTreeSet::new();
+    let mut matches = false;
+    for value in source_line_ids {
+        let line_id = value
+            .as_i64()
+            .filter(|line_id| *line_id > 0)
+            .ok_or_else(|| "Galgame 立绘差分 source_line_ids 必须是正整数数组".to_string())?;
+        if !seen.insert(line_id) {
+            return Err("Galgame 立绘差分 source_line_ids 不能包含重复 ID".to_string());
+        }
+        matches |= line_ids.contains(&line_id);
+    }
+    Ok(matches)
+}
 
 pub async fn galgame_webgal_portraits(
     db: &DatabaseConnection,
@@ -96,9 +121,7 @@ pub(in crate::galgame) fn validate_galgame_portrait_spec_target_input(
     validate_galgame_generation_id(spec.project_id, "project_id")?;
     validate_galgame_generation_id(input.profile_id, "profile_id")?;
     require_galgame_generation_text(&input.expression, "expression")?;
-    if let Some(pose) = input.pose.as_deref() {
-        require_galgame_generation_text(pose, "pose")?;
-    }
+    require_galgame_generation_text(&input.pose, "pose")?;
     if let Some(line_id) = input.source_line_ids.iter().find(|line_id| **line_id <= 0) {
         return Err(GalgameGenerationRecordError::InvalidArgument(format!(
             "source_line_ids 必须全部是正整数: {line_id}"
@@ -112,32 +135,26 @@ pub async fn completed_galgame_portrait_record(
     spec: &generation_spec::Model,
     profile_id: i64,
     expression: &str,
-    pose: Option<&str>,
+    pose: &str,
 ) -> Result<character_portrait::Model, GalgameGenerationRecordError> {
     validate_galgame_generation_id(spec.id, "generation_spec_id")?;
     validate_galgame_generation_id(spec.root_project_id, "root_project_id")?;
     validate_galgame_generation_id(profile_id, "profile_id")?;
     let expression = require_galgame_generation_text(expression, "expression")?;
-    let pose = pose
-        .map(|pose| require_galgame_generation_text(pose, "pose"))
-        .transpose()?;
-    let mut query = character_portrait::Entity::find()
+    let pose = require_galgame_generation_text(pose, "pose")?;
+    character_portrait::Entity::find()
         .filter(character_portrait::Column::ProjectId.eq(spec.root_project_id))
         .filter(character_portrait::Column::ProfileId.eq(profile_id))
         .filter(character_portrait::Column::IsPrimary.eq(false))
-        .filter(character_portrait::Column::Expression.eq(expression));
-    query = match pose {
-        Some(pose) => query.filter(character_portrait::Column::Pose.eq(pose)),
-        None => query.filter(character_portrait::Column::Pose.is_null()),
-    };
-    query
+        .filter(character_portrait::Column::Expression.eq(expression))
+        .filter(character_portrait::Column::Pose.eq(pose))
         .order_by_desc(character_portrait::Column::Id)
         .one(db)
         .await
         .map_err(GalgameGenerationRecordError::Database)?
         .ok_or_else(|| {
             GalgameGenerationRecordError::NotFound(format!(
-                "Galgame 立绘差分生成意图已完成但缺少可用立绘: spec_id={}, profile_id={}, expression={}, pose={:?}",
+                "Galgame 立绘差分生成意图已完成但缺少可用立绘: spec_id={}, profile_id={}, expression={}, pose={}",
                 spec.id, profile_id, expression, pose
             ))
         })

@@ -19,7 +19,7 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_image_node(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeImageGenerationHostPort::new(state);
     state
-        .canvas()
+        .orchestrator()
         .run_canvas_image_node_validated(
             CanvasImageNodeExecutionInput {
                 project_id,

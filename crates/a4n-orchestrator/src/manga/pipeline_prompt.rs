@@ -1,22 +1,16 @@
 mod contracts;
+mod fingerprint;
 mod llm;
-mod manifest;
 mod messages;
 mod page_context;
 mod validation;
 
-pub(super) use contracts::{
-    MANGA_PREVIOUS_OUTPUT_CHARACTER_BINDING, MANGA_PREVIOUS_OUTPUT_ITEM_EXTRACTION,
-    MANGA_PREVIOUS_OUTPUT_SHOOTING_SCRIPT_EVENTS, MANGA_PREVIOUS_OUTPUT_SPEECH_SELECTION,
-    MANGA_PREVIOUS_OUTPUT_VISUAL_ANCHOR_EXTRACTION, MangaContextManifestInput,
-    MangaContextPreviousOutput, MangaLlmCallInput, MangaPromptGenerationTrace,
-};
-#[cfg(test)]
-pub(super) use llm::manga_request_context_manifest_summary;
+pub(super) use contracts::{MangaLlmCallInput, MangaPromptGenerationTrace};
+pub(super) use fingerprint::manga_pipeline_prompt_fingerprint;
 pub(super) use llm::{
-    MangaRenderTraceInput, load_manga_restored_llm_checkpoint, prepare_manga_llm_call,
+    MangaRenderTraceInput, load_manga_restored_llm_checkpoint, parse_and_validate_manga_llm_output,
+    prepare_manga_llm_call,
 };
-pub(super) use manifest::{build_manga_context_manifest, manga_pipeline_prompt_fingerprint};
 #[cfg(test)]
 pub(super) use messages::{
     build_manga_step_user_message, manga_item_extraction_input,

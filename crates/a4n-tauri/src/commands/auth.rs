@@ -1,14 +1,11 @@
 //! 用户认证命令。
 //!
-//! 保持 `commands::auth::*` 的 Tauri 命令入口稳定，认证业务规则由 runtime 统一承载。
+//! 登录与会话等原生认证命令；其余已认证业务统一走 Host dispatcher。
 
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::auth_records as auth_actions;
 use a4n_runtime::host_api::oauth::{OAuth2AuthorizeInput, OAuth2CallbackInput};
-use auth_actions::{
-    AuthResult, ChangePasswordInput, LoginInput, RefreshTokenInput, RegisterInput, SessionSummary,
-    TokenPairSummary, UpdateProfileInput, UserSummary,
-};
+use auth_actions::{AuthResult, LoginInput, RefreshTokenInput, RegisterInput, TokenPairSummary};
 use tauri::State;
 
 macro_rules! auth_command {
@@ -23,7 +20,6 @@ macro_rules! auth_command {
     };
 }
 
-auth_command!(get_user(state, user_id: i64) -> UserSummary, auth_actions::get_user(state.inner(), user_id));
 auth_command!(
     register_user(state, input: RegisterInput) -> AuthResult,
     auth_actions::register_user(state.inner(), input, Some("a4n-tauri"))
@@ -33,28 +29,8 @@ auth_command!(
     auth_actions::login_user(state.inner(), input, Some("a4n-tauri"))
 );
 auth_command!(
-    update_user_profile(state, user_id: i64, input: UpdateProfileInput) -> UserSummary,
-    auth_actions::update_user_profile_for_user(state.inner(), user_id, user_id, input)
-);
-auth_command!(
-    change_user_password(state, user_id: i64, input: ChangePasswordInput) -> (),
-    auth_actions::change_user_password_for_user(state.inner(), user_id, user_id, input)
-);
-auth_command!(
-    logout_user(state, user_id: i64, session_id: String) -> (),
-    auth_actions::revoke_session(state.inner(), user_id, &session_id)
-);
-auth_command!(
     refresh_token(state, input: RefreshTokenInput) -> TokenPairSummary,
     auth_actions::refresh_token(state.inner(), input)
-);
-auth_command!(
-    get_current_user(state, user_id: i64) -> UserSummary,
-    auth_actions::get_current_user(state.inner(), user_id)
-);
-auth_command!(
-    list_sessions(state, user_id: i64) -> Vec<SessionSummary>,
-    auth_actions::list_sessions(state.inner(), user_id)
 );
 #[tauri::command]
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, String> {

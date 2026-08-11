@@ -2,10 +2,7 @@ use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_api_contract::portrait::StartPortraitGenerationInput;
 use a4n_orchestrator::GenerationTaskAccessError;
 
-use crate::{
-    AppState, actions::portrait_generation::host_port::RuntimePortraitGenerationHostPort,
-    prompt_renderer::RuntimePromptRenderer,
-};
+use crate::{AppState, actions::portrait_generation::host_port::RuntimePortraitGenerationHostPort};
 
 pub async fn start_portrait_generation_typed(
     state: &AppState,
@@ -13,7 +10,7 @@ pub async fn start_portrait_generation_typed(
     input: StartPortraitGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .portrait()
+        .orchestrator()
         .start_portrait_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -23,11 +20,11 @@ pub async fn start_portrait_generation_typed(
     let worker_state = state.clone();
     let handle = start.handle.clone();
     state.spawn_image_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         let host_port = RuntimePortraitGenerationHostPort::new(&worker_state);
         if let Err(error) = worker_state
-            .portrait()
-            .run_portrait_generation_task(input, handle.clone(), &prompt_renderer, &host_port)
+            .orchestrator()
+            .run_portrait_generation_task(input, handle.clone(), prompt_renderer, &host_port)
             .await
         {
             tracing::error!(

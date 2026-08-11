@@ -54,6 +54,7 @@ pub use context::{
     ChapterOutlineGenerationContext, PartOutlineGenerationContext,
     load_chapter_outline_generation_context, load_part_generation_context,
 };
+pub(crate) use context::{chapter_outline_context_json, outline_formal_materials_context_json};
 pub use part_contract::model::PartOutlineDraft;
 pub use part_contract::persistence::{
     insert_part_outline_from_json, sync_part_outlines_and_assign_chapters_transaction,

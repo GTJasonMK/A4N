@@ -1,5 +1,4 @@
 use crate::AppState;
-use crate::prompt_renderer::RuntimePromptRenderer;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_api_contract::inspiration::StartInspirationGenerationInput;
 use a4n_orchestrator::GenerationTaskAccessError;
@@ -10,7 +9,7 @@ pub async fn start_inspiration_generation_typed(
     input: StartInspirationGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .inspiration()
+        .orchestrator()
         .start_inspiration_generation_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -20,12 +19,12 @@ pub async fn start_inspiration_generation_typed(
     let worker_state = state.clone();
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         if let Err(error) = worker_state
-            .inspiration()
+            .orchestrator()
             .run_inspiration_generation_task(
                 a4n_orchestrator::inspiration::InspirationGenerationApplicationContext {
-                    prompt_renderer: &prompt_renderer,
+                    prompt_renderer: prompt_renderer,
                 },
                 input,
                 handle.clone(),

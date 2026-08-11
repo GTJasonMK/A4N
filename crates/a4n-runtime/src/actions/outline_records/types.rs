@@ -1,6 +1,11 @@
 mod summaries;
 mod update;
 
+pub use a4n_api_contract::outline::{
+    DeleteLatestOutlineRecordsInput, OutlineMutationResult, SaveChapterOutlineInput,
+    SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
+    UpdateChapterOutlineResult,
+};
 pub use a4n_orchestrator::outline::{
     ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
     GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,

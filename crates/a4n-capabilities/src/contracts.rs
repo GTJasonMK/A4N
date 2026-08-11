@@ -8,7 +8,7 @@ mod rag;
 mod registry;
 
 pub use common::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse};
-pub use embedding::EmbeddingClient;
+pub use embedding::{EmbeddingClient, EmbeddingModelOperation};
 pub use llm::LlmClient;
 pub use media::{ImageClient, VideoClient};
 pub use package_io::{ExportClient, ImportClient};

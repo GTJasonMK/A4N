@@ -1,4 +1,5 @@
-use a4n_core::shooting_script::ShootingCoverageV1;
+pub use a4n_domain::galgame::GalgamePipelineBeatRefV3;
+use a4n_domain::shooting_script::ShootingCoverageV1;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -68,16 +69,6 @@ pub struct GalgamePipelineLineDraft {
 pub struct GalgamePipelineBranchSceneLineDraft {
     pub branch_id: String,
     pub lines: Vec<GalgamePipelineLineDraft>,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(deny_unknown_fields)]
-pub struct GalgamePipelineBeatRefV3 {
-    pub scene_index: i32,
-    pub shot_index: u32,
-    pub beat_index: u32,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

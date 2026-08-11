@@ -1,15 +1,14 @@
-use std::collections::HashMap;
 use std::io::{Read, Seek};
 
 use crate::ImportTransformError;
 
-use super::super::super::shared::extract_document_metadata;
+use super::super::super::shared::extract_document_title;
 use super::super::helpers::{
     EpubHtmlEntry, extract_epub_spine_paths, normalize_epub_path, strip_html_tags,
 };
 
 pub(super) struct EpubArchiveEntries {
-    pub(super) metadata: HashMap<String, String>,
+    pub(super) title: Option<String>,
     pub(super) html_entries: Vec<EpubHtmlEntry>,
     pub(super) spine_paths: Vec<String>,
 }
@@ -17,7 +16,7 @@ pub(super) struct EpubArchiveEntries {
 pub(super) fn scan_epub_entries<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
 ) -> Result<EpubArchiveEntries, ImportTransformError> {
-    let mut metadata = HashMap::new();
+    let mut title = None;
     let mut html_entries = Vec::new();
     let mut spine_paths = Vec::new();
 
@@ -33,7 +32,9 @@ pub(super) fn scan_epub_entries<R: Read + Seek>(
                     "无法读取 EPUB 元数据文件 {name}: {e}"
                 ))
             })?;
-            metadata.extend(extract_document_metadata(&content));
+            if let Some(value) = extract_document_title(&content) {
+                title = Some(value);
+            }
             spine_paths.extend(extract_epub_spine_paths(&content, &name));
         }
 
@@ -49,7 +50,7 @@ pub(super) fn scan_epub_entries<R: Read + Seek>(
     }
 
     Ok(EpubArchiveEntries {
-        metadata,
+        title,
         html_entries,
         spine_paths,
     })

@@ -13,6 +13,11 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { MediaAssetIdBinder } from "./galgame/MediaAssetIdBinder";
 import { PipelineStatusPanel } from "./galgame/PipelineStatusPanel";
 import {
+  presentationCgNote,
+  updatePresentationJson,
+  type PresentationPatch,
+} from "./galgame/presentation";
+import {
   bindGalgameMedia,
   cancelGalgamePipeline,
   deleteGalgameLine,
@@ -111,12 +116,10 @@ const POSE_SUGGESTIONS = [
   { value: "close_up", label: "近景" },
 ];
 
-const DEFAULT_CG_IMPORTANCE = "normal" as const;
 const CG_IMPORTANCE_OPTIONS: Array<{
-  value: GalgameCgImportance | "";
+  value: GalgameCgImportance;
   label: string;
 }> = [
-  { value: "", label: "CG 优先级" },
   { value: "normal", label: "普通" },
   { value: "high", label: "重要" },
   { value: "critical", label: "关键" },
@@ -549,6 +552,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     afterLine: GalgameLine | null,
   ) => {
     if (!canEditGalgame || busyTarget != null) return;
+    const inputText = window.prompt("请输入新旁白内容");
+    if (inputText == null) return;
+    const text = inputText.trim();
+    if (!text) {
+      addToast("新旁白内容不能为空", "error");
+      return;
+    }
     setBusyTarget(insertBusyTarget(scene.scene.id, afterLine?.id ?? null));
     try {
       await insertGalgameLine(projectId, {
@@ -556,7 +566,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         after_line_id: afterLine?.id ?? null,
         line_type: "narration",
         speaker_profile_id: null,
-        text: "新的剧本行",
+        text,
         presentation: emptyGalgamePresentation(),
         text_anchor_id: null,
       });
@@ -1027,7 +1037,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                 className="!min-h-9 !px-2.5 !text-xs sm:!min-h-8"
               >
                 <Plus size={14} />
-                添加行
+                添加旁白
               </BookButton>
             ) : null}
           </div>
@@ -1379,9 +1389,9 @@ const PortraitExpressionMatrix: React.FC<{
                     </div>
                     <div
                       className="truncate text-book-text-muted"
-                      title={poseDisplayValue(firstCell.pose) || "默认姿势"}
+                      title={poseDisplayValue(firstCell.pose)}
                     >
-                      {poseDisplayValue(firstCell.pose) || "默认姿势"}
+                      {poseDisplayValue(firstCell.pose)}
                     </div>
                   </th>
                   {expressionValues.map((expression) => {
@@ -1802,7 +1812,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
                 disabled: disabled || !canMoveDown,
               },
               {
-                label: "在下方插入",
+                label: "在下方插入旁白",
                 icon: <Plus size={13} />,
                 onClick: onInsertAfter,
                 disabled,
@@ -1901,11 +1911,9 @@ const PresentationEditor: React.FC<{
   onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
 }> = ({ line, disabled, onPatch }) => {
   const presentation = line.presentation_json;
-  const currentCgEnabled =
-    presentation.cg === true || presentationCgNote(presentation).length > 0;
+  const currentCgEnabled = presentation.cg === true;
   const currentCgImportance: GalgameCgImportance | "" =
-    presentation.cg_importance ||
-    (currentCgEnabled ? DEFAULT_CG_IMPORTANCE : "");
+    presentation.cg_importance ?? "";
   const currentTransition: GalgameTransition | "" =
     presentation.transition || "";
   const [cgNote, setCgNote] = useState(presentationCgNote(presentation));
@@ -1943,10 +1951,8 @@ const PresentationEditor: React.FC<{
               update({ cgEnabled: false });
               return;
             }
-            const nextImportance = cgImportance || DEFAULT_CG_IMPORTANCE;
-            if (!cgImportance) setCgImportance(nextImportance);
-            if (cgNote.trim()) {
-              update({ cgNote, cgImportance: nextImportance });
+            if (cgNote.trim() && cgImportance) {
+              update({ cgNote, cgImportance });
             }
           }}
           className="inline-flex items-center gap-1.5 text-small text-book-text-main disabled:opacity-50"
@@ -1970,13 +1976,16 @@ const PresentationEditor: React.FC<{
             value={cgImportance}
             disabled={disabled}
             onChange={(event) => {
-              const importance = event.target.value as GalgameCgImportance | "";
+              const importance = event.target.value as GalgameCgImportance;
               setCgImportance(importance);
-              update({ cgImportance: importance });
+              if (cgNote.trim()) update({ cgNote, cgImportance: importance });
             }}
           >
+            <option value="" disabled>
+              选择 CG 优先级
+            </option>
             {CG_IMPORTANCE_OPTIONS.map((item) => (
-              <option key={item.value || "none"} value={item.value}>
+              <option key={item.value} value={item.value}>
                 {item.label}
               </option>
             ))}
@@ -2010,17 +2019,18 @@ const PresentationEditor: React.FC<{
             if (cgNote !== presentationCgNote(presentation)) {
               if (cgNote.trim()) {
                 setCgEnabled(true);
-                if (!cgImportance) setCgImportance(DEFAULT_CG_IMPORTANCE);
-                update({
-                  cgNote,
-                  cgImportance: cgImportance || DEFAULT_CG_IMPORTANCE,
-                });
+                if (cgImportance) update({ cgNote, cgImportance });
               } else {
                 update({ cgNote: "" });
               }
             }
           }}
         />
+      ) : null}
+      {cgEnabled && cgNote.trim() && !cgImportance ? (
+        <div className="mt-1 text-small text-error">
+          请选择 CG 优先级后保存画面描述。
+        </div>
       ) : null}
     </div>
   );
@@ -2040,12 +2050,12 @@ const ChoiceEditor: React.FC<{
   onUpdate: (choices: UpdateGalgameChoiceOptionInput[]) => void;
 }> = ({ line, choices, scenes, sceneById, disabled, onUpdate }) => {
   const [drafts, setDrafts] = useState<ChoiceDraft[]>(() =>
-    buildChoiceDrafts(line, choices, scenes, sceneById),
+    buildChoiceDrafts(choices),
   );
 
   useEffect(() => {
-    setDrafts(buildChoiceDrafts(line, choices, scenes, sceneById));
-  }, [choices, line, sceneById, scenes]);
+    setDrafts(buildChoiceDrafts(choices));
+  }, [choices, line.id]);
 
   const targetInspections = useMemo(
     () =>
@@ -2105,8 +2115,7 @@ const ChoiceEditor: React.FC<{
       ...current,
       {
         option_text: "",
-        target_scene_id:
-          defaultChoiceTargetSceneId(line, scenes, sceneById)?.toString() ?? "",
+        target_scene_id: "",
       },
     ]);
   };
@@ -2143,9 +2152,9 @@ const ChoiceEditor: React.FC<{
                     updateDraft(index, { target_scene_id: event.target.value })
                   }
                 >
-                  {scenes.length === 0 ? (
-                    <option value="">无目标场</option>
-                  ) : null}
+                  <option value="">
+                    {scenes.length === 0 ? "无目标场" : "请选择目标场"}
+                  </option>
                   {scenes.map((item) => (
                     <option key={item.scene.id} value={item.scene.id}>
                       {sceneSelectLabel(item.scene)}
@@ -2274,10 +2283,7 @@ function inspectChoiceTarget(
 }
 
 function buildChoiceDrafts(
-  line: GalgameLine,
   choices: GalgameChoice[],
-  scenes: GalgameSceneDetail[],
-  sceneById: Map<number, GalgameSceneDetail>,
 ): ChoiceDraft[] {
   if (choices.length > 0) {
     return [...choices]
@@ -2287,29 +2293,10 @@ function buildChoiceDrafts(
         target_scene_id: choice.target_scene_id?.toString() ?? "",
       }));
   }
-  const targetSceneId =
-    defaultChoiceTargetSceneId(line, scenes, sceneById)?.toString() ?? "";
   return [
-    { option_text: "", target_scene_id: targetSceneId },
-    { option_text: "", target_scene_id: targetSceneId },
+    { option_text: "", target_scene_id: "" },
+    { option_text: "", target_scene_id: "" },
   ];
-}
-
-function defaultChoiceTargetSceneId(
-  line: GalgameLine,
-  scenes: GalgameSceneDetail[],
-  sceneById: Map<number, GalgameSceneDetail>,
-): number | null {
-  const currentScene = sceneById.get(line.scene_id)?.scene ?? null;
-  const nextSceneId = currentScene?.next_scene_id ?? null;
-  if (nextSceneId != null && sceneById.has(nextSceneId)) {
-    return nextSceneId;
-  }
-  return (
-    scenes.find((item) => item.scene.id !== line.scene_id)?.scene.id ??
-    scenes[0]?.scene.id ??
-    null
-  );
 }
 
 const LineMediaBindings: React.FC<{
@@ -2548,7 +2535,7 @@ function assetSpecStatusLabel(status: string): string {
     case "running":
       return "生成中";
     default:
-      return "状态未知";
+      throw new Error(`Galgame 资产规划状态无效: ${status}`);
   }
 }
 
@@ -2573,7 +2560,7 @@ function buildPortraitExpressionCells(
       params.expression,
       `Galgame 资产规划 ${item.generation_spec_id} expression`,
     );
-    const pose = optionalStringValue(
+    const pose = requireStringValue(
       params.pose,
       `Galgame 资产规划 ${item.generation_spec_id} pose`,
     );
@@ -2622,9 +2609,9 @@ function portraitExpressionColumns(present: Set<string>): string[] {
 }
 
 function portraitExpressionLabel(expression: string): string {
-  return (
-    EXPRESSIONS.find((item) => item.value === expression)?.label ?? "其他表情"
-  );
+  const label = EXPRESSIONS.find((item) => item.value === expression)?.label;
+  if (!label) throw new Error(`Galgame 立绘表情无效: ${expression}`);
+  return label;
 }
 
 function poseDisplayValue(pose: string): string {
@@ -2652,12 +2639,6 @@ function requireRecordValue(
 function requireStringValue(value: unknown, fieldName: string): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   throw new Error(`${fieldName} 必须是非空字符串`);
-}
-
-function optionalStringValue(value: unknown, fieldName: string): string {
-  if (value == null) return "";
-  if (typeof value === "string") return value.trim();
-  throw new Error(`${fieldName} 必须是字符串或 null`);
 }
 
 function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
@@ -2736,65 +2717,6 @@ function presentationForLinePatch(
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-interface PresentationPatch {
-  cgEnabled?: boolean;
-  cgNote?: string;
-  cgImportance?: GalgameCgImportance | "";
-  transition?: GalgameTransition | "";
-}
-
-function presentationCgNote(value: GalgameLinePresentationDocumentV2): string {
-  return value.cg_note ?? "";
-}
-
-function updatePresentationJson(
-  current: GalgameLinePresentationDocumentV2,
-  patch: PresentationPatch,
-): GalgameLinePresentationDocumentV2 {
-  const next = { ...current };
-
-  if (patch.cgEnabled === false) {
-    clearEventCgPresentation(next);
-  } else if (patch.cgEnabled === true) {
-    if (presentationCgNote(next)) next.cg = true;
-  }
-
-  if (patch.cgNote != null) {
-    const note = patch.cgNote.trim();
-    if (note) {
-      next.cg = true;
-      next.cg_note = note;
-    } else {
-      clearEventCgPresentation(next);
-    }
-  }
-
-  if (patch.cgImportance != null) {
-    next.cg_importance = patch.cgImportance || null;
-  }
-
-  if (presentationCgNote(next)) {
-    next.cg = true;
-    next.cg_importance ??= DEFAULT_CG_IMPORTANCE;
-  } else {
-    clearEventCgPresentation(next);
-  }
-
-  if (patch.transition != null) {
-    next.transition = patch.transition || null;
-  }
-
-  return next;
-}
-
-function clearEventCgPresentation(
-  value: GalgameLinePresentationDocumentV2,
-): void {
-  value.cg = null;
-  value.cg_note = null;
-  value.cg_importance = null;
 }
 
 function selectValue(

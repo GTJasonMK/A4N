@@ -1,7 +1,7 @@
 use crate::contracts::*;
 use crate::events::{failed_generation_event, video_generation_event_stream};
 use crate::protocol::{
-    error_response, result_response, validate_model_discovery_request, validate_video_poll_request,
+    result_response, validate_model_discovery_request, validate_video_poll_request,
     validate_video_provider_request,
 };
 use crate::providers::{
@@ -41,7 +41,7 @@ where
     Fut: Future<Output = Result<T, AppError>>,
 {
     if let Err(error) = validate_video_poll_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = async {
         let provider = pick_video_provider(
@@ -86,31 +86,9 @@ pub(crate) async fn request_preview(
     Json(request): Json<ServiceRequest<VideoProviderPayload>>,
 ) -> Json<ServiceResponse<Value>> {
     if let Err(error) = validate_video_provider_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = video_request_preview(&request.payload);
-    Json(result_response(&request, result))
-}
-
-pub(crate) async fn probe(
-    Json(request): Json<ServiceRequest<VideoProviderPayload>>,
-) -> Json<ServiceResponse<ProviderProbeOutput>> {
-    if let Err(error) = validate_video_provider_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    let result = async {
-        let _provider = pick_video_provider(
-            &request.payload.backend,
-            &request.payload.base_url,
-            &request.payload.api_key,
-        )?;
-        let request_preview = video_request_preview(&request.payload)?;
-        Ok(ProviderProbeOutput {
-            ok: true,
-            request_preview,
-        })
-    }
-    .await;
     Json(result_response(&request, result))
 }
 
@@ -118,7 +96,7 @@ pub(crate) async fn discover_models(
     Json(request): Json<ServiceRequest<ModelDiscoveryRequest>>,
 ) -> Json<ServiceResponse<ModelDiscoveryResult>> {
     if let Err(error) = validate_model_discovery_request(&request) {
-        return Json(error_response(&request, error));
+        return Json(request.error_response(error));
     }
     let result = discover_models_from_request(request.payload.clone())
         .await

@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   listVideoConfigs: vi.fn(),
   listWorkflowRuns: vi.fn(),
   loadVideoSegmentPlanDraftDetail: vi.fn(),
-  getChapterVideoTimeline: vi.fn(),
   listHistory: vi.fn(),
 }));
 
@@ -30,7 +29,6 @@ vi.mock("../../../api/video", () => ({
   listVideosByChapter: mocks.listVideosByChapter,
   listVideoConfigs: mocks.listVideoConfigs,
   loadVideoSegmentPlanDraftDetail: mocks.loadVideoSegmentPlanDraftDetail,
-  getChapterVideoTimeline: mocks.getChapterVideoTimeline,
 }));
 
 import {
@@ -78,13 +76,6 @@ describe("video tab loading", () => {
     mocks.listVideosByChapter.mockResolvedValue([]);
     mocks.listVideoReferenceImages.mockResolvedValue([]);
     mocks.listVideoConfigs.mockResolvedValue([]);
-    mocks.getChapterVideoTimeline.mockResolvedValue({
-      id: 1,
-      project_id: 19,
-      chapter_id: 3,
-      revision: 1,
-      items: [],
-    });
     mocks.listHistory.mockResolvedValue({
       items: [
         {

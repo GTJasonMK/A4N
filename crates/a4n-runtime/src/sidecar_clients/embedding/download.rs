@@ -1,4 +1,4 @@
-use a4n_capabilities::A4nCapabilities;
+use a4n_capabilities::{A4nCapabilities, EmbeddingModelOperation, JsonResponse};
 use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::DownloadProgress;
@@ -14,44 +14,75 @@ use tokio_util::sync::CancellationToken;
 use super::super::{
     global_provider_service_request, global_service_request_without_secrets,
     missing_sidecar_capability_message, service_app_error, service_error_app_error,
-    service_response_payload,
+    service_response_payload, service_response_unit,
 };
 use super::contracts::{
-    EmbeddingTextsOutput, embedding_connectivity_output_matches,
-    embedding_connectivity_test_payload, embedding_model_operation_payload, positive_usize,
+    EmbeddingTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
+    positive_usize, validate_embedding_connectivity_output,
 };
 
-pub(crate) async fn embedding_model_operation<T: DeserializeOwned>(
+async fn embedding_model_operation<P: serde::Serialize>(
     capabilities: &A4nCapabilities,
-    operation: &str,
-    model: &str,
-) -> Result<T, AppError> {
+    operation: EmbeddingModelOperation,
+    payload: P,
+) -> Result<JsonResponse, AppError> {
     let client = capabilities
         .embedding
         .clone()
         .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
-    let payload = embedding_model_operation_payload(operation, model);
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
-    let response = client
-        .model_operation(request)
+    client
+        .model_operation(operation, request)
         .await
-        .map_err(service_error_app_error)?;
+        .map_err(service_error_app_error)
+}
+
+pub(crate) async fn list_embedding_models<T: DeserializeOwned>(
+    capabilities: &A4nCapabilities,
+) -> Result<T, AppError> {
+    let response =
+        embedding_model_operation(capabilities, EmbeddingModelOperation::List, ()).await?;
     service_response_payload(response, "embedding").map_err(service_app_error)
+}
+
+pub(crate) async fn embedding_model_download_info<T: DeserializeOwned>(
+    capabilities: &A4nCapabilities,
+    model: &str,
+) -> Result<T, AppError> {
+    let response = embedding_model_operation(
+        capabilities,
+        EmbeddingModelOperation::DownloadInfo,
+        embedding_model_payload(model),
+    )
+    .await?;
+    service_response_payload(response, "embedding").map_err(service_app_error)
+}
+
+pub(crate) async fn delete_embedding_model(
+    capabilities: &A4nCapabilities,
+    model: &str,
+) -> Result<(), AppError> {
+    let response = embedding_model_operation(
+        capabilities,
+        EmbeddingModelOperation::Delete,
+        embedding_model_payload(model),
+    )
+    .await?;
+    service_response_unit(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn test_embedding_config_via_sidecar(
     capabilities: &A4nCapabilities,
     model: &embedding_config::Model,
-    text: &str,
-) -> Result<bool, AppError> {
+) -> Result<(), AppError> {
     super::provider::SidecarEmbeddingProvider::normalized_sidecar_backend(model)?;
     let expected_dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
     let client = capabilities
         .embedding
         .clone()
         .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
-    let payload = embedding_connectivity_test_payload(model, text)?;
+    let payload = embedding_connectivity_test_payload(model)?;
     let request = global_provider_service_request(
         a4n_service_protocol::EMBEDDING_SERVICE_NAME,
         EMBEDDING_CAPABILITY_VERSION,
@@ -64,10 +95,7 @@ pub(crate) async fn test_embedding_config_via_sidecar(
         .map_err(service_error_app_error)?;
     let output: EmbeddingTextsOutput =
         service_response_payload(response, "embedding").map_err(service_app_error)?;
-    Ok(embedding_connectivity_output_matches(
-        &output,
-        expected_dimension,
-    ))
+    validate_embedding_connectivity_output(&output, expected_dimension)
 }
 
 pub(crate) async fn download_embedding_model_events(
@@ -80,7 +108,7 @@ pub(crate) async fn download_embedding_model_events(
         .embedding
         .clone()
         .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
-    let payload = embedding_model_operation_payload("download", model);
+    let payload = embedding_model_payload(model);
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
     let (event_tx, mut event_rx) =
@@ -159,7 +187,6 @@ pub(super) fn handle_embedding_download_event(
 struct SidecarEmbeddingDownloadProgress {
     downloaded_bytes: u64,
     total_bytes: u64,
-    percent: f32,
     message: String,
 }
 
@@ -168,7 +195,6 @@ impl From<SidecarEmbeddingDownloadProgress> for DownloadProgress {
         Self {
             downloaded_bytes: value.downloaded_bytes,
             total_bytes: value.total_bytes,
-            percent: value.percent,
             message: value.message,
         }
     }

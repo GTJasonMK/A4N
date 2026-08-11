@@ -22,7 +22,7 @@ export const StoryEventsSummaryCard: React.FC<StoryEventsSummaryCardProps> = ({
     <div className="min-w-0 flex-1 truncate">
       {totalChapters > 0 ? `已分析 ${analyzedChapters}/${totalChapters} 章` : "暂无章节"}
       {eventCount > 0 ? ` · ${eventCount} 个事件` : ""}
-      {foreshadowingCount > 0 ? ` · ${foreshadowingCount} 条伏笔线索` : ""}
+      {foreshadowingCount > 0 ? ` · ${foreshadowingCount} 条正式伏笔` : ""}
     </div>
     <button
       type="button"

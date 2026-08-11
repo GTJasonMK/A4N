@@ -5,7 +5,8 @@ mod projections;
 mod queries;
 
 pub use a4n_api_contract::profile::{
-    ListSceneProfilesInput, SceneProfileInput, SceneProfileSummary,
+    ListSceneProfilesInput, SceneProfileDeleteResult, SceneProfileInput,
+    SceneProfileMutationResult, SceneProfileSummary,
 };
 pub use mutations::*;
 pub use queries::list_scene_profiles;

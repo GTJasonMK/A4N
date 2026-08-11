@@ -1,8 +1,7 @@
 use super::super::contracts::StartGalgamePipelineInput;
-use crate::{AppState, prompt_renderer::RuntimePromptRenderer};
-use a4n_orchestrator::galgame::{
-    GalgamePipelineApplicationInput, GalgameProgressReporter, GalgameScriptDetail,
-};
+use crate::AppState;
+use a4n_api_contract::galgame::GalgameScriptDetail;
+use a4n_orchestrator::galgame::{GalgamePipelineApplicationInput, GalgameProgressReporter};
 
 pub async fn start_galgame_pipeline(
     state: &AppState,
@@ -18,9 +17,9 @@ pub async fn start_galgame_pipeline_with_progress(
     input: StartGalgamePipelineInput,
     progress_reporter: Option<GalgameProgressReporter>,
 ) -> Result<GalgameScriptDetail, String> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     state
-        .galgame()
+        .orchestrator()
         .run_galgame_pipeline_for_user_validated(
             user_id,
             GalgamePipelineApplicationInput {
@@ -30,7 +29,7 @@ pub async fn start_galgame_pipeline_with_progress(
                 resume_from_checkpoint: input.resume_from_checkpoint,
                 progress_reporter,
             },
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await
         .map_err(|error| error.to_string())

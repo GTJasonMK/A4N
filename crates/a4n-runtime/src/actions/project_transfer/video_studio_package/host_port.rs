@@ -1,10 +1,9 @@
-use a4n_core::error::AppError;
 use a4n_orchestrator::project::{
     ReadVideoStudioProjectPackage, VideoStudioProjectPackage, VideoStudioProjectTransferHostPort,
 };
 use async_trait::async_trait;
 
-use crate::{AppState, actions::access, file_utils::write_new_data_file};
+use crate::{AppState, file_utils::write_new_data_file};
 
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 
@@ -28,10 +27,6 @@ impl<'a> RuntimeVideoStudioProjectTransferHostPort<'a> {
 
 #[async_trait]
 impl VideoStudioProjectTransferHostPort for RuntimeVideoStudioProjectTransferHostPort<'_> {
-    async fn verify_project_owner(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
-        access::verify_project_owner(self.state, user_id, project_id).await
-    }
-
     async fn render_export_package(
         &self,
         package: &VideoStudioProjectPackage,

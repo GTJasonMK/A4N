@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
@@ -80,7 +86,10 @@ export const PromptTab: React.FC = () => {
     refreshBusyRef.current = true;
     setLoading(true);
     try {
-      const [list, cats] = await Promise.all([promptList(), promptListCategories()]);
+      const [list, cats] = await Promise.all([
+        promptList(),
+        promptListCategories(),
+      ]);
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       if (dirtyRef.current && editVersionRef.current !== requestEditVersion) {
         addToast("已保留未保存的提示词草稿，刷新结果未覆盖当前编辑", "info");
@@ -89,14 +98,17 @@ export const PromptTab: React.FC = () => {
       setItems(list);
       setCategories(cats);
       setSelectedName((current) =>
-        current && !list.some((prompt) => prompt.name === current) ? null : current,
+        current && !list.some((prompt) => prompt.name === current)
+          ? null
+          : current,
       );
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "加载提示词失败"), "error");
     } finally {
       if (refreshSeqRef.current === requestSeq) refreshBusyRef.current = false;
-      if (mountedRef.current && refreshSeqRef.current === requestSeq) setLoading(false);
+      if (mountedRef.current && refreshSeqRef.current === requestSeq)
+        setLoading(false);
     }
   }, [addToast]);
 
@@ -115,6 +127,15 @@ export const PromptTab: React.FC = () => {
 
   const selected = useMemo(
     () => items.find((p) => p.name === selectedName) ?? null,
+    [items, selectedName],
+  );
+  const reverseDependencies = useMemo(
+    () =>
+      selectedName
+        ? items
+            .filter((prompt) => prompt.dependencies.includes(selectedName))
+            .map((prompt) => prompt.name)
+        : [],
     [items, selectedName],
   );
 
@@ -213,7 +234,10 @@ export const PromptTab: React.FC = () => {
       });
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       if (editVersionRef.current !== requestEditVersion) {
-        addToast(`已保存提交时的「${requestLabel}」，当前保留后续编辑草稿`, "info");
+        addToast(
+          `已保存提交时的「${requestLabel}」，当前保留后续编辑草稿`,
+          "info",
+        );
         return;
       }
       markClean();
@@ -224,7 +248,8 @@ export const PromptTab: React.FC = () => {
       addToast(extractErrorMessage(err, "保存失败"), "error");
     } finally {
       if (saveSeqRef.current === requestSeq) saveBusyRef.current = false;
-      if (mountedRef.current && saveSeqRef.current === requestSeq) setSaving(false);
+      if (mountedRef.current && saveSeqRef.current === requestSeq)
+        setSaving(false);
     }
   };
 
@@ -264,7 +289,10 @@ export const PromptTab: React.FC = () => {
       await promptReset(requestName);
       if (!mountedRef.current || resetSeqRef.current !== requestSeq) return;
       if (editVersionRef.current !== requestEditVersion) {
-        addToast(`已恢复提交时的「${requestLabel}」，当前保留后续编辑草稿`, "info");
+        addToast(
+          `已恢复提交时的「${requestLabel}」，当前保留后续编辑草稿`,
+          "info",
+        );
         return;
       }
       markClean();
@@ -275,7 +303,8 @@ export const PromptTab: React.FC = () => {
       addToast(extractErrorMessage(err, "重置失败"), "error");
     } finally {
       if (resetSeqRef.current === requestSeq) resetBusyRef.current = false;
-      if (mountedRef.current && resetSeqRef.current === requestSeq) setResetting(false);
+      if (mountedRef.current && resetSeqRef.current === requestSeq)
+        setResetting(false);
     }
   };
 
@@ -300,7 +329,8 @@ export const PromptTab: React.FC = () => {
     }
     const ok = await confirmDialog({
       title: "载入默认提示词",
-      message: "从 prompts/ 目录重新载入全部默认模板？只补全缺失项，不会覆盖你已经修改的提示词。",
+      message:
+        "从 prompts/ 目录重新载入全部默认模板？只补全缺失项，不会覆盖你已经修改的提示词。",
       confirmText: "重新载入",
       dialogType: "warning",
     });
@@ -335,8 +365,10 @@ export const PromptTab: React.FC = () => {
       if (!mountedRef.current || defaultsSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "载入默认失败"), "error");
     } finally {
-      if (defaultsSeqRef.current === requestSeq) defaultsBusyRef.current = false;
-      if (mountedRef.current && defaultsSeqRef.current === requestSeq) setReloadingDefaults(false);
+      if (defaultsSeqRef.current === requestSeq)
+        defaultsBusyRef.current = false;
+      if (mountedRef.current && defaultsSeqRef.current === requestSeq)
+        setReloadingDefaults(false);
     }
   };
 
@@ -368,6 +400,7 @@ export const PromptTab: React.FC = () => {
 
         <PromptEditorPanel
           prompt={selected}
+          reverseDependencies={reverseDependencies}
           draft={draft}
           dirty={dirty}
           saving={saving}

@@ -14,7 +14,7 @@ pub(super) fn video_config_params(input: VideoConfigInput) -> VideoConfigParams 
         default_duration_secs: input.default_duration_secs,
         min_duration_secs: input.min_duration_secs,
         max_duration_secs: input.max_duration_secs,
-        duration_mode: input.duration_mode,
+        duration_mode: input.duration_mode.to_string(),
         supported_durations_json: input.supported_durations_json,
         default_fps: input.default_fps,
     }
@@ -33,7 +33,7 @@ pub(super) fn video_update_config_params(input: UpdateVideoConfigInput) -> Updat
         default_duration_secs: input.default_duration_secs,
         min_duration_secs: input.min_duration_secs,
         max_duration_secs: input.max_duration_secs,
-        duration_mode: input.duration_mode,
+        duration_mode: input.duration_mode.to_string(),
         supported_durations_json: input.supported_durations_json,
         default_fps: input.default_fps,
     }

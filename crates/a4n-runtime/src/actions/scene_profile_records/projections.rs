@@ -1,15 +1,12 @@
 use super::SceneProfileSummary;
-use crate::{
-    actions::profile_materials,
-    state::{ProfileMaterialRuntimeFacade, SceneProfileRuntimeFacade},
-};
+use crate::actions::profile_materials;
 use a4n_core::models::scene::scene_profile;
 use a4n_orchestrator::profile_material::PROFILE_KIND_SCENE;
 use std::collections::BTreeMap;
 
 pub(super) async fn to_summary(
-    scene_profile: SceneProfileRuntimeFacade<'_>,
-    profile_material: ProfileMaterialRuntimeFacade<'_>,
+    scene_profile: &a4n_orchestrator::OrchestratorContext,
+    profile_material: &a4n_orchestrator::OrchestratorContext,
     profile: &scene_profile::Model,
 ) -> Result<SceneProfileSummary, String> {
     let occurrence_count = occurrence_count(scene_profile, profile).await?;
@@ -35,6 +32,7 @@ pub(super) fn to_summary_with_counts(
     SceneProfileSummary {
         id: profile.id,
         project_id: profile.project_id,
+        ownership_kind: profile.ownership_kind.clone(),
         name: profile.name.clone(),
         normalized_name: profile.normalized_name.clone(),
         aliases_json: profile.aliases_json.clone(),
@@ -60,7 +58,7 @@ pub(super) fn to_summary_with_counts(
 }
 
 async fn occurrence_count(
-    scene_profile: SceneProfileRuntimeFacade<'_>,
+    scene_profile: &a4n_orchestrator::OrchestratorContext,
     profile: &scene_profile::Model,
 ) -> Result<u64, String> {
     scene_profile
@@ -70,7 +68,7 @@ async fn occurrence_count(
 }
 
 pub(super) async fn occurrence_counts_by_profile(
-    scene_profile: SceneProfileRuntimeFacade<'_>,
+    scene_profile: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     profile_ids: &[i64],
 ) -> Result<BTreeMap<i64, u64>, String> {

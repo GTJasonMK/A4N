@@ -1,4 +1,5 @@
 use a4n_core::models::asset::object_profile;
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
@@ -8,6 +9,7 @@ pub(super) async fn insert_object_profile_record<C>(
     db: &C,
     project_id: i64,
     input: ObjectProfileRecordInput,
+    ownership_kind: &str,
 ) -> Result<object_profile::Model, AssetDbError>
 where
     C: ConnectionTrait,
@@ -15,6 +17,7 @@ where
     let now = Utc::now().naive_utc();
     object_profile::ActiveModel {
         project_id: Set(project_id),
+        ownership_kind: Set(ownership_kind.to_string()),
         name: Set(input.name),
         normalized_name: Set(input.normalized_name),
         aliases_json: Set(input.aliases_json),
@@ -49,6 +52,7 @@ where
 {
     let mut active: object_profile::ActiveModel = existing.into();
     apply_object_profile_input(&mut active, input);
+    active.ownership_kind = Set(PROFILE_OWNERSHIP_USER.to_string());
     active.update(db).await.map_err(AssetDbError::Database)
 }
 

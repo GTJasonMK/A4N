@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use super::super::TeraPromptEngine;
 use super::support::{MemoryPromptVersionStore, make_entry, write_test_registry};
-use crate::engine::PromptEngine;
 
 #[test]
 fn test_reset_to_original() {

@@ -6,12 +6,12 @@ pub async fn validate_chapter_generation_ready(
     chapter_number: i32,
 ) -> Result<(), String> {
     state
-        .project_chapter_records()
+        .orchestrator()
         .validate_chapter_generation_readiness(project_id, chapter_number)
         .await?;
 
     state
-        .chapter_content()
+        .orchestrator()
         .preflight_chapter_content_change_validated(project_id, chapter_number)
         .await
         .map_err(|error| error.to_string())

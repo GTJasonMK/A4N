@@ -1,38 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatImportCandidateSourceScope,
-  parseImportBlueprintCandidate,
-  parseImportPartOutlineCandidate,
   parseReverseCandidateEnvelope,
   reverseCandidateFromCheckpoint,
 } from "./importTabUtils";
-
-const blueprintProposal = {
-  state: "proposal",
-  origin: "import_analysis",
-  project_id: 7,
-  title: "星门调查",
-  genre: "长篇小说",
-  one_sentence_summary: "调查员追查失落星门。",
-  full_synopsis: "调查员沿废弃航线追查失落星门的真相。",
-  world_setting: { locations: ["旧城"], items: ["星图"], tags: ["悬疑"] },
-  total_chapters: 25,
-  needs_part_outlines: false,
-  chapters_per_part: null,
-  source_scope: { chapter_start: 1, chapter_end: 25, chapter_count: 25 },
-};
-
-const part = {
-  part_number: 1,
-  title: "第一部分",
-  start_chapter: 1,
-  end_chapter: 25,
-  summary: "调查从旧城开始。",
-  theme: "导入正文回顾",
-  key_events: [],
-  character_focus: [],
-  source_scope: { chapter_start: 1, chapter_end: 25, chapter_count: 25 },
-};
 
 describe("import candidate contracts", () => {
   it("maps the UI reverse type to the backend prompt target", () => {
@@ -166,90 +136,6 @@ describe("import candidate contracts", () => {
           completed_at: "now",
         },
         "blueprint",
-      ),
-    ).toBeNull();
-  });
-
-  it("keeps proposal apply_result optional but requires complete display fields", () => {
-    expect(parseImportBlueprintCandidate(blueprintProposal, 7)).not.toBeNull();
-    expect(
-      parseImportBlueprintCandidate(
-        { ...blueprintProposal, source_scope: undefined },
-        7,
-      ),
-    ).toBeNull();
-  });
-
-  it("requires the structured result on confirmed candidates", () => {
-    expect(
-      parseImportBlueprintCandidate(
-        { ...blueprintProposal, state: "confirmed", confirmed_at: "now" },
-        7,
-      ),
-    ).toBeNull();
-    const confirmed = parseImportBlueprintCandidate(
-      {
-        ...blueprintProposal,
-        state: "confirmed",
-        confirmed_at: "now",
-        apply_result: { version: "1.0", updated_fields: ["genre"] },
-      },
-      7,
-    );
-    expect(confirmed?.state).toBe("confirmed");
-    expect(
-      parseImportBlueprintCandidate(
-        {
-          ...blueprintProposal,
-          state: "confirmed",
-          confirmed_at: "now",
-          apply_result: { version: "1.0", updated_fields: [1] },
-        },
-        7,
-      ),
-    ).toBeNull();
-  });
-
-  it("uses one complete evidence-scope formatter for both candidate panels", () => {
-    expect(
-      formatImportCandidateSourceScope({
-        chapter_start: 1,
-        chapter_end: 25,
-        chapter_count: 25,
-      }),
-    ).toBe("第 1–25 章（25 章）");
-    const proposal = {
-      state: "proposal",
-      origin: "import_analysis",
-      project_id: 7,
-      parts: [part],
-    };
-    expect(parseImportPartOutlineCandidate(proposal, 7)).not.toBeNull();
-    expect(
-      parseImportPartOutlineCandidate(
-        {
-          ...proposal,
-          state: "confirmed",
-          confirmed_at: "now",
-          apply_result: {},
-        },
-        7,
-      ),
-    ).toBeNull();
-    expect(
-      parseImportPartOutlineCandidate(
-        {
-          ...proposal,
-          state: "confirmed",
-          confirmed_at: "now",
-          apply_result: {
-            part_count: 1,
-            inserted_count: 0,
-            updated_count: -1,
-            reused_count: 1,
-          },
-        },
-        7,
       ),
     ).toBeNull();
   });

@@ -21,7 +21,7 @@ where
     P: AsRef<Path>,
 {
     let package = sidecar_package_name(service_name)?;
-    let executable_names = sidecar_executable_candidate_names(package);
+    let executable_names = sidecar_executable_candidate_names(&package);
     for dir in dirs {
         let dir = dir.as_ref();
         for executable in &executable_names {
@@ -30,7 +30,7 @@ where
                 return Some(candidate);
             }
         }
-        if let Some(candidate) = unique_tauri_suffixed_sidecar_in_dir(dir, package) {
+        if let Some(candidate) = unique_tauri_suffixed_sidecar_in_dir(dir, &package) {
             return Some(candidate);
         }
     }

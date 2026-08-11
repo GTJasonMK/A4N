@@ -1,18 +1,6 @@
 use serde::de::DeserializeOwned;
 
-use crate::contracts::{ImportNormalizeJsonInput, ImportNormalizeJsonOutput};
 use crate::errors::ImportTransformError;
-
-pub fn normalize_json(
-    input: ImportNormalizeJsonInput,
-) -> Result<ImportNormalizeJsonOutput, ImportTransformError> {
-    let normalized = serde_json::from_str::<serde_json::Value>(&input.content)?;
-    Ok(ImportNormalizeJsonOutput {
-        kind: input.kind,
-        normalized,
-        warnings: Vec::new(),
-    })
-}
 
 pub fn parse_json_manifest<T>(
     manifest_bytes: &[u8],

@@ -31,7 +31,7 @@ pub async fn cancel_workflow(
     let mut task_workflow_ids = BTreeSet::new();
     if let Some(task_id) = task_id {
         persisted_task = state
-            .workflow()
+            .orchestrator()
             .persisted_task_by_id(task_id)
             .await
             .map_err(app_error_message)?;
@@ -49,7 +49,7 @@ pub async fn cancel_workflow(
             verify_task_handle_access(state, user_id, handle).await?;
         }
         if let Some(run) = state
-            .workflow()
+            .orchestrator()
             .workflow_run_model_by_active_task_id(task_id)
             .await
             .map_err(app_error_message)?
@@ -92,7 +92,7 @@ pub async fn cancel_workflow(
         }
         if should_cancel_task
             && persisted_task.is_some()
-            && let Err(error) = state.task_queue().queue_cancel(task_id).await
+            && let Err(error) = state.orchestrator().queue_cancel(task_id).await
         {
             if task_workflow_ids.is_empty() {
                 return Err(error.to_string());
@@ -113,7 +113,7 @@ async fn authorized_workflow_run(
     workflow_run_id: i64,
 ) -> Result<WorkflowRunSummary, String> {
     let run = state
-        .workflow()
+        .orchestrator()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)?;
@@ -126,7 +126,7 @@ async fn cancel_authorized_workflow_run(
     run: &WorkflowRunSummary,
 ) -> Result<bool, String> {
     let cancellation = state
-        .workflow()
+        .orchestrator()
         .cancel_workflow_run_and_interrupt_videos(run.id, "用户取消画布运行")
         .await
         .map_err(app_error_message)?;

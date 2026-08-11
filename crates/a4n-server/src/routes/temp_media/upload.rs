@@ -11,13 +11,13 @@ use super::super::error::ApiError;
 use super::config::{
     temp_media_effective_ttl_seconds, temp_media_max_bytes, temp_media_public_base_url,
 };
-use super::contracts::{TempMediaUploadRequest, TempMediaUploadResponse};
 use super::rules::{
     decode_base64_image, extension_for_mime, normalize_image_mime, validate_image_magic,
     validate_upload_file_name_hint,
 };
 use super::storage::cleanup_expired_temp_media;
 use crate::state::ServerState;
+use a4n_api_contract::temp_media::{TempMediaUploadRequest, TempMediaUploadResponse};
 
 pub(in crate::routes) async fn upload(
     State(state): State<ServerState>,

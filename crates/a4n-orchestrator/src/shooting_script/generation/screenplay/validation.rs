@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use a4n_core::{error::AppError, shooting_script::ShootingEditingModeV1};
+use a4n_core::error::AppError;
+use a4n_domain::shooting_script::ShootingEditingModeV1;
 
 use crate::shooting_script::contracts::{
     ChapterScreenplaySkeletonV1, PreparedChapterShootingScriptRequest,
@@ -75,12 +76,25 @@ pub(super) fn validate_skeleton(
 pub(super) fn validate_layout_unit_detail(
     output: &ScreenplayLayoutUnitDetailV1,
     expected_index: u32,
+    total_unit_count: usize,
 ) -> Result<(), AppError> {
     if output.schema_version != "screenplay_layout_unit_detail_v1"
         || output.narrative_unit_index != expected_index
     {
         return Err(AppError::InvalidArgument(format!(
             "叙事单元 {expected_index} 的布局细化合同无效"
+        )));
+    }
+    let max_index = u32::try_from(total_unit_count)
+        .map_err(|_| AppError::InvalidArgument("叙事布局单元数量超出 u32 范围".into()))?;
+    if output.transition_contracts.iter().any(|transition| {
+        transition.transition_type.trim().is_empty()
+            || transition.to_narrative_unit_index == 0
+            || transition.to_narrative_unit_index == expected_index
+            || transition.to_narrative_unit_index > max_index
+    }) {
+        return Err(AppError::InvalidArgument(format!(
+            "叙事布局 unit {expected_index} 含无效转场合同"
         )));
     }
     Ok(())
@@ -99,7 +113,15 @@ pub(super) fn validate_unit_adaptation(
             unit.narrative_unit_index
         )));
     }
-    for fact in &output.performance_facts {
+    for (offset, fact) in output.performance_facts.iter().enumerate() {
+        let expected_fact_index = u32::try_from(offset + 1)
+            .map_err(|_| AppError::InvalidArgument("表演事实数量超出 u32 范围".into()))?;
+        if fact.fact_index != expected_fact_index {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事单元 {} fact_index={} 编号不连续",
+                unit.narrative_unit_index, fact.fact_index
+            )));
+        }
         if fact.source_span_ids.is_empty()
             || fact
                 .source_span_ids

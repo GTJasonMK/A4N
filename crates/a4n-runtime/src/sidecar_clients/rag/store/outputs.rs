@@ -11,24 +11,6 @@ pub(super) struct DeletedOutput {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct BoolOutput {
-    pub(super) value: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CountOutput {
-    pub(super) count: usize,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CollectionsOutput {
-    pub(super) collections: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct MetadataOutput {
     pub(super) metadata: HashMap<String, Value>,
 }

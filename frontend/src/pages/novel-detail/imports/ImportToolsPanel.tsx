@@ -126,7 +126,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           <span className="min-w-0">
             <span className="block text-xs font-semibold">项目资料归纳</span>
             <span className="mt-0.5 block truncate text-small font-normal text-book-text-muted">
-              根据当前正式资料生成可确认的蓝图或大纲候选
+              蓝图直接更新正式资料；大纲生成后再确认
             </span>
           </span>
           <ChevronDown
@@ -136,7 +136,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         </summary>
         <div className="space-y-2 border-t border-book-border/45 p-4">
           <p className="text-small leading-relaxed text-book-text-muted">
-            生成阶段只创建候选，不会修改正式资料；确认前可以先查看候选内容和模型请求。
+            {reverseType === "blueprint"
+              ? "依据当前正文、简介、大纲和正式资料归纳蓝图；成功后直接成为正式蓝图，失败时保留原蓝图。"
+              : "先生成可检查的归纳结果，确认后才更新正式大纲；生成前可以查看模型请求。"}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -210,7 +212,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
                   <LoadingSpinner size="sm" /> 生成中…
                 </span>
               ) : (
-                `生成${reverseLabel}候选`
+                reverseType === "blueprint" ? "归纳正式蓝图" : `生成${reverseLabel}候选`
               )}
             </BookButton>
           </div>
@@ -218,13 +220,19 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             <div className="border-t border-book-border/40 pt-2">
               <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-small text-book-text-sub">
-                  {reverseCandidate?.state === "proposal"
-                    ? `${reverseLabel}候选（尚未写入正式资料）`
-                    : reverseCandidate
-                      ? `${reverseLabel}候选已应用`
-                      : `${reverseLabel}候选`}
+                  {reverseType === "blueprint"
+                    ? "本次正式蓝图更新"
+                    : reverseCandidate?.state === "proposal"
+                      ? `${reverseLabel}候选（尚未写入正式资料）`
+                      : reverseCandidate
+                        ? `${reverseLabel}候选已应用`
+                        : `${reverseLabel}候选`}
                 </span>
-                {reverseCandidate?.state === "proposal" ? (
+                {reverseType === "blueprint" && reverseCandidate ? (
+                  <span className="inline-flex items-center gap-1 text-small text-emerald-700">
+                    <Check size={13} /> 已写入正式资料
+                  </span>
+                ) : reverseCandidate?.state === "proposal" ? (
                   <BookButton
                     variant="secondary"
                     size="sm"
@@ -258,7 +266,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               ) : null}
               <details>
                 <summary className="cursor-pointer py-1 text-small text-book-text-muted">
-                  查看候选内容
+                  {reverseType === "blueprint" ? "查看模型归纳内容" : "查看候选内容"}
                 </summary>
                 <div className="pt-2">
                   <ImportToolResult value={reverseCandidate?.result ?? reverseResult} />

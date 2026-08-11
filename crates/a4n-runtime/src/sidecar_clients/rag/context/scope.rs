@@ -1,4 +1,7 @@
-use std::future::Future;
+use std::{
+    future::Future,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 tokio::task_local! {
     static RAG_OPERATION_TRACE_ID: String;
@@ -18,8 +21,9 @@ pub(in crate::sidecar_clients::rag) fn current_rag_operation_trace_id() -> Optio
     RAG_OPERATION_TRACE_ID.try_with(Clone::clone).ok()
 }
 
-pub(super) fn rag_operation_timestamp() -> i64 {
-    chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros())
+pub(crate) fn rag_operation_timestamp() -> Result<u128, String> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .map_err(|error| format!("系统时间早于 UNIX epoch，无法生成 RAG operation trace：{error}"))
 }

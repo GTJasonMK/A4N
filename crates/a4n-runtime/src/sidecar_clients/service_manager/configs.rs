@@ -71,7 +71,7 @@ pub(super) fn runtime_service_configs(
                     if managed_sidecars_enabled {
                         managed_sidecar_service(spec, config, &mut reserved_addrs)
                     } else {
-                        remote_service(spec.name.clone(), sidecar_url_from_spec(spec)?, config)
+                        remote_service(spec, config)
                     }
                 })
                 .collect()
@@ -98,6 +98,7 @@ fn managed_sidecar_service(
         Err(error) => return Err(format!("{} 无法读取: {error}", spec.addr_env)),
     };
     let mut config = ManagedServiceConfig::sidecar(&spec.name, binary, format!("http://{addr}"));
+    config.health_path = spec.health_path;
     config.env.insert(spec.addr_env.clone(), addr);
     config.env.insert(
         SIDECAR_AUTH_TOKEN_ENV.to_string(),
@@ -125,19 +126,19 @@ pub(super) fn reserve_managed_loopback_addr(
 }
 
 fn remote_service(
-    name: impl Into<String>,
-    url: String,
+    spec: SidecarServiceSpec,
     app_config: &AppConfig,
 ) -> Result<ManagedServiceConfig, String> {
-    let name = name.into();
-    let remote_security = remote_security_from_env(&name)?;
+    let url = sidecar_url_from_spec(&spec)?;
+    let remote_security = remote_security_from_env(&spec.name)?;
     let local_auth_token = remote_security
         .is_empty()
         .then(|| external_sidecar_auth_token(app_config))
         .transpose()?;
     Ok(build_remote_service(
-        name,
+        spec.name,
         url,
+        spec.health_path,
         remote_security,
         local_auth_token.as_deref(),
     ))
@@ -146,6 +147,7 @@ fn remote_service(
 pub(super) fn build_remote_service(
     name: impl Into<String>,
     url: String,
+    health_path: String,
     remote_security: RemoteSecurityConfig,
     local_auth_token: Option<&str>,
 ) -> ManagedServiceConfig {
@@ -156,7 +158,7 @@ pub(super) fn build_remote_service(
         mode: ServiceMode::Remote,
         args: Vec::new(),
         url: Some(url),
-        health_path: "/healthz".to_string(),
+        health_path,
         env: HashMap::new(),
         startup_timeout_ms: 5_000,
         restart_policy: Default::default(),

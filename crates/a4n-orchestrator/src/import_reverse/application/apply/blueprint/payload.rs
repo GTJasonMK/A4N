@@ -48,6 +48,7 @@ pub fn reverse_blueprint_apply_draft(data: &Value) -> Result<ReverseBlueprintApp
 pub fn reverse_blueprint_apply_result(result: ReverseBlueprintApplyResult) -> Value {
     json!({
         "blueprint_applied": true,
+        "blueprint_version": result.version,
         "character_count": result.character_count,
         "relationship_count": result.relationship_count,
     })

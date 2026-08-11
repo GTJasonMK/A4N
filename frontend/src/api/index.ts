@@ -12,7 +12,10 @@ import {
   shouldUseHttpBackend,
 } from "./runtime";
 import { logger } from "../utils/logger";
-import { GENERATION_START_PATHS } from "./generated/host";
+import {
+  GENERATION_START_PATHS,
+  type HostApiCommand,
+} from "./generated/host";
 import { withRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 
 /**
@@ -51,7 +54,10 @@ function redactApiArgs(value: unknown): unknown {
 }
 
 /** 通用 invoke 包装器 —— 失败时自动 log 后再 rethrow */
-export async function apiInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+export async function apiInvoke<T>(
+  cmd: HostApiCommand,
+  args?: Record<string, unknown>,
+): Promise<T> {
   const startedAt = Date.now();
   const effectiveArgs = withRuntimeConfigSnapshot(cmd, args);
   try {
@@ -127,7 +133,10 @@ function generationRequestBody(
     : { ...input, runtime_config_snapshot: args.runtime_config_snapshot };
 }
 
-async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+async function webInvoke<T>(
+  cmd: HostApiCommand,
+  args?: Record<string, unknown>,
+): Promise<T> {
   const generationPath = GENERATION_START_PATHS.get(cmd);
   if (generationPath) {
     return webRequest<T>(generationPath, {
@@ -138,31 +147,8 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
   }
   switch (cmd) {
     case "login_user":
-      return webRequest<T>("/auth/login", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: false,
-      });
     case "register_user":
-      return webRequest<T>("/auth/register", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: false,
-      });
-    case "get_current_user":
-      return webRequest<T>("/auth/me", { method: "GET", auth: true });
-    case "logout_user":
-      return webRequest<T>("/auth/logout", {
-        method: "POST",
-        body: { session_id: args?.sessionId },
-        auth: true,
-      });
     case "refresh_token":
-      return webRequest<T>("/auth/refresh", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: false,
-      });
     case "oauth2_authorize_url":
     case "oauth2_callback":
       return webRequest<T>(`/commands/${encodeURIComponent(cmd)}`, {
@@ -170,75 +156,6 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
         body: args ?? {},
         auth: false,
       });
-    case "list_projects":
-      return webRequest<T>(`/projects${queryString({
-        page: args?.page,
-        page_size: args?.pageSize,
-        project_kind: args?.projectKind,
-        root_project_id: args?.rootProjectId,
-        access_scope: args?.accessScope,
-      })}`, { method: "GET", auth: true });
-    case "get_project":
-      return webRequest<T>(`/projects/${encodeURIComponent(String(args?.projectId ?? ""))}`, {
-        method: "GET",
-        auth: true,
-      });
-    case "create_project":
-      return webRequest<T>("/projects", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "create_derived_project":
-      return webRequest<T>("/projects/derived", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "create_freeform_video_project":
-      return webRequest<T>("/projects/freeform-video", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "list_source_snapshot_chapters":
-      return webRequest<T>(
-        `/projects/${encodeURIComponent(String(args?.projectId ?? ""))}/source-snapshot-chapters`,
-        {
-          method: "GET",
-          auth: true,
-        },
-      );
-    case "list_all_users":
-      return webRequest<T>("/admin/users", { method: "GET", auth: true });
-    case "create_user":
-      return webRequest<T>("/admin/users", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "list_invite_codes":
-      return webRequest<T>("/admin/invite-codes", { method: "GET", auth: true });
-    case "create_invite_code":
-      return webRequest<T>("/admin/invite-codes", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "update_user_role":
-      return webRequest<T>(`/admin/users/${encodeURIComponent(String(args?.userId ?? ""))}/role`, {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "disable_user":
-      return webRequest<T>(
-        `/admin/users/${encodeURIComponent(String(args?.userId ?? ""))}/disable`,
-        {
-          method: "POST",
-          auth: true,
-        },
-      );
     default:
       return webCommandRequest<T>(cmd, args);
   }
@@ -363,10 +280,12 @@ async function refreshWebAuthToken(): Promise<boolean> {
   const sessionId = readCurrentSessionId();
   if (!refreshToken || !sessionId) return false;
 
-  const response = await fetch(`${apiBaseUrl()}/auth/refresh`, {
+  const response = await fetch(`${apiBaseUrl()}/commands/refresh_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken, session_id: sessionId }),
+    body: JSON.stringify({
+      input: { refresh_token: refreshToken, session_id: sessionId },
+    }),
   });
 
   if (response.status === 401 || response.status === 403) return false;
@@ -379,16 +298,6 @@ async function refreshWebAuthToken(): Promise<boolean> {
   writeCurrentAccessToken(pair.access_token);
   writeCurrentRefreshToken(pair.refresh_token);
   return true;
-}
-
-function queryString(params: Record<string, unknown>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value == null || value === "") continue;
-    search.set(key, String(value));
-  }
-  const text = search.toString();
-  return text ? `?${text}` : "";
 }
 
 async function responseErrorMessage(response: Response): Promise<string> {

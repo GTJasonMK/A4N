@@ -1,5 +1,8 @@
 use super::ChapterGenerationTrace;
-use a4n_core::error::AppError;
+use a4n_core::{
+    error::AppError,
+    models::chapter::{chapter, chapter_outline},
+};
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_llm::trace::{chat_request_messages_json, text_response_summary_json};
 
@@ -11,7 +14,8 @@ use sea_orm::DatabaseTransaction;
 impl ChapterGenerationService {
     pub(in crate::chapter_generation) async fn record_chapter_generation_trace(
         &self,
-        chapter: &a4n_core::models::chapter::chapter::Model,
+        chapter: &chapter::Model,
+        source_outline: Option<&chapter_outline::Model>,
         chapter_outline: &str,
         content: &str,
         trace: ChapterGenerationTrace,
@@ -35,10 +39,14 @@ impl ChapterGenerationService {
                     "chapter_number": chapter.chapter_number,
                     "chapter_outline": chapter_outline,
                 })),
-                source_refs_json: Some(serde_json::json!({
-                    "source_node": "chapter_outlines",
-                    "source_kind": "chapter_outline",
-                })),
+                source_refs_json: source_outline.map(|outline| {
+                    serde_json::json!({
+                        "source_node": "chapter_outlines",
+                        "source_kind": "chapter_outline",
+                        "outline_id": outline.id,
+                        "updated_at": outline.updated_at,
+                    })
+                }),
                 media_refs_json: None,
                 request_json: Some(context_aware_chat_request_trace_json(&trace.request)?),
                 response_summary_json: Some(text_response_summary_json(

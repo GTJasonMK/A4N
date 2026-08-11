@@ -499,7 +499,9 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         },
       );
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-      if (result.state_rag_error || !result.state_rag_indexed) {
+      if (result.status === "skipped") {
+        addToast("角色档案无需同步", "info");
+      } else if (result.state_rag_error || !result.state_rag_indexed) {
         const ragError = result.state_rag_error?.trim();
         addToast(
           `同步完成，但状态 RAG 未完全更新：${

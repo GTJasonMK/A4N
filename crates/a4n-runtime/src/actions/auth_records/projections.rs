@@ -21,12 +21,9 @@ pub fn to_user_summary(user: &user::Model) -> UserSummary {
 pub(super) fn to_session_summary(session: &user_session::Model) -> SessionSummary {
     SessionSummary {
         id: session.id.clone(),
-        user_id: session.user_id,
         user_agent: session.user_agent.clone(),
-        is_revoked: session.is_revoked,
-        created_at: Some(session.created_at.to_string()),
-        expires_at: Some(session.expires_at.to_string()),
-        revoked_at: session.revoked_at.map(|date| date.to_string()),
+        created_at: session.created_at.to_string(),
+        expires_at: session.expires_at.to_string(),
         last_used_at: session.last_used_at.map(|date| date.to_string()),
     }
 }

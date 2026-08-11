@@ -3,6 +3,7 @@ mod theme_system;
 
 use super::types::{
     SettingsAllConfigImportCounts, SettingsAllConfigImportError, SettingsAllConfigImportInput,
+    SettingsAllConfigRows,
 };
 use chrono::Utc;
 use providers::{
@@ -16,6 +17,15 @@ pub async fn import_settings_all_configs(
     db: &DatabaseConnection,
     input: SettingsAllConfigImportInput,
 ) -> Result<SettingsAllConfigImportCounts, SettingsAllConfigImportError> {
+    let SettingsAllConfigImportInput { overwrite, rows } = input;
+    let SettingsAllConfigRows {
+        llm_configs,
+        embedding_configs,
+        image_configs,
+        video_configs,
+        themes,
+        system_settings,
+    } = rows;
     let txn = db
         .begin()
         .await
@@ -26,35 +36,35 @@ pub async fn import_settings_all_configs(
     let now = Utc::now().naive_utc();
     let mut counts = SettingsAllConfigImportCounts::default();
 
-    for row in input.llm_configs {
+    for row in llm_configs {
         counts
             .llm
-            .record(import_llm_config_row(&txn, row, input.overwrite, now).await?);
+            .record(import_llm_config_row(&txn, row, overwrite, now).await?);
     }
-    for row in input.embedding_configs {
+    for row in embedding_configs {
         counts
             .embedding
-            .record(import_embedding_config_row(&txn, row, input.overwrite, now).await?);
+            .record(import_embedding_config_row(&txn, row, overwrite, now).await?);
     }
-    for row in input.image_configs {
+    for row in image_configs {
         counts
             .image
-            .record(import_image_config_row(&txn, row, input.overwrite, now).await?);
+            .record(import_image_config_row(&txn, row, overwrite, now).await?);
     }
-    for row in input.video_configs {
+    for row in video_configs {
         counts
             .video
-            .record(import_video_config_row(&txn, row, input.overwrite, now).await?);
+            .record(import_video_config_row(&txn, row, overwrite, now).await?);
     }
-    for row in input.themes {
+    for row in themes {
         counts
             .theme
-            .record(import_theme_row(&txn, row, input.overwrite, now).await?);
+            .record(import_theme_row(&txn, row, overwrite, now).await?);
     }
-    for row in input.system_settings {
+    for row in system_settings {
         counts
             .system_settings
-            .record(import_system_setting_row(&txn, row, input.overwrite, now).await?);
+            .record(import_system_setting_row(&txn, row, overwrite, now).await?);
     }
 
     txn.commit()

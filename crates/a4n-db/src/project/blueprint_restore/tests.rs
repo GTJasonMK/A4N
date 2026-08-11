@@ -250,10 +250,6 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         version: Set("v2".to_string()),
         change_description: Set(Some("恢复测试".to_string())),
         blueprint_data: Set(blueprint_data.clone()),
-        world_setting_snapshot: Set(blueprint_data.get("world_setting").cloned()),
-        characters_snapshot: Set(blueprint_data.get("characters").cloned()),
-        relationships_snapshot: Set(blueprint_data.get("relationships").cloned()),
-        synopsis_snapshot: Set(Some("完整主线".to_string())),
         created_at: Set(old_time),
         created_by: Set(Some("tester".to_string())),
         ..Default::default()
@@ -271,8 +267,8 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
     assert_eq!(result.blueprint.current_version, "v2");
     assert_eq!(result.blueprint.total_chapters, Some(30));
     let status_change = result.status_change.expect("draft should advance");
-    assert_eq!(status_change.from, "draft");
-    assert_eq!(status_change.to, "blueprint_ready");
+    assert_eq!(status_change.from, ProjectStatus::Draft);
+    assert_eq!(status_change.to, ProjectStatus::BlueprintReady);
 
     let project = novel_project::Entity::find_by_id(project_id)
         .one(&db)
@@ -337,7 +333,6 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         project_id: Set(project_id),
         version: Set("v3".to_string()),
         blueprint_data: Set(failed_blueprint_data.clone()),
-        characters_snapshot: Set(failed_blueprint_data.get("characters").cloned()),
         created_at: Set(old_time),
         ..Default::default()
     }

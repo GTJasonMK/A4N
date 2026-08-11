@@ -12,25 +12,28 @@ pub(super) fn foreshadowing_matches_analysis_draft(
     existing: &foreshadowing_index::Model,
     draft: &ForeshadowingAnalysisDraft,
 ) -> bool {
-    let expected_status = foreshadowing_status_after_setup_resync(
-        existing.status.as_str(),
-        existing.payoff_chapter,
-        draft.status.as_str(),
-    );
-    existing.status == expected_status
-        && existing.related_characters == draft.related_characters
-        && existing.importance == draft.importance
+    existing.related_characters
+        == foreshadowing_related_characters_after_setup_resync(existing, draft)
 }
 
-pub(super) fn foreshadowing_status_after_setup_resync(
-    existing_status: &str,
-    payoff_chapter: Option<i32>,
-    draft_status: &str,
-) -> String {
-    if payoff_chapter.is_some() || matches!(existing_status, "resolved" | "abandoned") {
-        existing_status.to_string()
-    } else {
-        draft_status.to_string()
+pub(super) fn foreshadowing_related_characters_after_setup_resync(
+    existing: &foreshadowing_index::Model,
+    draft: &ForeshadowingAnalysisDraft,
+) -> Option<serde_json::Value> {
+    existing
+        .related_characters
+        .clone()
+        .filter(|value| !json_value_is_empty(value))
+        .or_else(|| draft.related_characters.clone())
+}
+
+fn json_value_is_empty(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Null => true,
+        serde_json::Value::String(value) => value.trim().is_empty(),
+        serde_json::Value::Array(value) => value.is_empty(),
+        serde_json::Value::Object(value) => value.is_empty(),
+        _ => false,
     }
 }
 
@@ -39,7 +42,10 @@ pub(super) fn foreshadowing_resolution_action(
     chapter_number: i32,
 ) -> Result<ForeshadowingResolutionAction, String> {
     if existing.setup_chapter >= chapter_number {
-        return Err(format!("埋设章节 {} 不早于回收章节", existing.setup_chapter));
+        return Err(format!(
+            "埋设章节 {} 不早于回收章节",
+            existing.setup_chapter
+        ));
     }
     match existing.payoff_chapter {
         Some(payoff_chapter) if payoff_chapter != chapter_number => {

@@ -88,20 +88,6 @@ async fn video_poll_sidecar_missing_capability_fails_without_embedded_fallback()
 }
 
 #[tokio::test]
-async fn video_probe_sidecar_missing_capability_fails_without_embedded_fallback() {
-    let error = probe_video_config(
-        RuntimeProfile::Sidecar,
-        &A4nCapabilities::empty(),
-        &video_config(),
-    )
-    .await
-    .expect_err("missing video sidecar capability must fail");
-
-    assert!(error.contains("video sidecar capability 未配置"));
-    assert!(error.contains("sidecar profile"));
-}
-
-#[tokio::test]
 async fn video_provider_preview_uses_typed_capability_request() {
     let client = Arc::new(
         RecordingVideoClient::new().with_preview_response(successful_video_preview_response()),
@@ -120,7 +106,6 @@ async fn video_provider_preview_uses_typed_capability_request() {
 
     assert_eq!(client.preview_call_count(), 1);
     assert_eq!(client.generate_call_count(), 0);
-    assert_eq!(client.probe_call_count(), 0);
     assert_eq!(client.poll_call_count(), 0);
     assert_eq!(preview["request"]["model"], "video-model");
     let request = client

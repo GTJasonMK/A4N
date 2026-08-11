@@ -2,9 +2,41 @@ use axum::http::HeaderMap;
 use serde_json::{Value, json};
 
 use super::super::{
-    ApiError, ServerState, auth_records_actions, command_input, i64_arg, issue_auth_response,
-    oauth_actions, string_arg, to_value,
+    ApiError, ServerState, auth_records_actions, command_input, issue_auth_response, oauth_actions,
+    to_value, user_agent,
 };
+
+pub(in crate::routes::commands) async fn login_user(
+    state: &ServerState,
+    headers: &HeaderMap,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: auth_records_actions::LoginInput = command_input(args, "login_user")?;
+    to_value(
+        auth_records_actions::login_user(state.runtime(), input, user_agent(headers).as_deref())
+            .await?,
+    )
+}
+
+pub(in crate::routes::commands) async fn register_user(
+    state: &ServerState,
+    headers: &HeaderMap,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: auth_records_actions::RegisterInput = command_input(args, "register_user")?;
+    to_value(
+        auth_records_actions::register_user(state.runtime(), input, user_agent(headers).as_deref())
+            .await?,
+    )
+}
+
+pub(in crate::routes::commands) async fn refresh_token(
+    state: &ServerState,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: auth_records_actions::RefreshTokenInput = command_input(args, "refresh_token")?;
+    to_value(auth_records_actions::refresh_token(state.runtime(), input).await?)
+}
 
 pub(in crate::routes::commands) async fn oauth2_authorize_url(
     _state: &ServerState,
@@ -25,13 +57,12 @@ pub(in crate::routes::commands) async fn oauth2_callback(
     to_value(response)
 }
 
-pub(in crate::routes::commands) async fn get_user(
+pub(in crate::routes::commands) async fn get_current_user(
     state: &ServerState,
-    _user_id: i64,
-    args: &Value,
+    user_id: i64,
+    _args: &Value,
 ) -> Result<Value, ApiError> {
-    let user_id = i64_arg(args, "userId")?;
-    to_value(auth_records_actions::get_user(state.runtime(), user_id).await?)
+    to_value(auth_records_actions::get_current_user(state.runtime(), user_id).await?)
 }
 
 pub(in crate::routes::commands) async fn update_user_profile(
@@ -39,18 +70,9 @@ pub(in crate::routes::commands) async fn update_user_profile(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let target_user_id = i64_arg(args, "userId")?;
     let input: auth_records_actions::UpdateProfileInput =
         command_input(args, "update_user_profile")?;
-    to_value(
-        auth_records_actions::update_user_profile_for_user(
-            state.runtime(),
-            user_id,
-            target_user_id,
-            input,
-        )
-        .await?,
-    )
+    to_value(auth_records_actions::update_user_profile(state.runtime(), user_id, input).await?)
 }
 
 pub(in crate::routes::commands) async fn change_user_password(
@@ -58,16 +80,9 @@ pub(in crate::routes::commands) async fn change_user_password(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let target_user_id = i64_arg(args, "userId")?;
     let input: auth_records_actions::ChangePasswordInput =
         command_input(args, "change_user_password")?;
-    auth_records_actions::change_user_password_for_user(
-        state.runtime(),
-        user_id,
-        target_user_id,
-        input,
-    )
-    .await?;
+    auth_records_actions::change_user_password(state.runtime(), user_id, input).await?;
     Ok(Value::Null)
 }
 
@@ -84,7 +99,7 @@ pub(in crate::routes::commands) async fn revoke_session(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let session_id = string_arg(args, "sessionId")?;
-    auth_records_actions::revoke_session(state.runtime(), user_id, &session_id).await?;
+    let input: auth_records_actions::RevokeSessionInput = command_input(args, "revoke_session")?;
+    auth_records_actions::revoke_session(state.runtime(), user_id, &input.session_id).await?;
     Ok(Value::Null)
 }

@@ -20,7 +20,7 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_video_node(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     state
-        .canvas()
+        .orchestrator()
         .run_canvas_video_node_validated(
             CanvasVideoNodeExecutionInput {
                 user_id,

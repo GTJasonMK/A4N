@@ -15,6 +15,7 @@ pub fn character_sync_attribute_events_at_chapter(
                 json!({
                     "id": event.id,
                     "chapter_number": event.chapter_number,
+                    "source_kind": event.source_kind.clone(),
                     "timestamp": event.timestamp.to_string(),
                     "category": event.category.clone(),
                     "key": event.key.clone(),

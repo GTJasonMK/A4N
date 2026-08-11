@@ -17,7 +17,7 @@ pub async fn preview_canvas_node_request(
     input: PreviewCanvasNodeRequestInput,
 ) -> Result<CanvasNodeRequestPreview, String> {
     access::verify_project_access_string(state, user_id, input.project_id).await?;
-    let canvas = state.canvas();
+    let canvas = state.orchestrator();
     let document = load_canvas_preview_document(&canvas, input.project_id, input.graph_id).await?;
     let node = document
         .nodes
@@ -32,7 +32,7 @@ pub async fn preview_canvas_node_request(
             image::preview_canvas_image_node(state, user_id, &input, node, &document).await
         }
         "LlmTextNode" => {
-            llm::preview_canvas_llm_node(&state.canvas(), &input, node, &document).await
+            llm::preview_canvas_llm_node(state.orchestrator(), &input, node, &document).await
         }
         _ => Ok(generic_canvas_node_request_preview(&input, node)),
     }

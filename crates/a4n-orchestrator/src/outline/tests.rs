@@ -12,7 +12,10 @@ use super::{
         required_string, sync_chapter_outlines_by_number, validate_chapter_generation_range,
         validate_chapter_outline_generation_request, validate_requested_part_context,
     },
-    context::{chapter_outline_context_json, outline_blueprint_context_json},
+    context::{
+        chapter_outline_context_json, has_outline_generation_source, minimal_blueprint_context,
+        outline_blueprint_context_json, outline_formal_materials_context_json,
+    },
     ensure_response_not_truncated, order_parts_for_batch_generation,
     part_contract::{
         PartGenerationPlan, PartOutlineDraft, chapter_outline_ids_in_part_range,
@@ -26,8 +29,11 @@ use super::{
 
 use a4n_core::error::AppError;
 use a4n_core::models::{
+    asset::object_profile,
     chapter::{chapter_outline, part_outline},
+    character::{foreshadowing_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
+    scene::scene_profile,
 };
 use chrono::Utc;
 use sea_orm::{

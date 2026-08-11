@@ -1,18 +1,18 @@
-use super::contracts::{ProjectRollbackImpactQuery, ProjectRollbackImpactReadError};
+use super::contracts::ProjectRollbackImpactReadError;
 use super::facts::{ProjectRollbackImpactFacts, project_rollback_impacts};
 use super::projection::rollback_impacts_from_facts;
+use a4n_core::state::rollback::CleanupAction;
 use sea_orm::{DatabaseConnection, DbErr};
 use std::error::Error;
 
 #[test]
 fn rollback_impacts_from_facts_builds_requested_impacts() {
-    let query = ProjectRollbackImpactQuery {
-        project_id: 10,
-        delete_chapters: true,
-        delete_chapter_outlines: true,
-        delete_part_outlines: true,
-        delete_blueprint_versions: true,
-    };
+    let actions = [
+        CleanupAction::DeleteChapters,
+        CleanupAction::DeleteChapterOutlines,
+        CleanupAction::DeletePartOutlines,
+        CleanupAction::DeleteBlueprintVersions,
+    ];
     let facts = ProjectRollbackImpactFacts {
         chapter_numbers: vec![3, 1, 2],
         outline_numbers: vec![8, 5],
@@ -31,21 +31,21 @@ fn rollback_impacts_from_facts_builds_requested_impacts() {
         novel_blueprint_count: 15,
     };
 
-    let impacts = rollback_impacts_from_facts(&query, &facts)
+    let impacts = rollback_impacts_from_facts(&actions, &facts)
         .expect("small rollback impact counts should fit i32");
 
-    let kinds: Vec<&str> = impacts.iter().map(|impact| impact.kind.as_str()).collect();
+    let titles: Vec<&str> = impacts.iter().map(|impact| impact.title.as_str()).collect();
     assert_eq!(
-        kinds,
+        titles,
         vec![
-            "delete_chapters",
-            "delete_chapter_outlines",
-            "delete_part_outlines",
-            "delete_blueprint_versions",
+            "删除章节正文与派生数据",
+            "删除章节大纲",
+            "删除分部大纲",
+            "删除蓝图与版本",
         ]
     );
     let chapter_impact = &impacts[0];
-    assert_eq!(chapter_impact.count, Some(3));
+    assert_eq!(chapter_impact.count, 3);
     assert_eq!(chapter_impact.chapter_start, Some(1));
     assert_eq!(chapter_impact.chapter_end, Some(3));
     let note = chapter_impact.note.as_deref().expect("chapter note");
@@ -58,13 +58,13 @@ fn rollback_impacts_from_facts_builds_requested_impacts() {
     assert!(note.contains("11 条场景实体状态"));
     assert!(note.contains("6 个项目任务"));
 
-    assert_eq!(impacts[1].count, Some(2));
+    assert_eq!(impacts[1].count, 2);
     assert_eq!(impacts[1].chapter_start, Some(5));
     assert_eq!(impacts[1].chapter_end, Some(8));
-    assert_eq!(impacts[2].count, Some(2));
+    assert_eq!(impacts[2].count, 2);
     assert_eq!(impacts[2].part_start, Some(1));
     assert_eq!(impacts[2].part_end, Some(2));
-    assert_eq!(impacts[3].count, Some(54));
+    assert_eq!(impacts[3].count, 54);
 }
 
 #[test]
@@ -91,16 +91,8 @@ fn project_rollback_impact_read_error_preserves_operation_and_source() {
 #[tokio::test]
 async fn project_rollback_impacts_rejects_invalid_id_before_database_access() {
     let db = DatabaseConnection::Disconnected;
-    let query = ProjectRollbackImpactQuery {
-        project_id: 0,
-        delete_chapters: true,
-        delete_chapter_outlines: true,
-        delete_part_outlines: true,
-        delete_blueprint_versions: true,
-    };
-
     assert!(matches!(
-        project_rollback_impacts(&db, query).await,
+        project_rollback_impacts(&db, 0, &[CleanupAction::DeleteChapters]).await,
         Err(ProjectRollbackImpactReadError::InvalidArgument(message))
             if message == "project_id 必须大于 0"
     ));

@@ -89,10 +89,38 @@ pub async fn create_profile_with_generation_run<C>(
     project_id: i64,
     name: &str,
     base_attributes: Value,
-    mut generation_run: crate::generation::RecordCompletedGenerationRunInput,
+    generation_run: crate::generation::RecordCompletedGenerationRunInput,
 ) -> Result<protagonist_profile::Model, CharacterProfileCreateError>
 where
     C: ConnectionTrait + TransactionTrait,
+{
+    let tx = db
+        .begin()
+        .await
+        .map_err(CharacterProfileCreateError::Database)?;
+    let profile = create_profile_with_generation_run_in(
+        &tx,
+        project_id,
+        name,
+        base_attributes,
+        generation_run,
+    )
+    .await?;
+    tx.commit()
+        .await
+        .map_err(CharacterProfileCreateError::Database)?;
+    Ok(profile)
+}
+
+pub async fn create_profile_with_generation_run_in<C>(
+    db: &C,
+    project_id: i64,
+    name: &str,
+    base_attributes: Value,
+    mut generation_run: crate::generation::RecordCompletedGenerationRunInput,
+) -> Result<protagonist_profile::Model, CharacterProfileCreateError>
+where
+    C: ConnectionTrait,
 {
     if generation_run.project_id != project_id {
         return Err(CharacterProfileCreateError::InvalidArgument(
@@ -105,24 +133,17 @@ where
         ));
     }
 
-    let tx = db
-        .begin()
-        .await
-        .map_err(CharacterProfileCreateError::Database)?;
-    let profile = create_profile(&tx, project_id, name, base_attributes).await?;
+    let profile = create_profile(db, project_id, name, base_attributes).await?;
     generation_run.targets = vec![crate::generation::GenerationRunTraceTarget {
         target_kind: "character_profile_record".to_string(),
         target_table: "protagonist_profile".to_string(),
         target_id: profile.id,
     }];
     crate::generation::record_completed_generation_run_with_checkpoint_in(
-        &tx,
+        db,
         generation_run,
         crate::generation::GenerationRunCheckpointContext::default(),
     )
     .await?;
-    tx.commit()
-        .await
-        .map_err(CharacterProfileCreateError::Database)?;
     Ok(profile)
 }

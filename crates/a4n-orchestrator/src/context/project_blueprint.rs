@@ -1,4 +1,4 @@
-use a4n_core::blueprint::increment_blueprint_version;
+use a4n_api_contract::blueprint::SaveBlueprintInput;
 use a4n_core::event::bridge::InternalEvent;
 use a4n_core::{
     error::AppError,
@@ -39,6 +39,19 @@ impl ProjectBlueprintApplication {
             .map_err(AppError::Database)
     }
 
+    async fn sources_need_review(
+        &self,
+        blueprint: &novel_blueprint::Model,
+    ) -> Result<bool, AppError> {
+        a4n_db::project::blueprint_sources_need_review(
+            self.connection(),
+            blueprint.project_id,
+            blueprint.updated_at,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
+
     async fn versions(&self, project_id: i64) -> Result<Vec<blueprint_version::Model>, AppError> {
         a4n_db::project::blueprint_versions_by_project(self.connection(), project_id)
             .await
@@ -69,20 +82,6 @@ impl ProjectBlueprintApplication {
             .map_err(blueprint_restore_error_to_app)
     }
 
-    async fn update_world_setting(
-        &self,
-        project_id: i64,
-        world_setting: Value,
-    ) -> Result<Option<novel_blueprint::Model>, AppError> {
-        a4n_db::project::update_blueprint_world_setting(
-            self.connection(),
-            project_id,
-            world_setting,
-        )
-        .await
-        .map_err(project_mutation_error_to_app_error)
-    }
-
     // --- 生成/精炼读 ---
 
     async fn blueprint_characters_for_project(
@@ -102,21 +101,6 @@ impl ProjectBlueprintApplication {
             .await
             .map_err(AppError::Database)
     }
-
-    async fn blueprint_version_exists(
-        &self,
-        project_id: i64,
-        version: &str,
-    ) -> Result<bool, AppError> {
-        Ok(a4n_db::project::blueprint_version_by_project_version(
-            self.connection(),
-            project_id,
-            version,
-        )
-        .await
-        .map_err(project_mutation_error_to_app_error)?
-        .is_some())
-    }
 }
 
 impl OrchestratorContext {
@@ -124,14 +108,21 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<Option<novel_blueprint::Model>, AppError> {
+    ) -> Result<Option<(novel_blueprint::Model, bool)>, AppError> {
         self.verify_project_permission(
             project_id,
             user_id,
             crate::collaboration::ProjectAccessRole::Viewer,
         )
         .await?;
-        self.novel_blueprint_for_project(project_id).await
+        let Some(blueprint) = self.project_blueprint.current(project_id).await? else {
+            return Ok(None);
+        };
+        let needs_review = self
+            .project_blueprint
+            .sources_need_review(&blueprint)
+            .await?;
+        Ok(Some((blueprint, needs_review)))
     }
 
     pub async fn novel_blueprint_for_project(
@@ -180,8 +171,8 @@ impl OrchestratorContext {
         if let Some(status_change) = &result.status_change {
             self.publish_internal_event(InternalEvent::ProjectStatusChanged {
                 project_id,
-                from: status_change.from.clone(),
-                to: status_change.to.clone(),
+                from: status_change.from,
+                to: status_change.to,
                 timestamp: status_change.changed_at,
             })?;
         }
@@ -235,15 +226,49 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         world_setting: Value,
-    ) -> Result<Value, AppError> {
+    ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let world_setting = required_world_setting_value(world_setting)?;
-        self.project_blueprint
-            .update_world_setting(project_id, world_setting.clone())
-            .await?
-            .ok_or_else(|| AppError::NotFound("蓝图不存在".to_string()))?;
-        Ok(world_setting)
+        let result = a4n_db::blueprint::update_blueprint_world_setting_records_transaction(
+            self.project_blueprint.connection(),
+            a4n_db::blueprint::UpdateBlueprintWorldSettingInput {
+                project_id,
+                world_setting,
+                created_by: Some(format!("user:{user_id}")),
+            },
+        )
+        .await
+        .map_err(crate::blueprint::blueprint_db_error)?;
+        self.publish_versioned_blueprint_events(&result)?;
+        Ok(result)
+    }
+
+    pub async fn save_blueprint_for_user_validated(
+        &self,
+        user_id: i64,
+        input: SaveBlueprintInput,
+    ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let result = a4n_db::blueprint::save_manual_blueprint_records_transaction(
+            self.project_blueprint.connection(),
+            a4n_db::blueprint::SaveManualBlueprintInput {
+                project_id: input.project_id,
+                genre: input.genre,
+                style: input.style,
+                tone: input.tone,
+                target_audience: input.target_audience,
+                one_sentence_summary: input.one_sentence_summary,
+                full_synopsis: input.full_synopsis,
+                total_chapters: input.total_chapters,
+                created_by: Some(format!("user:{user_id}")),
+            },
+        )
+        .await
+        .map_err(crate::blueprint::blueprint_db_error)?;
+        self.publish_versioned_blueprint_events(&result)?;
+        Ok(result)
     }
 
     // --- 生成/精炼：编排层委托 ---
@@ -273,25 +298,23 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn next_blueprint_version(
+    fn publish_versioned_blueprint_events(
         &self,
-        project_id: i64,
-        current_version: Option<&str>,
-    ) -> Result<String, AppError> {
-        let mut candidate = match current_version {
-            Some(current_version) => increment_blueprint_version(current_version)?,
-            None => "1.0".to_string(),
-        };
-        loop {
-            if !self
-                .project_blueprint
-                .blueprint_version_exists(project_id, &candidate)
-                .await?
-            {
-                return Ok(candidate);
-            }
-            candidate = increment_blueprint_version(&candidate)?;
+        result: &a4n_db::blueprint::VersionedBlueprintMutationResult,
+    ) -> Result<(), AppError> {
+        if let Some(status_change) = result.status_change {
+            self.publish_internal_event(InternalEvent::ProjectStatusChanged {
+                project_id: result.blueprint.project_id,
+                from: status_change.from,
+                to: status_change.to,
+                timestamp: status_change.changed_at,
+            })?;
         }
+        self.publish_internal_event(InternalEvent::BlueprintUpdated {
+            project_id: result.blueprint.project_id,
+            version: result.blueprint.current_version.clone(),
+        })?;
+        Ok(())
     }
 }
 

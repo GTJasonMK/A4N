@@ -29,7 +29,7 @@ pub(super) async fn process_claimed_cleanup(
             state,
             id,
             lease_token,
-            state.rag().clear_project_rag(project_id),
+            state.orchestrator().clear_project_rag(project_id),
         )
         .await
     {
@@ -42,7 +42,7 @@ pub(super) async fn process_claimed_cleanup(
         id,
         lease_token,
         state
-            .project_family()
+            .orchestrator()
             .unreferenced_media_paths(&claim.payload.media_paths),
     )
     .await
@@ -67,7 +67,7 @@ pub(super) async fn process_claimed_cleanup(
         id,
         lease_token,
         state
-            .project_family()
+            .orchestrator()
             .media_path_prefix_has_persisted_reference(&prefix),
     )
     .await
@@ -97,14 +97,14 @@ pub(super) async fn process_claimed_cleanup(
 
     if errors.is_empty() {
         state
-            .project_family()
+            .orchestrator()
             .complete_claimed_cleanup(id, lease_token)
             .await
             .map_err(app_error_message)
     } else {
         let retry_after_seconds = cleanup_retry_after_seconds(claim.record.attempt_count);
         state
-            .project_family()
+            .orchestrator()
             .retry_claimed_cleanup(id, lease_token, errors.join("；"), retry_after_seconds)
             .await
             .map_err(app_error_message)
@@ -127,7 +127,7 @@ pub(super) async fn process_claimed_file_artifact_cleanup(
         id,
         lease_token,
         state
-            .project_family()
+            .orchestrator()
             .unreferenced_media_paths(&claim.payload.paths),
     )
     .await
@@ -143,14 +143,14 @@ pub(super) async fn process_claimed_file_artifact_cleanup(
     };
     match result {
         Ok(()) => state
-            .project_family()
+            .orchestrator()
             .complete_claimed_cleanup(id, lease_token)
             .await
             .map_err(app_error_message),
         Err(error) => {
             let retry_after_seconds = cleanup_retry_after_seconds(claim.record.attempt_count);
             state
-                .project_family()
+                .orchestrator()
                 .retry_claimed_cleanup(id, lease_token, error, retry_after_seconds)
                 .await
                 .map_err(app_error_message)
@@ -171,20 +171,20 @@ pub(super) async fn process_claimed_media_workflow_reset(
     let project_id = claim.payload.project_id;
     renew_cleanup_lease(state, id, lease_token).await?;
     let result = state
-        .project_family()
+        .orchestrator()
         .reset_media_workflows_to_v2(project_id, id)
         .await
         .map_err(app_error_message);
     match result {
         Ok(()) => state
-            .project_family()
+            .orchestrator()
             .complete_claimed_cleanup(id, lease_token)
             .await
             .map_err(app_error_message),
         Err(error) => {
             let retry_after_seconds = cleanup_retry_after_seconds(claim.record.attempt_count);
             state
-                .project_family()
+                .orchestrator()
                 .retry_claimed_cleanup(id, lease_token, error, retry_after_seconds)
                 .await
                 .map_err(app_error_message)
@@ -217,7 +217,7 @@ pub(super) async fn process_claimed_generation_cleanup(
         .await;
         return match result {
             Ok(crate::actions::video_generation::RemoteTempMediaDeleteOutcome::Deleted) => state
-                .project_family()
+                .orchestrator()
                 .complete_claimed_generation_cleanup(
                     id,
                     lease_token,
@@ -226,7 +226,7 @@ pub(super) async fn process_claimed_generation_cleanup(
                 .await
                 .map_err(app_error_message),
             Ok(crate::actions::video_generation::RemoteTempMediaDeleteOutcome::NotFound) => state
-                .project_family()
+                .orchestrator()
                 .complete_claimed_generation_cleanup(
                     id,
                     lease_token,
@@ -242,7 +242,7 @@ pub(super) async fn process_claimed_generation_cleanup(
         // 只解除 generation 侧引用责任。物理删除由 generation_staging_artifact_delete 承担。
         return match resolve_artifact_unbind_outcome(payload) {
             Ok(outcome) => state
-                .project_family()
+                .orchestrator()
                 .complete_claimed_generation_cleanup(id, lease_token, outcome)
                 .await
                 .map_err(app_error_message),
@@ -251,13 +251,13 @@ pub(super) async fn process_claimed_generation_cleanup(
     }
     match generation_cleanup_resolution(&claim.payload) {
         Ok(outcome) => state
-            .project_family()
+            .orchestrator()
             .complete_claimed_generation_cleanup(id, lease_token, outcome)
             .await
             .map_err(app_error_message),
         Err(error) => {
             match state
-                .project_family()
+                .orchestrator()
                 .retry_or_fail_claimed_generation_cleanup(id, lease_token, error.to_string())
                 .await
                 .map_err(app_error_message)?
@@ -316,7 +316,7 @@ async fn retry_generation_cleanup_after_error(
         .as_deref()
         .ok_or_else(|| format!("cleanup outbox claim 缺少 lease token: id={id}"))?;
     match state
-        .project_family()
+        .orchestrator()
         .retry_or_fail_claimed_generation_cleanup(id, lease_token, error.clone())
         .await
         .map_err(app_error_message)?
@@ -375,7 +375,7 @@ async fn process_claimed_provider_job_cleanup(
                 ProviderCleanupAction::Complete(GenerationCleanupOutcome::Unsupported)
             } else {
                 let config = state
-                    .video()
+                    .orchestrator()
                     .resolve_video_config_for_provider_job(
                         claim.record.project_id,
                         &payload.provider_kind,
@@ -405,7 +405,7 @@ async fn process_claimed_provider_job_cleanup(
         }
         a4n_db::cleanup_outbox::GenerationProviderJobCleanupOperation::Reconcile => {
             let config = state
-                .video()
+                .orchestrator()
                 .resolve_video_config_for_provider_job(
                     claim.record.project_id,
                     &payload.provider_kind,
@@ -453,12 +453,12 @@ async fn process_claimed_provider_job_cleanup(
 
     match action {
         ProviderCleanupAction::Complete(outcome) => state
-            .project_family()
+            .orchestrator()
             .complete_claimed_generation_cleanup(id, lease_token, outcome)
             .await
             .map_err(app_error_message),
         ProviderCleanupAction::Observe(retry_after_seconds) => state
-            .project_family()
+            .orchestrator()
             .observe_claimed_generation_reconcile(id, lease_token, retry_after_seconds)
             .await
             .map(|outcome| {
@@ -471,7 +471,7 @@ async fn process_claimed_provider_job_cleanup(
             })
             .map_err(app_error_message),
         ProviderCleanupAction::ScheduleDelete => state
-            .project_family()
+            .orchestrator()
             .schedule_provider_delete_from_reconcile(id, lease_token)
             .await
             .map(|_| ())

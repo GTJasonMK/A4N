@@ -7,7 +7,7 @@ pub(crate) async fn delete_video_tail_frame_assets(
     video_id: i64,
 ) -> Result<(), String> {
     let images = state
-        .video()
+        .orchestrator()
         .video_tail_frame_images()
         .await
         .map_err(|error| error.to_string())
@@ -20,7 +20,7 @@ pub(crate) async fn delete_video_tail_frame_assets(
     for image in images {
         let image_id = image.id;
         match state
-            .media()
+            .orchestrator()
             .delete_generated_image_validated(image)
             .await
             .map_err(|error| error.to_string())

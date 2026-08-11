@@ -44,6 +44,25 @@ fn scene_profile_rejects_non_array_entry_points_and_rules() {
 }
 
 #[test]
+fn manual_scene_profile_allows_name_only() {
+    let mut draft = valid_scene_profile_draft();
+    draft.scene_type.clear();
+    draft.importance.clear();
+    draft.base_description.clear();
+    draft.visual_description.clear();
+    draft.spatial_layout.clear();
+    draft.atmosphere.clear();
+    draft.evidence.clear();
+    draft.image_prompt_seed.clear();
+
+    let input = normalize_scene_profile_record_input(draft)
+        .expect("manual profile should accept sparse known data");
+    assert_eq!(input.name, "旧车站");
+    assert!(input.scene_type.is_empty());
+    assert!(input.evidence_json.as_array().is_some_and(Vec::is_empty));
+}
+
+#[test]
 fn normalize_scene_type_accepts_canonical_values_only() {
     assert_eq!(normalize_scene_type_value(" room ").unwrap(), "room");
     assert_eq!(normalize_scene_type_value("route").unwrap(), "route");

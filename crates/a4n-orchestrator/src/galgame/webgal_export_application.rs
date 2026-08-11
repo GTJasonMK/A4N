@@ -520,7 +520,9 @@ fn webgal_config_text(detail: &GalgameScriptDetail) -> String {
 fn read_webgal_data_file(data_dir: &Path, relative_path: &str) -> Result<Vec<u8>, AppError> {
     let raw = Path::new(relative_path);
     if raw.is_absolute() {
-        return Err(invalid_webgal("WebGAL 媒体文件必须是应用数据目录内的相对路径"));
+        return Err(invalid_webgal(
+            "WebGAL 媒体文件必须是应用数据目录内的相对路径",
+        ));
     }
     let canonical_data_dir = data_dir
         .canonicalize()
@@ -530,7 +532,9 @@ fn read_webgal_data_file(data_dir: &Path, relative_path: &str) -> Result<Vec<u8>
         .canonicalize()
         .map_err(|error| invalid_webgal(format!("解析 WebGAL 媒体路径失败：{error}")))?;
     if !canonical_file.starts_with(&canonical_data_dir) || !canonical_file.is_file() {
-        return Err(invalid_webgal("WebGAL 媒体文件不在应用数据目录内或不是文件"));
+        return Err(invalid_webgal(
+            "WebGAL 媒体文件不在应用数据目录内或不是文件",
+        ));
     }
     std::fs::read(&canonical_file).map_err(|error| {
         invalid_webgal(format!(

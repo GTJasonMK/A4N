@@ -52,18 +52,11 @@ pub fn visual_plan_from_value(value: Value, context: &str) -> Result<GalgameVisu
                 &format!("{context}.event_cgs[].scene_index"),
             )?;
             require_positive(cg.line_index, &format!("{context}.event_cgs[].line_index"))?;
-            let importance =
-                required_text(cg.importance, &format!("{context}.event_cgs[].importance"))?;
-            if !CG_IMPORTANCE.contains(&importance.as_str()) {
-                return Err(invalid(format!(
-                    "{context}.event_cgs[].importance 无效: {importance}"
-                )));
-            }
             Ok(GalgamePipelineEventCgPlan {
                 scene_index: cg.scene_index,
                 line_index: cg.line_index,
                 cg_note: required_text(cg.cg_note, &format!("{context}.event_cgs[].cg_note"))?,
-                importance,
+                importance: cg.importance,
                 source_span_ids: normalize_source_span_ids(
                     cg.source_span_ids,
                     &format!("{context}.event_cgs[].source_span_ids"),

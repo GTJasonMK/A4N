@@ -1,12 +1,13 @@
-mod admin;
 mod auth;
 mod commands;
 mod error;
 mod generation;
 mod media;
 mod meta;
-mod projects;
 mod temp_media;
+
+pub use commands::dispatch_runtime_command;
+pub use generation::dispatch_generation_start;
 
 use crate::state::ServerState;
 use axum::Router;
@@ -23,11 +24,6 @@ pub fn api_router(state: ServerState) -> Router {
         .route("/meta", get(meta::get))
         .route("/meta/commands", get(meta::commands))
         .route("/meta/commands/{command}", get(meta::command))
-        .route("/auth/login", post(auth::login))
-        .route("/auth/register", post(auth::register))
-        .route("/auth/me", get(auth::me))
-        .route("/auth/logout", post(auth::logout))
-        .route("/auth/refresh", post(auth::refresh))
         .route(
             "/commands/{cmd}",
             post(commands::invoke).layer(DefaultBodyLimit::max(COMMAND_BODY_LIMIT_BYTES)),
@@ -92,24 +88,6 @@ pub fn api_router(state: ServerState) -> Router {
             "/temp-media/{file_name}",
             get(temp_media::serve).delete(temp_media::delete),
         )
-        .route("/admin/users", get(admin::list_users))
-        .route("/admin/users", post(admin::create_user))
-        .route("/admin/invite-codes", get(admin::list_invite_codes))
-        .route("/admin/invite-codes", post(admin::create_invite_code))
-        .route("/admin/users/{user_id}/role", post(admin::update_user_role))
-        .route("/admin/users/{user_id}/disable", post(admin::disable_user))
-        .route("/projects", get(projects::list_projects))
-        .route("/projects", post(projects::create_project))
-        .route("/projects/derived", post(projects::create_derived_project))
-        .route(
-            "/projects/freeform-video",
-            post(projects::create_freeform_video_project),
-        )
-        .route(
-            "/projects/{project_id}/source-snapshot-chapters",
-            get(projects::list_source_snapshot_chapters),
-        )
-        .route("/projects/{project_id}", get(projects::get_project))
         .with_state(state)
 }
 

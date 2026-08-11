@@ -68,6 +68,7 @@ const plan: ChapterVideoPrompt = {
     ],
     video_execution_identity: executionIdentity,
   },
+  created_at: "2026-07-29T00:00:00Z",
   updated_at: "2026-07-29T00:00:00Z",
 };
 
@@ -97,7 +98,6 @@ const video = (
   status: "completed",
   provider_job_id: null,
   error_message: null,
-  timeline_item_id: null,
   metadata_json: {
     shot_number: segmentNumber,
     video_execution_identity: {

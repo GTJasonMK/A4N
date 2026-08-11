@@ -15,7 +15,7 @@ pub async fn trim_video(
     end_secs: f32,
 ) -> Result<GeneratedVideoSummary, String> {
     let plan = state
-        .video()
+        .orchestrator()
         .prepare_video_trim_validated(video_id, start_secs, end_secs)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -41,7 +41,7 @@ pub async fn trim_video(
     let source_project_id = source.project_id;
     let source_chapter_id = source.chapter_id;
     let record = match state
-        .video()
+        .orchestrator()
         .create_trimmed_video_record_validated(plan)
         .await
     {
@@ -67,7 +67,7 @@ pub async fn trim_video(
         )
     });
     let updated = match state
-        .video()
+        .orchestrator()
         .mark_generated_video_completed_and_link_prompt(
             record.id,
             &output_path_str,
@@ -82,7 +82,7 @@ pub async fn trim_video(
         Err(err) => {
             let can_adopt = a4n_orchestrator::video::can_adopt_authoritative_video_completion(&err);
             let primary_error = format!("裁剪文件已生成但记录完成状态失败：{err}");
-            let authoritative = match state.video().generated_video_by_id(record.id).await {
+            let authoritative = match state.orchestrator().generated_video_by_id(record.id).await {
                 Ok(authoritative) => authoritative,
                 Err(lookup_error) => {
                     return Err(append_secondary_error(
@@ -136,7 +136,7 @@ pub async fn trim_video(
                 return Err(failure_message);
             }
             let mark_failed_error = state
-                .video()
+                .orchestrator()
                 .mark_generated_video_error_status_and_prompt(
                     record.id,
                     None,

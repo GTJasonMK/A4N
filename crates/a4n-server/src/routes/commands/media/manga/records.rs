@@ -2,16 +2,18 @@ use serde_json::Value;
 
 use super::super::super::{ApiError, ServerState, command_input, manga_records_actions, to_value};
 
-pub(in crate::routes::commands) async fn list_manga_panels(
+pub(in crate::routes::commands) async fn list_manga_page_prompts(
     state: &ServerState,
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: manga_records_actions::MangaChapterInput = command_input(args, "list_manga_panels")?;
-    let panels = manga_records_actions::list_manga_panels(state.runtime(), user_id, input)
-        .await
-        .map_err(ApiError::bad_request)?;
-    to_value(panels)
+    let input: manga_records_actions::MangaChapterInput =
+        command_input(args, "list_manga_page_prompts")?;
+    let page_prompts =
+        manga_records_actions::list_manga_page_prompts(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(page_prompts)
 }
 
 pub(in crate::routes::commands) async fn bind_manga_reference_image(

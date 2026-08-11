@@ -1,6 +1,7 @@
 use super::super::contracts::{
     CreateLlmInput, LlmConfigSummary, UpdateLlmInput, llm_config_summary,
 };
+use crate::actions::config_records::shared::require_config_admin;
 use crate::{AppState, actions::app_error_message};
 use a4n_llm::config::{CreateLlmConfigInput, UpdateLlmConfigInput};
 
@@ -21,7 +22,7 @@ pub async fn create_llm_config(
         extra_body_json: input.extra_body_json,
     };
     let config = state
-        .settings()
+        .orchestrator()
         .create_llm_config_validated(create_input)
         .await
         .map_err(app_error_message)?;
@@ -49,25 +50,29 @@ pub async fn update_llm_config(
         extra_body_json: input.extra_body_json,
     };
     let config = state
-        .settings()
+        .orchestrator()
         .update_llm_config_validated(config_id, update_input)
         .await
         .map_err(app_error_message)?;
     Ok(llm_config_summary(&config))
 }
 
-pub async fn set_default_llm_config(state: &AppState, config_id: i64) -> Result<(), String> {
+pub async fn set_default_llm_config(
+    state: &AppState,
+    caller_user_id: i64,
+    config_id: i64,
+) -> Result<(), String> {
+    require_config_admin(state, caller_user_id).await?;
     state
-        .settings()
+        .orchestrator()
         .set_default_llm_config_validated(config_id)
         .await
-        .map(drop)
         .map_err(app_error_message)
 }
 
 pub async fn delete_llm_config(state: &AppState, config_id: i64) -> Result<(), String> {
     state
-        .settings()
+        .orchestrator()
         .delete_llm_config_if_allowed(config_id)
         .await
         .map_err(app_error_message)

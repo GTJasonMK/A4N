@@ -23,6 +23,17 @@ pub async fn restore_blueprint_version_record(
         .begin()
         .await
         .map_err(|error| BlueprintRestoreError::database("启动蓝图版本恢复事务失败", error))?;
+    let locked_sources =
+        crate::outline::load_outline_generation_source_rows_for_update(&txn, project_id)
+            .await
+            .map_err(|error| BlueprintRestoreError::database("锁定蓝图恢复来源失败", error))?
+            .ok_or(BlueprintRestoreError::ProjectNotFound { project_id })?;
+    if locked_sources.project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(BlueprintRestoreError::InvalidArgument(format!(
+            "项目当前状态不允许恢复蓝图版本: {}",
+            locked_sources.project.lifecycle_gate
+        )));
+    }
     let version = blueprint_version::Entity::find()
         .filter(blueprint_version::Column::ProjectId.eq(project_id))
         .filter(blueprint_version::Column::Version.eq(version_name))
@@ -37,11 +48,7 @@ pub async fn restore_blueprint_version_record(
     let now = Utc::now().naive_utc();
     let data = &version.blueprint_data;
     let fields = RestoredBlueprintFields::from_snapshot(data, &version.version)?;
-    let existing = novel_blueprint::Entity::find()
-        .filter(novel_blueprint::Column::ProjectId.eq(project_id))
-        .one(&txn)
-        .await
-        .map_err(|error| BlueprintRestoreError::database("读取当前蓝图失败", error))?;
+    let existing = locked_sources.blueprint;
 
     let restored = if let Some(blueprint) = existing {
         let mut active: novel_blueprint::ActiveModel = blueprint.into();
@@ -58,13 +65,8 @@ pub async fn restore_blueprint_version_record(
             .map_err(|error| BlueprintRestoreError::database("创建当前蓝图失败", error))?
     };
 
-    restore_blueprint_character_snapshot_record(
-        &txn,
-        project_id,
-        data.get("characters"),
-        now,
-    )
-    .await?;
+    restore_blueprint_character_snapshot_record(&txn, project_id, data.get("characters"), now)
+        .await?;
     restore_blueprint_relationship_snapshot_record(
         &txn,
         project_id,

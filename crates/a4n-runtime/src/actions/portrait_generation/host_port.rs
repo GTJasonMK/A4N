@@ -46,7 +46,7 @@ pub(super) async fn build_portrait_image_request_preview(
 ) -> Result<PortraitImageRequestPreviewContext, String> {
     let image_ids = a4n_orchestrator::portrait::validate_reference_image_ids(reference_image_ids)?;
     let records = state
-        .character()
+        .orchestrator()
         .portrait_reference_images_by_ids(project_id, &image_ids)
         .await
         .map_err(|error| error.to_string())?;

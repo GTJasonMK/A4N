@@ -14,10 +14,6 @@ use super::super::{
     SCRIPT_STATUS_READY,
 };
 
-pub(super) fn test_line(expression: Option<&str>, pose: Option<&str>) -> galgame_line::Model {
-    test_line_with(1, Some(1), expression, pose, Some("center"))
-}
-
 pub(super) fn test_line_with(
     id: i64,
     text_anchor_id: Option<i64>,
@@ -36,7 +32,30 @@ pub(super) fn test_line_with(
         expression: expression.map(str::to_string),
         pose: pose.map(str::to_string),
         position: position.map(str::to_string),
-        presentation_json: json!({}),
+        presentation_json: json!({
+            "schema_version": "galgame_line_presentation_v2",
+            "visible_cast": [{
+                "character_profile_id": 1,
+                "expression": expression,
+                "pose": pose,
+                "position": position,
+                "facing": "front",
+                "layer": "front"
+            }],
+            "enter": [],
+            "exit": [],
+            "focus_character_profile_id": 1,
+            "hold": false,
+            "player_knowledge": [],
+            "cg": null,
+            "cg_note": null,
+            "cg_importance": null,
+            "transition": null,
+            "branch": null,
+            "branch_id": null,
+            "returns_to_scene_index": null,
+            "after_beat_ref": null
+        }),
         text_anchor_id,
         created_at: now,
         updated_at: now,

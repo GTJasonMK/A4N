@@ -1,6 +1,6 @@
 use crate::contracts::IngestOutput;
 use crate::handlers::{completed_ingest_event, failed_ingest_event, progress_ingest_event};
-use crate::protocol::{error_response, service_error, validate_service_request};
+use crate::protocol::{service_error, validate_service_request};
 use a4n_service_protocol::{
     CapabilityTaskEventKind, PROTOCOL_VERSION,
     RAG_INDEX_CAPABILITY_VERSION as RAG_CAPABILITY_VERSION, ServiceErrorCode, ServiceRequest,
@@ -24,7 +24,7 @@ fn rejects_incompatible_protocol_version_with_trace() {
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
 
     let response: ServiceResponse<()> =
-        error_response(&request, validate_service_request(&request).unwrap_err());
+        request.error_response(validate_service_request(&request).unwrap_err());
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
@@ -39,7 +39,7 @@ fn rejects_secret_forwarding_policy() {
     request.secret_policy = a4n_service_protocol::SecretForwardingPolicy::local_user_secret();
 
     let response: ServiceResponse<()> =
-        error_response(&request, validate_service_request(&request).unwrap_err());
+        request.error_response(validate_service_request(&request).unwrap_err());
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));

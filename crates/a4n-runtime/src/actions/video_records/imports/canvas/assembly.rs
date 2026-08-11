@@ -14,7 +14,7 @@ pub async fn assemble_canvas_videos(
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let plan = state
-        .video()
+        .orchestrator()
         .prepare_canvas_assembly_validated(project_id, video_ids, title.as_deref())
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -49,7 +49,7 @@ pub async fn assemble_canvas_videos(
     }
     let (width, height, fps) = (plan.width, plan.height, plan.fps);
     let record = state
-        .video()
+        .orchestrator()
         .create_canvas_assembly_record_validated(project_id, plan)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -116,7 +116,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => {
             let mark_failed_error = state
-                .video()
+                .orchestrator()
                 .mark_generated_video_error_status_and_prompt(record_id, None, "failed", &error)
                 .await
                 .map_err(crate::actions::app_error_message)

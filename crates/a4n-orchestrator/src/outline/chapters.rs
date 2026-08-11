@@ -45,15 +45,18 @@ impl OrchestratorContext {
             load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
         validate_requested_part_context(&context.parts, chapter_number, chapter_number)?;
         let focus_part = match old.part_id {
-            Some(part_id) => {
-                let part = self.get_part(part_id).await?;
-                if part.project_id != project_id {
-                    return Err(AppError::InvalidArgument(format!(
-                        "章节大纲关联的分部 {part_id} 不属于项目 {project_id}"
-                    )));
-                }
-                Some(part)
-            }
+            Some(part_id) => Some(
+                context
+                    .parts
+                    .iter()
+                    .find(|part| part.id == part_id)
+                    .cloned()
+                    .ok_or_else(|| {
+                        AppError::InvalidArgument(format!(
+                            "章节大纲关联的分部 {part_id} 不属于项目 {project_id}"
+                        ))
+                    })?,
+            ),
             None => None,
         };
         ensure_focus_part_in_context(focus_part.as_ref(), &context.parts)?;

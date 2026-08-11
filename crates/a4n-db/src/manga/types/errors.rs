@@ -31,10 +31,6 @@ pub enum MangaPipelineDbError {
     Database(#[from] DbErr),
     #[error("{0}")]
     InvalidArgument(String),
-    #[error("{0}")]
-    NotFound(String),
-    #[error("操作已取消")]
-    Cancelled,
     #[error(transparent)]
     Generation(#[from] GenerationDbError),
 }

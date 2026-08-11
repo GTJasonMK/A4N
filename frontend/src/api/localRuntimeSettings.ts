@@ -128,11 +128,7 @@ function parseSettings(raw: string | null): LocalRuntimeSettings {
     );
   }
   const payload = requiredObject(parsed, "本机运行时设置");
-  assertNoUnknownKeys(
-    payload,
-    LOCAL_RUNTIME_SETTINGS_KEYS,
-    "本机运行时设置",
-  );
+  assertNoUnknownKeys(payload, LOCAL_RUNTIME_SETTINGS_KEYS, "本机运行时设置");
   if (payload.schema_version !== 1) {
     throw new Error("本机运行时设置 schema_version 必须为 1");
   }
@@ -302,9 +298,7 @@ function normalizeSettings(
   ensureSingleDefault(normalized.video, "video");
   const maxId = maxExistingId(normalized);
   if (normalized.next_id <= maxId) {
-    throw new Error(
-      `本机运行时设置 next_id 必须大于当前最大配置 ID ${maxId}`,
-    );
+    throw new Error(`本机运行时设置 next_id 必须大于当前最大配置 ID ${maxId}`);
   }
   return normalized;
 }
@@ -321,8 +315,16 @@ function normalizeDefaultSource(
   );
   return {
     llm: normalizeDefaultSourceKind(payload.llm, settings.llm.length, "llm"),
-    image: normalizeDefaultSourceKind(payload.image, settings.image.length, "image"),
-    video: normalizeDefaultSourceKind(payload.video, settings.video.length, "video"),
+    image: normalizeDefaultSourceKind(
+      payload.image,
+      settings.image.length,
+      "image",
+    ),
+    video: normalizeDefaultSourceKind(
+      payload.video,
+      settings.video.length,
+      "video",
+    ),
   };
 }
 
@@ -407,10 +409,7 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
   };
 }
 
-function normalizeLlmExtraBody(
-  value: unknown,
-  label: string,
-): unknown | null {
+function normalizeLlmExtraBody(value: unknown, label: string): unknown | null {
   if (value == null) return null;
   const payload = requiredObject(value, `${label} extra_body_json`);
   const reservedKey = Object.keys(payload).find((key) =>
@@ -763,17 +762,24 @@ function allocateId(settings: { next_id: number }): number {
 function setSingleDefault<T extends { id: number; is_default: boolean }>(
   items: T[],
   id: number,
-): T {
-  const target = items.find((item) => item.id === id);
-  if (!target) throw new Error(`本机配置不存在: ${id}`);
+): void {
+  if (!items.some((item) => item.id === id)) {
+    throw new Error(`本机配置不存在: ${id}`);
+  }
   for (const item of items) item.is_default = item.id === id;
-  return target;
 }
 
-function removeById<T extends { id: number }>(items: T[], id: number): T {
+function removeConfigById<T extends { id: number; is_default: boolean }>(
+  items: T[],
+  id: number,
+  allowOnlyDefault: boolean,
+): void {
   const index = items.findIndex((item) => item.id === id);
   if (index < 0) throw new Error(`本机配置不存在: ${id}`);
-  return items.splice(index, 1)[0];
+  if (items[index].is_default && !(allowOnlyDefault && items.length === 1)) {
+    throw new Error("不能删除本机默认配置，请先设置其它默认配置");
+  }
+  items.splice(index, 1);
 }
 
 export function activeLocalLlmConfig(): LocalLlmConfig | null {
@@ -960,9 +966,11 @@ export function setSystemDefaultLlmConfig(): void {
 
 export function deleteLocalLlmConfig(id: number): void {
   mutateSettings((settings) => {
-    const removed = removeById(settings.llm, id);
-    if (removed.is_default && settings.llm[0]) settings.llm[0].is_default = true;
-    if (settings.llm.length === 0) settings.default_source.llm = "system";
+    removeConfigById(
+      settings.llm,
+      id,
+      settings.default_source.llm === "system",
+    );
   });
 }
 
@@ -1052,10 +1060,10 @@ export function updateLocalImageConfig(
   });
 }
 
-export function setDefaultLocalImageConfig(id: number): ImageGenConfig {
-  return mutateSettings((settings) => {
+export function setDefaultLocalImageConfig(id: number): void {
+  mutateSettings((settings) => {
     settings.default_source.image = "local";
-    return setSingleDefault(settings.image, id);
+    setSingleDefault(settings.image, id);
   });
 }
 
@@ -1067,9 +1075,11 @@ export function setSystemDefaultImageConfig(): void {
 
 export function deleteLocalImageConfig(id: number): void {
   mutateSettings((settings) => {
-    const removed = removeById(settings.image, id);
-    if (removed.is_default && settings.image[0]) settings.image[0].is_default = true;
-    if (settings.image.length === 0) settings.default_source.image = "system";
+    removeConfigById(
+      settings.image,
+      id,
+      settings.default_source.image === "system",
+    );
   });
 }
 
@@ -1153,10 +1163,10 @@ export function updateLocalVideoConfig(
   });
 }
 
-export function setDefaultLocalVideoConfig(id: number): VideoGenConfig {
-  return mutateSettings((settings) => {
+export function setDefaultLocalVideoConfig(id: number): void {
+  mutateSettings((settings) => {
     settings.default_source.video = "local";
-    return setSingleDefault(settings.video, id);
+    setSingleDefault(settings.video, id);
   });
 }
 
@@ -1168,9 +1178,11 @@ export function setSystemDefaultVideoConfig(): void {
 
 export function deleteLocalVideoConfig(id: number): void {
   mutateSettings((settings) => {
-    const removed = removeById(settings.video, id);
-    if (removed.is_default && settings.video[0]) settings.video[0].is_default = true;
-    if (settings.video.length === 0) settings.default_source.video = "system";
+    removeConfigById(
+      settings.video,
+      id,
+      settings.default_source.video === "system",
+    );
   });
 }
 
@@ -1265,10 +1277,6 @@ export function setDefaultLocalEmbeddingConfig(id: number): void {
 
 export function deleteLocalEmbeddingConfig(id: number): void {
   mutateSettings((settings) => {
-    const removed = removeById(settings.embedding, id);
-    if (settings.embedding.length === 0) {
-      throw new Error("本机 Embedding 配置必须至少保留一个");
-    }
-    if (removed.is_default) settings.embedding[0].is_default = true;
+    removeConfigById(settings.embedding, id, false);
   });
 }

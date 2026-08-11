@@ -1,8 +1,8 @@
 use a4n_test_support::process::{
     ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput, HttpImportClient,
-    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportClient, ImportDocumentKind,
-    ImportNormalizeJsonInput, ImportReadMediaPackageZipInput, SIDECAR_PROCESS_TEST_TOKEN,
-    ServiceRequestContext, ServiceStatus, TraceContext, assert_process_concurrency_saturation,
+    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportClient,
+    ImportReadMediaPackageZipInput, SIDECAR_PROCESS_TEST_TOKEN, ServiceRequestContext,
+    ServiceStatus, TraceContext, assert_process_concurrency_saturation,
     assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
     assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
     assert_route_rejects_version_mismatch, disconnect_during_request_body, finish_sidecar,
@@ -39,7 +39,7 @@ fn media_package_input(
 }
 
 #[tokio::test]
-async fn import_service_process_serves_typed_normalize_and_stops() {
+async fn import_service_process_serves_typed_media_package_and_stops() {
     let addr = unused_local_addr();
     let (manager, _temp_dir) = sidecar_manager(
         "import",
@@ -49,12 +49,15 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
         [],
     );
     let process = start_sidecar(&manager, IMPORT_SERVICE_NAME).await;
-    assert_process_concurrency_saturation(addr, IMPORT_SERVICE_NAME, "/import/normalize_json")
-        .await;
+    assert_process_concurrency_saturation(
+        addr,
+        IMPORT_SERVICE_NAME,
+        "/import/read_media_package_zip",
+    )
+    .await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/import/normalize_json").await;
-    assert_route_rejects_malformed_json(&base_url, "/import/normalize_json").await;
-    assert_route_rejects_oversized_json(&base_url, "/import/normalize_json", 8 * 1024 * 1024).await;
+    assert_protected_route_rejects_invalid_auth(&base_url, "/import/read_media_package_zip").await;
+    assert_route_rejects_malformed_json(&base_url, "/import/read_media_package_zip").await;
     assert_route_rejects_oversized_json(
         &base_url,
         "/import/read_media_package_zip",
@@ -63,41 +66,50 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
     .await;
     let client = HttpImportClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = ServiceRequestContext::new(
-        "import-process-normalize",
+        "import-process-media-package",
         TraceContext {
-            trace_id: "import-process-trace".to_string(),
+            trace_id: "import-process-media-package-trace".to_string(),
             parent_span_id: None,
         },
-        a4n_service_protocol::SecretForwardingPolicy::trusted_remote_no_secrets(),
+        a4n_service_protocol::SecretForwardingPolicy::deny_all(),
     )
     .with_payload(
         IMPORT_TRANSFORM_CAPABILITY_VERSION,
-        ImportNormalizeJsonInput {
-            kind: ImportDocumentKind::GenericJson,
-            content: " {\"value\":1} ".to_string(),
-        },
+        media_package_input(
+            serde_json::json!({
+                "version": "process",
+                "media_files": [{"package_path": "media/file.txt"}]
+            }),
+            &[("media/file.txt", b"process media payload")],
+        ),
     )
     .expect("typed import request should be valid");
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
-        "/import/normalize_json",
+        "/import/read_media_package_zip",
         &request,
     )
     .await;
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
-        "/import/normalize_json",
+        "/import/read_media_package_zip",
         &request,
     )
     .await;
-    let response = client
-        .normalize_json(request)
+    let package = client
+        .read_media_package_zip(request)
         .await
-        .expect("typed import normalize should cross the independent process");
-    assert_eq!(response.status, ServiceStatus::Ok);
+        .expect("media package import should cross the independent process");
+    assert_eq!(package.status, ServiceStatus::Ok);
+    let (manifest, entries) = package
+        .payload
+        .expect("media package import payload")
+        .into_manifest_and_entries_bytes()
+        .expect("decode imported media entries");
+    assert_eq!(manifest["version"], "process");
     assert_eq!(
-        response.payload.expect("import payload").normalized["value"],
-        1
+        entries.get("media/file.txt").map(Vec::as_slice),
+        Some(b"process media payload".as_slice())
     );
 
     disconnect_during_request_body(addr, "/import/read_media_package_zip").await;
@@ -160,41 +172,6 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
             .expect("malicious import path error")
             .message
             .contains("不能越界")
-    );
-
-    let package = client
-        .read_media_package_zip(
-            ServiceRequestContext::deny_all(
-                "import-process-media-package",
-                TraceContext {
-                    trace_id: "import-process-media-package-trace".to_string(),
-                    parent_span_id: None,
-                },
-            )
-            .with_payload(
-                IMPORT_TRANSFORM_CAPABILITY_VERSION,
-                media_package_input(
-                    serde_json::json!({
-                        "version": "process",
-                        "media_files": [{"package_path": "media/file.txt"}]
-                    }),
-                    &[("media/file.txt", b"process media payload")],
-                ),
-            )
-            .expect("media package import request should be valid"),
-        )
-        .await
-        .expect("media package import should cross the independent process");
-    assert_eq!(package.status, ServiceStatus::Ok);
-    let (manifest, entries) = package
-        .payload
-        .expect("media package import payload")
-        .into_manifest_and_entries_bytes()
-        .expect("decode imported media entries");
-    assert_eq!(manifest["version"], "process");
-    assert_eq!(
-        entries.get("media/file.txt").map(Vec::as_slice),
-        Some(b"process media payload".as_slice())
     );
 
     finish_sidecar(process, &manager, IMPORT_SERVICE_NAME, addr).await;

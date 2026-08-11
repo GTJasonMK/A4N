@@ -24,8 +24,33 @@ for command_name in curl ditto grep pgrep ruby; do
     }
 done
 
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+catalog_rows="$(ruby -rjson -e '
+  JSON.parse(File.read(ARGV.fetch(0))).each do |entry|
+    puts [entry.fetch("name"), entry.fetch("binary"), entry.fetch("addr_env"), entry.fetch("url_env"), entry.fetch("health_path")].join("\t")
+  end
+' "$project_root/crates/a4n-service-protocol/service-catalog.json")"
+packages=()
+modules=()
+addr_envs=()
+url_envs=()
+health_paths=()
+while IFS=$'\t' read -r module package addr_env url_env health_path; do
+    [[ -n "$module" ]] || continue
+    modules+=("$module")
+    packages+=("$package")
+    addr_envs+=("$addr_env")
+    url_envs+=("$url_env")
+    health_paths+=("$health_path")
+done <<<"$catalog_rows"
+[[ "${#packages[@]}" -gt 0 ]] || {
+    printf 'sidecar service catalog is empty\n' >&2
+    exit 2
+}
+
 base_port="${A4N_RELEASE_SMOKE_BASE_PORT:-48661}"
-[[ "$base_port" =~ ^[0-9]+$ && "$base_port" -ge 1024 && "$base_port" -le 65528 ]] || {
+max_base_port=$((65535 - ${#packages[@]}))
+[[ "$base_port" =~ ^[0-9]+$ && "$base_port" -ge 1024 && "$base_port" -le "$max_base_port" ]] || {
     printf 'invalid A4N_RELEASE_SMOKE_BASE_PORT: %s\n' "$base_port" >&2
     exit 2
 }
@@ -75,17 +100,7 @@ resources_dir="$installed_app/Contents/Resources"
 host="$macos_dir/a4n-tauri"
 local_cli="$macos_dir/a4n"
 local_config="$tmp_root/cli.json"
-local_server="http://127.0.0.1:$((base_port + 8))"
-packages=(
-    a4n-prompt-service
-    a4n-llm-gateway
-    a4n-embedding-service
-    a4n-rag-service
-    a4n-image-service
-    a4n-video-service
-    a4n-import-service
-    a4n-export-service
-)
+local_server="http://127.0.0.1:$((base_port + ${#packages[@]}))"
 for package in "${packages[@]}"; do
     [[ -x "$macos_dir/$package" ]] || {
         printf 'Tauri bundle is missing executable sidecar: %s\n' "$package" >&2
@@ -117,27 +132,6 @@ ruby -rjson -e '
     exit 1
 }
 
-modules=(prompt llm embedding rag image video import export)
-addr_envs=(
-    A4N_PROMPT_SERVICE_ADDR
-    A4N_LLM_GATEWAY_ADDR
-    A4N_EMBEDDING_SERVICE_ADDR
-    A4N_RAG_SERVICE_ADDR
-    A4N_IMAGE_SERVICE_ADDR
-    A4N_VIDEO_SERVICE_ADDR
-    A4N_IMPORT_SERVICE_ADDR
-    A4N_EXPORT_SERVICE_ADDR
-)
-url_envs=(
-    A4N_PROMPT_SERVICE_URL
-    A4N_LLM_GATEWAY_URL
-    A4N_EMBEDDING_SERVICE_URL
-    A4N_RAG_SERVICE_URL
-    A4N_IMAGE_SERVICE_URL
-    A4N_VIDEO_SERVICE_URL
-    A4N_IMPORT_SERVICE_URL
-    A4N_EXPORT_SERVICE_URL
-)
 urls=()
 for index in "${!modules[@]}"; do
     port=$((base_port + index))
@@ -146,7 +140,7 @@ for index in "${!modules[@]}"; do
     printf -v "${url_envs[index]}" '%s' "$url"
     export "${addr_envs[index]}" "${url_envs[index]}"
     urls+=("$url")
-    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
+    if curl -fsS --max-time 1 "$url${health_paths[index]}" >/dev/null 2>&1; then
         printf 'macOS smoke port is already in use: %s\n' "$port" >&2
         exit 1
     fi
@@ -166,7 +160,7 @@ host_pid=$!
 for _ in {1..300}; do
     all_healthy=true
     for index in "${!modules[@]}"; do
-        payload="$(curl -fsS --max-time 1 "${urls[index]}/healthz" 2>/dev/null || true)"
+        payload="$(curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" 2>/dev/null || true)"
         if ! grep -Eq '"service"[[:space:]]*:[[:space:]]*"'"${modules[index]}"'"' <<<"$payload" ||
             ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"healthy"' <<<"$payload"; then
             all_healthy=false
@@ -185,7 +179,7 @@ done
 
 sidecar_pids=()
 for index in "${!modules[@]}"; do
-    payload="$(curl -fsS --max-time 2 "${urls[index]}/healthz")"
+    payload="$(curl -fsS --max-time 2 "${urls[index]}${health_paths[index]}")"
     grep -Eq '"service"[[:space:]]*:[[:space:]]*"'"${modules[index]}"'"' <<<"$payload"
     grep -Eq '"status"[[:space:]]*:[[:space:]]*"healthy"' <<<"$payload"
     matches=()
@@ -217,8 +211,8 @@ for _ in {1..50}; do
     for pid in "${sidecar_pids[@]}"; do
         kill -0 "$pid" 2>/dev/null && all_stopped=false
     done
-    for url in "${urls[@]}"; do
-        curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1 && all_stopped=false
+    for index in "${!urls[@]}"; do
+        curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" >/dev/null 2>&1 && all_stopped=false
     done
     $all_stopped && break
     sleep 0.1
@@ -229,9 +223,9 @@ for pid in "${sidecar_pids[@]}"; do
         exit 1
     fi
 done
-for url in "${urls[@]}"; do
-    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
-        printf 'sidecar port survived Tauri Host shutdown: %s\n' "$url" >&2
+for index in "${!urls[@]}"; do
+    if curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" >/dev/null 2>&1; then
+        printf 'sidecar port survived Tauri Host shutdown: %s\n' "${urls[index]}" >&2
         exit 1
     fi
 done
@@ -243,9 +237,9 @@ done
     "$local_cli" --config "$local_config" --server "$local_server" --agent capabilities check
     "$local_cli" --config "$local_config" --server "$local_server" --agent local stop
 ) >>"$launcher_log" 2>&1
-for url in "${urls[@]}"; do
-    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
-        printf 'local managed sidecar survived local stop: %s\n' "$url" >&2
+for index in "${!urls[@]}"; do
+    if curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" >/dev/null 2>&1; then
+        printf 'local managed sidecar survived local stop: %s\n' "${urls[index]}" >&2
         exit 1
     fi
 done
@@ -254,4 +248,4 @@ if curl -sS --max-time 1 "$local_server/api/health" >/dev/null 2>&1; then
     exit 1
 fi
 
-printf 'macOS Tauri smoke passed: .app Host + CLI tools + local Server + 8 sidecars, bundled ONNX Runtime, logs, cleanup, non-ASCII path\n'
+printf 'macOS Tauri smoke passed: .app Host + CLI tools + local Server + %s sidecars, bundled ONNX Runtime, logs, cleanup, non-ASCII path\n' "${#packages[@]}"

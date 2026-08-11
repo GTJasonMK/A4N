@@ -19,8 +19,8 @@ pub use persistence::{
 };
 pub use persistence::{
     insert_part_outline_from_json, part_outline_model_from_json,
-    sync_part_outlines_and_assign_chapters_transaction,
-    update_part_outline_and_rebind_chapters_transaction, update_part_outline_from_json,
+    sync_part_outlines_and_assign_chapters_in, update_part_outline_and_rebind_chapters_in,
+    update_part_outline_from_json,
 };
 #[cfg(test)]
 pub use plan::validate_part_generation_inputs;

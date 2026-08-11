@@ -3,6 +3,8 @@ use a4n_core::{
     models::{chapter::chapter, character::protagonist_profile, project::text_anchor},
     source_spans::text_anchor_prompt_values,
 };
+use a4n_db::project::ChapterSourceSnapshot;
+use a4n_db::text_anchor::TextAnchorProfileKind;
 use serde_json::Value;
 
 use crate::OrchestratorContext;
@@ -10,7 +12,7 @@ use crate::OrchestratorContext;
 use super::{
     super::{
         CharacterProfileSyncStageInput, CharacterSyncRangeMode, character_llm_chapter_context,
-        character_sync_range, profile_first_seen_chapter, snapshot_attributes_from_data,
+        character_sync_range_with_first_seen, profile_first_seen_chapter,
         validate_character_sync_target_chapter, validate_contiguous_character_sync_range,
     },
     contracts::{
@@ -26,6 +28,7 @@ pub(super) struct PreparedCharacterProfileSync {
     pub(super) target_chapter: i32,
     pub(super) clear_to_chapter: i32,
     pub(super) selected_chapter_numbers: Vec<i32>,
+    pub(super) source_chapters: Vec<ChapterSourceSnapshot>,
     pub(super) chapter_data: Vec<Value>,
     pub(super) baseline_state: Value,
 }
@@ -102,7 +105,23 @@ impl OrchestratorContext {
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,
     ) -> Result<PreparedCharacterProfileSync, AppError> {
-        let Some(range) = character_sync_range(&profile, target_chapter, range_mode) else {
+        let evidence_first_seen = self
+            .earliest_current_profile_evidence_chapter(
+                profile.project_id,
+                TextAnchorProfileKind::Character,
+                profile.id,
+            )
+            .await?;
+        let effective_first_seen = profile_first_seen_chapter(&profile)
+            .into_iter()
+            .chain(evidence_first_seen)
+            .min();
+        let Some(range) = character_sync_range_with_first_seen(
+            &profile,
+            target_chapter,
+            range_mode,
+            effective_first_seen,
+        ) else {
             return Ok(PreparedCharacterProfileSync {
                 project_id: profile.project_id,
                 baseline_state: profile.current_state.clone(),
@@ -111,6 +130,7 @@ impl OrchestratorContext {
                 target_chapter,
                 clear_to_chapter: target_chapter,
                 selected_chapter_numbers: Vec::new(),
+                source_chapters: Vec::new(),
                 chapter_data: Vec::new(),
             });
         };
@@ -137,8 +157,12 @@ impl OrchestratorContext {
             &selected_chapter_numbers,
         )
         .map_err(AppError::InvalidArgument)?;
+        let source_chapters = selected_chapters
+            .iter()
+            .map(|chapter| ChapterSourceSnapshot::from(*chapter))
+            .collect::<Vec<_>>();
 
-        let first_seen = profile_first_seen_chapter(&profile).unwrap_or(1);
+        let first_seen = effective_first_seen.unwrap_or(1);
         let baseline_state = if range.start_chapter <= first_seen {
             profile.base_attributes.clone()
         } else if profile.last_synced_chapter >= range.start_chapter {
@@ -172,6 +196,7 @@ impl OrchestratorContext {
             target_chapter,
             clear_to_chapter: range.clear_to_chapter,
             selected_chapter_numbers,
+            source_chapters,
             chapter_data,
             baseline_state,
         })
@@ -185,16 +210,8 @@ impl OrchestratorContext {
         if chapter_number <= 1 {
             return Ok(profile.base_attributes.clone());
         }
-        let snapshot_chapter = chapter_number - 1;
-        let snapshot = self
-            .snapshot_reference_by_chapter(profile.id, snapshot_chapter)
-            .await?
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!("第 {snapshot_chapter} 章没有角色快照"),
-                operation: format!("从第 {chapter_number} 章断点重同步"),
-            })?;
-        snapshot_attributes_from_data(&snapshot.data, snapshot_chapter)
-            .map_err(super::super::character_db_error)
+        self.character_profile_state_through_chapter(profile, chapter_number - 1)
+            .await
     }
 }
 

@@ -5,12 +5,10 @@ use a4n_orchestrator::rag::{
     required_top_k,
 };
 
-use crate::state::RagRuntimeFacade;
-
 use super::EnhancedSearchInput;
 
 pub(super) async fn prepare_enhanced_rag_search(
-    rag: &RagRuntimeFacade<'_>,
+    rag: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     input: EnhancedSearchInput,
 ) -> Result<PreparedEnhancedRagSearch, AppError> {
@@ -29,7 +27,7 @@ pub(super) async fn prepare_enhanced_rag_search(
 }
 
 pub(super) async fn prepare_enhanced_rag_search_parts(
-    rag: &RagRuntimeFacade<'_>,
+    rag: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
     base_query: &str,
     top_k: usize,
@@ -54,7 +52,7 @@ pub(super) async fn prepare_enhanced_rag_search_parts(
 }
 
 pub(crate) async fn current_embedding_identity(
-    rag: &RagRuntimeFacade<'_>,
+    rag: &a4n_orchestrator::OrchestratorContext,
 ) -> Result<EmbeddingModelIdentity, AppError> {
     if let Some(model) = crate::runtime_config::current_embedding_model() {
         return crate::dynamic_embedding::model_identity_from_config(&model);

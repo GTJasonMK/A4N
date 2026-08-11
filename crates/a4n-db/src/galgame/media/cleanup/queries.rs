@@ -4,7 +4,6 @@ use a4n_core::models::{
     media::media_provenance,
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
-use serde_json::Value;
 use std::collections::BTreeSet;
 
 pub(super) async fn prompt_artifact_ids_for_generation_specs_record<C>(
@@ -63,24 +62,13 @@ where
         .filter(generation_spec::Column::TargetEntityKind.eq(GALGAME_ENTITY_CHARACTER_PROFILE))
         .all(db)
         .await?;
-    Ok(rows
-        .into_iter()
-        .filter(|spec| galgame_portrait_spec_references_lines(&spec.params_json, &line_ids))
-        .map(|spec| spec.id)
-        .collect())
-}
-
-pub(super) fn galgame_portrait_spec_references_lines(
-    params_json: &Value,
-    line_ids: &BTreeSet<i64>,
-) -> bool {
-    params_json
-        .get("source_line_ids")
-        .and_then(Value::as_array)
-        .is_some_and(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_i64)
-                .any(|line_id| line_ids.contains(&line_id))
-        })
+    let mut spec_ids = Vec::new();
+    for spec in rows {
+        if crate::galgame::galgame_portrait_spec_references_lines(&spec.params_json, &line_ids)
+            .map_err(|error| DbErr::Custom(format!("generation_spec {}: {error}", spec.id)))?
+        {
+            spec_ids.push(spec.id);
+        }
+    }
+    Ok(spec_ids)
 }

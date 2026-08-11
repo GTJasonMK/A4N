@@ -1,3 +1,16 @@
+use super::OrchestratorContext;
+use crate::config::{
+    BaselineImageConfigSeed, BaselineLlmConfigSeed, BaselineVideoConfigSeed,
+    DefaultLlmOutputCapRow, EmbeddingConfigCreateRecordInput, EmbeddingConfigUpdateRecordInput,
+    ImageConfigCreateRecordInput, ImageConfigUpdateRecordInput, LlmConfigCreateRecordInput,
+    LlmConfigUpdateRecordInput, ProviderConfigKind, SettingsAllConfigImportCounts,
+    SettingsAllConfigImportInput, SettingsAllConfigRows, VideoConfigCreateRecordInput,
+    VideoConfigUpdateRecordInput,
+};
+use crate::video::{
+    UpdateVideoConfigParams, VideoConfigParams, validate_video_config_model,
+    validate_video_config_params,
+};
 use a4n_core::{
     config::{
         CreateEmbeddingConfigParams, CreateImageConfigParams, UpdateEmbeddingConfigParams,
@@ -8,33 +21,16 @@ use a4n_core::{
     },
     error::AppError,
     models::{
-        ai::{embedding_config, image_gen_config, llm_config, system_settings, video_gen_config},
+        ai::{embedding_config, image_gen_config, llm_config, video_gen_config},
         user::theme_config,
     },
 };
 use a4n_db::DbHandle;
+use a4n_domain::{ThemeCssVariables, ThemeMode};
 use a4n_llm::config::{
     CreateLlmConfigInput, NormalizedLlmConfig, UpdateLlmConfigInput,
     normalize_create_llm_config_input, normalize_update_llm_config_input,
     validate_llm_config_model,
-};
-use serde_json::Value;
-
-use super::OrchestratorContext;
-use crate::config::{
-    BaselineImageConfigSeed, BaselineLlmConfigSeed, BaselineVideoConfigSeed,
-    DefaultLlmOutputCapRow, EmbeddingConfigCreateRecordInput, EmbeddingConfigUpdateRecordInput,
-    ImageConfigCreateRecordInput, ImageConfigUpdateRecordInput, LlmConfigCreateRecordInput,
-    LlmConfigUpdateRecordInput, SettingsAllConfigImportCounts, SettingsAllConfigImportInput,
-    VideoConfigCreateRecordInput, VideoConfigUpdateRecordInput,
-};
-use crate::theme::{
-    ensure_theme_can_be_deleted, ensure_theme_css_variables_object, normalize_theme_mode,
-    normalize_theme_name,
-};
-use crate::video::{
-    UpdateVideoConfigParams, VideoConfigParams, validate_video_config_model,
-    validate_video_config_params,
 };
 
 /// AI 配置、主题与系统设置的私有 application owner。
@@ -51,8 +47,13 @@ impl ConfigApplication {
         Self { database }
     }
 
-    async fn list_user_themes(&self, user_id: i64) -> Result<Vec<theme_config::Model>, AppError> {
-        a4n_db::config::list_user_themes(self.database.connection(), user_id).await
+    async fn set_default_provider_config(
+        &self,
+        kind: ProviderConfigKind,
+        config_id: i64,
+    ) -> Result<(), AppError> {
+        a4n_db::config::set_default_provider_config(self.database.connection(), kind, config_id)
+            .await
     }
 
     async fn list_themes_visible_to_user(
@@ -70,8 +71,8 @@ impl ConfigApplication {
         &self,
         user_id: Option<i64>,
         name: &str,
-        mode: &str,
-        css_variables: Value,
+        mode: ThemeMode,
+        css_variables: ThemeCssVariables,
     ) -> Result<theme_config::Model, AppError> {
         a4n_db::config::create_theme(
             self.database.connection(),
@@ -83,74 +84,19 @@ impl ConfigApplication {
         .await
     }
 
-    /// 校验主题输入并创建（业务 owner）。
-    async fn create_theme_validated(
-        &self,
-        user_id: Option<i64>,
-        name: String,
-        mode: String,
-        css_variables: Value,
-    ) -> Result<theme_config::Model, AppError> {
-        let name = normalize_theme_name(name).map_err(AppError::InvalidArgument)?;
-        let mode = normalize_theme_mode(mode).map_err(AppError::InvalidArgument)?;
-        ensure_theme_css_variables_object(&css_variables).map_err(AppError::InvalidArgument)?;
-        self.create_theme_record(user_id, &name, &mode, css_variables)
-            .await
-    }
-
     async fn update_theme_record(
         &self,
-        theme_id: i64,
+        theme: theme_config::Model,
         name: Option<&str>,
-        mode: Option<&str>,
-        css_variables: Option<Value>,
+        mode: Option<ThemeMode>,
+        css_variables: Option<ThemeCssVariables>,
     ) -> Result<theme_config::Model, AppError> {
-        a4n_db::config::update_theme(
-            self.database.connection(),
-            theme_id,
-            name,
-            mode,
-            css_variables,
-        )
-        .await
-    }
-
-    /// 校验主题更新字段并落库（业务 owner）。
-    async fn update_theme_validated(
-        &self,
-        theme_id: i64,
-        name: Option<String>,
-        mode: Option<String>,
-        css_variables: Option<Value>,
-    ) -> Result<theme_config::Model, AppError> {
-        let name = name
-            .map(normalize_theme_name)
-            .transpose()
-            .map_err(AppError::InvalidArgument)?;
-        let mode = mode
-            .map(normalize_theme_mode)
-            .transpose()
-            .map_err(AppError::InvalidArgument)?;
-        if let Some(css_variables) = css_variables.as_ref() {
-            ensure_theme_css_variables_object(css_variables).map_err(AppError::InvalidArgument)?;
-        }
-        self.update_theme_record(theme_id, name.as_deref(), mode.as_deref(), css_variables)
+        a4n_db::config::update_theme(self.database.connection(), theme, name, mode, css_variables)
             .await
     }
 
     async fn delete_theme_record(&self, theme_id: i64) -> Result<(), AppError> {
         a4n_db::config::delete_theme(self.database.connection(), theme_id).await
-    }
-
-    /// 加载主题、校验可删门禁后删除（业务 owner）。
-    async fn delete_theme_validated(&self, theme_id: i64) -> Result<(), AppError> {
-        let theme = self
-            .theme_by_id(theme_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("主题不存在".to_string()))?;
-        ensure_theme_can_be_deleted(theme.is_system_default, theme.is_active)
-            .map_err(AppError::InvalidArgument)?;
-        self.delete_theme_record(theme_id).await
     }
 
     async fn activate_theme(&self, theme_id: i64) -> Result<theme_config::Model, AppError> {
@@ -178,13 +124,6 @@ impl ConfigApplication {
         input: LlmConfigUpdateRecordInput,
     ) -> Result<llm_config::Model, AppError> {
         a4n_db::config::update_llm_config_record(self.database.connection(), existing, input).await
-    }
-
-    async fn set_default_llm_config_record(
-        &self,
-        model: llm_config::Model,
-    ) -> Result<llm_config::Model, AppError> {
-        a4n_db::config::set_default_llm_config_record(self.database.connection(), model).await
     }
 
     async fn delete_llm_config_record(&self, config_id: i64) -> Result<(), AppError> {
@@ -218,15 +157,13 @@ impl ConfigApplication {
     }
 
     /// 模型校验与 max_tokens 门禁后设为默认 LLM 配置。
-    async fn set_default_llm_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<llm_config::Model, AppError> {
+    async fn set_default_llm_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         let target = self.llm_config_record_by_id(config_id).await?;
         validate_llm_config_model(&target)?;
         self.ensure_llm_max_tokens_fits_model_output(target.max_output_tokens)
             .await?;
-        self.set_default_llm_config_record(target).await
+        self.set_default_provider_config(ProviderConfigKind::Llm, config_id)
+            .await
     }
 
     /// 非默认门禁后删除 LLM 配置。
@@ -279,13 +216,6 @@ impl ConfigApplication {
     ) -> Result<image_gen_config::Model, AppError> {
         a4n_db::config::update_image_config_record(self.database.connection(), existing, input)
             .await
-    }
-
-    async fn set_default_image_config_record(
-        &self,
-        model: image_gen_config::Model,
-    ) -> Result<image_gen_config::Model, AppError> {
-        a4n_db::config::set_default_image_config_record(self.database.connection(), model).await
     }
 
     async fn delete_image_config_record(&self, config_id: i64) -> Result<(), AppError> {
@@ -349,13 +279,11 @@ impl ConfigApplication {
     }
 
     /// 校验模型可用后设为默认图片配置。
-    async fn set_default_image_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<image_gen_config::Model, AppError> {
+    async fn set_default_image_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         let target = self.image_config_record_by_id(config_id).await?;
         validate_image_config_model(&target)?;
-        self.set_default_image_config_record(target).await
+        self.set_default_provider_config(ProviderConfigKind::Image, config_id)
+            .await
     }
 
     /// 非默认门禁通过后删除图片配置。
@@ -401,13 +329,6 @@ impl ConfigApplication {
     ) -> Result<video_gen_config::Model, AppError> {
         a4n_db::config::update_video_config_record(self.database.connection(), existing, input)
             .await
-    }
-
-    async fn set_default_video_config_record(
-        &self,
-        model: video_gen_config::Model,
-    ) -> Result<video_gen_config::Model, AppError> {
-        a4n_db::config::set_default_video_config_record(self.database.connection(), model).await
     }
 
     async fn delete_video_config_record(&self, config_id: i64) -> Result<(), AppError> {
@@ -502,13 +423,11 @@ impl ConfigApplication {
     }
 
     /// 校验模型可用后设为默认视频配置。
-    async fn set_default_video_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<video_gen_config::Model, AppError> {
+    async fn set_default_video_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         let target = self.video_config_record_by_id(config_id).await?;
         validate_video_config_model(&target).map_err(AppError::InvalidArgument)?;
-        self.set_default_video_config_record(target).await
+        self.set_default_provider_config(ProviderConfigKind::Video, config_id)
+            .await
     }
 
     /// 非默认且无进行中任务时删除视频配置。
@@ -564,13 +483,6 @@ impl ConfigApplication {
     ) -> Result<embedding_config::Model, AppError> {
         a4n_db::config::update_embedding_config_record(self.database.connection(), existing, input)
             .await
-    }
-
-    async fn set_default_embedding_config_record(
-        &self,
-        model: embedding_config::Model,
-    ) -> Result<embedding_config::Model, AppError> {
-        a4n_db::config::set_default_embedding_config_record(self.database.connection(), model).await
     }
 
     async fn delete_embedding_config_record(&self, config_id: i64) -> Result<(), AppError> {
@@ -642,13 +554,11 @@ impl ConfigApplication {
     }
 
     /// 模型校验后设为默认嵌入配置。
-    async fn set_default_embedding_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<embedding_config::Model, AppError> {
+    async fn set_default_embedding_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         let target = self.embedding_config_by_id(config_id).await?;
         validate_embedding_config_model(&target)?;
-        self.set_default_embedding_config_record(target).await
+        self.set_default_provider_config(ProviderConfigKind::Embedding, config_id)
+            .await
     }
 
     /// 非默认门禁后删除嵌入配置。
@@ -697,36 +607,8 @@ impl ConfigApplication {
             .await
     }
 
-    async fn settings_all_export_llm_configs(&self) -> Result<Vec<llm_config::Model>, AppError> {
-        a4n_db::config::settings_all_export_llm_configs(self.database.connection()).await
-    }
-
-    async fn settings_all_export_embedding_configs(
-        &self,
-    ) -> Result<Vec<embedding_config::Model>, AppError> {
-        a4n_db::config::settings_all_export_embedding_configs(self.database.connection()).await
-    }
-
-    async fn settings_all_export_image_configs(
-        &self,
-    ) -> Result<Vec<image_gen_config::Model>, AppError> {
-        a4n_db::config::settings_all_export_image_configs(self.database.connection()).await
-    }
-
-    async fn settings_all_export_video_configs(
-        &self,
-    ) -> Result<Vec<video_gen_config::Model>, AppError> {
-        a4n_db::config::settings_all_export_video_configs(self.database.connection()).await
-    }
-
-    async fn settings_all_export_themes(&self) -> Result<Vec<theme_config::Model>, AppError> {
-        a4n_db::config::settings_all_export_themes(self.database.connection()).await
-    }
-
-    async fn settings_all_export_system_settings(
-        &self,
-    ) -> Result<Vec<system_settings::Model>, AppError> {
-        a4n_db::config::settings_all_export_system_settings(self.database.connection()).await
+    async fn settings_all_config_rows(&self) -> Result<SettingsAllConfigRows, AppError> {
+        a4n_db::config::settings_all_config_rows(self.database.connection()).await
     }
 
     pub(super) async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
@@ -803,13 +685,6 @@ fn settings_all_config_import_error(
 }
 
 impl OrchestratorContext {
-    pub async fn list_user_themes(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<theme_config::Model>, AppError> {
-        self.settings.list_user_themes(user_id).await
-    }
-
     pub async fn list_themes_visible_to_user(
         &self,
         user_id: i64,
@@ -824,35 +699,32 @@ impl OrchestratorContext {
         self.settings.theme_by_id(theme_id).await
     }
 
-    /// 创建用户主题：校验 name/mode/css 后落库。
-    pub async fn create_user_theme(
+    pub async fn create_user_theme_record(
         &self,
         user_id: i64,
         name: String,
-        mode: String,
-        css_variables: Value,
+        mode: ThemeMode,
+        css_variables: ThemeCssVariables,
     ) -> Result<theme_config::Model, AppError> {
         self.settings
-            .create_theme_validated(Some(user_id), name, mode, css_variables)
+            .create_theme_record(Some(user_id), &name, mode, css_variables)
             .await
     }
 
-    /// 更新主题字段：校验后落库。
-    pub async fn update_theme_fields(
+    pub async fn update_theme_record(
         &self,
-        theme_id: i64,
+        theme: theme_config::Model,
         name: Option<String>,
-        mode: Option<String>,
-        css_variables: Option<Value>,
+        mode: Option<ThemeMode>,
+        css_variables: Option<ThemeCssVariables>,
     ) -> Result<theme_config::Model, AppError> {
         self.settings
-            .update_theme_validated(theme_id, name, mode, css_variables)
+            .update_theme_record(theme, name.as_deref(), mode, css_variables)
             .await
     }
 
-    /// 删除主题：校验系统默认/激活门禁后落库。
-    pub async fn delete_theme_if_allowed(&self, theme_id: i64) -> Result<(), AppError> {
-        self.settings.delete_theme_validated(theme_id).await
+    pub async fn delete_theme_record(&self, theme_id: i64) -> Result<(), AppError> {
+        self.settings.delete_theme_record(theme_id).await
     }
 
     pub async fn activate_theme(&self, theme_id: i64) -> Result<theme_config::Model, AppError> {
@@ -890,10 +762,7 @@ impl OrchestratorContext {
     }
 
     /// 设为默认 LLM 配置：模型与 max_tokens 门禁后落库。
-    pub async fn set_default_llm_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<llm_config::Model, AppError> {
+    pub async fn set_default_llm_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         self.settings
             .set_default_llm_config_validated(config_id)
             .await
@@ -944,10 +813,7 @@ impl OrchestratorContext {
     }
 
     /// 设为默认图片配置：模型校验后落库。
-    pub async fn set_default_image_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<image_gen_config::Model, AppError> {
+    pub async fn set_default_image_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         self.settings
             .set_default_image_config_validated(config_id)
             .await
@@ -1004,10 +870,7 @@ impl OrchestratorContext {
     }
 
     /// 设为默认视频配置：模型校验后落库。
-    pub async fn set_default_video_config_validated(
-        &self,
-        config_id: i64,
-    ) -> Result<video_gen_config::Model, AppError> {
+    pub async fn set_default_video_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         self.settings
             .set_default_video_config_validated(config_id)
             .await
@@ -1079,7 +942,7 @@ impl OrchestratorContext {
     pub async fn set_default_embedding_config_validated(
         &self,
         config_id: i64,
-    ) -> Result<embedding_config::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.settings
             .set_default_embedding_config_validated(config_id)
             .await
@@ -1137,40 +1000,8 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn settings_all_export_llm_configs(
-        &self,
-    ) -> Result<Vec<llm_config::Model>, AppError> {
-        self.settings.settings_all_export_llm_configs().await
-    }
-
-    pub(crate) async fn settings_all_export_embedding_configs(
-        &self,
-    ) -> Result<Vec<embedding_config::Model>, AppError> {
-        self.settings.settings_all_export_embedding_configs().await
-    }
-
-    pub(crate) async fn settings_all_export_image_configs(
-        &self,
-    ) -> Result<Vec<image_gen_config::Model>, AppError> {
-        self.settings.settings_all_export_image_configs().await
-    }
-
-    pub(crate) async fn settings_all_export_video_configs(
-        &self,
-    ) -> Result<Vec<video_gen_config::Model>, AppError> {
-        self.settings.settings_all_export_video_configs().await
-    }
-
-    pub(crate) async fn settings_all_export_themes(
-        &self,
-    ) -> Result<Vec<theme_config::Model>, AppError> {
-        self.settings.settings_all_export_themes().await
-    }
-
-    pub(crate) async fn settings_all_export_system_settings(
-        &self,
-    ) -> Result<Vec<system_settings::Model>, AppError> {
-        self.settings.settings_all_export_system_settings().await
+    pub(crate) async fn settings_all_config_rows(&self) -> Result<SettingsAllConfigRows, AppError> {
+        self.settings.settings_all_config_rows().await
     }
 
     pub async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {

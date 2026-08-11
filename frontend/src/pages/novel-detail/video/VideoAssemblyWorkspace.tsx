@@ -24,7 +24,6 @@ import {
   uploadAssemblyInsertVideo,
   type AssembledChapterVideoPreview,
   type GeneratedVideo,
-  type VideoTimelineSummary,
 } from "../../../api/video";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../../components/feedback/Toast";
@@ -54,7 +53,6 @@ interface VideoAssemblyWorkspaceProps {
   projectId: number;
   chapter: ChapterRow;
   videos: GeneratedVideo[];
-  timeline: VideoTimelineSummary | null;
   adoptedVideoIds: ReadonlySet<number>;
   unavailableSegmentNumbers?: number[];
   onToast: (message: unknown, type: ToastType) => void;
@@ -77,16 +75,18 @@ const assemblyInsertAfterVideoId = (video: GeneratedVideo): number | null => {
   return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
 };
 
-const assemblyClipSortOrder = (
-  video: GeneratedVideo,
-  timelineDisplayIndexByVideoId: ReadonlyMap<number, number>,
-): number | null => {
+const assemblyClipShotNumber = (video: GeneratedVideo): number | null => {
+  const value = asRecord(video.metadata_json)?.shot_number;
+  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
+};
+
+const assemblyClipSortOrder = (video: GeneratedVideo): number | null => {
   if (
     video.video_type === CHAPTER_VIDEO_TYPE ||
     video.video_type === REFERENCE_MEDIA_VIDEO_TYPE
   ) {
-    const displayIndex = timelineDisplayIndexByVideoId.get(video.id);
-    return displayIndex == null ? null : displayIndex * ASSEMBLY_ORDER_STEP;
+    const shotNumber = assemblyClipShotNumber(video);
+    return shotNumber == null ? null : shotNumber * ASSEMBLY_ORDER_STEP;
   }
   if (video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE) {
     const value = assemblyInsertMetadata(video)?.sort_order;
@@ -95,13 +95,10 @@ const assemblyClipSortOrder = (
   return null;
 };
 
-const assemblyClipLabel = (
-  video: GeneratedVideo,
-  timelineDisplayIndexByVideoId: ReadonlyMap<number, number>,
-): string => {
+const assemblyClipLabel = (video: GeneratedVideo): string => {
   if (video.video_type !== ASSEMBLY_INSERT_VIDEO_TYPE) {
-    const displayIndex = timelineDisplayIndexByVideoId.get(video.id);
-    return displayIndex == null ? "顺序缺失" : "时间线 " + displayIndex;
+    const shotNumber = assemblyClipShotNumber(video);
+    return shotNumber == null ? "顺序缺失" : `镜头 ${shotNumber}`;
   }
   const afterShot = assemblyInsertMetadata(video)?.insert_after_shot_number;
   if (Number.isInteger(afterShot) && Number(afterShot) > 0) {
@@ -134,7 +131,6 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   projectId,
   chapter,
   videos,
-  timeline,
   adoptedVideoIds,
   unavailableSegmentNumbers = [],
   onToast,
@@ -156,21 +152,6 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const activeScopeRef = useRef(scopeKey);
   const mountedRef = useRef(false);
   const actionBusyRef = useRef(false);
-  const timelineDisplayIndexByVideoId = useMemo(
-    () =>
-      new Map(
-        (timeline?.items ?? [])
-          .filter(
-            (item) =>
-              item.status === "active" && item.generated_video_id != null,
-          )
-          .map((item) => [
-            item.generated_video_id as number,
-            item.display_index,
-          ]),
-      ),
-    [timeline],
-  );
 
   const clearPreview = () => {
     setPreview(null);
@@ -194,18 +175,14 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
               : adoptedVideoIds.has(video.id)) &&
             video.status === "completed" &&
             Boolean(video.file_path?.trim()) &&
-            assemblyClipSortOrder(video, timelineDisplayIndexByVideoId) != null,
+            assemblyClipSortOrder(video) != null,
         )
         .sort((a, b) => {
-          const leftOrder =
-            assemblyClipSortOrder(a, timelineDisplayIndexByVideoId) ??
-            Number.MAX_SAFE_INTEGER;
-          const rightOrder =
-            assemblyClipSortOrder(b, timelineDisplayIndexByVideoId) ??
-            Number.MAX_SAFE_INTEGER;
+          const leftOrder = assemblyClipSortOrder(a) ?? Number.MAX_SAFE_INTEGER;
+          const rightOrder = assemblyClipSortOrder(b) ?? Number.MAX_SAFE_INTEGER;
           return leftOrder - rightOrder || a.id - b.id;
         }),
-    [adoptedVideoIds, timelineDisplayIndexByVideoId, videos],
+    [adoptedVideoIds, videos],
   );
   const pushedSourceIds = useMemo(() => {
     const ids = new Set<number>();
@@ -269,7 +246,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const clipSignature = clips
     .map(
       (video) =>
-        `${video.id}:${assemblyClipSortOrder(video, timelineDisplayIndexByVideoId) ?? ""}:${video.file_size ?? ""}:${
+        `${video.id}:${assemblyClipSortOrder(video) ?? ""}:${video.file_size ?? ""}:${
           video.updated_at
         }`,
     )
@@ -699,10 +676,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             </label>
             <span className="min-w-0 flex-1 truncate text-small text-book-text-muted">
               {selectedPushEndVideo
-                ? `推送至 ${assemblyClipLabel(
-                    selectedPushEndVideo,
-                    timelineDisplayIndexByVideoId,
-                  )}`
+                ? `推送至 ${assemblyClipLabel(selectedPushEndVideo)}`
                 : "没有待推送片段"}
             </span>
             <BookButton
@@ -847,10 +821,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-xs font-medium text-book-text-main">
                         片段 {index + 1} ·{" "}
-                        {assemblyClipLabel(
-                          video,
-                          timelineDisplayIndexByVideoId,
-                        )}
+                        {assemblyClipLabel(video)}
                       </div>
                       <div className="mt-1 text-caption text-book-text-muted">
                         {formatSeconds(video.duration_secs)} ·{" "}

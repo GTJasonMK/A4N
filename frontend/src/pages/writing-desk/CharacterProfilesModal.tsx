@@ -441,7 +441,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       );
       if (!isCurrentWorkspace(requestProjectId) || syncSeqRef.current !== requestSeq) return;
       const syncedItems = result.synced;
-      const skippedItems = result.skipped ?? [];
+      const skippedItems = result.skipped;
       const failedItems = result.failed;
       const syncedCount = syncedItems.length;
       const skippedCount = skippedItems.length;
@@ -452,7 +452,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           ? `，失败角色：${failedNames.slice(0, 3).join("、")}${failedCount > 3 ? "等" : ""}`
           : "";
       const ragIssueNames = syncedItems
-        .filter((item) => item.result.state_rag_error || !item.result.state_rag_indexed)
+        .filter((item) => item.state_rag_error || !item.state_rag_indexed)
         .map((item) => item.name);
       const ragIssueCount = ragIssueNames.length;
       const ragIssueText =

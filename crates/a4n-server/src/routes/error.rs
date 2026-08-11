@@ -6,6 +6,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 use serde_json::{Value, json};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -73,6 +74,10 @@ impl GenerationApiError {
     pub fn internal(code: &'static str, message: impl Into<String>, retryable: bool) -> Self {
         Self::new(StatusCode::INTERNAL_SERVER_ERROR, code, message, retryable)
     }
+
+    pub(crate) fn into_body(self) -> HostErrorResponse {
+        self.body
+    }
 }
 
 #[derive(Serialize)]
@@ -125,6 +130,14 @@ impl ApiError {
         }
     }
 }
+
+impl fmt::Display for ApiError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ApiError {}
 
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {

@@ -3,7 +3,6 @@ use a4n_orchestrator::character::CharacterDiscoveryInput;
 use crate::{
     AppState,
     actions::{access, character_ai::CharacterAiPreviewStep},
-    prompt_renderer::RuntimePromptRenderer,
 };
 
 pub(crate) async fn character_discovery_preview_steps(
@@ -17,15 +16,15 @@ pub(crate) async fn character_discovery_preview_steps(
     access::verify_project_editor(state, user_id, project_id)
         .await
         .map_err(|error| error.to_string())?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let preview = state
-        .character()
+        .orchestrator()
         .prepare_character_discovery_request_preview_validated(
             CharacterDiscoveryInput {
                 project_id,
                 chapter_number,
             },
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await
         .map_err(|error| error.to_string())?;

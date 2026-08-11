@@ -2,10 +2,11 @@
 
 use serde_json::{Value, json};
 
+use super::contracts::CHAPTER_SHOOTING_SCRIPT_WORKFLOW;
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// 章节分镜脚本 exclusive business key。
-pub fn chapter_shooting_script_business_key(
+fn chapter_shooting_script_business_key(
     project_id: i64,
     source_chapter_id: i64,
     target_revision: i32,
@@ -20,15 +21,12 @@ pub fn chapter_shooting_script_business_key(
         return Err("分镜脚本 revision 必须大于 0".to_string());
     }
     Ok(format!(
-        "chapter_shooting_script:{project_id}:{source_chapter_id}:{target_revision}"
+        "{CHAPTER_SHOOTING_SCRIPT_WORKFLOW}:{project_id}:{source_chapter_id}:{target_revision}"
     ))
 }
 
 /// 章节分镜脚本工作流输入指纹。
-pub fn chapter_shooting_script_workflow_fingerprint(
-    project_id: i64,
-    source_chapter_id: i64,
-) -> Value {
+fn chapter_shooting_script_workflow_fingerprint(project_id: i64, source_chapter_id: i64) -> Value {
     json!({
         "project_id": project_id,
         "source_chapter_id": source_chapter_id,
@@ -36,7 +34,7 @@ pub fn chapter_shooting_script_workflow_fingerprint(
 }
 
 /// 构造章节分镜脚本 begin 输入（status=RUNNING）。
-pub fn chapter_shooting_script_workflow_run_input(
+pub(crate) fn chapter_shooting_script_workflow_run_input(
     project_id: i64,
     source_chapter_id: i64,
     target_revision: i32,
@@ -48,11 +46,11 @@ pub fn chapter_shooting_script_workflow_run_input(
             source_chapter_id,
             target_revision,
         )?,
-        workflow_kind: "chapter_shooting_script".to_string(),
+        workflow_kind: CHAPTER_SHOOTING_SCRIPT_WORKFLOW.to_string(),
         project_id: Some(project_id),
         root_project_id: None,
         source_snapshot_id: None,
-        scope_table: Some("chapter_shooting_script".to_string()),
+        scope_table: Some(CHAPTER_SHOOTING_SCRIPT_WORKFLOW.to_string()),
         scope_id: Some(source_chapter_id),
         chapter_id: Some(source_chapter_id),
         mode: None,
@@ -85,7 +83,7 @@ mod tests {
         let input =
             chapter_shooting_script_workflow_run_input(2, 3, 4, Some("shooting-task")).unwrap();
         assert_eq!(input.business_key, "chapter_shooting_script:2:3:4");
-        assert_eq!(input.workflow_kind, "chapter_shooting_script");
+        assert_eq!(input.workflow_kind, CHAPTER_SHOOTING_SCRIPT_WORKFLOW);
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
         assert_eq!(input.active_task_id.as_deref(), Some("shooting-task"));
     }

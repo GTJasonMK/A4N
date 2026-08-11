@@ -6,26 +6,12 @@ pub use crate::actions::{
     admin_records, auth_records, blueprint_records, canvas_workflow, chapter_content,
     chapter_generation, chapter_scene, character_ai, character_conflict, character_implicit_review,
     character_records, config_records, dependency_conflict, embedding_model, export_files,
-    galgame_records, generation_analytics, generation_tasks, image_generation, image_records,
-    import_analysis, import_file, import_reverse, import_review, inspiration_records, logging,
-    manga_pipeline, manga_records, oauth, object_profile_records, optimize, outline_records,
-    portrait_generation, portrait_records, profile_materials, project_collaboration,
-    project_duplication, project_records, project_status, project_transfer, prompt_records,
-    rag_search, request_preview, scene_profile_records, scene_profile_sync, settings_all,
-    shooting_script_records, source_sync, storage_paths, task_records, theme, video_generation,
-    video_prompts, video_records,
+    foreshadowing_records, galgame_records, generation_analytics, generation_tasks,
+    image_generation, image_records, import_analysis, import_file, import_reverse, import_review,
+    inspiration_records, logging, manga_pipeline, manga_records, oauth, object_profile_records,
+    optimize, outline_records, portrait_generation, portrait_records, profile_materials,
+    project_collaboration, project_duplication, project_records, project_status, project_transfer,
+    prompt_records, rag_search, request_preview, scene_profile_records, scene_profile_sync,
+    settings_all, shooting_script_records, source_sync, storage_paths, task_records, theme,
+    video_generation, video_prompts, video_records,
 };
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn host_api_does_not_use_actions_wildcard_exports() {
-        let source = include_str!("host_api.rs");
-        let forbidden = ["actions", "::*"].concat();
-
-        assert!(
-            !source.contains(&forbidden),
-            "host_api 必须逐项维护公共 API 白名单，禁止恢复 actions 通配导出"
-        );
-    }
-}

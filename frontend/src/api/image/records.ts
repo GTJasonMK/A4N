@@ -20,7 +20,6 @@ export async function updateImage(imageId: Id, input: UpdateImageInput): Promise
 
 export async function uploadImage(projectId: Id, input: UploadImageInput): Promise<GeneratedImage> {
   return apiInvoke<GeneratedImage>("upload_image", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });

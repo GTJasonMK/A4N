@@ -7,8 +7,6 @@ mod epub;
 mod shared;
 mod txt;
 
-use std::collections::HashMap;
-
 pub use self::docx::DocxParser;
 pub use self::epub::EpubParser;
 pub use self::txt::TxtParser;
@@ -22,10 +20,6 @@ pub struct ParsedChapter {
     pub title: String,
     /// 章节正文
     pub content: String,
-    /// 原始位置（字节偏移）
-    pub start_offset: usize,
-    /// 原始位置（字节偏移结束）
-    pub end_offset: usize,
 }
 
 /// 文件解析结果
@@ -33,10 +27,4 @@ pub struct ParsedChapter {
 pub struct ParseResult {
     /// 解析出的章节列表
     pub chapters: Vec<ParsedChapter>,
-    /// 检测到的文件编码
-    pub detected_encoding: String,
-    /// 元数据（标题、作者等）
-    pub metadata: HashMap<String, String>,
-    /// 解析警告
-    pub warnings: Vec<String>,
 }

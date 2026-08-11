@@ -94,6 +94,10 @@ fn builds_persist_plan_from_staged_pipeline_outputs() {
     );
     assert_eq!(plan.scenes[0].lines[0].text_anchor_id, Some(100));
     assert_eq!(plan.scenes[0].lines[0].presentation_json["cg"], json!(true));
+    serde_json::from_value::<GalgameLinePresentationDocumentV2>(
+        plan.scenes[0].lines[0].presentation_json.clone(),
+    )
+    .expect("persisted presentation must use the complete v2 document");
     assert_eq!(
         plan.scenes[0].participants_json,
         json!([{"character_profile_id": 7, "name": "林晓雨"}])

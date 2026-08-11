@@ -113,7 +113,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
             }
             CanvasGraphNodeExecutionKind::Probe => {
                 run_canvas_probe_node(
-                    &self.state.canvas(),
+                    self.state.orchestrator(),
                     input.project_id,
                     input.graph_id,
                     input.node,
@@ -128,7 +128,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
             | CanvasGraphNodeExecutionKind::VideoOutput
             | CanvasGraphNodeExecutionKind::AudioOutput => {
                 run_canvas_output_node(
-                    &self.state.canvas(),
+                    self.state.orchestrator(),
                     input.project_id,
                     input.graph_id,
                     input.node,

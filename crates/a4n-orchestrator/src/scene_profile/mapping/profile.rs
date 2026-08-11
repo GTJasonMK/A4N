@@ -1,6 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_core::profile_text::{
-    normalize_aliases, normalize_required_text_set, required_text, validate_importance,
+    normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
+    validate_importance,
 };
 use a4n_db::scene_profile::SceneProfileRecordInput;
 use serde_json::json;
@@ -13,7 +14,7 @@ pub fn normalize_scene_profile_record_input(
     draft: SceneProfileDraft,
 ) -> Result<SceneProfileRecordInput, AppError> {
     let normalized = normalize_scene_name(&draft.name)?;
-    let draft = normalize_profile_draft(draft)?;
+    let draft = normalize_manual_profile_draft(draft)?;
     Ok(scene_profile_record_input(draft, normalized))
 }
 
@@ -38,6 +39,32 @@ pub(super) fn normalize_profile_draft(
     draft.spatial_layout = required_text(&draft.spatial_layout, "场景空间布局")?;
     draft.atmosphere = required_text(&draft.atmosphere, "场景氛围")?;
     draft.image_prompt_seed = required_text(&draft.image_prompt_seed, "场景图片提示词种子")?;
+    validate_scene_json_fields(&draft)?;
+    validate_scene_chapter_range(&draft)?;
+    draft.evidence = normalize_required_text_set(draft.evidence, "场景证据")?;
+    Ok(draft)
+}
+
+fn normalize_manual_profile_draft(
+    mut draft: SceneProfileDraft,
+) -> Result<SceneProfileDraft, AppError> {
+    draft.scene_ref = required_text(&draft.scene_ref, "场景引用")?;
+    draft.name = required_text(&draft.name, "场景名称")?;
+    draft.aliases = normalize_aliases(draft.aliases);
+    draft.scene_type = normalize_optional_scene_type(&draft.scene_type)?;
+    draft.importance = normalize_optional_importance(&draft.importance, "场景重要性")?;
+    draft.base_description = draft.base_description.trim().to_string();
+    draft.visual_description = draft.visual_description.trim().to_string();
+    draft.spatial_layout = draft.spatial_layout.trim().to_string();
+    draft.atmosphere = draft.atmosphere.trim().to_string();
+    draft.image_prompt_seed = draft.image_prompt_seed.trim().to_string();
+    validate_scene_json_fields(&draft)?;
+    validate_scene_chapter_range(&draft)?;
+    draft.evidence = normalize_text_set(draft.evidence);
+    Ok(draft)
+}
+
+fn validate_scene_json_fields(draft: &SceneProfileDraft) -> Result<(), AppError> {
     if !draft.entry_points.is_array() {
         return Err(AppError::InvalidArgument(
             "场景出入口必须是 JSON 数组".to_string(),
@@ -48,6 +75,10 @@ pub(super) fn normalize_profile_draft(
             "场景规则必须是 JSON 数组".to_string(),
         ));
     }
+    Ok(())
+}
+
+fn validate_scene_chapter_range(draft: &SceneProfileDraft) -> Result<(), AppError> {
     if draft.first_seen_chapter <= 0 || draft.last_seen_chapter <= 0 {
         return Err(AppError::InvalidArgument(
             "场景首次/最近出现章节必须大于 0".to_string(),
@@ -58,8 +89,25 @@ pub(super) fn normalize_profile_draft(
             "场景最近出现章节不能早于首次出现章节".to_string(),
         ));
     }
-    draft.evidence = normalize_required_text_set(draft.evidence, "场景证据")?;
-    Ok(draft)
+    Ok(())
+}
+
+fn normalize_optional_scene_type(value: &str) -> Result<String, AppError> {
+    let value = value.trim();
+    if value.is_empty() {
+        Ok(String::new())
+    } else {
+        normalize_scene_type_value(value)
+    }
+}
+
+fn normalize_optional_importance(value: &str, field_name: &str) -> Result<String, AppError> {
+    let value = value.trim();
+    if value.is_empty() {
+        Ok(String::new())
+    } else {
+        validate_importance(value, field_name)
+    }
 }
 
 pub(super) fn scene_profile_record_input(

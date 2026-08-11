@@ -13,25 +13,38 @@ use super::{
     },
     rules::{
         ForeshadowingResolutionAction, foreshadowing_matches_analysis_draft,
-        foreshadowing_resolution_action, foreshadowing_status_after_setup_resync,
+        foreshadowing_related_characters_after_setup_resync, foreshadowing_resolution_action,
     },
 };
+use crate::project::ChapterSourceSnapshot;
 
 pub async fn sync_chapter_analysis_foreshadowing(
     db: &DatabaseConnection,
-    project_id: i64,
-    chapter_number: i32,
+    source: ChapterSourceSnapshot,
     drafts: Vec<ForeshadowingAnalysisDraft>,
     resolved_ids: Vec<i64>,
 ) -> Result<ForeshadowingAnalysisSyncResult, ForeshadowingDbError> {
     let txn = db.begin().await?;
-    if crate::project::project_by_id_for_update(&txn, project_id)
-        .await?
-        .is_none()
+    super::records::lock_project_for_write(&txn, source.project_id, "保存章节伏笔分析结果").await?;
+    if !crate::chapter_content::chapter_source_snapshots_match_for_update(
+        &txn,
+        std::slice::from_ref(&source),
+    )
+    .await?
     {
-        return Err(ForeshadowingDbError::ProjectNotFound { project_id });
+        return Err(ForeshadowingDbError::InvalidState {
+            current: "chapter_source_changed".to_string(),
+            operation: "保存章节伏笔同步结果；章节正文已变化，请重新分析".to_string(),
+        });
     }
-    let result = sync_in(&txn, project_id, chapter_number, drafts, resolved_ids).await?;
+    let result = sync_in(
+        &txn,
+        source.project_id,
+        source.chapter_number,
+        drafts,
+        resolved_ids,
+    )
+    .await?;
     txn.commit().await?;
     Ok(result)
 }
@@ -66,53 +79,48 @@ where
         by_id.insert(item.id, item);
     }
 
-    let mut current = Vec::with_capacity(drafts.len() + resolved_ids.len());
+    let mut result = ForeshadowingAnalysisSyncResult {
+        current: Vec::with_capacity(drafts.len() + resolved_ids.len()),
+        ..Default::default()
+    };
     for draft in drafts {
         if let Some(candidates) = setup_by_description.get_mut(&draft.description)
             && !candidates.is_empty()
         {
             let existing = candidates.remove(0);
             if foreshadowing_matches_analysis_draft(&existing, &draft) {
-                current.push(existing);
+                result.existing.push(existing.clone());
+                result.current.push(existing);
                 continue;
             }
-            let status = foreshadowing_status_after_setup_resync(
-                existing.status.as_str(),
-                existing.payoff_chapter,
-                draft.status.as_str(),
-            );
+            let related_characters =
+                foreshadowing_related_characters_after_setup_resync(&existing, &draft);
+            let updated_at =
+                std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
             let mut active: foreshadowing_index::ActiveModel = existing.into();
-            active.status = Set(status);
-            active.related_characters = Set(draft.related_characters);
-            active.importance = Set(draft.importance);
-            active.updated_at = Set(now);
-            current.push(active.update(db).await?);
+            active.related_characters = Set(related_characters);
+            active.updated_at = Set(updated_at);
+            let updated = active.update(db).await?;
+            result.updated.push(updated.clone());
+            result.current.push(updated);
         } else {
-            current.push(
-                (foreshadowing_index::ActiveModel {
-                    project_id: Set(project_id),
-                    description: Set(draft.description),
-                    setup_chapter: Set(chapter_number),
-                    payoff_chapter: Set(None),
-                    status: Set(draft.status),
-                    related_characters: Set(draft.related_characters),
-                    importance: Set(draft.importance),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                })
-                .insert(db)
-                .await?,
-            );
-        }
-    }
-
-    let mut stale_ids = Vec::new();
-    for stale in setup_by_description.into_values().flatten() {
-        stale_ids.push(stale.id);
-        foreshadowing_index::Entity::delete_by_id(stale.id)
-            .exec(db)
+            let created = (foreshadowing_index::ActiveModel {
+                project_id: Set(project_id),
+                description: Set(draft.description),
+                setup_chapter: Set(chapter_number),
+                payoff_chapter: Set(None),
+                status: Set(draft.status),
+                related_characters: Set(draft.related_characters),
+                importance: Set(draft.importance),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+            .insert(db)
             .await?;
+            result.created.push(created.clone());
+            result.current.push(created);
+        }
     }
 
     let mut requested = BTreeSet::new();
@@ -123,16 +131,6 @@ where
                 chapter_number,
             });
         }
-    }
-
-    for existing in by_id.values().filter(|item| {
-        item.payoff_chapter == Some(chapter_number) && !requested.contains(&item.id)
-    }) {
-        let mut active: foreshadowing_index::ActiveModel = existing.clone().into();
-        active.payoff_chapter = Set(None);
-        active.status = Set("pending".to_string());
-        active.updated_at = Set(now);
-        current.push(active.update(db).await?);
     }
 
     for foreshadowing_id in requested {
@@ -150,16 +148,23 @@ where
                 reason,
             }
         })? {
-            ForeshadowingResolutionAction::Keep => current.push(existing.clone()),
+            ForeshadowingResolutionAction::Keep => {
+                result.existing.push(existing.clone());
+                result.current.push(existing.clone());
+            }
             ForeshadowingResolutionAction::Resolve => {
+                let updated_at =
+                    std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
                 let mut active: foreshadowing_index::ActiveModel = existing.clone().into();
                 active.payoff_chapter = Set(Some(chapter_number));
                 active.status = Set("resolved".to_string());
-                active.updated_at = Set(now);
-                current.push(active.update(db).await?);
+                active.updated_at = Set(updated_at);
+                let resolved = active.update(db).await?;
+                result.resolved.push(resolved.clone());
+                result.current.push(resolved);
             }
         }
     }
 
-    Ok(ForeshadowingAnalysisSyncResult { current, stale_ids })
+    Ok(result)
 }

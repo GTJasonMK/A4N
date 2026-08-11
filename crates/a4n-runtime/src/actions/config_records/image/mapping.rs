@@ -4,13 +4,17 @@ use a4n_core::{
     models::ai::image_gen_config,
 };
 
-pub(super) fn image_config_summary(config: &image_gen_config::Model) -> ImageConfigSummary {
-    ImageConfigSummary {
+pub(super) fn image_config_summary(
+    config: &image_gen_config::Model,
+) -> Result<ImageConfigSummary, String> {
+    Ok(ImageConfigSummary {
         id: config.id,
         name: config.name.clone(),
         backend: config.backend.clone(),
-        base_url: config.base_url.clone(),
-        api_key_encrypted: None,
+        base_url: config
+            .base_url
+            .clone()
+            .ok_or_else(|| format!("图片配置 #{} 缺少 base_url", config.id))?,
         has_api_key: config
             .api_key_encrypted
             .as_ref()
@@ -20,9 +24,7 @@ pub(super) fn image_config_summary(config: &image_gen_config::Model) -> ImageCon
         default_width: config.default_width,
         default_height: config.default_height,
         is_default: config.is_default,
-        created_at: Some(config.created_at.to_string()),
-        updated_at: Some(config.updated_at.to_string()),
-    }
+    })
 }
 
 fn image_config_params(input: ImageConfigInput) -> CreateImageConfigParams {

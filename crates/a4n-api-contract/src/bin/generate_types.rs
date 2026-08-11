@@ -12,7 +12,7 @@ use a4n_api_contract::{
     },
     auth::{
         AuthResult, ChangePasswordInput, LoginInput, RefreshTokenInput, RegisterInput,
-        SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
+        RevokeSessionInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
     },
     blueprint::{
         BlueprintDiffSummary, BlueprintMutationResult, BlueprintSummary, BlueprintVersionSummary,
@@ -29,9 +29,13 @@ use a4n_api_contract::{
         RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
     },
     character::{
-        CharacterProfileCreateResult, CharacterProfileDeleteResult, CharacterProfileMutationResult,
-        CharacterProfileSummary, CreateProfileInput, ListProfilesInput,
-        UpdateCharacterProfileInput,
+        AttributeCountsSummary, CharacterProfileCreateResult, CharacterProfileDeleteResult,
+        CharacterProfileMutationResult, CharacterProfileProtectedAttribute,
+        CharacterProfileSkippedResult, CharacterProfileSummary, CharacterProfileSyncBatchStatus,
+        CharacterProfileSyncFailure, CharacterProfileSyncRange, CharacterProfileSyncSkipReason,
+        CharacterProfileSyncedResult, CreateProfileInput, ListProfilesInput,
+        SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult, SyncCharacterProfileInput,
+        SyncCharacterProfileResult, UpdateCharacterProfileInput,
     },
     collaboration::{
         InviteProjectMemberInput, ProjectAccessRole, ProjectAccessScope, ProjectInviteSummary,
@@ -39,12 +43,10 @@ use a4n_api_contract::{
     },
     config::{
         CreateEmbeddingInput, CreateLlmInput, DiscoveredModel, EmbeddingConfigSummary,
-        ImageConfigInput, ImageConfigSummary, LlmConfigSummary, LlmMaxTokensConfig,
-        ModelDiscoveryInput, ModelDiscoveryResult, USAGE_GUIDE_IMAGE_MAX_BYTES,
-        USAGE_GUIDE_MAX_IMAGES, USAGE_GUIDE_NEW_IMAGES_MAX_BYTES, UpdateEmbeddingInput,
-        UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput, UsageGuideBlock,
-        UsageGuideBlockKind, UsageGuideDocument, VideoConfigInput, VideoConfigSummary,
-        VideoDurationMode,
+        ImageConfigInput, ImageConfigSummary, ImportAllConfigsInput, LlmConfigSummary,
+        LlmMaxTokensConfig, ModelDiscoveryInput, ModelDiscoveryResult, UpdateEmbeddingInput,
+        UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput, VideoConfigInput,
+        VideoConfigSummary, VideoDurationMode,
     },
     embedding::{
         CancelEmbeddingModelDownloadInput, DownloadEmbeddingModelInput,
@@ -73,22 +75,21 @@ use a4n_api_contract::{
         GeneratedImageSummary, ListImagesByChapterInput, ListVideoReferenceImagesInput,
         UpdateGeneratedImageInput, UploadImageInput,
     },
-    import::{ImportFileResult, ImportUploadedFileInput, ParsedChapterSummary},
+    import::{ImportProjectTextUploadInput, MAX_PROJECT_TEXT_UPLOAD_BYTES},
     import_reverse::{ConfirmReverseEngineeringCandidateInput, ReverseEngineerInput},
     import_review::{
-        BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
-        ImportAnalysisStatusSummary, ImportReviewSummary, UpdateImportStatusInput,
+        AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
+        ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
     },
     logging::{LogReadResult, ReadLogsInput, SetLogLevelInput},
     manga::{
         BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaBoundReferenceAsset,
         MangaCameraAngleV2, MangaChapterInput, MangaPageDrawingPromptSchemaVersion,
         MangaPageDrawingPromptV2, MangaPageImportanceV2, MangaPagePacingV2,
-        MangaPagePlanSchemaVersion, MangaPageRoleV2, MangaPageV3, MangaPanelFunctionV2,
-        MangaPanelSizeV2, MangaPanelV2, MangaPipelineResumeInput, MangaPipelineStartInput,
-        MangaPipelineStartStage, MangaPipelineStatusSummary, MangaPromptSourceSummary,
-        MangaPromptSummary, MangaReadingFlowV2, MangaReferenceAssetKind,
-        MangaReferenceBindingStatus, MangaReferenceBindingSummary, MangaReferenceTargetType,
+        MangaPagePlanSchemaVersion, MangaPagePromptSourceSummary, MangaPagePromptSummary,
+        MangaPageRoleV2, MangaPageV3, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2,
+        MangaPipelineResumeInput, MangaPipelineStartInput, MangaPipelineStatusSummary,
+        MangaReadingFlowV2, MangaReferenceAssetKind, MangaReferenceBindingSummary,
         MangaShootingBeatRefV3, MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2,
         MangaTextPlacementV2, OptimizeMangaPromptInput, UpdateMangaPromptInput,
     },
@@ -101,28 +102,34 @@ use a4n_api_contract::{
         SendOptimizationMessageInput,
     },
     outline::{
-        ChapterOutlineSummary, OutlineMutationResult, PartOutlineSummary, SaveChapterOutlineInput,
+        ChapterOutlineSummary, DeleteLatestOutlineRecordsInput, OutlineDeleteTarget,
+        OutlineMutationResult, PartOutlineSummary, SaveChapterOutlineInput,
         SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
         UpdateChapterOutlineResult,
     },
     profile::{
-        ListObjectProfilesInput, ListSceneProfilesInput, ObjectProfileDeleteResult,
-        ObjectProfileInput, ObjectProfileMutationResult, ObjectProfileSummary,
-        SceneProfileDeleteResult, SceneProfileInput, SceneProfileMutationResult,
-        SceneProfileSummary,
+        CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingDeleteResult,
+        ForeshadowingMutationResult, ForeshadowingRecordInput, ForeshadowingSummary,
+        ListForeshadowingInput, ListObjectProfilesInput, ListSceneProfilesInput,
+        ObjectProfileDeleteResult, ObjectProfileInput, ObjectProfileMutationResult,
+        ObjectProfileSummary, SceneProfileDeleteResult, SceneProfileInput,
+        SceneProfileMutationResult, SceneProfileSummary, UpdateForeshadowingInput,
     },
     project::{
-        CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
-        PaginatedProjects, ProjectGeneratedDataResetResponse, ProjectGeneratedDataResetStatus,
+        AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode,
+        AssetGraphNodeDetail, AssetLineageRecord, AssetLineageRef, CreateDerivedProjectInput,
+        CreateFreeformVideoProjectInput, CreateProjectInput, DuplicateProjectInput,
+        GenerationInputSource, GenerationRunSnapshot, PaginatedProjects,
+        ProjectGeneratedDataResetResponse, ProjectGeneratedDataResetStatus,
         ProjectGeneratedDataResetSummary, ProjectProgressStatus, ProjectProgressSummary,
         ProjectRollbackImpactSummary, ProjectRollbackPreview, ProjectStatus,
-        ProjectStatusHistorySummary, ProjectStatusMachineSummary, ProjectSummary,
+        ProjectStatusHistorySummary, ProjectStatusMachineSummary, ProjectSummary, PromptSource,
         UpdateProjectInput,
     },
     project_transfer::{
         ExportDerivedProjectDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
-        ExportVideoStudioProjectDataInput, ImportProjectFamilyUploadInput,
-        ImportProjectFullUploadInput, ImportVideoStudioProjectUploadInput,
+        ExportVideoStudioProjectDataInput, ImportProjectPackageUploadInput,
+        PROJECT_FAMILY_PACKAGE_SUFFIX, VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
     },
     prompt::{
         AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
@@ -162,14 +169,12 @@ use a4n_api_contract::{
     video::{
         ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,
         AssembledChapterVideoPreview, AssemblyPushResult, ChapterVideoPromptSummary,
-        CommitInsertedSegmentDraftInput, DeleteChapterVideoPromptInput, DeleteInsertedSegmentInput,
-        DownstreamConflictStrategy, GenerateChapterVideosBatchResult, GeneratedVideoSummary,
-        GetVideoTimelineInput, ImportCanvasVideoInput, MoveInsertedSegmentInput,
-        OptimizeChapterVideoPromptInput, PushAssembledChapterVideoInput,
-        UpdateChapterVideoPromptInput, UpdateGeneratedVideoInput, UploadAssemblyInsertVideoInput,
-        UploadChapterVideoInput, UploadReferenceMediaVideoInput, VideoPlaybackData,
-        VideoScrubFramesData, VideoSegmentTarget, VideoTimelineItemKind, VideoTimelineItemStatus,
-        VideoTimelineItemSummary, VideoTimelineSummary,
+        DeleteChapterVideoPromptInput, DownstreamConflictStrategy,
+        GenerateChapterVideosBatchResult, GeneratedVideoSummary, ImportCanvasVideoInput,
+        OptimizeChapterVideoPromptInput, PreviewChapterVideoPromptOverrideInput,
+        PushAssembledChapterVideoInput, UpdateChapterVideoPromptInput, UpdateGeneratedVideoInput,
+        UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
+        VideoPlaybackData, VideoScrubFramesData, VideoSegmentTarget,
     },
     workflow::{
         CancelWorkflowInput, ProgressMeta, ProgressPhaseKind, ProgressSeverity,
@@ -184,6 +189,7 @@ use a4n_domain::galgame::{
     GalgameSceneEntryKind, GalgameStageLayerV2, GalgameStagePositionV2, GalgameTargetEntityKind,
     GalgameTransition, GalgameVisibleCastMemberV2,
 };
+use a4n_domain::import_review::ImportReviewStatus;
 use a4n_domain::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
     LLM_RESERVED_REQUEST_OPTION_KEYS,
@@ -212,6 +218,7 @@ fn main() {
         &typescript_interface::<LoginInput>("LoginInput"),
         &typescript_interface::<UpdateProfileInput>("UpdateProfileInput"),
         &typescript_interface::<ChangePasswordInput>("ChangePasswordInput"),
+        &typescript_interface::<RevokeSessionInput>("RevokeSessionInput"),
         &typescript_interface::<SessionSummary>("SessionSummary"),
         &typescript_interface::<TokenPairSummary>("TokenPairSummary"),
         &typescript_interface::<AuthResult>("AuthResult"),
@@ -240,10 +247,7 @@ fn main() {
         &typescript_interface::<VideoConfigSummary>("VideoConfigSummary"),
         &typescript_interface::<VideoConfigInput>("VideoConfigInput"),
         &typescript_interface::<UpdateVideoConfigInput>("UpdateVideoConfigInput"),
-        &typescript_usage_guide_limits(),
-        &typescript_enum::<UsageGuideBlockKind>("UsageGuideBlockKind"),
-        &typescript_interface::<UsageGuideBlock>("UsageGuideBlock"),
-        &typescript_interface::<UsageGuideDocument>("UsageGuideDocument"),
+        &typescript_interface::<ImportAllConfigsInput>("ImportAllConfigsInput"),
         &typescript_interface::<LlmProviderDescriptor>("LlmProviderDescriptor"),
         &typescript_interface::<ImageProviderDescriptor>("ImageProviderDescriptor"),
         &typescript_interface::<VideoProviderDescriptor>("VideoProviderDescriptor"),
@@ -256,6 +260,9 @@ fn main() {
         "// @generated by `cargo run -p a4n-api-contract --bin generate_types -- --write`.\n",
         "// Do not edit this file; change the Rust contract and regenerate it.\n\n",
         "import type { ThemeMode } from \"./theme\";\n\n",
+        &typescript_api_commands(),
+        &typescript_project_package_suffixes(),
+        &typescript_import_constants(),
         &typescript_generation_start_paths(),
         &typescript_runtime_config_policies(),
         &typescript_interface::<SetLogLevelInput>("SetLogLevelInput"),
@@ -267,9 +274,7 @@ fn main() {
         &typescript_interface::<CleanupOrphanProjectDataDirsInput>(
             "CleanupOrphanProjectDataDirsInput",
         ),
-        &typescript_interface::<ImportUploadedFileInput>("ImportUploadedFileInput"),
-        &typescript_interface::<ParsedChapterSummary>("ParsedChapterSummary"),
-        &typescript_interface::<ImportFileResult>("ImportFileResult"),
+        &typescript_interface::<ImportProjectTextUploadInput>("ImportProjectTextUploadInput"),
         &typescript_interface::<ReverseEngineerInput>("ReverseEngineerInput"),
         &typescript_interface::<ConfirmReverseEngineeringCandidateInput>(
             "ConfirmReverseEngineeringCandidateInput",
@@ -337,7 +342,6 @@ fn main() {
         &typescript_interface::<UpdateMangaPromptInput>("UpdateMangaPromptInput"),
         &typescript_interface::<OptimizeMangaPromptInput>("OptimizeMangaPromptInput"),
         &typescript_interface::<DeleteMangaPromptInput>("DeleteMangaPromptInput"),
-        &typescript_enum::<MangaPipelineStartStage>("MangaPipelineStartStage"),
         &typescript_interface::<MangaPipelineStatusSummary>("MangaPipelineStatusSummary"),
         &typescript_enum::<MangaPagePlanSchemaVersion>("MangaPagePlanSchemaVersion"),
         &typescript_enum::<MangaPageDrawingPromptSchemaVersion>(
@@ -359,12 +363,10 @@ fn main() {
         &typescript_interface::<MangaPageV3>("MangaPageV3"),
         &typescript_interface::<MangaPageDrawingPromptV2>("MangaPageDrawingPromptV2"),
         &typescript_enum::<MangaReferenceAssetKind>("MangaReferenceAssetKind"),
-        &typescript_enum::<MangaReferenceTargetType>("MangaReferenceTargetType"),
-        &typescript_enum::<MangaReferenceBindingStatus>("MangaReferenceBindingStatus"),
         &typescript_interface::<MangaBoundReferenceAsset>("MangaBoundReferenceAsset"),
         &typescript_interface::<MangaReferenceBindingSummary>("MangaReferenceBindingSummary"),
-        &typescript_interface::<MangaPromptSourceSummary>("MangaPromptSourceSummary"),
-        &typescript_interface::<MangaPromptSummary>("MangaPromptSummary"),
+        &typescript_interface::<MangaPagePromptSourceSummary>("MangaPagePromptSourceSummary"),
+        &typescript_interface::<MangaPagePromptSummary>("MangaPagePromptSummary"),
         &typescript_interface::<GalgameProjectInput>("GalgameProjectInput"),
         &typescript_interface::<StartGalgamePipelineInput>("StartGalgamePipelineInput"),
         &typescript_interface::<PreviewGalgamePipelineInput>("PreviewGalgamePipelineInput"),
@@ -429,22 +431,20 @@ fn main() {
         &typescript_interface::<RagEnhancedSearchWithVectorsInput>(
             "RagEnhancedSearchWithVectorsInput",
         ),
-        &typescript_interface::<ImportProjectFullUploadInput>("ImportProjectFullUploadInput"),
         &typescript_interface::<ExportProjectFamilyDataInput>("ExportProjectFamilyDataInput"),
         &typescript_interface::<ExportDerivedProjectDataInput>("ExportDerivedProjectDataInput"),
         &typescript_interface::<ExportVideoStudioProjectDataInput>(
             "ExportVideoStudioProjectDataInput",
         ),
         &typescript_interface::<ExportProjectPackageData>("ExportProjectPackageData"),
-        &typescript_interface::<ImportProjectFamilyUploadInput>("ImportProjectFamilyUploadInput"),
-        &typescript_interface::<ImportVideoStudioProjectUploadInput>(
-            "ImportVideoStudioProjectUploadInput",
-        ),
+        &typescript_interface::<ImportProjectPackageUploadInput>("ImportProjectPackageUploadInput"),
+        &typescript_enum::<ImportReviewStatus>("ImportReviewStatus"),
         &typescript_interface::<ImportReviewSummary>("ImportReviewSummary"),
+        &typescript_interface::<ImportProjectReviewsInput>("ImportProjectReviewsInput"),
+        &typescript_interface::<ImportReviewIdInput>("ImportReviewIdInput"),
+        &typescript_interface::<AcceptImportReviewInput>("AcceptImportReviewInput"),
         &typescript_interface::<BatchAcceptImportReviewsInput>("BatchAcceptImportReviewsInput"),
-        &typescript_interface::<ImportAnalysisStatusSummary>("ImportAnalysisStatusSummary"),
         &typescript_interface::<DedupResult>("DedupResult"),
-        &typescript_interface::<UpdateImportStatusInput>("UpdateImportStatusInput"),
         &typescript_interface::<CheckImportDedupInput>("CheckImportDedupInput"),
         &typescript_interface::<CanvasPortContract>("CanvasPortContract"),
         &typescript_interface::<CanvasNodeContract>("CanvasNodeContract"),
@@ -497,11 +497,22 @@ fn main() {
         &typescript_interface::<ProjectStatusMachineSummary>("ProjectStatusMachineSummary"),
         &typescript_interface::<ProjectRollbackImpactSummary>("ProjectRollbackImpactSummary"),
         &typescript_interface::<ProjectRollbackPreview>("ProjectRollbackPreview"),
+        &typescript_interface::<AssetGraphNode>("AssetGraphNode"),
+        &typescript_interface::<AssetGraphEdge>("AssetGraphEdge"),
+        &typescript_interface::<AssetGraphLayer>("AssetGraphLayer"),
+        &typescript_interface::<AssetDependencyGraph>("AssetDependencyGraph"),
+        &typescript_interface::<AssetLineageRef>("AssetLineageRef"),
+        &typescript_interface::<PromptSource>("PromptSource"),
+        &typescript_interface::<GenerationRunSnapshot>("GenerationRunSnapshot"),
+        &typescript_interface::<GenerationInputSource>("GenerationInputSource"),
+        &typescript_interface::<AssetLineageRecord>("AssetLineageRecord"),
+        &typescript_interface::<AssetGraphNodeDetail>("AssetGraphNodeDetail"),
         &typescript_interface::<ProjectSummary>("ProjectSummary"),
         &typescript_interface::<PaginatedProjects>("PaginatedProjects"),
         &typescript_interface::<CreateProjectInput>("CreateProjectInput"),
         &typescript_interface::<CreateFreeformVideoProjectInput>("CreateFreeformVideoProjectInput"),
         &typescript_interface::<CreateDerivedProjectInput>("CreateDerivedProjectInput"),
+        &typescript_interface::<DuplicateProjectInput>("DuplicateProjectInput"),
         &typescript_interface::<UpdateProjectInput>("UpdateProjectInput"),
         &typescript_interface::<ProjectGeneratedDataResetSummary>(
             "ProjectGeneratedDataResetSummary",
@@ -527,6 +538,8 @@ fn main() {
         &typescript_interface::<SaveChapterOutlineResult>("SaveChapterOutlineResult"),
         &typescript_interface::<SavePartOutlineInput>("SavePartOutlineInput"),
         &typescript_interface::<SavePartOutlineResult>("SavePartOutlineResult"),
+        &typescript_interface::<OutlineDeleteTarget>("OutlineDeleteTarget"),
+        &typescript_interface::<DeleteLatestOutlineRecordsInput>("DeleteLatestOutlineRecordsInput"),
         &typescript_interface::<UpdateChapterOutlineResult>("UpdateChapterOutlineResult"),
         &typescript_interface::<OutlineMutationResult>("OutlineMutationResult"),
         &typescript_enum::<ProjectAccessRole>("ProjectAccessRole"),
@@ -552,10 +565,24 @@ fn main() {
         &typescript_interface::<CreateProfileInput>("CreateProfileInput"),
         &typescript_interface::<UpdateCharacterProfileInput>("UpdateCharacterProfileInput"),
         &typescript_interface::<ListProfilesInput>("ListProfilesInput"),
+        &typescript_interface::<AttributeCountsSummary>("AttributeCountsSummary"),
         &typescript_interface::<CharacterProfileSummary>("CharacterProfileSummary"),
         &typescript_interface::<CharacterProfileCreateResult>("CharacterProfileCreateResult"),
         &typescript_interface::<CharacterProfileMutationResult>("CharacterProfileMutationResult"),
         &typescript_interface::<CharacterProfileDeleteResult>("CharacterProfileDeleteResult"),
+        &typescript_interface::<SyncCharacterProfileInput>("SyncCharacterProfileInput"),
+        &typescript_interface::<SyncAllCharacterProfilesInput>("SyncAllCharacterProfilesInput"),
+        &typescript_enum::<CharacterProfileSyncSkipReason>("CharacterProfileSyncSkipReason"),
+        &typescript_interface::<CharacterProfileSyncRange>("CharacterProfileSyncRange"),
+        &typescript_interface::<CharacterProfileProtectedAttribute>(
+            "CharacterProfileProtectedAttribute",
+        ),
+        &typescript_interface::<CharacterProfileSyncedResult>("CharacterProfileSyncedResult"),
+        &typescript_interface::<CharacterProfileSkippedResult>("CharacterProfileSkippedResult"),
+        &typescript_type::<SyncCharacterProfileResult>("SyncCharacterProfileResult"),
+        &typescript_interface::<CharacterProfileSyncFailure>("CharacterProfileSyncFailure"),
+        &typescript_enum::<CharacterProfileSyncBatchStatus>("CharacterProfileSyncBatchStatus"),
+        &typescript_interface::<SyncAllCharacterProfilesResult>("SyncAllCharacterProfilesResult"),
         &typescript_interface::<ListObjectProfilesInput>("ListObjectProfilesInput"),
         &typescript_interface::<ObjectProfileInput>("ObjectProfileInput"),
         &typescript_interface::<ObjectProfileSummary>("ObjectProfileSummary"),
@@ -566,6 +593,14 @@ fn main() {
         &typescript_interface::<SceneProfileSummary>("SceneProfileSummary"),
         &typescript_interface::<SceneProfileMutationResult>("SceneProfileMutationResult"),
         &typescript_interface::<SceneProfileDeleteResult>("SceneProfileDeleteResult"),
+        &typescript_interface::<ListForeshadowingInput>("ListForeshadowingInput"),
+        &typescript_interface::<ForeshadowingRecordInput>("ForeshadowingRecordInput"),
+        &typescript_interface::<CreateForeshadowingInput>("CreateForeshadowingInput"),
+        &typescript_interface::<UpdateForeshadowingInput>("UpdateForeshadowingInput"),
+        &typescript_interface::<DeleteForeshadowingInput>("DeleteForeshadowingInput"),
+        &typescript_interface::<ForeshadowingSummary>("ForeshadowingSummary"),
+        &typescript_interface::<ForeshadowingMutationResult>("ForeshadowingMutationResult"),
+        &typescript_interface::<ForeshadowingDeleteResult>("ForeshadowingDeleteResult"),
         &typescript_enum::<ChapterShootingScriptSchemaVersion>(
             "ChapterShootingScriptSchemaVersion",
         ),
@@ -612,6 +647,9 @@ fn main() {
         &typescript_interface::<UpdateChapterVideoPromptInput>("UpdateChapterVideoPromptInput"),
         &typescript_interface::<OptimizeChapterVideoPromptInput>("OptimizeChapterVideoPromptInput"),
         &typescript_interface::<DeleteChapterVideoPromptInput>("DeleteChapterVideoPromptInput"),
+        &typescript_interface::<PreviewChapterVideoPromptOverrideInput>(
+            "PreviewChapterVideoPromptOverrideInput",
+        ),
         &typescript_interface::<GenerateChapterVideosBatchResult>(
             "GenerateChapterVideosBatchResult",
         ),
@@ -628,14 +666,6 @@ fn main() {
         ),
         &typescript_interface::<UploadChapterVideoInput>("UploadChapterVideoInput"),
         &typescript_interface::<VideoSegmentTarget>("VideoSegmentTarget"),
-        &typescript_interface::<GetVideoTimelineInput>("GetVideoTimelineInput"),
-        &typescript_interface::<CommitInsertedSegmentDraftInput>("CommitInsertedSegmentDraftInput"),
-        &typescript_interface::<MoveInsertedSegmentInput>("MoveInsertedSegmentInput"),
-        &typescript_interface::<DeleteInsertedSegmentInput>("DeleteInsertedSegmentInput"),
-        &typescript_enum::<VideoTimelineItemKind>("VideoTimelineItemKind"),
-        &typescript_enum::<VideoTimelineItemStatus>("VideoTimelineItemStatus"),
-        &typescript_interface::<VideoTimelineItemSummary>("VideoTimelineItemSummary"),
-        &typescript_interface::<VideoTimelineSummary>("VideoTimelineSummary"),
         &typescript_interface::<UploadReferenceMediaVideoInput>("UploadReferenceMediaVideoInput"),
         &typescript_interface::<UploadAssemblyInsertVideoInput>("UploadAssemblyInsertVideoInput"),
         &typescript_interface::<ImportCanvasVideoInput>("ImportCanvasVideoInput"),
@@ -717,6 +747,11 @@ fn typescript_interface<T: JsonSchema>(name: &str) -> String {
     output
 }
 
+fn typescript_type<T: JsonSchema>(name: &str) -> String {
+    let root = serde_json::to_value(schemars::schema_for!(T)).expect("serialize JSON schema");
+    format!("export type {name} = {};\n\n", ts_type(&root, &root))
+}
+
 fn typescript_enum<T: JsonSchema>(name: &str) -> String {
     let root = serde_json::to_value(schemars::schema_for!(T)).expect("serialize JSON schema");
     let schema = resolve_root(&root, &root);
@@ -750,14 +785,6 @@ fn typescript_project_status() -> String {
     )
 }
 
-fn typescript_usage_guide_limits() -> String {
-    format!(
-        "export const USAGE_GUIDE_MAX_IMAGES = {USAGE_GUIDE_MAX_IMAGES};\n\
-         export const USAGE_GUIDE_IMAGE_MAX_BYTES = {USAGE_GUIDE_IMAGE_MAX_BYTES};\n\
-         export const USAGE_GUIDE_NEW_IMAGES_MAX_BYTES = {USAGE_GUIDE_NEW_IMAGES_MAX_BYTES};\n\n"
-    )
-}
-
 fn typescript_llm_constants() -> String {
     let defaults = LlmMaxTokensConfig::default()
         .profile_values()
@@ -779,6 +806,17 @@ fn typescript_llm_constants() -> String {
     )
 }
 
+fn typescript_project_package_suffixes() -> String {
+    format!(
+        "export const PROJECT_FAMILY_PACKAGE_SUFFIX = {PROJECT_FAMILY_PACKAGE_SUFFIX:?};\n\
+         export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = {VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX:?};\n\n"
+    )
+}
+
+fn typescript_import_constants() -> String {
+    format!("export const MAX_PROJECT_TEXT_UPLOAD_BYTES = {MAX_PROJECT_TEXT_UPLOAD_BYTES};\n\n")
+}
+
 fn typescript_runtime_config_policies() -> String {
     let mut output = String::from(
         "export type RuntimeConfigPolicy = \"full\" | \"without_secrets\";\n\n\
@@ -794,6 +832,18 @@ fn typescript_runtime_config_policies() -> String {
     }
     output.push_str("};\n\n");
     output
+}
+
+fn typescript_api_commands() -> String {
+    let commands = API_COMMANDS
+        .iter()
+        .map(|command| format!("  {command:?},"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "export const HOST_API_COMMANDS = [\n{commands}\n] as const;\n\n\
+         export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];\n\n"
+    )
 }
 
 fn typescript_generation_start_paths() -> String {
@@ -824,9 +874,16 @@ fn ts_type(schema: &Value, root: &Value) -> String {
     if let Some(reference) = schema.get("$ref").and_then(Value::as_str)
         && let Some(name) = reference.strip_prefix("#/$defs/")
     {
-        return name.to_string();
+        return if schema.get("properties").is_some() {
+            format!("{name} & {}", ts_object_type(schema, root))
+        } else {
+            name.to_string()
+        };
     }
     let schema = resolve_root(schema, root);
+    if let Some(value) = schema.get("const") {
+        return value.to_string();
+    }
     if let Some(types) = schema.get("type").and_then(Value::as_array) {
         return types
             .iter()
@@ -863,6 +920,13 @@ fn ts_type(schema: &Value, root: &Value) -> String {
             .collect::<Vec<_>>()
             .join(" | ");
     }
+    if let Some(all_of) = schema.get("allOf").and_then(Value::as_array) {
+        return all_of
+            .iter()
+            .map(|item| ts_type(item, root))
+            .collect::<Vec<_>>()
+            .join(" & ");
+    }
     if let Some(values) = schema.get("enum").and_then(Value::as_array) {
         return values
             .iter()
@@ -891,6 +955,34 @@ fn ts_type(schema: &Value, root: &Value) -> String {
 }
 
 fn ts_object_type(schema: &Value, root: &Value) -> String {
+    if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+        let required = schema
+            .get("required")
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<std::collections::BTreeSet<_>>()
+            })
+            .unwrap_or_default();
+        let fields = properties
+            .iter()
+            .map(|(field, property)| {
+                format!(
+                    "{field}{}: {}",
+                    if required.contains(field.as_str()) {
+                        ""
+                    } else {
+                        "?"
+                    },
+                    ts_type(property, root)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return format!("{{ {fields} }}");
+    }
     schema
         .get("additionalProperties")
         .filter(|value| value.is_object())
@@ -911,9 +1003,10 @@ fn primitive_type(kind: &str) -> String {
 #[cfg(test)]
 mod tests {
     use a4n_api_contract::canvas::GetCanvasNodeContractsInput;
+    use a4n_api_contract::character::SyncCharacterProfileResult;
     use a4n_api_contract::rag::EnhancedSearchInput;
 
-    use super::typescript_interface;
+    use super::{typescript_interface, typescript_type};
 
     #[test]
     fn nullable_array_keeps_its_item_type() {
@@ -927,6 +1020,17 @@ mod tests {
         assert_eq!(
             typescript_interface::<GetCanvasNodeContractsInput>("GetCanvasNodeContractsInput"),
             "export interface GetCanvasNodeContractsInput {\n}\n\n"
+        );
+    }
+
+    #[test]
+    fn tagged_result_keeps_its_status_discriminator() {
+        let output = typescript_type::<SyncCharacterProfileResult>("SyncCharacterProfileResult");
+
+        assert!(
+            output.contains("CharacterProfileSyncedResult & { status: \"synced\" }")
+                && output.contains("CharacterProfileSkippedResult & { status: \"skipped\" }"),
+            "{output}"
         );
     }
 }

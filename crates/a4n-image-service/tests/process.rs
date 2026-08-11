@@ -28,7 +28,6 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
     let base_url = sidecar_base_url(addr);
     assert_protected_route_rejects_invalid_auth(&base_url, "/image/generate/events").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/image/request_preview").await;
-    assert_protected_route_rejects_invalid_auth(&base_url, "/image/probe").await;
     assert_route_rejects_malformed_json(&base_url, "/image/generate/events").await;
     assert_route_rejects_oversized_json(&base_url, "/image/models", 8 * 1024 * 1024).await;
     assert_route_rejects_oversized_json(&base_url, "/image/generate/events", 8 * 1024 * 1024).await;
@@ -252,13 +251,6 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
         .expect("image preview should cross the independent process");
     assert_eq!(preview.status, ServiceStatus::Ok);
     assert!(preview.payload.expect("image preview payload")["request"].is_object());
-    let probe = client
-        .probe(preview_request)
-        .await
-        .expect("image probe should cross the independent process");
-    assert_eq!(probe.status, ServiceStatus::Ok);
-    assert_eq!(probe.payload.expect("image probe payload")["ok"], true);
-
     let failed_provider_addr = unused_local_addr();
     let failed_events_request = provider_request_context(
         "image-process-provider-failure",

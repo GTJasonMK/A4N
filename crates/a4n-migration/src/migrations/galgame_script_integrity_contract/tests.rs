@@ -7,6 +7,7 @@ fn line_family_trigger_enforces_event_cg_presentation_contract() {
         "presentation_json.cg_importance 必须是字符串",
         "presentation_json.cg_importance 无效",
         "启用事件 CG 时必须提供 cg_note",
+        "dialogue/monologue 行必须显式提供 pose",
     ] {
         assert!(
             GALGAME_LINE_FAMILY_FUNCTION_SQL.contains(expected),

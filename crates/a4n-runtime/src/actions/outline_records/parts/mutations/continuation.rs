@@ -16,7 +16,7 @@ pub async fn preview_continue_part_outlines_request(
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let part_number = input.part_number;
     let request = state
-        .outline()
+        .orchestrator()
         .preview_continue_part_outlines_validated(input)
         .await?;
     single_request_preview(

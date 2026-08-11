@@ -4,7 +4,6 @@ use crate::{
         ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
         model_request_preview,
     },
-    prompt_renderer::RuntimePromptRenderer,
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::character::CharacterConflictCheckInput;
@@ -17,9 +16,9 @@ pub async fn preview_character_conflict_request(
     start_chapter: Option<i32>,
     end_chapter: Option<i32>,
 ) -> Result<ModelRequestPreview, AppError> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let preview = state
-        .character()
+        .orchestrator()
         .prepare_character_conflict_request_preview_validated(
             user_id,
             CharacterConflictCheckInput {
@@ -28,7 +27,7 @@ pub async fn preview_character_conflict_request(
                 start_chapter,
                 end_chapter,
             },
-            &prompt_renderer,
+            prompt_renderer,
         )
         .await?;
     let step = chat_request_step_for_state(

@@ -2,7 +2,6 @@ import React from "react";
 import {
   Activity,
   Bot,
-  BookOpen,
   Brain,
   CircleUserRound,
   FileText,
@@ -22,7 +21,6 @@ export type TabId =
   | "queue"
   | "prompt"
   | "theme"
-  | "guide"
   | "advanced"
   | "admin"
   | "logs"
@@ -42,7 +40,6 @@ export const TABS: TabDef[] = [
   { id: "video", label: "视频生成", icon: <Film size={14} />, groupLabel: "本机设置" },
   { id: "prompt", label: "提示词管理", icon: <FileText size={14} />, groupLabel: "本机设置" },
   { id: "theme", label: "主题配置", icon: <Palette size={14} />, groupLabel: "本机设置" },
-  { id: "guide", label: "使用指南", icon: <BookOpen size={14} />, groupLabel: "本机设置" },
   { id: "advanced", label: "高级配置", icon: <Wrench size={14} />, groupLabel: "本机设置" },
   { id: "admin", label: "管理员", icon: <Shield size={14} />, groupLabel: "云端管理" },
   { id: "queue", label: "请求队列", icon: <Activity size={14} />, groupLabel: "服务器诊断" },

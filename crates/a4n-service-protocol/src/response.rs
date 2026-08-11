@@ -1,9 +1,10 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::artifacts::ArtifactRef;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
 pub struct ServiceResponse<T> {
     pub status: ServiceStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -12,10 +13,22 @@ pub struct ServiceResponse<T> {
     pub usage: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifact_refs: Vec<ArtifactRef>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_payload"
+    )]
     pub payload: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ServiceError>,
+}
+
+fn deserialize_present_payload<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 impl<T> ServiceResponse<T> {

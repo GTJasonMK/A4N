@@ -3,19 +3,20 @@ export type {
   DownstreamConflictStrategy,
   MangaBoundReferenceAsset,
   MangaPageDrawingPromptV2,
+  MangaPageImportanceV2,
+  MangaPagePacingV2,
+  MangaPageRoleV2,
   MangaPageV3,
   MangaPanelV2,
-  MangaPipelineStartStage,
   MangaPipelineStatusSummary,
-  MangaPromptSourceSummary,
-  MangaPromptSummary,
+  MangaPagePromptSourceSummary,
+  MangaPagePromptSummary,
   MangaReferenceAssetKind,
-  MangaReferenceBindingStatus,
   MangaReferenceBindingSummary,
-  MangaReferenceTargetType,
+  MangaReadingFlowV2,
   OptimizeMangaPromptInput,
   UpdateMangaPromptInput,
 } from "./generated/host";
-export * from "./manga/panels";
+export * from "./manga/pagePrompts";
 export * from "./manga/status";
 export * from "./manga/pipeline";

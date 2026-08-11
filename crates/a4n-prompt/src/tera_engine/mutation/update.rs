@@ -7,7 +7,7 @@ use super::super::version::bump_version;
 use super::validation::{normalize_prompt_update_author, validate_prompt_update_content};
 
 impl TeraPromptEngine {
-    pub(in crate::tera_engine) async fn update_prompt(
+    pub async fn update(
         &self,
         name: &str,
         content: String,

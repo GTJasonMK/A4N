@@ -1,6 +1,6 @@
 use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::SceneProfileSyncRequestContext;
-use super::validation::{id_array_value, reject_deprecated_evidence_fields};
+use super::validation::id_array_value;
 use crate::scene_profile::{
     SCENE_TRANSITION_MOVEMENT_TYPES, SceneTransitionDraft, normalize_movement_type_value,
 };
@@ -19,7 +19,6 @@ pub(super) fn parse_scene_transitions(
     for (index, transition) in transitions.iter().enumerate() {
         let path = format!("transitions[{index}]");
         ensure_object(transition, &path)?;
-        reject_deprecated_evidence_fields(transition, &path, "source_anchor_ids")?;
         reject_unknown_fields(
             transition,
             &path,

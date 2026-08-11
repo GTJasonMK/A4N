@@ -1,8 +1,8 @@
-//! 导入反推结果的持久化候选与确认应用。
+//! 导入反推结果的断点恢复与正式资料应用。
 //!
-//! 反推的 LLM 结果已经保存在 workflow checkpoint；这里把该 checkpoint 明确投影为
-//! 候选，并在用户确认时从同一 checkpoint 读取、一次事务写入正式资料。确认阶段不再
-//! 接受调用方上传的 JSON，也不重新调用模型。
+//! LLM 结果保存在 workflow checkpoint；应用阶段只从同一 checkpoint 读取并一次事务
+//! 写入正式资料，不接受调用方上传的 JSON，也不重新调用模型。蓝图由用户发起归纳后
+//! 直接应用，章节与分部大纲继续保留显式确认。
 
 use a4n_core::{
     error::AppError,
@@ -14,8 +14,8 @@ use a4n_db::{
         apply_reverse_blueprint_records, apply_reverse_outline_records,
         apply_reverse_part_outline_records, reverse_context_rows,
     },
-    project::{lock_project_chapter_rows, project_for_update},
-    workflow::WORKFLOW_STATUS_COMPLETED,
+    outline::load_outline_generation_source_rows_for_update,
+    workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
 };
 use chrono::Utc;
 use sea_orm::{
@@ -60,7 +60,7 @@ pub(crate) fn reverse_target_from_prompt_name(
 ) -> Result<ReverseEngineeringTarget, AppError> {
     ReverseEngineeringTarget::from_prompt_name(prompt_name).ok_or_else(|| AppError::InvalidState {
         current: prompt_name.to_string(),
-        operation: "读取导入反推候选目标".to_string(),
+        operation: "读取项目资料归纳目标".to_string(),
     })
 }
 
@@ -89,9 +89,85 @@ pub(crate) fn reverse_candidate_response(
     response
 }
 
+pub(crate) fn reverse_candidate_checkpoint_response(
+    workflow_run_id: i64,
+    prompt_name: &str,
+    result: Value,
+    artifacts: Option<&Value>,
+) -> Result<Value, AppError> {
+    let target = reverse_target_from_prompt_name(prompt_name)?;
+    let candidate = artifacts
+        .and_then(Value::as_object)
+        .and_then(|artifacts| artifacts.get(REVERSE_CANDIDATE_ARTIFACT_KEY))
+        .and_then(Value::as_object)
+        .ok_or_else(|| AppError::InvalidState {
+            current: "missing_reverse_candidate".to_string(),
+            operation: "恢复项目资料归纳结果".to_string(),
+        })?;
+    validate_candidate_identity(candidate, workflow_run_id, prompt_name, &result)?;
+    match candidate.get("state").and_then(Value::as_str) {
+        Some("proposal") => Ok(reverse_candidate_response(
+            workflow_run_id,
+            target,
+            "proposal",
+            Some(result),
+            None,
+            Vec::new(),
+        )),
+        Some("confirmed") => Ok(reverse_candidate_response(
+            workflow_run_id,
+            target,
+            "already_confirmed",
+            Some(result),
+            confirmed_reverse_candidate_apply_result(candidate)?,
+            Vec::new(),
+        )),
+        Some(state) => Err(AppError::InvalidState {
+            current: state.to_string(),
+            operation: "恢复项目资料归纳结果".to_string(),
+        }),
+        None => Err(AppError::InvalidState {
+            current: "missing_reverse_candidate_state".to_string(),
+            operation: "恢复项目资料归纳结果".to_string(),
+        }),
+    }
+}
+
+impl OrchestratorContext {
+    pub async fn confirm_reverse_engineering_candidate_validated(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<Value, AppError> {
+        confirm_reverse_engineering_candidate(self, workflow_run_id).await
+    }
+}
+
 pub(crate) async fn confirm_reverse_engineering_candidate(
     context: &OrchestratorContext,
     workflow_run_id: i64,
+) -> Result<Value, AppError> {
+    apply_reverse_engineering_checkpoint(context, workflow_run_id, None, WORKFLOW_STATUS_COMPLETED)
+        .await
+}
+
+pub(crate) async fn apply_reverse_blueprint_workflow_result(
+    context: &OrchestratorContext,
+    workflow_run_id: i64,
+) -> Result<Value, AppError> {
+    apply_reverse_engineering_checkpoint(
+        context,
+        workflow_run_id,
+        Some(ReverseEngineeringTarget::Blueprint),
+        WORKFLOW_STATUS_RUNNING,
+    )
+    .await
+}
+
+async fn apply_reverse_engineering_checkpoint(
+    context: &OrchestratorContext,
+    workflow_run_id: i64,
+    expected_target: Option<ReverseEngineeringTarget>,
+    expected_run_status: &str,
 ) -> Result<Value, AppError> {
     if workflow_run_id <= 0 {
         return Err(AppError::InvalidArgument(
@@ -101,7 +177,7 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
 
     let tx = context.database.connection().begin().await?;
 
-    // 反推样本依赖正文；项目行先串行化正式写入，再锁正文与 workflow run。
+    // 自动上下文依赖项目正式资料；项目行先串行化正式写入，再锁正文与 workflow run。
     let run_hint = workflow_run::Entity::find_by_id(workflow_run_id)
         .one(&tx)
         .await?
@@ -112,21 +188,18 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
             .filter(|id| *id > 0)
             .ok_or_else(|| AppError::InvalidState {
                 current: "missing_project_id".to_string(),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             })?;
-    let project = project_for_update(&tx, project_id)
+    let locked_sources = load_outline_generation_source_rows_for_update(&tx, project_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-    if let Some(operation) = a4n_db::project::blocked_project_write_operation(
-        &project.lifecycle_gate,
-        "确认导入反推候选",
-    ) {
+    let project = locked_sources.project;
+    if project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
         return Err(AppError::InvalidState {
             current: project.lifecycle_gate,
-            operation,
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
-    lock_project_chapter_rows(&tx, project_id).await?;
     let mut run_query = workflow_run::Entity::find_by_id(workflow_run_id);
     if tx.get_database_backend() != DbBackend::Sqlite {
         run_query = run_query.lock_exclusive();
@@ -141,10 +214,16 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
         .as_deref()
         .ok_or_else(|| AppError::InvalidState {
             current: "missing_reverse_candidate_step".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let target = reverse_target_from_prompt_name(prompt_name)?;
-    validate_reverse_candidate_run(&run, project_id, prompt_name)?;
+    if expected_target.is_some_and(|expected| expected != target) {
+        return Err(AppError::InvalidState {
+            current: prompt_name.to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
+        });
+    }
+    validate_reverse_candidate_run(&run, project_id, prompt_name, expected_run_status)?;
     let mut checkpoint_query = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(prompt_name));
@@ -164,7 +243,7 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
             .clone()
             .ok_or_else(|| AppError::InvalidState {
                 current: "missing_checkpoint_json".to_string(),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             })?;
     let parsed_output = restored_import_reverse_checkpoint(checkpoint_json, prompt_name)?;
     validate_reverse_engineer_output(prompt_name, &parsed_output)?;
@@ -177,20 +256,20 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
         .as_object_mut()
         .ok_or_else(|| AppError::InvalidState {
             current: "invalid_reverse_candidate_artifacts".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let mut candidate = artifacts_object
         .get(REVERSE_CANDIDATE_ARTIFACT_KEY)
         .cloned()
         .ok_or_else(|| AppError::InvalidState {
             current: "missing_reverse_candidate".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let candidate_object = candidate
         .as_object_mut()
         .ok_or_else(|| AppError::InvalidState {
             current: "invalid_reverse_candidate".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     validate_candidate_identity(
         candidate_object,
@@ -202,13 +281,18 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
     if let Some(applied) = confirmed_reverse_candidate_apply_result(candidate_object)? {
         tx.rollback().await?;
         // 正式资料可能已提交但状态推进在响应前失败；重试应只补状态，不重写资料。
-        let warnings = project_status_warnings(
+        let mut warnings = project_status_warnings(
             context
-                .advance_project_status_if_blueprint_exists(project_id, target.applied_status())
+                .advance_project_status_if_allowed(project_id, target.applied_status())
                 .await
                 .err()
                 .map(|error| error.to_string()),
         );
+        if let Some(warning) =
+            publish_reverse_blueprint_updated(context, project_id, target, &applied)
+        {
+            warnings.push(warning);
+        }
         return Ok(reverse_candidate_response(
             workflow_run_id,
             target,
@@ -227,7 +311,7 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
             .as_ref()
             .ok_or_else(|| AppError::InvalidState {
                 current: "missing_reverse_candidate_input_fingerprint".to_string(),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             })?,
     )
     .await?;
@@ -245,7 +329,7 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
             let rows = reverse_outline_rows(&parsed_output).map_err(AppError::InvalidArgument)?;
             let count = apply_reverse_outline_records(&tx, project_id, &rows)
                 .await
-                .map_err(import_reverse_db_error)?;
+                .map_err(AppError::Database)?;
             reverse_outline_apply_result(count)
         }
         ReverseEngineeringTarget::PartOutline => {
@@ -272,13 +356,17 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
         .map_err(AppError::Database)?;
     tx.commit().await?;
 
-    let warnings = project_status_warnings(
+    let mut warnings = project_status_warnings(
         context
-            .advance_project_status_if_blueprint_exists(project_id, target.applied_status())
+            .advance_project_status_if_allowed(project_id, target.applied_status())
             .await
             .err()
             .map(|error| error.to_string()),
     );
+    if let Some(warning) = publish_reverse_blueprint_updated(context, project_id, target, &applied)
+    {
+        warnings.push(warning);
+    }
     Ok(reverse_candidate_response(
         workflow_run_id,
         target,
@@ -296,37 +384,59 @@ fn project_status_warnings(error: Option<String>) -> Vec<String> {
         .collect()
 }
 
+fn publish_reverse_blueprint_updated(
+    context: &OrchestratorContext,
+    project_id: i64,
+    target: ReverseEngineeringTarget,
+    applied: &Value,
+) -> Option<String> {
+    if target != ReverseEngineeringTarget::Blueprint {
+        return None;
+    }
+    let Some(version) = applied.get("blueprint_version").and_then(Value::as_str) else {
+        return Some("正式蓝图已写入，但确认结果缺少蓝图版本，页面可能需要重新打开".to_string());
+    };
+    context
+        .publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
+            project_id,
+            version: version.to_string(),
+        })
+        .err()
+        .map(|error| format!("正式蓝图已写入，但蓝图刷新事件发布失败：{error}。可重新打开项目刷新"))
+}
+
 fn validate_reverse_candidate_run(
     run: &workflow_run::Model,
     project_id: i64,
     prompt_name: &str,
+    expected_status: &str,
 ) -> Result<(), AppError> {
     if run.workflow_kind != "import_reverse_engineer" {
         return Err(AppError::InvalidArgument(
-            "workflow_run_id 不是导入反推候选".to_string(),
+            "workflow_run_id 不是有效的项目资料归纳工作流".to_string(),
         ));
     }
     if run.mode.as_deref() != Some("reverse") {
         return Err(AppError::InvalidArgument(
-            "只能确认 reverse 模式的导入反推候选".to_string(),
+            "只能写入 reverse 模式的项目资料归纳结果".to_string(),
         ));
     }
     if run.project_id != Some(project_id) || run.root_project_id != Some(project_id) {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_project_scope_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
-    if run.status != WORKFLOW_STATUS_COMPLETED {
+    if run.status != expected_status {
         return Err(AppError::InvalidState {
             current: run.status.clone(),
-            operation: "确认导入反推候选（工作流必须已完成）".to_string(),
+            operation: format!("写入项目资料归纳结果（工作流必须为 {expected_status}）"),
         });
     }
     if run.current_step_key.as_deref() != Some(prompt_name) {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_step_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     let fingerprint =
@@ -334,7 +444,7 @@ fn validate_reverse_candidate_run(
             .as_ref()
             .ok_or_else(|| AppError::InvalidState {
                 current: "missing_reverse_candidate_input_fingerprint".to_string(),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             })?;
     validate_reverse_candidate_run_fingerprint(fingerprint, project_id, prompt_name)?;
     let expected_business_key =
@@ -343,7 +453,7 @@ fn validate_reverse_candidate_run(
     if run.business_key != expected_business_key {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_business_key_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     Ok(())
@@ -365,7 +475,7 @@ fn validate_reverse_candidate_run_fingerprint(
         if fingerprint.get(key) != expected.get(key) {
             return Err(AppError::InvalidState {
                 current: format!("reverse_candidate_input_fingerprint_{key}_mismatch"),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             });
         }
     }
@@ -375,7 +485,7 @@ fn validate_reverse_candidate_run_fingerprint(
         .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
         .ok_or_else(|| AppError::InvalidState {
             current: "invalid_reverse_candidate_content_sample_fingerprint".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let valid_context_limit = match fingerprint.get("context_limit") {
         Some(Value::Null) => true,
@@ -391,7 +501,7 @@ fn validate_reverse_candidate_run_fingerprint(
     {
         return Err(AppError::InvalidState {
             current: "invalid_reverse_candidate_input_fingerprint_shape".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     if fingerprint
@@ -402,7 +512,7 @@ fn validate_reverse_candidate_run_fingerprint(
     {
         return Err(AppError::InvalidState {
             current: "invalid_reverse_candidate_auto_context_fingerprint".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     Ok(())
@@ -427,7 +537,7 @@ async fn validate_reverse_candidate_source_freshness(
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::InvalidState {
             current: "missing_reverse_candidate_auto_context_fingerprint".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let context_limit = fingerprint
         .get("context_limit")
@@ -436,7 +546,7 @@ async fn validate_reverse_candidate_source_freshness(
         .and_then(|value| usize::try_from(value).ok())
         .ok_or_else(|| AppError::InvalidState {
             current: "invalid_reverse_candidate_context_limit".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let rows = reverse_context_rows(
         db,
@@ -458,7 +568,7 @@ async fn validate_reverse_candidate_source_freshness(
     .map_err(AppError::InvalidArgument)?;
     let current_hash = current_hash.ok_or_else(|| AppError::InvalidState {
         current: "missing_reverse_candidate_current_auto_context_fingerprint".to_string(),
-        operation: "确认导入反推候选".to_string(),
+        operation: "写入项目资料归纳结果".to_string(),
     })?;
     validate_auto_context_source_hash(expected_hash, &current_hash)
 }
@@ -469,7 +579,7 @@ fn validate_auto_context_source_hash(expected: &str, current: &str) -> Result<()
     }
     Err(AppError::InvalidState {
         current: "reverse_candidate_source_changed".to_string(),
-        operation: "确认导入反推候选（项目上下文已变化，请重新生成候选）".to_string(),
+        operation: "写入项目资料归纳结果（项目上下文已变化，请重新归纳）".to_string(),
     })
 }
 
@@ -490,13 +600,13 @@ fn validate_reverse_candidate_checkpoint(
     {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_checkpoint_identity_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     if checkpoint.status != WORKFLOW_STATUS_COMPLETED {
         return Err(AppError::InvalidState {
             current: checkpoint.status.clone(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     let fingerprint =
@@ -505,7 +615,7 @@ fn validate_reverse_candidate_checkpoint(
             .as_ref()
             .ok_or_else(|| AppError::InvalidState {
                 current: "missing_reverse_candidate_checkpoint_fingerprint".to_string(),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             })?;
     let expected = serde_json::json!({
         "schema_version": 1,
@@ -517,19 +627,19 @@ fn validate_reverse_candidate_checkpoint(
         if fingerprint.get(key) != expected.get(key) {
             return Err(AppError::InvalidState {
                 current: format!("reverse_candidate_checkpoint_{key}_mismatch"),
-                operation: "确认导入反推候选".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
             });
         }
     }
     let expected_hash = a4n_db::workflow::llm_call_checkpoint_fingerprint_sha256(fingerprint)
         .map_err(|error| AppError::InvalidState {
             current: format!("invalid_reverse_candidate_checkpoint_fingerprint: {error}"),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     if checkpoint.input_fingerprint_sha256.as_deref() != Some(expected_hash.as_str()) {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_checkpoint_fingerprint_hash_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     Ok(())
@@ -546,7 +656,7 @@ fn validate_candidate_identity(
     {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_id_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     if candidate.get("origin").and_then(Value::as_str) != Some("import_reverse")
@@ -554,7 +664,7 @@ fn validate_candidate_identity(
     {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_target_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     let output_fingerprint = candidate
@@ -563,14 +673,14 @@ fn validate_candidate_identity(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::InvalidState {
             current: "missing_reverse_candidate_output_fingerprint".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         })?;
     let actual = a4n_db::generation::generation_checkpoint_fingerprint_sha256(parsed_output)
         .map_err(AppError::Serialization)?;
     if output_fingerprint != actual {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_output_fingerprint_mismatch".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         });
     }
     Ok(())
@@ -588,15 +698,15 @@ fn confirmed_reverse_candidate_apply_result(
             .map(Some)
             .ok_or_else(|| AppError::InvalidState {
                 current: "confirmed_reverse_candidate_missing_result".to_string(),
-                operation: "读取已确认导入反推候选".to_string(),
+                operation: "读取已写入的项目资料归纳结果".to_string(),
             }),
         Some(other) => Err(AppError::InvalidState {
             current: other.to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         }),
         None => Err(AppError::InvalidState {
             current: "missing_reverse_candidate_state".to_string(),
-            operation: "确认导入反推候选".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
         }),
     }
 }
@@ -701,6 +811,29 @@ mod tests {
     }
 
     #[test]
+    fn checkpoint_response_keeps_candidate_separate_from_formal_apply() {
+        let output = json!({"outlines": []});
+        let output_hash =
+            a4n_db::generation::generation_checkpoint_fingerprint_sha256(&output).unwrap();
+        let artifacts = json!({
+            (REVERSE_CANDIDATE_ARTIFACT_KEY):
+                reverse_candidate_proposal(42, "reverse_outline", &output_hash),
+        });
+
+        let response = reverse_candidate_checkpoint_response(
+            42,
+            "reverse_outline",
+            output.clone(),
+            Some(&artifacts),
+        )
+        .unwrap();
+
+        assert_eq!(response["state"], "proposal");
+        assert_eq!(response["result"], output);
+        assert!(response.get("applied").is_none());
+    }
+
+    #[test]
     fn post_commit_status_failure_is_returned_as_a_warning() {
         let response = reverse_candidate_response(
             42,
@@ -730,7 +863,9 @@ mod tests {
         let mut run = completed_run();
         run.status = "running".to_string();
 
-        let error = validate_reverse_candidate_run(&run, 7, "reverse_outline").unwrap_err();
+        let error =
+            validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
+                .unwrap_err();
 
         assert_eq!(invalid_state(error), "running");
     }
@@ -740,7 +875,9 @@ mod tests {
         let mut run = completed_run();
         run.input_fingerprint_json.as_mut().unwrap()["workflow"] = json!("other_workflow");
 
-        let error = validate_reverse_candidate_run(&run, 7, "reverse_outline").unwrap_err();
+        let error =
+            validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
+                .unwrap_err();
 
         assert_eq!(
             invalid_state(error),
@@ -753,7 +890,9 @@ mod tests {
         let mut run = completed_run();
         run.input_fingerprint_json.as_mut().unwrap()["content_sample_sha256"] = json!("short");
 
-        let error = validate_reverse_candidate_run(&run, 7, "reverse_outline").unwrap_err();
+        let error =
+            validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
+                .unwrap_err();
 
         assert_eq!(
             invalid_state(error),
@@ -886,7 +1025,7 @@ mod tests {
         let fingerprint = run.input_fingerprint_json.as_mut().unwrap();
         fingerprint["auto_context"] = json!(false);
         fingerprint["auto_context_source_sha256"] = Value::Null;
-        validate_reverse_candidate_run(&run, 7, "reverse_outline")
+        validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
             .expect("manual samples use immutable checkpoint text only");
     }
 }

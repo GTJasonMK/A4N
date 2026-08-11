@@ -17,7 +17,7 @@ use crate::video::{self, VideoDbError};
 
 use super::{
     super::{
-        UpdateChapterVideoPromptInput, ensure_chapter_video_prompt_stage_mutable,
+        ChapterVideoPromptPatch, ensure_chapter_video_prompt_stage_mutable,
         lock_chapter_video_prompt_scope,
     },
     metadata::sync_chapter_video_prompt_metadata_after_update,
@@ -26,7 +26,7 @@ use super::{
 pub async fn update_chapter_video_prompt_with_policy<C>(
     db: &C,
     prompt_id: i64,
-    input: UpdateChapterVideoPromptInput,
+    input: ChapterVideoPromptPatch,
     allow_downstream: bool,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>
 where
@@ -42,13 +42,13 @@ where
 pub(super) async fn update_chapter_video_prompt_with_policy_in<C>(
     db: &C,
     prompt_id: i64,
-    input: UpdateChapterVideoPromptInput,
+    input: ChapterVideoPromptPatch,
     allow_downstream: bool,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>
 where
     C: ConnectionTrait,
 {
-    let UpdateChapterVideoPromptInput {
+    let ChapterVideoPromptPatch {
         visual_prompt,
         motion_prompt,
         negative_prompt,

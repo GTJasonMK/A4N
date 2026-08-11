@@ -9,7 +9,7 @@ pub(super) async fn require_profile_for_user(
     profile_id: i64,
 ) -> Result<protagonist_profile::Model, String> {
     let profile = state
-        .character()
+        .orchestrator()
         .profile_by_id(profile_id)
         .await
         .map_err(app_error_message)?
@@ -36,7 +36,7 @@ pub(super) async fn find_profile_by_name_for_user(
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let name = required_text(name, "角色名称")?;
     state
-        .character()
+        .orchestrator()
         .profile_by_project_name(project_id, name)
         .await
         .map_err(app_error_message)?

@@ -3,7 +3,6 @@ use super::contracts::{
     ChapterSceneProgressReporter, ChapterSceneSummary, ChapterSceneTaskScope,
     GenerateChapterSceneInput,
 };
-use crate::prompt_renderer::RuntimePromptRenderer;
 use crate::state::AppState;
 use a4n_core::error::AppError;
 use a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationInput;
@@ -15,9 +14,9 @@ pub async fn generate_chapter_scene(
     progress: ChapterSceneProgressReporter<'_>,
     active_task_id: Option<&str>,
 ) -> Result<ChapterSceneSummary, AppError> {
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let scene = state
-        .project_scene_records()
+        .orchestrator()
         .generate_chapter_scene_for_user_validated(
             user_id,
             ChapterSceneGenerationApplicationInput {
@@ -25,7 +24,7 @@ pub async fn generate_chapter_scene(
                 scene_number: input.scene_number,
                 scene_prompt: input.scene_prompt,
             },
-            &prompt_renderer,
+            prompt_renderer,
             progress,
             active_task_id,
         )
@@ -39,7 +38,7 @@ pub async fn generate_chapter_scene_task_scope(
     input: &GenerateChapterSceneInput,
 ) -> Result<ChapterSceneTaskScope, AppError> {
     state
-        .project_scene_records()
+        .orchestrator()
         .chapter_scene_task_scope_for_user_validated(
             user_id,
             &ChapterSceneGenerationApplicationInput {

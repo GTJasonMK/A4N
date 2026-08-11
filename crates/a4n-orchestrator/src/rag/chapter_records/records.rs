@@ -1,4 +1,7 @@
-use a4n_core::{chapter_analysis::analysis_rag_items, models::chapter::chapter, rag::RagDataType};
+use a4n_core::{
+    chapter_analysis::analysis_rag_items, models::chapter::chapter, rag::RagDataType,
+    source_spans::source_text_hash,
+};
 use a4n_embedding::provider::EmbeddingProvider;
 
 use super::{chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode};
@@ -80,30 +83,54 @@ pub async fn chapter_rag_records_with_provider(
         );
     }
 
+    let source_content_sha256 = source_text_hash(&chapter.content);
+    let source_updated_at = chapter.updated_at.to_string();
+    for record in &mut records {
+        let metadata = record
+            .metadata
+            .as_object_mut()
+            .expect("chapter RAG metadata is constructed as an object");
+        metadata.insert(
+            "source_chapter_content_sha256".to_string(),
+            source_content_sha256.clone().into(),
+        );
+        metadata.insert(
+            "source_chapter_updated_at".to_string(),
+            source_updated_at.clone().into(),
+        );
+    }
+
     Ok(records)
 }
 
-pub fn chapter_rag_record_label(chapter: &chapter::Model, record: &RagRecord) -> String {
-    match record
+pub fn chapter_rag_record_label(
+    chapter: &chapter::Model,
+    record: &RagRecord,
+) -> Result<String, String> {
+    let content_kind = record
         .metadata
         .get("content_kind")
         .and_then(serde_json::Value::as_str)
-    {
-        Some("paragraph") => {
-            let index = record
-                .metadata
-                .get("chunk_index")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0);
-            let count = record
-                .metadata
-                .get("chunk_count")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0);
-            format!("第{}章正文分块 {index}/{count}", chapter.chapter_number)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("章节 RAG 记录 {} 缺少 content_kind", record.chunk_id))?;
+    match content_kind {
+        "paragraph" => {
+            let required_positive_u64 = |key: &str| {
+                record
+                    .metadata
+                    .get(key)
+                    .and_then(serde_json::Value::as_u64)
+                    .filter(|value| *value > 0)
+                    .ok_or_else(|| format!("章节 RAG 记录 {} 缺少正整数 {key}", record.chunk_id))
+            };
+            let index = required_positive_u64("chunk_index")?;
+            let count = required_positive_u64("chunk_count")?;
+            Ok(format!(
+                "第{}章正文分块 {index}/{count}",
+                chapter.chapter_number
+            ))
         }
-        Some("summary") => format!("第{}章摘要", chapter.chapter_number),
-        Some(kind) => format!("第{}章分析：{kind}", chapter.chapter_number),
-        None => format!("第{}章 RAG 记录", chapter.chapter_number),
+        "summary" => Ok(format!("第{}章摘要", chapter.chapter_number)),
+        kind => Ok(format!("第{}章分析：{kind}", chapter.chapter_number)),
     }
 }

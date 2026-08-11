@@ -9,7 +9,6 @@ use crate::actions::request_preview::{
     ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
 };
 use crate::actions::template_variables::parse_template_variables_app_error as parse_template_variables;
-use crate::prompt_renderer::RuntimePromptRenderer;
 
 use super::contracts::PreviewBlueprintRefinementInput;
 
@@ -19,7 +18,7 @@ pub async fn start_blueprint_refinement_typed(
     input: StartBlueprintRefinementInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .project_blueprint()
+        .orchestrator()
         .start_blueprint_refinement_task(user_id, input.clone())
         .await?;
     if !start.should_run {
@@ -29,12 +28,12 @@ pub async fn start_blueprint_refinement_typed(
     let worker_state = state.clone();
     let handle = start.handle.clone();
     state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        let prompt_renderer = &worker_state;
         if let Err(error) = worker_state
-            .project_blueprint()
+            .orchestrator()
             .run_blueprint_refinement_task(
                 a4n_orchestrator::blueprint::BlueprintRefinementApplicationContext {
-                    prompt_renderer: &prompt_renderer,
+                    prompt_renderer: prompt_renderer,
                 },
                 user_id,
                 input,
@@ -59,14 +58,14 @@ pub async fn preview_refine_blueprint_request(
     input: PreviewBlueprintRefinementInput,
 ) -> Result<ModelRequestPreview, AppError> {
     let variables = parse_template_variables(&input.variables)?;
-    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let prompt_renderer = state;
     let request = state
-        .project_blueprint()
+        .orchestrator()
         .preview_blueprint_refine_request_for_user_validated(
             user_id,
             input.project_id,
             input.focus.as_deref(),
-            &prompt_renderer,
+            prompt_renderer,
             &variables,
         )
         .await?;

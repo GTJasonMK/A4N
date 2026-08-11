@@ -78,7 +78,7 @@ impl GalgameApplication {
         spec: &generation_spec::Model,
         profile_id: i64,
         expression: &str,
-        pose: Option<&str>,
+        pose: &str,
     ) -> Result<character_portrait::Model, AppError> {
         a4n_db::galgame::completed_galgame_portrait_record(
             self.database.connection(),
@@ -281,7 +281,7 @@ impl OrchestratorContext {
         spec: &a4n_core::models::generation::generation_spec::Model,
         profile_id: i64,
         expression: &str,
-        pose: Option<&str>,
+        pose: &str,
     ) -> Result<a4n_core::models::character::character_portrait::Model, a4n_core::error::AppError>
     {
         self.galgame

@@ -5,10 +5,10 @@ mod portrait;
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::error::AppError;
-use a4n_core::models::galgame::galgame_line;
 use a4n_db::galgame::GalgameAssetPlanningReadModel;
 use serde_json::Value;
 
+use crate::galgame::{GalgameLine, galgame_line_from_model};
 use a4n_db::project::ProjectFamilyContext;
 
 use super::contracts::GalgameAssetPlanItemDraft;
@@ -23,8 +23,9 @@ pub(super) fn collect_galgame_asset_plan_drafts(
         .into_iter()
         .map(|chapter| (chapter.id, chapter))
         .collect::<BTreeMap<_, _>>();
-    let mut lines_by_scene = BTreeMap::<i64, Vec<galgame_line::Model>>::new();
+    let mut lines_by_scene = BTreeMap::<i64, Vec<GalgameLine>>::new();
     for line in read_model.lines {
+        let line = galgame_line_from_model(line)?;
         lines_by_scene.entry(line.scene_id).or_default().push(line);
     }
 

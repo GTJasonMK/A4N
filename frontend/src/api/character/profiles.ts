@@ -6,15 +6,23 @@ import type {
   CharacterProfileMutationResult,
   CreateProfileInput,
   ListProfilesInput,
+  SyncAllCharacterProfilesInput,
+  SyncAllCharacterProfilesResult,
   UpdateCharacterProfileInput,
 } from "../generated/host";
 import type { ModelRequestPreview } from "../requestPreview";
-import type {
-  CharacterProfile,
-  DiscoverCharacterProfilesResult,
-  SyncAllCharacterProfilesResult,
-} from "./types";
+import type { CharacterProfile, DiscoverCharacterProfilesResult } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
+
+function allCharacterProfilesSyncInput(
+  projectId: Id,
+  chapterNumber: number,
+): SyncAllCharacterProfilesInput {
+  return {
+    project_id: idNum(projectId),
+    chapter_number: chapterNumber,
+  };
+}
 
 export async function listProfiles(projectId: Id): Promise<CharacterProfile[]> {
   return apiInvoke<CharacterProfile[]>("list_profiles", {
@@ -75,13 +83,13 @@ export async function previewDiscoverCharacterProfilesRequest(
 export async function syncAllCharacterProfiles(
   projectId: Id,
   chapterNumber: number,
-  taskId?: string | null,
+  taskId: string,
 ): Promise<SyncAllCharacterProfilesResult> {
+  const input = allCharacterProfilesSyncInput(projectId, chapterNumber);
   return apiInvoke<SyncAllCharacterProfilesResult>("sync_all_character_profiles", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterNumber,
-    taskId: taskId ?? null,
+    input,
+    taskId,
   });
 }
 
@@ -89,9 +97,9 @@ export async function previewSyncAllCharacterProfilesRequest(
   projectId: Id,
   chapterNumber: number,
 ): Promise<ModelRequestPreview> {
+  const input = allCharacterProfilesSyncInput(projectId, chapterNumber);
   return apiInvoke<ModelRequestPreview>("preview_sync_all_character_profiles_request", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterNumber,
+    input,
   });
 }

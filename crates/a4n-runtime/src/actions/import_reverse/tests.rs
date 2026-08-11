@@ -29,9 +29,7 @@ fn reverse_targets_keep_stable_prompt_names_and_token_profiles() {
 fn reverse_targets_distinguish_preview_and_apply_messages() {
     let target = ReverseEngineeringTarget::Outline;
 
-    assert_eq!(target.initial_message(false), "正在准备反推章节大纲");
-    assert_eq!(target.initial_message(true), "正在准备反推章节大纲并应用");
-    assert_eq!(target.success_message(false), "反推章节大纲完成");
-    assert_eq!(target.success_message(true), "反推章节大纲结果已应用");
+    assert_eq!(target.initial_message(), "正在准备章节大纲候选");
+    assert_eq!(target.success_message(), "章节大纲候选已生成");
     assert_eq!(target.cancelled_message(), "反推章节大纲已停止");
 }

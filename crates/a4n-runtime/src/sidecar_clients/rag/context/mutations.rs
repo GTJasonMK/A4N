@@ -8,7 +8,7 @@ pub(crate) fn chapter_rag_cleanup_operation_trace_id(project_id: i64) -> Result<
     }
     Ok(format!(
         "chapter_rag_cleanup:{project_id}:{}",
-        rag_operation_timestamp()
+        rag_operation_timestamp()?
     ))
 }
 
@@ -19,7 +19,7 @@ pub(crate) fn character_profile_delete_rag_operation_trace_id(
     validate_character_rag_mutation_scope(project_id, profile_id)?;
     Ok(format!(
         "character_profile_delete:{project_id}:{profile_id}:{}",
-        rag_operation_timestamp()
+        rag_operation_timestamp()?
     ))
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn character_profile_rollback_rag_operation_trace_id(
     }
     Ok(format!(
         "character_profile_rollback:{project_id}:{profile_id}:{chapter_number}:{}",
-        rag_operation_timestamp()
+        rag_operation_timestamp()?
     ))
 }
 

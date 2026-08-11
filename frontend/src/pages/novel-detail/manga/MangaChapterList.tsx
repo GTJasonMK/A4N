@@ -13,18 +13,23 @@ interface MangaChapterListProps {
   onSelect: (chapter: ChapterRow) => void;
 }
 
+const pipelineStoppedWithError = (
+  status: MangaPipelineStatusSummary | null | undefined,
+): boolean =>
+  status?.pipeline_status === "failed" || status?.pipeline_status === "interrupted";
+
 const chapterPipelineTone = (
   status: MangaPipelineStatusSummary | null | undefined,
 ): string => {
   if (!status?.pipeline_status) return "text-book-text-muted";
-  if (status.pipeline_status === "failed") return "text-error";
+  if (pipelineStoppedWithError(status)) return "text-error";
   if (status.pipeline_status === "completed") return "text-success";
   if (status.pipeline_status === "running") return "text-book-primary";
   return "text-book-text-muted";
 };
 
 const chapterPipelineIcon = (status: MangaPipelineStatusSummary | null | undefined) => {
-  if (status?.pipeline_status === "failed") return <AlertTriangle size={11} />;
+  if (pipelineStoppedWithError(status)) return <AlertTriangle size={11} />;
   if (status?.pipeline_status === "completed") return <CheckCircle2 size={11} />;
   if (status?.pipeline_status === "running") return <LoadingSpinner size="sm" />;
   return <Clock3 size={11} />;

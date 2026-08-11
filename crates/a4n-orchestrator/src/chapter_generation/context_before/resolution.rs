@@ -21,21 +21,16 @@ impl OrchestratorContext {
         if let Some(text) = explicit.map(str::trim).filter(|text| !text.is_empty()) {
             return Ok(Some(text.to_string()));
         }
-        if chapter_number <= 1 {
-            return Ok(None);
-        }
-
-        let previous_chapters = self
-            .chapters_before_number(project_id, chapter_number)
-            .await
-            .map_err(|err| format!("构建章节前情上下文失败: {err}"))?
-            .into_iter()
-            .filter(chapter::Model::has_available_content)
-            .collect::<Vec<_>>();
-
-        if previous_chapters.is_empty() {
-            return Ok(None);
-        }
+        let previous_chapters = if chapter_number > 1 {
+            self.chapters_before_number(project_id, chapter_number)
+                .await
+                .map_err(|err| format!("构建章节前情上下文失败: {err}"))?
+                .into_iter()
+                .filter(chapter::Model::has_available_content)
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
 
         let mut lines = Vec::new();
         let summary_lines = layered_chapter_summary_lines(&previous_chapters, chapter_number);

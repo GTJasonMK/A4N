@@ -61,10 +61,12 @@ async fn probe_with_request_calls_stream_once() {
     let provider = CountingLlmProvider::default();
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
-    let output = probe_existing_provider(&provider, request)
+    let output = probe_existing_provider(&provider, Some(request))
         .await
         .expect("probe with request should collect chat_stream");
 
+    assert!(output.ok);
+    assert_eq!(output.response_preview.as_deref(), Some("probe ok"));
     assert_eq!(output.finish_reason.as_deref(), Some("stop"));
     assert_eq!(
         output.usage.as_ref().map(|usage| usage.total_tokens),
@@ -83,7 +85,7 @@ async fn probe_rejects_empty_stream_response() {
     });
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
-    let error = probe_existing_provider(&provider, request)
+    let error = probe_existing_provider(&provider, Some(request))
         .await
         .expect_err("empty probe response must fail");
 

@@ -1,6 +1,6 @@
 pub use a4n_api_contract::auth::{
-    AuthResult, ChangePasswordInput, LoginInput, OAuth2LoginResult, RefreshTokenInput,
-    RegisterInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
+    AuthResult, ChangePasswordInput, LoginInput, RefreshTokenInput, RegisterInput,
+    RevokeSessionInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
 };
 
 #[derive(Debug, Clone, Copy)]

@@ -29,6 +29,7 @@ import { canUseLocalDesktopEmbedding } from "../utils/runtimeMode";
 
 export type ChapterMaterialSyncStatus =
   | "completed"
+  | "not_analyzed"
   | "needs_analysis"
   | "pending"
   | "running"
@@ -43,13 +44,19 @@ export interface ChapterMaterialSyncState {
   scenes: ChapterMaterialSyncStatus;
 }
 
-export type ChapterMaterialUpdateKind = "object" | "character" | "scene";
+export type ChapterMaterialUpdateKind =
+  | "outline"
+  | "foreshadowing"
+  | "object"
+  | "character"
+  | "scene";
 export type ChapterMaterialUpdateAction =
   | "created"
   | "updated"
   | "existing"
   | "preserved"
-  | "synced";
+  | "synced"
+  | "resolved";
 
 export interface ChapterMaterialUpdate {
   material_kind: ChapterMaterialUpdateKind;
@@ -133,7 +140,6 @@ interface PreparedClientGenerationRagQuery {
 
 export async function listChapters(projectId: Id): Promise<ChapterData[]> {
   return apiInvoke<ChapterData[]>("list_chapters", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
   });
 }

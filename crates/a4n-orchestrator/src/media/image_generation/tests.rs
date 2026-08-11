@@ -36,7 +36,8 @@ use super::{
     ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
     ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
     ImageGenerationWorkflowBinding, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    application::check_progress_cancelled, image_generation_request_trace_json,
+    application::{check_progress_cancelled, collect_bound_reference_images},
+    image_generation_request_trace_json,
     trace::test_image_request_aspect_ratio,
 };
 
@@ -105,6 +106,29 @@ fn profile_image_inputs_enforce_documented_contract() {
     .expect("documented scene profile fields should parse");
     assert_eq!(scene.scene_profile_id, 4);
     assert_eq!(scene.custom_style.as_deref(), Some("手绘"));
+}
+
+#[test]
+fn manga_page_reference_bindings_require_an_asset_for_every_slot() {
+    let host = TestImageGenerationHost::default();
+    let mut bindings = json!([{
+        "character_name": "林岚",
+        "bound_asset": null
+    }]);
+
+    let error =
+        collect_bound_reference_images(&host, &bindings).expect_err("参考图未绑定时必须拒绝成图");
+    assert!(error.to_string().contains("参考图“林岚”尚未绑定"));
+
+    bindings[0]["bound_asset"] = json!({
+        "asset_kind": "generated_image",
+        "asset_id": 7,
+        "image_path": "generated/lin-lan.png"
+    });
+    let references =
+        collect_bound_reference_images(&host, &bindings).expect("bound_asset 应是唯一绑定状态");
+    assert_eq!(references.len(), 1);
+    assert_eq!(references[0].label, "林岚");
 }
 
 #[derive(Default)]
@@ -927,15 +951,12 @@ async fn insert_manga_page_fixture(
         chapter_id: Set(chapter.id),
         project_id: Set(project_id),
         page_number: Set(1),
-        panel_number: Set(0),
         prompt_type: Set("page_generation".to_string()),
         image_prompt: Set("新漫画页提示词".to_string()),
         dialogue_text: Set(None),
         characters_in_frame: Set(None),
         layout: Set(Some(json!({"page_number": 1}))),
         generated_image_id: Set(Some(old_image.id)),
-        camera_angle: Set(None),
-        dialogue_position: Set(None),
         status: Set("generating".to_string()),
         created_at: Set(now),
         updated_at: Set(now),

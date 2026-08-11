@@ -2,7 +2,7 @@ use a4n_core::{error::AppError, models::galgame::galgame_line};
 use a4n_db::galgame::InsertGalgameLineRecordInput;
 
 use crate::galgame::{
-    InsertGalgameLineInput, OrchestratorContext, galgame_line_record_error, normalize_line_type,
+    InsertGalgameLineInput, OrchestratorContext, galgame_line_record_error,
     normalize_optional_positive_id, required_text, validate_and_project_presentation,
     validate_line_semantics, validate_positive_id,
 };
@@ -29,7 +29,7 @@ impl OrchestratorContext {
             self.validate_text_anchor(&context, anchor_id, Some(scene.source_snapshot_chapter_id))
                 .await?;
         }
-        let line_type = normalize_line_type(&input.line_type)?;
+        let line_type = input.line_type;
         let speaker_profile_id =
             normalize_optional_positive_id(input.speaker_profile_id, "speaker_profile_id")?;
         let (expression, pose, position) = validate_and_project_presentation(
@@ -37,7 +37,12 @@ impl OrchestratorContext {
             speaker_profile_id,
             "Galgame 新增行 presentation",
         )?;
-        validate_line_semantics(line_type, speaker_profile_id, expression.as_deref())?;
+        validate_line_semantics(
+            line_type.as_str(),
+            speaker_profile_id,
+            expression.as_deref(),
+            pose.as_deref(),
+        )?;
         if let Some(speaker_profile_id) = speaker_profile_id {
             self.validate_speaker_profile(&context, speaker_profile_id)
                 .await?;

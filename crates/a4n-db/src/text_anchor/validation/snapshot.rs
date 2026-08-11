@@ -1,14 +1,17 @@
 use a4n_core::models::project::{project_source_snapshot, source_snapshot_chapter};
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::{ConnectionTrait, EntityTrait};
 
 use crate::text_anchor::{TextAnchorDbError, TextAnchorDbResult};
 
-pub(super) async fn validate_snapshot_filters(
-    db: &DatabaseConnection,
+pub(super) async fn validate_snapshot_filters<C>(
+    db: &C,
     root_project_id: i64,
     source_snapshot_id: Option<i64>,
     source_snapshot_chapter_id: Option<i64>,
-) -> TextAnchorDbResult<()> {
+) -> TextAnchorDbResult<()>
+where
+    C: ConnectionTrait,
+{
     match (source_snapshot_id, source_snapshot_chapter_id) {
         (None, Some(_)) => Err(TextAnchorDbError::InvalidArgument(
             "source_snapshot_chapter_id 需要同时提供 source_snapshot_id".to_string(),

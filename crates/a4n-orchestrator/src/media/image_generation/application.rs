@@ -1,10 +1,11 @@
 use std::collections::{BTreeSet, HashMap};
 
+use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_core::{
     error::AppError,
     models::{
         asset::object_profile,
-        chapter::{chapter_manga_prompt, chapter_manga_prompt::Model as MangaPagePrompt},
+        chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE, Model as MangaPagePrompt},
         scene::scene_profile,
     },
     source_spans::{
@@ -19,7 +20,7 @@ use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
     config::image_backend_supports_reference_images,
-    manga::{MANGA_PAGE_PROMPT_TYPE, ensure_manga_source_can_write},
+    manga::ensure_manga_source_can_write,
     profile_material::{
         ProfileMaterialStyleMetadata, object_profile_content, object_profile_image_prompt,
         profile_material_metadata, scene_profile_content, scene_profile_image_prompt,
@@ -550,7 +551,6 @@ impl OrchestratorContext {
                 input.project_id,
                 chapter.chapter_id,
                 input.page_number,
-                MANGA_PAGE_PROMPT_TYPE,
             )
             .await?
             .ok_or_else(|| {
@@ -568,8 +568,14 @@ impl OrchestratorContext {
             .layout
             .as_ref()
             .and_then(|layout| layout.get("reference_bindings"))
-            .cloned();
-        let reference_images = collect_bound_reference_images(host, page_prompt.layout.as_ref())?;
+            .cloned()
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "漫画提示词 #{} 缺少 reference_bindings，请重新生成漫画提示词",
+                    page_prompt.id
+                ))
+            })?;
+        let reference_images = collect_bound_reference_images(host, &reference_bindings)?;
         let reference_image_count = reference_images.len();
         let config = host.resolve_image_config(None).await?;
         let reference_image_mode = if reference_images.is_empty() {
@@ -1171,50 +1177,33 @@ fn profile_image_metadata(material: &ProfileImageMaterial) -> Value {
     metadata
 }
 
-fn collect_bound_reference_images(
+pub(super) fn collect_bound_reference_images(
     host: &dyn ImageGenerationHostPort,
-    layout: Option<&Value>,
+    bindings: &Value,
 ) -> Result<Vec<ImageReference>, AppError> {
-    let Some(bindings) = layout
-        .and_then(|layout| layout.get("reference_bindings"))
-        .and_then(Value::as_array)
-    else {
-        return Ok(Vec::new());
-    };
+    let bindings = serde_json::from_value::<Vec<MangaReferenceBindingSummary>>(bindings.clone())
+        .map_err(|error| AppError::InvalidArgument(format!("漫画参考图绑定合同无效: {error}")))?;
     let mut references = Vec::new();
-    for (index, binding) in bindings.iter().enumerate() {
+    for (index, binding) in bindings.into_iter().enumerate() {
         let binding_context = format!("reference_bindings[{index}]");
-        let binding_object = binding.as_object().ok_or_else(|| {
-            AppError::InvalidArgument(format!("{binding_context} 必须是 JSON 对象"))
+        let asset = binding.bound_asset.ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "参考图“{}”尚未绑定，无法生成漫画页图片",
+                binding.character_name
+            ))
         })?;
-        let status = binding_object
-            .get("status")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|status| !status.is_empty())
-            .unwrap_or("missing");
-        let Some(asset) = binding_object.get("bound_asset").and_then(Value::as_object) else {
-            if status == "bound" {
-                return Err(AppError::InvalidArgument(format!(
-                    "{binding_context} 已标记 bound，但缺少 bound_asset"
-                )));
-            }
-            continue;
-        };
-        let path = asset
-            .get("image_path")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|path| !path.is_empty())
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!("{binding_context}.bound_asset 缺少 image_path"))
-            })?;
-        let label = binding_object
-            .get("label")
-            .and_then(Value::as_str)
-            .or_else(|| asset.get("label").and_then(Value::as_str))
-            .unwrap_or("参考图")
-            .trim();
+        let label = binding.character_name.trim();
+        if label.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "{binding_context}.character_name 不能为空"
+            )));
+        }
+        let path = asset.image_path.trim();
+        if path.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "{binding_context}.bound_asset.image_path 不能为空"
+            )));
+        }
         references.push(host.read_reference_image(label, path)?);
     }
     Ok(references)

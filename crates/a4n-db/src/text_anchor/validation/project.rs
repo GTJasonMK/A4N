@@ -1,12 +1,15 @@
 use a4n_core::models::project::novel_project;
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::{ConnectionTrait, EntityTrait};
 
 use crate::text_anchor::{PROJECT_KIND_TEXT, TextAnchorDbError, TextAnchorDbResult};
 
-pub(in crate::text_anchor) async fn ensure_text_root_project(
-    db: &DatabaseConnection,
+pub(in crate::text_anchor) async fn ensure_text_root_project<C>(
+    db: &C,
     project_id: i64,
-) -> TextAnchorDbResult<novel_project::Model> {
+) -> TextAnchorDbResult<novel_project::Model>
+where
+    C: ConnectionTrait,
+{
     let project = novel_project::Entity::find_by_id(project_id)
         .one(db)
         .await?

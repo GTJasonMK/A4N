@@ -17,6 +17,7 @@ pub async fn sync_chapter_outline_records_by_number_transaction(
     now: NaiveDateTime,
 ) -> Result<Vec<chapter_outline::Model>, OutlineDbError> {
     let txn = db.begin().await?;
+    super::super::lock_outline_project_for_write(&txn, project_id, "同步章节大纲").await?;
     let outlines =
         sync_chapter_outline_records_by_number(&txn, project_id, part_id, drafts, now).await?;
     txn.commit().await?;

@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 
 use super::shared::{
-    config_web_id_unit_command, config_web_input_command, config_web_no_arg_command,
-    config_web_update_command, require_global_config_admin,
+    config_web_caller_id_unit_command, config_web_id_unit_command, config_web_input_command,
+    config_web_no_arg_command, config_web_update_command,
 };
 use crate::routes::commands::{ApiError, ServerState, config_records_actions, i64_arg, to_value};
 
@@ -20,7 +20,7 @@ config_web_update_command!(
     config_records_actions::UpdateEmbeddingInput,
     config_records_actions::update_embedding_config,
 );
-config_web_id_unit_command!(
+config_web_caller_id_unit_command!(
     set_default_embedding_config,
     config_records_actions::set_default_embedding_config,
 );
@@ -34,10 +34,7 @@ pub(in crate::routes::commands) async fn test_embedding_config(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let config_id = i64_arg(args, "configId")?;
-    if a4n_runtime::runtime_config::current_embedding_model().is_none() {
-        require_global_config_admin(state, user_id).await?;
-    }
-    config_records_actions::test_embedding_config(state.runtime(), config_id)
+    config_records_actions::test_embedding_config(state.runtime(), user_id, config_id)
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
@@ -49,13 +46,14 @@ pub(in crate::routes::commands) async fn preview_test_embedding_config_request(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let config_id = i64_arg(args, "configId")?;
-    if a4n_runtime::runtime_config::current_embedding_model().is_none() {
-        require_global_config_admin(state, user_id).await?;
-    }
     to_value(
-        config_records_actions::preview_test_embedding_config_request(state.runtime(), config_id)
-            .await
-            .map_err(ApiError::bad_request)?,
+        config_records_actions::preview_test_embedding_config_request(
+            state.runtime(),
+            user_id,
+            config_id,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
     )
 }
 

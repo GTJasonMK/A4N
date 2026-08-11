@@ -21,7 +21,7 @@ fn builds_scene_state_refs_for_plain_context() {
     assert_eq!(payload["task"]["name"], json!("chapter_generation"));
     assert_eq!(
         payload["task"]["instruction"],
-        json!("根据章节大纲、章节连续性上下文和参考上下文生成完整章节正文")
+        json!("根据当前章节任务、章节连续性上下文和参考上下文生成完整章节正文")
     );
     assert_eq!(
         payload["context_refs"]["chapter_outline"],
@@ -74,5 +74,5 @@ fn rejects_missing_outline() {
     let err = build_chapter_generation_user_message("  ", Some("上一章结尾"))
         .expect_err("blank generation outline should fail");
     assert!(matches!(err, AppError::InvalidArgument(_)));
-    assert!(err.to_string().contains("缺少章节大纲"));
+    assert!(err.to_string().contains("缺少当前任务"));
 }

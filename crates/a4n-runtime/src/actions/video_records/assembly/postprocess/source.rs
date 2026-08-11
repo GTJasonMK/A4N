@@ -19,7 +19,7 @@ pub(in crate::actions::video_records::assembly) async fn postprocess_edit_source
     .iter()
     .any(|value| value.map(str::trim).is_some_and(|value| !value.is_empty()));
     match state
-        .video()
+        .orchestrator()
         .prepare_assembly_postprocess_source_validated(
             plan,
             input.source_video_id,

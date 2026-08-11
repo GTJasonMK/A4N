@@ -1,7 +1,4 @@
-use a4n_core::{
-    error::AppError,
-    source_spans::{ChapterSourceContext, source_metadata, source_metadata_matches},
-};
+use a4n_core::error::AppError;
 
 use crate::{
     OrchestratorContext,
@@ -9,19 +6,6 @@ use crate::{
 };
 
 use super::{MangaCharacterPortraitRef, MangaReferenceContext};
-
-pub fn manga_checkpoint_matches_source(
-    layout: &serde_json::Value,
-    source: &ChapterMangaSourceSummary,
-) -> Result<bool, AppError> {
-    let current_source = source_metadata(ChapterSourceContext {
-        content: &source.content,
-    });
-    let stored_source = layout
-        .get("source")
-        .ok_or_else(|| AppError::InvalidArgument("漫画流水线断点缺少 source 元数据".to_string()))?;
-    Ok(source_metadata_matches(stored_source, &current_source))
-}
 
 pub fn ensure_manga_source_can_write(
     source: &ChapterMangaSourceSummary,

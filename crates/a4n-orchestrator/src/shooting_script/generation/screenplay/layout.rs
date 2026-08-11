@@ -9,7 +9,7 @@ use crate::{
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_SKELETON_PROMPT,
             CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterScreenplaySkeletonV1,
             PreparedChapterShootingScriptRequest, ScreenplayLayoutUnitDetailV1,
-            ShootingScriptProgressReporter, ShootingScriptStreamReporter,
+            ScreenplaySkeletonUnitV1, ShootingScriptProgressReporter, ShootingScriptStreamReporter,
         },
         progress::{SKELETON_STREAM_SPAN, layout_unit_stream_progress, skeleton_stream_progress},
     },
@@ -69,7 +69,6 @@ pub(in crate::shooting_script) async fn restore_screenplay_skeleton(
             workflow_run_id,
             "screenplay_skeleton",
             &request,
-            "章节叙事骨架",
             |output| validate_skeleton(output, prepared),
         )
         .await
@@ -80,7 +79,9 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
     workflow_run_id: i64,
     prepared: &PreparedChapterShootingScriptRequest,
     skeleton: &ChapterScreenplaySkeletonV1,
-    offset: usize,
+    unit: &ScreenplaySkeletonUnitV1,
+    unit_offset: usize,
+    total_unit_count: usize,
     progress: ShootingScriptProgressReporter<'_>,
     stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
     cancel_token: Option<&CancellationToken>,
@@ -88,18 +89,14 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
     super::super::super::contracts::ShootingScriptStageResult<ScreenplayLayoutUnitDetailV1>,
     AppError,
 > {
-    let unit = skeleton
-        .units
-        .get(offset)
-        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个布局单元", offset + 1)))?;
-    let unit_progress = layout_unit_stream_progress(offset, skeleton.units.len());
-    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, offset)?;
+    let unit_progress = layout_unit_stream_progress(unit_offset, total_unit_count);
+    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, unit)?;
     let stage = orchestrator
         .run_shooting_script_stage::<ScreenplayLayoutUnitDetailV1>(
             workflow_run_id,
             &format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
             i32::try_from(
-                offset
+                unit_offset
                     .checked_mul(3)
                     .and_then(|value| value.checked_add(2))
                     .ok_or_else(|| AppError::InvalidArgument("布局单元数量超限".into()))?,
@@ -112,7 +109,9 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
             progress,
             stream_reporter,
             cancel_token,
-            |output| validate_layout_unit_detail(output, unit.narrative_unit_index),
+            |output| {
+                validate_layout_unit_detail(output, unit.narrative_unit_index, total_unit_count)
+            },
         )
         .await?;
     progress(
@@ -120,8 +119,8 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         &format!(
             "布局单元 {}/{} {}",
-            offset + 1,
-            skeleton.units.len(),
+            unit_offset + 1,
+            total_unit_count,
             if stage.restored {
                 "已从调用断点恢复"
             } else {
@@ -137,20 +136,17 @@ pub(in crate::shooting_script) async fn restore_screenplay_layout_unit(
     workflow_run_id: i64,
     prepared: &PreparedChapterShootingScriptRequest,
     skeleton: &ChapterScreenplaySkeletonV1,
-    offset: usize,
+    unit: &ScreenplaySkeletonUnitV1,
 ) -> Result<Option<ScreenplayLayoutUnitDetailV1>, AppError> {
-    let unit = skeleton
-        .units
-        .get(offset)
-        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个布局单元", offset + 1)))?;
-    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, offset)?;
+    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, unit)?;
     orchestrator
         .restore_completed_shooting_script_stage(
             workflow_run_id,
             &format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
             &request,
-            "叙事单元布局细化",
-            |output| validate_layout_unit_detail(output, unit.narrative_unit_index),
+            |output| {
+                validate_layout_unit_detail(output, unit.narrative_unit_index, skeleton.units.len())
+            },
         )
         .await
 }
@@ -175,12 +171,8 @@ fn screenplay_layout_unit_request(
     prepared: &PreparedChapterShootingScriptRequest,
     workflow_run_id: i64,
     skeleton: &ChapterScreenplaySkeletonV1,
-    offset: usize,
+    unit: &ScreenplaySkeletonUnitV1,
 ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
-    let unit = skeleton
-        .units
-        .get(offset)
-        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个布局单元", offset + 1)))?;
     shooting_context_request(
         prepared,
         workflow_run_id,

@@ -1,26 +1,13 @@
-use a4n_service_protocol::{
-    EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME,
-    LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, RAG_SERVICE_NAME, VIDEO_SERVICE_NAME,
-};
+use a4n_service_protocol::service_catalog_entry;
 
 pub(in crate::sidecar_clients::service_manager) fn sidecar_executable_name(
     service_name: &str,
 ) -> Option<String> {
-    sidecar_package_name(service_name).map(sidecar_platform_executable_name)
+    sidecar_package_name(service_name).map(|package| sidecar_platform_executable_name(&package))
 }
 
-pub(super) fn sidecar_package_name(service_name: &str) -> Option<&'static str> {
-    Some(match service_name {
-        PROMPT_SERVICE_NAME => "a4n-prompt-service",
-        LLM_SERVICE_NAME => "a4n-llm-gateway",
-        EMBEDDING_SERVICE_NAME => "a4n-embedding-service",
-        RAG_SERVICE_NAME => "a4n-rag-service",
-        IMAGE_SERVICE_NAME => "a4n-image-service",
-        VIDEO_SERVICE_NAME => "a4n-video-service",
-        IMPORT_SERVICE_NAME => "a4n-import-service",
-        EXPORT_SERVICE_NAME => "a4n-export-service",
-        _ => return None,
-    })
+pub(super) fn sidecar_package_name(service_name: &str) -> Option<String> {
+    service_catalog_entry(service_name).map(|entry| entry.binary)
 }
 
 pub(super) fn sidecar_executable_candidate_names(package: &str) -> Vec<String> {

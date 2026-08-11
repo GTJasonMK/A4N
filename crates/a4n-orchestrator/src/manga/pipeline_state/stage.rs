@@ -1,5 +1,9 @@
+use a4n_core::error::AppError;
+
+const MANGA_DRAWING_PROMPT_CALL_ORDER_BASE: i32 = 800;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MangaPipelineStartStage {
+pub(in crate::manga) enum MangaPipelineStage {
     CharacterBinding,
     SpeechSelection,
     VisualAnchorExtraction,
@@ -9,21 +13,8 @@ pub enum MangaPipelineStartStage {
     DrawingPrompt,
 }
 
-impl MangaPipelineStartStage {
-    pub fn parse(value: &str) -> Option<Self> {
-        match value {
-            "character_binding" => Some(Self::CharacterBinding),
-            "speech_selection" => Some(Self::SpeechSelection),
-            "visual_anchor_extraction" => Some(Self::VisualAnchorExtraction),
-            "item_extraction" => Some(Self::ItemExtraction),
-            "comic_synthesis" => Some(Self::ComicSynthesis),
-            "page_planning" => Some(Self::PagePlanning),
-            "drawing_prompt" => Some(Self::DrawingPrompt),
-            _ => None,
-        }
-    }
-
-    pub fn key(self) -> &'static str {
+impl MangaPipelineStage {
+    pub(in crate::manga) const fn key(self) -> &'static str {
         match self {
             Self::CharacterBinding => "character_binding",
             Self::SpeechSelection => "speech_selection",
@@ -35,26 +26,44 @@ impl MangaPipelineStartStage {
         }
     }
 
-    pub(in crate::manga) fn status(self) -> (&'static str, i32, &'static str) {
+    const fn order(self) -> i32 {
         match self {
-            Self::CharacterBinding => (self.key(), 1, "正在绑定出场角色身份与外观"),
-            Self::SpeechSelection => (self.key(), 2, "正在选择关键对白、想法与旁白"),
-            Self::VisualAnchorExtraction => (self.key(), 3, "正在提取场景和视觉锚点"),
-            Self::ItemExtraction => (self.key(), 4, "正在抽取漫画关键物品"),
-            Self::ComicSynthesis => (self.key(), 5, "正在综合漫画章节节奏"),
-            Self::PagePlanning => (self.key(), 6, "正在生成漫画分页规划"),
-            Self::DrawingPrompt => (self.key(), 7, "正在生成整页漫画提示词"),
+            Self::CharacterBinding => 1,
+            Self::SpeechSelection => 2,
+            Self::VisualAnchorExtraction => 3,
+            Self::ItemExtraction => 4,
+            Self::ComicSynthesis => 5,
+            Self::PagePlanning => 6,
+            Self::DrawingPrompt => 7,
         }
     }
 }
 
-pub(in crate::manga) fn should_restore_manga_stage_checkpoint(
-    resume_from_checkpoint: bool,
-    start_from_stage: Option<MangaPipelineStartStage>,
-    stage_order: i32,
-) -> bool {
-    if let Some(start_stage) = start_from_stage {
-        return stage_order < start_stage.status().1;
-    }
-    resume_from_checkpoint
+pub(in crate::manga) const MANGA_PIPELINE_TOTAL_STEPS: i32 =
+    MangaPipelineStage::DrawingPrompt.order();
+
+pub(in crate::manga) fn manga_pipeline_stage_status(
+    stage: MangaPipelineStage,
+) -> (&'static str, i32, &'static str) {
+    let message = match stage {
+        MangaPipelineStage::CharacterBinding => "正在绑定出场角色身份与外观",
+        MangaPipelineStage::SpeechSelection => "正在选择关键对白、想法与旁白",
+        MangaPipelineStage::VisualAnchorExtraction => "正在提取场景和视觉锚点",
+        MangaPipelineStage::ItemExtraction => "正在抽取漫画关键物品",
+        MangaPipelineStage::ComicSynthesis => "正在综合漫画章节节奏",
+        MangaPipelineStage::PagePlanning => "正在生成漫画分页规划",
+        MangaPipelineStage::DrawingPrompt => "正在生成整页漫画提示词",
+    };
+    (stage.key(), stage.order(), message)
+}
+
+pub(in crate::manga) fn manga_drawing_prompt_call_order(
+    page_index: usize,
+) -> Result<i32, AppError> {
+    let page_index = i32::try_from(page_index).map_err(|_| {
+        AppError::InvalidArgument(format!("漫画绘图提示词页索引超出 i32 范围：{page_index}"))
+    })?;
+    MANGA_DRAWING_PROMPT_CALL_ORDER_BASE
+        .checked_add(page_index)
+        .ok_or_else(|| AppError::InvalidArgument("漫画绘图提示词 call_order 超出 i32 范围".into()))
 }

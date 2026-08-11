@@ -2,15 +2,14 @@ use a4n_core::{
     error::AppError,
     models::{chapter::chapter, project::source_snapshot_chapter},
 };
-use a4n_db::{DbHandle, project::ChapterGenerationReadiness};
+use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     is_character_sync_available_chapter, project_chapter_context_error_to_app_error,
     project_chapter_scene_record_error_to_app_error, project_mutation_error_to_app_error,
-    project_status_read_error_to_app_error, validate_chapter_generation_number,
-    validate_chapter_generation_readiness_record,
+    validate_chapter_generation_number,
 };
 
 #[derive(Clone)]
@@ -113,20 +112,6 @@ impl ProjectChapterRecordsApplication {
         .await
         .map_err(project_chapter_context_error_to_app_error)
     }
-
-    async fn generation_readiness(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<ChapterGenerationReadiness, AppError> {
-        a4n_db::project::chapter_generation_readiness(
-            self.database.connection(),
-            project_id,
-            chapter_number,
-        )
-        .await
-        .map_err(project_status_read_error_to_app_error)
-    }
 }
 
 impl OrchestratorContext {
@@ -214,15 +199,9 @@ impl OrchestratorContext {
 
     pub async fn validate_chapter_generation_readiness(
         &self,
-        project_id: i64,
+        _project_id: i64,
         chapter_number: i32,
     ) -> Result<(), String> {
-        validate_chapter_generation_number(chapter_number)?;
-        let readiness = self
-            .project_chapter_records
-            .generation_readiness(project_id, chapter_number)
-            .await
-            .map_err(|error| error.to_string())?;
-        validate_chapter_generation_readiness_record(chapter_number, &readiness)
+        validate_chapter_generation_number(chapter_number)
     }
 }

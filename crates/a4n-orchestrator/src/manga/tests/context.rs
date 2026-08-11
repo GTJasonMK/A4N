@@ -1,11 +1,50 @@
 use super::*;
+use a4n_domain::manga::MangaPageV3;
+
+fn manga_page_with_participants(participants: &[&str]) -> MangaPageV3 {
+    serde_json::from_value(json!({
+        "page_number": 2,
+        "beat_refs": [],
+        "role": "setup",
+        "pacing": "medium",
+        "importance": "normal",
+        "reading_flow": "top_to_bottom_left_to_right",
+        "page_goal": "推进场景",
+        "visual_thesis": "角色对峙",
+        "entry_state": "平静",
+        "exit_state": "紧张",
+        "dominant_panel_number": 1,
+        "panels": [{
+            "panel_number": 1,
+            "beat_refs": [],
+            "function": "dialogue",
+            "size": "dominant",
+            "shot_scale": "medium",
+            "camera_angle": "eye_level",
+            "participants": participants,
+            "composition": "双人构图",
+            "observable_action": "两人交谈",
+            "reaction": null,
+            "spatial_relationship": "面对面",
+            "continuity_from_previous": null,
+            "text_layers": []
+        }]
+    }))
+    .expect("valid manga page fixture")
+}
 
 #[test]
 fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
     let items_input = manga_item_extraction_input(
-        json!({"dialogues": [{"content": "原文对白"}]}),
-        json!({"scenes": [{"description": "雨夜"}]}),
-    );
+        json!({
+            "dialogues": [{"content": "原文对白", "source_span_id": "ch1:s1:f1"}],
+            "narrations": []
+        }),
+        json!({
+            "scenes": [{"description": "雨夜", "source_span_ids": ["ch1:s1:f1"]}]
+        }),
+    )
+    .expect("valid item extraction input");
     let page_planning = manga_page_planning_input(
         json!({
             "characters": {"陈恪": {"role": "主角"}},
@@ -17,7 +56,8 @@ fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
             "comic_synthesis": {"chapter_summary": "陈恪发现线索"}
         }),
         json!({"shooting_script_id": 1, "shooting_script_revision": 1, "script": {}}),
-    );
+    )
+    .expect("valid page planning input");
 
     assert!(items_input.get("chapter").is_none());
     assert!(page_planning.get("chapter").is_none());
@@ -35,59 +75,8 @@ fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
 }
 
 #[test]
-fn manga_context_manifest_summary_redacts_canonical_content() {
-    let manifest = json!({
-        "schema_version": 1,
-        "packs": [
-            {
-                "scope_kind": "chapter",
-                "pack_kind": "manga_chapter_source",
-                "source_refs_json": {"source_span_count": 1},
-                "config_hash": "cfg",
-                "required": true,
-                "stable_prefix": true,
-                "variants": [
-                    {
-                        "compression_level": "full_raw",
-                        "canonical_content_json": {
-                            "content": "这是一段不应进入调用摘要的完整章节原文"
-                        }
-                    }
-                ]
-            }
-        ],
-        "dynamic_user_content": "当前任务",
-        "output_contract": null
-    });
-
-    let summary = manga_request_context_manifest_summary(Some(&manifest))
-        .expect("summary should build")
-        .expect("summary should exist");
-    let summary_text = serde_json::to_string(&summary).expect("summary json");
-
-    assert_eq!(summary["pack_count"], json!(1));
-    assert_eq!(
-        summary["packs"][0]["pack_kind"],
-        json!("manga_chapter_source")
-    );
-    assert!(summary["packs"][0]["variants"][0]["canonical_content_chars"].is_number());
-    assert!(
-        summary["packs"][0]["variants"][0]["canonical_content_sha256"]
-            .as_str()
-            .is_some_and(|value| !value.is_empty())
-    );
-    assert!(!summary_text.contains("这是一段不应进入调用摘要的完整章节原文"));
-    assert!(!summary_text.contains("canonical_content_json"));
-}
-
-#[test]
 fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
-    let page_plan = json!({
-        "page_number": 2,
-        "panels": [
-            {"panel_number": 1, "participants": ["陈恪", "小宦官"]}
-        ]
-    });
+    let page_plan = manga_page_with_participants(&["陈恪", "小宦官"]);
     let extraction_summary = json!({
         "characters": {
             "陈恪": {"name": "陈恪"},
@@ -98,13 +87,6 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
             {"index": 3, "participants": ["陈恪", "小宦官"]},
             {"index": 8, "participants": ["陈恪", "李建成"]}
         ],
-        "reference_assets": {
-            "character_portraits": [
-                {"character_name": "陈恪", "prompt": "青年书吏"},
-                {"character_name": "李建成", "prompt": "太子冠服"}
-            ],
-            "character_portrait_summary": "陈恪: 青年书吏\n李建成: 太子冠服"
-        },
         "speech": {
             "dialogues": [
                 {"beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 3}, "content": "今日是六月初三"},
@@ -129,8 +111,16 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
             "mood_progression": ["迷茫", "震惊"]
         }
     });
+    let reference_assets = json!({
+        "character_portraits": [
+            {"character_name": "陈恪", "prompt": "青年书吏"},
+            {"character_name": "李建成", "prompt": "太子冠服"}
+        ]
+    });
 
-    let input = manga_page_drawing_prompt_page_input(&page_plan, &extraction_summary);
+    let input =
+        manga_page_drawing_prompt_page_input(&page_plan, &extraction_summary, &reference_assets)
+            .expect("page context should build");
     let context = &input["page_context"];
 
     assert!(context["characters"].get("陈恪").is_some());
@@ -142,4 +132,21 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
         .unwrap();
     assert_eq!(refs.len(), 1);
     assert_eq!(refs[0]["character_name"], json!("陈恪"));
+}
+
+#[test]
+fn manga_page_drawing_context_rejects_malformed_reference_metadata() {
+    let page_plan = manga_page_with_participants(&["陈恪"]);
+    let extraction_summary = json!({
+        "characters": {"陈恪": {"name": "陈恪"}},
+    });
+    let reference_assets = json!({
+        "character_portraits": [{"character_name": "陈恪"}]
+    });
+
+    let error =
+        manga_page_drawing_prompt_page_input(&page_plan, &extraction_summary, &reference_assets)
+            .expect_err("missing portrait prompt must fail");
+
+    assert!(error.to_string().contains("character_portraits[0].prompt"));
 }

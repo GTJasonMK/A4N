@@ -1,11 +1,15 @@
 use a4n_core::models::chapter::{chapter_outline, part_outline};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
 };
 
-use super::{ReverseOutlineApplyRow, ReversePartOutlineApplyRow};
+use crate::outline::{
+    OutlineDbError, sync_chapter_outline_part_assignments, validate_part_outline_records,
+};
+
+use super::{ImportReverseDbError, ReverseOutlineApplyRow, ReversePartOutlineApplyRow};
 
 pub async fn apply_reverse_outline_records<C>(
     db: &C,
@@ -26,6 +30,9 @@ where
             .await?;
 
         if let Some(existing) = existing {
+            let outline_id = existing.id;
+            let updated_at =
+                std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
             let mut active: chapter_outline::ActiveModel = existing.into();
             active.title = Set(Some(row.title.clone()));
             active.summary = Set(Some(row.summary.clone()));
@@ -33,7 +40,8 @@ where
                 active.word_count_target = Set(Some(word_count_target));
             }
             active.status = Set("completed".to_string());
-            active.updated_at = Set(now);
+            active.updated_at = Set(updated_at);
+            crate::project::clear_chapter_outline_provenance(db, outline_id).await?;
             active.update(db).await?;
         } else {
             chapter_outline::ActiveModel {
@@ -81,7 +89,7 @@ pub async fn apply_reverse_part_outline_records<C>(
     db: &C,
     project_id: i64,
     rows: &[ReversePartOutlineApplyRow],
-) -> Result<usize, DbErr>
+) -> Result<usize, ImportReverseDbError>
 where
     C: ConnectionTrait,
 {
@@ -96,6 +104,8 @@ where
             .await?;
 
         if let Some(existing) = existing {
+            let updated_at =
+                std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
             let mut active: part_outline::ActiveModel = existing.into();
             active.title = Set(row.title.clone());
             active.start_chapter = Set(row.start_chapter);
@@ -104,7 +114,7 @@ where
             active.theme = Set(Some(row.theme.clone()));
             active.key_events = Set(Some(row.key_events.clone()));
             active.character_focus = Set(Some(row.character_focus.clone()));
-            active.updated_at = Set(now);
+            active.updated_at = Set(updated_at);
             active.update(db).await?;
         } else {
             part_outline::ActiveModel {
@@ -127,6 +137,17 @@ where
         part_count += 1;
     }
 
+    let parts = part_outline::Entity::find()
+        .filter(part_outline::Column::ProjectId.eq(project_id))
+        .order_by_asc(part_outline::Column::PartNumber)
+        .order_by_asc(part_outline::Column::Id)
+        .all(db)
+        .await?;
+    validate_part_outline_records(&parts).map_err(import_reverse_outline_error)?;
+    sync_chapter_outline_part_assignments(db, project_id, &parts, now)
+        .await
+        .map_err(import_reverse_outline_error)?;
+
     Ok(part_count)
 }
 
@@ -134,7 +155,7 @@ pub async fn apply_reverse_part_outline_records_transaction<T>(
     db: &T,
     project_id: i64,
     rows: &[ReversePartOutlineApplyRow],
-) -> Result<usize, DbErr>
+) -> Result<usize, ImportReverseDbError>
 where
     T: TransactionTrait,
 {
@@ -142,4 +163,11 @@ where
     let part_count = apply_reverse_part_outline_records(&txn, project_id, rows).await?;
     txn.commit().await?;
     Ok(part_count)
+}
+
+fn import_reverse_outline_error(error: OutlineDbError) -> ImportReverseDbError {
+    match error {
+        OutlineDbError::Database(error) => ImportReverseDbError::Database(error),
+        other => ImportReverseDbError::InvalidArgument(other.to_string()),
+    }
 }

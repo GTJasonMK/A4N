@@ -1,13 +1,15 @@
 import React from "react";
-import { detectImageConfigModels, detectServerImageConfigModels } from "../../../api/image";
+import {
+  detectImageConfigModels,
+  detectServerImageConfigModels,
+} from "../../../api/image";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
-import {
-  IMAGE_SIZE_OPTIONS,
-} from "./imageConfigUtils";
+import { IMAGE_SIZE_OPTIONS } from "./imageConfigUtils";
 import type { ImageProviderDescriptor } from "../../../api/generated/config";
+import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ImageForm } from "./types";
 
 interface ImageConfigEditorProps {
@@ -31,10 +33,24 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
   templateLocked = false,
   providers,
 }) => {
-  const detectModels = serverScope ? detectServerImageConfigModels : detectImageConfigModels;
+  const detectModels = serverScope
+    ? detectServerImageConfigModels
+    : detectImageConfigModels;
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
-  const selectedProvider = providers.find((provider) => provider.id === form.provider);
+  const selectedProvider = providers.find(
+    (provider) => provider.id === form.provider,
+  );
+  const modelDiscovery = buildModelDiscoveryField({
+    provider: form.provider,
+    baseUrl: form.api_base_url,
+    apiKey: form.api_key,
+    clearApiKey: form.clear_api_key,
+    configId,
+    hasApiKey: form.has_api_key,
+    readonly,
+    scope: serverScope ? "server" : "local",
+  });
 
   return (
     <>
@@ -71,31 +87,8 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             placeholder="例如：gpt-image-2 / dall-e-3 / sd_xl_base_1.0"
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
-            discoveryKey={[
-              form.provider,
-              form.api_base_url.trim(),
-              serverScope ? "server" : "local",
-              configId ?? "new",
-              form.clear_api_key ? "cleared-key" : form.api_key.trim() ? "form-key" : "saved-key",
-            ].join("|")}
-            detectModels={() =>
-              detectModels({
-                provider: form.provider,
-                base_url: form.api_base_url,
-                api_key_encrypted: form.clear_api_key
-                  ? null
-                  : form.api_key.trim() || undefined,
-                config_id: configId ?? null,
-                use_saved_api_key: Boolean(
-                  !readonly &&
-                    configId != null &&
-                    configId > 0 &&
-                    form.has_api_key &&
-                    !form.clear_api_key &&
-                    !form.api_key.trim(),
-                ),
-              })
-            }
+            discoveryKey={modelDiscovery.discoveryKey}
+            detectModels={() => detectModels(modelDiscovery.input)}
           />
         </FormField>
       </div>
@@ -103,7 +96,9 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
       <FormField label="接口地址" required>
         <BookInput
           value={form.api_base_url}
-          onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
+          onChange={(event) =>
+            setForm({ ...form, api_base_url: event.target.value })
+          }
           placeholder="例如：https://api.openai.com/v1"
           disabled={structureDisabled}
         />
@@ -121,7 +116,11 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
           type="password"
           value={form.api_key}
           onChange={(event) =>
-            setForm({ ...form, api_key: event.target.value, clear_api_key: false })
+            setForm({
+              ...form,
+              api_key: event.target.value,
+              clear_api_key: false,
+            })
           }
           autoComplete="off"
           disabled={apiKeyInputDisabled || readonly}

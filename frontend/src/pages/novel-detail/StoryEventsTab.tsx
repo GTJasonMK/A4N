@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { listChapters, type ChapterData } from "../../api/chapter";
+import { listForeshadowing, type Foreshadowing } from "../../api/foreshadowing";
+import { ForeshadowingIndexCard } from "./story-events/ForeshadowingIndexCard";
 import { StoryEventsListCard } from "./story-events/StoryEventsListCard";
 import { StoryEventsSummaryCard } from "./story-events/StoryEventsSummaryCard";
 import {
   countAnalyzedChapters,
-  countForeshadowingSignals,
   DEFAULT_STORY_EVENT_FILTERS,
   extractChapterStorySection,
   filterStorySections,
@@ -28,19 +29,25 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [chapters, setChapters] = useState<ChapterData[]>([]);
+  const [foreshadowing, setForeshadowing] = useState<Foreshadowing[]>([]);
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
 
   const loadChapters = useCallback(
     async (isCurrent: () => boolean) => {
       try {
-        const nextChapters = await listChapters(projectId);
+        const [nextChapters, nextForeshadowing] = await Promise.all([
+          listChapters(projectId),
+          listForeshadowing(projectId),
+        ]);
         if (!isCurrent()) return;
         setChapters(nextChapters);
+        setForeshadowing(nextForeshadowing);
         setLoadedProjectId(projectId);
       } catch (err) {
         if (isCurrent()) {
           setChapters([]);
+          setForeshadowing([]);
           setLoadedProjectId(projectId);
         }
         throw err;
@@ -59,6 +66,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   }, [projectId]);
 
   const displayChapters = loadedProjectId === projectId ? chapters : [];
+  const displayForeshadowing = loadedProjectId === projectId ? foreshadowing : [];
   const displayLoading = loading || loadedProjectId !== projectId;
 
   const sections = useMemo(
@@ -80,8 +88,6 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
     [sections, filters],
   );
   const analyzedChapters = useMemo(() => countAnalyzedChapters(sections), [sections]);
-  const totalForeshadowing = useMemo(() => countForeshadowingSignals(sections), [sections]);
-
   const openWritingDesk = useCallback(
     (chapterNumber?: number) => {
       if (!canOpenWritingDesk) {
@@ -107,9 +113,17 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         analyzedChapters={analyzedChapters}
         totalChapters={displayChapters.length}
         eventCount={allEvents.length}
-        foreshadowingCount={totalForeshadowing}
+        foreshadowingCount={displayForeshadowing.length}
         loading={loading}
         onRefresh={() => void load()}
+      />
+
+      <ForeshadowingIndexCard
+        projectId={projectId}
+        records={displayForeshadowing}
+        canEdit={canOpenWritingDesk}
+        loading={loading}
+        onReload={() => load({ silent: true, force: true })}
       />
 
       <StoryEventsListCard

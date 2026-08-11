@@ -1,27 +1,15 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use a4n_core::source_spans::SourceSpan;
 use a4n_db::shooting_script::ParsedChapterShootingScript;
+use a4n_domain::manga::MangaPagePlanV3;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::pipeline_status::MangaPipelineStatusInput;
-use super::super::{MangaPipelineStartStage, OrchestratorContext, PIPELINE_TOTAL_STEPS};
-
-pub(super) struct MangaRunningPipelineCheckpointInput<'a> {
-    pub(super) chapter_id: i64,
-    pub(super) project_id: i64,
-    pub(super) stage: &'a str,
-    pub(super) current: i32,
-    pub(super) message: &'a str,
-    pub(super) task_id: Option<&'a str>,
-    pub(super) source_metadata: &'a Value,
-    pub(super) reference_assets_metadata: &'a Value,
-    pub(super) prompt_fingerprint: &'a Value,
-    pub(super) checkpoint: &'a Map<String, Value>,
-}
+use super::super::pipeline_state::manga_pipeline_stage_status;
+use super::super::{MangaPipelineStage, OrchestratorContext};
 
 pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
@@ -29,10 +17,9 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) project_id: i64,
     pub(super) shooting_script: ParsedChapterShootingScript,
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
-    pub(super) task_id: Option<&'a str>,
-    pub(super) workflow_run_id: Option<i64>,
+    pub(super) task_id: &'a str,
+    pub(super) workflow_run_id: i64,
     pub(super) resume_from_checkpoint: bool,
-    pub(super) start_from_stage: Option<MangaPipelineStartStage>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) variables: HashMap<String, Value>,
@@ -43,52 +30,19 @@ pub(super) struct MangaRunContext<'a> {
 }
 
 impl MangaRunContext<'_> {
-    pub(super) fn should_restore_stage(&self, stage_order: i32) -> bool {
-        super::super::pipeline_state::should_restore_manga_stage_checkpoint(
-            self.resume_from_checkpoint,
-            self.start_from_stage,
-            stage_order,
-        )
-    }
-
-    pub(super) async fn checkpoint_and_advance_stage(
+    pub(super) async fn advance_stage(
         &self,
-        checkpoint: &Map<String, Value>,
-        completed_stage: MangaPipelineStartStage,
-        completion_message: &str,
-        next_stage: MangaPipelineStartStage,
+        next_stage: MangaPipelineStage,
     ) -> Result<(), AppError> {
-        let (completed_stage, completed_current, _) = completed_stage.status();
+        let (next_stage, next_current, next_message) = manga_pipeline_stage_status(next_stage);
         self.service
-            .save_running_pipeline_checkpoint(MangaRunningPipelineCheckpointInput {
-                chapter_id: self.chapter_id,
-                project_id: self.project_id,
-                stage: completed_stage,
-                current: completed_current,
-                message: completion_message,
-                task_id: self.task_id,
-                source_metadata: &self.source_metadata,
-                reference_assets_metadata: &self.reference_assets_metadata,
-                prompt_fingerprint: &self.prompt_fingerprint,
-                checkpoint,
-            })
-            .await?;
-        self.service
-            .ensure_pipeline_not_cancelled(self.project_id, self.chapter_id)
-            .await?;
-        let (next_stage, next_current, next_message) = next_stage.status();
-        self.service
-            .set_pipeline_status(MangaPipelineStatusInput {
-                chapter_id: self.chapter_id,
-                project_id: self.project_id,
-                pipeline_status: "running",
-                stage: next_stage,
-                current: next_current,
-                total: PIPELINE_TOTAL_STEPS,
-                message: next_message,
-                task_id: self.task_id,
-                allow_cancel_override: false,
-            })
+            .record_manga_pipeline_progress(
+                self.workflow_run_id,
+                self.task_id,
+                next_stage,
+                next_current,
+                next_message,
+            )
             .await
     }
 }
@@ -96,7 +50,6 @@ impl MangaRunContext<'_> {
 pub(super) struct MangaEarlyRun {
     pub(super) events_json: Value,
     pub(super) characters_json: Value,
-    pub(super) speech_out: String,
     pub(super) speech_json: Value,
 }
 
@@ -106,5 +59,5 @@ pub(super) struct MangaExtractionRun {
 
 pub(super) struct MangaPlanningRun {
     pub(super) extraction: MangaExtractionRun,
-    pub(super) plan_json: Value,
+    pub(super) plan: MangaPagePlanV3,
 }

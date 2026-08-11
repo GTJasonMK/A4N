@@ -36,6 +36,23 @@ pub(super) fn validate_character_sync_persistence_input(
     for chapter_number in &input.selected_chapter_numbers {
         validate_chapter_number(*chapter_number)?;
     }
+    if input.source_chapters.len() != input.selected_chapter_numbers.len() {
+        return Err(CharacterDbError::InvalidArgument(
+            "角色同步章节来源快照与选中章节不一致".to_string(),
+        ));
+    }
+    for (source, chapter_number) in input
+        .source_chapters
+        .iter()
+        .zip(&input.selected_chapter_numbers)
+    {
+        if source.project_id != input.project_id || source.chapter_number != *chapter_number {
+            return Err(CharacterDbError::InvalidArgument(format!(
+                "角色同步章节来源身份不一致: chapter_id={}, chapter_number={}",
+                source.chapter_id, source.chapter_number
+            )));
+        }
+    }
     if input.generation_run.project_id != input.project_id {
         return Err(CharacterDbError::InvalidArgument(
             "角色同步 generation run project_id 与项目不一致".to_string(),

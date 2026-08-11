@@ -31,7 +31,7 @@ pub(super) async fn persist_imported_image(
         "导入图片文件",
     )?;
     let record = match state
-        .media()
+        .orchestrator()
         .create_imported_image_record_for_user_validated(
             user_id,
             prepared,

@@ -25,7 +25,6 @@ pub struct Model {
     #[sea_orm(column_type = "Json")]
     pub supported_durations_json: Option<serde_json::Value>,
     pub default_fps: i32,
-    #[sea_orm(column_type = "Json")]
     pub is_default: bool,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,

@@ -26,7 +26,7 @@ impl CanvasTextGenerationLlmPort for RuntimeCanvasTextGenerationLlmPort<'_> {
     ) -> Result<a4n_llm::provider::ChatResponse, AppError> {
         let workflow = TaskWorkflowContext::new(input.workflow_run_id)?;
         self.state
-            .task_queue()
+            .orchestrator()
             .queue_run_tracked_with_workflow_context(
                 QueueTaskKind::LlmCall,
                 TaskPriority::Medium,

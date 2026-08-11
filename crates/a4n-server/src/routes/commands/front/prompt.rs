@@ -151,14 +151,6 @@ prompt_web_user_input_command!(
     prompt_records_actions::RenderInput,
     prompt_records_actions::prompt_render_ab,
 );
-prompt_web_name_sync_command!(
-    prompt_get_dependencies,
-    prompt_records_actions::prompt_get_dependencies,
-);
-prompt_web_name_sync_command!(
-    prompt_get_reverse_dependencies,
-    prompt_records_actions::prompt_get_reverse_dependencies,
-);
 prompt_web_user_input_unit_command!(
     prompt_set_project_override,
     prompt_records_actions::SetOverrideInput,

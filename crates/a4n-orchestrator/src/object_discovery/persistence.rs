@@ -1,18 +1,16 @@
-use std::collections::{BTreeSet, HashMap};
-
 use a4n_core::{error::AppError, models::asset::object_profile};
 use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    asset::{ObjectProfileUpsertRecordResult, normalize_object_name},
+    asset::{
+        ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult, normalize_object_name,
+    },
     generation::RecordCompletedGenerationRunInput,
-    text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind},
 };
 
 use super::contracts::{
     ObjectDiscoveryCallResult, ObjectDiscoveryProgress, ObjectDiscoveryRequestContext,
-    ParsedObjectProfileDraft,
 };
 
 impl OrchestratorContext {
@@ -43,10 +41,25 @@ impl OrchestratorContext {
             .iter()
             .map(|item| item.draft.clone())
             .collect();
+        let profile_evidence = parsed_drafts
+            .iter()
+            .map(|item| {
+                Ok(ObjectProfileEvidenceRecordInput {
+                    normalized_name: normalize_object_name(&item.draft.name)?,
+                    text_anchor_ids: item.evidence_anchor_ids.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, AppError>>()?;
+        let source_chapters = chapters
+            .iter()
+            .map(a4n_db::project::ChapterSourceSnapshot::from)
+            .collect();
         let result = self
             .upsert_object_profiles_from_drafts_validated(
                 project_id,
                 drafts,
+                source_chapters,
+                profile_evidence,
                 RecordCompletedGenerationRunInput {
                     project_id,
                     workflow: "object_discovery".to_string(),
@@ -80,58 +93,7 @@ impl OrchestratorContext {
                 },
             )
             .await?;
-        self.bind_object_profile_evidence(project_id, &parsed_drafts, &result)
-            .await?;
         Ok(object_discovery_result(chapters, discovered_count, result))
-    }
-
-    async fn bind_object_profile_evidence(
-        &self,
-        project_id: i64,
-        drafts: &[ParsedObjectProfileDraft],
-        result: &ObjectProfileUpsertRecordResult,
-    ) -> Result<(), AppError> {
-        let profiles = result
-            .created
-            .iter()
-            .chain(result.updated.iter())
-            .map(|profile| (profile.normalized_name.clone(), profile.id))
-            .collect::<HashMap<_, _>>();
-        for draft in drafts {
-            let normalized = normalize_object_name(&draft.draft.name)?;
-            let profile_id =
-                profiles
-                    .get(&normalized)
-                    .copied()
-                    .ok_or_else(|| AppError::InvalidState {
-                        current: format!("物体档案写入结果缺少对象: {}", draft.draft.name),
-                        operation: "绑定物体档案证据".to_string(),
-                    })?;
-            let mut refs = Vec::new();
-            let mut seen = BTreeSet::new();
-            for anchor_id in &draft.evidence_anchor_ids {
-                if seen.insert((*anchor_id, EVIDENCE_ROLE_FIRST_SEEN)) {
-                    refs.push(TextAnchorEvidenceInput {
-                        text_anchor_id: *anchor_id,
-                        evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-                    });
-                }
-            }
-            if refs.is_empty() {
-                return Err(AppError::InvalidArgument(
-                    "profile_evidence 不能为空".to_string(),
-                ));
-            }
-            self.merge_profile_evidence_records(
-                project_id,
-                None,
-                TextAnchorProfileKind::Object,
-                profile_id,
-                refs,
-            )
-            .await?;
-        }
-        Ok(())
     }
 }
 
@@ -154,6 +116,7 @@ fn object_profile_result(profile: &object_profile::Model) -> Value {
     json!({
         "id": profile.id,
         "project_id": profile.project_id,
+        "ownership_kind": profile.ownership_kind,
         "name": profile.name,
         "normalized_name": profile.normalized_name,
         "aliases_json": profile.aliases_json,

@@ -2,8 +2,7 @@ use a4n_core::error::AppError;
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     IMAGE_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    redact_sensitive_message, validate_known_service_request,
-    validate_provider_api_key_secret_policy,
+    redact_sensitive_message, validate_provider_api_key_secret_policy,
 };
 
 use crate::contracts::ImageProviderPayload;
@@ -12,9 +11,7 @@ pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
     result: Result<T, AppError>,
 ) -> ServiceResponse<T> {
-    ServiceResponse::from_result(request.trace_context.trace_id.clone(), result, |error| {
-        service_error(&error)
-    })
+    request.result_response(result, |error| service_error(&error))
 }
 
 pub(crate) fn validate_image_request(
@@ -32,7 +29,7 @@ pub(crate) fn validate_model_discovery_request(
 }
 
 fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request(request, IMAGE_SERVICE_NAME)
+    request.validate_known_service(IMAGE_SERVICE_NAME)
 }
 
 fn validate_optional_provider_secret_policy<T>(
@@ -40,13 +37,6 @@ fn validate_optional_provider_secret_policy<T>(
     request: &ServiceRequest<T>,
 ) -> Result<(), ServiceError> {
     validate_provider_api_key_secret_policy(api_key, &request.secret_policy, IMAGE_SERVICE_NAME)
-}
-
-pub(crate) fn error_response<T, P>(
-    request: &ServiceRequest<P>,
-    error: ServiceError,
-) -> ServiceResponse<T> {
-    ServiceResponse::error(request.trace_context.trace_id.clone(), error)
 }
 
 fn service_error_code(error: &AppError) -> ServiceErrorCode {

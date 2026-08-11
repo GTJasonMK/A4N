@@ -69,30 +69,9 @@ impl VectorStore for DisabledVectorStore {
         Err(self.disabled_error())
     }
 
-    async fn collection_exists(&self, _collection: &str) -> Result<bool, AppError> {
-        Err(self.disabled_error())
-    }
-
-    async fn count(&self, _collection: &str) -> Result<usize, AppError> {
-        Err(self.disabled_error())
-    }
-
     async fn drop_collection(&self, _collection: &str) -> Result<(), AppError> {
         // 未启用 RAG 时不存在可删除的 collection；删除语义保持幂等成功。
         Ok(())
-    }
-
-    async fn list_collections(&self) -> Result<Vec<String>, AppError> {
-        Err(self.disabled_error())
-    }
-
-    async fn update_metadata(
-        &self,
-        _collection: &str,
-        _id: &str,
-        _metadata: serde_json::Value,
-    ) -> Result<(), AppError> {
-        Err(self.disabled_error())
     }
 
     async fn metadata_by_ids(
@@ -108,18 +87,6 @@ impl VectorStore for DisabledVectorStore {
         _collection: &str,
         _filter: DeleteFilter,
     ) -> Result<HashMap<String, serde_json::Value>, AppError> {
-        Err(self.disabled_error())
-    }
-
-    async fn health_check(&self) -> Result<bool, AppError> {
-        Err(self.disabled_error())
-    }
-
-    async fn completeness_report(
-        &self,
-        _collection: &str,
-        _expected_count: usize,
-    ) -> Result<CompletenessReport, AppError> {
         Err(self.disabled_error())
     }
 

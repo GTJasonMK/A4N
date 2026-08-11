@@ -8,7 +8,7 @@ use serde_json::json;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::chapter_analysis::owner::{
-    prompt::required_chapter_title, requests::context::build_chapter_analysis_stage_request,
+    prompt::chapter_display_title, requests::context::build_chapter_analysis_stage_request,
 };
 
 pub async fn build_chapter_fact_extraction_request(
@@ -16,7 +16,7 @@ pub async fn build_chapter_fact_extraction_request(
     prompt_renderer: &dyn PromptRenderer,
     source_spans: &[SourceSpan],
 ) -> Result<ChatRequest, AppError> {
-    let chapter_title = required_chapter_title(ch)?;
+    let chapter_title = chapter_display_title(ch);
     let input = json!({
         "chapter_title": chapter_title,
         "content": ch.content,

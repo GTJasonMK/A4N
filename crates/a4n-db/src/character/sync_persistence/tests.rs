@@ -5,18 +5,41 @@ use super::{
     apply_character_sync_persistence_record,
 };
 use crate::character::CharacterDbError;
+use crate::project::ChapterSourceSnapshot;
+use a4n_core::source_spans::source_text_hash;
 use sea_orm::DatabaseConnection;
 use serde_json::json;
 
 fn valid_input() -> CharacterSyncPersistenceInput {
+    let now = chrono::Utc::now().naive_utc();
     CharacterSyncPersistenceInput {
         project_id: 3,
         profile_id: 7,
         profile_name: "陈恪".to_string(),
+        expected_profile_updated_at: now,
+        expected_profile_last_synced_chapter: 0,
+        expected_profile_base_attributes: json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {}
+        }),
+        expected_profile_current_state: json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {}
+        }),
         start_chapter: 1,
         target_chapter: 1,
         clear_to_chapter: Some(1),
         selected_chapter_numbers: vec![1],
+        source_chapters: vec![ChapterSourceSnapshot {
+            project_id: 3,
+            chapter_id: 11,
+            chapter_number: 1,
+            title: Some("第一章".to_string()),
+            content_sha256: source_text_hash("正文"),
+            updated_at: now,
+        }],
         baseline_state: json!({
             "explicit_attributes": {},
             "implicit_attributes": {},
@@ -81,6 +104,14 @@ fn sync_input_contract_rejects_invalid_shapes_before_database_access() {
         validate_character_sync_persistence_input(&input),
         Err(CharacterDbError::InvalidArgument(message))
             if message == "角色同步选中章节缺少目标章节: 2"
+    ));
+
+    let mut input = valid_input();
+    input.source_chapters.clear();
+    assert!(matches!(
+        validate_character_sync_persistence_input(&input),
+        Err(CharacterDbError::InvalidArgument(message))
+            if message == "角色同步章节来源快照与选中章节不一致"
     ));
 
     let mut input = valid_input();

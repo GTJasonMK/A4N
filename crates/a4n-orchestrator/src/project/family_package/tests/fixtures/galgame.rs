@@ -100,11 +100,48 @@ pub(in crate::project::family_package::tests) fn galgame_line_record_with_id(
         expression: None,
         pose: None,
         position: None,
-        presentation_json: json!({}),
+        presentation_json: empty_galgame_presentation_json(),
         text_anchor_id: None,
         created_at: dt(),
         updated_at: dt(),
     }
+}
+
+pub(in crate::project::family_package::tests) fn empty_galgame_presentation_json() -> Value {
+    json!({
+        "schema_version": "galgame_line_presentation_v2",
+        "visible_cast": [],
+        "enter": [],
+        "exit": [],
+        "focus_character_profile_id": null,
+        "hold": false,
+        "player_knowledge": [],
+        "cg": null,
+        "cg_note": null,
+        "cg_importance": null,
+        "transition": null,
+        "branch": null,
+        "branch_id": null,
+        "returns_to_scene_index": null,
+        "after_beat_ref": null
+    })
+}
+
+pub(in crate::project::family_package::tests) fn speaker_galgame_presentation_json(
+    profile_id: i64,
+    expression: &str,
+) -> Value {
+    let mut presentation = empty_galgame_presentation_json();
+    presentation["visible_cast"] = json!([{
+        "character_profile_id": profile_id,
+        "expression": expression,
+        "pose": "standing",
+        "position": "center",
+        "facing": "front",
+        "layer": "front"
+    }]);
+    presentation["focus_character_profile_id"] = json!(profile_id);
+    presentation
 }
 
 pub(in crate::project::family_package::tests) fn galgame_choice_record(

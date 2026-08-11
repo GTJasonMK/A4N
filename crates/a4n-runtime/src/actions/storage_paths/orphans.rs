@@ -7,7 +7,6 @@ use crate::{
     },
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::remove_data_dir_in_data_dir,
-    state::ProjectReadRuntimeFacade,
 };
 use std::{collections::HashSet, path::PathBuf};
 
@@ -26,11 +25,7 @@ pub(crate) async fn recover_unreferenced_managed_media_files(state: &AppState) {
         .iter()
         .map(|file| file.relative_path.clone())
         .collect::<Vec<_>>();
-    let unreferenced = match state
-        .project_family()
-        .unreferenced_media_paths(&paths)
-        .await
-    {
+    let unreferenced = match state.orchestrator().unreferenced_media_paths(&paths).await {
         Ok(paths) => paths,
         Err(error) => {
             tracing::warn!(error = %app_error_message(error), "复核强杀遗留媒体文件引用失败");
@@ -79,7 +74,7 @@ pub async fn list_orphan_project_data_dirs(
     require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
         .await
         .map_err(|error| error.to_string())?;
-    let existing_project_ids = existing_project_ids(state.project_read()).await?;
+    let existing_project_ids = existing_project_ids(state.orchestrator()).await?;
     scanning::orphan_project_data_dirs(state.data_dir(), &existing_project_ids)
 }
 
@@ -96,10 +91,10 @@ pub async fn cleanup_orphan_project_data_dirs(
 async fn remove_unowned_project_data_dirs(
     state: &AppState,
 ) -> Result<OrphanProjectDataDirsSummary, String> {
-    let mut protected_project_ids = existing_project_ids(state.project_read()).await?;
+    let mut protected_project_ids = existing_project_ids(state.orchestrator()).await?;
     protected_project_ids.extend(
         state
-            .project_family()
+            .orchestrator()
             .project_ids_with_incomplete_cleanup()
             .await
             .map_err(app_error_message)?,
@@ -107,7 +102,7 @@ async fn remove_unowned_project_data_dirs(
     let summary = scanning::orphan_project_data_dirs(state.data_dir(), &protected_project_ids)?;
     for item in &summary.items {
         if state
-            .project_read()
+            .orchestrator()
             .project_by_id(item.project_id)
             .await
             .map_err(app_error_message)?
@@ -120,7 +115,7 @@ async fn remove_unowned_project_data_dirs(
         }
         let prefix = crate::cleanup_outbox::project_media_path_prefix(item.project_id);
         if state
-            .project_family()
+            .orchestrator()
             .media_path_prefix_has_persisted_reference(&prefix)
             .await
             .map_err(app_error_message)?
@@ -141,7 +136,7 @@ async fn remove_unowned_project_data_dirs(
 }
 
 async fn existing_project_ids(
-    project_read: ProjectReadRuntimeFacade<'_>,
+    project_read: &a4n_orchestrator::OrchestratorContext,
 ) -> Result<HashSet<i64>, String> {
     let ids = project_read
         .project_ids()

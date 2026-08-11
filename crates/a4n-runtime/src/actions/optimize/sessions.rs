@@ -12,7 +12,7 @@ pub async fn list_optimize_sessions(
     chapter_id: Option<i64>,
 ) -> Result<Vec<OptimizationSessionSummary>, String> {
     let sessions = state
-        .optimize()
+        .orchestrator()
         .optimize_sessions_for_user(user_id, project_id, chapter_id)
         .await
         .map_err(|err| err.to_string())?;
@@ -25,7 +25,7 @@ pub async fn get_optimize_session(
     session_id: i64,
 ) -> Result<OptimizationSessionSummary, String> {
     let session = state
-        .optimize()
+        .orchestrator()
         .optimize_session_for_user(user_id, session_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -38,7 +38,7 @@ pub async fn list_optimize_turns(
     session_id: i64,
 ) -> Result<Vec<OptimizationTurnSummary>, String> {
     let turns = state
-        .optimize()
+        .orchestrator()
         .optimize_turns_for_user(user_id, session_id)
         .await
         .map_err(|err| err.to_string())?;
@@ -54,7 +54,7 @@ pub async fn list_optimize_patch_sets(
     session_id: i64,
 ) -> Result<Vec<OptimizationPatchSetSummary>, String> {
     let patch_sets = state
-        .optimize()
+        .orchestrator()
         .optimize_patch_sets_for_user(user_id, session_id)
         .await
         .map_err(|err| err.to_string())?;
@@ -70,7 +70,7 @@ pub async fn delete_optimize_session(
     session_id: i64,
 ) -> Result<(), String> {
     state
-        .optimize()
+        .orchestrator()
         .delete_optimize_session_for_user_validated(user_id, session_id)
         .await
         .map_err(|err| err.to_string())
@@ -83,7 +83,7 @@ pub async fn record_optimize_agent_event(
     content: String,
 ) -> Result<(), String> {
     state
-        .optimize()
+        .orchestrator()
         .record_optimize_agent_event_for_user_validated(user_id, session_id, &content)
         .await
         .map_err(|err| err.to_string())

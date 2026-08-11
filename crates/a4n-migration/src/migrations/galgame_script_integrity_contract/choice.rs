@@ -1,4 +1,4 @@
-pub(super) const GALGAME_CHOICE_FAMILY_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_CHOICE_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_choice_family()
 RETURNS trigger
 LANGUAGE plpgsql

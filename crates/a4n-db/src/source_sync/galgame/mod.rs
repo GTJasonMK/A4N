@@ -12,8 +12,7 @@ pub use candidates::{
 pub use cleanup::{
     bound_media_asset_ids_for_galgame_scene, delete_media_binding_records_for_galgame_scene,
     delete_unbound_project_media_asset_records, galgame_generation_spec_ids_for_scene,
-    galgame_portrait_generation_spec_ids_for_source_lines, galgame_portrait_spec_references_lines,
-    media_asset_ids_for_generation_specs,
+    galgame_portrait_generation_spec_ids_for_source_lines, media_asset_ids_for_generation_specs,
 };
 pub use conflicts::resolve_related_galgame_scene_conflict_records;
 pub use regeneration::apply_galgame_scene_regeneration_record;

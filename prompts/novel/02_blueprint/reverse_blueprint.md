@@ -51,12 +51,12 @@ tags: "导入分析,蓝图"
     {"chapter": 1, "content": "伏笔内容", "type": "伏笔类型"},
     ...
   ],
-  "known_objects": [
-    {"name": "物品名", "object_type": "类型", "story_usage": "剧情用途", ...}
-  ],
-  "known_scenes": [
-    {"name": "场景名", "scene_type": "类型", "base_description": "基础描述", ...}
-  ],
+  "formal_materials": {
+    "character_profiles": [{"name": "角色名", "current_state": {...}, ...}],
+    "objects": [{"name": "物品名", "object_type": "类型", "story_usage": "剧情用途", ...}],
+    "scenes": [{"name": "场景名", "scene_type": "类型", "base_description": "基础描述", ...}],
+    "foreshadowing": [{"description": "伏笔内容", "status": "pending", ...}]
+  },
   "existing_relationships": [
     {"relationship_type": "friend", "character_a": "角色A", "character_b": "角色B", ...}
   ],
@@ -107,7 +107,7 @@ tags: "导入分析,蓝图"
 ### 5. existing_blueprint 与已有正式资料
 
 - `existing_blueprint` 是用户当前确认的正式蓝图，应作为本次更新基线
-- `known_objects`、`known_scenes` 和 `existing_relationships` 是当前项目资料，不要因为抽样正文没有再次出现就删除或否定
+- `formal_materials` 和 `existing_relationships` 是当前项目的正式资料，不要因为抽样正文没有再次出现就删除或否定
 - 只有当前正文、大纲或资料提供了更完整证据时才调整已有蓝图；证据不足时保留原有信息
 - 场景和物品用于补足世界规则、关键地点、冲突资源与故事功能，不要把档案逐条机械复制进蓝图
 

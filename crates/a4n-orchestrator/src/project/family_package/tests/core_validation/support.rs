@@ -51,13 +51,10 @@ pub(super) fn galgame_portrait_params(
     project_id: i64,
     profile_id: i64,
     expression: &str,
-    pose: Option<&str>,
+    pose: &str,
     source_line_ids: &[i64],
 ) -> Value {
-    let variant_key = match pose {
-        Some(pose) => format!("expression:{expression}:pose:{pose}"),
-        None => format!("expression:{expression}"),
-    };
+    let variant_key = format!("expression:{expression}:pose:{pose}");
     json!({
         "canonical_key": format!("galgame:{project_id}:portrait:{profile_id}:{variant_key}"),
         "asset_kind": "portrait_expression",

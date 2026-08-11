@@ -1,4 +1,4 @@
-pub(super) const GALGAME_LINE_FAMILY_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_LINE_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_line_family()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -50,29 +50,117 @@ BEGIN
     IF jsonb_typeof(line_row.presentation_json::jsonb) IS DISTINCT FROM 'object' THEN
         RAISE EXCEPTION 'Galgame 行 presentation_json 必须是对象';
     END IF;
-    IF line_row.presentation_json::jsonb ? 'cg'
-       AND jsonb_typeof(line_row.presentation_json::jsonb -> 'cg') NOT IN ('boolean', 'null') THEN
+    IF NOT (line_row.presentation_json::jsonb ?& ARRAY[
+        'schema_version',
+        'visible_cast',
+        'enter',
+        'exit',
+        'focus_character_profile_id',
+        'hold',
+        'player_knowledge',
+        'cg',
+        'cg_note',
+        'cg_importance',
+        'transition',
+        'branch',
+        'branch_id',
+        'returns_to_scene_index',
+        'after_beat_ref'
+    ]) THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json 缺少 v2 必填字段';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM jsonb_object_keys(line_row.presentation_json::jsonb) AS field(key)
+        WHERE field.key <> ALL (ARRAY[
+            'schema_version',
+            'visible_cast',
+            'enter',
+            'exit',
+            'focus_character_profile_id',
+            'hold',
+            'player_knowledge',
+            'cg',
+            'cg_note',
+            'cg_importance',
+            'transition',
+            'branch',
+            'branch_id',
+            'returns_to_scene_index',
+            'after_beat_ref'
+        ]::TEXT[])
+    ) THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json 包含 v2 未声明字段';
+    END IF;
+    IF line_row.presentation_json::jsonb ->> 'schema_version'
+       IS DISTINCT FROM 'galgame_line_presentation_v2' THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.schema_version 无效';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'visible_cast') IS DISTINCT FROM 'array'
+       OR jsonb_typeof(line_row.presentation_json::jsonb -> 'enter') IS DISTINCT FROM 'array'
+       OR jsonb_typeof(line_row.presentation_json::jsonb -> 'exit') IS DISTINCT FROM 'array'
+       OR jsonb_typeof(line_row.presentation_json::jsonb -> 'hold') IS DISTINCT FROM 'boolean'
+       OR jsonb_typeof(line_row.presentation_json::jsonb -> 'player_knowledge') IS DISTINCT FROM 'array'
+    THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json v2 核心字段类型无效';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'focus_character_profile_id') NOT IN ('number', 'null') THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.focus_character_profile_id 必须是正整数或 null';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'focus_character_profile_id') = 'number'
+       AND (line_row.presentation_json::jsonb ->> 'focus_character_profile_id') !~ '^[1-9][0-9]*$' THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.focus_character_profile_id 必须是正整数或 null';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'cg') NOT IN ('boolean', 'null') THEN
         RAISE EXCEPTION 'Galgame 行 presentation_json.cg 必须是布尔值';
     END IF;
-    IF line_row.presentation_json::jsonb ? 'cg_importance'
-       AND jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_importance') NOT IN ('string', 'null') THEN
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_note') NOT IN ('string', 'null') THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.cg_note 必须是字符串或 null';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_importance') NOT IN ('string', 'null') THEN
         RAISE EXCEPTION 'Galgame 行 presentation_json.cg_importance 必须是字符串';
     END IF;
     IF jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_importance') = 'string'
-       AND BTRIM(line_row.presentation_json::jsonb ->> 'cg_importance') <> ''
        AND BTRIM(line_row.presentation_json::jsonb ->> 'cg_importance') NOT IN ('normal', 'high', 'critical') THEN
         RAISE EXCEPTION 'Galgame 行 presentation_json.cg_importance 无效';
     END IF;
-    IF (line_row.presentation_json::jsonb ->> 'cg') = 'true'
-       AND COALESCE(
-           CASE WHEN jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_note') = 'string'
-                THEN NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_note'), '') END,
-           CASE WHEN jsonb_typeof(line_row.presentation_json::jsonb -> 'cg_prompt') = 'string'
-                THEN NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_prompt'), '') END,
-           CASE WHEN jsonb_typeof(line_row.presentation_json::jsonb -> 'event_cg_note') = 'string'
-                THEN NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'event_cg_note'), '') END
-       ) IS NULL THEN
-        RAISE EXCEPTION 'Galgame 行启用事件 CG 时必须提供 cg_note';
+    IF (line_row.presentation_json::jsonb ->> 'cg') = 'true' THEN
+        IF NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_note'), '') IS NULL THEN
+            RAISE EXCEPTION 'Galgame 行启用事件 CG 时必须提供 cg_note';
+        END IF;
+        IF NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'cg_importance'), '') IS NULL THEN
+            RAISE EXCEPTION 'Galgame 行启用事件 CG 时必须提供 cg_importance';
+        END IF;
+    ELSIF line_row.presentation_json::jsonb -> 'cg_note' <> 'null'::jsonb
+       OR line_row.presentation_json::jsonb -> 'cg_importance' <> 'null'::jsonb THEN
+        RAISE EXCEPTION 'Galgame 行未启用事件 CG 时不能保留 cg_note/cg_importance';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'transition') NOT IN ('string', 'null')
+       OR (
+           jsonb_typeof(line_row.presentation_json::jsonb -> 'transition') = 'string'
+           AND line_row.presentation_json::jsonb ->> 'transition' NOT IN ('cut', 'fade', 'dissolve')
+       ) THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.transition 无效';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'branch') NOT IN ('boolean', 'null') THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.branch 必须是布尔值或 null';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'branch_id') NOT IN ('string', 'null')
+       OR (
+           jsonb_typeof(line_row.presentation_json::jsonb -> 'branch_id') = 'string'
+           AND NULLIF(BTRIM(line_row.presentation_json::jsonb ->> 'branch_id'), '') IS NULL
+       ) THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.branch_id 必须是非空字符串或 null';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'returns_to_scene_index') NOT IN ('number', 'null')
+       OR (
+           jsonb_typeof(line_row.presentation_json::jsonb -> 'returns_to_scene_index') = 'number'
+           AND (line_row.presentation_json::jsonb ->> 'returns_to_scene_index') !~ '^[1-9][0-9]*$'
+       ) THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.returns_to_scene_index 必须是正整数或 null';
+    END IF;
+    IF jsonb_typeof(line_row.presentation_json::jsonb -> 'after_beat_ref') NOT IN ('object', 'null') THEN
+        RAISE EXCEPTION 'Galgame 行 presentation_json.after_beat_ref 必须是对象或 null';
     END IF;
     IF line_row.expression IS NOT NULL
        AND line_row.expression NOT IN ('neutral', 'smile', 'sad', 'angry', 'surprised', 'shy', 'serious') THEN
@@ -89,6 +177,9 @@ BEGIN
         END IF;
         IF line_row.expression IS NULL OR BTRIM(line_row.expression) = '' THEN
             RAISE EXCEPTION 'dialogue/monologue 行必须显式提供 expression';
+        END IF;
+        IF line_row.pose IS NULL OR BTRIM(line_row.pose) = '' THEN
+            RAISE EXCEPTION 'dialogue/monologue 行必须显式提供 pose';
         END IF;
     ELSIF line_row.speaker_profile_id IS NOT NULL THEN
         RAISE EXCEPTION '非 dialogue/monologue 行不能绑定 speaker_profile_id';
@@ -151,7 +242,7 @@ END;
 $$ 
 "#;
 
-pub(super) const GALGAME_LINE_ORDER_FAMILY_FUNCTION_SQL: &str = r#"
+pub(crate) const GALGAME_LINE_ORDER_FAMILY_FUNCTION_SQL: &str = r#"
 CREATE OR REPLACE FUNCTION a4n_validate_galgame_line_order_family()
 RETURNS trigger
 LANGUAGE plpgsql

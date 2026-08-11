@@ -10,8 +10,8 @@ pub async fn preview_regenerate_chapter_outline_request(
     input: RegenerateChapterOutlineInput,
 ) -> Result<ModelRequestPreview, AppError> {
     ensure_chapter_outline_access(
-        &state.collaboration(),
-        &state.project_outline_records(),
+        state.orchestrator(),
+        state.orchestrator(),
         user_id,
         input.project_id,
         input.outline_id,
@@ -19,7 +19,7 @@ pub async fn preview_regenerate_chapter_outline_request(
     .await?;
     let outline_id = input.outline_id;
     let request = state
-        .outline()
+        .orchestrator()
         .preview_regenerate_chapter_outline_validated(input)
         .await?;
     single_request_preview(

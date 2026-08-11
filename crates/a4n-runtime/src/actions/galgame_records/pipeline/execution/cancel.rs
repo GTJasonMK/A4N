@@ -8,7 +8,7 @@ pub async fn cancel_galgame_pipeline(
     input: GalgameProjectInput,
 ) -> Result<GalgamePipelineStatusSummary, String> {
     state
-        .galgame()
+        .orchestrator()
         .cancel_galgame_pipeline_for_user_validated(user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
