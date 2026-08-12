@@ -1,4 +1,4 @@
-import type { WorkflowRunDetail } from "../../api/streaming";
+import type { WorkflowRunDetailSummary } from "../../api/streaming";
 import { nodeDisplayTitle } from "./StudioCanvasNode";
 import { studioNodeContract, type StudioNodeContractMap } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
@@ -181,7 +181,7 @@ const WORKFLOW_NODE_RUN_CLASS_TOKENS = [
 ];
 
 export function canvasWorkflowNodeRunStates(
-  detail: WorkflowRunDetail | null,
+  detail: WorkflowRunDetailSummary | null,
   nowMs: number,
 ): Map<string, CanvasWorkflowNodeRunState> {
   const states = new Map<string, CanvasWorkflowNodeRunState>();
@@ -207,7 +207,7 @@ export function canvasWorkflowNodeRunStates(
   return states;
 }
 
-export function canvasWorkflowRuntimeRefreshSignature(detail: WorkflowRunDetail): string | null {
+export function canvasWorkflowRuntimeRefreshSignature(detail: WorkflowRunDetailSummary): string | null {
   if (detail.run.workflow_kind !== CANVAS_WORKFLOW_KIND || detail.run.scope_table !== "canvas_graph") {
     return null;
   }
@@ -219,7 +219,7 @@ export function canvasWorkflowRuntimeRefreshSignature(detail: WorkflowRunDetail)
 }
 
 function workflowRunCurrentStepElapsedSeconds(
-  detail: WorkflowRunDetail,
+  detail: WorkflowRunDetailSummary,
   nowMs: number,
 ): number | null {
   const updatedAtMs = parseWorkflowTimestampMs(detail.run.updated_at);
@@ -229,7 +229,7 @@ function workflowRunCurrentStepElapsedSeconds(
 }
 
 function canvasWorkflowCheckpointRunState(
-  checkpoint: WorkflowRunDetail["checkpoints"][number],
+  checkpoint: WorkflowRunDetailSummary["checkpoints"][number],
   status: CanvasWorkflowNodeRunStatus,
   nowMs: number,
 ): CanvasWorkflowNodeRunState {

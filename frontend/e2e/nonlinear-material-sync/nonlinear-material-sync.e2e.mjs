@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 let freeProjectId = null;
+const llmApiKey = process.env.A4N_NONLINEAR_LLM_API_KEY;
 
 const buttonByText = async (text) => {
   const button = await $("button*=" + text);
@@ -85,18 +86,120 @@ const closeDialogIfOpen = async () => {
   }
 };
 
+const closeSuccessfulProgress = async (
+  successText,
+  timeout = 480_000,
+  closeText = "关闭",
+) => {
+  await (await $("[role=dialog]")).waitForDisplayed({ timeout: 30_000 });
+  let progressText = "";
+  await browser.waitUntil(
+    async () => {
+      progressText = await (await $("[role=dialog]")).getText();
+      return progressText.includes(successText)
+        || /生成失败|任务失败|调用失败|已取消|已停止/.test(progressText);
+    },
+    { timeout, interval: 2_000, timeoutMsg: `任务未完成：${successText}` },
+  );
+  assert.equal(progressText.includes(successText), true, progressText);
+  const dialog = await $("[role=dialog]");
+  const close = await dialog.$(`button*=${closeText}`);
+  await close.waitForClickable();
+  await close.click();
+  await dialog.waitForDisplayed({ reverse: true, timeout: 30_000 });
+};
+
+const generateChapterBody = async (projectId, timeoutMessage) => {
+  await browser.url(`/write/${projectId}?chapter=1`);
+  const assistant = await $(
+    "//div[@role='group' and @aria-label='写作辅助面板']//button[contains(., '写作助手')]",
+  );
+  await assistant.waitForClickable({ timeout: 30_000 });
+  await assistant.click();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const start = await $("//aside[@aria-label='写作助手']//button[contains(., '开始生成')]");
+    await start.waitForClickable({ timeout: 30_000 });
+    await start.click();
+    const confirm = await $("[role=dialog]");
+    await confirm.waitForDisplayed();
+    await (await confirm.$(
+      "//button[normalize-space()='生成' or normalize-space()='重新生成']",
+    )).click();
+    await confirm.waitForDisplayed({ reverse: true, timeout: 30_000 });
+    await (await $(
+      "//aside[@aria-label='写作助手']//button[contains(., '取消生成')]",
+    )).waitForDisplayed({ timeout: 30_000 });
+    await browser.waitUntil(
+      () => browser.execute(() => {
+        const buttons = [...document.querySelectorAll("button")];
+        return buttons.some((button) => button.textContent?.includes("开始生成"))
+          && !buttons.some((button) => button.textContent?.includes("取消生成"));
+      }),
+      { timeout: 480_000, interval: 2_000, timeoutMsg: timeoutMessage },
+    );
+    const contentLength = await browser.execute(() => {
+      const editor = document.querySelector("textarea[aria-label='章节正文']");
+      return editor instanceof HTMLTextAreaElement ? editor.value.trim().length : 0;
+    });
+    if (contentLength >= 500) return;
+  }
+  assert.fail(timeoutMessage);
+};
+
 describe("非线性创作资料同步", () => {
+  before(async () => {
+    if (!llmApiKey) return;
+    await browser.execute((apiKey) => {
+      localStorage.setItem(
+        "a4n:local-runtime-settings:v1",
+        JSON.stringify({
+          schema_version: 1,
+          next_id: 2,
+          llm: [],
+          system_llm_api_key_encrypted: apiKey,
+          system_image_api_key_encrypted: null,
+          system_video_api_key_encrypted: null,
+          embedding: [
+            {
+              id: 1,
+              name: "基础本地哈希向量",
+              backend: "local_hash",
+              base_url: null,
+              api_key_encrypted: null,
+              has_api_key: false,
+              model: "local-sha256-hash",
+              dimension: 384,
+              batch_size: 100,
+              local_model_path: null,
+              is_default: true,
+            },
+          ],
+          image: [],
+          video: [],
+          default_source: { llm: "system", image: "system", video: "system" },
+          llm_max_tokens: {
+            connection_test: 8,
+            short: 1024,
+            standard: 2048,
+            json_standard: 4096,
+            long: 8192,
+            extra_long: 8192,
+            chapter_generation: 8192,
+            chapter_analysis: 4096,
+            outline: 8192,
+            blueprint: 8192,
+            character_discovery: 8192,
+            character_sync: 8192,
+            media_prompt: 4096,
+          },
+        }),
+      );
+    }, llmApiKey);
+    await browser.refresh();
+  });
+
   it("创建模式只保留三个入口，两个文本模式只改变首次落点", async () => {
     await browser.url("/");
-    await browser.pause(1_000);
-    const initial = await browser.execute(() => ({
-      url: location.href,
-      text: document.body?.innerText ?? "",
-      buttons: [...document.querySelectorAll("button")].map(
-        (button) => button.textContent?.trim() ?? "",
-      ),
-    }));
-    process.stdout.write(`A4N_NONLINEAR_INITIAL=${JSON.stringify(initial)}\n`);
     await (await buttonByText("创建项目")).click();
     const modeDialog = await currentDialog();
     const modeLabels = await browser.execute(() =>
@@ -122,11 +225,76 @@ describe("非线性创作资料同步", () => {
     await browser.url("/");
     freeProjectId = await createProject("自由创作", "/novel/");
     assert.notEqual(aiProjectId, freeProjectId);
-
-    process.stdout.write(
-      `A4N_NONLINEAR_PROJECTS=${JSON.stringify({ aiProjectId, freeProjectId })}\n`,
-    );
   });
+
+  it("AI 辅助创作可以从 idea 完成正式蓝图、大纲和正文全链路", async () => {
+    assert.ok(llmApiKey, "真实模型验收缺少临时 LLM API Key");
+    await browser.url("/");
+    const projectId = await createProject("AI 辅助创作", "/inspiration/");
+    const prompts = [
+      [
+        "我已经想清楚全部核心要素，请直接整理并结束概念对话。",
+        "作品暂名《潮痕回声》，核心火花是海滨城每逢退潮就会出现一段只属于失踪者的街道。",
+        "类型是都市奇幻悬疑，基调克制、潮湿而温暖；文风采用第三人称限知、简洁有画面感的现实主义笔触。",
+        "主角沈汐是能听见遗物回声的旧物修复师，驱动力是找回失踪的姐姐，致命缺陷是把所有责任都揽在自己身上。",
+        "核心冲突是她必须在第七次退潮前破解街道规则，否则姐姐会被城市彻底遗忘；对立面是利用遗忘牟利的港务财团负责人陆沉舟。",
+        "催化事件是一台送修的盐蚀录音机播放出姐姐当天留下的求救；主题探讨记忆是否决定一个人的存在，以及放手是否等于背叛。",
+        "全书规划 12 章。信息已经完整，不需要继续追问；请给出标题建议并将 conversation_state.genre 设为都市奇幻悬疑、chapter_count 设为 12，标记对话完成。",
+      ].join(" "),
+      "上述核心火花、类型基调、文风、主角、冲突、对立面、催化事件、主题和 12 章篇幅均已确认，请结束概念对话并标记完成。",
+    ];
+
+    await (await $("textarea")).waitForDisplayed({ timeout: 30_000 });
+    for (const prompt of prompts) {
+      await (await $("textarea")).setValue(prompt);
+      await (await $("//button[normalize-space()='发送']")).click();
+      await (await $("//button[normalize-space()='等待回复']")).waitForDisplayed({ timeout: 30_000 });
+      await browser.waitUntil(
+        () => $("//button[normalize-space()='等待回复']")
+          .then((button) => button.isExisting())
+          .then((existing) => !existing),
+        { timeout: 480_000, interval: 2_000, timeoutMsg: "灵感对话回复未完成" },
+      );
+      if (await $("button*=生成蓝图").then((button) => button.isClickable())) break;
+    }
+
+    const generateBlueprint = await $("button*=生成蓝图");
+    assert.equal(await generateBlueprint.isClickable(), true, "完整 idea 未结束灵感对话");
+    await generateBlueprint.click();
+    await closeSuccessfulProgress("首版蓝图已生成", 480_000, "查看蓝图");
+    const confirmationText = await $("body").getText();
+    assert.match(confirmationText, /故事蓝图/);
+    assert.match(confirmationText, /潮痕|沈汐/);
+    assert.doesNotMatch(confirmationText, /暂定蓝图|候选蓝图|蓝图候选/);
+    await (await buttonByText("确认进入项目")).click();
+    await browser.waitUntil(
+      () => browser.getUrl().then((url) => url.includes(`/novel/${projectId}`)),
+      { timeout: 30_000, timeoutMsg: "正式蓝图生成后未进入项目详情" },
+    );
+
+    await openTab("章节大纲");
+    const partSection = await $("//section[.//h2[normalize-space()='分部大纲']]");
+    const partInputs = await partSection.$$("input[type=number]");
+    await partInputs[0].setValue("1");
+    await partInputs[1].setValue("12");
+    await (await partSection.$("//button[contains(., '生成分部')]")).click();
+    await closeSuccessfulProgress("1 个分部");
+    await browser.waitUntil(
+      () => $("body").getText().then((text) => text.includes("第 1 部")),
+      { timeout: 30_000, timeoutMsg: "AI 辅助创作未写入正式分部大纲" },
+    );
+
+    const chapterSection = await $("//section[.//h2[normalize-space()='章节大纲']]");
+    await (await chapterSection.$("input[type=number]")).setValue("1");
+    await (await chapterSection.$("//button[contains(., '生成章纲')]")).click();
+    await closeSuccessfulProgress("1 个章纲");
+    await browser.waitUntil(
+      () => $("body").getText().then((text) => text.includes("第 1 章")),
+      { timeout: 30_000, timeoutMsg: "AI 辅助创作未写入正式章节大纲" },
+    );
+
+    await generateChapterBody(projectId, "AI 辅助创作未生成正式章节正文");
+  }).timeout(1_800_000);
 
   it("自由创作可以跳过灵感，直接建立全部正式创作资料", async () => {
     assert.ok(freeProjectId, "自由创作项目尚未建立");
@@ -161,16 +329,6 @@ describe("非线性创作资料同步", () => {
     await (await buttonByText("新建档案")).click();
     await (await dialogField("名称")).setValue("停摆怀表");
     await (await buttonByText("保存")).click();
-    await browser.pause(1_000);
-    const objectSnapshot = await browser.execute(() => ({
-      url: location.href,
-      text: document.body?.innerText ?? "",
-      dialogs: [...document.querySelectorAll("[role=dialog]")].map(
-        (dialog) => dialog.textContent ?? "",
-      ),
-      selectedTab: document.querySelector("[role=tab][aria-selected=true]")?.textContent ?? "",
-    }));
-    process.stdout.write(`A4N_NONLINEAR_OBJECT=${JSON.stringify(objectSnapshot)}\n`);
     await browser.waitUntil(
       () => $("body").getText().then((text) => text.includes("停摆怀表")),
       { timeout: 5_000, timeoutMsg: "正式物体档案未创建" },
@@ -212,13 +370,54 @@ describe("非线性创作资料同步", () => {
       () => $("body").getText().then((text) => text.includes("第 1 章 · 雨夜来信")),
       { timeoutMsg: "正式章节大纲未显示" },
     );
-
-    process.stdout.write(`A4N_NONLINEAR_FORMAL_PROJECT=${freeProjectId}\n`);
   });
+
+  it("自由创作可以从无正文的稀疏正式资料归纳蓝图并生成正文", async () => {
+    assert.ok(llmApiKey, "真实模型验收缺少临时 LLM API Key");
+    await browser.url("/");
+    const projectId = await createProject("自由创作", "/novel/");
+
+    await openTab("角色档案");
+    await (await buttonByText("新建角色")).click();
+    await (await dialogField("姓名")).setValue("顾潮");
+    await (await buttonByText("保存")).click();
+
+    await openTab("物体档案");
+    await (await buttonByText("新建档案")).click();
+    await (await dialogField("名称")).setValue("倒走怀表");
+    await (await buttonByText("保存")).click();
+    await closeDialogIfOpen();
+
+    await openTab("场景档案");
+    await (await buttonByText("新建档案")).click();
+    await (await dialogField("名称")).setValue("潮汐钟楼");
+    await (await buttonByText("保存")).click();
+    await closeDialogIfOpen();
+
+    await openTab("章节大纲");
+    const chapterCreate = await $(
+      "//section[.//h2[normalize-space()='章节大纲']]//button[contains(., '直接录入')]",
+    );
+    await chapterCreate.click();
+    await (await dialogField("章节标题")).setValue("午夜逆潮");
+    await (await dialogField("章节摘要", "textarea")).setValue(
+      "顾潮在潮汐钟楼发现倒走怀表，决定追查失踪的守钟人。",
+    );
+    await (await buttonByText("保存正式章纲")).click();
+
+    await openTab("项目概览");
+    await (await buttonByText("依据现有资料归纳蓝图")).click();
+    await closeSuccessfulProgress("蓝图已归纳并写入正式资料");
+
+    const pageText = await $("body").getText();
+    assert.doesNotMatch(pageText, /暂定蓝图|候选蓝图|蓝图候选/);
+    assert.equal(await $("button*=确认更新蓝图").isExisting(), false);
+
+    await generateChapterBody(projectId, "自由创作项目未生成正式章节正文");
+  }).timeout(600_000);
 
   it("已有第 7 章正文可以跳过前序空白章节并同步局部资料", async () => {
     assert.ok(freeProjectId, "自由创作项目尚未建立");
-    process.stdout.write("A4N_NONLINEAR_STAGE=chapter-import-start\n");
     await browser.url(`/novel/${freeProjectId}`);
     await openTab("已生成章节");
     await (await buttonByText("导入章节")).click();
@@ -240,7 +439,6 @@ describe("非线性创作资料同步", () => {
       () => browser.getUrl().then((url) => url.includes(`/write/${freeProjectId}?chapter=7`)),
       { timeout: 60_000, timeoutMsg: "第 7 章未进入写作桌" },
     );
-    process.stdout.write("A4N_NONLINEAR_STAGE=writing-desk-opened\n");
     await browser.waitUntil(
       () =>
         $("body")
@@ -252,7 +450,6 @@ describe("非线性创作资料同步", () => {
           ),
       { timeout: 120_000, timeoutMsg: "第 7 章正文资料同步未完成" },
     );
-    process.stdout.write("A4N_NONLINEAR_STAGE=derived-sync-completed\n");
 
     const analysisTab = await $(
       "//nav[@aria-label='章节工作区']//button[normalize-space()='分析']",
@@ -263,13 +460,11 @@ describe("非线性创作资料同步", () => {
       () => $("body").getText().then((text) => text.includes("生成分析")),
       { timeout: 30_000, timeoutMsg: "第 7 章分析入口不可用" },
     );
-    process.stdout.write("A4N_NONLINEAR_STAGE=analysis-ready\n");
     const beforeAnalysis = await $("body").getText();
     assert.equal(beforeAnalysis.includes("请先分析第 1 章"), false);
     assert.equal(beforeAnalysis.includes("必须先完成前序章节"), false);
 
     await (await buttonByText("生成分析")).click();
-    process.stdout.write("A4N_NONLINEAR_STAGE=analysis-started\n");
     await browser.waitUntil(
       () =>
         $("body")
@@ -294,6 +489,7 @@ describe("非线性创作资料同步", () => {
     assert.equal(analysisText.includes("分部大纲和蓝图只在你主动操作时更新"), true);
 
     await browser.url(`/novel/${freeProjectId}`);
+    await openTab("项目概览");
     await browser.waitUntil(
       () =>
         $("body")
@@ -305,7 +501,5 @@ describe("非线性创作资料同步", () => {
     const outlineText = await $("body").getText();
     assert.equal(outlineText.includes("第 1 部 · 来信"), true);
     assert.equal(outlineText.includes("第 7 章"), true);
-
-    process.stdout.write(`A4N_NONLINEAR_ANALYZED_PROJECT=${freeProjectId}\n`);
   }).timeout(600_000);
 });

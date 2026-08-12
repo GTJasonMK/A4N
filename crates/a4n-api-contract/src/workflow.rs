@@ -1,52 +1,9 @@
+use a4n_domain::progress::ProgressMeta;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::task::TaskProgressSummary;
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ProgressPhaseKind {
-    Prepare,
-    Context,
-    ModelConnect,
-    ModelWait,
-    ModelStream,
-    StructuredOutput,
-    Parse,
-    Validate,
-    Save,
-    AssetGeneration,
-    Transfer,
-    Queue,
-    Cleanup,
-    Complete,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ProgressSeverity {
-    Info,
-    Success,
-    Warning,
-    Error,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ProgressMeta {
-    pub task_kind: String,
-    pub stage_code: String,
-    pub stage_label: String,
-    pub phase_kind: ProgressPhaseKind,
-    pub detail: Option<String>,
-    pub unit_label: Option<String>,
-    pub item_index: Option<u64>,
-    pub item_total: Option<u64>,
-    pub parent_stage_code: Option<String>,
-    pub severity: ProgressSeverity,
-    pub estimated: bool,
-    pub persistent: bool,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct WorkflowProgressEvent {
@@ -74,14 +31,99 @@ pub struct WorkflowStateSummary {
     pub progress_events: Vec<WorkflowProgressEvent>,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct WorkflowRunProgressSummary {
+    pub current: u32,
+    pub total: u32,
+    pub message: String,
+    pub percent: f32,
+    pub meta: Option<ProgressMeta>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct WorkflowRunSummary {
+    pub id: i64,
+    pub business_key: String,
+    pub workflow_kind: String,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+    pub scope_table: Option<String>,
+    pub scope_id: Option<i64>,
+    pub chapter_id: Option<i64>,
+    pub mode: Option<String>,
+    pub input_fingerprint_json: Option<Value>,
+    pub status: String,
+    pub current_step_key: Option<String>,
+    pub progress: Option<WorkflowRunProgressSummary>,
+    pub active_task_id: Option<String>,
+    pub can_resume: bool,
+    pub resume_block_reason: Option<String>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct WorkflowCheckpointSummary {
+    pub id: i64,
+    pub workflow_run_id: i64,
+    pub step_key: String,
+    pub step_order: i32,
+    pub status: String,
+    pub input_fingerprint_sha256: Option<String>,
+    pub input_fingerprint_json: Option<Value>,
+    pub checkpoint_json: Option<Value>,
+    pub artifacts_json: Option<Value>,
+    pub generation_run_ids_json: Option<Value>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GenerationRunSummary {
+    pub id: i64,
+    pub workflow_run_id: Option<i64>,
+    pub workflow: String,
+    pub step_key: String,
+    pub call_key: Option<String>,
+    pub title: String,
+    pub model_kind: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub status: String,
+    pub input_fingerprint_sha256: Option<String>,
+    pub input_fingerprint_json: Option<Value>,
+    pub raw_response_json: Option<Value>,
+    pub parsed_output_json: Option<Value>,
+    pub validation_json: Option<Value>,
+    pub artifact_refs_json: Option<Value>,
+    pub attempt: i32,
+    pub response_summary_json: Option<Value>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct WorkflowRunDetailSummary {
+    pub run: WorkflowRunSummary,
+    pub checkpoints: Vec<WorkflowCheckpointSummary>,
+    pub generation_runs: Vec<GenerationRunSummary>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CancelWorkflowInput {
     pub task_id: Option<String>,
     pub workflow_run_id: Option<i64>,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WorkflowProgressEventsInput {
     pub task_id: Option<String>,
@@ -90,7 +132,26 @@ pub struct WorkflowProgressEventsInput {
     pub limit: usize,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ListWorkflowRunsInput {
+    pub project_id: Option<i64>,
+    pub chapter_id: Option<i64>,
+    pub workflow_kind: Option<String>,
+    pub status: Option<String>,
+    pub resumable_only: bool,
+    #[schemars(range(min = 1, max = 200))]
+    pub limit: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GetWorkflowRunInput {
+    pub workflow_run_id: i64,
+    pub include_generation_runs: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ResumeWorkflowRunInput {
     pub workflow_run_id: i64,

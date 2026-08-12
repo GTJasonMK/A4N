@@ -1,5 +1,8 @@
 use super::contracts::ImportReviewMutationError;
-use a4n_core::models::{chapter::chapter, project::import_review_queue};
+use a4n_core::models::{
+    chapter::chapter::{self, STATUS_IMPORTED},
+    project::import_review_queue,
+};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
@@ -94,32 +97,32 @@ where
         ensure_chapter_not_generating(&existing, "接受导入审核")?;
         let mut active: chapter::ActiveModel = existing.into();
         active.title = Set(Some(title));
-        active.content = Set(content);
-        active.word_count = Set(word_count);
-        active.summary = Set(summary);
-        active.style_tags = Set(None);
-        active.analysis_data = Set(None);
-        active.status = Set("imported".to_string());
-        active.updated_at = Set(now);
+        crate::chapter_content::assign_chapter_content(
+            &mut active,
+            content,
+            word_count,
+            STATUS_IMPORTED,
+            summary,
+            now,
+        );
         active.update(db).await.map_err(Into::into)
     } else {
-        chapter::ActiveModel {
+        let mut active = chapter::ActiveModel {
             project_id: Set(review.project_id),
             outline_id: Set(None),
             chapter_number: Set(chapter_number),
             title: Set(Some(title)),
-            content: Set(content),
-            word_count: Set(word_count),
-            status: Set("imported".to_string()),
-            summary: Set(summary),
-            style_tags: Set(None),
-            analysis_data: Set(None),
             created_at: Set(now),
-            updated_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(Into::into)
+        };
+        crate::chapter_content::assign_chapter_content(
+            &mut active,
+            content,
+            word_count,
+            STATUS_IMPORTED,
+            summary,
+            now,
+        );
+        active.insert(db).await.map_err(Into::into)
     }
 }

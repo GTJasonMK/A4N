@@ -8,33 +8,32 @@ import {
 } from "react";
 import { extractErrorMessage } from "../../api";
 import {
+  CHAPTER_ANALYSIS_PROGRESS_TOTAL,
   generateChapterAnalysis,
   previewChapterAnalysisRequest,
   previewResumeChapterAnalysisSyncRequest,
   resumeChapterAnalysisSync,
-  type ChapterData,
+  type ChapterSummary,
 } from "../../api/chapter";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
-import { cancelWorkflow } from "../../api/streaming";
+import { cancelWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 
 type AddToast = (message: unknown, type: ToastType) => void;
 
-const CHAPTER_ANALYSIS_PROGRESS_TOTAL = 100;
-
 interface UseChapterAnalysisActionsParams {
   projectId: number;
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   activeChapterBusy: boolean;
   activeChapterGeneratingMessage: string;
   analysisBlockedReason: string | null;
   dirtyRef: { current: boolean };
   addToast: AddToast;
-  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterData[] | null>;
+  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
   reloadOutlines: () => Promise<void>;
-  setChapters: Dispatch<SetStateAction<ChapterData[]>>;
+  setChapters: Dispatch<SetStateAction<ChapterSummary[]>>;
   refreshProfiles: () => void;
 }
 
@@ -105,7 +104,7 @@ export function useChapterAnalysisActions({
   }, []);
 
   const requireSavedAnalyzableChapter = useCallback(
-    (operation: "generate" | "resume"): ChapterData | null => {
+    (operation: "generate" | "resume"): ChapterSummary | null => {
       if (!activeChapter) {
         addToast("请先选择已保存的章节", "error");
         return null;
@@ -171,7 +170,7 @@ export function useChapterAnalysisActions({
       const mutation = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: "章节结构化分析",
           startMessage: "正在准备章节分析",
@@ -255,7 +254,7 @@ export function useChapterAnalysisActions({
       const updated = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: "继续章节分析",
           startMessage: "正在准备恢复章节分析",

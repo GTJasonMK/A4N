@@ -1,44 +1,31 @@
+use a4n_api_contract::chapter::UpdateChapterSceneInput;
 use a4n_core::{error::AppError, models::chapter::chapter_scene};
 use a4n_db::project::ProjectChapterSceneUpdateInput;
 use chrono::NaiveDateTime;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ChapterSceneUpdatePatch {
-    pub content: Option<String>,
-    pub title: Option<String>,
-    pub summary: Option<String>,
-    pub scene_type: Option<String>,
-    pub location: Option<String>,
-    pub timeline_position: Option<String>,
-}
-
 pub(crate) fn chapter_scene_update_record_input(
     scene: chapter_scene::Model,
-    patch: ChapterSceneUpdatePatch,
+    input: UpdateChapterSceneInput,
     updated_at: NaiveDateTime,
 ) -> Result<ProjectChapterSceneUpdateInput, AppError> {
     Ok(ProjectChapterSceneUpdateInput {
         scene,
-        content: patch
+        content: input
             .content
             .map(|value| required_updated_text(&value, "场景正文"))
             .transpose()?,
-        title: patch.title.map(|value| trimmed_optional_text(&value)),
-        summary: patch.summary.map(|value| trimmed_optional_text(&value)),
-        scene_type: patch
+        title: input.title.map(|value| trimmed_optional_text(&value)),
+        summary: input.summary.map(|value| trimmed_optional_text(&value)),
+        scene_type: input
             .scene_type
             .map(|value| required_updated_text(&value, "场景类型"))
             .transpose()?,
-        location: patch.location.map(|value| trimmed_optional_text(&value)),
-        timeline_position: patch
+        location: input.location.map(|value| trimmed_optional_text(&value)),
+        timeline_position: input
             .timeline_position
             .map(|value| trimmed_optional_text(&value)),
         updated_at,
     })
-}
-
-pub(crate) fn chapter_scene_reorder_is_noop(order: &[(i64, i32)]) -> bool {
-    order.is_empty()
 }
 
 fn trimmed_optional_text(value: &str) -> Option<String> {
@@ -64,12 +51,14 @@ mod tests {
     fn update_patch_normalizes_nullable_text_and_requires_core_fields() {
         let input = chapter_scene_update_record_input(
             scene(),
-            ChapterSceneUpdatePatch {
+            UpdateChapterSceneInput {
+                scene_id: 1,
                 content: Some("  新正文  ".to_string()),
                 title: Some("   ".to_string()),
+                summary: None,
                 scene_type: Some("  climax  ".to_string()),
                 location: Some("  旧城  ".to_string()),
-                ..Default::default()
+                timeline_position: None,
             },
             now(),
         )
@@ -82,9 +71,14 @@ mod tests {
 
         let error = chapter_scene_update_record_input(
             scene(),
-            ChapterSceneUpdatePatch {
+            UpdateChapterSceneInput {
+                scene_id: 1,
                 content: Some("   ".to_string()),
-                ..Default::default()
+                title: None,
+                summary: None,
+                scene_type: None,
+                location: None,
+                timeline_position: None,
             },
             now(),
         )
@@ -93,12 +87,6 @@ mod tests {
             error,
             AppError::InvalidArgument(message) if message == "场景正文不能为空"
         ));
-    }
-
-    #[test]
-    fn empty_reorder_is_an_explicit_noop() {
-        assert!(chapter_scene_reorder_is_noop(&[]));
-        assert!(!chapter_scene_reorder_is_noop(&[(1, 2)]));
     }
 
     fn scene() -> chapter_scene::Model {

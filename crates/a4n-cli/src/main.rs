@@ -1670,7 +1670,6 @@ async fn run_chapter(
                         "chapter_number": number,
                         "content": content,
                         "title": title,
-                        "manual": false,
                     }
                 }),
             )
@@ -1725,12 +1724,10 @@ async fn run_workflow(
             let chapter_id = chapter_id.or(runtime.context.chapter_id);
             validate_optional_positive(project_id, "project_id")?;
             validate_optional_positive(chapter_id, "chapter_id")?;
-            let user_id = bind_current_user(runtime).await?;
             let value = invoke_host(
                 &mut runtime.client,
                 "list_workflow_runs",
                 json!({
-                    "userId": user_id,
                     "input": {
                         "project_id": project_id,
                         "chapter_id": chapter_id,
@@ -1749,14 +1746,8 @@ async fn run_workflow(
             no_generation_runs,
         } => {
             validate_positive_id(workflow_run_id, "workflow_run_id")?;
-            let user_id = bind_current_user(runtime).await?;
-            let value = workflow_detail(
-                &mut runtime.client,
-                user_id,
-                workflow_run_id,
-                !no_generation_runs,
-            )
-            .await?;
+            let value =
+                workflow_detail(&mut runtime.client, workflow_run_id, !no_generation_runs).await?;
             print_json(&value, output)
         }
         WorkflowCommand::Events {
@@ -1767,19 +1758,15 @@ async fn run_workflow(
             if !(1..=200).contains(&limit) {
                 bail!("--limit 必须在 1 到 200 之间");
             }
-            let user_id = bind_current_user(runtime).await?;
-            let value =
-                workflow_events(&mut runtime.client, user_id, workflow_run_id, limit).await?;
+            let value = workflow_events(&mut runtime.client, workflow_run_id, limit).await?;
             print_json(&value, output)
         }
         WorkflowCommand::Resume { workflow_run_id } => {
             validate_positive_id(workflow_run_id, "workflow_run_id")?;
-            let user_id = bind_current_user(runtime).await?;
             let value = invoke_host(
                 &mut runtime.client,
                 "resume_workflow_run",
                 json!({
-                    "userId": user_id,
                     "input": { "workflow_run_id": workflow_run_id },
                 }),
             )
@@ -1809,12 +1796,10 @@ async fn run_workflow(
             if let Some(task_id) = task_id.as_deref() {
                 validate_non_empty(task_id, "task_id")?;
             }
-            let user_id = bind_current_user(runtime).await?;
             let value = invoke_host(
                 &mut runtime.client,
                 "cancel_workflow",
                 json!({
-                    "userId": user_id,
                     "input": {
                         "workflow_run_id": workflow_run_id,
                         "task_id": task_id,
@@ -1840,10 +1825,8 @@ async fn run_workflow(
             if !(200..=60_000).contains(&interval_ms) {
                 bail!("--interval-ms 必须在 200 到 60000 之间");
             }
-            let user_id = bind_current_user(runtime).await?;
             watch_workflow(
                 &mut runtime.client,
-                user_id,
                 workflow_run_id,
                 interval_ms,
                 timeout_seconds,
@@ -1894,7 +1877,6 @@ fn find_record_by_id<'a>(value: &'a Value, id: i64, label: &str) -> Result<&'a V
 
 async fn workflow_detail(
     client: &mut ApiClient,
-    user_id: i64,
     workflow_run_id: i64,
     include_generation_runs: bool,
 ) -> Result<Value> {
@@ -1902,7 +1884,6 @@ async fn workflow_detail(
         client,
         "get_workflow_run_detail",
         json!({
-            "userId": user_id,
             "input": {
                 "workflow_run_id": workflow_run_id,
                 "include_generation_runs": include_generation_runs,
@@ -1914,7 +1895,6 @@ async fn workflow_detail(
 
 async fn workflow_events(
     client: &mut ApiClient,
-    user_id: i64,
     workflow_run_id: i64,
     limit: u32,
 ) -> Result<Value> {
@@ -1922,7 +1902,6 @@ async fn workflow_events(
         client,
         "get_workflow_progress_events",
         json!({
-            "userId": user_id,
             "input": { "workflow_run_id": workflow_run_id, "limit": limit },
         }),
     )
@@ -1931,7 +1910,6 @@ async fn workflow_events(
 
 async fn watch_workflow(
     client: &mut ApiClient,
-    user_id: i64,
     workflow_run_id: i64,
     interval_ms: u64,
     timeout_seconds: Option<u64>,
@@ -1940,7 +1918,7 @@ async fn watch_workflow(
     let started = std::time::Instant::now();
     let mut seen = HashSet::new();
     loop {
-        let events = workflow_events(client, user_id, workflow_run_id, 200).await?;
+        let events = workflow_events(client, workflow_run_id, 200).await?;
         // 响应是 { events, stream_text }：stream_text 是当前活体信号快照，
         // 无历史语义，watch 只消费去重后的事件列表。
         let items = events
@@ -1969,7 +1947,7 @@ async fn watch_workflow(
                 print_json(event, output)?;
             }
         }
-        let detail = workflow_detail(client, user_id, workflow_run_id, false).await?;
+        let detail = workflow_detail(client, workflow_run_id, false).await?;
         let status = detail
             .pointer("/run/status")
             .and_then(Value::as_str)

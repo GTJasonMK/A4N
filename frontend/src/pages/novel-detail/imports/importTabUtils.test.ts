@@ -44,6 +44,7 @@ describe("import candidate contracts", () => {
         step_key: "reverse_blueprint",
         step_order: 1,
         status: "completed",
+        input_fingerprint_sha256: null,
         input_fingerprint_json: null,
         checkpoint_json: { parsed_output: { title: "旧城星门" } },
         artifacts_json: {
@@ -75,6 +76,7 @@ describe("import candidate contracts", () => {
         step_key: "reverse_part_outline",
         step_order: 1,
         status: "completed",
+        input_fingerprint_sha256: null,
         input_fingerprint_json: null,
         checkpoint_json: { parsed_output: { parts: [] } },
         artifacts_json: {
@@ -118,6 +120,7 @@ describe("import candidate contracts", () => {
           step_key: "reverse_blueprint",
           step_order: 1,
           status: "completed",
+          input_fingerprint_sha256: null,
           input_fingerprint_json: null,
           checkpoint_json: { parsed_output: { title: "旧城星门" } },
           artifacts_json: {

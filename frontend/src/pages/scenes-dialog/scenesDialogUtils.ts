@@ -1,13 +1,6 @@
-import type { ChapterScene } from "../../api/chapter";
+import type { ChapterSceneSummary, UpdateChapterSceneInput } from "../../api/chapter";
 
-export interface SceneEditForm {
-  title?: string | null;
-  content?: string | null;
-  summary?: string | null;
-  scene_type?: string | null;
-  location?: string | null;
-  timeline_position?: string | null;
-}
+export type SceneEditForm = Omit<UpdateChapterSceneInput, "scene_id">;
 
 export const DEFAULT_SCENE_GENERATION_PROMPT =
   "根据前文与章节背景写出下一个场景：聚焦单一时空、人物动机清晰、对话与心理穿插，并自然承接上一场。";
@@ -17,13 +10,13 @@ export const editTextValue = (value: string | null | undefined): string => {
   return value;
 };
 
-export const sortScenes = (scenes: ChapterScene[]): ChapterScene[] =>
+export const sortScenes = (scenes: ChapterSceneSummary[]): ChapterSceneSummary[] =>
   [...scenes].sort((a, b) => a.scene_number - b.scene_number);
 
-export const getNextSceneNumber = (scenes: ChapterScene[]): number =>
+export const getNextSceneNumber = (scenes: ChapterSceneSummary[]): number =>
   scenes.length === 0 ? 1 : Math.max(...scenes.map((scene) => scene.scene_number)) + 1;
 
-export const createSceneEditForm = (scene: ChapterScene): SceneEditForm => ({
+export const createSceneEditForm = (scene: ChapterSceneSummary): SceneEditForm => ({
   title: scene.title,
   content: scene.content,
   summary: scene.summary,

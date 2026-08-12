@@ -2,7 +2,7 @@ use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
-use super::{ChapterContentEditError, EditChapterContentInput};
+use super::{ChapterContentEditError, EditChapterContentInput, assign_chapter_content};
 
 pub async fn save_chapter_content_edit_record<C>(
     db: &C,
@@ -37,12 +37,14 @@ where
 
     let now = Utc::now().naive_utc();
     let mut active: chapter::ActiveModel = chapter.into();
-    active.content = Set(input.content);
-    active.word_count = Set(word_count);
-    active.status = Set(STATUS_DRAFT.to_string());
-    active.summary = Set(None);
-    active.style_tags = Set(None);
-    active.analysis_data = Set(None);
+    assign_chapter_content(
+        &mut active,
+        input.content,
+        word_count,
+        STATUS_DRAFT,
+        None,
+        now,
+    );
     if let Some(title) = input
         .title
         .as_deref()
@@ -51,7 +53,6 @@ where
     {
         active.title = Set(Some(title.to_string()));
     }
-    active.updated_at = Set(now);
     active
         .update(db)
         .await

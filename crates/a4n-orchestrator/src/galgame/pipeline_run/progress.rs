@@ -1,5 +1,4 @@
 use a4n_core::error::AppError;
-use a4n_core::event::progress::{ProgressMeta, ProgressPhaseKind};
 use a4n_db::{
     DbHandle,
     workflow::{
@@ -7,6 +6,7 @@ use a4n_db::{
         workflow_run_model_by_id,
     },
 };
+use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind};
 
 use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
 

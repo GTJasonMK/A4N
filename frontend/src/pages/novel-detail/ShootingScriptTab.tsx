@@ -3,7 +3,7 @@ import { RefreshCw, Save, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 import { extractErrorMessage } from "../../api";
-import type { ChapterData } from "../../api/chapter";
+import type { ChapterSummary } from "../../api/chapter";
 import {
   editChapterShootingScript,
   generateChapterShootingScript,
@@ -18,7 +18,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
-import { cancelWorkflow } from "../../api/streaming";
+import { cancelWorkflowTask } from "../../api/streaming";
 import {
   allocateHostTaskId,
   useProgressTask,
@@ -31,7 +31,7 @@ import { EmptyHint } from "./shared";
 interface ShootingScriptTabProps {
   projectId: number;
   canEdit: boolean;
-  chapter: ChapterData | null;
+  chapter: ChapterSummary | null;
 }
 
 export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
@@ -115,7 +115,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: "生成结构化拍摄剧本",
           startMessage: "正在准备剧本改编",
@@ -151,7 +151,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: "生成下一个拍摄场景",
           startMessage: "正在准备场景改编",

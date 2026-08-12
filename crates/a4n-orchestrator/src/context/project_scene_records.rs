@@ -1,3 +1,4 @@
+use a4n_api_contract::chapter::{ReorderChapterScenesInput, UpdateChapterSceneInput};
 use a4n_core::{error::AppError, models::chapter::chapter_scene};
 use a4n_db::{
     DbHandle,
@@ -9,8 +10,7 @@ use a4n_db::{
 
 use super::OrchestratorContext;
 use crate::project::{
-    ChapterSceneUpdatePatch, chapter_scene_reorder_is_noop, chapter_scene_update_record_input,
-    project_chapter_scene_record_error_to_app_error,
+    chapter_scene_update_record_input, project_chapter_scene_record_error_to_app_error,
     project_chapter_scene_reorder_error_to_app_error,
     project_generated_chapter_scene_save_error_to_app_error,
 };
@@ -110,29 +110,29 @@ impl OrchestratorContext {
         self.project_scene_records.scene_by_id(scene_id).await
     }
 
-    pub async fn update_chapter_scene_validated(
+    async fn update_chapter_scene_validated(
         &self,
         scene: chapter_scene::Model,
-        patch: ChapterSceneUpdatePatch,
+        input: UpdateChapterSceneInput,
     ) -> Result<chapter_scene::Model, AppError> {
         let input =
-            chapter_scene_update_record_input(scene, patch, chrono::Utc::now().naive_utc())?;
+            chapter_scene_update_record_input(scene, input, chrono::Utc::now().naive_utc())?;
         self.project_scene_records.update_scene(input).await
     }
 
     pub async fn update_chapter_scene_for_user_validated(
         &self,
         user_id: i64,
-        scene_id: i64,
-        patch: ChapterSceneUpdatePatch,
+        input: UpdateChapterSceneInput,
     ) -> Result<chapter_scene::Model, AppError> {
+        let scene_id = input.scene_id;
         let scene = self
             .chapter_scene_by_id(scene_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("场景不存在: scene_id={scene_id}")))?;
         self.chapter_for_editor_validated(user_id, scene.chapter_id)
             .await?;
-        self.update_chapter_scene_validated(scene, patch).await
+        self.update_chapter_scene_validated(scene, input).await
     }
 
     pub async fn delete_chapter_scene_validated(&self, scene_id: i64) -> Result<(), AppError> {
@@ -159,40 +159,29 @@ impl OrchestratorContext {
         self.delete_chapter_scene_validated(scene_id).await
     }
 
-    pub async fn chapter_scene_reorder_scope_validated(
+    async fn chapter_scene_reorder_scope_validated(
         &self,
         input: ProjectChapterSceneReorderInput,
-    ) -> Result<Option<ProjectChapterSceneReorderScope>, AppError> {
-        if chapter_scene_reorder_is_noop(&input.order) {
-            return Ok(None);
-        }
-        self.project_scene_records
-            .reorder_scope(input)
-            .await
-            .map(Some)
+    ) -> Result<ProjectChapterSceneReorderScope, AppError> {
+        self.project_scene_records.reorder_scope(input).await
     }
 
-    pub async fn reorder_chapter_scenes_validated(
+    async fn reorder_chapter_scenes_validated(
         &self,
         input: ProjectChapterSceneReorderInput,
     ) -> Result<Vec<chapter_scene::Model>, AppError> {
-        if chapter_scene_reorder_is_noop(&input.order) {
-            return Ok(Vec::new());
-        }
         self.project_scene_records.reorder_scenes(input).await
     }
 
     pub async fn reorder_chapter_scenes_for_user_validated(
         &self,
         user_id: i64,
-        input: ProjectChapterSceneReorderInput,
+        input: ReorderChapterScenesInput,
     ) -> Result<Vec<chapter_scene::Model>, AppError> {
-        let Some(scope) = self
+        let input = ProjectChapterSceneReorderInput { order: input.order };
+        let scope = self
             .chapter_scene_reorder_scope_validated(input.clone())
-            .await?
-        else {
-            return Ok(Vec::new());
-        };
+            .await?;
         self.verify_project_permission(
             scope.project_id,
             user_id,

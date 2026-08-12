@@ -1,5 +1,5 @@
 use super::*;
-use crate::event::progress::ProgressPhaseKind;
+use a4n_domain::progress::ProgressPhaseKind;
 use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::Arc;

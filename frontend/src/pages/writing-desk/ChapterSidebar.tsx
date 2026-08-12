@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
-import { type ChapterData } from "../../api/chapter";
+import { type ChapterSummary } from "../../api/chapter";
 import {
   chapterOutlineSourceLabel,
   isDerivedChapterOutline,
@@ -14,7 +14,7 @@ import { countChapterBodyCharacters } from "./wordCount";
 
 interface ChapterSidebarProps {
   projectId: number;
-  chapters: ChapterData[];
+  chapters: ChapterSummary[];
   outlines: ChapterOutline[];
   chapterNumbers: number[];
   filteredChapterNumbers: number[];
@@ -33,7 +33,7 @@ interface ChapterSidebarProps {
 }
 
 const chapterTitle = (
-  chapter: ChapterData | undefined,
+  chapter: ChapterSummary | undefined,
   outline: ChapterOutline | undefined,
 ): string | null => {
   const chapterTitle = chapter?.title?.trim();

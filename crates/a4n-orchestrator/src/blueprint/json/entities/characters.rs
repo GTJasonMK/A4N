@@ -8,7 +8,20 @@ use entry::parse_character_entry;
 pub(in crate::blueprint::json) fn parse_characters(
     items: &[Value],
 ) -> Result<Vec<ParsedBlueprintCharacter>, AppError> {
-    if items.len() < 3 {
+    parse_characters_with_minimum(items, 3)
+}
+
+pub(in crate::blueprint::json) fn parse_sparse_characters(
+    items: &[Value],
+) -> Result<Vec<ParsedBlueprintCharacter>, AppError> {
+    parse_characters_with_minimum(items, 0)
+}
+
+fn parse_characters_with_minimum(
+    items: &[Value],
+    minimum: usize,
+) -> Result<Vec<ParsedBlueprintCharacter>, AppError> {
+    if items.len() < minimum {
         return Err(AppError::InvalidArgument(
             "blueprint.characters 至少需要 3 个角色".to_string(),
         ));

@@ -1,6 +1,22 @@
-use crate::workflow::ProgressMeta;
+use a4n_domain::progress::ProgressMeta;
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CancelTaskInput {
+    #[schemars(length(min = 1, max = 160))]
+    pub task_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GetTaskHistoryInput {
+    pub project_id: Option<i64>,
+    pub offset: u64,
+    #[schemars(range(min = 1))]
+    pub limit: u64,
+}
 
 #[derive(Serialize, JsonSchema)]
 pub struct TaskProgressSummary {

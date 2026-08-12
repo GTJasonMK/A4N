@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { Eye, Search, Send, ShieldCheck, Square, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 import type { ProposeOptimizationPatchesResponse } from "../../../api/optimize";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
@@ -9,7 +9,7 @@ import { isImeCompositionActive } from "../../../utils/ime";
 import { PendingPatchProposalPanel } from "./PendingPatchProposalPanel";
 
 interface OptimizeComposerProps {
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   automaticWriteback: boolean;
   canProposePatches: boolean;
   cancellingOptimize: boolean;

@@ -1,8 +1,8 @@
 use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::task::{QueueStatsSummary, TaskInfoSummary};
 use a4n_orchestrator::workflow::{validate_optional_project_id, validate_task_history_limit};
 
 use super::super::{
-    QueueStatsSummary, TaskInfoSummary,
     access::{require_admin_for_unscoped_task, verify_task_access, verify_task_history_access},
     projections::{queue_stats_summary, task_info_summary},
 };

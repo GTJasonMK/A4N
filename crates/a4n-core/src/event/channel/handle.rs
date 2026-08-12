@@ -1,5 +1,5 @@
 use super::*;
-use crate::event::progress::ProgressMeta;
+use a4n_domain::progress::ProgressMeta;
 use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::Arc;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChapterData } from "../../api/chapter";
+import type { ChapterSummary } from "../../api/chapter";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../components/feedback/Toast";
 import {
@@ -13,7 +13,7 @@ import { formatUiDateTime } from "../../utils/dateTime";
 
 type AddToast = (message: unknown, type: ToastType) => void;
 
-const chapterContentForEditor = (chapter: ChapterData | null): string => {
+const chapterContentForEditor = (chapter: ChapterSummary | null): string => {
   if (chapter == null) return "";
   return chapter.content;
 };
@@ -21,7 +21,7 @@ const chapterContentForEditor = (chapter: ChapterData | null): string => {
 interface UseWritingDeskDraftsParams {
   projectIdKey: string;
   activeNumber: number | null;
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   addToast: AddToast;
 }
 

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
-import { listChapters, type ChapterData } from "../../api/chapter";
+import { listChapters, type ChapterSummary } from "../../api/chapter";
 import { listForeshadowing, type Foreshadowing } from "../../api/foreshadowing";
 import { ForeshadowingIndexCard } from "./story-events/ForeshadowingIndexCard";
 import { StoryEventsListCard } from "./story-events/StoryEventsListCard";
@@ -28,7 +28,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
 }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const [chapters, setChapters] = useState<ChapterData[]>([]);
+  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [foreshadowing, setForeshadowing] = useState<Foreshadowing[]>([]);
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);

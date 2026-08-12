@@ -6,7 +6,7 @@ import { ChevronDown,
   Pencil,
   Trash2, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
-import type { ChapterScene } from "../../api/chapter";
+import type { ChapterSceneSummary } from "../../api/chapter";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { nonEmptyText } from "../../utils/text";
 import { SceneEditForm } from "./SceneEditForm";
@@ -15,19 +15,19 @@ import type { SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
 interface SceneListProps {
   loading: boolean;
   loadError: string | null;
-  scenes: ChapterScene[];
+  scenes: ChapterSceneSummary[];
   expanded: Set<number>;
   editingId: number | null;
   editForm: SceneEditFormState;
   saving: boolean;
   actingKeys: Set<string>;
   onToggleExpand: (sceneId: number) => void;
-  onStartEdit: (scene: ChapterScene) => void;
+  onStartEdit: (scene: ChapterSceneSummary) => void;
   onCancelEdit: () => void;
   onEditFormChange: (patch: Partial<SceneEditFormState>) => void;
   onSave: () => void;
-  onMove: (scene: ChapterScene, direction: -1 | 1) => void;
-  onDelete: (scene: ChapterScene) => void;
+  onMove: (scene: ChapterSceneSummary, direction: -1 | 1) => void;
+  onDelete: (scene: ChapterSceneSummary) => void;
 }
 
 export const SceneList: React.FC<SceneListProps> = ({
@@ -98,7 +98,7 @@ export const SceneList: React.FC<SceneListProps> = ({
 };
 
 interface SceneListItemProps {
-  scene: ChapterScene;
+  scene: ChapterSceneSummary;
   isExpanded: boolean;
   isEditing: boolean;
   isFirst: boolean;
@@ -107,12 +107,12 @@ interface SceneListItemProps {
   saving: boolean;
   actingKeys: Set<string>;
   onToggleExpand: (sceneId: number) => void;
-  onStartEdit: (scene: ChapterScene) => void;
+  onStartEdit: (scene: ChapterSceneSummary) => void;
   onCancelEdit: () => void;
   onEditFormChange: (patch: Partial<SceneEditFormState>) => void;
   onSave: () => void;
-  onMove: (scene: ChapterScene, direction: -1 | 1) => void;
-  onDelete: (scene: ChapterScene) => void;
+  onMove: (scene: ChapterSceneSummary, direction: -1 | 1) => void;
+  onDelete: (scene: ChapterSceneSummary) => void;
 }
 
 const SceneListItem: React.FC<SceneListItemProps> = ({

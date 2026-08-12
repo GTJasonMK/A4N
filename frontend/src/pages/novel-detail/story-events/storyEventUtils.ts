@@ -1,4 +1,4 @@
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 import {
   analysisTextList,
   analysisTextValue,
@@ -35,10 +35,10 @@ const eventDescription = (raw: unknown): string => {
   return firstAnalysisText(record, ["description", "summary", "event", "title"]);
 };
 
-const chapterTitle = (chapter: ChapterData): string =>
+const chapterTitle = (chapter: ChapterSummary): string =>
   chapter.title?.trim() || `第 ${chapter.chapter_number} 章`;
 
-const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterData): string => {
+const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterSummary): string => {
   const summaries = asRecord(analysis?.summaries);
   return (
     firstAnalysisText(summaries, ["compressed", "summary", "short"]) ||
@@ -69,7 +69,7 @@ const sectionSearchText = (section: ChapterStorySection): string =>
     section.keywords.join(" "),
   ].join(" ");
 
-export const extractChapterStorySection = (chapter: ChapterData): ChapterStorySection => {
+export const extractChapterStorySection = (chapter: ChapterSummary): ChapterStorySection => {
   const analysis = asRecord(chapter.analysis_data);
   const metadata = asRecord(analysis?.metadata);
   const summaries = asRecord(analysis?.summaries);

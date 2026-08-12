@@ -458,6 +458,7 @@ name = "a4n-queue"
 version = "0.1.0"
 dependencies = [
  "a4n-core",
+ "a4n-domain",
  "anyhow",
  "async-trait",
  "chrono",

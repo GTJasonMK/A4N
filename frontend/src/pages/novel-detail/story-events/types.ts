@@ -1,4 +1,4 @@
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 
 export interface StoryEvent {
   id: string;
@@ -12,7 +12,7 @@ export interface StoryEvent {
 }
 
 export interface ChapterStorySection {
-  chapter: ChapterData;
+  chapter: ChapterSummary;
   title: string;
   summary: string;
   timelineMarker: string;

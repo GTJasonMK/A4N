@@ -29,7 +29,7 @@ import {
 } from "../../api/import";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
-  cancelWorkflow,
+  cancelWorkflowTask,
   getWorkflowRunDetail,
   listWorkflowRuns,
 } from "../../api/streaming";
@@ -961,7 +961,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       const result = await runReverseProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: writesFormalBlueprint
             ? "依据当前资料归纳正式蓝图"

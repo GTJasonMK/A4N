@@ -162,7 +162,6 @@ mod status;
 mod video_studio_package;
 mod video_studio_transfer;
 
-pub use chapter_scene_rules::ChapterSceneUpdatePatch;
 pub use duplication::{
     BranchProjectApplicationInput, DuplicateProjectApplicationInput, ProjectDuplicationHostPort,
 };
@@ -223,9 +222,7 @@ pub use video_studio_transfer::{
     VideoStudioProjectTransferError, VideoStudioProjectTransferHostPort,
 };
 
-pub(crate) use chapter_scene_rules::{
-    chapter_scene_reorder_is_noop, chapter_scene_update_record_input,
-};
+pub(crate) use chapter_scene_rules::chapter_scene_update_record_input;
 pub(crate) use chapters::{
     is_character_sync_available_chapter, validate_chapter_generation_number,
 };

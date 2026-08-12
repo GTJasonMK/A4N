@@ -318,19 +318,6 @@ fn task_and_workflow_terminal_states_use_stable_exit_codes() {
         );
     }
 
-    let user = json!({
-        "id": 7,
-        "username": "agent",
-        "email": "agent@example.test",
-        "role": "user",
-        "oauth_provider": null,
-        "oauth_subject": null,
-        "avatar_url": null,
-        "is_active": true,
-        "created_at": null,
-        "updated_at": null,
-        "last_login_at": null
-    });
     for (status, expected_code, expected_error) in [
         ("failed", 8, "workflow_failed"),
         ("cancelled", 9, "workflow_cancelled"),
@@ -339,7 +326,6 @@ fn task_and_workflow_terminal_states_use_stable_exit_codes() {
         ("mystery", 8, "workflow_contract_invalid"),
     ] {
         let (server, server_thread) = spawn_json_replies(vec![
-            user.clone(),
             json!({"events": []}),
             json!({"run": {"status": status}}),
         ]);
@@ -351,13 +337,12 @@ fn task_and_workflow_terminal_states_use_stable_exit_codes() {
         assert_eq!(output.status.code(), Some(expected_code));
         assert_eq!(agent_error(&output)["error"]["code"], expected_error);
         let requests = server_thread.join().unwrap();
-        assert_eq!(requests.len(), 3);
-        assert!(requests[0].starts_with("POST /api/commands/get_current_user "));
-        assert!(requests[1].starts_with("POST /api/commands/get_workflow_progress_events "));
-        assert!(requests[2].starts_with("POST /api/commands/get_workflow_run_detail "));
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].starts_with("POST /api/commands/get_workflow_progress_events "));
+        assert!(requests[1].starts_with("POST /api/commands/get_workflow_run_detail "));
     }
 
-    let (server, server_thread) = spawn_json_replies(vec![user, json!({"unexpected": "object"})]);
+    let (server, server_thread) = spawn_json_replies(vec![json!({"unexpected": "object"})]);
     write_config(&config, &server);
     let output = cli(&temp, &config)
         .args(["workflow", "watch", "31", "--interval-ms", "200"])
@@ -368,5 +353,5 @@ fn task_and_workflow_terminal_states_use_stable_exit_codes() {
         agent_error(&output)["error"]["code"],
         "workflow_contract_invalid"
     );
-    assert_eq!(server_thread.join().unwrap().len(), 2);
+    assert_eq!(server_thread.join().unwrap().len(), 1);
 }

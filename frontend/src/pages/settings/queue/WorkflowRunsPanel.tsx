@@ -3,7 +3,10 @@ import { ChevronDown,
   ChevronRight,
   RefreshCw, } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { WorkflowRun, WorkflowRunDetail } from "../../../api/streaming";
+import type {
+  WorkflowRunDetailSummary,
+  WorkflowRunSummary,
+} from "../../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import {
@@ -18,14 +21,14 @@ const PANEL_RESUMABLE_WORKFLOW_KINDS = new Set([
 ]);
 
 interface WorkflowRunsPanelProps {
-  runs: WorkflowRun[];
+  runs: WorkflowRunSummary[];
   loading: boolean;
   resumingRunIds: ReadonlySet<number>;
   expandedRunIds: ReadonlySet<number>;
   loadingDetailRunIds: ReadonlySet<number>;
-  details: ReadonlyMap<number, WorkflowRunDetail>;
-  onResume: (run: WorkflowRun) => void;
-  onToggleDetail: (run: WorkflowRun) => void;
+  details: ReadonlyMap<number, WorkflowRunDetailSummary>;
+  onResume: (run: WorkflowRunSummary) => void;
+  onToggleDetail: (run: WorkflowRunSummary) => void;
 }
 
 export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
@@ -75,13 +78,13 @@ export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
 );
 
 const WorkflowRunRow: React.FC<{
-  run: WorkflowRun;
+  run: WorkflowRunSummary;
   resuming: boolean;
   expanded: boolean;
   detailLoading: boolean;
-  detail?: WorkflowRunDetail;
-  onResume: (run: WorkflowRun) => void;
-  onToggleDetail: (run: WorkflowRun) => void;
+  detail?: WorkflowRunDetailSummary;
+  onResume: (run: WorkflowRunSummary) => void;
+  onToggleDetail: (run: WorkflowRunSummary) => void;
 }> = ({
   run,
   resuming,
@@ -193,7 +196,7 @@ const WorkflowRunRow: React.FC<{
 };
 
 const WorkflowRunDetailBlock: React.FC<{
-  detail?: WorkflowRunDetail;
+  detail?: WorkflowRunDetailSummary;
   loading: boolean;
 }> = ({ detail, loading }) => {
   if (loading && !detail) {
@@ -265,7 +268,7 @@ const WorkflowRunDetailBlock: React.FC<{
   );
 };
 
-const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetail }> = ({ detail }) => (
+const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = ({ detail }) => (
   <details className="text-caption text-book-text-muted">
     <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
       诊断信息

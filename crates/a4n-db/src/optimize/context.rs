@@ -163,12 +163,13 @@ where
     C: ConnectionTrait,
 {
     let mut active: chapter::ActiveModel = input.chapter.into();
-    active.content = Set(input.content);
-    active.word_count = Set(input.word_count);
-    active.status = Set("draft".to_string());
-    active.summary = Set(None);
-    active.style_tags = Set(None);
-    active.analysis_data = Set(None);
-    active.updated_at = Set(chrono::Utc::now().naive_utc());
+    crate::chapter_content::assign_chapter_content(
+        &mut active,
+        input.content,
+        input.word_count,
+        chapter::STATUS_DRAFT,
+        None,
+        chrono::Utc::now().naive_utc(),
+    );
     active.update(db).await.map_err(OptimizeDbError::Database)
 }

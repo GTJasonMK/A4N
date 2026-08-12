@@ -8,7 +8,7 @@ import {
 } from "react";
 import { extractErrorMessage } from "../../../api";
 import { listChapters } from "../../../api/chapter";
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 import {
   getOptimizeSession,
   listOptimizePatchSets,
@@ -46,7 +46,7 @@ export function useOptimizeSessionState({
   setPendingPatchState,
   clearPendingPatchState,
 }: UseOptimizeSessionStateParams) {
-  const [chapters, setChapters] = useState<ChapterData[]>([]);
+  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [sessions, setSessions] = useState<OptimizeSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedChapter, setSelectedChapterState] = useState<number | "">(

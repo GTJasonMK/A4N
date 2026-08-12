@@ -49,6 +49,17 @@ fn rejects_thin_world_setting_schema() {
 }
 
 #[test]
+fn forward_blueprint_still_requires_complete_world_arrays() {
+    let mut value: serde_json::Value = serde_json::from_str(&valid_blueprint()).unwrap();
+    value["world_setting"]["factions"] = json!([]);
+
+    let err = parse_blueprint_json(&value.to_string(), 30)
+        .expect_err("forward blueprint must keep the complete-world contract");
+
+    assert!(err.to_string().contains("world_setting.factions"));
+}
+
+#[test]
 fn rejects_character_without_rich_arc_stages() {
     let raw =
         valid_blueprint().replace(r#""core_wound":"妹妹失踪时自己选择遵守流程而非救人","#, "");

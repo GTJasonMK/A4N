@@ -1,38 +1,21 @@
 use serde_json::Value;
 
-use crate::blueprint::BLUEPRINT_GENERATION_STAGES;
-
-fn validate_stage_payload(stage_key: &str, payload: Value) -> Result<(), String> {
-    let spec = BLUEPRINT_GENERATION_STAGES
-        .iter()
-        .find(|spec| spec.key == stage_key)
-        .ok_or_else(|| format!("未知蓝图生成阶段: {stage_key}"))?;
-    (spec.validate)(&payload).map_err(|err| err.to_string())
-}
+use crate::blueprint::validate_sparse_blueprint_sections;
 
 pub(in crate::import_reverse::application::apply) fn validate_reverse_blueprint_sections(
     data: &Value,
     world_setting: &Value,
 ) -> Result<(), String> {
-    validate_stage_payload(
-        "world",
-        serde_json::json!({ "world_setting": world_setting }),
-    )?;
     let characters = data
         .get("characters")
-        .ok_or_else(|| "reverse_blueprint 缺少必填数组字段 characters".to_string())?;
-    validate_stage_payload(
-        "characters",
-        serde_json::json!({ "characters": characters }),
-    )?;
+        .and_then(Value::as_array)
+        .ok_or_else(|| "reverse_blueprint.characters 必须是数组".to_string())?;
     let relationships = data
         .get("relationships")
-        .ok_or_else(|| "reverse_blueprint 缺少必填数组字段 relationships".to_string())?;
-    validate_stage_payload(
-        "relationships",
-        serde_json::json!({ "relationships": relationships }),
-    )?;
-    Ok(())
+        .and_then(Value::as_array)
+        .ok_or_else(|| "reverse_blueprint.relationships 必须是数组".to_string())?;
+    validate_sparse_blueprint_sections(world_setting, characters, relationships)
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

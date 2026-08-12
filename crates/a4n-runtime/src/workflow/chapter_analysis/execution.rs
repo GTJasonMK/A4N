@@ -3,24 +3,7 @@ use a4n_core::models::chapter::chapter;
 use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
-use crate::{actions::access, state::AppState};
-
-pub async fn generate_and_sync_chapter_analysis_with_progress(
-    state: &AppState,
-    user_id: i64,
-    chapter_id: i64,
-    progress: Option<&ChapterAnalysisProgress<'_>>,
-) -> Result<chapter::Model, String> {
-    let chapter = state
-        .orchestrator()
-        .preflight_chapter_analysis_validated(chapter_id, false)
-        .await
-        .map_err(|error| error.to_string())?;
-    access::verify_project_editor(state, user_id, chapter.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    run_chapter_analysis_application(state, chapter_id, progress).await
-}
+use crate::state::AppState;
 
 pub(super) async fn run_chapter_analysis_application(
     state: &AppState,

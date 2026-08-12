@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 import type { OptimizeSession, OptimizeTurn } from "../../../api/optimize";
 import {
   chapterOptionLabel,
@@ -12,7 +12,7 @@ import {
 } from "./optimizeTabUtils";
 
 interface UseOptimizeStreamItemsParams {
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   activeSession: OptimizeSession | null;
   activeSessionId: number | null;
   isPinned: boolean;

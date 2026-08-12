@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::chapter::{CHAPTER_SCENE_PROGRESS_TOTAL, GenerateChapterSceneInput};
 use a4n_core::{error::AppError, models::chapter::chapter_scene};
 use a4n_llm::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
@@ -14,9 +15,9 @@ use crate::{
 use super::{
     context::build_scene_generation_context,
     contracts::{
-        ChapterSceneGenerationApplicationInput, ChapterSceneGenerationInput,
-        ChapterSceneGenerationResult, ChapterSceneProgressReporter, ChapterSceneRequestPreview,
-        ChapterSceneTaskScope, PreparedChapterSceneGeneration, RequiredChapterSceneGenerationInput,
+        ChapterSceneGenerationInput, ChapterSceneGenerationResult, ChapterSceneProgressReporter,
+        ChapterSceneRequestPreview, PreparedChapterSceneGeneration,
+        RequiredChapterSceneGenerationInput,
     },
     output::{normalize_scene_generation_output, restored_chapter_scene_checkpoint},
     request::{
@@ -29,7 +30,7 @@ impl OrchestratorContext {
     async fn chapter_scene_generation_input_for_user(
         &self,
         user_id: i64,
-        input: ChapterSceneGenerationApplicationInput,
+        input: GenerateChapterSceneInput,
     ) -> Result<ChapterSceneGenerationInput, AppError> {
         let chapter = self
             .chapter_for_editor_validated(user_id, input.chapter_id)
@@ -41,21 +42,22 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn chapter_scene_task_scope_for_user_validated(
+    pub async fn chapter_scene_project_id_for_user_validated(
         &self,
         user_id: i64,
-        input: &ChapterSceneGenerationApplicationInput,
-    ) -> Result<ChapterSceneTaskScope, AppError> {
+        input: &GenerateChapterSceneInput,
+    ) -> Result<i64, AppError> {
         let input = self
             .chapter_scene_generation_input_for_user(user_id, input.clone())
             .await?;
-        self.chapter_scene_task_scope_validated(&input).await
+        required_scene_generation_input(&input)?;
+        Ok(input.chapter.project_id)
     }
 
     pub async fn prepare_chapter_scene_request_preview_for_user_validated(
         &self,
         user_id: i64,
-        input: ChapterSceneGenerationApplicationInput,
+        input: GenerateChapterSceneInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChapterSceneRequestPreview, AppError> {
         let input = self
@@ -68,7 +70,7 @@ impl OrchestratorContext {
     pub async fn generate_chapter_scene_for_user_validated(
         &self,
         user_id: i64,
-        input: ChapterSceneGenerationApplicationInput,
+        input: GenerateChapterSceneInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
         active_task_id: Option<&str>,
@@ -80,18 +82,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_scene_task_scope_validated(
-        &self,
-        input: &ChapterSceneGenerationInput,
-    ) -> Result<ChapterSceneTaskScope, AppError> {
-        required_scene_generation_input(input)?;
-        Ok(ChapterSceneTaskScope {
-            project_id: input.chapter.project_id,
-            total: 4,
-        })
-    }
-
-    pub async fn prepare_chapter_scene_request_preview_validated(
+    async fn prepare_chapter_scene_request_preview_validated(
         &self,
         input: ChapterSceneGenerationInput,
         prompt_renderer: &dyn PromptRenderer,
@@ -105,19 +96,19 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn generate_chapter_scene_validated(
+    async fn generate_chapter_scene_validated(
         &self,
         input: ChapterSceneGenerationInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
         active_task_id: Option<&str>,
     ) -> Result<chapter_scene::Model, AppError> {
-        progress(0, 4, "正在读取章节和场景参数")?;
+        progress(0, CHAPTER_SCENE_PROGRESS_TOTAL, "正在读取章节和场景参数")?;
         let prepared = self
             .prepare_chapter_scene_generation(input, prompt_renderer)
             .await?;
-        progress(1, 4, "正在构造场景生成提示词")?;
-        progress(2, 4, "正在调用模型生成场景正文")?;
+        progress(1, CHAPTER_SCENE_PROGRESS_TOTAL, "正在构造场景生成提示词")?;
+        progress(2, CHAPTER_SCENE_PROGRESS_TOTAL, "正在调用模型生成场景正文")?;
 
         let (workflow_input, workflow_fingerprint) = chapter_scene_workflow_run_input(
             prepared.project_id,
@@ -212,7 +203,7 @@ impl OrchestratorContext {
                 progress,
             )
             .await?;
-        progress(3, 4, "模型已返回，正在保存场景")?;
+        progress(3, CHAPTER_SCENE_PROGRESS_TOTAL, "模型已返回，正在保存场景")?;
         let scene = self
             .save_generated_chapter_scene_record(ProjectGeneratedChapterSceneSaveInput {
                 chapter_id: prepared.chapter_id,
@@ -220,7 +211,11 @@ impl OrchestratorContext {
                 content,
             })
             .await?;
-        progress(4, 4, "场景已保存")?;
+        progress(
+            CHAPTER_SCENE_PROGRESS_TOTAL,
+            CHAPTER_SCENE_PROGRESS_TOTAL,
+            "场景已保存",
+        )?;
         Ok(scene)
     }
 
@@ -246,7 +241,11 @@ impl OrchestratorContext {
             .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &fingerprint_json)
             .await?
         {
-            progress(3, 4, "场景正文已从断点恢复，正在保存场景")?;
+            progress(
+                3,
+                CHAPTER_SCENE_PROGRESS_TOTAL,
+                "场景正文已从断点恢复，正在保存场景",
+            )?;
             let checkpoint_json =
                 workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
                     .map_err(workflow_checkpoint_contract_app_error)?;

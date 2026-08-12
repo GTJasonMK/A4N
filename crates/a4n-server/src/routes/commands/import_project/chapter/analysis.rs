@@ -4,28 +4,9 @@ use crate::routes::commands::{
     web_fire_and_forget_progress_reporter, web_stream_reporter,
 };
 use crate::state::ServerState;
+use a4n_api_contract::chapter::{CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisInput};
 use a4n_core::event::channel::TaskKind;
 use serde_json::Value;
-
-async fn chapter_summary_value(
-    state: &ServerState,
-    chapter: a4n_core::models::chapter::chapter::Model,
-) -> Result<Value, ApiError> {
-    let summary = a4n_runtime::host_api::chapter_content::chapter_summary_with_sync_state(
-        state.runtime(),
-        &chapter,
-    )
-    .await
-    .map_err(|error| ApiError::bad_request(error.to_string()))?;
-    to_value(summary)
-}
-
-async fn chapter_analysis_mutation_value(
-    _state: &ServerState,
-    result: a4n_runtime::workflow::ChapterAnalysisMutationResult,
-) -> Result<Value, ApiError> {
-    to_value(result)
-}
 
 macro_rules! chapter_analysis_web_task_command {
     (
@@ -33,17 +14,14 @@ macro_rules! chapter_analysis_web_task_command {
         $command_name:expr,
         $preflight:path,
         $run:path,
-        $start_message:expr,
-        $success_message:expr,
-        $response:path $(,)?
+        $start_message:expr $(,)?
     ) => {
         pub(in crate::routes::commands) async fn $name(
             state: &ServerState,
             user_id: i64,
             args: &Value,
         ) -> Result<Value, ApiError> {
-            let input: a4n_runtime::workflow::GenerateChapterAnalysisInput =
-                command_input(args, $command_name)?;
+            let input: ChapterAnalysisInput = command_input(args, $command_name)?;
             let ch = $preflight(state.runtime(), user_id, input.chapter_id)
                 .await
                 .map_err(ApiError::bad_request)?;
@@ -54,7 +32,7 @@ macro_rules! chapter_analysis_web_task_command {
                 task_id.clone(),
                 TaskKind::LlmCall,
                 ch.project_id,
-                a4n_runtime::workflow::CHAPTER_ANALYSIS_PROGRESS_TOTAL,
+                CHAPTER_ANALYSIS_PROGRESS_TOTAL,
                 $start_message,
             );
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
@@ -76,7 +54,7 @@ macro_rules! chapter_analysis_web_task_command {
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
             )?;
-            $response(state, value).await
+            to_value(value)
         }
     };
 }
@@ -88,8 +66,7 @@ macro_rules! chapter_analysis_web_preview_command {
             user_id: i64,
             args: &Value,
         ) -> Result<Value, ApiError> {
-            let input: a4n_runtime::workflow::GenerateChapterAnalysisInput =
-                command_input(args, $command_name)?;
+            let input: ChapterAnalysisInput = command_input(args, $command_name)?;
             let preview = $preview(state.runtime(), user_id, input.chapter_id)
                 .await
                 .map_err(ApiError::bad_request)?;
@@ -104,8 +81,6 @@ chapter_analysis_web_task_command!(
     a4n_runtime::workflow::preflight_generate_chapter_analysis,
     a4n_runtime::workflow::generate_chapter_analysis_with_progress,
     "正在准备章节结构化分析",
-    "章节结构化分析完成",
-    chapter_analysis_mutation_value,
 );
 
 chapter_analysis_web_preview_command!(
@@ -120,8 +95,6 @@ chapter_analysis_web_task_command!(
     a4n_runtime::workflow::preflight_resume_chapter_analysis_sync,
     a4n_runtime::workflow::resume_chapter_analysis_sync_with_progress,
     "正在准备继续同步章节分析",
-    "章节分析派生数据已继续同步",
-    chapter_summary_value,
 );
 
 chapter_analysis_web_preview_command!(

@@ -19,7 +19,7 @@ import {
   type CharacterProfile,
 } from "../api/character";
 import type { ModelRequestPreview } from "../api/requestPreview";
-import { cancelWorkflow } from "../api/streaming";
+import { cancelWorkflowTask } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
@@ -337,7 +337,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         const rows = await runProgressTask(
           {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
             title: "角色一致性检查",
             startMessage: "正在准备角色一致性检查",
@@ -476,7 +476,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: `同步角色 · ${requestName}`,
           startMessage: "正在准备角色同步",

@@ -11,10 +11,11 @@ import {
   previewChapterSceneRequest,
   reorderChapterScenes,
   updateChapterScene,
-  type ChapterScene,
+  CHAPTER_SCENE_PROGRESS_TOTAL,
+  type ChapterSceneSummary,
 } from "../api/chapter";
 import type { ModelRequestPreview } from "../api/requestPreview";
-import { cancelWorkflow } from "../api/streaming";
+import { cancelWorkflowTask } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
@@ -44,7 +45,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   aiActionBlockedReason,
 }) => {
   const { addToast } = useToast();
-  const [scenes, setScenes] = useState<ChapterScene[]>([]);
+  const [scenes, setScenes] = useState<ChapterSceneSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -209,7 +210,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     });
   };
 
-  const startEdit = (s: ChapterScene) => {
+  const startEdit = (s: ChapterSceneSummary) => {
     setEditingId(s.id);
     setEditForm(createSceneEditForm(s));
     setExpanded((prev) => new Set(prev).add(s.id));
@@ -276,13 +277,13 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       const s = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: `生成场景 ${nextNumber}`,
           startMessage: "正在准备场景生成",
           successMessage: "场景已生成",
           errorMessage: "生成场景失败",
-          total: 4,
+          total: CHAPTER_SCENE_PROGRESS_TOTAL,
           cancelLabel: "停止生成",
           runningHint: "场景生成停止后，已经保存的场景会保留",
         },
@@ -349,7 +350,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     }
   };
 
-  const handleDelete = async (s: ChapterScene) => {
+  const handleDelete = async (s: ChapterSceneSummary) => {
     if (chapterId == null) return;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
@@ -387,7 +388,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     }
   };
 
-  const handleMove = async (s: ChapterScene, dir: -1 | 1) => {
+  const handleMove = async (s: ChapterSceneSummary, dir: -1 | 1) => {
     if (chapterId == null) return;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;

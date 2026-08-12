@@ -1,11 +1,11 @@
 import { useDeferredValue, useMemo } from "react";
-import type { ChapterData } from "../../api/chapter";
+import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import type { ChapterRow } from "../novel-detail/shared";
 
 interface UseWritingDeskChapterDerivedStateParams {
-  chapters: ChapterData[];
+  chapters: ChapterSummary[];
   outlines: ChapterOutline[];
   activeNumber: number | null;
   chapterQuery: string;

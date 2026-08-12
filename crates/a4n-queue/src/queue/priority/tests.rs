@@ -77,21 +77,6 @@ fn task_status_storage_keeps_terminal_payload_contracts() {
 }
 
 #[test]
-fn task_progress_percent_handles_zero_and_ratio() {
-    let mut progress = TaskProgress {
-        current: 3,
-        total: 0,
-        message: "等待".to_string(),
-        meta: None,
-        updated_at: None,
-    };
-    assert_eq!(progress.percent(), 0.0);
-
-    progress.total = 4;
-    assert_eq!(progress.percent(), 0.75);
-}
-
-#[test]
 fn task_permit_reports_complete_fail_and_implicit_drop() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let record = |events: Arc<Mutex<Vec<TaskStatus>>>| {

@@ -1,0 +1,77 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({ apiInvoke: vi.fn() }));
+
+vi.mock("./index", () => ({ apiInvoke: mocks.apiInvoke }));
+
+import {
+  cancelTask,
+  getQueueStats,
+  getTaskHistory,
+  getTaskProgressEvents,
+} from "./task";
+import {
+  cancelWorkflow,
+  cancelWorkflowTask,
+  getWorkflowRunDetail,
+  getWorkflowRunProgressEvents,
+  listActiveWorkflows,
+  listWorkflowRuns,
+  resumeWorkflowRun,
+} from "./streaming";
+
+beforeEach(() => {
+  mocks.apiInvoke.mockReset();
+  mocks.apiInvoke.mockImplementation((command: string) =>
+    Promise.resolve(
+      command === "get_workflow_progress_events"
+        ? { events: [], stream_text: null }
+        : null,
+    ),
+  );
+});
+
+describe("task and workflow host contracts", () => {
+  it("uses generated inputs without caller-controlled user identity", async () => {
+    await cancelTask("task-1");
+    await getQueueStats();
+    await getTaskHistory(7, 0, 30);
+    await getTaskProgressEvents("task-1", 20);
+    await listActiveWorkflows();
+    await listWorkflowRuns({ resumable_only: false, limit: 40 });
+    await getWorkflowRunDetail(9, true);
+    await resumeWorkflowRun(9);
+    await getWorkflowRunProgressEvents(9, 20);
+    await cancelWorkflowTask("task-1");
+    await cancelWorkflow({ task_id: null, workflow_run_id: 9 });
+
+    expect(mocks.apiInvoke.mock.calls).toEqual([
+      ["cancel_task", { taskId: "task-1" }],
+      ["get_queue_stats"],
+      ["get_task_history", { projectId: 7, offset: 0, limit: 30 }],
+      [
+        "get_workflow_progress_events",
+        { input: { task_id: "task-1", workflow_run_id: null, limit: 20 } },
+      ],
+      ["list_active_workflows"],
+      ["list_workflow_runs", { input: { resumable_only: false, limit: 40 } }],
+      [
+        "get_workflow_run_detail",
+        { input: { workflow_run_id: 9, include_generation_runs: true } },
+      ],
+      ["resume_workflow_run", { input: { workflow_run_id: 9 } }],
+      [
+        "get_workflow_progress_events",
+        { input: { task_id: null, workflow_run_id: 9, limit: 20 } },
+      ],
+      [
+        "cancel_workflow",
+        { input: { task_id: "task-1", workflow_run_id: null } },
+      ],
+      [
+        "cancel_workflow",
+        { input: { task_id: null, workflow_run_id: 9 } },
+      ],
+    ]);
+  });
+});

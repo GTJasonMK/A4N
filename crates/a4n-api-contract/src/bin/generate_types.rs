@@ -28,6 +28,13 @@ use a4n_api_contract::{
         ImportCanvasMediaInput, ImportedCanvasMedia, PreviewCanvasNodeRequestInput,
         RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
     },
+    chapter::{
+        CHAPTER_ANALYSIS_PROGRESS_TOTAL, CHAPTER_SCENE_PROGRESS_TOTAL, ChapterAnalysisInput,
+        ChapterAnalysisMutationResult, ChapterMaterialSyncState, ChapterMaterialSyncStatus,
+        ChapterMaterialUpdate, ChapterMaterialUpdateAction, ChapterMaterialUpdateKind,
+        ChapterSceneSummary, ChapterSummary, GenerateChapterSceneInput, ImportChapterInput,
+        ReorderChapterScenesInput, UpdateChapterContentInput, UpdateChapterSceneInput,
+    },
     character::{
         AttributeCountsSummary, CharacterProfileCreateResult, CharacterProfileDeleteResult,
         CharacterProfileMutationResult, CharacterProfileProtectedAttribute,
@@ -164,7 +171,10 @@ use a4n_api_contract::{
         CleanupOrphanProjectDataDirsInput, OrphanProjectDataDirSummary,
         OrphanProjectDataDirsSummary, StoragePathsSummary,
     },
-    task::{QueueSlotStatsSummary, QueueStatsSummary, TaskInfoSummary, TaskProgressSummary},
+    task::{
+        CancelTaskInput, GetTaskHistoryInput, QueueSlotStatsSummary, QueueStatsSummary,
+        TaskInfoSummary, TaskProgressSummary,
+    },
     theme::{CreateThemeInput, ThemeMode, ThemeSummary, UpdateThemeInput},
     video::{
         ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,
@@ -177,9 +187,10 @@ use a4n_api_contract::{
         VideoPlaybackData, VideoScrubFramesData, VideoSegmentTarget,
     },
     workflow::{
-        CancelWorkflowInput, ProgressMeta, ProgressPhaseKind, ProgressSeverity,
-        ResumeWorkflowRunInput, WorkflowProgressEvent, WorkflowProgressEventsInput,
-        WorkflowProgressEventsResponse, WorkflowStateSummary,
+        CancelWorkflowInput, GenerationRunSummary, GetWorkflowRunInput, ListWorkflowRunsInput,
+        ResumeWorkflowRunInput, WorkflowCheckpointSummary, WorkflowProgressEvent,
+        WorkflowProgressEventsInput, WorkflowProgressEventsResponse, WorkflowRunDetailSummary,
+        WorkflowRunProgressSummary, WorkflowRunSummary, WorkflowStateSummary,
     },
 };
 use a4n_domain::galgame::{
@@ -190,6 +201,7 @@ use a4n_domain::galgame::{
     GalgameTransition, GalgameVisibleCastMemberV2,
 };
 use a4n_domain::import_review::ImportReviewStatus;
+use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind, ProgressSeverity};
 use a4n_domain::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
     LLM_RESERVED_REQUEST_OPTION_KEYS,
@@ -275,6 +287,21 @@ fn main() {
             "CleanupOrphanProjectDataDirsInput",
         ),
         &typescript_interface::<ImportProjectTextUploadInput>("ImportProjectTextUploadInput"),
+        &typescript_chapter_constants(),
+        &typescript_interface::<ChapterAnalysisInput>("ChapterAnalysisInput"),
+        &typescript_interface::<GenerateChapterSceneInput>("GenerateChapterSceneInput"),
+        &typescript_interface::<UpdateChapterSceneInput>("UpdateChapterSceneInput"),
+        &typescript_interface::<ReorderChapterScenesInput>("ReorderChapterScenesInput"),
+        &typescript_interface::<ImportChapterInput>("ImportChapterInput"),
+        &typescript_interface::<UpdateChapterContentInput>("UpdateChapterContentInput"),
+        &typescript_enum::<ChapterMaterialSyncStatus>("ChapterMaterialSyncStatus"),
+        &typescript_interface::<ChapterMaterialSyncState>("ChapterMaterialSyncState"),
+        &typescript_enum::<ChapterMaterialUpdateKind>("ChapterMaterialUpdateKind"),
+        &typescript_enum::<ChapterMaterialUpdateAction>("ChapterMaterialUpdateAction"),
+        &typescript_interface::<ChapterMaterialUpdate>("ChapterMaterialUpdate"),
+        &typescript_interface::<ChapterSummary>("ChapterSummary"),
+        &typescript_interface::<ChapterAnalysisMutationResult>("ChapterAnalysisMutationResult"),
+        &typescript_interface::<ChapterSceneSummary>("ChapterSceneSummary"),
         &typescript_interface::<ReverseEngineerInput>("ReverseEngineerInput"),
         &typescript_interface::<ConfirmReverseEngineeringCandidateInput>(
             "ConfirmReverseEngineeringCandidateInput",
@@ -554,13 +581,22 @@ fn main() {
         &typescript_interface::<ProgressMeta>("ProgressMeta"),
         &typescript_interface::<TaskProgressSummary>("TaskProgressSummary"),
         &typescript_interface::<TaskInfoSummary>("TaskInfoSummary"),
+        &typescript_interface::<CancelTaskInput>("CancelTaskInput"),
+        &typescript_interface::<GetTaskHistoryInput>("GetTaskHistoryInput"),
         &typescript_interface::<QueueSlotStatsSummary>("QueueSlotStatsSummary"),
         &typescript_interface::<QueueStatsSummary>("QueueStatsSummary"),
         &typescript_interface::<WorkflowProgressEvent>("WorkflowProgressEvent"),
         &typescript_interface::<WorkflowProgressEventsResponse>("WorkflowProgressEventsResponse"),
         &typescript_interface::<WorkflowStateSummary>("WorkflowStateSummary"),
+        &typescript_interface::<WorkflowRunProgressSummary>("WorkflowRunProgressSummary"),
+        &typescript_interface::<WorkflowRunSummary>("WorkflowRunSummary"),
+        &typescript_interface::<WorkflowCheckpointSummary>("WorkflowCheckpointSummary"),
+        &typescript_interface::<GenerationRunSummary>("GenerationRunSummary"),
+        &typescript_interface::<WorkflowRunDetailSummary>("WorkflowRunDetailSummary"),
         &typescript_interface::<CancelWorkflowInput>("CancelWorkflowInput"),
         &typescript_interface::<WorkflowProgressEventsInput>("WorkflowProgressEventsInput"),
+        &typescript_interface::<ListWorkflowRunsInput>("ListWorkflowRunsInput"),
+        &typescript_interface::<GetWorkflowRunInput>("GetWorkflowRunInput"),
         &typescript_interface::<ResumeWorkflowRunInput>("ResumeWorkflowRunInput"),
         &typescript_interface::<CreateProfileInput>("CreateProfileInput"),
         &typescript_interface::<UpdateCharacterProfileInput>("UpdateCharacterProfileInput"),
@@ -817,6 +853,13 @@ fn typescript_import_constants() -> String {
     format!("export const MAX_PROJECT_TEXT_UPLOAD_BYTES = {MAX_PROJECT_TEXT_UPLOAD_BYTES};\n\n")
 }
 
+fn typescript_chapter_constants() -> String {
+    format!(
+        "export const CHAPTER_ANALYSIS_PROGRESS_TOTAL = {CHAPTER_ANALYSIS_PROGRESS_TOTAL};\n\
+         export const CHAPTER_SCENE_PROGRESS_TOTAL = {CHAPTER_SCENE_PROGRESS_TOTAL};\n\n"
+    )
+}
+
 fn typescript_runtime_config_policies() -> String {
     let mut output = String::from(
         "export type RuntimeConfigPolicy = \"full\" | \"without_secrets\";\n\n\
@@ -889,10 +932,7 @@ fn ts_type(schema: &Value, root: &Value) -> String {
             .iter()
             .filter_map(Value::as_str)
             .map(|kind| match kind {
-                "array" => schema
-                    .get("items")
-                    .map(|items| format!("{}[]", ts_type(items, root)))
-                    .unwrap_or_else(|| "unknown[]".to_string()),
+                "array" => ts_array_type(schema, root),
                 "object" => ts_object_type(schema, root),
                 _ => primitive_type(kind),
             })
@@ -944,14 +984,28 @@ fn ts_type(schema: &Value, root: &Value) -> String {
         return ts_object_type(schema, root);
     }
     match schema.get("type").and_then(Value::as_str) {
-        Some("array") => schema
-            .get("items")
-            .map(|items| format!("{}[]", ts_type(items, root)))
-            .unwrap_or_else(|| "unknown[]".to_string()),
+        Some("array") => ts_array_type(schema, root),
         Some("object") => ts_object_type(schema, root),
         Some(kind) => primitive_type(kind),
         None => "unknown".to_string(),
     }
+}
+
+fn ts_array_type(schema: &Value, root: &Value) -> String {
+    if let Some(items) = schema.get("prefixItems").and_then(Value::as_array) {
+        return format!(
+            "[{}]",
+            items
+                .iter()
+                .map(|item| ts_type(item, root))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    schema
+        .get("items")
+        .map(|items| format!("{}[]", ts_type(items, root)))
+        .unwrap_or_else(|| "unknown[]".to_string())
 }
 
 fn ts_object_type(schema: &Value, root: &Value) -> String {
@@ -1003,6 +1057,7 @@ fn primitive_type(kind: &str) -> String {
 #[cfg(test)]
 mod tests {
     use a4n_api_contract::canvas::GetCanvasNodeContractsInput;
+    use a4n_api_contract::chapter::ReorderChapterScenesInput;
     use a4n_api_contract::character::SyncCharacterProfileResult;
     use a4n_api_contract::rag::EnhancedSearchInput;
 
@@ -1021,6 +1076,13 @@ mod tests {
             typescript_interface::<GetCanvasNodeContractsInput>("GetCanvasNodeContractsInput"),
             "export interface GetCanvasNodeContractsInput {\n}\n\n"
         );
+    }
+
+    #[test]
+    fn tuple_array_keeps_its_item_positions() {
+        let output = typescript_interface::<ReorderChapterScenesInput>("ReorderChapterScenesInput");
+
+        assert!(output.contains("order: [number, number][];"), "{output}");
     }
 
     #[test]

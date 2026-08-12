@@ -1,12 +1,15 @@
 use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::workflow::{
+    WorkflowProgressEvent, WorkflowProgressEventsInput, WorkflowProgressEventsResponse,
+};
+use a4n_orchestrator::workflow::require_positive_workflow_run_id;
 
 use super::super::super::{
-    TaskProgressEventSummary, WorkflowProgressEventsInput, WorkflowProgressEventsResponse,
     access::{
         verify_task_access, verify_task_handle_access, verify_workflow_run_access,
         verify_workflow_run_summary_access,
     },
-    projections::task_progress_event_summary,
+    projections::{persisted_progress_event, task_progress_event},
 };
 
 pub async fn get_workflow_progress_events(
@@ -14,14 +17,13 @@ pub async fn get_workflow_progress_events(
     user_id: i64,
     input: WorkflowProgressEventsInput,
 ) -> Result<WorkflowProgressEventsResponse, String> {
-    let limit = input.limit.unwrap_or(50).clamp(1, 200);
-    if let Some(workflow_run_id) = input.workflow_run_id {
-        return workflow_progress_events_for_user(state, user_id, workflow_run_id, limit)
-            .await
-            .map(events_only);
-    }
-    let Some(task_id) = input.task_id else {
-        return Err("必须提供 task_id 或 workflow_run_id".to_string());
+    let task_id = match progress_events_target(&input)? {
+        ProgressEventsTarget::Workflow(workflow_run_id) => {
+            return workflow_progress_events_for_user(state, user_id, workflow_run_id, input.limit)
+                .await
+                .map(events_only);
+        }
+        ProgressEventsTarget::Task(task_id) => task_id,
     };
     if let Some(handle) = state.task_handle(&task_id) {
         verify_task_handle_access(state, user_id, &handle).await?;
@@ -32,8 +34,8 @@ pub async fn get_workflow_progress_events(
             .cloned()
             .into_iter()
             .rev()
-            .take(limit)
-            .map(|event| task_progress_event_summary(&task_id, event))
+            .take(input.limit)
+            .map(task_progress_event)
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
@@ -54,7 +56,7 @@ pub async fn get_workflow_progress_events(
         verify_task_access(state, user_id, &task_id).await?;
         return match task.workflow_run_id {
             Some(workflow_run_id) => {
-                workflow_progress_events_for_user(state, user_id, workflow_run_id, limit)
+                workflow_progress_events_for_user(state, user_id, workflow_run_id, input.limit)
                     .await
                     .map(events_only)
             }
@@ -70,16 +72,42 @@ pub async fn get_workflow_progress_events(
         verify_workflow_run_access(state, user_id, &run).await?;
         return state
             .orchestrator()
-            .workflow_progress_events(run.id, limit)
+            .workflow_progress_events(run.id, input.limit)
             .await
             .map_err(app_error_message)
-            .map(events_only);
+            .map(|events| events_only(events.into_iter().map(persisted_progress_event).collect()));
     }
     Err(format!("任务不存在: {task_id}"))
 }
 
+enum ProgressEventsTarget<'a> {
+    Task(&'a str),
+    Workflow(i64),
+}
+
+fn progress_events_target(
+    input: &WorkflowProgressEventsInput,
+) -> Result<ProgressEventsTarget<'_>, String> {
+    if !(1..=200).contains(&input.limit) {
+        return Err("limit 必须在 1 到 200 之间".to_string());
+    }
+    let task_id = input
+        .task_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|task_id| !task_id.is_empty());
+    match (task_id, input.workflow_run_id) {
+        (Some(task_id), None) => Ok(ProgressEventsTarget::Task(task_id)),
+        (None, Some(workflow_run_id)) => {
+            require_positive_workflow_run_id(workflow_run_id)?;
+            Ok(ProgressEventsTarget::Workflow(workflow_run_id))
+        }
+        _ => Err("必须且只能提供 task_id 或 workflow_run_id 之一".to_string()),
+    }
+}
+
 /// 持久化路径没有内存快照，活体信号只能来自在跑的 task handle。
-fn events_only(events: Vec<TaskProgressEventSummary>) -> WorkflowProgressEventsResponse {
+fn events_only(events: Vec<WorkflowProgressEvent>) -> WorkflowProgressEventsResponse {
     WorkflowProgressEventsResponse {
         events,
         stream_text: None,
@@ -91,16 +119,60 @@ async fn workflow_progress_events_for_user(
     user_id: i64,
     workflow_run_id: i64,
     limit: usize,
-) -> Result<Vec<TaskProgressEventSummary>, String> {
+) -> Result<Vec<WorkflowProgressEvent>, String> {
     let run = state
         .orchestrator()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)?;
     verify_workflow_run_summary_access(state, user_id, &run).await?;
-    state
+    let events = state
         .orchestrator()
         .workflow_progress_events(workflow_run_id, limit)
         .await
-        .map_err(app_error_message)
+        .map_err(app_error_message)?;
+    Ok(events.into_iter().map(persisted_progress_event).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProgressEventsTarget, progress_events_target};
+    use a4n_api_contract::workflow::WorkflowProgressEventsInput;
+
+    #[test]
+    fn task_workflow_progress_events_target_requires_one_valid_target_and_bounded_limit() {
+        let task = WorkflowProgressEventsInput {
+            task_id: Some(" task-1 ".to_string()),
+            workflow_run_id: None,
+            limit: 1,
+        };
+        assert!(matches!(
+            progress_events_target(&task).unwrap(),
+            ProgressEventsTarget::Task("task-1")
+        ));
+
+        let workflow = WorkflowProgressEventsInput {
+            task_id: None,
+            workflow_run_id: Some(7),
+            limit: 200,
+        };
+        assert!(matches!(
+            progress_events_target(&workflow).unwrap(),
+            ProgressEventsTarget::Workflow(7)
+        ));
+
+        let both = WorkflowProgressEventsInput {
+            task_id: Some("task-1".to_string()),
+            workflow_run_id: Some(7),
+            limit: 20,
+        };
+        assert!(progress_events_target(&both).is_err());
+
+        let invalid_limit = WorkflowProgressEventsInput {
+            task_id: Some("task-1".to_string()),
+            workflow_run_id: None,
+            limit: 0,
+        };
+        assert!(progress_events_target(&invalid_limit).is_err());
+    }
 }

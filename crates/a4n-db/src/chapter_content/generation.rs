@@ -4,7 +4,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 
 use super::{
     ChapterGenerationExistingRecord, ChapterGenerationLifecycleError,
-    GeneratedChapterContentRecordInput,
+    GeneratedChapterContentRecordInput, assign_chapter_content,
 };
 use crate::generation::delete_generation_run_targets_for;
 
@@ -124,38 +124,43 @@ where
             }
 
             let mut active: chapter::ActiveModel = current.into();
-            active.content = Set(input.content.clone());
-            active.word_count = Set(input.word_count);
-            active.title = Set(Some(input.title.clone()));
-            active.summary = Set(Some(input.summary.clone()));
+            assign_chapter_content(
+                &mut active,
+                input.content,
+                input.word_count,
+                STATUS_DRAFT,
+                Some(input.summary),
+                input.now,
+            );
+            active.title = Set(Some(input.title));
             active.outline_id = Set(outline_id);
-            active.style_tags = Set(None);
-            active.analysis_data = Set(None);
-            active.status = Set(STATUS_DRAFT.to_string());
-            active.updated_at = Set(input.now);
             active
                 .update(db)
                 .await
                 .map_err(ChapterGenerationLifecycleError::database)?
         }
-        None => chapter::ActiveModel {
-            project_id: Set(input.project_id),
-            chapter_number: Set(input.chapter_number),
-            title: Set(Some(input.title.clone())),
-            content: Set(input.content.clone()),
-            word_count: Set(input.word_count),
-            status: Set(STATUS_DRAFT.to_string()),
-            summary: Set(Some(input.summary.clone())),
-            outline_id: Set(outline_id),
-            style_tags: Set(None),
-            analysis_data: Set(None),
-            created_at: Set(input.now),
-            updated_at: Set(input.now),
-            ..Default::default()
+        None => {
+            let mut active = chapter::ActiveModel {
+                project_id: Set(input.project_id),
+                chapter_number: Set(input.chapter_number),
+                title: Set(Some(input.title)),
+                outline_id: Set(outline_id),
+                created_at: Set(input.now),
+                ..Default::default()
+            };
+            assign_chapter_content(
+                &mut active,
+                input.content,
+                input.word_count,
+                STATUS_DRAFT,
+                Some(input.summary),
+                input.now,
+            );
+            active
+                .insert(db)
+                .await
+                .map_err(ChapterGenerationLifecycleError::database)?
         }
-        .insert(db)
-        .await
-        .map_err(ChapterGenerationLifecycleError::database)?,
     };
 
     delete_generation_run_targets_for(db, "chapter_content", &[updated_chapter.id]).await?;

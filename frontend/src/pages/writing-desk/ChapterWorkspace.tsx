@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
-import type { ChapterData } from "../../api/chapter";
+import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
 import { ImagesTab } from "../novel-detail/ImagesTab";
@@ -19,7 +19,7 @@ export type BottomTab =
 interface ChapterWorkspaceProps {
   projectId: number;
   activeNumber: number | null;
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   activeOutline: ChapterOutline | null;
   activeChapterContext: ChapterRow | null;
   activeChapterBusy: boolean;
@@ -49,7 +49,7 @@ const TABS: ReadonlyArray<readonly [BottomTab, string]> = [
 ];
 
 const selectedChapterTitle = (
-  chapter: ChapterData | null,
+  chapter: ChapterSummary | null,
   outline: ChapterOutline | null,
 ): string => {
   if (chapter != null) {

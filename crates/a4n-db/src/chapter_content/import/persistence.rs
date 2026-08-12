@@ -1,10 +1,9 @@
-use super::super::{
-    ChapterContentImportError, ImportChapterContentInput, ImportChapterContentTarget,
-};
+use super::super::{ChapterContentImportError, ImportChapterContentInput, assign_chapter_content};
+use super::ImportChapterContentTarget;
 use a4n_core::models::chapter::chapter::{self, STATUS_IMPORTED};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
-pub async fn upsert_import_chapter_content<C>(
+pub(super) async fn upsert_import_chapter_content<C>(
     db: &C,
     target: ImportChapterContentTarget,
     input: ImportChapterContentInput,
@@ -40,35 +39,38 @@ where
         if let Some(title) = input.normalized_title.clone() {
             active.title = Set(Some(title));
         }
-        active.content = Set(input.content.clone());
-        active.word_count = Set(input.word_count);
-        active.status = Set(STATUS_IMPORTED.to_string());
-        active.summary = Set(summary);
-        active.style_tags = Set(None);
-        active.analysis_data = Set(None);
-        active.updated_at = Set(input.now);
+        assign_chapter_content(
+            &mut active,
+            input.content.clone(),
+            input.word_count,
+            STATUS_IMPORTED,
+            summary,
+            input.now,
+        );
         return active
             .update(db)
             .await
             .map_err(ChapterContentImportError::database);
     }
 
-    chapter::ActiveModel {
+    let mut active = chapter::ActiveModel {
         project_id: Set(input.project_id),
         chapter_number: Set(input.chapter_number),
         title: Set(input.normalized_title.clone()),
-        content: Set(input.content.clone()),
-        word_count: Set(input.word_count),
-        status: Set(STATUS_IMPORTED.to_string()),
-        summary: Set(summary),
-        style_tags: Set(None),
-        analysis_data: Set(None),
         outline_id: Set(None),
         created_at: Set(input.now),
-        updated_at: Set(input.now),
         ..Default::default()
-    }
-    .insert(db)
-    .await
-    .map_err(ChapterContentImportError::database)
+    };
+    assign_chapter_content(
+        &mut active,
+        input.content.clone(),
+        input.word_count,
+        STATUS_IMPORTED,
+        summary,
+        input.now,
+    );
+    active
+        .insert(db)
+        .await
+        .map_err(ChapterContentImportError::database)
 }

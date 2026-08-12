@@ -15,6 +15,7 @@ pub mod persistence;
 mod refine;
 
 pub(crate) use generation::BLUEPRINT_GENERATION_STAGES;
+pub(crate) use json::validate_sparse_blueprint_sections;
 
 pub struct BlueprintGenerationApplicationContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,

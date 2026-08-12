@@ -1,13 +1,8 @@
-use a4n_core::models::chapter::{chapter, chapter_outline};
+use a4n_core::models::chapter::chapter_outline;
 use chrono::NaiveDateTime;
 use serde_json::Value;
 
 use crate::generation::GenerationDbError;
-
-#[derive(Debug, Clone)]
-pub struct ImportChapterContentTarget {
-    pub(super) existing: Option<chapter::Model>,
-}
 
 #[derive(Debug, Clone)]
 pub struct ImportChapterContentInput {

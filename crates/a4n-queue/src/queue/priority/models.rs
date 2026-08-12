@@ -1,5 +1,5 @@
 use super::{TaskKind, TaskPriority, TaskStatus};
-use a4n_core::event::progress::ProgressMeta;
+use a4n_domain::progress::ProgressMeta;
 use serde::{Deserialize, Serialize};
 
 /// 任务进度
@@ -12,16 +12,6 @@ pub struct TaskProgress {
     pub meta: Option<ProgressMeta>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
-}
-
-impl TaskProgress {
-    pub fn percent(&self) -> f32 {
-        if self.total == 0 {
-            0.0
-        } else {
-            self.current as f32 / self.total as f32
-        }
-    }
 }
 
 /// 任务信息

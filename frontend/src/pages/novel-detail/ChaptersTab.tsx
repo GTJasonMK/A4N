@@ -10,18 +10,18 @@ import {
   chapterContentCommitToastType,
   importChapter,
   listChapters,
-  type ChapterData,
+  type ChapterSummary,
 } from "../../api/chapter";
 import { EmptyHint } from "./shared";
 import { useNovelDetailLoader } from "./useNovelDetailLoader";
 import { nonEmptyText } from "../../utils/text";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
-const chapterWordCount = (chapter: ChapterData): number => {
+const chapterWordCount = (chapter: ChapterSummary): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
 };
 
-const nextImportChapterNumber = (chapters: ChapterData[]): number => {
+const nextImportChapterNumber = (chapters: ChapterSummary[]): number => {
   if (chapters.length === 0) return 1;
   return Math.max(...chapters.map((chapter) => chapter.chapter_number)) + 1;
 };
@@ -32,7 +32,7 @@ const chapterStatusLabel = (status: string | null | undefined): string | null =>
   return getOperationStatusLabel(normalized);
 };
 
-const derivedSyncStatusLabel = (chapter: ChapterData): string | null => {
+const derivedSyncStatusLabel = (chapter: ChapterSummary): string | null => {
   if (chapter.derived_sync_status === "running") return "资料同步中";
   if (chapter.derived_sync_status === "failed") return "资料同步失败";
   return null;
@@ -46,7 +46,7 @@ interface ChaptersTabProps {
 export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChapters }) => {
   const { addToast } = useToast();
   const navigate = useNavigate();
-  const [chapters, setChapters] = useState<ChapterData[]>([]);
+  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const [importForm, setImportForm] = useState({
     chapter_number: 1,
@@ -158,7 +158,6 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         chapter_number: requestForm.chapter_number,
         content: requestForm.content,
         title: nonEmptyText(requestForm.title),
-        manual: false,
       });
       if (!isCurrentImport(requestProjectId, requestSeq)) return;
       const message = imported.derived_sync_status === "failed"
@@ -328,7 +327,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 };
 
 const ChapterRow: React.FC<{
-  chapter: ChapterData;
+  chapter: ChapterSummary;
   onOpen?: () => void;
 }> = ({ chapter, onOpen }) => {
   const status = chapterStatusLabel(chapter.status);

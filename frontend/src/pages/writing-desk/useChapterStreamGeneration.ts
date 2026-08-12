@@ -11,7 +11,7 @@ import {
   chapterContentCommitToastType,
   chapterGenerationNumber,
   startChapterGeneration,
-  type ChapterData,
+  type ChapterSummary,
 } from "../../api/chapter";
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import {
@@ -35,7 +35,7 @@ interface UseChapterStreamGenerationParams {
   projectId: number;
   projectIdKey: string;
   activeNumber: number | null;
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   activeOutline: ChapterOutline | null;
   activeOutlineText: string | null;
   projectBlockedReason: string | null;
@@ -46,7 +46,7 @@ interface UseChapterStreamGenerationParams {
   setEditorState: (content: string, isDirty: boolean) => void;
   getCurrentEditorContent: () => string;
   dirtyRef: { current: boolean };
-  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterData[] | null>;
+  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
   onDraftRemoved: () => void;
   onShowContentTab: () => void;
 }

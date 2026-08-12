@@ -9,7 +9,7 @@ import type {
 } from "../generated/host";
 import { idNum, type ApiId as Id } from "../shared";
 import { startVideoGeneration } from "./generation";
-import type { WorkflowRun } from "../streaming";
+import type { WorkflowRunSummary } from "../streaming";
 import type {
   ChapterVideoPrompt,
   PromptOutputLanguage,
@@ -88,7 +88,7 @@ interface UpdateVideoSegmentPlanDraftRecipeInput {
 }
 
 export interface VideoSegmentPlanDraftDetail {
-  run: WorkflowRun;
+  run: WorkflowRunSummary;
   segments: Record<string, unknown>[];
   recipes: VideoSegmentExecutionRecipe[];
   completed_shot_count: number;

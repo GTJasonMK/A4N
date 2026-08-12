@@ -1,3 +1,4 @@
+use a4n_api_contract::chapter::ChapterSummary;
 use a4n_core::{
     error::AppError,
     models::{chapter::chapter, generation::workflow_run},
@@ -6,7 +7,10 @@ use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
 use crate::{
-    actions::{access, app_error_message, character_ai::RuntimeCharacterProfileSyncStageTracePort},
+    actions::{
+        access, app_error_message, chapter_content::chapter_summary_with_sync_state,
+        character_ai::RuntimeCharacterProfileSyncStageTracePort,
+    },
     state::AppState,
 };
 
@@ -31,7 +35,7 @@ pub async fn resume_chapter_analysis_sync_with_progress(
     user_id: i64,
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
-) -> Result<chapter::Model, String> {
+) -> Result<ChapterSummary, String> {
     preflight_resume_chapter_analysis_sync(state, user_id, chapter_id).await?;
     let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
@@ -53,7 +57,7 @@ pub async fn resume_chapter_analysis_sync_with_progress(
         }
         Ok(())
     };
-    state
+    let chapter = state
         .orchestrator()
         .resume_chapter_analysis_sync_validated(
             chapter_id,
@@ -67,6 +71,9 @@ pub async fn resume_chapter_analysis_sync_with_progress(
             },
             Some(&trace_port),
         )
+        .await
+        .map_err(|error| error.to_string())?;
+    chapter_summary_with_sync_state(state, &chapter)
         .await
         .map_err(|error| error.to_string())
 }

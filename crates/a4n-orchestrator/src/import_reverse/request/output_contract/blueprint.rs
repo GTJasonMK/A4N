@@ -39,7 +39,7 @@ pub(super) fn reverse_blueprint_output_contract() -> Value {
             "relationship_description": "20-80 个中文字符"
         },
         "count_limits": {
-            "characters": "3-8 个主要角色；缺少主要角色时宁缺毋滥",
+            "characters": "0-8 个有资料依据的主要角色；可以少于 3 个，不要为凑数编造角色",
             "relationships": "0-12 条高价值关系",
             "world_setting.key_locations": "0-6 条",
             "world_setting.factions": "0-6 条",

@@ -1,15 +1,15 @@
 import React from "react";
-import { type ChapterData } from "../../api/chapter";
+import { type ChapterSummary } from "../../api/chapter";
 import { isDerivedChapterOutline, type ChapterOutline } from "../../api/outline";
 
 interface AssistantContextPanelProps {
-  chapters: ChapterData[];
+  chapters: ChapterSummary[];
   outlines: ChapterOutline[];
   activeNumber: number | null;
 }
 
 const previousChapterTail = (
-  chapters: ChapterData[],
+  chapters: ChapterSummary[],
   activeNumber: number | null,
 ): string | null => {
   if (activeNumber == null) return null;

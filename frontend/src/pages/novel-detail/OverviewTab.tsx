@@ -21,7 +21,7 @@ import { ProjectCollaborationPanel } from "./overview/ProjectCollaborationPanel"
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
 import { reverseEngineerBlueprint } from "../../api/import";
-import { cancelWorkflow } from "../../api/streaming";
+import { cancelWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
@@ -219,7 +219,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
       await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: displayBlueprint ? "更新正式蓝图" : "归纳正式蓝图",
           startMessage: "正在整理项目正文、简介、大纲和正式资料",

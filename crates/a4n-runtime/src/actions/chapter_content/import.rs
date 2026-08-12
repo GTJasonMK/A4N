@@ -8,7 +8,7 @@ pub async fn import_chapter(
     input: ImportChapterInput,
 ) -> Result<ChapterSummary, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
-    let (chapter, word_count) = state
+    let chapter = state
         .orchestrator()
         .import_chapter_validated(
             user_id,
@@ -19,6 +19,5 @@ pub async fn import_chapter(
             input.title,
         )
         .await?;
-    debug_assert_eq!(word_count, chapter.word_count);
     projections::chapter_summary_with_sync_state(state, &chapter).await
 }

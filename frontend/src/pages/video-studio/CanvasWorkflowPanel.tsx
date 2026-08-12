@@ -2,14 +2,14 @@ import React from "react";
 import { Play, RefreshCw, Square } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { ProgressEventRecord } from "../../api/progress";
-import type { WorkflowRunDetail } from "../../api/streaming";
+import type { WorkflowRunDetailSummary } from "../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../utils/progressPresentation";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 interface CanvasWorkflowPanelProps {
   latestWorkflowRunId: number | null;
-  detail: WorkflowRunDetail | null;
+  detail: WorkflowRunDetailSummary | null;
   events: ProgressEventRecord[];
   loading: boolean;
   submittingLabel: string | null;
@@ -221,15 +221,15 @@ function canvasWorkflowStepLabel(stepKey: string | null): string {
 }
 
 function latestCheckpointWithStatus(
-  checkpoints: NonNullable<WorkflowRunDetail["checkpoints"]>,
+  checkpoints: NonNullable<WorkflowRunDetailSummary["checkpoints"]>,
   status: string,
-): NonNullable<WorkflowRunDetail["checkpoints"]>[number] | null {
+): NonNullable<WorkflowRunDetailSummary["checkpoints"]>[number] | null {
   return checkpoints
     .filter((checkpoint) => checkpoint.status === status)
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] ?? null;
 }
 
-function canvasVideoProviderWait(checkpoint: NonNullable<WorkflowRunDetail["checkpoints"]>[number]): {
+function canvasVideoProviderWait(checkpoint: NonNullable<WorkflowRunDetailSummary["checkpoints"]>[number]): {
   providerJobId: string | null;
   generatedVideoId: number | null;
 } | null {

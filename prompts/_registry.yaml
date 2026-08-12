@@ -190,7 +190,7 @@ prompts:
     version: "1.0"
     used_by:
       - "chapter::scene::generate_chapter_scene"
-      - "chapter::scene::preview_chapter_scene_generation_request"
+      - "chapter::scene::preview_chapter_scene_request"
     dependencies:
       - "writing"
       - "outline"

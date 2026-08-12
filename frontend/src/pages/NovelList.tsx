@@ -13,7 +13,7 @@ import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../api";
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
-import { cancelWorkflow } from "../api/streaming";
+import { cancelWorkflowTask } from "../api/streaming";
 import {
   acceptProjectInvite,
   branchProject,
@@ -264,7 +264,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: `同步「${project.title}」资料索引`,
           startMessage: "正在读取新项目的正式资料…",

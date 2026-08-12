@@ -1,11 +1,8 @@
-use super::contracts::chapter_scene_summary;
-use super::contracts::{
-    ChapterSceneProgressReporter, ChapterSceneSummary, ChapterSceneTaskScope,
-    GenerateChapterSceneInput,
-};
+use super::records::chapter_scene_summary;
 use crate::state::AppState;
+use a4n_api_contract::chapter::{ChapterSceneSummary, GenerateChapterSceneInput};
 use a4n_core::error::AppError;
-use a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationInput;
+use a4n_orchestrator::chapter_scene::ChapterSceneProgressReporter;
 
 pub async fn generate_chapter_scene(
     state: &AppState,
@@ -19,33 +16,22 @@ pub async fn generate_chapter_scene(
         .orchestrator()
         .generate_chapter_scene_for_user_validated(
             user_id,
-            ChapterSceneGenerationApplicationInput {
-                chapter_id: input.chapter_id,
-                scene_number: input.scene_number,
-                scene_prompt: input.scene_prompt,
-            },
+            input,
             prompt_renderer,
             progress,
             active_task_id,
         )
         .await?;
-    Ok(chapter_scene_summary(&scene))
+    Ok(chapter_scene_summary(scene))
 }
 
-pub async fn generate_chapter_scene_task_scope(
+pub async fn generate_chapter_scene_project_id(
     state: &AppState,
     user_id: i64,
     input: &GenerateChapterSceneInput,
-) -> Result<ChapterSceneTaskScope, AppError> {
+) -> Result<i64, AppError> {
     state
         .orchestrator()
-        .chapter_scene_task_scope_for_user_validated(
-            user_id,
-            &ChapterSceneGenerationApplicationInput {
-                chapter_id: input.chapter_id,
-                scene_number: input.scene_number,
-                scene_prompt: input.scene_prompt.clone(),
-            },
-        )
+        .chapter_scene_project_id_for_user_validated(user_id, input)
         .await
 }

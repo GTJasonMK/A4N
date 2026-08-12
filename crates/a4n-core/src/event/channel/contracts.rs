@@ -1,7 +1,5 @@
-use crate::{
-    error::AppError,
-    event::progress::{ProgressMeta, ProgressPhaseKind},
-};
+use crate::error::AppError;
+use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind};
 use serde::Serialize;
 
 pub(super) const MAX_TASK_PROGRESS_EVENTS: usize = 200;
@@ -222,15 +220,6 @@ impl TaskProgress {
             meta,
             stream_text: None,
             updated_at: Some(chrono::Utc::now().to_rfc3339()),
-        }
-    }
-
-    /// 进度百分比（0.0 ~ 1.0）
-    pub fn percent(&self) -> f32 {
-        if self.total == 0 {
-            0.0
-        } else {
-            self.current as f32 / self.total as f32
         }
     }
 }

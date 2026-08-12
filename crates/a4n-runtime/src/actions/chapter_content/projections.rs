@@ -29,6 +29,16 @@ use a4n_orchestrator::{
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
+const fn material_sync_state(status: ChapterMaterialSyncStatus) -> ChapterMaterialSyncState {
+    ChapterMaterialSyncState {
+        content_index: status,
+        outline_and_foreshadowing: status,
+        objects: status,
+        characters: status,
+        scenes: status,
+    }
+}
+
 pub(super) fn chapter_summary(ch: &chapter::Model) -> ChapterSummary {
     let initial_material_status = if ch.analysis_data.is_some() {
         ChapterMaterialSyncStatus::Unknown
@@ -56,7 +66,7 @@ pub(super) fn chapter_summary(ch: &chapter::Model) -> ChapterSummary {
         derived_sync_workflow_run_id: None,
         derived_sync_can_resume: false,
         derived_sync_error: None,
-        material_sync: ChapterMaterialSyncState::all(initial_material_status),
+        material_sync: material_sync_state(initial_material_status),
         material_updates: Vec::new(),
         created_at: Some(ch.created_at.to_string()),
         updated_at: Some(ch.updated_at.to_string()),
@@ -177,7 +187,7 @@ fn chapter_material_projection(
         } else {
             ChapterMaterialSyncStatus::NotAnalyzed
         };
-        return Ok((ChapterMaterialSyncState::all(status), Vec::new()));
+        return Ok((material_sync_state(status), Vec::new()));
     }
 
     let checkpoint_by_step = checkpoints
@@ -188,7 +198,7 @@ fn chapter_material_projection(
         == Some(CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP)
         && workflow_failed(&run.status);
     let material_sync = if prerequisites_failed {
-        ChapterMaterialSyncState::all(ChapterMaterialSyncStatus::Failed)
+        material_sync_state(ChapterMaterialSyncStatus::Failed)
     } else {
         ChapterMaterialSyncState {
             content_index: phase_status(
@@ -550,7 +560,7 @@ mod tests {
 
         assert_eq!(
             state,
-            ChapterMaterialSyncState::all(ChapterMaterialSyncStatus::Completed)
+            material_sync_state(ChapterMaterialSyncStatus::Completed)
         );
         assert_eq!(updates.len(), 12);
         assert_eq!(updates[0].name, "第一章");
@@ -592,7 +602,7 @@ mod tests {
 
         assert_eq!(
             state,
-            ChapterMaterialSyncState::all(ChapterMaterialSyncStatus::Failed)
+            material_sync_state(ChapterMaterialSyncStatus::Failed)
         );
         assert!(updates.is_empty());
     }
@@ -608,7 +618,7 @@ mod tests {
 
         assert_eq!(
             state,
-            ChapterMaterialSyncState::all(ChapterMaterialSyncStatus::Running)
+            material_sync_state(ChapterMaterialSyncStatus::Running)
         );
     }
 }

@@ -7,7 +7,7 @@ import type { ProgressMeta, ProgressDisplayPhase } from "../api/progress";
  * 后端有两层进度语义，服务于不同抽象层级：
  *  - 传输层（a4n-service-protocol）：粗粒度 phase_kind + 细粒度 stage_code，
  *    二者映射由合同强制校验（events/generation.rs 的 public_progress_phase）
- *  - 展示层（a4n-core::event::progress）：细粒度 phase_kind，供 ETA / 语气判定
+ *  - 展示层（a4n-domain::progress）：细粒度 phase_kind，供 ETA / 语气判定
  *
  * 传输层的 `provider` 覆盖了「连接中 / 等待首 token / 正在输出」三种状态，
  * 展示层需要区分它们（等待期不该显示线性 ETA）。区分信息在 stage_code 里，

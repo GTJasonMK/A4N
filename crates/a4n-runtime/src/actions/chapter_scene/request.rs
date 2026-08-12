@@ -1,4 +1,3 @@
-use super::contracts::GenerateChapterSceneInput;
 use crate::{
     AppState,
     actions::request_preview::{
@@ -6,8 +5,8 @@ use crate::{
         model_request_preview,
     },
 };
+use a4n_api_contract::chapter::GenerateChapterSceneInput;
 use a4n_core::error::AppError;
-use a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationInput;
 
 pub async fn preview_chapter_scene_request(
     state: &AppState,
@@ -19,11 +18,7 @@ pub async fn preview_chapter_scene_request(
         .orchestrator()
         .prepare_chapter_scene_request_preview_for_user_validated(
             user_id,
-            ChapterSceneGenerationApplicationInput {
-                chapter_id: input.chapter_id,
-                scene_number: input.scene_number,
-                scene_prompt: input.scene_prompt.clone(),
-            },
+            input.clone(),
             prompt_renderer,
         )
         .await?;

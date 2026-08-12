@@ -1,6 +1,5 @@
+use a4n_api_contract::task::{QueueSlotStatsSummary, QueueStatsSummary};
 use a4n_queue::priority::{QueueSlotStats, QueueStats};
-
-use super::super::{QueueSlotStatsSummary, QueueStatsSummary};
 
 pub(in crate::actions::task_records) fn queue_stats_summary(
     stats: &QueueStats,
@@ -19,7 +18,6 @@ pub(in crate::actions::task_records) fn queue_stats_summary(
 
 fn queue_slot_stats_summary(stats: &QueueSlotStats) -> QueueSlotStatsSummary {
     QueueSlotStatsSummary {
-        max_concurrent: stats.max_concurrent,
         running: stats.running,
         waiting: stats.waiting,
     }

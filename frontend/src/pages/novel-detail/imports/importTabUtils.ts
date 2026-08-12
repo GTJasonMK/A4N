@@ -1,6 +1,6 @@
 import { isJsonRecord } from "../../../utils/jsonRecord";
 import type { ProjectImportAnalysisProgress } from "../../../api/import";
-import type { WorkflowCheckpoint } from "../../../api/streaming";
+import type { WorkflowCheckpointSummary } from "../../../api/streaming";
 import type { ProgressDialogStatus } from "../../../components/feedback/ProgressDialog";
 
 export type ReverseType = "blueprint" | "outline" | "part_outline";
@@ -57,7 +57,7 @@ export const parseReverseCandidateEnvelope = (
 };
 
 export const reverseCandidateFromCheckpoint = (
-  checkpoint: WorkflowCheckpoint,
+  checkpoint: WorkflowCheckpointSummary,
   target: ReverseType,
 ): ReverseCandidateEnvelope | null => {
   if (

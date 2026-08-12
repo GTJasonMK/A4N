@@ -52,8 +52,8 @@ import {
   getWorkflowRunProgressEvents,
   listWorkflowRuns,
   resumeWorkflowRun,
-  type WorkflowRunDetail,
-  type WorkflowRun,
+  type WorkflowRunDetailSummary,
+  type WorkflowRunSummary,
 } from "../api/streaming";
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
@@ -171,7 +171,7 @@ export const VideoStudioCanvas: React.FC = () => {
     null,
   );
   const [workflowDetail, setWorkflowDetail] =
-    useState<WorkflowRunDetail | null>(null);
+    useState<WorkflowRunDetailSummary | null>(null);
   const [workflowEvents, setWorkflowEvents] = useState<ProgressEventRecord[]>(
     [],
   );
@@ -972,7 +972,7 @@ export const VideoStudioCanvas: React.FC = () => {
     async (
       graphId: number,
       submittedAtMs: number,
-    ): Promise<WorkflowRun | null> => {
+    ): Promise<WorkflowRunSummary | null> => {
       const runs = await listWorkflowRuns({
         project_id: projectId,
         workflow_kind: CANVAS_WORKFLOW_KIND,
@@ -1388,7 +1388,10 @@ export const VideoStudioCanvas: React.FC = () => {
     if ((!taskId && !workflowRunId) || cancellingWorkflow) return;
     setCancellingWorkflow(true);
     try {
-      await cancelWorkflow({ taskId, workflowRunId });
+      await cancelWorkflow({
+        task_id: taskId,
+        workflow_run_id: workflowRunId,
+      });
       addToast("已请求取消画布任务", "info");
       if (workflowRunId) {
         await loadWorkflowStatus(workflowRunId);

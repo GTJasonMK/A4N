@@ -1,11 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{AppState, actions::app_error_message};
-use a4n_orchestrator::workflow::cancel_workflow_requires_target;
+use a4n_api_contract::workflow::CancelWorkflowInput;
+use a4n_db::workflow::WorkflowRunSummary;
+use a4n_orchestrator::workflow::{
+    cancel_workflow_requires_target, require_positive_workflow_run_id,
+};
 
-use super::super::{
-    CancelWorkflowInput, WorkflowRunSummary,
-    access::{verify_task_access, verify_task_handle_access, verify_workflow_run_summary_access},
+use super::super::access::{
+    verify_task_access, verify_task_handle_access, verify_workflow_run_summary_access,
 };
 
 pub async fn cancel_workflow(
@@ -19,6 +22,9 @@ pub async fn cancel_workflow(
         .map(str::trim)
         .filter(|task_id| !task_id.is_empty());
     cancel_workflow_requires_target(task_id.is_some(), input.workflow_run_id.is_some())?;
+    if let Some(workflow_run_id) = input.workflow_run_id {
+        require_positive_workflow_run_id(workflow_run_id)?;
+    }
 
     let mut workflows = BTreeMap::new();
     if let Some(workflow_run_id) = input.workflow_run_id {

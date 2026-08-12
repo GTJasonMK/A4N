@@ -1,9 +1,7 @@
+use a4n_api_contract::chapter::ChapterAnalysisMutationResult;
 use a4n_core::models::chapter::chapter;
 
-use super::super::{
-    ChapterAnalysisMutationResult, ChapterAnalysisProgress,
-    execution::run_chapter_analysis_application,
-};
+use super::super::{ChapterAnalysisProgress, execution::run_chapter_analysis_application};
 use crate::{
     actions::{access, chapter_content::chapter_summary_with_sync_state},
     state::AppState,

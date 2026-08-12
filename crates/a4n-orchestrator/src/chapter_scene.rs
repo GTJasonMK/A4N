@@ -9,10 +9,7 @@ mod output;
 mod request;
 mod workflow;
 
-pub use contracts::{
-    ChapterSceneGenerationApplicationInput, ChapterSceneGenerationInput,
-    ChapterSceneProgressReporter, ChapterSceneRequestPreview, ChapterSceneTaskScope,
-};
+pub use contracts::{ChapterSceneProgressReporter, ChapterSceneRequestPreview};
 
 #[cfg(test)]
 mod tests;

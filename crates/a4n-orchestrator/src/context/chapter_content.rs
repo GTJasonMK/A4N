@@ -14,7 +14,6 @@ use crate::chapter_content::{
     chapter_content_edit_error_to_app_error, chapter_content_import_error_to_app_error,
     chapter_content_sync_checkpoint_artifacts, chapter_content_sync_checkpoint_input,
     chapter_content_sync_workflow_business_key, chapter_content_sync_workflow_run_input,
-    ensure_chapter_content_not_empty, ensure_chapter_not_generating, ensure_import_chapter_number,
 };
 use crate::project::{ChapterDerivedCleanupArtifacts, cleanup_chapter_derived_data_in};
 use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
@@ -77,12 +76,10 @@ impl ChapterContentApplication {
         title: Option<String>,
         target_generating_operation: &str,
         validate_artifacts: F,
-    ) -> Result<(chapter::Model, i32, workflow_run::Model), AppError>
+    ) -> Result<(chapter::Model, workflow_run::Model), AppError>
     where
         F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
     {
-        ensure_import_chapter_number(chapter_number)?;
-        ensure_chapter_content_not_empty(&content)?;
         let word_count = i32::try_from(content.chars().count()).map_err(|_| {
             AppError::InvalidArgument("导入章节正文字符数超出 i32 范围".to_string())
         })?;
@@ -98,7 +95,7 @@ impl ChapterContentApplication {
             .await
             .map_err(AppError::Database)?;
         let committed = async {
-            let chapter = a4n_db::chapter_content::import_chapter_content_record_in_transaction(
+            let chapter = a4n_db::chapter_content::import_chapter_content_record(
                 &tx,
                 ImportChapterContentInput {
                     project_id,
@@ -121,7 +118,7 @@ impl ChapterContentApplication {
                     &validate_artifacts,
                 )
                 .await?;
-            Ok((chapter, word_count, run))
+            Ok((chapter, run))
         }
         .await;
         finish_chapter_content_transaction(tx, committed, "导入章节正文并登记资料同步").await
@@ -137,9 +134,6 @@ impl ChapterContentApplication {
     where
         F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
     {
-        let chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
-        ensure_chapter_not_generating(&chapter, "更新章节正文")?;
-        ensure_chapter_content_not_empty(&content)?;
         let tx = self
             .database
             .connection()
@@ -449,7 +443,7 @@ impl OrchestratorContext {
         title: Option<String>,
         target_generating_operation: &str,
         validate_artifacts: F,
-    ) -> Result<(chapter::Model, i32, workflow_run::Model), AppError>
+    ) -> Result<(chapter::Model, workflow_run::Model), AppError>
     where
         F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
     {

@@ -1,3 +1,4 @@
+use a4n_api_contract::chapter::CHAPTER_ANALYSIS_PROGRESS_TOTAL;
 use a4n_core::{
     chapter_analysis::validate_saved_chapter_analysis,
     error::AppError,
@@ -35,7 +36,6 @@ use super::{
     chapter_analysis_workflow_business_key, require_completed_chapter_analysis_phase,
 };
 
-pub const CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL: u32 = 100;
 const STEP_FACTS: &str = "chapter_analysis.facts";
 const STEP_DERIVED_SYNC: &str = "chapter_analysis.derived_sync";
 pub const CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS: &str = "chapter_analysis.sync_outputs";
@@ -71,11 +71,7 @@ pub struct ChapterAnalysisPreviewStep {
 impl ChapterAnalysisApplicationProgress<'_> {
     fn report(&self, current: u32, message: &str) -> Result<(), AppError> {
         if let Some(reporter) = self.reporter {
-            reporter(
-                current,
-                CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL,
-                message,
-            )?;
+            reporter(current, CHAPTER_ANALYSIS_PROGRESS_TOTAL, message)?;
         }
         if self
             .cancel_token
@@ -105,7 +101,7 @@ impl ChapterAnalysisApplicationProgress<'_> {
             })?)
             .ok_or_else(|| AppError::InvalidArgument("章节分析进度溢出".to_string()))?;
         if let Some(reporter) = self.reporter {
-            reporter(mapped, CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL, message)?;
+            reporter(mapped, CHAPTER_ANALYSIS_PROGRESS_TOTAL, message)?;
         }
         if self
             .cancel_token

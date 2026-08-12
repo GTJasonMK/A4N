@@ -46,15 +46,6 @@ pub(in crate::routes::commands) fn u64_arg(args: &Value, key: &str) -> Result<u6
         .ok_or_else(|| ApiError::bad_request(format!("{key} 必须是正整数")))
 }
 
-pub(in crate::routes::commands) fn non_negative_u64_arg(
-    args: &Value,
-    key: &str,
-) -> Result<u64, ApiError> {
-    required_arg(args, key)?
-        .as_u64()
-        .ok_or_else(|| ApiError::bad_request(format!("{key} 必须是非负整数")))
-}
-
 pub(in crate::routes::commands) fn f32_arg(args: &Value, key: &str) -> Result<f32, ApiError> {
     let value = required_arg(args, key)?
         .as_f64()
@@ -181,6 +172,57 @@ where
         .map_err(|e| ApiError::bad_request(format!("{command}.input 无效: {e}")))
 }
 
+pub(in crate::routes::commands) fn strict_command_input<T>(
+    args: &Value,
+    command: &str,
+) -> Result<T, ApiError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    reject_unknown_command_args(args, command, false)?;
+    command_input(args, command)
+}
+
+pub(in crate::routes::commands) fn strict_runtime_command_input<T>(
+    args: &Value,
+    command: &str,
+) -> Result<T, ApiError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    reject_unknown_command_args(args, command, true)?;
+    command_input(args, command)
+}
+
+fn reject_unknown_command_args(
+    args: &Value,
+    command: &str,
+    allow_runtime_config: bool,
+) -> Result<(), ApiError> {
+    let fields = args
+        .as_object()
+        .ok_or_else(|| ApiError::bad_request(format!("{command} 参数必须是对象")))?;
+    if let Some(field) = fields.keys().find(|field| {
+        field.as_str() != "input"
+            && !(allow_runtime_config && field.as_str() == "runtime_config_snapshot")
+    }) {
+        return Err(ApiError::bad_request(format!(
+            "{command} 不接受参数: {field}"
+        )));
+    }
+    Ok(())
+}
+
+pub(in crate::routes::commands) fn empty_command_args(
+    args: &Value,
+    command: &str,
+) -> Result<(), ApiError> {
+    match args.as_object() {
+        Some(args) if args.is_empty() => Ok(()),
+        _ => Err(ApiError::bad_request(format!("{command} 不接受参数"))),
+    }
+}
+
 pub(in crate::routes::commands) fn required_json_i32(
     value: &Value,
     key: &str,
@@ -191,4 +233,46 @@ pub(in crate::routes::commands) fn required_json_i32(
         .and_then(Value::as_i64)
         .ok_or_else(|| ApiError::bad_request(format!("{label}.{key} 缺失或不是整数")))?;
     i32::try_from(raw).map_err(|_| ApiError::bad_request(format!("{label}.{key} 超出 i32 范围")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{strict_command_input, strict_runtime_command_input};
+    use serde::Deserialize;
+    use serde_json::json;
+
+    #[derive(Deserialize)]
+    struct TestInput {
+        value: u64,
+    }
+
+    #[test]
+    fn task_workflow_strict_inputs_reject_identity_args_and_allow_runtime_snapshot() {
+        let input =
+            strict_command_input::<TestInput>(&json!({ "input": { "value": 7 } }), "test_command")
+                .unwrap();
+        assert_eq!(input.value, 7);
+
+        assert!(
+            strict_command_input::<TestInput>(
+                &json!({ "userId": 9, "input": { "value": 7 } }),
+                "test_command",
+            )
+            .is_err()
+        );
+        assert!(
+            strict_command_input::<TestInput>(
+                &json!({ "runtime_config_snapshot": null, "input": { "value": 7 } }),
+                "test_command",
+            )
+            .is_err()
+        );
+        assert!(
+            strict_runtime_command_input::<TestInput>(
+                &json!({ "runtime_config_snapshot": null, "input": { "value": 7 } }),
+                "test_command",
+            )
+            .is_ok()
+        );
+    }
 }

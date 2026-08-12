@@ -12,6 +12,7 @@ pub mod import_review;
 pub mod llm;
 pub mod manga;
 pub mod model_discovery;
+pub mod progress;
 pub mod project;
 pub mod shooting_script;
 

@@ -2,7 +2,7 @@ import type {
   ProgressDialogStatus,
   ProgressTimelineItem,
 } from "../../../components/feedback/ProgressDialog";
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 import type {
   OptimizePatchSet,
   OptimizeSession,
@@ -60,7 +60,7 @@ interface OptimizeIssue {
 
 export type OptimizeSubmitKind = "message" | "analyze" | "propose_patches";
 
-export const chapterOptionLabel = (chapter: ChapterData): string => {
+export const chapterOptionLabel = (chapter: ChapterSummary): string => {
   const title = nonEmptyText(chapter.title);
   return title
     ? `第 ${chapter.chapter_number} 章 · ${title}`

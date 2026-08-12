@@ -19,7 +19,7 @@ import {
 import type { NovelProject } from "../../api/project";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
-import { cancelWorkflow } from "../../api/streaming";
+import { cancelWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
@@ -154,7 +154,7 @@ export const ExportPanel: React.FC<{
       const r = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: `导出${label}`,
           startMessage: `正在准备导出${label}`,

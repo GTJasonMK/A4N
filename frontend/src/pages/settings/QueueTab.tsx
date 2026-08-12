@@ -14,8 +14,8 @@ import {
   listActiveWorkflows,
   listWorkflowRuns,
   resumeWorkflowRun,
-  type WorkflowRun,
-  type WorkflowRunDetail,
+  type WorkflowRunDetailSummary,
+  type WorkflowRunSummary,
   type WorkflowStateSummary,
 } from "../../api/streaming";
 import { useToast } from "../../components/feedback/Toast";
@@ -43,8 +43,8 @@ export const QueueTab: React.FC = () => {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [cancellingTaskIds, setCancellingTaskIds] = useState<Set<string>>(() => new Set());
   const [workflows, setWorkflows] = useState<WorkflowStateSummary[]>([]);
-  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
-  const [workflowRunDetails, setWorkflowRunDetails] = useState<Map<number, WorkflowRunDetail>>(
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);
+  const [workflowRunDetails, setWorkflowRunDetails] = useState<Map<number, WorkflowRunDetailSummary>>(
     () => new Map(),
   );
   const [expandedWorkflowRunIds, setExpandedWorkflowRunIds] = useState<Set<number>>(
@@ -182,7 +182,7 @@ export const QueueTab: React.FC = () => {
     setLoadingWorkflowRunDetailIds(next);
   };
 
-  const handleToggleWorkflowRunDetail = async (run: WorkflowRun) => {
+  const handleToggleWorkflowRunDetail = async (run: WorkflowRunSummary) => {
     const expanded = new Set(expandedWorkflowRunIdsRef.current);
     if (expanded.has(run.id)) {
       expanded.delete(run.id);
@@ -240,7 +240,7 @@ export const QueueTab: React.FC = () => {
     }
     markWorkflowCancelling(taskId);
     try {
-      await cancelWorkflow(taskId);
+      await cancelWorkflow({ task_id: taskId, workflow_run_id: null });
       if (!mountedRef.current) return;
       addToast("工作流已取消", "success");
       await refresh({ force: true });
@@ -252,7 +252,7 @@ export const QueueTab: React.FC = () => {
     }
   };
 
-  const handleResumeWorkflowRun = async (run: WorkflowRun) => {
+  const handleResumeWorkflowRun = async (run: WorkflowRunSummary) => {
     if (resumingWorkflowRunIdsRef.current.has(run.id)) return;
     markWorkflowRunResuming(run.id);
     try {

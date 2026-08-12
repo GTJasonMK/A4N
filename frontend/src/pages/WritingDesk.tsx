@@ -25,7 +25,7 @@ import {
   importChapter,
   listChapters,
   updateChapterContent,
-  type ChapterData,
+  type ChapterSummary,
 } from "../api/chapter";
 import {
   isDerivedChapterOutline,
@@ -87,7 +87,7 @@ export const WritingDesk: React.FC = () => {
   const canEditWritingProject = project
     ? canEditProjectMaterials(project)
     : false;
-  const [chapters, setChapters] = useState<ChapterData[]>([]);
+  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
   const [activeNumber, setActiveNumber] = useState<number | null>(null);
   const [chapterQuery, setChapterQuery] = useState("");
@@ -148,7 +148,7 @@ export const WritingDesk: React.FC = () => {
   const reloadChaptersInFlightRef = useRef<{
     projectId: number;
     token: symbol;
-    promise: Promise<ChapterData[] | null>;
+    promise: Promise<ChapterSummary[] | null>;
   } | null>(null);
   const saveContentBusyRef = useRef(false);
   const resetGeneratedDataBusyRef = useRef(false);
@@ -841,7 +841,7 @@ export const WritingDesk: React.FC = () => {
         return;
       }
       let savedContent = contentToSave;
-      let savedChapter: ChapterData | null = null;
+      let savedChapter: ChapterSummary | null = null;
       if (activeChapter) {
         const updated = await updateChapterContent({
           chapter_id: activeChapter.id,
@@ -860,7 +860,6 @@ export const WritingDesk: React.FC = () => {
           chapter_number: chapterNumber,
           content: contentToSave,
           title,
-          manual: true,
         });
         const nextChapters = await reloadChapters({ force: true });
         const created = nextChapters?.find(

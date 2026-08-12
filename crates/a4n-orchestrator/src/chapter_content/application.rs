@@ -156,7 +156,7 @@ impl OrchestratorContext {
         chapter_number: i32,
         content: String,
         title: Option<String>,
-    ) -> Result<(chapter::Model, i32), AppError> {
+    ) -> Result<chapter::Model, AppError> {
         self.verify_project_permission(
             project_id,
             user_id,
@@ -179,7 +179,7 @@ impl OrchestratorContext {
         ensure_chapter_content_not_empty(&content)?;
         self.preflight_chapter_content_change_validated(project_id, chapter_number)
             .await?;
-        let (chapter, word_count, run) = self
+        let (chapter, run) = self
             .import_chapter_content_with_sync_plan(
                 project_id,
                 chapter_number,
@@ -197,10 +197,7 @@ impl OrchestratorContext {
                 "导入正文已保存，派生资料同步待恢复"
             );
         }
-        Ok((
-            self.chapter_by_id_for_analysis(chapter.id).await?,
-            word_count,
-        ))
+        self.chapter_by_id_for_analysis(chapter.id).await
     }
 
     async fn ensure_text_project_validated(

@@ -1,12 +1,15 @@
 import { apiInvoke } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type {
+  CancelTaskInput,
+  GetTaskHistoryInput,
   QueueStatsSummary,
   TaskInfoSummary,
-  WorkflowProgressEventsInput,
 } from "./generated/host";
 import { idNum, type ApiId as Id } from "./shared";
-import type { WorkflowProgressEventsResponse } from "./progress";
+import {
+  getWorkflowProgressEvents,
+  type WorkflowProgressEventsResponse,
+} from "./progress";
 
 export type { QueueStatsSummary, TaskInfoSummary };
 
@@ -21,7 +24,7 @@ export type { QueueStatsSummary, TaskInfoSummary };
 
 /** 后端 cancel_task(task_id) */
 export async function cancelTask(taskId: string): Promise<void> {
-  return apiInvoke<void>("cancel_task", { userId: currentUserId(), taskId });
+  return apiInvoke<void>("cancel_task", { taskId } satisfies CancelTaskInput);
 }
 
 // ============================================================================
@@ -29,7 +32,7 @@ export async function cancelTask(taskId: string): Promise<void> {
 // ============================================================================
 
 export async function getQueueStats(): Promise<QueueStatsSummary> {
-  return apiInvoke<QueueStatsSummary>("get_queue_stats", { userId: currentUserId() });
+  return apiInvoke<QueueStatsSummary>("get_queue_stats");
 }
 
 /** 后端 get_task_history(project_id?, offset, limit) —— 完全平铺 */
@@ -39,23 +42,19 @@ export async function getTaskHistory(
   limit: number,
 ): Promise<TaskInfoSummary[]> {
   return apiInvoke<TaskInfoSummary[]>("get_task_history", {
-    userId: currentUserId(),
     projectId: projectId == null ? null : idNum(projectId),
     offset,
     limit,
-  });
+  } satisfies GetTaskHistoryInput);
 }
 
 export async function getTaskProgressEvents(
   taskId: string,
   limit: number,
 ): Promise<WorkflowProgressEventsResponse> {
-  return apiInvoke<WorkflowProgressEventsResponse>("get_workflow_progress_events", {
-    userId: currentUserId(),
-    input: {
-      task_id: taskId,
-      workflow_run_id: null,
-      limit,
-    } satisfies WorkflowProgressEventsInput,
+  return getWorkflowProgressEvents({
+    task_id: taskId,
+    workflow_run_id: null,
+    limit,
   });
 }

@@ -7,7 +7,17 @@ use arrays::{validate_object_array, validate_string_array};
 use contract::validate_world_top_level_contract;
 
 pub(super) fn validate_world_setting(value: &Value) -> Result<(), AppError> {
-    validate_world_top_level_contract(value)?;
+    validate_world_setting_with_policy(value, false)
+}
+
+pub(in crate::blueprint::json) fn validate_sparse_world_setting(
+    value: &Value,
+) -> Result<(), AppError> {
+    validate_world_setting_with_policy(value, true)
+}
+
+fn validate_world_setting_with_policy(value: &Value, allow_sparse: bool) -> Result<(), AppError> {
+    validate_world_top_level_contract(value, allow_sparse)?;
 
     validate_object_array(
         value,

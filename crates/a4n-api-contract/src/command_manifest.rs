@@ -307,7 +307,7 @@ command_specs! {
     "cancel_generation_task" => args_opaque, result_opaque, "task", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "cancel_import_analysis" => args_project_id, result_unit, "import", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "cancel_manga_pipeline" => args_cancel_manga_pipeline, result_cancel_manga_pipeline, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), idempotency("server_workflow");
-    "cancel_task" => args_opaque, result_opaque, "task", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "cancel_task" => args_cancel_task, result_unit, "task", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "cancel_workflow" => args_cancel_workflow, result_unit, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
     "change_user_password" => args_change_user_password, result_unit, "auth", context(NO_CONTEXT), secrets(CHANGE_PASSWORD_SECRET_POINTERS);
     "check_character_conflict" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -331,7 +331,7 @@ command_specs! {
     "create_theme" => args_create_theme, result_activate_theme, "settings";
     "create_user" => args_create_user, result_opaque, "auth", identity(ADMIN_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "decline_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "delete_chapter_scene" => args_opaque, result_opaque, "chapter", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "delete_chapter_scene" => args_delete_chapter_scene, result_unit, "chapter", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_chapter_video_prompt" => args_delete_chapter_video_prompt, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
     "delete_embedding_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "delete_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -377,8 +377,8 @@ command_specs! {
     "export_txt_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_video_studio_project_data" => args_export_video_studio_project_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_VIDEO_EXPORT);
     "forward_project_status" => args_forward_project_status, result_create_project, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
-    "generate_chapter_analysis" => args_opaque, result_opaque, "chapter", context(CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
-    "generate_chapter_scene" => args_opaque, result_opaque, "chapter", context(CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
+    "generate_chapter_analysis" => args_chapter_analysis_task, result_chapter_analysis_mutation, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
+    "generate_chapter_scene" => args_generate_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_chapter_shooting_script" => args_generate_chapter_shooting_script, result_generate_chapter_shooting_script, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "generate_next_chapter_shooting_script_unit" => args_generate_chapter_shooting_script, result_generate_next_chapter_shooting_script_unit, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "generate_object_profile_image_prompt" => args_opaque, result_opaque, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
@@ -412,19 +412,19 @@ command_specs! {
     "get_project_asset_dependency_graph_node_detail" => args_project_asset_dependency_graph_node_detail, result_get_project_asset_dependency_graph_node_detail, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "get_project_import_analysis_progress" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "get_project_status_machine" => args_project_id, result_get_project_status_machine, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
-    "get_queue_stats" => args_opaque, result_get_queue_stats, "system", effect(READ_EFFECT);
+    "get_queue_stats" => empty_args_schema, result_get_queue_stats, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_snapshot" => args_opaque, result_opaque, "system", context(USER_SNAPSHOT_CONTEXT), effect(READ_EFFECT);
     "get_storage_paths" => args_opaque, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
-    "get_task_history" => args_opaque, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT);
+    "get_task_history" => args_get_task_history, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_TASK_IDS);
     "get_token_summary" => args_opaque, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_usage_trends" => args_get_usage_trends, result_get_usage_trends, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_user_usage" => args_opaque, result_get_user_usage, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_workflow_progress_events" => args_get_workflow_progress_events, result_get_workflow_progress_events, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
-    "get_workflow_run_detail" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
+    "get_workflow_run_detail" => args_get_workflow_run_detail, result_get_workflow_run_detail, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
     "health_check" => args_opaque, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "import_all_configs" => args_import_all_configs, result_import_all_configs, "import", identity(ADMIN_IDENTITY), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "import_canvas_media" => args_import_canvas_media, result_import_canvas_media, "canvas", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
-    "import_chapter" => args_opaque, result_opaque, "import", context(NO_CONTEXT), execution("task"), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMPORT), idempotency("client_request_id");
+    "import_chapter" => args_import_chapter, result_chapter_summary, "import", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_IMPORT);
     "import_galgame_audio" => args_import_galgame_audio, result_bind_galgame_media, "galgame", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_IMPORT);
     "import_project_family_upload" => args_import_project_family_upload, result_project_summaries, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_text_upload" => args_import_project_text_upload, result_import_reviews, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
@@ -433,15 +433,15 @@ command_specs! {
     "insert_galgame_line" => args_insert_galgame_line, result_insert_galgame_line, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_LINE_IDS);
     "invite_project_member" => args_invite_project_member, result_unit, "project", context(PROJECT_CONTEXT);
     "leave_project" => empty_args_schema, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "list_active_workflows" => args_opaque, result_list_active_workflows, "workflow", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
+    "list_active_workflows" => empty_args_schema, result_list_active_workflows, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_TASK_IDS);
     "list_all_projects" => args_opaque, result_list_all_projects, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_all_users" => args_opaque, result_opaque, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_behaviors" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
     "list_blueprint_versions" => args_list_blueprint_versions, result_list_blueprint_versions, "blueprint", effect(READ_EFFECT);
     "list_chapter_outlines" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
-    "list_chapter_scenes" => args_list_chapter_scenes, result_opaque, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_chapter_scenes" => args_list_chapter_scenes, result_chapter_scenes, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_video_prompts" => args_list_chapter_video_prompts, result_list_chapter_video_prompts, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
-    "list_chapters" => args_project_id, result_opaque, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_chapters" => args_project_id, result_chapter_summaries, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_deletion_marks" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
     "list_embedding_config" => args_get_llm_max_tokens_config, result_list_embedding_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT);
@@ -476,7 +476,7 @@ command_specs! {
     "list_video_configs" => args_get_llm_max_tokens_config, result_list_video_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "list_video_reference_images" => args_list_video_reference_images, result_list_images_by_chapter, "asset", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_videos_by_chapter" => args_list_chapter_video_prompts, result_list_videos_by_chapter, "video", context(CHAPTER_CONTEXT), effect(READ_EFFECT);
-    "list_workflow_runs" => args_opaque, result_opaque, "workflow", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
+    "list_workflow_runs" => args_list_workflow_runs, result_list_workflow_runs, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
     "load_cached_assembled_chapter_video_preview" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "load_video_playback_data" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "load_video_scrub_playback_data" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
@@ -495,9 +495,9 @@ command_specs! {
     "preview_batch_generate_part_outlines_request" => args_opaque, result_opaque, "outline", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_batch_images_request" => args_opaque, result_opaque, "asset", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_canvas_node_request" => args_preview_canvas_node_request, result_preview_canvas_node_request, "canvas", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_chapter_analysis_request" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_chapter_analysis_request" => args_chapter_analysis, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_chapter_prompt" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_PROMPT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_chapter_scene_request" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_chapter_scene_request" => args_preview_chapter_scene_request, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_chapter_video_request" => args_preview_chapter_video_request, result_opaque, "video", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_character_conflict_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_implicit_update_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -526,7 +526,7 @@ command_specs! {
     "preview_regenerate_part_outline_request" => args_opaque, result_opaque, "outline", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_parts_request" => args_opaque, result_opaque, "outline", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_portrait_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_resume_chapter_analysis_sync_request" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_resume_chapter_analysis_sync_request" => args_chapter_analysis, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_resume_manga_pipeline_request" => args_preview_resume_manga_pipeline_request, result_model_request_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_reverse_engineer_blueprint_request" => args_opaque, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_reverse_engineer_outline_request" => args_opaque, result_opaque, "outline", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -571,15 +571,15 @@ command_specs! {
     "remove_image_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "remove_project_member" => args_member_user_id, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "remove_video_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
-    "reorder_chapter_scenes" => args_opaque, result_opaque, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
+    "reorder_chapter_scenes" => args_reorder_chapter_scenes, result_chapter_scenes, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
     "reorder_galgame_lines" => args_reorder_galgame_lines, result_reorder_galgame_lines, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_LINE_IDS);
     "request_attribute_deletion" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
     "reset_deletion_marks" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
     "reset_project_generated_data" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "restore_blueprint_version" => args_restore_blueprint_version, result_restore_blueprint_version, "blueprint", effect(DESTRUCTIVE_EFFECT);
-    "resume_chapter_analysis_sync" => args_opaque, result_opaque, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
+    "resume_chapter_analysis_sync" => args_chapter_analysis_task, result_chapter_summary, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_export_theme, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
-    "resume_workflow_run" => args_resume_workflow_run, result_opaque, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
+    "resume_workflow_run" => args_resume_workflow_run, result_workflow_run, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "reverse_engineer_blueprint" => args_opaque, result_opaque, "blueprint", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "reverse_engineer_outline" => args_opaque, result_opaque, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "reverse_engineer_part_outline" => args_opaque, result_opaque, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -628,9 +628,9 @@ command_specs! {
     "trim_video" => args_opaque, result_opaque, "video", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "unbind_galgame_media" => args_unbind_galgame_media, result_unbind_galgame_media, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "update_assembly_push_status" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
-    "update_chapter_content" => args_opaque, result_opaque, "chapter", context(CHAPTER_CONTEXT), references(REFERENCES_CHAPTER_IDS);
+    "update_chapter_content" => args_update_chapter_content, result_chapter_summary, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
     "update_chapter_outline" => args_opaque, result_opaque, "chapter", context(CHAPTER_CONTEXT), references(REFERENCES_CHAPTER_IDS);
-    "update_chapter_scene" => args_opaque, result_opaque, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
+    "update_chapter_scene" => args_update_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
     "update_chapter_video_prompt" => args_update_chapter_video_prompt, result_optimize_chapter_video_prompt, "video";
     "update_chapter_video_segment_recipe" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "update_character_profile" => args_update_character_profile, result_update_character_profile, "profile";
@@ -891,8 +891,12 @@ fn args_cancel_manga_pipeline() -> Value {
     typed_input_schema::<crate::manga::MangaChapterInput>()
 }
 
+fn args_cancel_task() -> Value {
+    typed_schema::<crate::task::CancelTaskInput>()
+}
+
 fn args_cancel_workflow() -> Value {
-    typed_input_schema::<crate::workflow::CancelWorkflowInput>()
+    strict_typed_input_schema::<crate::workflow::CancelWorkflowInput>()
 }
 
 fn args_change_user_password() -> Value {
@@ -901,6 +905,14 @@ fn args_change_user_password() -> Value {
 
 fn args_check_import_dedup() -> Value {
     strict_typed_input_schema::<crate::import_review::CheckImportDedupInput>()
+}
+
+fn args_chapter_analysis() -> Value {
+    strict_runtime_typed_input_schema::<crate::chapter::ChapterAnalysisInput>()
+}
+
+fn args_chapter_analysis_task() -> Value {
+    optional_task_runtime_typed_input_schema::<crate::chapter::ChapterAnalysisInput>()
 }
 
 fn args_cleanup_orphan_project_data_dirs() -> Value {
@@ -941,6 +953,16 @@ fn args_create_user() -> Value {
 
 fn args_delete_chapter_video_prompt() -> Value {
     typed_input_schema::<crate::video::DeleteChapterVideoPromptInput>()
+}
+
+fn args_delete_chapter_scene() -> Value {
+    json!({
+        "type": "object",
+        "properties": { "sceneId": { "type": "integer", "minimum": 1 } },
+        "required": ["sceneId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
 }
 
 fn args_delete_galgame_line() -> Value {
@@ -1097,6 +1119,10 @@ fn args_generate_chapter_shooting_script() -> Value {
     }
 }
 
+fn args_generate_chapter_scene() -> Value {
+    optional_task_runtime_typed_input_schema::<crate::chapter::GenerateChapterSceneInput>()
+}
+
 fn args_get_canvas_graph() -> Value {
     typed_input_schema::<crate::canvas::GetCanvasGraphInput>()
 }
@@ -1117,16 +1143,28 @@ fn args_get_llm_max_tokens_config() -> Value {
     empty_args_schema()
 }
 
+fn args_get_task_history() -> Value {
+    typed_schema::<crate::task::GetTaskHistoryInput>()
+}
+
 fn args_get_usage_trends() -> Value {
     typed_input_schema::<crate::admin::UsageTrendsInput>()
 }
 
 fn args_get_workflow_progress_events() -> Value {
-    typed_input_schema::<crate::workflow::WorkflowProgressEventsInput>()
+    strict_typed_input_schema::<crate::workflow::WorkflowProgressEventsInput>()
+}
+
+fn args_get_workflow_run_detail() -> Value {
+    strict_typed_input_schema::<crate::workflow::GetWorkflowRunInput>()
 }
 
 fn args_import_canvas_media() -> Value {
     typed_input_schema::<crate::canvas::ImportCanvasMediaInput>()
+}
+
+fn args_import_chapter() -> Value {
+    strict_typed_input_schema::<crate::chapter::ImportChapterInput>()
 }
 
 fn args_import_all_configs() -> Value {
@@ -1184,7 +1222,7 @@ fn args_list_chapter_scenes() -> Value {
         "type": "object",
         "properties": { "chapterId": { "type": "integer", "minimum": 1 } },
         "required": ["chapterId"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed",
     })
 }
@@ -1253,6 +1291,10 @@ fn args_preview_chapter_video_request() -> Value {
         "additionalProperties": true,
         "x-a4n-schema-quality": "typed-input",
     })
+}
+
+fn args_preview_chapter_scene_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::chapter::GenerateChapterSceneInput>()
 }
 
 fn args_preview_galgame_pipeline_request() -> Value {
@@ -1354,8 +1396,16 @@ fn args_push_assembled_chapter_video() -> Value {
     typed_input_schema::<crate::video::PushAssembledChapterVideoInput>()
 }
 
+fn args_reorder_chapter_scenes() -> Value {
+    strict_typed_input_schema::<crate::chapter::ReorderChapterScenesInput>()
+}
+
 fn args_read_recent_logs() -> Value {
     typed_input_schema::<crate::logging::ReadLogsInput>()
+}
+
+fn args_list_workflow_runs() -> Value {
+    strict_typed_input_schema::<crate::workflow::ListWorkflowRunsInput>()
 }
 
 fn args_refresh_token() -> Value {
@@ -1379,7 +1429,7 @@ fn args_restore_blueprint_version() -> Value {
 }
 
 fn args_resume_workflow_run() -> Value {
-    typed_input_schema::<crate::workflow::ResumeWorkflowRunInput>()
+    strict_runtime_typed_input_schema::<crate::workflow::ResumeWorkflowRunInput>()
 }
 
 fn args_run_canvas_graph() -> Value {
@@ -1496,6 +1546,14 @@ fn args_update_chapter_video_prompt() -> Value {
 
 fn args_update_character_profile() -> Value {
     typed_input_schema::<crate::character::UpdateCharacterProfileInput>()
+}
+
+fn args_update_chapter_content() -> Value {
+    strict_typed_input_schema::<crate::chapter::UpdateChapterContentInput>()
+}
+
+fn args_update_chapter_scene() -> Value {
+    strict_typed_input_schema::<crate::chapter::UpdateChapterSceneInput>()
 }
 
 fn args_update_embedding_config() -> Value {
@@ -1700,6 +1758,26 @@ fn result_cancel_manga_pipeline() -> Value {
     typed_schema::<i64>()
 }
 
+fn result_chapter_summary() -> Value {
+    typed_schema::<crate::chapter::ChapterSummary>()
+}
+
+fn result_chapter_summaries() -> Value {
+    typed_schema::<Vec<crate::chapter::ChapterSummary>>()
+}
+
+fn result_chapter_analysis_mutation() -> Value {
+    typed_schema::<crate::chapter::ChapterAnalysisMutationResult>()
+}
+
+fn result_chapter_scene() -> Value {
+    typed_schema::<crate::chapter::ChapterSceneSummary>()
+}
+
+fn result_chapter_scenes() -> Value {
+    typed_schema::<Vec<crate::chapter::ChapterSceneSummary>>()
+}
+
 fn result_cleanup_orphan_project_data_dirs() -> Value {
     typed_schema::<crate::storage::OrphanProjectDataDirsSummary>()
 }
@@ -1856,6 +1934,10 @@ fn result_get_workflow_progress_events() -> Value {
     typed_schema::<crate::workflow::WorkflowProgressEventsResponse>()
 }
 
+fn result_get_workflow_run_detail() -> Value {
+    typed_schema::<crate::workflow::WorkflowRunDetailSummary>()
+}
+
 fn result_import_canvas_media() -> Value {
     typed_schema::<crate::canvas::ImportedCanvasMedia>()
 }
@@ -1878,6 +1960,10 @@ fn result_insert_galgame_line() -> Value {
 
 fn result_list_active_workflows() -> Value {
     typed_schema::<Vec<crate::workflow::WorkflowStateSummary>>()
+}
+
+fn result_list_workflow_runs() -> Value {
+    typed_schema::<Vec<crate::workflow::WorkflowRunSummary>>()
 }
 
 fn result_list_all_projects() -> Value {
@@ -2096,6 +2182,10 @@ fn result_update_image() -> Value {
     typed_schema::<crate::image::GeneratedImageSummary>()
 }
 
+fn result_workflow_run() -> Value {
+    typed_schema::<crate::workflow::WorkflowRunSummary>()
+}
+
 fn typed_input_schema<T: JsonSchema>() -> Value {
     json!({
         "type": "object",
@@ -2109,6 +2199,36 @@ fn typed_input_schema<T: JsonSchema>() -> Value {
 fn strict_typed_input_schema<T: JsonSchema>() -> Value {
     let mut schema = typed_input_schema::<T>();
     schema["additionalProperties"] = Value::Bool(false);
+    schema
+}
+
+fn strict_runtime_typed_input_schema<T: JsonSchema>() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "input": raw_schema::<T>(),
+            "runtime_config_snapshot": { "type": ["object", "null"] },
+        },
+        "required": ["input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
+fn optional_task_runtime_typed_input_schema<T: JsonSchema>() -> Value {
+    let mut schema = strict_runtime_typed_input_schema::<T>();
+    schema["properties"]
+        .as_object_mut()
+        .expect("runtime input properties must be an object")
+        .insert(
+            "taskId".into(),
+            json!({
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+            }),
+        );
     schema
 }
 
@@ -2257,6 +2377,174 @@ mod tests {
         assert!(is_destructive("delete_project"));
         assert!(!is_destructive("get_project"));
         assert!(is_destructive("delete_future_resource"));
+    }
+
+    #[test]
+    fn chapter_content_commands_expose_the_immediate_strict_contract() {
+        let import = command_descriptor("import_chapter").unwrap();
+        assert_eq!(import.execution, "immediate");
+        assert_eq!(import.idempotency, "none");
+        assert!(import.file_inputs.is_empty());
+        assert_eq!(import.result_references, vec!["chapter_ids".to_string()]);
+        assert_eq!(import.args_schema["additionalProperties"], false);
+        assert_eq!(
+            import.args_schema["properties"]["input"]["additionalProperties"],
+            false
+        );
+        assert!(
+            import.args_schema["properties"]["input"]["properties"]
+                .get("manual")
+                .is_none()
+        );
+        assert_eq!(import.result_schema["x-a4n-schema-quality"], "typed");
+
+        let update = command_descriptor("update_chapter_content").unwrap();
+        assert_eq!(
+            update.args_schema["x-a4n-context-fields"],
+            serde_json::json!([])
+        );
+        assert_eq!(update.args_schema["additionalProperties"], false);
+        assert_eq!(update.result_schema["x-a4n-schema-quality"], "typed");
+
+        let list = command_descriptor("list_chapters").unwrap();
+        assert_eq!(list.result_schema["x-a4n-schema-quality"], "typed");
+    }
+
+    #[test]
+    fn chapter_analysis_commands_expose_one_strict_contract() {
+        let generate = command_descriptor("generate_chapter_analysis").unwrap();
+        assert_eq!(generate.execution, "task");
+        assert_eq!(generate.idempotency, "none");
+        assert_eq!(
+            generate.args_schema["x-a4n-context-fields"],
+            serde_json::json!([])
+        );
+        assert_eq!(generate.args_schema["additionalProperties"], false);
+        assert_eq!(
+            generate.args_schema["properties"]["input"]["additionalProperties"],
+            false
+        );
+        assert_eq!(
+            generate.args_schema["properties"]["taskId"]["type"],
+            serde_json::json!(["string", "null"])
+        );
+        assert!(generate.args_schema["properties"].get("userId").is_none());
+        assert!(
+            generate.args_schema["properties"]
+                .get("chapterId")
+                .is_none()
+        );
+        assert_eq!(generate.result_schema["x-a4n-schema-quality"], "typed");
+
+        let preview = command_descriptor("preview_chapter_analysis_request").unwrap();
+        assert_eq!(preview.effect, "read");
+        assert_eq!(preview.args_schema["additionalProperties"], false);
+        assert!(preview.args_schema["properties"].get("taskId").is_none());
+        assert_eq!(preview.result_schema["x-a4n-schema-quality"], "typed");
+
+        let resume = command_descriptor("resume_chapter_analysis_sync").unwrap();
+        assert_eq!(resume.execution, "workflow");
+        assert_eq!(resume.idempotency, "server_workflow");
+        assert_eq!(resume.args_schema["additionalProperties"], false);
+        assert_eq!(resume.result_schema["x-a4n-schema-quality"], "typed");
+
+        let resume_preview =
+            command_descriptor("preview_resume_chapter_analysis_sync_request").unwrap();
+        assert_eq!(resume_preview.effect, "read");
+        assert_eq!(resume_preview.args_schema["additionalProperties"], false);
+        assert_eq!(
+            resume_preview.result_schema["x-a4n-schema-quality"],
+            "typed"
+        );
+    }
+
+    #[test]
+    fn chapter_scene_commands_expose_one_strict_contract() {
+        let generate = command_descriptor("generate_chapter_scene").unwrap();
+        assert_eq!(generate.execution, "task");
+        assert_eq!(generate.args_schema["additionalProperties"], false);
+        assert_eq!(
+            generate.args_schema["properties"]["input"]["additionalProperties"],
+            false
+        );
+        assert!(generate.args_schema["properties"].get("userId").is_none());
+        assert!(
+            generate.args_schema["properties"]
+                .get("chapterId")
+                .is_none()
+        );
+        assert_eq!(generate.result_schema["x-a4n-schema-quality"], "typed");
+
+        let preview = command_descriptor("preview_chapter_scene_request").unwrap();
+        assert_eq!(preview.effect, "read");
+        assert_eq!(preview.args_schema["additionalProperties"], false);
+        assert!(preview.args_schema["properties"].get("userId").is_none());
+        assert!(preview.args_schema["properties"].get("chapterId").is_none());
+        assert_eq!(preview.result_schema["x-a4n-schema-quality"], "typed");
+
+        for command in [
+            "list_chapter_scenes",
+            "update_chapter_scene",
+            "delete_chapter_scene",
+            "reorder_chapter_scenes",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_ne!(descriptor.args_schema["x-a4n-schema-quality"], "opaque");
+            assert_eq!(descriptor.args_schema["additionalProperties"], false);
+            assert_ne!(descriptor.result_schema["x-a4n-schema-quality"], "opaque");
+        }
+    }
+
+    #[test]
+    fn task_workflow_commands_expose_generated_contracts_without_identity_args() {
+        for command in ["get_queue_stats", "list_active_workflows"] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(descriptor.args_schema["additionalProperties"], false);
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!([])
+            );
+            assert!(descriptor.args_schema["properties"].get("userId").is_none());
+            assert_eq!(descriptor.result_schema["x-a4n-schema-quality"], "typed");
+        }
+
+        let cancel_task = command_descriptor("cancel_task").unwrap();
+        assert_eq!(cancel_task.args_schema["additionalProperties"], false);
+        assert!(
+            cancel_task.args_schema["properties"]
+                .get("taskId")
+                .is_some()
+        );
+        assert!(
+            cancel_task.args_schema["properties"]
+                .get("userId")
+                .is_none()
+        );
+        assert_eq!(cancel_task.result_schema["x-a4n-schema-quality"], "typed");
+
+        let history = command_descriptor("get_task_history").unwrap();
+        assert_eq!(history.args_schema["additionalProperties"], false);
+        assert!(history.args_schema["properties"].get("projectId").is_some());
+        assert!(history.args_schema["properties"].get("userId").is_none());
+        assert_eq!(history.result_schema["x-a4n-schema-quality"], "typed");
+
+        for command in [
+            "list_workflow_runs",
+            "get_workflow_run_detail",
+            "resume_workflow_run",
+            "get_workflow_progress_events",
+            "cancel_workflow",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_ne!(descriptor.args_schema["x-a4n-schema-quality"], "opaque");
+            assert!(descriptor.args_schema["properties"].get("input").is_some());
+            assert!(descriptor.args_schema["properties"].get("userId").is_none());
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!([])
+            );
+            assert_ne!(descriptor.result_schema["x-a4n-schema-quality"], "opaque");
+        }
     }
 
     #[test]

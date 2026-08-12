@@ -1,5 +1,7 @@
+import { apiInvoke } from "./index";
 import type {
   ProgressMeta as HostProgressMeta,
+  WorkflowProgressEventsInput,
   WorkflowProgressEvent as HostWorkflowProgressEvent,
   WorkflowProgressEventsResponse as HostWorkflowProgressEventsResponse,
 } from "./generated/host";
@@ -42,3 +44,9 @@ export type ProgressEventRecord = HostWorkflowProgressEvent;
  * （模型输出尾巴），每次轮询取最新值覆盖，不进事件历史。
  */
 export type WorkflowProgressEventsResponse = HostWorkflowProgressEventsResponse;
+
+export async function getWorkflowProgressEvents(
+  input: WorkflowProgressEventsInput,
+): Promise<WorkflowProgressEventsResponse> {
+  return apiInvoke<WorkflowProgressEventsResponse>("get_workflow_progress_events", { input });
+}

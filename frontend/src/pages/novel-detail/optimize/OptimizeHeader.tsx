@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { ChapterData } from "../../../api/chapter";
+import type { ChapterSummary } from "../../../api/chapter";
 import type { OptimizeSession } from "../../../api/optimize";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -12,11 +12,11 @@ import {
 } from "./optimizeTabUtils";
 
 interface OptimizeHeaderProps {
-  activeChapter: ChapterData | null;
+  activeChapter: ChapterSummary | null;
   activeSession: OptimizeSession | null;
   activeSessionId: number | null;
   chapterSessions: OptimizeSession[];
-  chapters: ChapterData[];
+  chapters: ChapterSummary[];
   isPinned: boolean;
   loading: boolean;
   selectedChapter: number | "";

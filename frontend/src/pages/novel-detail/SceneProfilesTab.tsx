@@ -27,7 +27,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
-import { cancelWorkflow } from "../../api/streaming";
+import { cancelWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
@@ -142,7 +142,7 @@ export const SceneProfilesTab: React.FC<{
       await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: "同步场景档案",
           startMessage: "正在准备场景档案同步",

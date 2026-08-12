@@ -2,7 +2,10 @@ import {
   listVideoReferenceImages,
   type GeneratedImage,
 } from "../../../api/image";
-import { listWorkflowRuns, type WorkflowRun } from "../../../api/streaming";
+import {
+  listWorkflowRuns,
+  type WorkflowRunSummary,
+} from "../../../api/streaming";
 import {
   loadVideoSegmentPlanDraftDetail,
   listChapterVideoPrompts,
@@ -26,7 +29,7 @@ export interface LoadedSegmentPlanDraft {
   workflowStatus: string;
   resumeTaskId: string | null;
   resumeOptions: GeneratePromptOptions;
-  workflowProgress: WorkflowRun["progress"];
+  workflowProgress: WorkflowRunSummary["progress"];
   segments: Record<string, unknown>[];
   recipes: Map<number, VideoSegmentExecutionRecipe>;
   completedShotCount: number;
@@ -55,7 +58,7 @@ const invalidSegmentPlanWorkflowInput = (
 };
 
 const segmentPlanResumeOptions = (
-  run: WorkflowRun,
+  run: WorkflowRunSummary,
   projectId: number,
   chapterId: number,
 ): GeneratePromptOptions => {

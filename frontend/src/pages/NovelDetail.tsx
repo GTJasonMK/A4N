@@ -53,7 +53,7 @@ import { BackButton } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
-import { cancelWorkflow } from "../api/streaming";
+import { cancelWorkflowTask } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
@@ -323,7 +323,7 @@ export const NovelDetail: React.FC = () => {
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelWorkflow,
+          cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: "同步资料索引",
           startMessage: "正在统计待同步内容…",

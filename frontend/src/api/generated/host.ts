@@ -570,6 +570,115 @@ export interface ImportProjectTextUploadInput {
   project_id: number;
 }
 
+export const CHAPTER_ANALYSIS_PROGRESS_TOTAL = 100;
+export const CHAPTER_SCENE_PROGRESS_TOTAL = 4;
+
+export interface ChapterAnalysisInput {
+  chapter_id: number;
+}
+
+export interface GenerateChapterSceneInput {
+  chapter_id: number;
+  scene_number: number;
+  scene_prompt: string;
+}
+
+export interface UpdateChapterSceneInput {
+  content?: string | null;
+  location?: string | null;
+  scene_id: number;
+  scene_type?: string | null;
+  summary?: string | null;
+  timeline_position?: string | null;
+  title?: string | null;
+}
+
+export interface ReorderChapterScenesInput {
+  order: [number, number][];
+}
+
+export interface ImportChapterInput {
+  chapter_number: number;
+  content: string;
+  project_id: number;
+  title?: string | null;
+}
+
+export interface UpdateChapterContentInput {
+  chapter_id: number;
+  content: string;
+  title?: string | null;
+}
+
+export type ChapterMaterialSyncStatus = "completed" | "not_analyzed" | "needs_analysis" | "pending" | "running" | "failed" | "unknown";
+
+export interface ChapterMaterialSyncState {
+  characters: ChapterMaterialSyncStatus;
+  content_index: ChapterMaterialSyncStatus;
+  objects: ChapterMaterialSyncStatus;
+  outline_and_foreshadowing: ChapterMaterialSyncStatus;
+  scenes: ChapterMaterialSyncStatus;
+}
+
+export type ChapterMaterialUpdateKind = "outline" | "foreshadowing" | "object" | "character" | "scene";
+
+export type ChapterMaterialUpdateAction = "created" | "updated" | "existing" | "preserved" | "synced" | "resolved";
+
+export interface ChapterMaterialUpdate {
+  action: ChapterMaterialUpdateAction;
+  material_kind: ChapterMaterialUpdateKind;
+  name: string;
+}
+
+export interface ChapterSummary {
+  analysis_data: unknown;
+  analysis_sync_can_resume: boolean;
+  analysis_sync_error: string | null;
+  analysis_sync_has_saved_analysis: boolean;
+  analysis_sync_resume_block_reason: string | null;
+  analysis_sync_status: string | null;
+  chapter_number: number;
+  content: string;
+  created_at: string | null;
+  derived_sync_can_resume: boolean;
+  derived_sync_error: string | null;
+  derived_sync_status: string | null;
+  derived_sync_workflow_run_id: number | null;
+  id: number;
+  material_sync: ChapterMaterialSyncState;
+  material_updates: ChapterMaterialUpdate[];
+  outline_id: number | null;
+  project_id: number;
+  status: string;
+  style_tags: unknown;
+  summary: string | null;
+  title: string | null;
+  updated_at: string | null;
+  word_count: number;
+}
+
+export interface ChapterAnalysisMutationResult {
+  chapter: ChapterSummary;
+  warnings: string[];
+}
+
+export interface ChapterSceneSummary {
+  chapter_id: number;
+  characters_present: unknown;
+  content: string;
+  created_at: string;
+  id: number;
+  location: string | null;
+  scene_number: number;
+  scene_type: string;
+  summary: string | null;
+  timeline_position: string | null;
+  title: string | null;
+  transition_from_previous: string | null;
+  updated_at: string;
+  word_count: number;
+}
+
 export interface ReverseEngineerInput {
   auto_context?: boolean;
   content_sample?: string;
@@ -2455,6 +2564,16 @@ export interface TaskInfoSummary {
   task_type: string;
 }
 
+export interface CancelTaskInput {
+  taskId: string;
+}
+
+export interface GetTaskHistoryInput {
+  limit: number;
+  offset: number;
+  projectId?: number | null;
+}
+
 export interface QueueSlotStatsSummary {
   running: number;
   waiting: number;
@@ -2494,6 +2613,86 @@ export interface WorkflowStateSummary {
   task_scope: string | null;
 }
 
+export interface WorkflowRunProgressSummary {
+  current: number;
+  message: string;
+  meta: ProgressMeta | null;
+  percent: number;
+  total: number;
+  updated_at: string | null;
+}
+
+export interface WorkflowRunSummary {
+  active_task_id: string | null;
+  business_key: string;
+  can_resume: boolean;
+  chapter_id: number | null;
+  completed_at: string | null;
+  created_at: string;
+  current_step_key: string | null;
+  error_message: string | null;
+  id: number;
+  input_fingerprint_json: unknown;
+  mode: string | null;
+  progress: WorkflowRunProgressSummary | null;
+  project_id: number | null;
+  resume_block_reason: string | null;
+  root_project_id: number | null;
+  scope_id: number | null;
+  scope_table: string | null;
+  source_snapshot_id: number | null;
+  status: string;
+  updated_at: string;
+  workflow_kind: string;
+}
+
+export interface WorkflowCheckpointSummary {
+  artifacts_json: unknown;
+  checkpoint_json: unknown;
+  completed_at: string | null;
+  created_at: string;
+  error_message: string | null;
+  generation_run_ids_json: unknown;
+  id: number;
+  input_fingerprint_json: unknown;
+  input_fingerprint_sha256: string | null;
+  status: string;
+  step_key: string;
+  step_order: number;
+  updated_at: string;
+  workflow_run_id: number;
+}
+
+export interface GenerationRunSummary {
+  artifact_refs_json: unknown;
+  attempt: number;
+  call_key: string | null;
+  completed_at: string | null;
+  created_at: string;
+  error_message: string | null;
+  id: number;
+  input_fingerprint_json: unknown;
+  input_fingerprint_sha256: string | null;
+  model: string | null;
+  model_kind: string;
+  parsed_output_json: unknown;
+  provider: string | null;
+  raw_response_json: unknown;
+  response_summary_json: unknown;
+  status: string;
+  step_key: string;
+  title: string;
+  validation_json: unknown;
+  workflow: string;
+  workflow_run_id: number | null;
+}
+
+export interface WorkflowRunDetailSummary {
+  checkpoints: WorkflowCheckpointSummary[];
+  generation_runs: GenerationRunSummary[];
+  run: WorkflowRunSummary;
+}
+
 export interface CancelWorkflowInput {
   task_id?: string | null;
   workflow_run_id?: number | null;
@@ -2503,6 +2702,20 @@ export interface WorkflowProgressEventsInput {
   limit: number;
   task_id?: string | null;
   workflow_run_id?: number | null;
+}
+
+export interface ListWorkflowRunsInput {
+  chapter_id?: number | null;
+  limit: number;
+  project_id?: number | null;
+  resumable_only: boolean;
+  status?: string | null;
+  workflow_kind?: string | null;
+}
+
+export interface GetWorkflowRunInput {
+  include_generation_runs: boolean;
+  workflow_run_id: number;
 }
 
 export interface ResumeWorkflowRunInput {

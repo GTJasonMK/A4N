@@ -1,15 +1,16 @@
 use crate::{AppState, actions::admin_records};
 use a4n_core::models::generation::workflow_run;
+use a4n_db::workflow::WorkflowRunSummary;
 
-use super::super::{WorkflowRunSummary, WorkflowStateSummary};
 use super::project::{project_visible_to_user, verify_task_project_access};
 
-pub(in crate::actions::task_records) async fn workflow_visible_to_user(
+pub(in crate::actions::task_records) async fn task_scope_visible_to_user(
     state: &AppState,
     user_id: i64,
-    workflow: &WorkflowStateSummary,
+    project_id: Option<i64>,
+    root_project_id: Option<i64>,
 ) -> Result<bool, String> {
-    if let Some(project_id) = workflow.project_id.or(workflow.root_project_id) {
+    if let Some(project_id) = project_id.or(root_project_id) {
         return project_visible_to_user(state, user_id, project_id).await;
     }
     admin_records::is_active_admin_user(state, user_id)

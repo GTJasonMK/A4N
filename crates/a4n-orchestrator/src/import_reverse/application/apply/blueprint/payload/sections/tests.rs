@@ -10,6 +10,20 @@ fn accepts_canonical_payload() {
 }
 
 #[test]
+fn accepts_sparse_existing_materials_without_inventing_entities() {
+    let mut data = canonical_payload();
+    data["world_setting"]["key_locations"] = serde_json::json!([]);
+    data["world_setting"]["factions"] = serde_json::json!([]);
+    data["world_setting"]["history_timeline"] = serde_json::json!([]);
+    data["world_setting"]["mysteries_and_foreshadowing"] = serde_json::json!([]);
+    data["characters"].as_array_mut().unwrap().truncate(2);
+    data["relationships"] = serde_json::json!([]);
+
+    validate_reverse_blueprint_sections(&data, data.get("world_setting").unwrap())
+        .expect("existing materials may contain fewer than three known characters");
+}
+
+#[test]
 fn rejects_thin_character_payload() {
     let mut data = canonical_payload();
     data["characters"][0]
