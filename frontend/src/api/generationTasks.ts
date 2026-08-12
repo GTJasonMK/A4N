@@ -23,7 +23,6 @@ import {
   type GenerationTaskHistoryQuery,
   type GenerationTaskSnapshot,
   type GenerationTaskSummary,
-  type UnsubscribeGenerationTaskInput,
 } from "./generated/generationContracts";
 import {
   createRuntimeChannel,
@@ -138,7 +137,6 @@ export const generationClient = {
     }
     return parseGenerationTaskHandle(
       await apiInvoke<unknown>("cancel_generation_task", {
-        userId: currentUserId(),
         input,
       }),
     );
@@ -385,7 +383,9 @@ async function runWebTransport(
       }
       if (!response.body) throw new Error("generation SSE response 缺少 body");
       await readSseStream(response.body, (frame) => {
-        if (frame.event !== "generation_task_event") return;
+        if (frame.event !== "generation_task_event") {
+          throw new Error(`generation SSE event type 无效: ${frame.event}`);
+        }
         if (terminalVerification) throw new Error("generation terminal 后收到额外事件");
         const event = parseGenerationTaskEvent(JSON.parse(frame.data));
         cursor = event.sequence;
@@ -429,11 +429,8 @@ async function runTauriTransport(
   const parsed = parseGenerationSubscriptionHandle(subscription);
   session.subscriptionId = parsed.subscription_id;
   let unsubscribe: (() => Promise<void>) | undefined = async () => {
-    const input: UnsubscribeGenerationTaskInput = {
-      subscription_id: parsed.subscription_id,
-    };
     try {
-      await runtimeInvoke<void>("unsubscribe_generation_task", { input });
+      await runtimeInvoke<void>("unsubscribe_generation_task", { input: parsed });
     } catch (error) {
       // The backend already unregisters subscriptions on Channel drop/window destroy.
       console.warn("generation subscription unsubscribe failed", error);
@@ -591,11 +588,7 @@ async function readResponseJson(response: Response): Promise<unknown> {
 }
 
 async function readHostError(response: Response): Promise<ReturnType<typeof parseHostErrorResponse>> {
-  const value: unknown = await response.json().catch(() => ({
-    code: "generation_checkpoint_unavailable",
-    message: `${response.status} ${response.statusText}`,
-    retryable: response.status >= 500,
-  }));
+  const value: unknown = await response.json();
   return parseHostErrorResponse(value);
 }
 

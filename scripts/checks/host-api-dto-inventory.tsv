@@ -41,7 +41,6 @@ crates/a4n-runtime/src/actions/embedding_model/runtime.rs	struct	LocalEmbeddingP
 crates/a4n-runtime/src/actions/export_files/contracts.rs	struct	ExportTaskScope	runtime_internal	yes	none	no
 crates/a4n-runtime/src/actions/galgame_records.rs	type	GalgamePipelineProgressUpdate	domain_value	yes	none	no	crates/a4n-server/src/routes/commands/galgame/pipeline.rs
 crates/a4n-runtime/src/actions/generation_tasks/cursor.rs	struct	GenerationCursorError	runtime_internal	yes	serialize,deserialize	no
-crates/a4n-runtime/src/actions/generation_tasks/cursor.rs	type	GenerationHistoryCursor	runtime_internal	yes	serialize,deserialize	no
 crates/a4n-runtime/src/actions/image_generation/contracts/public.rs	struct	ImageGenerationProgress	runtime_internal	yes	none	no
 crates/a4n-runtime/src/actions/import_analysis/mod.rs	type	ImportProjectAnalysisSummary	domain_value	yes	none	yes			frontend/src/api/import/analysis.ts,frontend/src/api/import/types.ts
 crates/a4n-runtime/src/actions/import_reverse/contracts.rs	struct	ReverseEngineerTaskScope	runtime_internal	yes	none	no

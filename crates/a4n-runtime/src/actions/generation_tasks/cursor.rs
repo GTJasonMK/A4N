@@ -10,8 +10,6 @@ use uuid::{Uuid, Version};
 const HISTORY_CURSOR_VERSION: &str = "v1";
 pub const MAX_GENERATION_HISTORY_CURSOR_BYTES: usize = 512;
 
-pub type GenerationHistoryCursor = GenerationTaskListCursor;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenerationCursorError(String);
 

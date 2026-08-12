@@ -5,32 +5,17 @@ use a4n_api_contract::generation_tasks::{
     CancelGenerationTaskInput, GenerationTaskHandle, GenerationTaskHistoryPage,
     GenerationTaskHistoryQuery, GenerationTaskSummary,
 };
-use a4n_db::generation::PersistedGenerationTask;
-pub use a4n_db::generation::{DEFAULT_GENERATION_HISTORY_LIMIT, MAX_GENERATION_HISTORY_LIMIT};
+use a4n_db::generation::{GenerationTaskListCursor, PersistedGenerationTask};
 pub use a4n_orchestrator::GenerationTaskAccessError;
 pub use a4n_orchestrator::generation::events::{GenerationReplay, GenerationSubscription};
 pub use a4n_orchestrator::generation::terminal::GenerationTerminalError;
-use a4n_orchestrator::generation_task_summary as summarize_generation_task;
 pub use cursor::{
-    GenerationCursorError, GenerationHistoryCursor, decode_generation_history_cursor,
-    encode_generation_history_cursor,
+    GenerationCursorError, decode_generation_history_cursor, encode_generation_history_cursor,
 };
 
 use crate::AppState;
 
 pub async fn cancel_generation_task(
-    state: &AppState,
-    user_id: i64,
-    input: CancelGenerationTaskInput,
-) -> Result<GenerationTaskHandle, String> {
-    state
-        .orchestrator()
-        .request_generation_cancel(user_id, &input.task_id, input.attempt)
-        .await
-        .map_err(|error| error.to_string())
-}
-
-pub async fn cancel_generation_task_typed(
     state: &AppState,
     user_id: i64,
     input: CancelGenerationTaskInput,
@@ -51,12 +36,6 @@ pub async fn authorize_generation_task(
         .orchestrator()
         .authorize_generation_task(user_id, task_id, attempt)
         .await
-}
-
-pub fn generation_task_summary_for_host(
-    task: &PersistedGenerationTask,
-) -> Result<a4n_api_contract::generation_tasks::GenerationTaskSummary, GenerationTaskAccessError> {
-    summarize_generation_task(task)
 }
 
 pub async fn generation_task_summary(
@@ -86,7 +65,7 @@ pub async fn list_generation_task_history(
     state: &AppState,
     user_id: i64,
     input: GenerationTaskHistoryQuery,
-    cursor: Option<GenerationHistoryCursor>,
+    cursor: Option<GenerationTaskListCursor>,
 ) -> Result<GenerationTaskHistoryPage, GenerationTaskAccessError> {
     let result = state
         .orchestrator()

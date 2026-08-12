@@ -1,8 +1,8 @@
 use serde_json::Value;
 
 use super::super::{
-    ApiError, ServerState, command_input, empty_command_args, strict_command_input,
-    strict_runtime_command_input, task_records_actions, to_value,
+    ApiError, ServerState, empty_command_args, strict_command_input, strict_runtime_command_input,
+    task_records_actions, to_value,
 };
 use a4n_api_contract::generation_tasks::CancelGenerationTaskInput;
 use a4n_api_contract::{
@@ -111,7 +111,7 @@ pub(in crate::routes::commands) async fn cancel_generation_task(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: CancelGenerationTaskInput = command_input(args, "cancel_generation_task")?;
+    let input: CancelGenerationTaskInput = strict_command_input(args, "cancel_generation_task")?;
     let handle = generation_task_actions::cancel_generation_task(state.runtime(), user_id, input)
         .await
         .map_err(|error| ApiError::bad_request(error.to_string()))?;

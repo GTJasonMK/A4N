@@ -724,35 +724,14 @@
     "GenerationSubscriptionHandle": {
       "additionalProperties": false,
       "properties": {
-        "attempt": {
-          "format": "uint32",
-          "minimum": 1,
-          "type": "integer"
-        },
-        "subscribed_after_sequence": {
-          "format": "uint64",
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
         "subscription_id": {
           "maxLength": 128,
           "minLength": 1,
           "type": "string"
-        },
-        "task_id": {
-          "maxLength": 36,
-          "minLength": 36,
-          "type": "string"
         }
       },
       "required": [
-        "subscription_id",
-        "task_id",
-        "attempt"
+        "subscription_id"
       ],
       "type": "object"
     },
@@ -2709,20 +2688,6 @@
       ],
       "type": "object"
     },
-    "UnsubscribeGenerationTaskInput": {
-      "additionalProperties": false,
-      "properties": {
-        "subscription_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "subscription_id"
-      ],
-      "type": "object"
-    },
     "UsageEvent": {
       "additionalProperties": false,
       "properties": {
@@ -3094,9 +3059,6 @@
     },
     "task_summary": {
       "$ref": "#/$defs/GenerationTaskSummary"
-    },
-    "unsubscribe_input": {
-      "$ref": "#/$defs/UnsubscribeGenerationTaskInput"
     }
   },
   "required": [
@@ -3112,7 +3074,6 @@
     "history_query",
     "history_page",
     "cancel_input",
-    "unsubscribe_input",
     "host_error",
     "start_chapter_generation",
     "start_inspiration_generation",

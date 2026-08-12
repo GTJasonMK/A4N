@@ -2097,20 +2097,6 @@ fn summarize_checkpoint_page(
         .collect()
 }
 
-/// 将规范 checkpoint 投影为 Host summary；snapshot 正文到期或损坏不影响 summary 查询。
-pub fn generation_task_summary(
-    task: &PersistedGenerationTask,
-) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
-    let public_snapshot = task
-        .public_snapshot
-        .clone()
-        .map(GenerationPublicSnapshot::Available)
-        .unwrap_or_else(|| {
-            a4n_db::generation::generation_public_snapshot_for_summary(&task.checkpoint)
-        });
-    generation_task_summary_from_checkpoint(&task.checkpoint, public_snapshot)
-}
-
 fn generation_task_summary_from_checkpoint(
     checkpoint: &a4n_core::models::generation::generation_task_checkpoint::Model,
     public_snapshot: GenerationPublicSnapshot,

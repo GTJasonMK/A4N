@@ -4,7 +4,6 @@ use a4n_api_contract::generation_tasks::{
     CancelGenerationTaskInput, GenerationSnapshotState, GenerationStartRequestMeta,
     GenerationSubscriptionHandle, GenerationTaskHandle, GenerationTaskHistoryPage,
     GenerationTaskHistoryQuery, GenerationTaskSummary, HostErrorResponse,
-    UnsubscribeGenerationTaskInput,
 };
 use a4n_api_contract::image_generation::StartImageGenerationInput;
 use a4n_api_contract::inspiration::StartInspirationGenerationInput;
@@ -39,7 +38,6 @@ struct GenerationContractBundle {
     history_query: GenerationTaskHistoryQuery,
     history_page: GenerationTaskHistoryPage,
     cancel_input: CancelGenerationTaskInput,
-    unsubscribe_input: UnsubscribeGenerationTaskInput,
     host_error: HostErrorResponse,
     start_chapter_generation: StartChapterGenerationInput,
     start_inspiration_generation: StartInspirationGenerationInput,

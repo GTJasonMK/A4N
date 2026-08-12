@@ -10,6 +10,7 @@ import {
 } from "../store/generationTasks";
 
 const mocks = vi.hoisted(() => ({
+  apiInvoke: vi.fn(),
   authenticatedWebFetch: vi.fn(),
   httpBackend: true,
   runtimeChannel: null as { onmessage: (value: unknown) => void } | null,
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock(".", () => ({
-  apiInvoke: vi.fn(),
+  apiInvoke: mocks.apiInvoke,
   authenticatedWebFetch: mocks.authenticatedWebFetch,
   extractErrorMessage: (error: unknown) => String(error),
 }));
@@ -54,6 +55,7 @@ const chapterResultRef = { kind: "chapter", id: "42", revision: fixedHash };
 describe("generation web transport", () => {
   afterEach(() => {
     mocks.httpBackend = true;
+    mocks.apiInvoke.mockReset();
     mocks.runtimeChannel = null;
     mocks.runtimeInvoke.mockReset();
     mocks.authenticatedWebFetch.mockReset();
@@ -145,6 +147,17 @@ describe("generation web transport", () => {
     expect(task?.terminalReceived).toBe(true);
   });
 
+  it("rejects an unexpected SSE event type", async () => {
+    mocks.authenticatedWebFetch.mockResolvedValueOnce(new Response(
+      `event: legacy_generation_event\ndata: ${JSON.stringify(startedEvent())}\n\n`,
+    ));
+    const { generationClient } = await import("./generationTasks");
+
+    await expect(generationClient.attach(handle)).rejects.toThrow(
+      "generation SSE event type 无效: legacy_generation_event",
+    );
+  });
+
   it("uses a consistent terminal snapshot when the local completed hash differs", async () => {
     mocks.authenticatedWebFetch
       .mockResolvedValueOnce(sseResponse(
@@ -207,10 +220,7 @@ describe("generation web transport", () => {
     mocks.runtimeInvoke.mockImplementation(async (command: string) => {
       if (command === "subscribe_generation_task") {
         return {
-          task_id: taskId,
-          attempt: 1,
           subscription_id: "subscription-1",
-          subscribed_after_sequence: null,
         };
       }
       if (command === "get_generation_task_snapshot") {
@@ -255,10 +265,7 @@ describe("generation web transport", () => {
     mocks.runtimeInvoke.mockImplementation(async (command: string) => {
       if (command === "subscribe_generation_task") {
         return {
-          task_id: taskId,
-          attempt: 1,
           subscription_id: "subscription-terminal",
-          subscribed_after_sequence: null,
         };
       }
       if (command === "unsubscribe_generation_task") {
@@ -288,10 +295,7 @@ describe("generation web transport", () => {
     mocks.runtimeInvoke.mockImplementation(async (command: string) => {
       if (command === "subscribe_generation_task") {
         return {
-          task_id: taskId,
-          attempt: 1,
           subscription_id: "subscription-detach",
-          subscribed_after_sequence: null,
         };
       }
       if (command === "unsubscribe_generation_task") return undefined;
@@ -326,6 +330,18 @@ describe("generation web transport", () => {
       "get_generation_task_summary",
       expect.objectContaining({ taskId, attempt: 1 }),
     );
+  });
+
+  it("does not duplicate authenticated identity in the cancel payload", async () => {
+    mocks.httpBackend = false;
+    mocks.apiInvoke.mockResolvedValue({ ...handle, status: "cancelling" });
+    const { generationClient } = await import("./generationTasks");
+
+    await generationClient.cancel(handle);
+
+    expect(mocks.apiInvoke).toHaveBeenCalledWith("cancel_generation_task", {
+      input: { task_id: taskId, attempt: 1 },
+    });
   });
 });
 

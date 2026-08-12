@@ -56,7 +56,7 @@ pub(crate) mod test_support;
 pub use context::dynamic_provider::DynamicProviderFacade;
 pub use context::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
-    OrchestratorContext, generation_task_summary,
+    OrchestratorContext,
 };
 pub use service_health::{
     CapabilityHealthSnapshot, ManagedServiceHealthSummary, ManagedServicePidStatus,

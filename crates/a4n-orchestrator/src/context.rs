@@ -26,7 +26,6 @@ mod generation;
 pub(crate) use generation::GenerationTaskExecution;
 pub use generation::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
-    generation_task_summary,
 };
 mod import_reverse;
 mod import_review;

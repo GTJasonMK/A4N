@@ -5,7 +5,7 @@
 
 use a4n_api_contract::generation_tasks::{
     GenerationSubscriptionHandle, GenerationTaskHistoryPage, GenerationTaskHistoryQuery,
-    GenerationTaskSummary, HostErrorResponse, UnsubscribeGenerationTaskInput,
+    GenerationTaskSummary, HostErrorResponse,
 };
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::generation_tasks as generation_actions;
@@ -180,19 +180,14 @@ pub async fn subscribe_generation_task<R: Runtime>(
         owner_registry.finish(&worker_id);
     });
 
-    Ok(GenerationSubscriptionHandle {
-        subscription_id,
-        task_id,
-        attempt,
-        subscribed_after_sequence: after_sequence,
-    })
+    Ok(GenerationSubscriptionHandle { subscription_id })
 }
 
 #[tauri::command]
 pub async fn unsubscribe_generation_task<R: Runtime>(
     window: Window<R>,
     registry: State<'_, GenerationSubscriptionRegistry>,
-    input: UnsubscribeGenerationTaskInput,
+    input: GenerationSubscriptionHandle,
 ) -> Result<(), HostErrorResponse> {
     if registry.unsubscribe(window.label(), &input.subscription_id) {
         Ok(())

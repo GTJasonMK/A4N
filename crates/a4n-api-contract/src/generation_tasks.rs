@@ -1,6 +1,6 @@
 use a4n_service_protocol::{
     GenerationErrorCode, GenerationResultRef, GenerationTaskEvent, GenerationTaskStatus,
-    JS_SAFE_INTEGER_I64, JS_SAFE_INTEGER_U64, StartedEvent,
+    JS_SAFE_INTEGER_I64, StartedEvent,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -66,12 +66,6 @@ pub struct GenerationTaskHandle {
 pub struct GenerationSubscriptionHandle {
     #[schemars(length(min = 1, max = 128))]
     pub subscription_id: String,
-    #[schemars(length(equal = 36))]
-    pub task_id: String,
-    #[schemars(range(min = 1))]
-    pub attempt: u32,
-    #[schemars(range(min = 0, max = JS_SAFE_INTEGER_U64))]
-    pub subscribed_after_sequence: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -120,13 +114,6 @@ pub struct CancelGenerationTaskInput {
     pub task_id: String,
     #[schemars(range(min = 1))]
     pub attempt: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct UnsubscribeGenerationTaskInput {
-    #[schemars(length(min = 1, max = 128))]
-    pub subscription_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

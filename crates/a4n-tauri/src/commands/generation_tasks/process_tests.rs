@@ -67,7 +67,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     .unwrap();
     let image_config = a4n_db::config::create_image_config_record(
         &db,
-        a4n_core::config::CreateImageConfigParams {
+        a4n_db::config::ImageConfigCreateRecordInput {
             name: "tauri-image-provider".to_string(),
             backend: "openai-compatible-image".to_string(),
             base_url: format!("{}/v1", provider.base_url()),
@@ -80,6 +80,21 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     )
     .await
     .unwrap();
+    let runtime_config_snapshot = json!({
+        "schema_version": 1,
+        "image": {
+            "id": image_config.id,
+            "name": image_config.name,
+            "backend": image_config.backend,
+            "base_url": image_config.base_url,
+            "api_key_encrypted": image_config.api_key_encrypted,
+            "model": image_config.model,
+            "max_concurrent": image_config.max_concurrent,
+            "default_width": image_config.default_width,
+            "default_height": image_config.default_height,
+            "is_default": image_config.is_default,
+        },
+    });
 
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -153,7 +168,10 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         &main_window,
         owner.id,
         "start_image_generation",
-        json!({"userId": owner.id, "input": input}),
+        json!({
+            "input": input,
+            "runtime_config_snapshot": runtime_config_snapshot.clone(),
+        }),
     )
     .unwrap();
     assert_eq!(handle.status, GenerationTaskStatus::Reserved);
@@ -182,7 +200,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     .await
     .expect("image generation should expose a replayable running snapshot");
 
-    let first_subscription: GenerationSubscriptionHandle = invoke(
+    let _: GenerationSubscriptionHandle = invoke(
         &main_window,
         "subscribe_generation_task",
         json!({
@@ -194,8 +212,6 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         }),
     )
     .unwrap();
-    assert_eq!(first_subscription.subscribed_after_sequence, None);
-
     let (channel_id, index, first_event) =
         tokio::time::timeout(Duration::from_secs(2), event_rx.recv())
             .await
@@ -214,7 +230,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     let remount_window = WebviewWindowBuilder::new(&app, "remount", Default::default())
         .build()
         .unwrap();
-    let remount_subscription: GenerationSubscriptionHandle = invoke(
+    let _: GenerationSubscriptionHandle = invoke(
         &remount_window,
         "subscribe_generation_task",
         json!({
@@ -226,11 +242,6 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         }),
     )
     .unwrap();
-    assert_eq!(
-        remount_subscription.subscribed_after_sequence,
-        Some(first_event.sequence)
-    );
-
     let mut events = vec![first_event];
     let mut remount_index = 0;
     loop {
@@ -328,7 +339,6 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         owner.id,
         "start_image_generation",
         json!({
-            "userId": owner.id,
             "input": StartImageGenerationInput {
                 meta: GenerationStartRequestMeta {
                     start_request_id: "00000000-0000-4000-8000-000000000278".to_string(),
@@ -340,7 +350,8 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
                     config_id: Some(image_config.id),
                     chapter_id: None,
                 },
-            }
+            },
+            "runtime_config_snapshot": runtime_config_snapshot,
         }),
     )
     .unwrap();
@@ -361,7 +372,6 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         owner.id,
         "cancel_generation_task",
         json!({
-            "userId": owner.id,
             "input": CancelGenerationTaskInput {
                 task_id: cancelled.task_id.clone(),
                 attempt: cancelled.attempt,

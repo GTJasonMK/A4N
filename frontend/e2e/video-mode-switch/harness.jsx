@@ -1045,9 +1045,6 @@ const invoke = async (command, args = {}) => {
       }, 0);
       return {
         subscription_id: `subscription-${task.generationNumber}`,
-        task_id: task.handle.task_id,
-        attempt: task.handle.attempt,
-        subscribed_after_sequence: null,
       };
     }
     case "cancel_generation_task": {

@@ -453,7 +453,7 @@ pub(super) async fn cancel(
         ));
     }
     let user_id = authenticated_generation_user_id(&state, &headers).await?;
-    let handle = generation_actions::cancel_generation_task_typed(state.runtime(), user_id, input)
+    let handle = generation_actions::cancel_generation_task(state.runtime(), user_id, input)
         .await
         .map_err(map_terminal_error)?;
     Ok((StatusCode::ACCEPTED, Json(handle)))
@@ -577,22 +577,12 @@ fn parse_project_id(raw: Option<&str>) -> Result<Option<i64>, GenerationApiError
 }
 
 fn parse_history_limit(raw: Option<&str>) -> Result<u32, GenerationApiError> {
-    let limit = raw
-        .map(|raw| raw.parse::<u32>())
-        .transpose()
-        .map_err(|_| {
-            GenerationApiError::bad_request(
-                "generation_request_invalid",
-                "limit 必须是 1..=100 的整数",
-            )
-        })?
-        .unwrap_or(generation_actions::DEFAULT_GENERATION_HISTORY_LIMIT);
-    if !(1..=generation_actions::MAX_GENERATION_HISTORY_LIMIT).contains(&limit) {
-        return Err(GenerationApiError::bad_request(
-            "generation_request_invalid",
-            "limit 必须是 1..=100 的整数",
-        ));
-    }
+    let raw = raw.ok_or_else(|| {
+        GenerationApiError::bad_request("generation_request_invalid", "limit 必须提供")
+    })?;
+    let limit = raw.parse::<u32>().map_err(|_| {
+        GenerationApiError::bad_request("generation_request_invalid", "limit 必须是 1..=100 的整数")
+    })?;
     Ok(limit)
 }
 
@@ -736,8 +726,8 @@ mod tests {
         );
         let error = parse_last_event_id(&headers, 2).unwrap_err();
         assert_eq!(error.into_response().status(), StatusCode::CONFLICT);
-        assert_eq!(parse_history_limit(None).unwrap(), 50);
-        assert!(parse_history_limit(Some("101")).is_err());
+        assert!(parse_history_limit(None).is_err());
+        assert!(parse_history_limit(Some("invalid")).is_err());
         assert_eq!(parse_project_id(Some("42")).unwrap(), Some(42));
         assert!(parse_project_id(Some("0")).is_err());
     }

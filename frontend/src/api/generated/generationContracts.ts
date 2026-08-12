@@ -291,7 +291,6 @@ export interface GenerationContractBundle {
   subscription_handle: GenerationSubscriptionHandle;
   task_handle: GenerationTaskHandle;
   task_summary: GenerationTaskSummary;
-  unsubscribe_input: UnsubscribeGenerationTaskInput;
 }
 export interface CancelGenerationTaskInput {
   attempt: number;
@@ -705,11 +704,5 @@ export interface VideoPromptGenerationOptions {
   workflow_mode?: string | null;
 }
 export interface GenerationSubscriptionHandle {
-  attempt: number;
-  subscribed_after_sequence?: number | null;
-  subscription_id: string;
-  task_id: string;
-}
-export interface UnsubscribeGenerationTaskInput {
   subscription_id: string;
 }
