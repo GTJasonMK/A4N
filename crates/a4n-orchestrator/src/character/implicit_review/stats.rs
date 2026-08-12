@@ -12,7 +12,6 @@ use super::contracts::{
 };
 
 pub(super) fn build_implicit_review_summary(
-    profile_id: i64,
     current_state: &Value,
     records: &[BehaviorForReview],
     threshold: usize,
@@ -43,19 +42,7 @@ pub(super) fn build_implicit_review_summary(
             .then_with(|| right.non_conform_count.cmp(&left.non_conform_count))
             .then_with(|| left.attribute_key.cmp(&right.attribute_key))
     });
-    let needs_review = attributes
-        .iter()
-        .filter(|item| item.threshold_reached)
-        .map(|item| item.attribute_key.clone())
-        .collect();
-    Ok(ImplicitReviewSummary {
-        profile_id,
-        threshold,
-        window_chapters,
-        evidence_limit,
-        attributes,
-        needs_review,
-    })
+    Ok(ImplicitReviewSummary { attributes })
 }
 
 pub(super) fn build_implicit_attribute_review(
@@ -99,7 +86,6 @@ pub(super) fn build_implicit_attribute_review(
                 original_text: record.original_text.clone(),
                 behavior_tags: record.behavior_tags.clone(),
                 classification: classification.clone(),
-                created_at: record.created_at.clone(),
             });
         }
         total += 1;
@@ -118,7 +104,6 @@ pub(super) fn build_implicit_attribute_review(
     Ok(ImplicitAttributeReviewSummary {
         attribute_key: attribute_key.to_string(),
         current_value,
-        total,
         conform_count,
         non_conform_count,
         conform_rate,
@@ -145,7 +130,6 @@ pub(super) fn behavior_for_review_from_sync(
         original_text: required_string(behavior, "original_text")?,
         behavior_tags: required_value(behavior, "behavior_tags")?.clone(),
         classification_results: required_value(behavior, "classification_results")?.clone(),
-        created_at: None,
     })
 }
 

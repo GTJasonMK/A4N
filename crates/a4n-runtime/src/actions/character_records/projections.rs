@@ -2,7 +2,9 @@ use super::contracts::*;
 use a4n_core::models::character::{
     attribute_event, protagonist_behavior_record, protagonist_deletion_mark, protagonist_profile,
 };
-use a4n_orchestrator::character::DELETION_THRESHOLD;
+use a4n_domain::character::{
+    CharacterAttributeCategory, CharacterAttributeOperation, CharacterTimelineSourceKind,
+};
 use serde_json::Value;
 
 mod snapshots;
@@ -41,30 +43,32 @@ pub(super) fn profile_summary(
     })
 }
 
-pub(super) fn attribute_event_summary(event: &attribute_event::Model) -> AttributeEventSummary {
-    AttributeEventSummary {
+pub(super) fn attribute_event_summary(
+    event: &attribute_event::Model,
+) -> Result<AttributeEventSummary, String> {
+    Ok(AttributeEventSummary {
         id: event.id,
-        profile_id: event.profile_id,
         chapter_number: event.chapter_number,
+        source_kind: timeline_source_kind(&event.source_kind)?,
         timestamp: Some(event.timestamp.to_string()),
-        category: event.category.clone(),
+        category: attribute_category(&event.category)?,
         key: event.key.clone(),
-        operation: event.operation.clone(),
+        operation: attribute_operation(&event.operation)?,
         change_description: event.change_description.clone(),
         old_value: event.old_value.clone(),
         new_value: event.new_value.clone(),
         cause: event.cause.clone(),
         evidence: event.evidence.clone(),
-    }
+    })
 }
 
 pub(super) fn behavior_record_summary(
     record: &protagonist_behavior_record::Model,
-) -> BehaviorRecordSummary {
-    BehaviorRecordSummary {
+) -> Result<BehaviorRecordSummary, String> {
+    Ok(BehaviorRecordSummary {
         id: record.id,
-        profile_id: record.profile_id,
         chapter_number: record.chapter_number,
+        source_kind: timeline_source_kind(&record.source_kind)?,
         behavior_description: record.behavior_description.clone(),
         behavior_type: record.behavior_type.clone(),
         original_text: record.original_text.clone(),
@@ -72,28 +76,37 @@ pub(super) fn behavior_record_summary(
         classification_results: record.classification_results.clone(),
         related_characters: record.related_characters.clone(),
         impact_analysis: record.impact_analysis.clone(),
-        created_at: Some(record.created_at.to_string()),
-    }
+    })
 }
 
-pub(super) fn deletion_mark_summary(
+pub(crate) fn deletion_mark_summary(
     mark: &protagonist_deletion_mark::Model,
-) -> DeletionMarkSummary {
-    DeletionMarkSummary {
+) -> Result<DeletionMarkSummary, String> {
+    Ok(DeletionMarkSummary {
         id: mark.id,
-        profile_id: mark.profile_id,
-        category: mark.category.clone(),
+        source_kind: timeline_source_kind(&mark.source_kind)?,
+        category: attribute_category(&mark.category)?,
         key: mark.key.clone(),
-        chapter_number: mark.chapter_number,
         reason: mark.reason.clone(),
         evidence: mark.evidence.clone(),
         consecutive_count: mark.consecutive_count,
-        threshold: DELETION_THRESHOLD,
         last_marked_chapter: mark.last_marked_chapter,
         is_executed: mark.is_executed,
         created_at: mark.created_at.to_string(),
-        updated_at: mark.updated_at.to_string(),
-    }
+    })
+}
+
+fn timeline_source_kind(value: &str) -> Result<CharacterTimelineSourceKind, String> {
+    CharacterTimelineSourceKind::parse(value)
+        .ok_or_else(|| format!("角色时间线 source_kind 无效: {value}"))
+}
+
+fn attribute_category(value: &str) -> Result<CharacterAttributeCategory, String> {
+    CharacterAttributeCategory::parse(value).ok_or_else(|| format!("角色属性分类无效: {value}"))
+}
+
+fn attribute_operation(value: &str) -> Result<CharacterAttributeOperation, String> {
+    CharacterAttributeOperation::parse(value).ok_or_else(|| format!("角色属性操作无效: {value}"))
 }
 
 pub(super) fn category_storage_key(category: &str) -> &str {

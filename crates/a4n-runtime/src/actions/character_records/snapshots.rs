@@ -54,10 +54,6 @@ pub async fn get_snapshot(
         .await
         .map_err(|error| error.to_string())?;
     Ok(SnapshotSummary {
-        content_hash: snapshot.content_hash,
-        entity_type: snapshot.entity_type,
-        entity_id: snapshot.entity_id,
-        sequence: snapshot.sequence,
         data: snapshot.data,
         created_at: Some(snapshot.created_at.to_string()),
     })
@@ -78,11 +74,7 @@ pub async fn diff_profile_chapters(
         )
         .await
         .map_err(|error| error.to_string())?;
-    Ok(SnapshotDeltaSummary {
-        from_hash: delta.from_hash,
-        to_hash: delta.to_hash,
-        delta: delta.delta,
-    })
+    Ok(SnapshotDeltaSummary { delta: delta.delta })
 }
 
 pub async fn check_profile_sync_conflict(
@@ -96,7 +88,6 @@ pub async fn check_profile_sync_conflict(
         .await
         .map_err(|error| error.to_string())?;
     Ok(ProfileSyncConflictSummary {
-        profile_id: conflict.profile_id,
         has_conflict: conflict.has_conflict,
         last_synced_chapter: conflict.last_synced_chapter,
         max_available_chapter: conflict.max_available_chapter,

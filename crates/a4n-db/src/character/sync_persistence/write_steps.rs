@@ -5,12 +5,13 @@ use super::{
 use crate::character::{
     AppliedCharacterImplicitDecisionAction, CharacterAttributeDeletionExecutionInput,
     CharacterAttributeDeletionRequestInput, CharacterDbError,
-    CharacterImplicitReviewDecisionRecordInput, DELETION_THRESHOLD,
-    add_profile_attribute_from_source_in, apply_implicit_review_decision_record_from_source_in,
+    CharacterImplicitReviewDecisionRecordInput, add_profile_attribute_from_source_in,
+    apply_implicit_review_decision_record_from_source_in,
     execute_ready_attribute_deletion_from_source_in, modify_profile_attribute_from_source_in,
     record_behavior_in, request_attribute_deletion_from_source_in,
 };
 use a4n_core::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
+use a4n_domain::character::CHARACTER_DELETION_THRESHOLD;
 use sea_orm::ConnectionTrait;
 
 use crate::character::CharacterAttributeOwnership;
@@ -135,9 +136,7 @@ fn implicit_review_mutates_protected_attribute(
     if !matches!(decision.decision.as_str(), "modify" | "delete") {
         return Ok(false);
     }
-    let chapter_number = decision.chapter_number.ok_or_else(|| {
-        CharacterDbError::InvalidArgument("角色同步隐性复审缺少章节号".to_string())
-    })?;
+    let chapter_number = decision.chapter_number;
     if !ownership.is_protected(chapter_number, "implicit", &decision.attribute_key) {
         return Ok(false);
     }
@@ -198,7 +197,7 @@ where
         request_attribute_deletion_from_source_in(db, candidate, SOURCE_KIND_AI_SYNC).await?;
     summary.deletions_marked += 1;
 
-    if !mark.is_executed && mark.consecutive_count >= DELETION_THRESHOLD {
+    if !mark.is_executed && mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD {
         let event_cause = format!("连续{}次标记删除", mark.consecutive_count);
         let (event, _) = execute_ready_attribute_deletion_from_source_in(
             db,

@@ -221,12 +221,10 @@ fn implicit_review_record_input(
 ) -> CharacterImplicitReviewDecisionRecordInput {
     CharacterImplicitReviewDecisionRecordInput {
         profile_id,
-        chapter_number: Some(target_chapter),
+        chapter_number: target_chapter,
         attribute_key: decision.attribute_key.clone(),
         current_value: decision.current_value.clone(),
-        stats_attribute_key: decision.stats.attribute_key.clone(),
-        stats_current_value: decision.stats.current_value.clone(),
-        decision: decision.decision.clone(),
+        decision: decision.decision.as_str().to_string(),
         suggested_new_value: decision.suggested_new_value.clone(),
         reasoning: decision.reasoning.clone(),
         evidence_summary: decision.evidence_summary.clone(),

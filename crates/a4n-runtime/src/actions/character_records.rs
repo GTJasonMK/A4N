@@ -12,6 +12,7 @@ pub use behaviors::*;
 pub use contracts::*;
 pub use deletion_marks::*;
 pub use profiles::*;
+pub(crate) use projections::deletion_mark_summary;
 pub use snapshots::*;
 
 #[cfg(test)]

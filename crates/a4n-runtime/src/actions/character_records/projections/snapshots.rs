@@ -17,8 +17,6 @@ pub(in crate::actions::character_records) fn snapshot_data_summary(
         attribute_counts: attribute_counts(&attributes)?,
         state_summary: value_string(data.get("state_summary")),
         current_location: value_string(data.get("current_location")),
-        current_goal: value_string(data.get("current_goal")),
-        emotional_state: value_string(data.get("emotional_state")),
         changes_in_chapter: required_usize_field(data, "changes_in_chapter", &label)?,
         behaviors_in_chapter: required_usize_field(data, "behaviors_in_chapter", &label)?,
     })
@@ -29,8 +27,6 @@ pub(in crate::actions::character_records) struct SnapshotDataSummary {
     pub(in crate::actions::character_records) attribute_counts: AttributeCountsSummary,
     pub(in crate::actions::character_records) state_summary: Option<String>,
     pub(in crate::actions::character_records) current_location: Option<String>,
-    pub(in crate::actions::character_records) current_goal: Option<String>,
-    pub(in crate::actions::character_records) emotional_state: Option<String>,
     pub(in crate::actions::character_records) changes_in_chapter: usize,
     pub(in crate::actions::character_records) behaviors_in_chapter: usize,
 }
@@ -41,18 +37,12 @@ pub(in crate::actions::character_records) fn snapshot_reference_summary(
     let data = snapshot_data_summary(snapshot)?;
     Ok(SnapshotReferenceSummary {
         id: snapshot.id,
-        profile_id: snapshot.profile_id,
         chapter_number: snapshot.chapter_number,
         snapshot_hash: snapshot.snapshot_hash.clone(),
-        reference_count: snapshot.reference_count,
         attribute_counts: data.attribute_counts,
         state_summary: data.state_summary,
-        current_location: data.current_location,
-        current_goal: data.current_goal,
-        emotional_state: data.emotional_state,
         changes_in_chapter: data.changes_in_chapter,
         behaviors_in_chapter: data.behaviors_in_chapter,
-        created_at: Some(snapshot.created_at.to_string()),
     })
 }
 
@@ -63,18 +53,13 @@ pub(in crate::actions::character_records) fn profile_state_summary_from_snapshot
         .map_err(|err| err.to_string())?;
     let data = snapshot_data_summary(snapshot)?;
     Ok(ProfileChapterStateSummary {
-        id: snapshot.id,
-        profile_id: snapshot.profile_id,
         chapter_number: snapshot.chapter_number,
-        snapshot_hash: snapshot.snapshot_hash.clone(),
         attribute_counts: data.attribute_counts,
         explicit_attributes: snapshot_category_value(&attributes, "explicit")?,
         implicit_attributes: snapshot_category_value(&attributes, "implicit")?,
         social_attributes: snapshot_category_value(&attributes, "social")?,
         state_summary: data.state_summary,
         current_location: data.current_location,
-        current_goal: data.current_goal,
-        emotional_state: data.emotional_state,
         changes_in_chapter: data.changes_in_chapter,
         behaviors_in_chapter: data.behaviors_in_chapter,
         created_at: Some(snapshot.created_at.to_string()),

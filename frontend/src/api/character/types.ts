@@ -1,173 +1,35 @@
-import type { CharacterProfileSummary } from "../generated/host";
-
-interface AttributeCounts {
-  explicit: number;
-  implicit: number;
-  social: number;
-}
+import type {
+  ApplyImplicitUpdateDecisionResultSummary,
+  AttributeEventSummary,
+  BehaviorRecordSummary,
+  CharacterProfileSummary,
+  DeletionMarkSummary,
+  ImplicitAttributeReviewSummary,
+  ImplicitReviewSummary,
+  ImplicitUpdateDecisionSummary,
+  ProfileChapterStateSummary,
+  ProfileSyncConflictSummary,
+  RollbackResultSummary,
+  SnapshotDeltaSummary,
+  SnapshotReferenceSummary,
+  SnapshotSummary,
+} from "../generated/host";
 
 export type CharacterProfile = CharacterProfileSummary;
-
-export interface AttributeEvent {
-  id: number;
-  profile_id: number;
-  chapter_number: number;
-  source_kind: string;
-  timestamp: string | null;
-  category: string;
-  key: string;
-  operation: string;
-  change_description: string;
-  old_value: unknown;
-  new_value: unknown;
-  cause: string;
-  evidence: string;
-}
-
-export interface AttributeMutationResult {
-  event: AttributeEvent;
-  warnings: string[];
-}
-
-export interface SnapshotReference {
-  id: number;
-  profile_id: number;
-  chapter_number: number;
-  snapshot_hash: string;
-  reference_count: number;
-  attribute_counts: AttributeCounts;
-  state_summary: string | null;
-  current_location: string | null;
-  current_goal: string | null;
-  emotional_state: string | null;
-  changes_in_chapter: number;
-  behaviors_in_chapter: number;
-  created_at: string | null;
-}
-
-export interface ProfileChapterState {
-  id: number;
-  profile_id: number;
-  chapter_number: number;
-  snapshot_hash: string;
-  attribute_counts: AttributeCounts;
-  explicit_attributes: unknown;
-  implicit_attributes: unknown;
-  social_attributes: unknown;
-  state_summary: string | null;
-  current_location: string | null;
-  current_goal: string | null;
-  emotional_state: string | null;
-  changes_in_chapter: number;
-  behaviors_in_chapter: number;
-  created_at: string | null;
-}
-
-export interface Snapshot {
-  content_hash: string;
-  entity_type: string;
-  entity_id: number;
-  sequence: number;
-  data: unknown;
-  created_at: string | null;
-}
-
-export interface SnapshotDelta {
-  from_hash: string;
-  to_hash: string;
-  delta: unknown;
-}
-
-export interface ProfileSyncConflict {
-  profile_id: number;
-  has_conflict: boolean;
-  last_synced_chapter: number;
-  max_available_chapter: number;
-  available_snapshot_chapters: number[];
-}
-
-export interface BehaviorRecord {
-  id: number;
-  profile_id: number;
-  chapter_number: number;
-  source_kind: string;
-  behavior_description: string;
-  behavior_type: string;
-  original_text: string;
-  behavior_tags: unknown;
-  classification_results: unknown;
-  related_characters: unknown | null;
-  impact_analysis: string | null;
-  created_at: string | null;
-}
-
-export interface DeletionMark {
-  id: number;
-  profile_id: number;
-  source_kind: string;
-  category: string;
-  key: string;
-  chapter_number: number;
-  reason: string;
-  evidence: string;
-  consecutive_count: number;
-  threshold: number;
-  last_marked_chapter: number;
-  is_executed: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface ImplicitEvidence {
-  behavior_id: number;
-  chapter_number: number;
-  behavior_type: string;
-  behavior_description: string;
-  original_text: string;
-  behavior_tags: unknown;
-  classification: unknown;
-  created_at: string | null;
-}
-
-export interface ImplicitAttributeReview {
-  attribute_key: string;
-  current_value: unknown;
-  total: number;
-  conform_count: number;
-  non_conform_count: number;
-  conform_rate: number;
-  threshold_reached: boolean;
-  evidence: ImplicitEvidence[];
-}
-
-export interface ImplicitReview {
-  profile_id: number;
-  threshold: number;
-  window_chapters: number;
-  evidence_limit: number;
-  attributes: ImplicitAttributeReview[];
-  needs_review: string[];
-}
-
-export interface ImplicitUpdateDecision {
-  profile_id: number;
-  attribute_key: string;
-  current_value: unknown;
-  decision: "keep" | "modify" | "delete";
-  reasoning: string;
-  suggested_new_value: unknown | null;
-  evidence_summary: string;
-  stats: ImplicitAttributeReview;
-}
-
-export interface ApplyImplicitUpdateDecisionResult {
-  action: "keep" | "modify" | "mark_deletion";
-  event: AttributeEvent | null;
-  deletion_mark: DeletionMark | null;
-  ready_for_deletion: boolean;
-  threshold: number;
-  warnings: string[];
-}
+export type AttributeEvent = AttributeEventSummary;
+export type SnapshotReference = SnapshotReferenceSummary;
+export type ProfileChapterState = ProfileChapterStateSummary;
+export type Snapshot = SnapshotSummary;
+export type SnapshotDelta = SnapshotDeltaSummary;
+export type ProfileSyncConflict = ProfileSyncConflictSummary;
+export type BehaviorRecord = BehaviorRecordSummary;
+export type DeletionMark = DeletionMarkSummary;
+export type ImplicitAttributeReview = ImplicitAttributeReviewSummary;
+export type ImplicitReview = ImplicitReviewSummary;
+export type ImplicitUpdateDecision = ImplicitUpdateDecisionSummary;
+export type ApplyImplicitUpdateDecisionResult =
+  ApplyImplicitUpdateDecisionResultSummary;
+export type RollbackToChapterResult = RollbackResultSummary;
 
 export interface DiscoverCharacterProfilesResult {
   status: string;
@@ -180,16 +42,4 @@ export interface DiscoverCharacterProfilesResult {
     aliases: unknown;
     reason: string;
   }>;
-}
-
-export interface RollbackToChapterResult {
-  deleted_events: number;
-  deleted_snapshots: number;
-  deleted_behaviors: number;
-  deleted_state_indexes: number;
-  deleted_state_rag: number;
-  deleted_attribute_event_rag: number;
-  deleted_deletion_marks: number;
-  rewound_deletion_marks: number;
-  warnings: string[];
 }

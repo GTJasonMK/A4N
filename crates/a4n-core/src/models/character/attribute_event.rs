@@ -1,12 +1,13 @@
 //! 属性事件实体【新增】—— 事件溯源存储
 
+use a4n_domain::character::CharacterTimelineSourceKind;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 时间线记录来源。旧数据库无法可靠回溯来源，迁移时统一标为未知。
-pub const SOURCE_KIND_LEGACY_UNKNOWN: &str = "legacy_unknown";
-pub const SOURCE_KIND_USER: &str = "user";
-pub const SOURCE_KIND_AI_SYNC: &str = "ai_sync";
+pub const SOURCE_KIND_LEGACY_UNKNOWN: &str = CharacterTimelineSourceKind::LegacyUnknown.as_str();
+pub const SOURCE_KIND_USER: &str = CharacterTimelineSourceKind::User.as_str();
+pub const SOURCE_KIND_AI_SYNC: &str = CharacterTimelineSourceKind::AiSync.as_str();
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "attribute_event")]

@@ -20,17 +20,6 @@ pub(super) fn validate_implicit_review_decision_record(
             "隐性属性 key 不能为空".to_string(),
         ));
     }
-    if input.stats_attribute_key.trim() != attribute_key {
-        return Err(CharacterDbError::InvalidArgument(format!(
-            "复审统计 attribute_key 不匹配: expected={}, actual={}",
-            attribute_key, input.stats_attribute_key
-        )));
-    }
-    if input.stats_current_value != input.current_value {
-        return Err(CharacterDbError::InvalidArgument(format!(
-            "复审统计 current_value 与决策当前值不一致: {attribute_key}"
-        )));
-    }
     let current_value = attribute_value_in_state(&profile.current_state, "implicit", attribute_key)
         .ok_or_else(|| CharacterDbError::NotFound(format!("隐性属性不存在: {attribute_key}")))?;
     if current_value != input.current_value {
@@ -83,12 +72,10 @@ fn validate_review_reason_and_evidence(
     Ok(())
 }
 
-pub(in crate::character::attributes) fn required_positive_chapter_number(
-    value: Option<i32>,
+pub(in crate::character::attributes) fn require_positive_chapter_number(
+    chapter_number: i32,
     label: &str,
 ) -> Result<i32, CharacterDbError> {
-    let chapter_number =
-        value.ok_or_else(|| CharacterDbError::InvalidArgument(format!("{label}缺少章节号")))?;
     if chapter_number <= 0 {
         return Err(CharacterDbError::InvalidArgument(format!(
             "{label}章节号必须大于 0"

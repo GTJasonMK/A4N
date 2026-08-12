@@ -1,4 +1,4 @@
-use super::implicit_review::required_positive_chapter_number;
+use super::implicit_review::require_positive_chapter_number;
 use super::*;
 use crate::character::{CharacterDbError, validate_category};
 use sea_orm::DatabaseConnection;
@@ -168,11 +168,11 @@ async fn attribute_deletion_execution_preserves_invalid_argument_and_database_er
 
 #[tokio::test]
 async fn implicit_review_contract_preserves_invalid_argument_and_database_errors() {
-    let invalid_argument = required_positive_chapter_number(None, "应用隐性属性复审")
-        .expect_err("missing chapter must fail");
+    let invalid_argument = require_positive_chapter_number(0, "应用隐性属性复审")
+        .expect_err("non-positive chapter must fail");
     assert!(matches!(
         invalid_argument,
-        CharacterDbError::InvalidArgument(message) if message == "应用隐性属性复审缺少章节号"
+        CharacterDbError::InvalidArgument(message) if message == "应用隐性属性复审章节号必须大于 0"
     ));
 
     let disconnected = DatabaseConnection::default();
@@ -180,11 +180,9 @@ async fn implicit_review_contract_preserves_invalid_argument_and_database_errors
         &disconnected,
         CharacterImplicitReviewDecisionRecordInput {
             profile_id: 7,
-            chapter_number: Some(3),
+            chapter_number: 3,
             attribute_key: "personality".to_string(),
             current_value: json!("谨慎"),
-            stats_attribute_key: "personality".to_string(),
-            stats_current_value: json!("谨慎"),
             decision: "keep".to_string(),
             suggested_new_value: None,
             reasoning: String::new(),

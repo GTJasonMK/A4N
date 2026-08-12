@@ -1,4 +1,5 @@
 use a4n_core::error::AppError;
+use a4n_domain::character::ImplicitUpdateDecision;
 use a4n_llm::{provider::is_truncated_finish_reason, trace::context_aware_chat_request_trace_json};
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
@@ -6,8 +7,8 @@ use serde_json::{Value, json};
 use crate::{
     OrchestratorContext,
     character::{
-        AppliedCharacterImplicitDecisionAction, CharacterAttributeLifecycleError,
-        CharacterImplicitReviewDecisionRecordInput, DELETION_THRESHOLD, category_attributes,
+        AppliedCharacterImplicitDecisionRecord, CharacterAttributeLifecycleError,
+        CharacterImplicitReviewDecisionRecordInput, category_attributes,
         implicit_review_rules::{
             AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT, AUTO_IMPLICIT_REVIEW_THRESHOLD,
             AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS, validate_implicit_review_params,
@@ -20,15 +21,14 @@ use crate::{
 use super::{
     IMPLICIT_UPDATE_PROMPT_NAME,
     contracts::{
-        ApplyImplicitUpdateDecisionInput, ApplyImplicitUpdateDecisionResultSummary,
-        BehaviorForReview, CharacterSyncImplicitReviewInput, CheckImplicitUpdateInput,
-        CheckImplicitUpdateRequestContext, GetImplicitReviewInput, ImplicitAttributeReviewSummary,
-        ImplicitReviewSummary, ImplicitUpdateDecisionSummary, ImplicitUpdateLlmRequestInput,
-        ImplicitUpdateReviewRequestPreview,
+        ApplyImplicitUpdateDecisionInput, BehaviorForReview, CharacterSyncImplicitReviewInput,
+        CheckImplicitUpdateInput, CheckImplicitUpdateRequestContext, GetImplicitReviewInput,
+        ImplicitAttributeReviewSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
+        ImplicitUpdateLlmRequestInput, ImplicitUpdateReviewRequestPreview,
     },
     output::{
         implicit_update_decision_output_json, implicit_update_review_checkpoint_response,
-        parse_implicit_update_decision, to_deletion_mark_summary, to_event_summary,
+        parse_implicit_update_decision,
     },
     request::build_implicit_update_request,
     stats::{
@@ -53,7 +53,6 @@ impl OrchestratorContext {
             .await?;
         let (profile, records) = self.implicit_review_context(input.profile_id).await?;
         build_implicit_review_summary(
-            input.profile_id,
             &profile.current_state,
             &records,
             threshold,
@@ -118,7 +117,6 @@ impl OrchestratorContext {
         let result = self
             .run_implicit_review_call(
                 prepared.request,
-                prepared.profile_id,
                 prepared.current_value,
                 prepared.stats,
                 RunImplicitReviewCallInput {
@@ -169,7 +167,6 @@ impl OrchestratorContext {
         let excluded_keys = implicit_deletion_candidate_keys(input.deletion_candidates)
             .map_err(AppError::InvalidArgument)?;
         let review = build_implicit_review_summary(
-            input.profile.id,
             input.final_attributes,
             &records,
             threshold,
@@ -239,7 +236,6 @@ impl OrchestratorContext {
             decisions.push(
                 self.run_implicit_review_call(
                     request,
-                    input.profile.id,
                     current_value,
                     stats,
                     RunImplicitReviewCallInput {
@@ -260,41 +256,22 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         input: ApplyImplicitUpdateDecisionInput,
-    ) -> Result<ApplyImplicitUpdateDecisionResultSummary, AppError> {
+    ) -> Result<AppliedCharacterImplicitDecisionRecord, AppError> {
         let decision = input.decision;
-        self.character_profile_for_user_validated(user_id, decision.profile_id)
+        self.character_profile_for_user_validated(user_id, input.profile_id)
             .await?;
-        let applied = self
-            .apply_implicit_review_decision_record(CharacterImplicitReviewDecisionRecordInput {
-                profile_id: decision.profile_id,
-                chapter_number: input.chapter_number,
-                attribute_key: decision.attribute_key,
-                current_value: decision.current_value,
-                stats_attribute_key: decision.stats.attribute_key,
-                stats_current_value: decision.stats.current_value,
-                decision: decision.decision,
-                suggested_new_value: decision.suggested_new_value,
-                reasoning: decision.reasoning,
-                evidence_summary: decision.evidence_summary,
-            })
-            .await
-            .map_err(character_attribute_lifecycle_app_error)?;
-        let ready_for_deletion = applied
-            .deletion_mark
-            .as_ref()
-            .is_some_and(|mark| !mark.is_executed && mark.consecutive_count >= DELETION_THRESHOLD);
-        Ok(ApplyImplicitUpdateDecisionResultSummary {
-            action: match applied.action {
-                AppliedCharacterImplicitDecisionAction::Keep => "keep",
-                AppliedCharacterImplicitDecisionAction::Modify => "modify",
-                AppliedCharacterImplicitDecisionAction::MarkDeletion => "mark_deletion",
-            }
-            .to_string(),
-            event: applied.event.as_ref().map(to_event_summary),
-            deletion_mark: applied.deletion_mark.as_ref().map(to_deletion_mark_summary),
-            ready_for_deletion,
-            threshold: DELETION_THRESHOLD,
+        self.apply_implicit_review_decision_record(CharacterImplicitReviewDecisionRecordInput {
+            profile_id: input.profile_id,
+            chapter_number: input.chapter_number,
+            attribute_key: decision.attribute_key,
+            current_value: decision.current_value,
+            decision: decision.decision.as_str().to_string(),
+            suggested_new_value: decision.suggested_new_value,
+            reasoning: decision.reasoning,
+            evidence_summary: decision.evidence_summary,
         })
+        .await
+        .map_err(character_attribute_lifecycle_app_error)
     }
 
     async fn prepare_implicit_update_review(
@@ -383,7 +360,6 @@ impl OrchestratorContext {
     async fn run_implicit_review_call(
         &self,
         mut request: a4n_llm::provider::ChatRequest,
-        profile_id: i64,
         current_value: Value,
         stats: ImplicitAttributeReviewSummary,
         input: RunImplicitReviewCallInput<'_>,
@@ -450,14 +426,14 @@ impl OrchestratorContext {
         let parsed = parse_implicit_update_decision(&response_text, &stats)
             .map_err(AppError::InvalidArgument)?;
         Ok(ImplicitUpdateDecisionSummary {
-            profile_id,
             attribute_key: stats.attribute_key.clone(),
             current_value,
-            decision: parsed.decision,
+            decision: ImplicitUpdateDecision::parse(&parsed.decision).ok_or_else(|| {
+                AppError::InvalidArgument(format!("未知隐性属性复审决策: {}", parsed.decision))
+            })?,
             reasoning: parsed.reasoning,
             suggested_new_value: parsed.suggested_new_value,
             evidence_summary: parsed.evidence_summary,
-            stats,
         })
     }
 }

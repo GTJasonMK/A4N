@@ -5,6 +5,7 @@
 
 pub mod admin;
 pub mod canvas;
+pub mod character;
 pub mod collaboration;
 pub mod galgame;
 pub mod image;

@@ -36,11 +36,21 @@ use a4n_api_contract::{
         ReorderChapterScenesInput, UpdateChapterContentInput, UpdateChapterSceneInput,
     },
     character::{
-        AttributeCountsSummary, CharacterProfileCreateResult, CharacterProfileDeleteResult,
-        CharacterProfileMutationResult, CharacterProfileProtectedAttribute,
-        CharacterProfileSkippedResult, CharacterProfileSummary, CharacterProfileSyncBatchStatus,
-        CharacterProfileSyncFailure, CharacterProfileSyncRange, CharacterProfileSyncSkipReason,
-        CharacterProfileSyncedResult, CreateProfileInput, ListProfilesInput,
+        AddProfileAttributeInput, ApplyImplicitUpdateDecisionInput,
+        ApplyImplicitUpdateDecisionResultSummary, AttributeCountsSummary, AttributeEventSummary,
+        AttributeHistoryInput, BehaviorRecordSummary, CharacterProfileCreateResult,
+        CharacterProfileDeleteResult, CharacterProfileMutationResult,
+        CharacterProfileProtectedAttribute, CharacterProfileSkippedResult, CharacterProfileSummary,
+        CharacterProfileSyncBatchStatus, CharacterProfileSyncFailure, CharacterProfileSyncRange,
+        CharacterProfileSyncSkipReason, CharacterProfileSyncedResult, CheckImplicitUpdateInput,
+        CheckProfileSyncConflictInput, CreateProfileInput, DeletionMarkSummary,
+        DiffProfileChaptersInput, ExecuteAttributeDeletionInput, GetImplicitReviewInput,
+        GetProfileStateAtChapterInput, GetSnapshotInput, ImplicitAttributeReviewSummary,
+        ImplicitEvidenceSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
+        ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
+        ModifyProfileAttributeInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,
+        RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackResultSummary,
+        RollbackToChapterInput, SnapshotDeltaSummary, SnapshotReferenceSummary, SnapshotSummary,
         SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult, SyncCharacterProfileInput,
         SyncCharacterProfileResult, UpdateCharacterProfileInput,
     },
@@ -192,6 +202,11 @@ use a4n_api_contract::{
         WorkflowProgressEventsInput, WorkflowProgressEventsResponse, WorkflowRunDetailSummary,
         WorkflowRunProgressSummary, WorkflowRunSummary, WorkflowStateSummary,
     },
+};
+use a4n_domain::character::{
+    AppliedImplicitUpdateAction, CHARACTER_DELETION_THRESHOLD, CharacterAttributeCategory,
+    CharacterAttributeOperation, CharacterTimelineSourceKind, DeletionMarkStatus,
+    ImplicitUpdateDecision,
 };
 use a4n_domain::galgame::{
     GalgameAudioRole, GalgameCgImportance, GalgameFacingV2, GalgameGenerationTargetKind,
@@ -601,6 +616,13 @@ fn main() {
         &typescript_interface::<CreateProfileInput>("CreateProfileInput"),
         &typescript_interface::<UpdateCharacterProfileInput>("UpdateCharacterProfileInput"),
         &typescript_interface::<ListProfilesInput>("ListProfilesInput"),
+        &typescript_character_constants(),
+        &typescript_enum::<CharacterAttributeCategory>("CharacterAttributeCategory"),
+        &typescript_enum::<CharacterAttributeOperation>("CharacterAttributeOperation"),
+        &typescript_enum::<CharacterTimelineSourceKind>("CharacterTimelineSourceKind"),
+        &typescript_enum::<DeletionMarkStatus>("DeletionMarkStatus"),
+        &typescript_enum::<ImplicitUpdateDecision>("ImplicitUpdateDecision"),
+        &typescript_enum::<AppliedImplicitUpdateAction>("AppliedImplicitUpdateAction"),
         &typescript_interface::<AttributeCountsSummary>("AttributeCountsSummary"),
         &typescript_interface::<CharacterProfileSummary>("CharacterProfileSummary"),
         &typescript_interface::<CharacterProfileCreateResult>("CharacterProfileCreateResult"),
@@ -619,6 +641,41 @@ fn main() {
         &typescript_interface::<CharacterProfileSyncFailure>("CharacterProfileSyncFailure"),
         &typescript_enum::<CharacterProfileSyncBatchStatus>("CharacterProfileSyncBatchStatus"),
         &typescript_interface::<SyncAllCharacterProfilesResult>("SyncAllCharacterProfilesResult"),
+        &typescript_interface::<AddProfileAttributeInput>("AddProfileAttributeInput"),
+        &typescript_interface::<ModifyProfileAttributeInput>("ModifyProfileAttributeInput"),
+        &typescript_interface::<AttributeHistoryInput>("AttributeHistoryInput"),
+        &typescript_interface::<AttributeEventSummary>("AttributeEventSummary"),
+        &typescript_interface::<ListBehaviorsInput>("ListBehaviorsInput"),
+        &typescript_interface::<BehaviorRecordSummary>("BehaviorRecordSummary"),
+        &typescript_interface::<GetImplicitReviewInput>("GetImplicitReviewInput"),
+        &typescript_interface::<CheckImplicitUpdateInput>("CheckImplicitUpdateInput"),
+        &typescript_interface::<ImplicitEvidenceSummary>("ImplicitEvidenceSummary"),
+        &typescript_interface::<ImplicitAttributeReviewSummary>("ImplicitAttributeReviewSummary"),
+        &typescript_interface::<ImplicitReviewSummary>("ImplicitReviewSummary"),
+        &typescript_interface::<ImplicitUpdateDecisionSummary>("ImplicitUpdateDecisionSummary"),
+        &typescript_interface::<ApplyImplicitUpdateDecisionInput>(
+            "ApplyImplicitUpdateDecisionInput",
+        ),
+        &typescript_interface::<ApplyImplicitUpdateDecisionResultSummary>(
+            "ApplyImplicitUpdateDecisionResultSummary",
+        ),
+        &typescript_interface::<ListSnapshotsInput>("ListSnapshotsInput"),
+        &typescript_interface::<SnapshotReferenceSummary>("SnapshotReferenceSummary"),
+        &typescript_interface::<GetProfileStateAtChapterInput>("GetProfileStateAtChapterInput"),
+        &typescript_interface::<ProfileChapterStateSummary>("ProfileChapterStateSummary"),
+        &typescript_interface::<GetSnapshotInput>("GetSnapshotInput"),
+        &typescript_interface::<SnapshotSummary>("SnapshotSummary"),
+        &typescript_interface::<DiffProfileChaptersInput>("DiffProfileChaptersInput"),
+        &typescript_interface::<SnapshotDeltaSummary>("SnapshotDeltaSummary"),
+        &typescript_interface::<CheckProfileSyncConflictInput>("CheckProfileSyncConflictInput"),
+        &typescript_interface::<ProfileSyncConflictSummary>("ProfileSyncConflictSummary"),
+        &typescript_interface::<RollbackToChapterInput>("RollbackToChapterInput"),
+        &typescript_interface::<RollbackResultSummary>("RollbackResultSummary"),
+        &typescript_interface::<ListDeletionMarksInput>("ListDeletionMarksInput"),
+        &typescript_interface::<DeletionMarkSummary>("DeletionMarkSummary"),
+        &typescript_interface::<RequestAttributeDeletionInput>("RequestAttributeDeletionInput"),
+        &typescript_interface::<ExecuteAttributeDeletionInput>("ExecuteAttributeDeletionInput"),
+        &typescript_interface::<ResetDeletionMarksInput>("ResetDeletionMarksInput"),
         &typescript_interface::<ListObjectProfilesInput>("ListObjectProfilesInput"),
         &typescript_interface::<ObjectProfileInput>("ObjectProfileInput"),
         &typescript_interface::<ObjectProfileSummary>("ObjectProfileSummary"),
@@ -858,6 +915,10 @@ fn typescript_chapter_constants() -> String {
         "export const CHAPTER_ANALYSIS_PROGRESS_TOTAL = {CHAPTER_ANALYSIS_PROGRESS_TOTAL};\n\
          export const CHAPTER_SCENE_PROGRESS_TOTAL = {CHAPTER_SCENE_PROGRESS_TOTAL};\n\n"
     )
+}
+
+fn typescript_character_constants() -> String {
+    format!("export const CHARACTER_DELETION_THRESHOLD = {CHARACTER_DELETION_THRESHOLD};\n\n")
 }
 
 fn typescript_runtime_config_policies() -> String {

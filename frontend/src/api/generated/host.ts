@@ -2739,6 +2739,20 @@ export interface ListProfilesInput {
   project_id: number;
 }
 
+export const CHARACTER_DELETION_THRESHOLD = 5;
+
+export type CharacterAttributeCategory = "explicit" | "implicit" | "social";
+
+export type CharacterAttributeOperation = "add" | "modify" | "delete";
+
+export type CharacterTimelineSourceKind = "user" | "ai_sync" | "legacy_unknown";
+
+export type DeletionMarkStatus = "all" | "pending" | "ready" | "executed";
+
+export type ImplicitUpdateDecision = "keep" | "modify" | "delete";
+
+export type AppliedImplicitUpdateAction = "keep" | "modify" | "mark_deletion";
+
 export interface AttributeCountsSummary {
   explicit: number;
   implicit: number;
@@ -2855,6 +2869,253 @@ export interface SyncAllCharacterProfilesResult {
   synced: CharacterProfileSyncedResult[];
   target_chapter: number;
   total: number;
+}
+
+export interface AddProfileAttributeInput {
+  category: CharacterAttributeCategory;
+  cause: string;
+  chapter_number: number;
+  evidence: string;
+  key: string;
+  profile_id: number;
+  value: unknown;
+}
+
+export interface ModifyProfileAttributeInput {
+  category: CharacterAttributeCategory;
+  cause: string;
+  chapter_number: number;
+  evidence: string;
+  key: string;
+  new_value: unknown;
+  profile_id: number;
+}
+
+export interface AttributeHistoryInput {
+  category?: CharacterAttributeCategory | null;
+  chapter_from?: number | null;
+  chapter_to?: number | null;
+  key?: string | null;
+  limit?: number | null;
+  operation?: CharacterAttributeOperation | null;
+  profile_id: number;
+}
+
+export interface AttributeEventSummary {
+  category: CharacterAttributeCategory;
+  cause: string;
+  change_description: string;
+  chapter_number: number;
+  evidence: string;
+  id: number;
+  key: string;
+  new_value: unknown;
+  old_value: unknown;
+  operation: CharacterAttributeOperation;
+  source_kind: CharacterTimelineSourceKind;
+  timestamp: string | null;
+}
+
+export interface ListBehaviorsInput {
+  chapter_from?: number | null;
+  chapter_to?: number | null;
+  limit?: number | null;
+  profile_id: number;
+}
+
+export interface BehaviorRecordSummary {
+  behavior_description: string;
+  behavior_tags: unknown;
+  behavior_type: string;
+  chapter_number: number;
+  classification_results: unknown;
+  id: number;
+  impact_analysis: string | null;
+  original_text: string;
+  related_characters: unknown;
+  source_kind: CharacterTimelineSourceKind;
+}
+
+export interface GetImplicitReviewInput {
+  evidence_limit: number;
+  profile_id: number;
+  threshold: number;
+  window_chapters: number;
+}
+
+export interface CheckImplicitUpdateInput {
+  attribute_key: string;
+  evidence_limit: number;
+  profile_id: number;
+  threshold: number;
+  window_chapters: number;
+}
+
+export interface ImplicitEvidenceSummary {
+  behavior_description: string;
+  behavior_id: number;
+  behavior_tags: unknown;
+  behavior_type: string;
+  chapter_number: number;
+  classification: unknown;
+  original_text: string;
+}
+
+export interface ImplicitAttributeReviewSummary {
+  attribute_key: string;
+  conform_count: number;
+  conform_rate: number;
+  current_value: unknown;
+  evidence: ImplicitEvidenceSummary[];
+  non_conform_count: number;
+  threshold_reached: boolean;
+}
+
+export interface ImplicitReviewSummary {
+  attributes: ImplicitAttributeReviewSummary[];
+}
+
+export interface ImplicitUpdateDecisionSummary {
+  attribute_key: string;
+  current_value: unknown;
+  decision: ImplicitUpdateDecision;
+  evidence_summary: string;
+  reasoning: string;
+  suggested_new_value: unknown;
+}
+
+export interface ApplyImplicitUpdateDecisionInput {
+  chapter_number: number;
+  decision: ImplicitUpdateDecisionSummary;
+  profile_id: number;
+}
+
+export interface ApplyImplicitUpdateDecisionResultSummary {
+  action: AppliedImplicitUpdateAction;
+  deletion_mark: DeletionMarkSummary | null;
+}
+
+export interface ListSnapshotsInput {
+  end_chapter?: number | null;
+  profile_id: number;
+  start_chapter?: number | null;
+}
+
+export interface SnapshotReferenceSummary {
+  attribute_counts: AttributeCountsSummary;
+  behaviors_in_chapter: number;
+  changes_in_chapter: number;
+  chapter_number: number;
+  id: number;
+  snapshot_hash: string;
+  state_summary: string | null;
+}
+
+export interface GetProfileStateAtChapterInput {
+  chapter_number: number;
+  profile_id: number;
+}
+
+export interface ProfileChapterStateSummary {
+  attribute_counts: AttributeCountsSummary;
+  behaviors_in_chapter: number;
+  changes_in_chapter: number;
+  chapter_number: number;
+  created_at: string | null;
+  current_location: string | null;
+  explicit_attributes: unknown;
+  implicit_attributes: unknown;
+  social_attributes: unknown;
+  state_summary: string | null;
+}
+
+export interface GetSnapshotInput {
+  content_hash: string;
+}
+
+export interface SnapshotSummary {
+  created_at: string | null;
+  data: unknown;
+}
+
+export interface DiffProfileChaptersInput {
+  from_chapter: number;
+  profile_id: number;
+  to_chapter: number;
+}
+
+export interface SnapshotDeltaSummary {
+  delta: unknown;
+}
+
+export interface CheckProfileSyncConflictInput {
+  profile_id: number;
+}
+
+export interface ProfileSyncConflictSummary {
+  available_snapshot_chapters: number[];
+  has_conflict: boolean;
+  last_synced_chapter: number;
+  max_available_chapter: number;
+}
+
+export interface RollbackToChapterInput {
+  chapter_number: number;
+  profile_id: number;
+}
+
+export interface RollbackResultSummary {
+  deleted_attribute_event_rag: number;
+  deleted_behaviors: number;
+  deleted_deletion_marks: number;
+  deleted_events: number;
+  deleted_snapshots: number;
+  deleted_state_indexes: number;
+  deleted_state_rag: number;
+  rewound_deletion_marks: number;
+}
+
+export interface ListDeletionMarksInput {
+  category?: CharacterAttributeCategory | null;
+  profile_id: number;
+  status: DeletionMarkStatus;
+}
+
+export interface DeletionMarkSummary {
+  category: CharacterAttributeCategory;
+  consecutive_count: number;
+  created_at: string;
+  evidence: string;
+  id: number;
+  is_executed: boolean;
+  key: string;
+  last_marked_chapter: number;
+  reason: string;
+  source_kind: CharacterTimelineSourceKind;
+}
+
+export interface RequestAttributeDeletionInput {
+  category: CharacterAttributeCategory;
+  chapter_number: number;
+  evidence: string;
+  key: string;
+  profile_id: number;
+  reason: string;
+}
+
+export interface ExecuteAttributeDeletionInput {
+  category: CharacterAttributeCategory;
+  cause: string;
+  chapter_number: number;
+  evidence: string;
+  key: string;
+  profile_id: number;
+}
+
+export interface ResetDeletionMarksInput {
+  category: CharacterAttributeCategory;
+  key: string;
+  profile_id: number;
 }
 
 export interface ListObjectProfilesInput {

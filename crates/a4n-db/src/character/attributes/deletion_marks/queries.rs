@@ -1,13 +1,12 @@
-use super::super::types::DeletionMarkListStatus;
 use a4n_core::models::character::protagonist_deletion_mark;
+use a4n_domain::character::{CHARACTER_DELETION_THRESHOLD, DeletionMarkStatus};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn deletion_marks_by_profile<C>(
     db: &C,
     profile_id: i64,
     category: Option<&str>,
-    status: DeletionMarkListStatus,
-    deletion_threshold: i32,
+    status: DeletionMarkStatus,
 ) -> Result<Vec<protagonist_deletion_mark::Model>, DbErr>
 where
     C: ConnectionTrait,
@@ -20,20 +19,24 @@ where
     }
 
     match status {
-        DeletionMarkListStatus::All => {}
-        DeletionMarkListStatus::Pending => {
-            query = query
-                .filter(protagonist_deletion_mark::Column::IsExecuted.eq(false))
-                .filter(protagonist_deletion_mark::Column::ConsecutiveCount.lt(deletion_threshold));
-        }
-        DeletionMarkListStatus::Ready => {
+        DeletionMarkStatus::All => {}
+        DeletionMarkStatus::Pending => {
             query = query
                 .filter(protagonist_deletion_mark::Column::IsExecuted.eq(false))
                 .filter(
-                    protagonist_deletion_mark::Column::ConsecutiveCount.gte(deletion_threshold),
+                    protagonist_deletion_mark::Column::ConsecutiveCount
+                        .lt(CHARACTER_DELETION_THRESHOLD),
                 );
         }
-        DeletionMarkListStatus::Executed => {
+        DeletionMarkStatus::Ready => {
+            query = query
+                .filter(protagonist_deletion_mark::Column::IsExecuted.eq(false))
+                .filter(
+                    protagonist_deletion_mark::Column::ConsecutiveCount
+                        .gte(CHARACTER_DELETION_THRESHOLD),
+                );
+        }
+        DeletionMarkStatus::Executed => {
             query = query.filter(protagonist_deletion_mark::Column::IsExecuted.eq(true));
         }
     }

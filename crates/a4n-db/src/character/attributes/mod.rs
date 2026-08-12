@@ -17,6 +17,7 @@ use super::{
 };
 use a4n_core::models::character::attribute_event;
 use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
+use a4n_domain::character::CHARACTER_DELETION_THRESHOLD;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::Value;
 use types::CharacterAttributeDeletionRecordInput;
@@ -116,11 +117,11 @@ where
                 CharacterDbError::NotFound(format!("删除执行缺少未执行标记: {category}.{key}"))
             })?;
 
-    if mark.consecutive_count < DELETION_THRESHOLD {
+    if mark.consecutive_count < CHARACTER_DELETION_THRESHOLD {
         return Err(CharacterDbError::InvalidState {
             current: format!(
                 "删除标记连续次数 {}/{}",
-                mark.consecutive_count, DELETION_THRESHOLD
+                mark.consecutive_count, CHARACTER_DELETION_THRESHOLD
             ),
             operation: "执行角色属性删除".to_string(),
         });

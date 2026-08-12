@@ -11,6 +11,7 @@ import {
   type ImplicitReview,
   type ImplicitUpdateDecision,
 } from "../../api/character";
+import { CHARACTER_DELETION_THRESHOLD } from "../../api/generated/host";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
@@ -196,7 +197,7 @@ export const ImplicitReviewManager: React.FC<{
   }, [profileId]);
 
   const attrs = review ? review.attributes : [];
-  const needsReview = review ? review.needs_review : [];
+  const needsReviewCount = attrs.filter((attr) => attr.threshold_reached).length;
 
   useEffect(() => {
     const visibleKeys = new Set(attrs.map((attr) => attr.attribute_key));
@@ -323,23 +324,19 @@ export const ImplicitReviewManager: React.FC<{
     setApplyingKey(decision.attribute_key);
     try {
       const result = await applyImplicitUpdateDecision({
+        profile_id: requestProfileId,
         decision,
         chapter_number: requestDefaultChapter,
       });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
       if (result.action === "modify") {
-        addToast(
-          result.warnings.length > 0
-            ? `已应用隐性属性修改；${result.warnings.join("；")}`
-            : "已应用隐性属性修改",
-          result.warnings.length > 0 ? "info" : "success",
-        );
+        addToast("已应用隐性属性修改", "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
         addToast(
-          result.ready_for_deletion
-            ? `删除标记已达到阈值 ${result.deletion_mark.consecutive_count}/${result.threshold}`
-            : `已记录删除标记 ${result.deletion_mark.consecutive_count}/${result.threshold}`,
+          result.deletion_mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
+            ? `删除标记已达到阈值 ${result.deletion_mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`
+            : `已记录删除标记 ${result.deletion_mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`,
           "success",
         );
       }
@@ -375,8 +372,8 @@ export const ImplicitReviewManager: React.FC<{
       <div className="flex items-center gap-2 text-small text-book-text-muted">
         <span className="min-w-0 flex-1">
           {review
-            ? needsReview.length > 0
-              ? `${needsReview.length} 个属性需要复审`
+            ? needsReviewCount > 0
+              ? `${needsReviewCount} 个属性需要复审`
               : "当前没有需要复审的属性"
             : "检查隐性属性是否仍符合近期行为"}
         </span>

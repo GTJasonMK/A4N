@@ -1,21 +1,27 @@
 import { apiInvoke } from "../index";
 import { requireCurrentUserId as currentUserId } from "../authStorage";
-import type { AttributeEvent, DeletionMark } from "./types";
+import type {
+  CharacterAttributeCategory,
+  DeletionMarkStatus,
+  ExecuteAttributeDeletionInput,
+  RequestAttributeDeletionInput,
+} from "../generated/host";
+import type { DeletionMark } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function listDeletionMarks(
   profileId: Id,
-  filters?: {
+  filters: {
     category?: string | null;
-    status?: "all" | "pending" | "ready" | "executed" | null;
+    status: DeletionMarkStatus;
   },
 ): Promise<DeletionMark[]> {
   return apiInvoke<DeletionMark[]>("list_deletion_marks", {
     userId: currentUserId(),
     input: {
       profile_id: idNum(profileId),
-      category: filters?.category ?? null,
-      status: filters?.status ?? null,
+      category: (filters?.category || null) as CharacterAttributeCategory | null,
+      status: filters.status,
     },
   });
 }
@@ -24,44 +30,27 @@ export async function resetDeletionMarks(
   profileId: Id,
   category: string,
   key: string,
-): Promise<{ deleted_marks: number }> {
-  return apiInvoke<{ deleted_marks: number }>("reset_deletion_marks", {
+): Promise<number> {
+  return apiInvoke<number>("reset_deletion_marks", {
     userId: currentUserId(),
     input: { profile_id: idNum(profileId), category, key },
   });
 }
 
-export async function requestAttributeDeletion(input: {
-  profile_id: number;
-  chapter_number: number;
-  category: string;
-  key: string;
-  reason: string;
-  evidence: string;
-}): Promise<{ mark: DeletionMark; ready_for_deletion: boolean; threshold: number }> {
-  return apiInvoke<{ mark: DeletionMark; ready_for_deletion: boolean; threshold: number }>(
-    "request_attribute_deletion",
-    { userId: currentUserId(), input },
-  );
+export async function requestAttributeDeletion(
+  input: RequestAttributeDeletionInput,
+): Promise<DeletionMark> {
+  return apiInvoke<DeletionMark>("request_attribute_deletion", {
+    userId: currentUserId(),
+    input,
+  });
 }
 
-export async function executeAttributeDeletion(input: {
-  profile_id: number;
-  chapter_number: number;
-  category: string;
-  key: string;
-  cause: string;
-  evidence: string;
-}): Promise<{
-  event: AttributeEvent;
-  consecutive_count: number;
-  threshold: number;
-  warnings: string[];
-}> {
-  return apiInvoke<{
-    event: AttributeEvent;
-    consecutive_count: number;
-    threshold: number;
-    warnings: string[];
-  }>("execute_attribute_deletion", { userId: currentUserId(), input });
+export async function executeAttributeDeletion(
+  input: ExecuteAttributeDeletionInput,
+): Promise<void> {
+  return apiInvoke<void>("execute_attribute_deletion", {
+    userId: currentUserId(),
+    input,
+  });
 }

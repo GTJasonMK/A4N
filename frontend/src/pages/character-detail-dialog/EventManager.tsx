@@ -20,6 +20,7 @@ import {
 } from "./manageViewUtils";
 import { formatUiDateTime } from "../../utils/dateTime";
 import { nonEmptyText } from "../../utils/text";
+import type { CharacterAttributeCategory } from "../../api/generated/host";
 
 const parseAttributeValue = (raw: string): unknown => {
   const text = raw.trim();
@@ -255,34 +256,30 @@ export const EventManager: React.FC<{
     saveInFlightRef.current = true;
     setSaving(true);
     try {
-      const result =
+      await (
         requestMode === "add"
-          ? await addProfileAttribute({
+          ? addProfileAttribute({
               profile_id: requestProfileId,
               chapter_number: requestPayload.chapter_number,
-              category: requestPayload.category,
+              category: requestPayload.category as CharacterAttributeCategory,
               key: requestPayload.key,
               value: requestPayload.value,
               cause: requestPayload.cause,
               evidence: requestPayload.evidence,
             })
-          : await modifyProfileAttribute({
+          : modifyProfileAttribute({
               profile_id: requestProfileId,
               chapter_number: requestPayload.chapter_number,
-              category: requestPayload.category,
+              category: requestPayload.category as CharacterAttributeCategory,
               key: requestPayload.key,
               new_value: requestPayload.value,
               cause: requestPayload.cause,
               evidence: requestPayload.evidence,
-            });
+            })
+      );
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
       const successMessage = requestMode === "add" ? "已新增属性" : "已修改属性";
-      addToast(
-        result.warnings.length > 0
-          ? `${successMessage}；${result.warnings.join("；")}`
-          : successMessage,
-        result.warnings.length > 0 ? "info" : "success",
-      );
+      addToast(successMessage, "success");
       setKey("");
       setValueText("");
       setCause("");

@@ -40,6 +40,5 @@ pub async fn rollback_to_chapter(
         deleted_attribute_event_rag,
         deleted_deletion_marks: rollback.deletion_mark_rewind.deleted,
         rewound_deletion_marks: rollback.deletion_mark_rewind.rewound,
-        last_synced_chapter: rollback.last_synced_chapter,
     })
 }

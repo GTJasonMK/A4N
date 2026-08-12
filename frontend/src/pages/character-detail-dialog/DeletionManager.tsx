@@ -9,6 +9,10 @@ import {
   resetDeletionMarks,
   type DeletionMark,
 } from "../../api/character";
+import {
+  CHARACTER_DELETION_THRESHOLD,
+  type CharacterAttributeCategory,
+} from "../../api/generated/host";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
@@ -195,9 +199,9 @@ export const DeletionManager: React.FC<{
       return;
     }
     try {
-      const r = await resetDeletionMarks(requestProfileId, category, key);
+      const deletedMarks = await resetDeletionMarks(requestProfileId, category, key);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      addToast(`已重置“${attributeKeyLabel(key)}”的 ${r.deleted_marks} 个标记`, "success");
+      addToast(`已重置“${attributeKeyLabel(key)}”的 ${deletedMarks} 个标记`, "success");
       await load();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
@@ -232,19 +236,19 @@ export const DeletionManager: React.FC<{
     requestSeqRef.current = requestSeq;
     setRequesting(true);
     try {
-      const result = await requestAttributeDeletion({
+      const mark = await requestAttributeDeletion({
         profile_id: requestProfileId,
         chapter_number: requestPayload.chapter_number,
-        category: requestPayload.category,
+        category: requestPayload.category as CharacterAttributeCategory,
         key: requestPayload.key,
         reason: requestPayload.reason,
         evidence: requestPayload.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
       addToast(
-        result.ready_for_deletion
-          ? `删除标记已达到阈值 ${result.mark.consecutive_count}/${result.threshold}`
-          : `已记录删除标记 ${result.mark.consecutive_count}/${result.threshold}`,
+        mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
+          ? `删除标记已达到阈值 ${mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`
+          : `已记录删除标记 ${mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`,
         "success",
       );
       setKey("");
@@ -289,7 +293,7 @@ export const DeletionManager: React.FC<{
     }
     setExecutingId(mark.id);
     try {
-      const result = await executeAttributeDeletion({
+      await executeAttributeDeletion({
         profile_id: requestProfileId,
         chapter_number: mark.last_marked_chapter,
         category: mark.category,
@@ -298,12 +302,7 @@ export const DeletionManager: React.FC<{
         evidence: mark.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      addToast(
-        result.warnings.length > 0
-          ? `已删除“${attributeKeyLabel(result.event.key)}”，连续标记 ${result.consecutive_count}/${result.threshold}；${result.warnings.join("；")}`
-          : `已删除“${attributeKeyLabel(result.event.key)}”，连续标记 ${result.consecutive_count}/${result.threshold}`,
-        result.warnings.length > 0 ? "info" : "success",
-      );
+      addToast(`已删除“${attributeKeyLabel(mark.key)}”`, "success");
       await load();
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       await onChanged?.();
@@ -475,7 +474,7 @@ export const DeletionManager: React.FC<{
             const resettingThis = resettingKey === markResetKey;
             const executingThis = executingId === m.id;
             const actionItems: React.ComponentProps<typeof Dropdown>["items"] = [
-              ...(m.consecutive_count >= m.threshold
+              ...(m.consecutive_count >= CHARACTER_DELETION_THRESHOLD
                 ? [
                     {
                       label: "执行属性删除",
@@ -519,7 +518,7 @@ export const DeletionManager: React.FC<{
                 <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
                   <span>第 {m.last_marked_chapter} 章</span>
                   <span aria-hidden="true">·</span>
-                  <span>连续 {m.consecutive_count}/{m.threshold}</span>
+                  <span>连续 {m.consecutive_count}/{CHARACTER_DELETION_THRESHOLD}</span>
                   <span aria-hidden="true">·</span>
                   <span>{sourceKindLabel(m.source_kind)}</span>
                   <span aria-hidden="true">·</span>
@@ -544,12 +543,12 @@ export const DeletionManager: React.FC<{
 
 function deletionStatusLabel(mark: DeletionMark): string {
   if (mark.is_executed) return "已执行";
-  if (mark.consecutive_count >= mark.threshold) return "可以删除";
+  if (mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD) return "可以删除";
   return "保护中";
 }
 
 function deletionStatusTone(mark: DeletionMark): string {
   if (mark.is_executed) return "text-success";
-  if (mark.consecutive_count >= mark.threshold) return "text-error";
+  if (mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD) return "text-error";
   return "text-book-text-muted";
 }

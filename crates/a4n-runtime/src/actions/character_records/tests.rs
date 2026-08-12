@@ -44,8 +44,6 @@ fn snapshot_data_summary_requires_explicit_chapter_counters() {
         },
         "state_summary": "潜入府衙",
         "current_location": "府衙",
-        "current_goal": "寻找账册",
-        "emotional_state": "冷静",
         "changes_in_chapter": 2,
         "behaviors_in_chapter": 3
     });
@@ -62,7 +60,6 @@ fn snapshot_data_summary_requires_explicit_chapter_counters() {
     let summary = snapshot_data_summary(&snapshot).expect("valid snapshot should summarize");
     assert_eq!(summary.changes_in_chapter, 2);
     assert_eq!(summary.behaviors_in_chapter, 3);
-    assert_eq!(summary.current_goal, Some("寻找账册".to_string()));
 
     data.as_object_mut()
         .expect("object")

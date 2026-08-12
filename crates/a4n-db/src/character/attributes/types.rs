@@ -70,11 +70,9 @@ pub struct CharacterAttributeDeletionRequestInput {
 #[derive(Debug, Clone)]
 pub struct CharacterImplicitReviewDecisionRecordInput {
     pub profile_id: i64,
-    pub chapter_number: Option<i32>,
+    pub chapter_number: i32,
     pub attribute_key: String,
     pub current_value: Value,
-    pub stats_attribute_key: String,
-    pub stats_current_value: Value,
     pub decision: String,
     pub suggested_new_value: Option<Value>,
     pub reasoning: String,
@@ -138,13 +136,3 @@ pub struct CharacterDeletionMarkRewindSummary {
     pub deleted: u64,
     pub rewound: u64,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeletionMarkListStatus {
-    All,
-    Pending,
-    Ready,
-    Executed,
-}
-
-pub const DELETION_THRESHOLD: i32 = 5;

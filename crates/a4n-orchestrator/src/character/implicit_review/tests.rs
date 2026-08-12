@@ -22,7 +22,6 @@ fn behavior(
         original_text: "原文证据".to_string(),
         behavior_tags: json!(["标签"]),
         classification_results,
-        created_at: None,
     }
 }
 
@@ -30,7 +29,6 @@ fn stats() -> ImplicitAttributeReviewSummary {
     ImplicitAttributeReviewSummary {
         attribute_key: "谨慎".to_string(),
         current_value: json!("遇事先观察"),
-        total: 2,
         conform_count: 0,
         non_conform_count: 2,
         conform_rate: 0.0,
@@ -44,7 +42,6 @@ fn stats() -> ImplicitAttributeReviewSummary {
                 original_text: "她没有继续等待。".to_string(),
                 behavior_tags: json!(["主动"]),
                 classification: json!("non-conform"),
-                created_at: None,
             },
             ImplicitEvidenceSummary {
                 behavior_id: 12,
@@ -54,7 +51,6 @@ fn stats() -> ImplicitAttributeReviewSummary {
                 original_text: "她推门而入。".to_string(),
                 behavior_tags: json!(["果断"]),
                 classification: json!("non-conform"),
-                created_at: None,
             },
         ],
     }
@@ -81,7 +77,7 @@ fn review_respects_chapter_window() {
     ];
     let review = build_implicit_attribute_review("谨慎", json!("遇事先观察"), &records, 3, 2, 10)
         .expect("valid records should build review");
-    assert_eq!(review.total, 2);
+    assert_eq!(review.conform_count + review.non_conform_count, 2);
     assert!(!review.threshold_reached);
 }
 
@@ -97,12 +93,11 @@ fn review_summary_lists_threshold_reached_attributes() {
         behavior(1, 3, json!({"谨慎": "non-conform", "乐观": "conform"})),
         behavior(2, 2, json!({"谨慎": "non-conform", "乐观": "conform"})),
     ];
-    let review = build_implicit_review_summary(7, &current_state, &records, 2, 10, 10)
+    let review = build_implicit_review_summary(&current_state, &records, 2, 10, 10)
         .expect("canonical state should build review");
-    assert_eq!(review.needs_review, vec!["谨慎"]);
     assert_eq!(review.attributes[0].attribute_key, "谨慎");
 
-    let error = build_implicit_review_summary(7, &json!({}), &[], 2, 10, 10)
+    let error = build_implicit_review_summary(&json!({}), &[], 2, 10, 10)
         .expect_err("missing implicit state should fail");
     assert!(error.contains("implicit_attributes"));
 }

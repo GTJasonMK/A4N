@@ -9,11 +9,9 @@ mod request;
 mod stats;
 
 pub use contracts::{
-    ApplyImplicitUpdateDecisionInput, ApplyImplicitUpdateDecisionResultSummary,
-    AttributeEventSummary, CharacterSyncImplicitReviewInput, CheckImplicitUpdateInput,
-    DeletionMarkSummary, GetImplicitReviewInput, ImplicitAttributeReviewSummary,
-    ImplicitEvidenceSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
-    ImplicitUpdateReviewRequestPreview,
+    ApplyImplicitUpdateDecisionInput, CharacterSyncImplicitReviewInput, CheckImplicitUpdateInput,
+    GetImplicitReviewInput, ImplicitAttributeReviewSummary, ImplicitEvidenceSummary,
+    ImplicitReviewSummary, ImplicitUpdateDecisionSummary, ImplicitUpdateReviewRequestPreview,
 };
 
 pub const IMPLICIT_UPDATE_PROMPT_NAME: &str = "implicit_update";

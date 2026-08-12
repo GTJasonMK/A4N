@@ -1,6 +1,13 @@
 import { apiInvoke } from "../index";
 import { requireCurrentUserId as currentUserId } from "../authStorage";
-import type { AttributeEvent, AttributeMutationResult } from "./types";
+import type {
+  AddProfileAttributeInput,
+  CharacterAttributeCategory,
+  CharacterAttributeOperation,
+  AttributeHistoryInput,
+  ModifyProfileAttributeInput,
+} from "../generated/host";
+import type { AttributeEvent } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function attributeHistory(
@@ -14,45 +21,34 @@ export async function attributeHistory(
     limit?: number | null;
   } = {},
 ): Promise<AttributeEvent[]> {
+  const input = {
+    profile_id: idNum(profileId),
+    chapter_from: filters.chapter_from ?? null,
+    chapter_to: filters.chapter_to ?? null,
+    category: (filters.category || null) as CharacterAttributeCategory | null,
+    key: filters.key ?? null,
+    operation: (filters.operation || null) as CharacterAttributeOperation | null,
+    limit: filters.limit ?? null,
+  } satisfies AttributeHistoryInput;
   return apiInvoke<AttributeEvent[]>("attribute_history", {
-    userId: currentUserId(),
-    input: {
-      profile_id: idNum(profileId),
-      chapter_from: filters.chapter_from ?? null,
-      chapter_to: filters.chapter_to ?? null,
-      category: filters.category ?? null,
-      key: filters.key ?? null,
-      operation: filters.operation ?? null,
-      limit: filters.limit ?? null,
-    },
-  });
-}
-
-export async function addProfileAttribute(input: {
-  profile_id: number;
-  chapter_number: number;
-  category: string;
-  key: string;
-  value: unknown;
-  cause: string;
-  evidence: string;
-}): Promise<AttributeMutationResult> {
-  return apiInvoke<AttributeMutationResult>("add_profile_attribute", {
     userId: currentUserId(),
     input,
   });
 }
 
-export async function modifyProfileAttribute(input: {
-  profile_id: number;
-  chapter_number: number;
-  category: string;
-  key: string;
-  new_value: unknown;
-  cause: string;
-  evidence: string;
-}): Promise<AttributeMutationResult> {
-  return apiInvoke<AttributeMutationResult>("modify_profile_attribute", {
+export async function addProfileAttribute(
+  input: AddProfileAttributeInput,
+): Promise<void> {
+  return apiInvoke<void>("add_profile_attribute", {
+    userId: currentUserId(),
+    input,
+  });
+}
+
+export async function modifyProfileAttribute(
+  input: ModifyProfileAttributeInput,
+): Promise<void> {
+  return apiInvoke<void>("modify_profile_attribute", {
     userId: currentUserId(),
     input,
   });

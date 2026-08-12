@@ -8,7 +8,7 @@ use super::super::{
     },
 };
 use super::validation::{
-    required_positive_chapter_number, validate_implicit_review_decision_record,
+    require_positive_chapter_number, validate_implicit_review_decision_record,
 };
 use crate::character::{CharacterDbError, require_profile_for_update};
 use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
@@ -46,8 +46,7 @@ where
     C: ConnectionTrait,
 {
     let profile = require_profile_for_update(db, input.profile_id).await?;
-    let chapter_number =
-        required_positive_chapter_number(input.chapter_number, "应用隐性属性复审")?;
+    let chapter_number = require_positive_chapter_number(input.chapter_number, "应用隐性属性复审")?;
     validate_implicit_review_decision_record(&profile, &input)?;
 
     match input.decision.as_str() {

@@ -20,5 +20,5 @@ pub async fn list_behaviors(
         )
         .await
         .map_err(app_error_message)?;
-    Ok(records.iter().map(behavior_record_summary).collect())
+    records.iter().map(behavior_record_summary).collect()
 }

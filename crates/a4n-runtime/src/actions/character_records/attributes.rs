@@ -1,7 +1,7 @@
 use super::access::require_profile_for_user;
 use super::contracts::{
     AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput,
-    AttributeMutationResultSummary, ModifyProfileAttributeInput,
+    ModifyProfileAttributeInput,
 };
 use super::projections::attribute_event_summary;
 use crate::AppState;
@@ -14,14 +14,14 @@ pub async fn add_profile_attribute(
     state: &AppState,
     user_id: i64,
     input: AddProfileAttributeInput,
-) -> Result<AttributeMutationResultSummary, String> {
+) -> Result<(), String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
-    let result = state
+    state
         .orchestrator()
         .add_profile_attribute_validated(CharacterAttributeValueChangeInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
-            category: input.category,
+            category: input.category.as_str().to_string(),
             key: input.key,
             value: input.value,
             change_description: None,
@@ -30,23 +30,21 @@ pub async fn add_profile_attribute(
         })
         .await
         .map_err(|error| error.to_string())?;
-    Ok(AttributeMutationResultSummary {
-        event: attribute_event_summary(&result.event),
-    })
+    Ok(())
 }
 
 pub async fn modify_profile_attribute(
     state: &AppState,
     user_id: i64,
     input: ModifyProfileAttributeInput,
-) -> Result<AttributeMutationResultSummary, String> {
+) -> Result<(), String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
-    let result = state
+    state
         .orchestrator()
         .modify_profile_attribute_validated(CharacterAttributeValueChangeInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
-            category: input.category,
+            category: input.category.as_str().to_string(),
             key: input.key,
             value: input.new_value,
             change_description: None,
@@ -55,9 +53,7 @@ pub async fn modify_profile_attribute(
         })
         .await
         .map_err(|error| error.to_string())?;
-    Ok(AttributeMutationResultSummary {
-        event: attribute_event_summary(&result.event),
-    })
+    Ok(())
 }
 
 pub async fn attribute_history(
@@ -73,13 +69,13 @@ pub async fn attribute_history(
             CharacterAttributeEventHistoryFilter {
                 chapter_from: input.chapter_from,
                 chapter_to: input.chapter_to,
-                category: input.category,
+                category: input.category.map(|value| value.as_str().to_string()),
                 key: input.key,
-                operation: input.operation,
+                operation: input.operation.map(|value| value.as_str().to_string()),
                 limit: input.limit,
             },
         )
         .await
         .map_err(app_error_message)?;
-    Ok(events.iter().map(attribute_event_summary).collect())
+    events.iter().map(attribute_event_summary).collect()
 }

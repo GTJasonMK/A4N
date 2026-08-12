@@ -112,7 +112,7 @@ fn implicit_update_stable_context(
             "non_conform_threshold": threshold,
         },
         "statistics": {
-            "total": stats.total,
+            "total": stats.conform_count + stats.non_conform_count,
             "conform_count": stats.conform_count,
             "non_conform_count": stats.non_conform_count,
             "conform_rate": stats.conform_rate,

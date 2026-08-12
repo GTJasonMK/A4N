@@ -1,17 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::{
-    json_contract::reject_unknown_fields,
-    models::character::{attribute_event, protagonist_deletion_mark},
-};
+use a4n_core::json_contract::reject_unknown_fields;
 use a4n_llm::provider::is_truncated_finish_reason;
 use serde_json::{Map, Value, json};
 
-use crate::character::DELETION_THRESHOLD;
-
 use super::contracts::{
-    AttributeEventSummary, DeletionMarkSummary, ImplicitAttributeReviewSummary,
-    ImplicitEvidenceSummary, ParsedImplicitDecision,
+    ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ParsedImplicitDecision,
 };
 
 pub(super) fn parse_implicit_update_decision(
@@ -110,43 +104,6 @@ pub(super) fn implicit_update_review_checkpoint_response(
         ));
     }
     Ok((response_text, usage, finish_reason))
-}
-
-pub(super) fn to_event_summary(event: &attribute_event::Model) -> AttributeEventSummary {
-    AttributeEventSummary {
-        id: event.id,
-        profile_id: event.profile_id,
-        chapter_number: event.chapter_number,
-        timestamp: Some(event.timestamp.to_string()),
-        category: event.category.clone(),
-        key: event.key.clone(),
-        operation: event.operation.clone(),
-        change_description: event.change_description.clone(),
-        old_value: event.old_value.clone(),
-        new_value: event.new_value.clone(),
-        cause: event.cause.clone(),
-        evidence: event.evidence.clone(),
-    }
-}
-
-pub(super) fn to_deletion_mark_summary(
-    mark: &protagonist_deletion_mark::Model,
-) -> DeletionMarkSummary {
-    DeletionMarkSummary {
-        id: mark.id,
-        profile_id: mark.profile_id,
-        category: mark.category.clone(),
-        key: mark.key.clone(),
-        chapter_number: mark.chapter_number,
-        reason: mark.reason.clone(),
-        evidence: mark.evidence.clone(),
-        consecutive_count: mark.consecutive_count,
-        threshold: DELETION_THRESHOLD,
-        last_marked_chapter: mark.last_marked_chapter,
-        is_executed: mark.is_executed,
-        created_at: mark.created_at.to_string(),
-        updated_at: mark.updated_at.to_string(),
-    }
 }
 
 fn required_supporting_behavior_ids(

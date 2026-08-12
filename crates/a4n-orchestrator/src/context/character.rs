@@ -6,6 +6,7 @@ use a4n_core::models::character::{
     protagonist_profile, snapshot_reference,
 };
 use a4n_db::DbHandle;
+use a4n_domain::character::{CharacterAttributeCategory, DeletionMarkStatus};
 use serde_json::Value;
 
 use super::OrchestratorContext;
@@ -19,12 +20,8 @@ use crate::character::{
     CharacterPortraitRollbackResult, CharacterProfileDeletionSummary,
     CharacterProfileRecordDeletionResult, CharacterProfileRollbackResult,
     CharacterRecordLifecycleError, CharacterSyncPersistenceInput,
-    CharacterTimelineRollbackLifecycleResult, DeletionMarkListStatus,
-    PortraitNamedPromptProfileRows, PortraitPromptProfileRows, character_db_error,
-    character_profile_delete_error, normalize_character_attribute_deletion_execution,
-    normalize_character_attribute_deletion_request, normalize_character_attribute_value_change,
-    normalize_deletion_mark_reset_target, parse_deletion_mark_list_category,
-    parse_deletion_mark_list_status, profiles,
+    CharacterTimelineRollbackLifecycleResult, PortraitNamedPromptProfileRows,
+    PortraitPromptProfileRows, character_db_error, character_profile_delete_error, profiles,
 };
 use crate::character::{
     CHARACTER_SNAPSHOT_ENTITY_TYPE, CharacterSyncConflictReadModel,
@@ -333,15 +330,13 @@ impl CharacterApplication {
         &self,
         profile_id: i64,
         category: Option<&str>,
-        status: DeletionMarkListStatus,
-        deletion_threshold: i32,
+        status: DeletionMarkStatus,
     ) -> Result<Vec<protagonist_deletion_mark::Model>, AppError> {
         a4n_db::character::deletion_marks_by_profile(
             self.database.connection(),
             profile_id,
             category,
             status,
-            deletion_threshold,
         )
         .await
         .map_err(AppError::Database)
@@ -668,8 +663,6 @@ impl OrchestratorContext {
         &self,
         input: CharacterAttributeValueChangeInput,
     ) -> Result<CharacterAttributeMutationResult, CharacterAttributeLifecycleError> {
-        let input = normalize_character_attribute_value_change(input)
-            .map_err(CharacterAttributeLifecycleError::Persistence)?;
         let result = self
             .character
             .add_profile_attribute(input)
@@ -685,8 +678,6 @@ impl OrchestratorContext {
         &self,
         input: CharacterAttributeValueChangeInput,
     ) -> Result<CharacterAttributeMutationResult, CharacterAttributeLifecycleError> {
-        let input = normalize_character_attribute_value_change(input)
-            .map_err(CharacterAttributeLifecycleError::Persistence)?;
         let result = self
             .character
             .modify_profile_attribute(input)
@@ -700,22 +691,8 @@ impl OrchestratorContext {
     /// 规范化后执行就绪的属性删除并同步 RAG。
     pub async fn execute_ready_attribute_deletion_validated(
         &self,
-        profile_id: i64,
-        category: String,
-        key: String,
-        chapter_number: Option<i32>,
-        cause: Option<String>,
-        evidence: String,
+        input: CharacterAttributeDeletionExecutionInput,
     ) -> Result<CharacterAttributeDeletionExecutionResult, CharacterAttributeLifecycleError> {
-        let input = normalize_character_attribute_deletion_execution(
-            profile_id,
-            category,
-            key,
-            chapter_number,
-            cause,
-            evidence,
-        )
-        .map_err(CharacterAttributeLifecycleError::Persistence)?;
         let result = self
             .character
             .execute_ready_attribute_deletion(input)
@@ -786,14 +763,15 @@ impl OrchestratorContext {
     pub async fn deletion_marks_by_profile_validated(
         &self,
         profile_id: i64,
-        category: Option<&str>,
-        status: Option<&str>,
-        deletion_threshold: i32,
+        category: Option<CharacterAttributeCategory>,
+        status: DeletionMarkStatus,
     ) -> Result<Vec<protagonist_deletion_mark::Model>, AppError> {
-        let category = parse_deletion_mark_list_category(category)?;
-        let status = parse_deletion_mark_list_status(status)?;
         self.character
-            .deletion_marks_by_profile(profile_id, category.as_deref(), status, deletion_threshold)
+            .deletion_marks_by_profile(
+                profile_id,
+                category.as_ref().map(|value| value.as_str()),
+                status,
+            )
             .await
     }
 
@@ -802,7 +780,6 @@ impl OrchestratorContext {
         &self,
         input: CharacterAttributeDeletionRequestInput,
     ) -> Result<protagonist_deletion_mark::Model, AppError> {
-        let input = normalize_character_attribute_deletion_request(input)?;
         self.character.request_attribute_deletion(input).await
     }
 
@@ -810,12 +787,11 @@ impl OrchestratorContext {
     pub async fn reset_deletion_marks_validated(
         &self,
         profile_id: i64,
-        category: &str,
+        category: CharacterAttributeCategory,
         key: &str,
     ) -> Result<u64, AppError> {
-        let (category, key) = normalize_deletion_mark_reset_target(category, key)?;
         self.character
-            .reset_deletion_marks(profile_id, &category, &key)
+            .reset_deletion_marks(profile_id, category.as_str(), key)
             .await
     }
 
