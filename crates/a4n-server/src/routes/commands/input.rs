@@ -169,7 +169,7 @@ pub(in crate::routes::commands) fn strict_command_input<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
-    reject_unknown_command_args(args, command, false)?;
+    reject_unknown_command_args(args, command, &[])?;
     command_input(args, command)
 }
 
@@ -180,22 +180,33 @@ pub(in crate::routes::commands) fn strict_runtime_command_input<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
-    reject_unknown_command_args(args, command, true)?;
+    reject_unknown_command_args(args, command, &["runtime_config_snapshot"])?;
+    command_input(args, command)
+}
+
+pub(in crate::routes::commands) fn strict_optional_task_runtime_command_input<T>(
+    args: &Value,
+    command: &str,
+) -> Result<T, ApiError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    reject_unknown_command_args(args, command, &["runtime_config_snapshot", "taskId"])?;
     command_input(args, command)
 }
 
 fn reject_unknown_command_args(
     args: &Value,
     command: &str,
-    allow_runtime_config: bool,
+    allowed_fields: &[&str],
 ) -> Result<(), ApiError> {
     let fields = args
         .as_object()
         .ok_or_else(|| ApiError::bad_request(format!("{command} 参数必须是对象")))?;
-    if let Some(field) = fields.keys().find(|field| {
-        field.as_str() != "input"
-            && !(allow_runtime_config && field.as_str() == "runtime_config_snapshot")
-    }) {
+    if let Some(field) = fields
+        .keys()
+        .find(|field| field.as_str() != "input" && !allowed_fields.contains(&field.as_str()))
+    {
         return Err(ApiError::bad_request(format!(
             "{command} 不接受参数: {field}"
         )));
@@ -227,7 +238,10 @@ pub(in crate::routes::commands) fn required_json_i32(
 
 #[cfg(test)]
 mod tests {
-    use super::{strict_command_input, strict_runtime_command_input};
+    use super::{
+        strict_command_input, strict_optional_task_runtime_command_input,
+        strict_runtime_command_input,
+    };
     use serde::Deserialize;
     use serde_json::json;
 
@@ -263,6 +277,24 @@ mod tests {
                 "test_command",
             )
             .is_ok()
+        );
+        assert!(
+            strict_optional_task_runtime_command_input::<TestInput>(
+                &json!({
+                    "input": { "value": 7 },
+                    "taskId": "scene-sync",
+                    "runtime_config_snapshot": null
+                }),
+                "test_command",
+            )
+            .is_ok()
+        );
+        assert!(
+            strict_optional_task_runtime_command_input::<TestInput>(
+                &json!({ "input": { "value": 7 }, "projectId": 9 }),
+                "test_command",
+            )
+            .is_err()
         );
     }
 }

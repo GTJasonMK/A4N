@@ -17,7 +17,7 @@ pub struct CompletedWorkflowCheckpointInput {
     pub step_key: String,
     pub step_order: i32,
     pub input_fingerprint_json: Value,
-    pub checkpoint_json: Value,
+    pub checkpoint_json: Option<Value>,
 }
 
 pub fn workflow_checkpoint_fingerprint_sha256(

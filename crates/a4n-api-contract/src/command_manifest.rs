@@ -620,7 +620,7 @@ command_specs! {
     "sync_blueprint_materials" => args_project_id, result_restore_blueprint_version, "blueprint", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "sync_character_from_chapters" => args_sync_character_from_chapters, result_sync_character_from_chapters, "chapter", context(USER_CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "sync_outline_materials" => args_project_id, result_sync_outline_materials, "outline", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
-    "sync_scene_profiles" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
+    "sync_scene_profiles" => args_sync_scene_profiles, result_unit, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "test_embedding_config" => args_preview_test_embedding_config_request, result_unit, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::Full);
     "test_image_config" => args_preview_test_image_config_request, result_unit, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full);
     "test_llm_config" => args_preview_test_image_config_request, result_unit, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -1636,6 +1636,10 @@ fn args_start_video_generation() -> Value {
 
 fn args_sync_all_character_profiles() -> Value {
     required_task_typed_input_schema::<crate::character::SyncAllCharacterProfilesInput>()
+}
+
+fn args_sync_scene_profiles() -> Value {
+    optional_task_runtime_typed_input_schema::<crate::profile::SyncSceneProfilesInput>()
 }
 
 fn args_sync_character_from_chapters() -> Value {
@@ -2679,6 +2683,30 @@ mod tests {
             assert!(descriptor.result_references.is_empty(), "{command}");
             assert_eq!(descriptor.runtime_config_policy, RuntimeConfigPolicy::None);
         }
+    }
+
+    #[test]
+    fn scene_profile_sync_uses_authenticated_typed_input_and_unit_result() {
+        let descriptor = command_descriptor("sync_scene_profiles").unwrap();
+        assert_eq!(descriptor.execution, "task");
+        assert_eq!(descriptor.args_schema["additionalProperties"], false);
+        assert_eq!(
+            descriptor.args_schema["properties"]["input"]["additionalProperties"],
+            false
+        );
+        assert!(descriptor.args_schema["properties"].get("userId").is_none());
+        assert!(
+            descriptor.args_schema["properties"]
+                .get("projectId")
+                .is_none()
+        );
+        assert!(
+            descriptor.args_schema["properties"]
+                .get("chapterNumber")
+                .is_none()
+        );
+        assert_eq!(descriptor.result_schema["x-a4n-schema-quality"], "typed");
+        assert!(descriptor.result_references.is_empty());
     }
 
     #[test]

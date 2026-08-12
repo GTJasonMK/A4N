@@ -3213,6 +3213,11 @@ export interface ListSceneProfilesInput {
   project_id: number;
 }
 
+export interface SyncSceneProfilesInput {
+  chapter_number?: number | null;
+  project_id: number;
+}
+
 export interface SceneProfileInput {
   aliases?: string[];
   atmosphere: string;

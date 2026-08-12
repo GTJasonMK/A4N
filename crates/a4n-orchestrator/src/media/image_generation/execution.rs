@@ -233,11 +233,11 @@ impl OrchestratorContext {
             step_key: workflow.step_key.clone(),
             step_order: workflow.step_order,
             input_fingerprint_json: workflow.fingerprint_json.clone(),
-            checkpoint_json: json!({
+            checkpoint_json: Some(json!({
                 "generated_image_id": image.id,
                 "file_path": image.file_path,
                 "summary": summary,
-            }),
+            })),
         })
         .await?;
         let outcome = ImageGenerationExecutionOutcome {

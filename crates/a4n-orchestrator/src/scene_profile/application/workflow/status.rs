@@ -1,11 +1,10 @@
 use crate::{OrchestratorContext, workflow::WorkflowRunFinalizeOutcome};
 use a4n_core::error::AppError;
-use serde_json::Value;
 
 pub(in crate::scene_profile::application) async fn finalize_scene_profile_sync_workflow(
     state: &OrchestratorContext,
     workflow_run_id: i64,
-    result: &Result<Value, String>,
+    result: &Result<(), String>,
 ) -> Result<(), AppError> {
     let (outcome, error_message) = match result {
         Ok(_) => (WorkflowRunFinalizeOutcome::Completed, None),

@@ -56,7 +56,7 @@ fn optional_workflow_run_controls_completed_checkpoint_persistence() {
             step_key: "chapter.sync".to_string(),
             step_order: 3,
             input_fingerprint_json: json!({"chapter_id": 9}),
-            checkpoint_json: json!({"profile_ids": [1, 2]}),
+            checkpoint_json: Some(json!({"profile_ids": [1, 2]})),
         })
         .expect("optional workflow checkpoint input");
     assert!(without_run.is_none());
@@ -66,7 +66,7 @@ fn optional_workflow_run_controls_completed_checkpoint_persistence() {
         step_key: "chapter.sync".to_string(),
         step_order: 3,
         input_fingerprint_json: json!({"chapter_id": 9}),
-        checkpoint_json: json!({"profile_ids": [1, 2]}),
+        checkpoint_json: Some(json!({"profile_ids": [1, 2]})),
     })
     .expect("completed workflow checkpoint input")
     .expect("workflow run should produce persistence input");
@@ -81,6 +81,18 @@ fn optional_workflow_run_controls_completed_checkpoint_persistence() {
         with_run.checkpoint_json,
         Some(json!({"profile_ids": [1, 2]}))
     );
+
+    let completion_marker =
+        completed_workflow_checkpoint_upsert_input(CompletedWorkflowCheckpointInput {
+            workflow_run_id: Some(7),
+            step_key: "chapter.marker".to_string(),
+            step_order: 4,
+            input_fingerprint_json: json!({"chapter_id": 9}),
+            checkpoint_json: None,
+        })
+        .expect("completed workflow marker input")
+        .expect("workflow run should persist completion marker");
+    assert!(completion_marker.checkpoint_json.is_none());
 }
 
 #[test]

@@ -1,9 +1,11 @@
+use a4n_api_contract::profile::SyncSceneProfilesInput;
 use a4n_core::event::channel::TaskKind;
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, finish_web_task, i64_arg, optional_i32_field, optional_string_field,
-    register_web_task, sanitize_optional_task_id, scene_profile_sync_actions, string_action_result,
+    ApiError, ServerState, finish_web_task, optional_string_field, register_web_task,
+    sanitize_optional_task_id, scene_profile_sync_actions,
+    strict_optional_task_runtime_command_input, string_action_result, to_value,
     web_fire_and_forget_progress_reporter, web_stream_reporter,
 };
 
@@ -12,15 +14,8 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_number = optional_i32_field(args, "chapterNumber")?;
-    let scope = scene_profile_sync_actions::scene_profile_sync_task_scope(
-        state.runtime(),
-        user_id,
-        project_id,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+    let input: SyncSceneProfilesInput =
+        strict_optional_task_runtime_command_input(args, "sync_scene_profiles")?;
 
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
@@ -28,8 +23,8 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
         user_id,
         task_id.clone(),
         TaskKind::LlmCall,
-        scope.project_id,
-        scope.total,
+        input.project_id,
+        scene_profile_sync_actions::SCENE_PROFILE_SYNC_PROGRESS_TOTAL,
         "正在准备场景档案同步",
     );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
@@ -42,11 +37,10 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
         task_id.as_deref(),
     )
     .with_stream_reporter(Some(&stream_reporter));
-    let result = scene_profile_sync_actions::sync_scene_profiles_for_chapters(
+    let result = scene_profile_sync_actions::sync_scene_profiles(
         state.runtime(),
         user_id,
-        project_id,
-        chapter_number,
+        input,
         Some(&progress),
     )
     .await;
@@ -58,5 +52,5 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
     )?;
-    Ok(value)
+    to_value(value)
 }

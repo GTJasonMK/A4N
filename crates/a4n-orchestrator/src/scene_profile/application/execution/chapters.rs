@@ -1,9 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use a4n_core::models::chapter::chapter;
 use a4n_core::structured_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
 
 use super::super::SceneProfileSyncHostPort;
 use super::super::context::build_scene_profile_sync_request;
@@ -14,7 +11,7 @@ use super::super::progress::{
 };
 use super::super::stages::run_scene_profile_sync_stages;
 use super::super::types::ChapterAnchorMode;
-use super::super::workflow::{load_completed_scene_final_checkpoint, merge_scene_final_checkpoint};
+use super::super::workflow::has_completed_scene_final_checkpoint;
 use super::persistence::persist_scene_profile_sync_chapter;
 use crate::OrchestratorContext;
 
@@ -26,12 +23,7 @@ pub(super) async fn sync_scene_profile_chapters(
     workflow_run_id: i64,
     chapters: Vec<chapter::Model>,
     progress: Option<&SceneProfileSyncProgress<'_>>,
-) -> Result<Value, String> {
-    let mut profile_ids = BTreeSet::new();
-    let mut occurrence_count = 0usize;
-    let mut transition_count = 0usize;
-    let mut entity_state_count = 0usize;
-    let mut profile_summaries = BTreeMap::new();
+) -> Result<(), String> {
     let chapter_count = chapters.len();
     let chapter_progress_span = ProgressSpan::new(
         SCENE_PROFILE_SYNC_CHAPTER_START,
@@ -55,18 +47,7 @@ pub(super) async fn sync_scene_profile_chapters(
             ),
             "场景档案同步已停止",
         )?;
-        if let Some(checkpoint) =
-            load_completed_scene_final_checkpoint(state, workflow_run_id, &context, chapter_index)
-                .await?
-        {
-            merge_scene_final_checkpoint(
-                checkpoint,
-                &mut profile_ids,
-                &mut occurrence_count,
-                &mut transition_count,
-                &mut entity_state_count,
-                &mut profile_summaries,
-            )?;
+        if has_completed_scene_final_checkpoint(state, workflow_run_id, &context).await? {
             report_scene_profile_sync_progress(
                 progress,
                 subspan(chapter_span, 5, 6, 6).end(),
@@ -88,7 +69,7 @@ pub(super) async fn sync_scene_profile_chapters(
             chapter_index,
         )
         .await?;
-        let result = persist_scene_profile_sync_chapter(
+        persist_scene_profile_sync_chapter(
             state,
             project_id,
             workflow_run_id,
@@ -97,13 +78,8 @@ pub(super) async fn sync_scene_profile_chapters(
             chapter_span,
             progress,
             stage_responses,
-            &mut profile_ids,
-            &mut profile_summaries,
         )
         .await?;
-        occurrence_count += result.occurrence_count;
-        transition_count += result.transition_count;
-        entity_state_count += result.entity_state_count;
     }
     report_scene_profile_sync_progress(
         progress,
@@ -111,7 +87,7 @@ pub(super) async fn sync_scene_profile_chapters(
         "正在同步场景档案 RAG",
         "场景档案同步已停止",
     )?;
-    let rag = host_port
+    host_port
         .sync_scene_rag_records(project_id, workflow_run_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -121,13 +97,5 @@ pub(super) async fn sync_scene_profile_chapters(
         "场景档案同步已完成",
         "场景档案同步已停止",
     )?;
-    Ok(json!({
-        "status": "synced",
-        "profile_ids": profile_ids.iter().copied().collect::<Vec<_>>(),
-        "profiles": profile_summaries.into_values().collect::<Vec<_>>(),
-        "occurrence_count": occurrence_count,
-        "transition_count": transition_count,
-        "entity_state_count": entity_state_count,
-        "rag": rag
-    }))
+    Ok(())
 }

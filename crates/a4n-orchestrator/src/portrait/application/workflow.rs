@@ -252,11 +252,11 @@ pub(super) async fn save_completed_portrait_checkpoint(
             step_key,
             step_order,
             input_fingerprint_json: fingerprint,
-            checkpoint_json: json!({
+            checkpoint_json: Some(json!({
                 "portrait_id": summary.id,
                 "image_path": summary.image_path,
                 "summary": summary,
-            }),
+            })),
         })
         .await
 }

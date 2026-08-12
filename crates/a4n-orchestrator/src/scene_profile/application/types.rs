@@ -21,12 +21,6 @@ pub(super) const SCENE_TRANSITION_MOVEMENT_TYPE_RULE: &str = "movement_type 只�
 pub(super) const SCENE_ENTITY_TYPE_RULE: &str = "entity_type 只能是 character/object/event；物体、道具、装备或线索物统一使用 object，不要输出 item/prop/tool";
 pub(super) const SCENE_ENTITY_STATE_KEY_RULE: &str = "state_key 只能是 position/possession/condition/action/relation/event_progress；位置用 position，持有关系用 possession，状态/情绪/身体状况用 condition，动作行为用 action，关系用 relation，事件进展用 event_progress";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SceneProfileSyncTaskScope {
-    pub project_id: i64,
-    pub total: u32,
-}
-
 #[derive(Debug, Clone)]
 pub struct SceneProfileSyncPreviewStep {
     pub key: String,

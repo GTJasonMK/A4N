@@ -1,17 +1,9 @@
-mod scope;
-
+use a4n_api_contract::profile::SyncSceneProfilesInput;
 use a4n_core::error::AppError;
 use a4n_orchestrator::scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress};
 use async_trait::async_trait;
-use serde_json::Value;
 
-use crate::{
-    rag_ingest::SceneRagSyncTraceSource,
-    sidecar_clients::{scope_rag_operation_trace, workflow_rag_operation_trace_id},
-    state::AppState,
-};
-
-pub use scope::scene_profile_sync_task_scope;
+use crate::{actions::access, rag_ingest::SceneRagSyncTraceSource, state::AppState};
 
 pub(crate) struct RuntimeSceneProfileSyncHostPort {
     state: AppState,
@@ -31,41 +23,34 @@ impl SceneProfileSyncHostPort for RuntimeSceneProfileSyncHostPort {
         &self,
         project_id: i64,
         workflow_run_id: i64,
-    ) -> Result<Value, AppError> {
-        let trace_id =
-            workflow_rag_operation_trace_id(workflow_run_id).map_err(AppError::InvalidArgument)?;
-        scope_rag_operation_trace(trace_id, async {
-            crate::rag_ingest::sync_scene_rag_records(
-                &self.state,
-                project_id,
-                SceneRagSyncTraceSource::WorkflowRun(workflow_run_id),
-            )
-            .await
-            .map_err(|message| AppError::InvalidState {
-                current: "scene_profile_sync_rag".to_string(),
-                operation: message,
-            })
-        })
+    ) -> Result<(), AppError> {
+        crate::rag_ingest::sync_scene_rag_records(
+            &self.state,
+            project_id,
+            SceneRagSyncTraceSource::WorkflowRun(workflow_run_id),
+        )
         .await
+        .map_err(|message| AppError::InvalidState {
+            current: "scene_profile_sync_rag".to_string(),
+            operation: message,
+        })
     }
 }
 
-pub async fn sync_scene_profiles_for_chapters(
+pub async fn sync_scene_profiles(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: Option<i32>,
+    input: SyncSceneProfilesInput,
     progress: Option<&SceneProfileSyncProgress<'_>>,
-) -> Result<Value, String> {
-    scene_profile_sync_task_scope(state, user_id, project_id).await?;
+) -> Result<(), String> {
+    access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let prompt_renderer = state;
     let host_port = RuntimeSceneProfileSyncHostPort::new(state);
     state
         .orchestrator()
-        .sync_scene_profiles_for_chapters_for_user_validated(
-            user_id,
-            project_id,
-            chapter_number,
+        .sync_scene_profiles_validated(
+            input.project_id,
+            input.chapter_number,
             prompt_renderer,
             &host_port,
             progress,

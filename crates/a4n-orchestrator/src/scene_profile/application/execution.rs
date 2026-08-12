@@ -3,10 +3,8 @@ mod persistence;
 
 use a4n_core::error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::Value;
 
 use crate::OrchestratorContext;
-use crate::collaboration::ProjectAccessRole;
 
 use super::{
     SceneProfileSyncHostPort,
@@ -16,48 +14,14 @@ use super::{
 };
 
 impl OrchestratorContext {
-    pub async fn scene_profile_sync_task_scope_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<super::types::SceneProfileSyncTaskScope, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        Ok(super::types::SceneProfileSyncTaskScope {
-            project_id,
-            total: super::progress::SCENE_PROFILE_SYNC_PROGRESS_TOTAL,
-        })
-    }
-
-    pub async fn sync_scene_profiles_for_chapters_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_number: Option<i32>,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn SceneProfileSyncHostPort,
-        progress: Option<&SceneProfileSyncProgress<'_>>,
-    ) -> Result<Value, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.sync_scene_profiles_for_chapters_validated(
-            project_id,
-            chapter_number,
-            prompt_renderer,
-            host_port,
-            progress,
-        )
-        .await
-    }
-
-    pub async fn sync_scene_profiles_for_chapters_validated(
+    pub async fn sync_scene_profiles_validated(
         &self,
         project_id: i64,
         chapter_number: Option<i32>,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn SceneProfileSyncHostPort,
         progress: Option<&SceneProfileSyncProgress<'_>>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<(), AppError> {
         report_scene_profile_sync_progress(progress, 0, "正在读取可同步章节", "场景档案同步已停止")
             .map_err(scene_profile_sync_application_error)?;
         let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number)
@@ -86,9 +50,9 @@ impl OrchestratorContext {
             return Err(AppError::Cancelled);
         }
         match (result, finalized) {
-            (Ok(summary), Ok(())) => Ok(summary),
+            (Ok(()), Ok(())) => Ok(()),
             (Err(error), Ok(())) => Err(scene_profile_sync_application_error(error)),
-            (Ok(_), Err(status_error)) => Err(AppError::InvalidState {
+            (Ok(()), Err(status_error)) => Err(AppError::InvalidState {
                 current: "场景档案同步业务已完成".to_string(),
                 operation: format!("写入 workflow completed 终态失败: {status_error}"),
             }),

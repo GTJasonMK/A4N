@@ -1,5 +1,4 @@
 use serde_json::Value;
-use std::collections::BTreeMap;
 
 pub const SCENE_TYPES: &[&str] = &[
     "room",
@@ -107,13 +106,4 @@ pub struct SceneSyncInput {
     pub occurrences: Vec<SceneOccurrenceDraft>,
     pub transitions: Vec<SceneTransitionDraft>,
     pub entity_states: Vec<SceneEntityStateDraft>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SceneSyncResult {
-    pub profile_ids: Vec<i64>,
-    pub profile_ref_ids: BTreeMap<String, i64>,
-    pub occurrence_count: usize,
-    pub transition_count: usize,
-    pub entity_state_count: usize,
 }

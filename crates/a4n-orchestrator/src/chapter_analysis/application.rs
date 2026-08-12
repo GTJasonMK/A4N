@@ -830,28 +830,27 @@ impl OrchestratorContext {
             progress.cancel_token,
             progress.active_task_id,
         );
-        let result = self
-            .sync_scene_profiles_for_chapters_validated(
-                chapter.project_id,
-                Some(chapter.chapter_number),
-                prompt_renderer,
-                host_port.scene_profile_sync_host_port(),
-                Some(&scene_progress),
-            )
-            .await
-            .map_err(|error| match error {
-                AppError::Cancelled => AppError::Cancelled,
-                error => AppError::InvalidState {
-                    current: "chapter_analysis_scene_sync".to_string(),
-                    operation: error.to_string(),
-                },
-            })?;
+        self.sync_scene_profiles_validated(
+            chapter.project_id,
+            Some(chapter.chapter_number),
+            prompt_renderer,
+            host_port.scene_profile_sync_host_port(),
+            Some(&scene_progress),
+        )
+        .await
+        .map_err(|error| match error {
+            AppError::Cancelled => AppError::Cancelled,
+            error => AppError::InvalidState {
+                current: "chapter_analysis_scene_sync".to_string(),
+                operation: error.to_string(),
+            },
+        })?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
             CHAPTER_ANALYSIS_STEP_SCENE_SYNC,
             40,
-            json!({ "completed": true, "result": result }),
+            json!({ "completed": true }),
         )
         .await
     }
@@ -1113,7 +1112,7 @@ impl OrchestratorContext {
             step_key: step_key.to_string(),
             step_order,
             input_fingerprint_json: chapter_analysis_phase_fingerprint(chapter, step_key),
-            checkpoint_json,
+            checkpoint_json: Some(checkpoint_json),
         })
         .await
     }

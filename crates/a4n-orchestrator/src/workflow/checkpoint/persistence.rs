@@ -57,7 +57,7 @@ pub(super) fn completed_workflow_checkpoint_upsert_input(
         status: WORKFLOW_STATUS_COMPLETED.to_string(),
         input_fingerprint_sha256: Some(input_fingerprint_sha256),
         input_fingerprint_json: Some(input.input_fingerprint_json),
-        checkpoint_json: Some(input.checkpoint_json),
+        checkpoint_json: input.checkpoint_json,
         artifacts_json: None,
         generation_run_ids_json: None,
         error_message: None,

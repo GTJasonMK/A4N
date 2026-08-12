@@ -13,17 +13,14 @@ mod workflow_rules;
 
 pub use application::{
     SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncHostPort, SceneProfileSyncPreviewStep,
-    SceneProfileSyncProgress, SceneProfileSyncProgressReporter, SceneProfileSyncTaskScope,
+    SceneProfileSyncProgress, SceneProfileSyncProgressReporter,
 };
 pub use contracts::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SCENE_TRANSITION_MOVEMENT_TYPES, SCENE_TYPES,
     SceneEntityStateDraft, SceneOccurrenceDraft, SceneProfileDraft, SceneSyncInput,
-    SceneSyncResult, SceneTransitionDraft,
+    SceneTransitionDraft,
 };
-pub use mapping::{
-    normalize_scene_profile_record_input, normalize_scene_sync_record_input,
-    scene_sync_result_from_record,
-};
+pub use mapping::{normalize_scene_profile_record_input, normalize_scene_sync_record_input};
 pub use rules::{
     normalize_movement_type_value, normalize_scene_entity_state_key_value,
     normalize_scene_entity_type_value, normalize_scene_type_value,

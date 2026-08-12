@@ -1,5 +1,4 @@
 import { apiInvoke } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
 import type { DownstreamConflictStrategy } from "./generated/host";
 import type {
@@ -11,6 +10,7 @@ import type {
   SceneProfileInput as ApiSceneProfileInput,
   SceneProfileMutationResult,
   SceneProfileSummary,
+  SyncSceneProfilesInput,
   UpdateSceneProfileInput,
 } from "./generated/host";
 
@@ -91,11 +91,13 @@ export async function syncSceneProfiles(
   projectId: Id,
   chapterNumber?: number | null,
   taskId?: string | null,
-): Promise<unknown> {
-  return apiInvoke<unknown>("sync_scene_profiles", {
-    userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterNumber: chapterNumber ?? null,
+): Promise<void> {
+  const input: SyncSceneProfilesInput = {
+    project_id: idNum(projectId),
+    chapter_number: chapterNumber ?? null,
+  };
+  return apiInvoke<void>("sync_scene_profiles", {
+    input,
     taskId: taskId ?? null,
   });
 }

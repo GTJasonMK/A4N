@@ -106,6 +106,15 @@ pub struct ListSceneProfilesInput {
     pub project_id: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SyncSceneProfilesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_number: Option<i32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SceneProfileInput {
@@ -349,8 +358,8 @@ pub struct ForeshadowingDeleteResult {
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateObjectProfileInput, ListProfileMaterialsInput, UpdateSceneProfileInput,
-        UploadProfileMaterialImageInput,
+        CreateObjectProfileInput, ListProfileMaterialsInput, SyncSceneProfilesInput,
+        UpdateSceneProfileInput, UploadProfileMaterialImageInput,
     };
     use serde_json::json;
 
@@ -413,6 +422,15 @@ mod tests {
                 "mime_type": "image/png",
                 "data_base64": "AA==",
                 "set_primary": true
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<SyncSceneProfilesInput>(json!({
+                "projectId": 1,
+                "chapterNumber": 2,
+                "userId": 9,
+                "taskId": "legacy-task"
             }))
             .is_err()
         );
