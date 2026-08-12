@@ -22,9 +22,10 @@ import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
 import { reverseEngineerBlueprint } from "../../api/import";
 import { cancelWorkflowTask } from "../../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
+import { formalReverseNotice, parseReverseCandidateEnvelope } from "./imports/importTabUtils";
 
 interface OverviewTabProps {
   project: NovelProject;
@@ -214,9 +215,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     aggregateSeqRef.current = requestSeq;
     aggregatingBlueprintRef.current = true;
     setAggregatingBlueprint(true);
-    const taskId = allocateHostTaskId("reverse-blueprint", requestProjectId);
+    const taskId = createWorkflowTaskId("reverse-blueprint", requestProjectId);
     try {
-      await runProgressTask(
+      const result = await runProgressTask(
         {
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
@@ -258,7 +259,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
         aggregateSeqRef.current !== requestSeq
       )
         return;
-      addToast("蓝图已依据当前正式资料完成归纳", "success");
+      const aggregation = parseReverseCandidateEnvelope(result, "blueprint");
+      if (!aggregation) throw new Error("蓝图归纳接口返回的正式资料状态无效");
+      const notice = formalReverseNotice(
+        "蓝图已依据当前正式资料完成归纳",
+        aggregation.warnings,
+      );
+      addToast(notice.message, notice.tone);
     } catch (err) {
       if (
         !isCurrentProject(requestProjectId) ||

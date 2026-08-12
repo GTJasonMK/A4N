@@ -1,7 +1,7 @@
 use super::SceneProfileSummary;
 use crate::actions::profile_materials;
 use a4n_core::models::scene::scene_profile;
-use a4n_orchestrator::profile_material::PROFILE_KIND_SCENE;
+use a4n_domain::profile_material::ProfileMaterialKind;
 use std::collections::BTreeMap;
 
 pub(super) async fn to_summary(
@@ -13,7 +13,7 @@ pub(super) async fn to_summary(
     let generated_image_count = profile_materials::count_profile_material_images(
         profile_material,
         profile.project_id,
-        PROFILE_KIND_SCENE,
+        ProfileMaterialKind::Scene,
         profile.id,
     )
     .await?;

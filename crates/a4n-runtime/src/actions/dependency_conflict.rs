@@ -2,17 +2,6 @@ use crate::AppState;
 use crate::actions::image_records;
 pub use a4n_domain::DownstreamConflictStrategy;
 
-pub(crate) fn parse_downstream_conflict_strategy(
-    value: &str,
-) -> Result<DownstreamConflictStrategy, String> {
-    if value.trim().is_empty() {
-        return Err(
-            "下游冲突处理策略不能为空，支持 reject、keep_downstream、delete_downstream".to_string(),
-        );
-    }
-    DownstreamConflictStrategy::from_optional_str(Some(value))
-}
-
 pub(crate) fn resolve_downstream_id_conflict(
     ids: Vec<i64>,
     strategy: DownstreamConflictStrategy,

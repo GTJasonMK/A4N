@@ -67,7 +67,7 @@ import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import type { SourceSnapshotChapter } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
 interface GalgameTabProps {
@@ -331,7 +331,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const handleGenerate = async (resumeFromCheckpoint = false) => {
     if (!canEditGalgame || generating) return;
-    const taskId = allocateHostTaskId("galgame-pipeline", projectId);
+    const taskId = createWorkflowTaskId("galgame-pipeline", projectId);
     setGenerating(true);
     try {
       const next = await runProgressTask(

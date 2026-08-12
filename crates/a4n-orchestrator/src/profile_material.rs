@@ -1,6 +1,10 @@
+use a4n_api_contract::profile::{
+    ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
+    ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
+};
 pub use a4n_db::profile_material::{
-    IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE,
-    ProfileMaterialDbError, ProfileMaterialListRows, generated_image_profile_material_identity,
+    IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, ProfileMaterialDbError,
+    ProfileMaterialListRows, generated_image_profile_material_identity,
     is_project_reusable_video_material_image, is_video_frame_input_metadata,
     profile_material_identity,
 };
@@ -16,8 +20,11 @@ use a4n_core::{
     source_spans::source_text_hash as source_content_sha256,
 };
 use a4n_db::video::CreateGeneratedImageRecordDraftInput;
+use a4n_domain::profile_material::{
+    ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
+    ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
+};
 use chrono::{NaiveDateTime, Utc};
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
@@ -29,83 +36,7 @@ use crate::{
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
 const MAX_UPLOAD_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ListProfileMaterialsInput {
-    pub project_id: i64,
-    pub kind: Option<String>,
-    pub query: Option<String>,
-    pub filter: Option<String>,
-    pub sort: Option<String>,
-    pub image_limit_per_profile: Option<usize>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SetProfilePrimaryMaterialInput {
-    pub project_id: i64,
-    pub profile_kind: String,
-    pub profile_id: i64,
-    pub image_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UploadProfileMaterialImageInput {
-    pub project_id: i64,
-    pub profile_kind: String,
-    pub profile_id: i64,
-    pub file_name: String,
-    pub mime_type: String,
-    pub data_base64: String,
-    pub set_primary: bool,
-    pub prompt_snapshot: Option<String>,
-    pub style_template_id: Option<String>,
-    pub style_template_name: Option<String>,
-    pub style_template_version: Option<String>,
-    pub custom_style: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileMaterialGroup {
-    pub kind: String,
-    pub profile: ProfileMaterialProfileSummary,
-    pub material_state: String,
-    pub current_profile_content_sha256: String,
-    pub image_count: usize,
-    pub primary_image_id: Option<i64>,
-    pub primary_image: Option<ProfileMaterialImageSummary>,
-    pub images: Vec<ProfileMaterialImageSummary>,
-    #[serde(skip_serializing)]
-    newest_image_sort_key: Option<(NaiveDateTime, i64)>,
-    #[serde(skip_serializing)]
-    has_favorite_image: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileMaterialProfileSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub name: String,
-    pub category: String,
-    pub importance: String,
-    pub first_seen_chapter: i32,
-    pub last_seen_chapter: i32,
-    pub primary_text: String,
-    pub secondary_text: String,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileMaterialImageSummary {
-    pub image: crate::media::GeneratedImageSummary,
-    pub is_primary: bool,
-    pub staleness: String,
-    pub style_template_id: Option<String>,
-    pub style_template_name: Option<String>,
-}
-
-pub struct PersistProfileMaterialImageInput<'a> {
+struct PersistProfileMaterialImageInput<'a> {
     pub project_id: i64,
     pub profile_kind: &'a str,
     pub profile_id: i64,
@@ -113,18 +44,24 @@ pub struct PersistProfileMaterialImageInput<'a> {
     pub bytes: &'a [u8],
 }
 
-pub struct PersistedProfileMaterialImage {
+struct PersistedProfileMaterialImage {
     pub relative_path: String,
     pub file_size: i64,
 }
 
 struct ProfileMaterialSource {
-    kind: &'static str,
+    kind: ProfileMaterialKind,
     profile: ProfileMaterialProfileSummary,
     content_hash: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+struct ProfileMaterialGroupProjection {
+    group: ProfileMaterialGroup,
+    newest_image_sort_key: Option<(NaiveDateTime, i64)>,
+    has_favorite_image: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct ProfileMaterialStyleMetadata {
     pub style_template_id: Option<String>,
     pub style_template_name: Option<String>,
@@ -133,7 +70,7 @@ pub struct ProfileMaterialStyleMetadata {
 }
 
 pub fn profile_material_metadata(
-    kind: &str,
+    kind: ProfileMaterialKind,
     profile_id: i64,
     profile_name: &str,
     profile_content_sha256: &str,
@@ -141,7 +78,7 @@ pub fn profile_material_metadata(
 ) -> Value {
     let mut metadata = serde_json::Map::new();
     metadata.insert("material_kind".to_string(), json!("profile_material"));
-    metadata.insert("profile_kind".to_string(), json!(kind));
+    metadata.insert("profile_kind".to_string(), json!(kind.as_str()));
     metadata.insert("profile_id".to_string(), json!(profile_id));
     metadata.insert("profile_name".to_string(), json!(profile_name));
     metadata.insert(
@@ -257,7 +194,7 @@ impl OrchestratorContext {
     ) -> Result<ProfileMaterialGroup, AppError> {
         self.require_profile_material_editor(user_id, input.project_id)
             .await?;
-        let kind = normalize_profile_material_kind(&input.profile_kind)?;
+        let kind = input.profile_kind;
         self.ensure_profile_material_profile(input.project_id, kind, input.profile_id)
             .await?;
 
@@ -272,21 +209,24 @@ impl OrchestratorContext {
                     input.project_id
                 )));
             }
-            if generated_image_profile_material_identity(&image) != Some((kind, input.profile_id)) {
+            if generated_image_profile_material_identity(&image)
+                != Some((kind.as_str(), input.profile_id))
+            {
                 return Err(AppError::InvalidArgument(format!(
-                    "图片 #{image_id} 不是 {kind} 档案 #{} 的素材图",
+                    "图片 #{image_id} 不是 {} 档案 #{} 的素材图",
+                    kind.as_str(),
                     input.profile_id
                 )));
             }
             self.upsert_profile_primary_material(
                 input.project_id,
-                kind,
+                kind.as_str(),
                 input.profile_id,
                 image_id,
             )
             .await?;
         } else {
-            self.delete_profile_primary_material(input.project_id, kind, input.profile_id)
+            self.delete_profile_primary_material(input.project_id, kind.as_str(), input.profile_id)
                 .await?;
         }
 
@@ -305,7 +245,7 @@ impl OrchestratorContext {
     ) -> Result<ProfileMaterialGroup, AppError> {
         self.require_profile_material_editor(user_id, input.project_id)
             .await?;
-        let kind = normalize_profile_material_kind(&input.profile_kind)?;
+        let kind = input.profile_kind;
         let source = self
             .profile_material_source(input.project_id, kind, input.profile_id)
             .await?;
@@ -316,28 +256,14 @@ impl OrchestratorContext {
             MAX_UPLOAD_IMAGE_BYTES,
         )
         .map_err(AppError::InvalidArgument)?;
-        let prompt = input
-            .prompt_snapshot
-            .as_deref()
-            .and_then(non_empty)
-            .map(ToString::to_string)
-            .unwrap_or_else(|| match kind {
-                PROFILE_KIND_SCENE => source
-                    .scene_profile
-                    .as_ref()
-                    .map(|profile| scene_profile_image_prompt(profile, None))
-                    .unwrap_or_default(),
-                _ => source
-                    .object_profile
-                    .as_ref()
-                    .map(|profile| object_profile_image_prompt(profile, None))
-                    .unwrap_or_default(),
-            });
+        let prompt = non_empty(&input.prompt_snapshot)
+            .ok_or_else(|| AppError::InvalidArgument("prompt_snapshot 不能为空".to_string()))?
+            .to_string();
         let persisted = persist_profile_material_image(
             self.data_dir(),
             PersistProfileMaterialImageInput {
                 project_id: input.project_id,
-                profile_kind: kind,
+                profile_kind: kind.as_str(),
                 profile_id: input.profile_id,
                 extension: uploaded.extension,
                 bytes: &uploaded.bytes,
@@ -351,9 +277,9 @@ impl OrchestratorContext {
         };
         let mut metadata = profile_material_metadata(
             kind,
-            source.summary.profile.id,
-            &source.summary.profile.name,
-            &source.summary.content_hash,
+            source.profile.id,
+            &source.profile.name,
+            &source.content_hash,
             &style,
         );
         if let Some(map) = metadata.as_object_mut() {
@@ -382,7 +308,7 @@ impl OrchestratorContext {
                 height: uploaded.height,
                 file_size: Some(persisted.file_size),
                 chapter_id: None,
-                panel_id: Some(format!("{kind}_profile_{}", input.profile_id)),
+                panel_id: Some(format!("{}_profile_{}", kind.as_str(), input.profile_id)),
                 metadata_json: Some(metadata),
                 created_at: Some(Utc::now().naive_utc()),
             })
@@ -406,7 +332,12 @@ impl OrchestratorContext {
 
         if input.set_primary
             && let Err(error) = self
-                .upsert_profile_primary_material(input.project_id, kind, input.profile_id, image.id)
+                .upsert_profile_primary_material(
+                    input.project_id,
+                    kind.as_str(),
+                    input.profile_id,
+                    image.id,
+                )
                 .await
         {
             let cleanup_error = self
@@ -431,16 +362,16 @@ impl OrchestratorContext {
     pub async fn count_profile_material_images(
         &self,
         project_id: i64,
-        kind: &str,
+        kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<i64, AppError> {
-        let kind = normalize_profile_material_kind(kind)?;
         let count = self
             .profile_material_images_by_type(project_id, image_type_for_profile_material_kind(kind))
             .await?
             .into_iter()
             .filter(|image| {
-                generated_image_profile_material_identity(image) == Some((kind, profile_id))
+                generated_image_profile_material_identity(image)
+                    == Some((kind.as_str(), profile_id))
             })
             .count();
         i64::try_from(count).map_err(|_| AppError::InvalidState {
@@ -452,10 +383,9 @@ impl OrchestratorContext {
     pub async fn count_profile_material_images_by_profile(
         &self,
         project_id: i64,
-        kind: &str,
+        kind: ProfileMaterialKind,
         profile_ids: &[i64],
     ) -> Result<BTreeMap<i64, i64>, AppError> {
-        let kind = normalize_profile_material_kind(kind)?;
         if profile_ids.is_empty() {
             return Ok(BTreeMap::new());
         }
@@ -467,7 +397,7 @@ impl OrchestratorContext {
         {
             if let Some((image_kind, profile_id)) =
                 generated_image_profile_material_identity(&image)
-                && image_kind == kind
+                && image_kind == kind.as_str()
                 && requested.contains(&profile_id)
             {
                 *counts.entry(profile_id).or_insert(0) += 1;
@@ -479,16 +409,16 @@ impl OrchestratorContext {
     pub async fn profile_material_image_ids(
         &self,
         project_id: i64,
-        kind: &str,
+        kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<Vec<i64>, AppError> {
-        let kind = normalize_profile_material_kind(kind)?;
         Ok(self
             .profile_material_images_by_type(project_id, image_type_for_profile_material_kind(kind))
             .await?
             .into_iter()
             .filter(|image| {
-                generated_image_profile_material_identity(image) == Some((kind, profile_id))
+                generated_image_profile_material_identity(image)
+                    == Some((kind.as_str(), profile_id))
             })
             .map(|image| image.id)
             .collect())
@@ -512,7 +442,7 @@ impl OrchestratorContext {
     async fn ensure_profile_material_profile(
         &self,
         project_id: i64,
-        kind: &str,
+        kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<(), AppError> {
         self.profile_material_source(project_id, kind, profile_id)
@@ -523,56 +453,48 @@ impl OrchestratorContext {
     async fn profile_material_source(
         &self,
         project_id: i64,
-        kind: &str,
+        kind: ProfileMaterialKind,
         profile_id: i64,
-    ) -> Result<ProfileMaterialUploadSource, AppError> {
+    ) -> Result<ProfileMaterialSource, AppError> {
         match kind {
-            PROFILE_KIND_SCENE => {
+            ProfileMaterialKind::Scene => {
                 let profile = self.scene_profile_by_id(profile_id).await?;
                 if profile.project_id != project_id {
                     return Err(AppError::InvalidArgument(format!(
                         "场景档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
-                Ok(ProfileMaterialUploadSource {
-                    summary: scene_source_from_model(profile.clone()),
-                    scene_profile: Some(profile),
-                    object_profile: None,
-                })
+                Ok(scene_source_from_model(profile))
             }
-            PROFILE_KIND_OBJECT => {
+            ProfileMaterialKind::Object => {
                 let profile = self.object_profile_by_id(profile_id).await?;
                 if profile.project_id != project_id {
                     return Err(AppError::InvalidArgument(format!(
                         "物体档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
-                Ok(ProfileMaterialUploadSource {
-                    summary: object_source_from_model(profile.clone()),
-                    scene_profile: None,
-                    object_profile: Some(profile),
-                })
+                Ok(object_source_from_model(profile))
             }
-            _ => Err(AppError::InvalidArgument(format!(
-                "不支持的素材档案类型: {kind}"
-            ))),
         }
     }
 
     async fn profile_material_group(
         &self,
         project_id: i64,
-        kind: &str,
+        kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<Option<ProfileMaterialGroup>, AppError> {
         Ok(self
             .profile_material_groups(ListProfileMaterialsInput {
                 project_id,
-                kind: Some(kind.to_string()),
+                kind: match kind {
+                    ProfileMaterialKind::Scene => ProfileMaterialKindFilter::Scene,
+                    ProfileMaterialKind::Object => ProfileMaterialKindFilter::Object,
+                },
                 query: None,
-                filter: None,
-                sort: None,
-                image_limit_per_profile: Some(32),
+                filter: ProfileMaterialFilter::All,
+                sort: ProfileMaterialSort::MissingFirst,
+                image_limit_per_profile: 32,
             })
             .await?
             .into_iter()
@@ -583,10 +505,10 @@ impl OrchestratorContext {
         &self,
         input: ListProfileMaterialsInput,
     ) -> Result<Vec<ProfileMaterialGroup>, AppError> {
-        let kinds = requested_profile_material_kinds(input.kind.as_deref())?;
-        let image_limit = input.image_limit_per_profile.unwrap_or(8).clamp(1, 32);
+        let kinds = requested_profile_material_kinds(input.kind);
+        let image_limit = input.image_limit_per_profile;
         let mut sources = Vec::new();
-        if kinds.contains(&PROFILE_KIND_SCENE) {
+        if kinds.contains(&ProfileMaterialKind::Scene) {
             sources.extend(
                 self.scene_profiles_by_project(input.project_id)
                     .await?
@@ -594,7 +516,7 @@ impl OrchestratorContext {
                     .map(scene_source_from_model),
             );
         }
-        if kinds.contains(&PROFILE_KIND_OBJECT) {
+        if kinds.contains(&ProfileMaterialKind::Object) {
             sources.extend(
                 self.object_profiles_by_project(input.project_id)
                     .await?
@@ -635,51 +557,36 @@ impl OrchestratorContext {
                 )
             })
             .collect::<Vec<_>>();
-        apply_group_filters(&mut groups, input.query.as_deref(), input.filter.as_deref());
-        apply_group_sort(&mut groups, input.sort.as_deref());
-        Ok(groups)
+        apply_group_filters(&mut groups, input.query.as_deref(), input.filter);
+        apply_group_sort(&mut groups, input.sort);
+        Ok(groups
+            .into_iter()
+            .map(|projection| projection.group)
+            .collect())
     }
 }
 
-struct ProfileMaterialUploadSource {
-    summary: ProfileMaterialSource,
-    scene_profile: Option<scene_profile::Model>,
-    object_profile: Option<object_profile::Model>,
-}
-
-fn requested_profile_material_kinds(kind: Option<&str>) -> Result<Vec<&'static str>, AppError> {
-    match kind.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(PROFILE_KIND_SCENE) => Ok(vec![PROFILE_KIND_SCENE]),
-        Some(PROFILE_KIND_OBJECT) => Ok(vec![PROFILE_KIND_OBJECT]),
-        Some("all") | None => Ok(vec![PROFILE_KIND_SCENE, PROFILE_KIND_OBJECT]),
-        Some(other) => Err(AppError::InvalidArgument(format!(
-            "不支持的素材档案类型: {other}"
-        ))),
+fn requested_profile_material_kinds(kind: ProfileMaterialKindFilter) -> Vec<ProfileMaterialKind> {
+    match kind {
+        ProfileMaterialKindFilter::Scene => vec![ProfileMaterialKind::Scene],
+        ProfileMaterialKindFilter::Object => vec![ProfileMaterialKind::Object],
+        ProfileMaterialKindFilter::All => {
+            vec![ProfileMaterialKind::Scene, ProfileMaterialKind::Object]
+        }
     }
 }
 
-fn normalize_profile_material_kind(kind: &str) -> Result<&'static str, AppError> {
-    match kind.trim() {
-        PROFILE_KIND_SCENE => Ok(PROFILE_KIND_SCENE),
-        PROFILE_KIND_OBJECT => Ok(PROFILE_KIND_OBJECT),
-        other => Err(AppError::InvalidArgument(format!(
-            "不支持的档案素材类型: {other}"
-        ))),
-    }
-}
-
-fn image_type_for_profile_material_kind(kind: &str) -> &'static str {
-    if kind == PROFILE_KIND_SCENE {
-        IMAGE_TYPE_SCENE_MATERIAL
-    } else {
-        IMAGE_TYPE_OBJECT_MATERIAL
+fn image_type_for_profile_material_kind(kind: ProfileMaterialKind) -> &'static str {
+    match kind {
+        ProfileMaterialKind::Scene => IMAGE_TYPE_SCENE_MATERIAL,
+        ProfileMaterialKind::Object => IMAGE_TYPE_OBJECT_MATERIAL,
     }
 }
 
 fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterialSource {
     let content_hash = source_content_sha256(&scene_profile_content(&profile));
     ProfileMaterialSource {
-        kind: PROFILE_KIND_SCENE,
+        kind: ProfileMaterialKind::Scene,
         profile: ProfileMaterialProfileSummary {
             id: profile.id,
             project_id: profile.project_id,
@@ -703,7 +610,7 @@ fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterialSour
 fn object_source_from_model(profile: object_profile::Model) -> ProfileMaterialSource {
     let content_hash = source_content_sha256(&object_profile_content(&profile));
     ProfileMaterialSource {
-        kind: PROFILE_KIND_OBJECT,
+        kind: ProfileMaterialKind::Object,
         profile: ProfileMaterialProfileSummary {
             id: profile.id,
             project_id: profile.project_id,
@@ -735,8 +642,8 @@ fn material_group(
     images_by_profile: &mut BTreeMap<(String, i64), Vec<generated_image::Model>>,
     primary_by_profile: &BTreeMap<(String, i64), i64>,
     image_limit: usize,
-) -> ProfileMaterialGroup {
-    let key = (source.kind.to_string(), source.profile.id);
+) -> ProfileMaterialGroupProjection {
+    let key = (source.kind.as_str().to_string(), source.profile.id);
     let images = images_by_profile.remove(&key).unwrap_or_default();
     let primary_image_id = primary_by_profile.get(&key).copied();
     let newest_image_sort_key = images
@@ -767,15 +674,17 @@ fn material_group(
     let image_count = image_summaries.len();
     let material_state = material_state(&image_summaries);
     let images = image_summaries.into_iter().take(image_limit).collect();
-    ProfileMaterialGroup {
-        kind: source.kind.to_string(),
-        profile: source.profile,
-        material_state,
-        current_profile_content_sha256: source.content_hash,
-        image_count,
-        primary_image_id,
-        primary_image,
-        images,
+    ProfileMaterialGroupProjection {
+        group: ProfileMaterialGroup {
+            kind: source.kind,
+            profile: source.profile,
+            material_state,
+            current_profile_content_sha256: source.content_hash,
+            image_count,
+            primary_image_id,
+            primary_image,
+            images,
+        },
         newest_image_sort_key,
         has_favorite_image,
     }
@@ -789,11 +698,10 @@ fn material_image_summary(
     let metadata = image.metadata_json.as_ref();
     let profile_hash = metadata_text(metadata, "profile_content_sha256");
     let staleness = match profile_hash {
-        Some(hash) if hash == current_profile_hash => "fresh",
-        Some(_) => "stale",
-        None => "unknown",
-    }
-    .to_string();
+        Some(hash) if hash == current_profile_hash => ProfileMaterialImageStaleness::Fresh,
+        Some(_) => ProfileMaterialImageStaleness::Stale,
+        None => ProfileMaterialImageStaleness::Unknown,
+    };
     ProfileMaterialImageSummary {
         image: generated_image_summary(image),
         is_primary,
@@ -804,80 +712,125 @@ fn material_image_summary(
     }
 }
 
-fn material_state(images: &[ProfileMaterialImageSummary]) -> String {
+fn material_state(images: &[ProfileMaterialImageSummary]) -> ProfileMaterialState {
     if images.is_empty() {
-        return "missing".to_string();
+        return ProfileMaterialState::Missing;
     }
-    if images.iter().any(|image| image.staleness == "stale") {
-        return "stale".to_string();
+    if images
+        .iter()
+        .any(|image| image.staleness == ProfileMaterialImageStaleness::Stale)
+    {
+        return ProfileMaterialState::Stale;
     }
-    if images.iter().all(|image| image.staleness == "unknown") {
-        return "unknown".to_string();
+    if images
+        .iter()
+        .all(|image| image.staleness == ProfileMaterialImageStaleness::Unknown)
+    {
+        return ProfileMaterialState::Unknown;
     }
-    "ready".to_string()
+    ProfileMaterialState::Ready
 }
 
 fn apply_group_filters(
-    groups: &mut Vec<ProfileMaterialGroup>,
+    groups: &mut Vec<ProfileMaterialGroupProjection>,
     query: Option<&str>,
-    filter: Option<&str>,
+    filter: ProfileMaterialFilter,
 ) {
     if let Some(query) = query.map(str::trim).filter(|value| !value.is_empty()) {
         let query = query.to_lowercase();
-        groups.retain(|group| group.profile.name.to_lowercase().contains(&query));
+        groups.retain(|projection| {
+            projection
+                .group
+                .profile
+                .name
+                .to_lowercase()
+                .contains(&query)
+        });
     }
-    match filter.map(str::trim).filter(|value| !value.is_empty()) {
-        Some("missing") => groups.retain(|group| group.material_state == "missing"),
-        Some("ready") => groups.retain(|group| group.material_state == "ready"),
-        Some("stale") => groups.retain(|group| group.material_state == "stale"),
-        Some("unknown") => groups.retain(|group| group.material_state == "unknown"),
-        Some("favorite") => groups.retain(|group| group.has_favorite_image),
-        _ => {}
-    }
-}
-
-fn apply_group_sort(groups: &mut [ProfileMaterialGroup], sort: Option<&str>) {
-    match sort.map(str::trim).filter(|value| !value.is_empty()) {
-        Some("stale_first") => groups.sort_by(|a, b| {
-            material_state_rank(&a.material_state)
-                .cmp(&material_state_rank(&b.material_state))
-                .then_with(|| {
-                    a.profile
-                        .first_seen_chapter
-                        .cmp(&b.profile.first_seen_chapter)
-                })
-        }),
-        Some("newest") => {
-            groups.sort_by_key(|group| std::cmp::Reverse(group.newest_image_sort_key))
+    match filter {
+        ProfileMaterialFilter::All => {}
+        ProfileMaterialFilter::Missing => {
+            groups.retain(|projection| {
+                projection.group.material_state == ProfileMaterialState::Missing
+            });
         }
-        Some("importance") => groups.sort_by(|a, b| {
-            material_importance_rank(&a.profile.importance)
-                .cmp(&material_importance_rank(&b.profile.importance))
+        ProfileMaterialFilter::Ready => {
+            groups.retain(|projection| {
+                projection.group.material_state == ProfileMaterialState::Ready
+            });
+        }
+        ProfileMaterialFilter::Stale => {
+            groups.retain(|projection| {
+                projection.group.material_state == ProfileMaterialState::Stale
+            });
+        }
+        ProfileMaterialFilter::Unknown => {
+            groups.retain(|projection| {
+                projection.group.material_state == ProfileMaterialState::Unknown
+            });
+        }
+        ProfileMaterialFilter::Favorite => {
+            groups.retain(|projection| projection.has_favorite_image);
+        }
+    }
+}
+
+fn apply_group_sort(groups: &mut [ProfileMaterialGroupProjection], sort: ProfileMaterialSort) {
+    match sort {
+        ProfileMaterialSort::StaleFirst => groups.sort_by(|a, b| {
+            stale_material_state_rank(a.group.material_state)
+                .cmp(&stale_material_state_rank(b.group.material_state))
                 .then_with(|| {
-                    a.profile
+                    a.group
+                        .profile
                         .first_seen_chapter
-                        .cmp(&b.profile.first_seen_chapter)
+                        .cmp(&b.group.profile.first_seen_chapter)
                 })
+                .then_with(|| a.group.profile.id.cmp(&b.group.profile.id))
         }),
-        _ => groups.sort_by(|a, b| {
-            material_state_rank(&a.material_state)
-                .cmp(&material_state_rank(&b.material_state))
+        ProfileMaterialSort::Newest => {
+            groups.sort_by_key(|projection| std::cmp::Reverse(projection.newest_image_sort_key))
+        }
+        ProfileMaterialSort::Importance => groups.sort_by(|a, b| {
+            material_importance_rank(&a.group.profile.importance)
+                .cmp(&material_importance_rank(&b.group.profile.importance))
                 .then_with(|| {
-                    a.profile
+                    a.group
+                        .profile
                         .first_seen_chapter
-                        .cmp(&b.profile.first_seen_chapter)
+                        .cmp(&b.group.profile.first_seen_chapter)
                 })
-                .then_with(|| a.profile.id.cmp(&b.profile.id))
+                .then_with(|| a.group.profile.id.cmp(&b.group.profile.id))
+        }),
+        ProfileMaterialSort::MissingFirst => groups.sort_by(|a, b| {
+            missing_material_state_rank(a.group.material_state)
+                .cmp(&missing_material_state_rank(b.group.material_state))
+                .then_with(|| {
+                    a.group
+                        .profile
+                        .first_seen_chapter
+                        .cmp(&b.group.profile.first_seen_chapter)
+                })
+                .then_with(|| a.group.profile.id.cmp(&b.group.profile.id))
         }),
     }
 }
 
-fn material_state_rank(state: &str) -> i32 {
+fn missing_material_state_rank(state: ProfileMaterialState) -> u8 {
     match state {
-        "missing" => 0,
-        "stale" => 1,
-        "unknown" => 2,
-        _ => 3,
+        ProfileMaterialState::Missing => 0,
+        ProfileMaterialState::Stale => 1,
+        ProfileMaterialState::Unknown => 2,
+        ProfileMaterialState::Ready => 3,
+    }
+}
+
+fn stale_material_state_rank(state: ProfileMaterialState) -> u8 {
+    match state {
+        ProfileMaterialState::Stale => 0,
+        ProfileMaterialState::Missing => 1,
+        ProfileMaterialState::Unknown => 2,
+        ProfileMaterialState::Ready => 3,
     }
 }
 
@@ -1068,6 +1021,7 @@ fn compact_json_hint(value: &Value, empty_text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_db::profile_material::PROFILE_KIND_SCENE;
     use chrono::NaiveDate;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1107,7 +1061,7 @@ mod tests {
     #[test]
     fn profile_material_metadata_uses_canonical_fields() {
         let metadata = profile_material_metadata(
-            PROFILE_KIND_SCENE,
+            ProfileMaterialKind::Scene,
             9,
             "东市",
             "hash",
@@ -1132,7 +1086,7 @@ mod tests {
     #[test]
     fn material_group_keeps_hidden_favorite_and_primary_facts() {
         let source = ProfileMaterialSource {
-            kind: PROFILE_KIND_SCENE,
+            kind: ProfileMaterialKind::Scene,
             profile: ProfileMaterialProfileSummary {
                 id: 1,
                 project_id: 1,
@@ -1177,10 +1131,47 @@ mod tests {
         )]);
         let primary = BTreeMap::from([((PROFILE_KIND_SCENE.to_string(), 1), 1)]);
 
-        let group = material_group(source, &mut images, &primary, 1);
+        let projection = material_group(source, &mut images, &primary, 1);
 
-        assert_eq!(group.image_count, 2);
-        assert_eq!(group.images[0].image.id, 1);
-        assert!(group.has_favorite_image);
+        assert_eq!(projection.group.image_count, 2);
+        assert_eq!(projection.group.images[0].image.id, 1);
+        assert!(projection.has_favorite_image);
+    }
+
+    #[test]
+    fn stale_first_sort_differs_from_missing_first() {
+        let projection = |id, material_state| ProfileMaterialGroupProjection {
+            group: ProfileMaterialGroup {
+                kind: ProfileMaterialKind::Scene,
+                profile: ProfileMaterialProfileSummary {
+                    id,
+                    project_id: 1,
+                    name: format!("档案 {id}"),
+                    category: String::new(),
+                    importance: String::new(),
+                    first_seen_chapter: 1,
+                    last_seen_chapter: 1,
+                    primary_text: String::new(),
+                    secondary_text: String::new(),
+                    updated_at: None,
+                },
+                material_state,
+                current_profile_content_sha256: String::new(),
+                image_count: 0,
+                primary_image_id: None,
+                primary_image: None,
+                images: Vec::new(),
+            },
+            newest_image_sort_key: None,
+            has_favorite_image: false,
+        };
+        let mut groups = vec![
+            projection(1, ProfileMaterialState::Missing),
+            projection(2, ProfileMaterialState::Stale),
+        ];
+
+        apply_group_sort(&mut groups, ProfileMaterialSort::StaleFirst);
+
+        assert_eq!(groups[0].group.profile.id, 2);
     }
 }

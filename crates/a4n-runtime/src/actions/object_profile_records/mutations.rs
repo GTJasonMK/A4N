@@ -1,29 +1,21 @@
 use super::{
-    ObjectProfileDeleteResult, ObjectProfileInput, ObjectProfileMutationResult, conflicts, draft,
-    projections,
+    CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteResult,
+    ObjectProfileMutationResult, UpdateObjectProfileInput, conflicts, draft, projections,
 };
 use crate::{
     AppState,
-    actions::{
-        access,
-        dependency_conflict::{
-            DownstreamConflictStrategy, delete_downstream_images_if_requested,
-            parse_downstream_conflict_strategy,
-        },
-    },
+    actions::{access, dependency_conflict::delete_downstream_images_if_requested},
 };
 
 pub async fn create_object_profile(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    input: ObjectProfileInput,
+    input: CreateObjectProfileInput,
 ) -> Result<ObjectProfileMutationResult, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
-    parse_downstream_conflict_strategy(&input.downstream_strategy)?;
+    access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let profile = state
         .orchestrator()
-        .create_object_profile_validated(project_id, draft::into_draft(input))
+        .create_object_profile_validated(input.project_id, draft::into_draft(input.profile))
         .await
         .map_err(crate::actions::app_error_message)?;
     Ok(ObjectProfileMutationResult {
@@ -35,23 +27,21 @@ pub async fn create_object_profile(
 pub async fn update_object_profile(
     state: &AppState,
     user_id: i64,
-    object_profile_id: i64,
-    input: ObjectProfileInput,
+    input: UpdateObjectProfileInput,
 ) -> Result<ObjectProfileMutationResult, String> {
     let asset = state.orchestrator();
-    let project_id = conflicts::object_profile_project_id(&asset, object_profile_id).await?;
+    let project_id = conflicts::object_profile_project_id(&asset, input.object_profile_id).await?;
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let downstream_strategy = parse_downstream_conflict_strategy(&input.downstream_strategy)?;
     let downstream = conflicts::resolve_object_profile_downstream_conflict(
         state.orchestrator(),
         project_id,
-        object_profile_id,
-        downstream_strategy,
+        input.object_profile_id,
+        input.downstream_strategy,
         "修改",
     )
     .await?;
     let profile = asset
-        .update_object_profile_validated(object_profile_id, draft::into_draft(input))
+        .update_object_profile_validated(input.object_profile_id, draft::into_draft(input.profile))
         .await
         .map_err(crate::actions::app_error_message)?;
     let warnings = downstream_cleanup_warnings(
@@ -66,22 +56,21 @@ pub async fn update_object_profile(
 pub async fn delete_object_profile(
     state: &AppState,
     user_id: i64,
-    object_profile_id: i64,
-    downstream_strategy: DownstreamConflictStrategy,
+    input: DeleteObjectProfileInput,
 ) -> Result<ObjectProfileDeleteResult, String> {
     let asset = state.orchestrator();
-    let project_id = conflicts::object_profile_project_id(&asset, object_profile_id).await?;
+    let project_id = conflicts::object_profile_project_id(&asset, input.object_profile_id).await?;
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let downstream = conflicts::resolve_object_profile_downstream_conflict(
         state.orchestrator(),
         project_id,
-        object_profile_id,
-        downstream_strategy,
+        input.object_profile_id,
+        input.downstream_strategy,
         "删除",
     )
     .await?;
     asset
-        .delete_object_profile_record_validated(object_profile_id)
+        .delete_object_profile_record_validated(input.object_profile_id)
         .await
         .map_err(crate::actions::app_error_message)?;
     Ok(ObjectProfileDeleteResult {

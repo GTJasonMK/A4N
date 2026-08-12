@@ -75,3 +75,64 @@ pub enum ImageGenerationOperation {
         custom_style: Option<String>,
     },
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ObjectProfileImageInput {
+    #[schemars(range(min = 1))]
+    pub object_profile_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: Option<i64>,
+    pub style: Option<String>,
+    pub config_id: Option<i64>,
+    pub style_template_id: Option<String>,
+    pub style_template_name: Option<String>,
+    pub style_template_version: Option<String>,
+    pub custom_style: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ObjectProfileImagePromptOutput {
+    pub object_profile_id: i64,
+    pub object_name: String,
+    pub prompt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SceneProfileImageInput {
+    #[schemars(range(min = 1))]
+    pub scene_profile_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: Option<i64>,
+    pub style: Option<String>,
+    pub config_id: Option<i64>,
+    pub style_template_id: Option<String>,
+    pub style_template_name: Option<String>,
+    pub style_template_version: Option<String>,
+    pub custom_style: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct SceneProfileImagePromptOutput {
+    pub scene_profile_id: i64,
+    pub scene_name: String,
+    pub prompt: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ObjectProfileImageInput;
+    use serde_json::json;
+
+    #[test]
+    fn profile_image_prompt_contract_rejects_task_metadata() {
+        assert!(
+            serde_json::from_value::<ObjectProfileImageInput>(json!({
+                "object_profile_id": 1,
+                "task_id": "legacy-task"
+            }))
+            .is_err()
+        );
+    }
+}

@@ -284,7 +284,7 @@ macro_rules! command_specs {
 }
 
 command_specs! {
-    "accept_import_review" => args_accept_import_review, result_import_review, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "accept_import_review" => args_accept_import_review, result_import_review, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "accept_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT);
     "activate_theme" => args_activate_theme, result_activate_theme, "settings";
     "add_image_config" => args_add_image_config, result_add_image_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
@@ -292,11 +292,11 @@ command_specs! {
     "add_video_config" => args_add_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
     "apply_implicit_update_decision" => args_apply_implicit_update_decision, result_apply_implicit_update_decision, "profile";
-    "apply_optimization_patches" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
+    "apply_optimization_patches" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "apply_source_sync_decisions" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "assemble_chapter_videos" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "attribute_history" => args_attribute_history, result_attribute_history, "profile", effect(READ_EFFECT);
-    "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
     "bind_manga_reference_image" => args_bind_manga_reference_image, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
     "branch_project" => args_opaque, result_opaque, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
@@ -314,19 +314,19 @@ command_specs! {
     "check_import_dedup" => args_check_import_dedup, result_dedup, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "check_profile_sync_conflict" => args_check_profile_sync_conflict, result_check_profile_sync_conflict, "profile", effect(READ_EFFECT);
     "cleanup_orphan_project_data_dirs" => args_cleanup_orphan_project_data_dirs, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "confirm_reverse_engineering_candidate" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("safe");
+    "confirm_reverse_engineering_candidate" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "create_derived_project" => args_create_derived_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
-    "create_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT);
+    "create_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_freeform_video_project" => args_create_freeform_video_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
     "create_invite_code" => args_opaque, result_opaque, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
-    "create_object_profile" => args_opaque, result_opaque, "profile";
+    "create_object_profile" => args_create_object_profile, result_object_profile_mutation, "profile";
     "create_optimization_analysis_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_optimization_chat_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "create_profile" => args_create_profile, result_create_profile, "profile";
+    "create_profile" => args_create_profile, result_create_profile, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_project" => args_create_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
-    "create_scene_profile" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT);
+    "create_scene_profile" => args_create_scene_profile, result_scene_profile_mutation, "profile", context(USER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_theme" => args_create_theme, result_activate_theme, "settings";
     "create_user" => args_create_user, result_opaque, "auth", identity(ADMIN_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "decline_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -337,17 +337,17 @@ command_specs! {
     "delete_galgame_line" => args_delete_galgame_line, result_unit, "galgame", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_image" => args_delete_image, result_unit, "asset", effect(DESTRUCTIVE_EFFECT);
     "delete_import_review" => args_import_review_id, result_unit, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
-    "delete_latest_chapter_outlines" => args_delete_latest_outline_records, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_CHAPTER_IDS);
-    "delete_latest_parts" => args_delete_latest_outline_records, result_opaque, "outline", effect(DESTRUCTIVE_EFFECT);
+    "delete_latest_chapter_outlines" => args_delete_latest_outline_records, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
+    "delete_latest_parts" => args_delete_latest_outline_records, result_opaque, "outline", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "delete_llm_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_local_embedding_model" => args_delete_local_embedding_model, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "delete_manga_by_chapter" => args_cancel_manga_pipeline, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_manga_prompt" => args_delete_manga_prompt, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "delete_object_profile" => args_opaque, result_opaque, "profile", effect(DESTRUCTIVE_EFFECT);
+    "delete_object_profile" => args_delete_object_profile, result_object_profile_delete, "profile", effect(DESTRUCTIVE_EFFECT);
     "delete_optimize_session" => args_opaque, result_opaque, "auth", effect(DESTRUCTIVE_EFFECT);
     "delete_profile" => args_delete_profile, result_delete_profile, "profile", effect(DESTRUCTIVE_EFFECT);
     "delete_project" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "delete_scene_profile" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "delete_scene_profile" => args_delete_scene_profile, result_scene_profile_delete, "profile", context(USER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "delete_theme" => args_activate_theme, result_unit, "settings", effect(DESTRUCTIVE_EFFECT);
     "delete_video" => args_delete_video, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
     "detach_derived_project" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -380,9 +380,9 @@ command_specs! {
     "generate_chapter_scene" => args_generate_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_chapter_shooting_script" => args_generate_chapter_shooting_script, result_generate_chapter_shooting_script, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "generate_next_chapter_shooting_script_unit" => args_generate_chapter_shooting_script, result_generate_next_chapter_shooting_script_unit, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
-    "generate_object_profile_image_prompt" => args_opaque, result_opaque, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
+    "generate_object_profile_image_prompt" => args_generate_object_profile_image_prompt, result_object_profile_image_prompt, "profile", effect(READ_EFFECT);
     "generate_portrait_prompt" => args_opaque, result_opaque, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
-    "generate_scene_profile_image_prompt" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
+    "generate_scene_profile_image_prompt" => args_generate_scene_profile_image_prompt, result_scene_profile_image_prompt, "profile", effect(READ_EFFECT);
     "get_admin_overview" => args_opaque, result_get_admin_overview, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_blueprint" => args_opaque, result_get_blueprint, "blueprint", effect(READ_EFFECT);
     "get_canvas_graph" => args_get_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -423,7 +423,7 @@ command_specs! {
     "health_check" => args_opaque, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "import_all_configs" => args_import_all_configs, result_import_all_configs, "import", identity(ADMIN_IDENTITY), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "import_canvas_media" => args_import_canvas_media, result_import_canvas_media, "canvas", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
-    "import_chapter" => args_import_chapter, result_chapter_summary, "import", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_IMPORT);
+    "import_chapter" => args_import_chapter, result_chapter_summary, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "import_galgame_audio" => args_import_galgame_audio, result_bind_galgame_media, "galgame", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_IMPORT);
     "import_project_family_upload" => args_import_project_family_upload, result_project_summaries, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_text_upload" => args_import_project_text_upload, result_import_reviews, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
@@ -454,7 +454,7 @@ command_specs! {
     "list_manga_page_prompts" => args_cancel_manga_pipeline, result_list_manga_page_prompts, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_model_provider_catalog" => args_opaque, result_list_model_provider_catalog, "system", effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
-    "list_object_profiles" => args_opaque, result_opaque, "profile", effect(READ_EFFECT);
+    "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
     "list_optimize_patch_sets" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
     "list_optimize_sessions" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
     "list_optimize_turns" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
@@ -462,12 +462,12 @@ command_specs! {
     "list_parts" => args_opaque, result_opaque, "outline", effect(READ_EFFECT);
     "list_pending_tasks" => args_opaque, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_portraits_by_project" => args_opaque, result_opaque, "profile", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
-    "list_profile_materials" => args_opaque, result_opaque, "profile", effect(READ_EFFECT);
+    "list_profile_materials" => args_list_profile_materials, result_list_profile_materials, "profile", effect(READ_EFFECT);
     "list_profiles" => args_list_profiles, result_list_profiles, "profile", effect(READ_EFFECT);
     "list_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "list_project_members" => empty_args_schema, result_list_project_members, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "list_projects" => args_opaque, result_list_projects, "project", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "list_scene_profiles" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT);
+    "list_scene_profiles" => args_list_scene_profiles, result_list_scene_profiles, "profile", effect(READ_EFFECT);
     "list_sessions" => empty_args_schema, result_list_sessions, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
     "list_source_snapshot_chapters" => args_project_id, result_opaque, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
@@ -514,7 +514,7 @@ command_specs! {
     "preview_generate_portrait_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_import_project_analysis_request" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_inspiration_request" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_object_profile_image_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_object_profile_image_request" => args_preview_object_profile_image_request, result_model_request_preview, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_page_image_request" => args_opaque, result_opaque, "asset", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_prepare_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_propose_optimization_patches_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -575,7 +575,7 @@ command_specs! {
     "request_attribute_deletion" => args_request_attribute_deletion, result_request_attribute_deletion, "profile", effect(DESTRUCTIVE_EFFECT);
     "reset_deletion_marks" => args_reset_deletion_marks, result_reset_deletion_marks, "profile", effect(DESTRUCTIVE_EFFECT);
     "reset_project_generated_data" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "restore_blueprint_version" => args_restore_blueprint_version, result_restore_blueprint_version, "blueprint", effect(DESTRUCTIVE_EFFECT);
+    "restore_blueprint_version" => args_restore_blueprint_version, result_restore_blueprint_version, "blueprint", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "resume_chapter_analysis_sync" => args_chapter_analysis_task, result_chapter_summary, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_export_theme, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_workflow_run" => args_resume_workflow_run, result_workflow_run, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
@@ -590,11 +590,11 @@ command_specs! {
     "run_canvas_node" => args_run_canvas_node, result_run_canvas_graph, "canvas", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "run_galgame_asset_generation" => args_run_galgame_asset_generation, result_run_galgame_asset_generation, "galgame", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_GENERATION_SPEC_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
     "run_import_project_analysis" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
-    "save_blueprint" => args_save_blueprint, result_restore_blueprint_version, "blueprint";
+    "save_blueprint" => args_save_blueprint, result_restore_blueprint_version, "blueprint", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_canvas_graph" => args_save_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT);
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
-    "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline";
-    "save_part_outline" => args_save_part_outline, result_save_part_outline, "outline";
+    "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "save_part_outline" => args_save_part_outline, result_save_part_outline, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "select_segment_video" => args_select_segment_video, result_select_segment_video, "video", effect(DESTRUCTIVE_EFFECT);
     "set_default_embedding_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_EMBEDDING);
     "set_default_image_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_IMAGE);
@@ -602,7 +602,7 @@ command_specs! {
     "set_default_video_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_VIDEO);
     "set_log_level" => args_set_log_level, result_unit, "system", identity(ADMIN_IDENTITY);
     "set_primary_portrait" => args_opaque, result_opaque, "profile", capabilities(CAPABILITIES_IMAGE);
-    "set_profile_primary_material" => args_opaque, result_opaque, "profile";
+    "set_profile_primary_material" => args_set_profile_primary_material, result_profile_material_group, "profile";
     "start_blueprint_generation" => args_start_blueprint_generation, result_generation_task_handle, "blueprint", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_blueprint_refinement" => args_start_blueprint_refinement, result_generation_task_handle, "blueprint", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_chapter_generation" => args_start_chapter_generation, result_generation_task_handle, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
@@ -627,14 +627,14 @@ command_specs! {
     "trim_video" => args_opaque, result_opaque, "video", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "unbind_galgame_media" => args_unbind_galgame_media, result_unbind_galgame_media, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "update_assembly_push_status" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
-    "update_chapter_content" => args_update_chapter_content, result_chapter_summary, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
-    "update_chapter_outline" => args_opaque, result_opaque, "chapter", context(CHAPTER_CONTEXT), references(REFERENCES_CHAPTER_IDS);
+    "update_chapter_content" => args_update_chapter_content, result_chapter_summary, "chapter", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
+    "update_chapter_outline" => args_opaque, result_opaque, "chapter", context(CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
     "update_chapter_scene" => args_update_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
     "update_chapter_video_prompt" => args_update_chapter_video_prompt, result_optimize_chapter_video_prompt, "video";
     "update_chapter_video_segment_recipe" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
-    "update_character_profile" => args_update_character_profile, result_update_character_profile, "profile";
+    "update_character_profile" => args_update_character_profile, result_update_character_profile, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_embedding_config" => args_update_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
-    "update_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT);
+    "update_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_galgame_choices" => args_update_galgame_choices, result_update_galgame_choices, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_CHOICE_IDS);
     "update_galgame_line" => args_update_galgame_line, result_insert_galgame_line, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_LINE_IDS);
     "update_galgame_scene" => args_update_galgame_scene, result_update_galgame_scene, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_SCENE_IDS);
@@ -643,22 +643,22 @@ command_specs! {
     "update_llm_config" => args_update_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
     "update_llm_max_tokens_config" => args_update_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT);
     "update_manga_prompt" => args_update_manga_prompt, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
-    "update_object_profile" => args_opaque, result_opaque, "profile";
+    "update_object_profile" => args_update_object_profile, result_object_profile_mutation, "profile";
     "update_project" => args_update_project, result_create_project, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "update_project_member_role" => args_update_project_member_role, result_unit, "project", context(PROJECT_CONTEXT);
-    "update_scene_profile" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT);
+    "update_scene_profile" => args_update_scene_profile, result_scene_profile_mutation, "profile", context(USER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_theme" => args_update_theme, result_activate_theme, "settings";
     "update_user_profile" => args_update_user_profile, result_get_current_user, "auth", context(NO_CONTEXT);
     "update_user_role" => args_opaque, result_opaque, "auth", identity(ADMIN_IDENTITY);
     "update_video" => args_update_video, result_select_segment_video, "video";
     "update_video_config" => args_update_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "update_video_segment_plan_draft_recipe" => args_opaque, result_opaque, "video", capabilities(CAPABILITIES_VIDEO);
-    "update_world_setting" => args_update_world_setting, result_restore_blueprint_version, "system";
+    "update_world_setting" => args_update_world_setting, result_restore_blueprint_version, "system", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_select_segment_video, "video", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_chapter_video" => args_upload_chapter_video, result_select_segment_video, "video", context(USER_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_image" => args_upload_image, result_update_image, "asset", context(PROJECT_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_portrait" => args_opaque, result_opaque, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
-    "upload_profile_material_image" => args_opaque, result_opaque, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
+    "upload_profile_material_image" => args_upload_profile_material_image, result_profile_material_group, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
     "upload_reference_media_video" => args_upload_reference_media_video, result_select_segment_video, "video", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
 }
 
@@ -962,6 +962,14 @@ fn args_create_profile() -> Value {
     typed_input_schema::<crate::character::CreateProfileInput>()
 }
 
+fn args_create_object_profile() -> Value {
+    strict_typed_input_schema::<crate::profile::CreateObjectProfileInput>()
+}
+
+fn args_create_scene_profile() -> Value {
+    strict_runtime_typed_input_schema::<crate::profile::CreateSceneProfileInput>()
+}
+
 fn args_create_project() -> Value {
     typed_input_schema::<crate::project::CreateProjectInput>()
 }
@@ -1000,6 +1008,14 @@ fn args_delete_image() -> Value {
         "additionalProperties": true,
         "x-a4n-schema-quality": "typed",
     })
+}
+
+fn args_delete_object_profile() -> Value {
+    strict_typed_input_schema::<crate::profile::DeleteObjectProfileInput>()
+}
+
+fn args_delete_scene_profile() -> Value {
+    strict_runtime_typed_input_schema::<crate::profile::DeleteSceneProfileInput>()
 }
 
 fn args_delete_latest_outline_records() -> Value {
@@ -1154,6 +1170,14 @@ fn args_generate_chapter_scene() -> Value {
     optional_task_runtime_typed_input_schema::<crate::chapter::GenerateChapterSceneInput>()
 }
 
+fn args_generate_object_profile_image_prompt() -> Value {
+    strict_typed_input_schema::<crate::image_generation::ObjectProfileImageInput>()
+}
+
+fn args_generate_scene_profile_image_prompt() -> Value {
+    strict_typed_input_schema::<crate::image_generation::SceneProfileImageInput>()
+}
+
 fn args_get_canvas_graph() -> Value {
     typed_input_schema::<crate::canvas::GetCanvasGraphInput>()
 }
@@ -1295,6 +1319,18 @@ fn args_list_images_by_chapter() -> Value {
     typed_input_schema::<crate::image::ListImagesByChapterInput>()
 }
 
+fn args_list_object_profiles() -> Value {
+    strict_typed_input_schema::<crate::profile::ListObjectProfilesInput>()
+}
+
+fn args_list_profile_materials() -> Value {
+    strict_typed_input_schema::<crate::profile::ListProfileMaterialsInput>()
+}
+
+fn args_list_scene_profiles() -> Value {
+    strict_typed_input_schema::<crate::profile::ListSceneProfilesInput>()
+}
+
 fn args_list_profiles() -> Value {
     typed_input_schema::<crate::character::ListProfilesInput>()
 }
@@ -1358,6 +1394,10 @@ fn args_preview_chapter_scene_request() -> Value {
 
 fn args_preview_galgame_pipeline_request() -> Value {
     typed_input_schema::<crate::galgame::PreviewGalgamePipelineInput>()
+}
+
+fn args_preview_object_profile_image_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::image_generation::ObjectProfileImageInput>()
 }
 
 fn args_preview_generate_blueprint_request() -> Value {
@@ -1554,6 +1594,10 @@ fn args_set_log_level() -> Value {
     typed_input_schema::<crate::logging::SetLogLevelInput>()
 }
 
+fn args_set_profile_primary_material() -> Value {
+    strict_typed_input_schema::<crate::profile::SetProfilePrimaryMaterialInput>()
+}
+
 fn args_start_blueprint_generation() -> Value {
     typed_input_schema::<crate::blueprint::StartBlueprintGenerationInput>()
 }
@@ -1689,6 +1733,14 @@ fn args_update_project_member_role() -> Value {
     })
 }
 
+fn args_update_object_profile() -> Value {
+    strict_typed_input_schema::<crate::profile::UpdateObjectProfileInput>()
+}
+
+fn args_update_scene_profile() -> Value {
+    strict_runtime_typed_input_schema::<crate::profile::UpdateSceneProfileInput>()
+}
+
 fn args_member_user_id() -> Value {
     json!({
         "type": "object",
@@ -1777,6 +1829,10 @@ fn args_upload_image() -> Value {
         "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
+}
+
+fn args_upload_profile_material_image() -> Value {
+    strict_typed_input_schema::<crate::profile::UploadProfileMaterialImageInput>()
 }
 
 fn args_upload_reference_media_video() -> Value {
@@ -1885,12 +1941,28 @@ fn result_create_project() -> Value {
     typed_schema::<crate::project::ProjectSummary>()
 }
 
+fn result_object_profile_mutation() -> Value {
+    typed_schema::<crate::profile::ObjectProfileMutationResult>()
+}
+
+fn result_scene_profile_mutation() -> Value {
+    typed_schema::<crate::profile::SceneProfileMutationResult>()
+}
+
 fn result_export_project_package_data() -> Value {
     typed_schema::<crate::project_transfer::ExportProjectPackageData>()
 }
 
 fn result_delete_profile() -> Value {
     typed_schema::<crate::character::CharacterProfileDeleteResult>()
+}
+
+fn result_object_profile_delete() -> Value {
+    typed_schema::<crate::profile::ObjectProfileDeleteResult>()
+}
+
+fn result_scene_profile_delete() -> Value {
+    typed_schema::<crate::profile::SceneProfileDeleteResult>()
 }
 
 fn result_detect_image_config_models() -> Value {
@@ -2101,6 +2173,18 @@ fn result_list_images_by_chapter() -> Value {
     typed_schema::<Vec<crate::image::GeneratedImageSummary>>()
 }
 
+fn result_list_object_profiles() -> Value {
+    typed_schema::<Vec<crate::profile::ObjectProfileSummary>>()
+}
+
+fn result_list_profile_materials() -> Value {
+    typed_schema::<Vec<crate::profile::ProfileMaterialGroup>>()
+}
+
+fn result_list_scene_profiles() -> Value {
+    typed_schema::<Vec<crate::profile::SceneProfileSummary>>()
+}
+
 fn result_list_llm_config() -> Value {
     typed_schema::<Vec<crate::config::LlmConfigSummary>>()
 }
@@ -2181,6 +2265,14 @@ fn result_model_request_preview() -> Value {
     typed_schema::<crate::request_preview::ModelRequestPreview>()
 }
 
+fn result_object_profile_image_prompt() -> Value {
+    typed_schema::<crate::image_generation::ObjectProfileImagePromptOutput>()
+}
+
+fn result_scene_profile_image_prompt() -> Value {
+    typed_schema::<crate::image_generation::SceneProfileImagePromptOutput>()
+}
+
 fn result_preview_rollback() -> Value {
     typed_schema::<crate::project::ProjectRollbackPreview>()
 }
@@ -2223,6 +2315,10 @@ fn result_prompt_version_history() -> Value {
 
 fn result_read_recent_logs() -> Value {
     typed_schema::<crate::logging::LogReadResult>()
+}
+
+fn result_profile_material_group() -> Value {
+    typed_schema::<crate::profile::ProfileMaterialGroup>()
 }
 
 fn result_request_attribute_deletion() -> Value {
@@ -2504,6 +2600,85 @@ mod tests {
         assert!(is_destructive("delete_project"));
         assert!(!is_destructive("get_project"));
         assert!(is_destructive("delete_future_resource"));
+    }
+
+    #[test]
+    fn material_mutations_use_the_request_embedding_configuration() {
+        for command in [
+            "accept_import_review",
+            "apply_optimization_patches",
+            "batch_accept_reviews",
+            "confirm_reverse_engineering_candidate",
+            "create_foreshadowing",
+            "create_profile",
+            "create_scene_profile",
+            "delete_latest_chapter_outlines",
+            "delete_latest_parts",
+            "delete_scene_profile",
+            "import_chapter",
+            "restore_blueprint_version",
+            "save_blueprint",
+            "save_chapter_outline",
+            "save_part_outline",
+            "update_chapter_content",
+            "update_chapter_outline",
+            "update_character_profile",
+            "update_foreshadowing",
+            "update_scene_profile",
+            "update_world_setting",
+        ] {
+            assert_eq!(
+                command_runtime_config_policy(command),
+                RuntimeConfigPolicy::Full,
+                "{command} 会更新资料检索索引，必须复用当前请求的 Embedding 配置",
+            );
+        }
+    }
+
+    #[test]
+    fn profile_material_commands_expose_one_typed_contract() {
+        for command in [
+            "list_object_profiles",
+            "create_object_profile",
+            "update_object_profile",
+            "delete_object_profile",
+            "list_scene_profiles",
+            "create_scene_profile",
+            "update_scene_profile",
+            "delete_scene_profile",
+            "list_profile_materials",
+            "set_profile_primary_material",
+            "upload_profile_material_image",
+            "generate_object_profile_image_prompt",
+            "generate_scene_profile_image_prompt",
+            "preview_object_profile_image_request",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.args_schema["properties"]["input"]["additionalProperties"], false,
+                "{command}",
+            );
+            assert_ne!(
+                descriptor.result_schema["x-a4n-schema-quality"], "opaque",
+                "{command}",
+            );
+        }
+
+        for command in [
+            "generate_object_profile_image_prompt",
+            "generate_scene_profile_image_prompt",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(descriptor.effect, "read", "{command}");
+            assert_eq!(descriptor.execution, "immediate", "{command}");
+            assert!(descriptor.secret_pointers.is_empty(), "{command}");
+            assert!(descriptor.result_references.is_empty(), "{command}");
+            assert_eq!(descriptor.runtime_config_policy, RuntimeConfigPolicy::None);
+        }
     }
 
     #[test]

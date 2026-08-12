@@ -54,7 +54,7 @@ import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
 import { cancelWorkflowTask } from "../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import {
@@ -317,7 +317,7 @@ export const NovelDetail: React.FC = () => {
       requestSeq = ragSeqRef.current + 1;
       ragSeqRef.current = requestSeq;
       const activeRequestSeq = requestSeq;
-      const taskId = allocateHostTaskId("rag-ingest-all", requestProjectId);
+      const taskId = createWorkflowTaskId("rag-ingest-all", requestProjectId);
       setActionsOpen(false);
       setRagSyncing(true);
       const result = await runProgressTask(

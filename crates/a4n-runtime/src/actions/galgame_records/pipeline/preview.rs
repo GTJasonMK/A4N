@@ -1,8 +1,8 @@
-use super::contracts::PreviewGalgamePipelineInput;
 use crate::AppState;
 use crate::actions::request_preview::{
     ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state, model_request_preview,
 };
+use a4n_api_contract::galgame::PreviewGalgamePipelineInput;
 
 pub async fn preview_galgame_pipeline_request(
     state: &AppState,

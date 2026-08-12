@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import {
-  allocateHostTaskId,
+  createWorkflowTaskId,
   runTaskWithPolling,
   useProgressTask,
 } from "../../hooks/useProgressTask";
@@ -255,7 +255,7 @@ export const EmbeddingTab: React.FC = () => {
     if (!beginModelAction(actionKey)) return;
     setBusyModel(model);
     const cachedInfo = resolveDownloadInfo(model);
-    const taskId = allocateHostTaskId("embedding-download", 0);
+    const taskId = createWorkflowTaskId("embedding-download", 0);
     try {
       await runProgressTask(
         {

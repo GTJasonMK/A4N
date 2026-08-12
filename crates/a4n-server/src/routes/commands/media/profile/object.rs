@@ -1,7 +1,8 @@
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, command_input, image_generation_actions, to_value,
+    ApiError, ServerState, image_generation_actions, strict_command_input,
+    strict_runtime_command_input, to_value,
 };
 
 pub(in crate::routes::commands) async fn generate_object_profile_image_prompt(
@@ -10,7 +11,7 @@ pub(in crate::routes::commands) async fn generate_object_profile_image_prompt(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: image_generation_actions::ObjectProfileImageInput =
-        command_input(args, "generate_object_profile_image_prompt")?;
+        strict_command_input(args, "generate_object_profile_image_prompt")?;
     let output = image_generation_actions::generate_object_profile_image_prompt(
         state.runtime(),
         user_id,
@@ -18,7 +19,7 @@ pub(in crate::routes::commands) async fn generate_object_profile_image_prompt(
     )
     .await
     .map_err(ApiError::bad_request)?;
-    Ok(json!(output))
+    to_value(output)
 }
 
 pub(in crate::routes::commands) async fn preview_object_profile_image_request(
@@ -27,7 +28,7 @@ pub(in crate::routes::commands) async fn preview_object_profile_image_request(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: image_generation_actions::ObjectProfileImageInput =
-        command_input(args, "preview_object_profile_image_request")?;
+        strict_runtime_command_input(args, "preview_object_profile_image_request")?;
     let preview = image_generation_actions::preview_object_profile_image_request(
         state.runtime(),
         user_id,

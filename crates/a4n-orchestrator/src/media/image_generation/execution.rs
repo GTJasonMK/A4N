@@ -523,10 +523,11 @@ pub fn generated_image_summary(image: &generated_image::Model) -> GeneratedImage
         file_size: image.file_size,
         ai_score: image.ai_score,
         is_favorite: image.is_favorite,
+        is_system_managed: a4n_domain::image::is_system_managed_image_type(&image.image_type),
         chapter_id: image.chapter_id,
         panel_id: image.panel_id.clone(),
         metadata_json: image.metadata_json.clone(),
-        created_at: Some(image.created_at.to_string()),
+        created_at: image.created_at.to_string(),
     }
 }
 

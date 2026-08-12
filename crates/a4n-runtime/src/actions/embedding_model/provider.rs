@@ -1,4 +1,4 @@
-use super::contracts::LocalEmbeddingConfigInput;
+use super::LocalEmbeddingConfigInput;
 #[cfg(feature = "local-embedding")]
 use super::host_adapter::required_text;
 use a4n_core::error::AppError;

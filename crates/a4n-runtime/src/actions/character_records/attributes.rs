@@ -1,11 +1,11 @@
 use super::access::require_profile_for_user;
-use super::contracts::{
-    AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput,
-    ModifyProfileAttributeInput,
-};
 use super::projections::attribute_event_summary;
 use crate::AppState;
 use crate::actions::app_error_message;
+use a4n_api_contract::character::{
+    AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput,
+    ModifyProfileAttributeInput,
+};
 use a4n_orchestrator::character::{
     CharacterAttributeEventHistoryFilter, CharacterAttributeValueChangeInput,
 };

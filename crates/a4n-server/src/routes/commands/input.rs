@@ -1,4 +1,3 @@
-use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -74,15 +73,6 @@ pub(in crate::routes::commands) fn optional_string_field(
         Some(Value::String(value)) => Ok(Some(value.clone())),
         Some(_) => Err(ApiError::bad_request(format!("{key} 必须是字符串或 null"))),
     }
-}
-
-pub(in crate::routes::commands) fn downstream_strategy_arg(
-    args: &Value,
-) -> Result<DownstreamConflictStrategy, ApiError> {
-    DownstreamConflictStrategy::from_optional_str(
-        optional_string_field(args, "downstreamStrategy")?.as_deref(),
-    )
-    .map_err(ApiError::bad_request)
 }
 
 pub(in crate::routes::commands) fn optional_bool_field(

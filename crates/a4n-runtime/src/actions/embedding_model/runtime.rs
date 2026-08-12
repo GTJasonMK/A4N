@@ -1,5 +1,5 @@
 use super::{
-    contracts::{LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput},
+    LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput,
     provider::{cached_local_embedding_provider, fastembed_cache_dir_from_config},
 };
 use a4n_core::error::AppError;

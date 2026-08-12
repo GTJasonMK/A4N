@@ -1,8 +1,8 @@
 use super::super::GalgameProjectInput;
-use super::contracts::{
+use crate::AppState;
+use a4n_api_contract::galgame::{
     GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary, GalgameWorkflowRunSummary,
 };
-use crate::AppState;
 
 pub async fn get_galgame_pipeline_status(
     state: &AppState,

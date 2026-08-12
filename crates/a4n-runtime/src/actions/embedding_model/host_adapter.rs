@@ -1,6 +1,6 @@
 //! Host 适配：runtime profile 与下载结果定位（非 pure rules）。
 
-use super::contracts::LocalEmbeddingModelSummary;
+use super::LocalEmbeddingModelSummary;
 use a4n_core::error::AppError;
 
 pub(super) fn downloaded_model_summary(

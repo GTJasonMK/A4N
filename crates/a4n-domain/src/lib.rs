@@ -13,6 +13,7 @@ pub mod import_review;
 pub mod llm;
 pub mod manga;
 pub mod model_discovery;
+pub mod profile_material;
 pub mod progress;
 pub mod project;
 pub mod shooting_script;
@@ -121,19 +122,6 @@ impl VideoDurationMode {
     }
 }
 
-impl DownstreamConflictStrategy {
-    pub fn from_optional_str(value: Option<&str>) -> Result<Self, String> {
-        match value.map(str::trim).filter(|value| !value.is_empty()) {
-            None | Some("reject") => Ok(Self::Reject),
-            Some("keep_downstream") => Ok(Self::KeepDownstream),
-            Some("delete_downstream") => Ok(Self::DeleteDownstream),
-            Some(other) => Err(format!(
-                "未知下游冲突处理策略：{other}，支持 reject、keep_downstream、delete_downstream"
-            )),
-        }
-    }
-}
-
 impl fmt::Display for VideoDurationMode {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
@@ -225,18 +213,5 @@ mod tests {
         );
         assert!(" fixed ".parse::<VideoDurationMode>().is_err());
         assert!("discrete".parse::<VideoDurationMode>().is_err());
-    }
-
-    #[test]
-    fn downstream_conflict_strategy_has_one_wire_parser() {
-        assert_eq!(
-            DownstreamConflictStrategy::from_optional_str(None).unwrap(),
-            DownstreamConflictStrategy::Reject
-        );
-        assert_eq!(
-            DownstreamConflictStrategy::from_optional_str(Some("delete_downstream")).unwrap(),
-            DownstreamConflictStrategy::DeleteDownstream
-        );
-        assert!(DownstreamConflictStrategy::from_optional_str(Some("legacy")).is_err());
     }
 }

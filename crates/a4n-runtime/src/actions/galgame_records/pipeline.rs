@@ -1,4 +1,3 @@
-mod contracts;
 mod execution;
 mod preview;
 mod status;

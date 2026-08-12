@@ -64,7 +64,7 @@ pub async fn sync_outline_materials(
     })
 }
 
-pub(in crate::actions::outline_records) async fn outline_material_sync_warnings(
+pub(crate) async fn outline_material_sync_warnings(
     state: &AppState,
     project_id: i64,
 ) -> Vec<String> {

@@ -38,26 +38,14 @@ export interface ProgressTaskOptions {
   successMessage: string;
   errorMessage: string;
   total?: number;
-  /**
-   * 仅作取消身份；不得再用于订阅旧 workflow 事件。
-   * 新 generation 路径请用 runGenerationProgressTaskThen。
-   *
-   * @deprecated 旧 Host workflow 通道。generation 任务应改用
-   * `runGenerationProgressTaskThen`，由它提供 handle 与 generationClient.cancel。
-   */
+  /** Host workflow 或 generation task 的取消身份。 */
   cancelTaskId?: string | null;
   cancelLabel?: string;
   runningHint?: React.ReactNode;
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
-  /**
-   * 取消函数。传了 cancelTaskId 就必须显式提供，避免隐式落回旧 workflow 通道。
-   * generation 任务传 generationClient.cancel，Host workflow 任务传 cancelWorkflowTask。
-   */
+  /** generation 任务传 generationClient.cancel，Host workflow 传 cancelWorkflowTask。 */
   cancelTask?: (taskId: string) => Promise<void>;
-  /**
-   * 是否轮询后端 Host progress 事件。仅旧 Host workflow 任务应设为 true；
-   * generation 任务的进度来自事件订阅，必须保持关闭。
-   */
+  /** Host workflow 使用轮询；generation task 使用事件订阅。 */
   pollTaskProgress?: boolean;
 }
 
@@ -89,7 +77,7 @@ interface ProgressTaskController extends ProgressTaskApi {
 }
 
 const MAX_PROGRESS_EVENTS = 160;
-const HOST_PROGRESS_POLL_MS = 500;
+const WORKFLOW_PROGRESS_POLL_MS = 500;
 
 export async function runTaskWithPolling<T, TUpdate>(
   task: Promise<T>,
@@ -112,7 +100,7 @@ export async function runTaskWithPolling<T, TUpdate>(
     }
   };
 
-  const timer = globalThis.setInterval(() => void pollOnce(), HOST_PROGRESS_POLL_MS);
+  const timer = globalThis.setInterval(() => void pollOnce(), WORKFLOW_PROGRESS_POLL_MS);
   try {
     return await task;
   } finally {
@@ -162,21 +150,8 @@ const createProgressTaskState = (): ProgressTaskState => ({
 const validTotal = (value?: number): number =>
   Number.isInteger(value) && value != null && value > 0 ? value : 1;
 
-/**
- * 仅分配 Host 取消/后端 progress 注册身份，不订阅任何旧事件通道。
- * 不得用于前端自建规范 generation task id。
- *
- * @deprecated 旧 Host workflow 任务身份。generation 任务的 task_id 由后端下发
- * （`GenerationTaskHandle`），不应由前端自行分配。新增调用点一律走
- * `runGenerationProgressTaskThen`。
- */
-export const allocateHostTaskId = (scope: string, projectId: number): string => {
-  const random =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  return `${scope}-${projectId}-${random}`;
-};
+export const createWorkflowTaskId = (scope: string, projectId: number): string =>
+  `${scope}-${projectId}-${globalThis.crypto.randomUUID()}`;
 
 const appendProgressEvent = <T extends { events: ProgressTimelineItem[] }>(
   state: T,
@@ -292,8 +267,7 @@ function useProgressTaskController(): ProgressTaskController {
 
     try {
       const taskPromise = task(control);
-      // 轮询归属必须显式声明：取消函数的有无不再隐含进度通道归属。
-      // Host workflow 任务传 pollTaskProgress: true；generation 任务由事件订阅供给进度。
+      // Host workflow 轮询持久化进度；generation task 由事件订阅供给进度。
       const shouldPollTaskProgress =
         cancellableTaskId != null && options.pollTaskProgress === true;
       const result = shouldPollTaskProgress
@@ -369,7 +343,6 @@ function useProgressTaskController(): ProgressTaskController {
     try {
       const cancelTask = cancelTaskRef.current;
       if (!cancelTask) {
-        // 不再隐式落回旧 workflow 通道：调用点必须显式声明取消归属。
         throw new Error("任务未提供取消函数；请在 runProgressTask 显式传入 cancelTask");
       }
       await cancelTask(activeTaskId);

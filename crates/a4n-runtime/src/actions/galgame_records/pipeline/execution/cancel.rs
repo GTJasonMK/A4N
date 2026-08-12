@@ -1,6 +1,6 @@
-use super::super::contracts::GalgamePipelineStatusSummary;
 use super::super::status::get_galgame_pipeline_status;
 use crate::{AppState, actions::galgame_records::GalgameProjectInput};
+use a4n_api_contract::galgame::GalgamePipelineStatusSummary;
 
 pub async fn cancel_galgame_pipeline(
     state: &AppState,

@@ -3,42 +3,25 @@ import { requireCurrentUserId as currentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
 import type { DownstreamConflictStrategy } from "./generated/host";
 import type {
+  CreateSceneProfileInput,
+  DeleteSceneProfileInput,
+  SceneProfileImageInput,
+  SceneProfileImagePromptOutput,
   SceneProfileDeleteResult,
   SceneProfileInput as ApiSceneProfileInput,
   SceneProfileMutationResult,
   SceneProfileSummary,
+  UpdateSceneProfileInput,
 } from "./generated/host";
 
 export type SceneProfile = SceneProfileSummary;
 
-export type SceneProfileInput = Omit<
-  ApiSceneProfileInput,
-  "parent_scene_id" | "downstream_strategy"
-> & {
+export type SceneProfileInput = Omit<ApiSceneProfileInput, "parent_scene_id"> & {
   parent_scene_id?: Id | null;
-  downstream_strategy?: DownstreamConflictStrategy;
 };
-
-interface SceneProfileImageInput {
-  scene_profile_id: number;
-  chapter_id?: number | null;
-  style?: string | null;
-  config_id?: number | null;
-  style_template_id?: string | null;
-  style_template_name?: string | null;
-  style_template_version?: string | null;
-  custom_style?: string | null;
-}
-
-interface SceneProfileImagePromptOutput {
-  scene_profile_id: number;
-  scene_name: string;
-  prompt: string;
-}
 
 export async function listSceneProfiles(projectId: Id): Promise<SceneProfile[]> {
   return apiInvoke<SceneProfile[]>("list_scene_profiles", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) },
   });
 }
@@ -47,36 +30,44 @@ export async function createSceneProfile(
   projectId: Id,
   input: SceneProfileInput,
 ): Promise<SceneProfileMutationResult> {
+  const request: CreateSceneProfileInput = {
+    project_id: idNum(projectId),
+    profile: normalizeSceneProfileInput(input),
+  };
   return apiInvoke<SceneProfileMutationResult>("create_scene_profile", {
-    userId: currentUserId(),
-    projectId: idNum(projectId),
-    input: normalizeSceneProfileInput(input),
+    input: request,
   });
 }
 
 export async function updateSceneProfile(
   sceneProfileId: Id,
   input: SceneProfileInput,
+  downstreamStrategy: DownstreamConflictStrategy,
 ): Promise<SceneProfileMutationResult> {
+  const request: UpdateSceneProfileInput = {
+    scene_profile_id: idNum(sceneProfileId),
+    profile: normalizeSceneProfileInput(input),
+    downstream_strategy: downstreamStrategy,
+  };
   return apiInvoke<SceneProfileMutationResult>("update_scene_profile", {
-    userId: currentUserId(),
-    sceneProfileId: idNum(sceneProfileId),
-    input: normalizeSceneProfileInput(input),
+    input: request,
   });
 }
 
 export async function deleteSceneProfile(
   sceneProfileId: Id,
-  downstreamStrategy: DownstreamConflictStrategy = "reject",
+  downstreamStrategy: DownstreamConflictStrategy,
 ): Promise<SceneProfileDeleteResult> {
+  const input: DeleteSceneProfileInput = {
+    scene_profile_id: idNum(sceneProfileId),
+    downstream_strategy: downstreamStrategy,
+  };
   return apiInvoke<SceneProfileDeleteResult>("delete_scene_profile", {
-    userId: currentUserId(),
-    sceneProfileId: idNum(sceneProfileId),
-    downstreamStrategy,
+    input,
   });
 }
 
-function normalizeSceneProfileInput(input: SceneProfileInput): Record<string, unknown> {
+function normalizeSceneProfileInput(input: SceneProfileInput): ApiSceneProfileInput {
   return {
     name: input.name,
     aliases: input.aliases ?? [],
@@ -93,7 +84,6 @@ function normalizeSceneProfileInput(input: SceneProfileInput): Record<string, un
     last_seen_chapter: input.last_seen_chapter,
     evidence: input.evidence ?? [],
     image_prompt_seed: input.image_prompt_seed,
-    downstream_strategy: input.downstream_strategy ?? "reject",
   };
 }
 
@@ -114,7 +104,6 @@ export async function generateSceneProfileImagePrompt(
   input: SceneProfileImageInput,
 ): Promise<SceneProfileImagePromptOutput> {
   return apiInvoke<SceneProfileImagePromptOutput>("generate_scene_profile_image_prompt", {
-    userId: currentUserId(),
     input,
   });
 }

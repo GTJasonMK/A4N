@@ -28,7 +28,7 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { cancelWorkflowTask } from "../../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import {
@@ -136,7 +136,7 @@ export const SceneProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
-    const taskId = allocateHostTaskId("scene-profile-sync", requestProjectId);
+    const taskId = createWorkflowTaskId("scene-profile-sync", requestProjectId);
     setSyncing(true);
     try {
       await runProgressTask(
@@ -348,10 +348,7 @@ export const SceneProfilesTab: React.FC<{
     try {
       const result =
         existingProfile
-          ? await updateSceneProfile(existingProfile.id, {
-              ...input,
-              downstream_strategy: downstreamStrategy,
-            })
+          ? await updateSceneProfile(existingProfile.id, input, downstreamStrategy)
           : await createSceneProfile(requestProjectId, input);
       const saved = result.profile;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;

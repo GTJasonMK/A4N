@@ -1,8 +1,6 @@
 use super::{
-    contracts::{
-        ExportProjectPackageData, ExportVideoStudioProjectDataInput,
-        ImportProjectPackageUploadInput, VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
-    },
+    ExportProjectPackageData, ExportVideoStudioProjectDataInput, ImportProjectPackageUploadInput,
+    VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
     package_files::{
         decode_uploaded_project_file, export_package_data, validate_uploaded_project_file_name,
     },

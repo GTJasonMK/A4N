@@ -262,10 +262,7 @@ export const ObjectProfilesTab: React.FC<{
     try {
       const result =
         existingProfile
-          ? await updateObjectProfile(existingProfile.id, {
-              ...input,
-              downstream_strategy: downstreamStrategy,
-            })
+          ? await updateObjectProfile(existingProfile.id, input, downstreamStrategy)
           : await createObjectProfile(requestProjectId, input);
       const saved = result.profile;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;

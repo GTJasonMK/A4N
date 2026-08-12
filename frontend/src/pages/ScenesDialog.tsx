@@ -16,7 +16,7 @@ import {
 } from "../api/chapter";
 import type { ModelRequestPreview } from "../api/requestPreview";
 import { cancelWorkflowTask } from "../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import { SceneGenerationPanel } from "./scenes-dialog/SceneGenerationPanel";
@@ -271,7 +271,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     const requestSeq = generateSeqRef.current + 1;
     generateSeqRef.current = requestSeq;
     const nextNumber = getNextSceneNumber(scenes);
-    const taskId = allocateHostTaskId("chapter-scene", chapterId);
+    const taskId = createWorkflowTaskId("chapter-scene", chapterId);
     setGenerating(true);
     try {
       const s = await runProgressTask(

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePersistedTab } from "../hooks/usePersistedTab";
-import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import {
   getProjectHomeEntryRoute,
   getProjectPrimaryRoute,
@@ -28,6 +28,7 @@ import {
   exportVideoStudioProjectData,
   importProjectFamilyUpload,
   importVideoStudioProjectUpload,
+  listAllProjects,
   listMyProjectInvites,
   listProjects,
   PROJECT_FAMILY_PACKAGE_SUFFIX,
@@ -147,14 +148,13 @@ export const NovelList: React.FC<NovelListProps> = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await listProjects(
-        1,
-        20,
-        {
-          project_kind: requestKind === "all" ? undefined : requestKind,
-          access_scope: requestScope,
-        },
-      );
+      const filters = {
+        project_kind: requestKind === "all" ? undefined : requestKind,
+        access_scope: requestScope,
+      };
+      const items = requestTab === "all"
+        ? await listAllProjects(filters)
+        : (await listProjects(1, 20, filters)).items;
       if (
         !mountedRef.current ||
         refreshSeqRef.current !== requestSeq ||
@@ -164,7 +164,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       ) {
         return;
       }
-      setProjects(res.items);
+      setProjects(items);
       setLoadError(null);
     } catch (err) {
       if (
@@ -260,7 +260,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const syncCreatedProjectMaterials = async (project: NovelProject) => {
     const warning = await trySyncTextProjectMaterials(project, async (projectId) => {
-      const taskId = allocateHostTaskId("new-project-rag-ingest", projectId);
+      const taskId = createWorkflowTaskId("new-project-rag-ingest", projectId);
       await runProgressTask(
         {
           cancelTaskId: taskId,

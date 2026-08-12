@@ -6,7 +6,7 @@ use a4n_embedding_fastembed::delete_fastembed_model;
 
 use crate::AppState;
 
-use super::super::{contracts::EmbeddingModelInput, host_adapter::required_text};
+use super::super::{EmbeddingModelInput, host_adapter::required_text};
 
 pub async fn delete_local_embedding_model(
     state: &AppState,

@@ -1,11 +1,11 @@
 use super::access::{find_profile_by_name_for_user, require_profile_for_user};
-use super::contracts::{
-    CharacterProfileCreateResult, CharacterProfileDeleteResult, CharacterProfileMutationResult,
-    CharacterProfileSummary, CreateProfileInput, ListProfilesInput, UpdateCharacterProfileInput,
-};
 use super::projections::profile_summary;
 use crate::AppState;
 use crate::actions::{access, app_error_message};
+use a4n_api_contract::character::{
+    CharacterProfileCreateResult, CharacterProfileDeleteResult, CharacterProfileMutationResult,
+    CharacterProfileSummary, CreateProfileInput, ListProfilesInput, UpdateCharacterProfileInput,
+};
 use a4n_orchestrator::character::CharacterRecordLifecycleError;
 use serde_json::Value;
 

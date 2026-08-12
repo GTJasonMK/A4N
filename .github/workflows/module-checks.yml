@@ -36,10 +36,10 @@ jobs:
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Check server minimal host
-        run: timeout 600 ./scripts/dev/check-module.sh host-server
+        run: timeout 600 ./scripts/build.sh --check -p a4n-server --no-default-features
 
       - name: Check tauri minimal host
-        run: timeout 600 ./scripts/dev/check-module.sh host-tauri
+        run: timeout 600 ./scripts/build.sh --check -p a4n-tauri --no-default-features
 
       - name: Assert server minimal host excludes heavy providers
         run: |
@@ -72,14 +72,11 @@ jobs:
       - name: Check a4n-core boundary inventory
         run: ./scripts/checks/check-core-boundary.sh
 
-      - name: Check canonical task kind boundary
-        run: ./scripts/checks/check-task-kind-boundary.sh
-
-      - name: Check retired generation contract boundary
-        run: ./scripts/checks/check-generation-cutover-boundary.sh
-
-      - name: Check generation progress channel boundary
-        run: ./scripts/checks/check-generation-progress-boundary.sh
+      - name: Check generation contracts and safety
+        run: |
+          ./scripts/checks/check-generation-contracts.sh
+          ./scripts/checks/check-generation-safety-boundary.sh
+          cargo test -p a4n-service-protocol --lib events_artifacts
 
   sidecar-catalog:
     name: Read sidecar catalog
@@ -298,17 +295,16 @@ jobs:
           bash -n \
             scripts/deploy.sh \
             scripts/build.sh \
-            scripts/dev/check-module.sh \
             scripts/dev/setup-onnxruntime.sh \
             scripts/dev/prepare-tauri-external-bin.sh \
             scripts/dev/build-tauri-bundle.sh \
+            scripts/checks/check-generation-safety-boundary.sh \
             scripts/checks/smoke-macos-tauri-bundle.sh \
             scripts/checks/generate-release-sbom.sh
           ruby -e 'require "json"; JSON.parse(File.read("crates/a4n-tauri/tauri.sidecars.conf.json"))'
           ./scripts/checks/check-release-manifest.sh
           ./scripts/checks/check-sidecar-security-boundary.sh
           ./scripts/checks/check-core-boundary.sh
-          ./scripts/checks/check-generation-cutover-boundary.sh
           ./scripts/dev/build-tauri-bundle.sh --help >/dev/null
 
       - name: Check release package layout

@@ -1,9 +1,10 @@
+use a4n_domain::profile_material::ProfileMaterialKind;
 use std::collections::BTreeMap;
 
 pub(crate) async fn count_profile_material_images(
     profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
-    kind: &str,
+    kind: ProfileMaterialKind,
     profile_id: i64,
 ) -> Result<i64, String> {
     profile_material
@@ -15,7 +16,7 @@ pub(crate) async fn count_profile_material_images(
 pub(crate) async fn count_profile_material_images_by_profile(
     profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
-    kind: &str,
+    kind: ProfileMaterialKind,
     profile_ids: &[i64],
 ) -> Result<BTreeMap<i64, i64>, String> {
     profile_material
@@ -27,7 +28,7 @@ pub(crate) async fn count_profile_material_images_by_profile(
 pub(crate) async fn list_profile_material_image_ids(
     profile_material: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
-    kind: &str,
+    kind: ProfileMaterialKind,
     profile_id: i64,
 ) -> Result<Vec<i64>, String> {
     profile_material

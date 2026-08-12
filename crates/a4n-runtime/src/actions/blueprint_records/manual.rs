@@ -30,7 +30,7 @@ pub async fn sync_blueprint_materials(
     })
 }
 
-pub(super) async fn blueprint_material_sync_warnings(
+pub(crate) async fn blueprint_material_sync_warnings(
     state: &AppState,
     project_id: i64,
 ) -> Vec<String> {
@@ -50,6 +50,10 @@ pub(super) async fn blueprint_material_sync_warnings(
     collect_sync_errors(
         &mut errors,
         crate::rag_ingest::ingest_character_records_inner(state, project_id, None).await,
+    );
+    collect_sync_errors(
+        &mut errors,
+        crate::rag_ingest::ingest_protagonists_inner(state, project_id, None).await,
     );
     collect_sync_errors(
         &mut errors,

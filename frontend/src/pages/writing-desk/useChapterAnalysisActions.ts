@@ -18,7 +18,7 @@ import {
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
 import { cancelWorkflowTask } from "../../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 
 type AddToast = (message: unknown, type: ToastType) => void;
@@ -165,7 +165,7 @@ export function useChapterAnalysisActions({
       const chapter = requireSavedAnalyzableChapter("generate");
       if (!chapter) return;
 
-      const taskId = allocateHostTaskId("chapter-analysis", projectId);
+      const taskId = createWorkflowTaskId("chapter-analysis", projectId);
       setAnalysisBusy(true);
       const mutation = await runProgressTask(
         {
@@ -249,7 +249,7 @@ export function useChapterAnalysisActions({
       const chapter = requireSavedAnalyzableChapter("resume");
       if (!chapter) return;
 
-      const taskId = allocateHostTaskId("chapter-analysis-resume", projectId);
+      const taskId = createWorkflowTaskId("chapter-analysis-resume", projectId);
       setAnalysisBusy(true);
       const updated = await runProgressTask(
         {

@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 
 let freeProjectId = null;
 const llmApiKey = process.env.A4N_NONLINEAR_LLM_API_KEY;
+const llmProvider = process.env.A4N_NONLINEAR_LLM_PROVIDER;
+const llmBaseUrl = process.env.A4N_NONLINEAR_LLM_BASE_URL;
+const llmModel = process.env.A4N_NONLINEAR_LLM_MODEL;
 
 const buttonByText = async (text) => {
   const button = await $("button*=" + text);
@@ -97,7 +100,9 @@ const closeSuccessfulProgress = async (
     async () => {
       progressText = await (await $("[role=dialog]")).getText();
       return progressText.includes(successText)
-        || /生成失败|任务失败|调用失败|已取消|已停止/.test(progressText);
+        || /生成失败|任务失败|调用失败|分析失败|同步失败|已取消|已停止/.test(
+          progressText,
+        );
     },
     { timeout, interval: 2_000, timeoutMsg: `任务未完成：${successText}` },
   );
@@ -109,6 +114,95 @@ const closeSuccessfulProgress = async (
   await dialog.waitForDisplayed({ reverse: true, timeout: 30_000 });
 };
 
+const runGenerationWithRetry = async ({
+  start,
+  successText,
+  closeText = "关闭",
+  attempts = 3,
+  retryDelayMs = 30_000,
+}) => {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    await start();
+    try {
+      await closeSuccessfulProgress(successText, 480_000, closeText);
+      return;
+    } catch (error) {
+      lastError = error;
+      const dialog = await $("[role=dialog]");
+      const text = (await dialog.isExisting()) ? await dialog.getText() : "";
+      const retryable = /模型流读取失败|LLM API 流式请求失败|unexpected EOF|error sending request|429 Too Many Requests|服务限流|请求数限制/i.test(text);
+      if (!retryable || attempt === attempts) throw error;
+      const close = await dialog.$("button*=关闭");
+      await close.waitForClickable();
+      await close.click();
+      await dialog.waitForDisplayed({ reverse: true, timeout: 30_000 });
+      if (retryDelayMs > 0) await browser.pause(retryDelayMs);
+    }
+  }
+  throw lastError;
+};
+
+const openWritingAnalysis = async () => {
+  const analysisTab = await $(
+    "//nav[@aria-label='章节工作区']//button[normalize-space()='分析']",
+  );
+  await analysisTab.waitForClickable({ timeout: 30_000 });
+  if ((await analysisTab.getAttribute("aria-selected")) !== "true") {
+    await analysisTab.click();
+  }
+  const panel = await $("section[aria-label='本章资料同步状态']");
+  await panel.waitForDisplayed({ timeout: 30_000 });
+  return panel;
+};
+
+const waitForMaterialSync = async ({ all = false, timeoutMessage }) => {
+  await openWritingAnalysis();
+  let statuses = [];
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await browser.waitUntil(
+      async () => {
+        const panel = await $("section[aria-label='本章资料同步状态']");
+        if (!(await panel.isExisting())) return false;
+        statuses = await browser.execute(() =>
+          [...document.querySelectorAll("section[aria-label='本章资料同步状态'] dd")]
+            .map((row) => row.textContent?.trim() ?? ""),
+        );
+        return statuses.includes("同步失败")
+          || (all
+            ? statuses.length === 5 && statuses.every((status) => status === "已完成")
+            : statuses[0] === "已完成");
+      },
+      { timeout: 180_000, interval: 2_000, timeoutMsg: timeoutMessage },
+    );
+    if (!statuses.includes("同步失败")) break;
+    if (!all || attempt === 3) break;
+    await browser.waitUntil(
+      async () => {
+        const pageText = await $("body").getText();
+        const retryable = /429 Too Many Requests|服务限流|请求数限制|模型流读取失败|LLM API 流式请求失败|unexpected EOF|error sending request/i.test(pageText);
+        const continueSync = await $("button*=继续同步");
+        return retryable && await continueSync.isClickable();
+      },
+      {
+        timeout: 30_000,
+        interval: 1_000,
+        timeoutMsg: "可恢复的章节分析失败未提供继续同步入口",
+      },
+    );
+    await browser.pause(30_000);
+    await runGenerationWithRetry({
+      start: async () => (await $("button*=继续同步")).click(),
+      successText: "章节分析已继续完成",
+      retryDelayMs: 30_000,
+    });
+    await openWritingAnalysis();
+  }
+  assert.equal(statuses.includes("同步失败"), false, statuses.join(" / "));
+  assert.equal(await $("button*=继续同步").isExisting(), false, "章节分析仍有未完成步骤");
+  assert.equal(await $("button*=重试资料同步").isExisting(), false, "章节正文资料同步失败");
+};
+
 const generateChapterBody = async (projectId, timeoutMessage) => {
   await browser.url(`/write/${projectId}?chapter=1`);
   const assistant = await $(
@@ -116,6 +210,12 @@ const generateChapterBody = async (projectId, timeoutMessage) => {
   );
   await assistant.waitForClickable({ timeout: 30_000 });
   await assistant.click();
+  const lengthFields = await $("//aside[@aria-label='写作助手']//details[.//span[normalize-space()='正文长度']]");
+  if (!(await lengthFields.getAttribute("open"))) await lengthFields.$("summary").click();
+  const wordCountInputs = await lengthFields.$$("input[type=number]");
+  assert.equal(wordCountInputs.length, 2, "写作助手缺少正文长度范围输入");
+  await wordCountInputs[0].setValue("800");
+  await wordCountInputs[1].setValue("1200");
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const start = await $("//aside[@aria-label='写作助手']//button[contains(., '开始生成')]");
     await start.waitForClickable({ timeout: 30_000 });
@@ -141,7 +241,10 @@ const generateChapterBody = async (projectId, timeoutMessage) => {
       const editor = document.querySelector("textarea[aria-label='章节正文']");
       return editor instanceof HTMLTextAreaElement ? editor.value.trim().length : 0;
     });
-    if (contentLength >= 500) return;
+    if (contentLength >= 500) {
+      await waitForMaterialSync({ timeoutMessage: `${timeoutMessage}：正文索引未完成` });
+      return;
+    }
   }
   assert.fail(timeoutMessage);
 };
@@ -149,13 +252,30 @@ const generateChapterBody = async (projectId, timeoutMessage) => {
 describe("非线性创作资料同步", () => {
   before(async () => {
     if (!llmApiKey) return;
-    await browser.execute((apiKey) => {
+    const localLlm = llmProvider && llmBaseUrl && llmModel
+      ? [{
+          id: 2,
+          name: "非线性创作真实验收",
+          provider: llmProvider,
+          base_url: llmBaseUrl,
+          api_key_encrypted: llmApiKey,
+          has_api_key: true,
+          model: llmModel,
+          max_concurrent: 1,
+          timeout_secs: 300,
+          max_context_tokens: 1_024_000,
+          max_output_tokens: 52_288,
+          extra_body_json: null,
+          is_default: true,
+        }]
+      : [];
+    await browser.execute((apiKey, llm) => {
       localStorage.setItem(
         "a4n:local-runtime-settings:v1",
         JSON.stringify({
           schema_version: 1,
-          next_id: 2,
-          llm: [],
+          next_id: llm.length > 0 ? 3 : 2,
+          llm,
           system_llm_api_key_encrypted: apiKey,
           system_image_api_key_encrypted: null,
           system_video_api_key_encrypted: null,
@@ -176,7 +296,11 @@ describe("非线性创作资料同步", () => {
           ],
           image: [],
           video: [],
-          default_source: { llm: "system", image: "system", video: "system" },
+          default_source: {
+            llm: llm.length > 0 ? "local" : "system",
+            image: "system",
+            video: "system",
+          },
           llm_max_tokens: {
             connection_test: 8,
             short: 1024,
@@ -194,7 +318,7 @@ describe("非线性创作资料同步", () => {
           },
         }),
       );
-    }, llmApiKey);
+    }, llmApiKey, localLlm);
     await browser.refresh();
   });
 
@@ -260,8 +384,11 @@ describe("非线性创作资料同步", () => {
 
     const generateBlueprint = await $("button*=生成蓝图");
     assert.equal(await generateBlueprint.isClickable(), true, "完整 idea 未结束灵感对话");
-    await generateBlueprint.click();
-    await closeSuccessfulProgress("首版蓝图已生成", 480_000, "查看蓝图");
+    await runGenerationWithRetry({
+      start: async () => (await $("button*=生成蓝图")).click(),
+      successText: "首版蓝图已生成",
+      closeText: "查看蓝图",
+    });
     const confirmationText = await $("body").getText();
     assert.match(confirmationText, /故事蓝图/);
     assert.match(confirmationText, /潮痕|沈汐/);
@@ -277,8 +404,10 @@ describe("非线性创作资料同步", () => {
     const partInputs = await partSection.$$("input[type=number]");
     await partInputs[0].setValue("1");
     await partInputs[1].setValue("12");
-    await (await partSection.$("//button[contains(., '生成分部')]")).click();
-    await closeSuccessfulProgress("1 个分部");
+    await runGenerationWithRetry({
+      start: async () => (await $("//section[.//h2[normalize-space()='分部大纲']]//button[contains(., '生成分部')]")).click(),
+      successText: "1 个分部",
+    });
     await browser.waitUntil(
       () => $("body").getText().then((text) => text.includes("第 1 部")),
       { timeout: 30_000, timeoutMsg: "AI 辅助创作未写入正式分部大纲" },
@@ -286,8 +415,10 @@ describe("非线性创作资料同步", () => {
 
     const chapterSection = await $("//section[.//h2[normalize-space()='章节大纲']]");
     await (await chapterSection.$("input[type=number]")).setValue("1");
-    await (await chapterSection.$("//button[contains(., '生成章纲')]")).click();
-    await closeSuccessfulProgress("1 个章纲");
+    await runGenerationWithRetry({
+      start: async () => (await $("//section[.//h2[normalize-space()='章节大纲']]//button[contains(., '生成章纲')]")).click(),
+      successText: "1 个章纲",
+    });
     await browser.waitUntil(
       () => $("body").getText().then((text) => text.includes("第 1 章")),
       { timeout: 30_000, timeoutMsg: "AI 辅助创作未写入正式章节大纲" },
@@ -406,8 +537,10 @@ describe("非线性创作资料同步", () => {
     await (await buttonByText("保存正式章纲")).click();
 
     await openTab("项目概览");
-    await (await buttonByText("依据现有资料归纳蓝图")).click();
-    await closeSuccessfulProgress("蓝图已归纳并写入正式资料");
+    await runGenerationWithRetry({
+      start: async () => (await buttonByText("依据现有资料归纳蓝图")).click(),
+      successText: "蓝图已归纳并写入正式资料",
+    });
 
     const pageText = await $("body").getText();
     assert.doesNotMatch(pageText, /暂定蓝图|候选蓝图|蓝图候选/);
@@ -439,23 +572,7 @@ describe("非线性创作资料同步", () => {
       () => browser.getUrl().then((url) => url.includes(`/write/${freeProjectId}?chapter=7`)),
       { timeout: 60_000, timeoutMsg: "第 7 章未进入写作桌" },
     );
-    await browser.waitUntil(
-      () =>
-        $("body")
-          .getText()
-          .then(
-            (text) =>
-              !text.includes("正文已保存，正在使旧角色状态、场景和检索索引失效") &&
-              !text.includes("正文已保存，派生资料仍在同步"),
-          ),
-      { timeout: 120_000, timeoutMsg: "第 7 章正文资料同步未完成" },
-    );
-
-    const analysisTab = await $(
-      "//nav[@aria-label='章节工作区']//button[normalize-space()='分析']",
-    );
-    await analysisTab.waitForClickable();
-    await analysisTab.click();
+    await waitForMaterialSync({ timeoutMessage: "第 7 章正文资料同步未完成" });
     await browser.waitUntil(
       () => $("body").getText().then((text) => text.includes("生成分析")),
       { timeout: 30_000, timeoutMsg: "第 7 章分析入口不可用" },
@@ -465,6 +582,11 @@ describe("非线性创作资料同步", () => {
     assert.equal(beforeAnalysis.includes("必须先完成前序章节"), false);
 
     await (await buttonByText("生成分析")).click();
+    await closeSuccessfulProgress("结构化分析已保存");
+    await waitForMaterialSync({
+      all: true,
+      timeoutMessage: "第 7 章分析工作流未完成全部资料同步",
+    });
     await browser.waitUntil(
       () =>
         $("body")
@@ -489,6 +611,21 @@ describe("非线性创作资料同步", () => {
     assert.equal(analysisText.includes("分部大纲和蓝图只在你主动操作时更新"), true);
 
     await browser.url(`/novel/${freeProjectId}`);
+    await openTab("角色档案");
+    await browser.waitUntil(
+      () => $("body").getText().then((text) => text.includes("周砚")),
+      { timeout: 30_000, timeoutMsg: "章节分析生成的角色档案未显示" },
+    );
+    await openTab("物体档案");
+    await browser.waitUntil(
+      () => $("body").getText().then((text) => text.includes("黑色车票")),
+      { timeout: 30_000, timeoutMsg: "章节分析生成的物体档案未显示" },
+    );
+    await openTab("场景档案");
+    await browser.waitUntil(
+      () => $("body").getText().then((text) => text.includes("钟楼地下室")),
+      { timeout: 30_000, timeoutMsg: "章节分析生成的场景档案未显示" },
+    );
     await openTab("项目概览");
     await browser.waitUntil(
       () =>

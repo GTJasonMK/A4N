@@ -1,58 +1,49 @@
 use super::{
-    SceneProfileDeleteResult, SceneProfileInput, SceneProfileMutationResult, conflicts, draft,
-    projections,
+    CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteResult,
+    SceneProfileMutationResult, UpdateSceneProfileInput, conflicts, draft, projections,
 };
 use crate::{
     AppState,
-    actions::{
-        access,
-        dependency_conflict::{
-            DownstreamConflictStrategy, delete_downstream_images_if_requested,
-            parse_downstream_conflict_strategy,
-        },
-    },
+    actions::{access, dependency_conflict::delete_downstream_images_if_requested},
 };
 
 pub async fn create_scene_profile(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    input: SceneProfileInput,
+    input: CreateSceneProfileInput,
 ) -> Result<SceneProfileMutationResult, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
-    parse_downstream_conflict_strategy(&input.downstream_strategy)?;
+    access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let profile = state
         .orchestrator()
-        .create_scene_profile_validated(project_id, draft::into_draft(input))
+        .create_scene_profile_validated(input.project_id, draft::into_draft(input.profile))
         .await
         .map_err(|error| error.to_string())?;
     Ok(SceneProfileMutationResult {
         profile: projections::to_summary(state.orchestrator(), state.orchestrator(), &profile)
             .await?,
-        warnings: scene_rag_sync_warnings(state, project_id).await,
+        warnings: scene_rag_sync_warnings(state, input.project_id).await,
     })
 }
 
 pub async fn update_scene_profile(
     state: &AppState,
     user_id: i64,
-    scene_profile_id: i64,
-    input: SceneProfileInput,
+    input: UpdateSceneProfileInput,
 ) -> Result<SceneProfileMutationResult, String> {
     let scene_profile = state.orchestrator();
-    let project_id = conflicts::scene_profile_project_id(&scene_profile, scene_profile_id).await?;
+    let project_id =
+        conflicts::scene_profile_project_id(&scene_profile, input.scene_profile_id).await?;
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let downstream_strategy = parse_downstream_conflict_strategy(&input.downstream_strategy)?;
     let downstream = conflicts::resolve_scene_profile_downstream_conflict(
         state.orchestrator(),
         project_id,
-        scene_profile_id,
-        downstream_strategy,
+        input.scene_profile_id,
+        input.downstream_strategy,
         "修改",
     )
     .await?;
     let profile = scene_profile
-        .update_scene_profile_validated(scene_profile_id, draft::into_draft(input))
+        .update_scene_profile_validated(input.scene_profile_id, draft::into_draft(input.profile))
         .await
         .map_err(|error| error.to_string())?;
     let mut warnings = downstream_cleanup_warnings(
@@ -68,22 +59,22 @@ pub async fn update_scene_profile(
 pub async fn delete_scene_profile(
     state: &AppState,
     user_id: i64,
-    scene_profile_id: i64,
-    downstream_strategy: DownstreamConflictStrategy,
+    input: DeleteSceneProfileInput,
 ) -> Result<SceneProfileDeleteResult, String> {
     let scene_profile = state.orchestrator();
-    let project_id = conflicts::scene_profile_project_id(&scene_profile, scene_profile_id).await?;
+    let project_id =
+        conflicts::scene_profile_project_id(&scene_profile, input.scene_profile_id).await?;
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let downstream = conflicts::resolve_scene_profile_downstream_conflict(
         state.orchestrator(),
         project_id,
-        scene_profile_id,
-        downstream_strategy,
+        input.scene_profile_id,
+        input.downstream_strategy,
         "删除",
     )
     .await?;
     scene_profile
-        .delete_scene_profile_records_validated(scene_profile_id)
+        .delete_scene_profile_records_validated(input.scene_profile_id)
         .await
         .map_err(|error| error.to_string())?;
     let mut warnings = downstream_cleanup_warnings(

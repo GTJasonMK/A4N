@@ -20,7 +20,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { cancelWorkflowTask } from "../../api/streaming";
 import {
-  allocateHostTaskId,
+  createWorkflowTaskId,
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -111,7 +111,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     }
     setGenerating(true);
     try {
-      const taskId = allocateHostTaskId("chapter-shooting-script", projectId);
+      const taskId = createWorkflowTaskId("chapter-shooting-script", projectId);
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,
@@ -147,7 +147,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     if (chapterId == null || generating || saving || scriptLoading) return;
     setGenerating(true);
     try {
-      const taskId = allocateHostTaskId("chapter-shooting-script-unit", projectId);
+      const taskId = createWorkflowTaskId("chapter-shooting-script-unit", projectId);
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,

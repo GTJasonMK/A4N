@@ -1,6 +1,8 @@
-use serde_json::{Value, json};
+use serde_json::Value;
 
-use super::super::super::{ApiError, ServerState, command_input, image_generation_actions};
+use super::super::super::{
+    ApiError, ServerState, image_generation_actions, strict_command_input, to_value,
+};
 
 pub(in crate::routes::commands) async fn generate_scene_profile_image_prompt(
     state: &ServerState,
@@ -8,7 +10,7 @@ pub(in crate::routes::commands) async fn generate_scene_profile_image_prompt(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: image_generation_actions::SceneProfileImageInput =
-        command_input(args, "generate_scene_profile_image_prompt")?;
+        strict_command_input(args, "generate_scene_profile_image_prompt")?;
     let output = image_generation_actions::generate_scene_profile_image_prompt(
         state.runtime(),
         user_id,
@@ -16,5 +18,5 @@ pub(in crate::routes::commands) async fn generate_scene_profile_image_prompt(
     )
     .await
     .map_err(ApiError::bad_request)?;
-    Ok(json!(output))
+    to_value(output)
 }

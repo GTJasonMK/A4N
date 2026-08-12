@@ -20,7 +20,7 @@ import type { NovelProject } from "../../api/project";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { cancelWorkflowTask } from "../../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
@@ -147,7 +147,7 @@ export const ExportPanel: React.FC<{
     const requestSeq = exportSeqRef.current + 1;
     exportSeqRef.current = requestSeq;
     exportBusyRef.current = true;
-    const taskId = allocateHostTaskId(`export-${key}`, requestProjectId);
+    const taskId = createWorkflowTaskId(`export-${key}`, requestProjectId);
     setActing(key);
     setLastResult(null);
     try {

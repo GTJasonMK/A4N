@@ -1,11 +1,11 @@
 use super::access::require_profile_for_user;
-use super::contracts::{
-    DeletionMarkSummary, ExecuteAttributeDeletionInput, ListDeletionMarksInput,
-    RequestAttributeDeletionInput, ResetDeletionMarksInput,
-};
 use super::projections::deletion_mark_summary;
 use crate::actions::app_error_message;
 use crate::state::AppState;
+use a4n_api_contract::character::{
+    DeletionMarkSummary, ExecuteAttributeDeletionInput, ListDeletionMarksInput,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput,
+};
 use a4n_orchestrator::character::{
     CharacterAttributeDeletionExecutionInput, CharacterAttributeDeletionRequestInput,
 };

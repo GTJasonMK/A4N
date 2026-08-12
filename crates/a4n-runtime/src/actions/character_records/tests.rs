@@ -1,5 +1,5 @@
-use super::contracts::ListSnapshotsInput;
 use super::projections::{attribute_counts, snapshot_data_summary};
+use a4n_api_contract::character::ListSnapshotsInput;
 use a4n_core::models::character::snapshot_reference;
 use chrono::Utc;
 use serde_json::json;

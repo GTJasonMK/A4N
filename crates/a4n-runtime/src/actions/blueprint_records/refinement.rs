@@ -1,5 +1,6 @@
 use a4n_api_contract::{
-    blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
+    blueprint::{PreviewBlueprintRefinementInput, StartBlueprintRefinementInput},
+    generation_tasks::GenerationTaskHandle,
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::GenerationTaskAccessError;
@@ -9,8 +10,6 @@ use crate::actions::request_preview::{
     ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
 };
 use crate::actions::template_variables::parse_template_variables_app_error as parse_template_variables;
-
-use super::contracts::PreviewBlueprintRefinementInput;
 
 pub async fn start_blueprint_refinement_typed(
     state: &AppState,

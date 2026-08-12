@@ -6,7 +6,7 @@ use a4n_embedding_fastembed::{FastEmbedLocalModel, list_fastembed_local_models};
 
 use crate::AppState;
 
-use super::super::contracts::LocalEmbeddingModelSummary;
+use super::super::LocalEmbeddingModelSummary;
 
 pub async fn list_local_embedding_models(
     state: &AppState,

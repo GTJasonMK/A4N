@@ -3,7 +3,7 @@ use crate::{
     AppState,
     actions::{access, profile_materials},
 };
-use a4n_orchestrator::profile_material::PROFILE_KIND_OBJECT;
+use a4n_domain::profile_material::ProfileMaterialKind;
 
 pub async fn list_object_profiles(
     state: &AppState,
@@ -23,7 +23,7 @@ pub async fn list_object_profiles(
     let image_counts = profile_materials::count_profile_material_images_by_profile(
         state.orchestrator(),
         project_id,
-        PROFILE_KIND_OBJECT,
+        ProfileMaterialKind::Object,
         &profile_ids,
     )
     .await?;

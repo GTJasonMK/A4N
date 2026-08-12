@@ -1,7 +1,6 @@
-use crate::profile_material::{
-    PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE, generated_image_profile_material_identity,
-};
+use crate::profile_material::generated_image_profile_material_identity;
 use a4n_core::models::ai::generated_image;
+use a4n_db::profile_material::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE};
 use std::collections::HashSet;
 
 use super::{

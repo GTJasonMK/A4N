@@ -29,7 +29,7 @@ import {
 } from "./CharacterProfileEditorModal";
 import { CharacterProfileList } from "./CharacterProfileList";
 import { cancelWorkflowTask } from "../../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import type { CharacterAttributeCategory } from "../../utils/characterAttributes";
 import { isCancelledOperation } from "../../utils/cancellation";
 
@@ -307,7 +307,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     const requestProjectId = projectId;
     const requestSeq = discoverSeqRef.current + 1;
     discoverSeqRef.current = requestSeq;
-    const taskId = allocateHostTaskId("character-discover", requestProjectId);
+    const taskId = createWorkflowTaskId("character-discover", requestProjectId);
     setDiscovering(true);
     try {
       const result = await runProgressTask(
@@ -422,7 +422,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
       requestSeq = syncSeqRef.current + 1;
       syncSeqRef.current = requestSeq;
-      const taskId = allocateHostTaskId("character-sync-all", requestProjectId);
+      const taskId = createWorkflowTaskId("character-sync-all", requestProjectId);
       setSyncingAll(true);
       const result = await runProgressTask(
         {

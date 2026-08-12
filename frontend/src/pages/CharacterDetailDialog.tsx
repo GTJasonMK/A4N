@@ -20,7 +20,7 @@ import {
 } from "../api/character";
 import type { ModelRequestPreview } from "../api/requestPreview";
 import { cancelWorkflowTask } from "../api/streaming";
-import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
 import { CharacterDetailTabs } from "./character-detail-dialog/CharacterDetailTabs";
@@ -331,7 +331,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         return;
       }
       const cacheKey = conflictCacheKey;
-      const taskId = allocateHostTaskId("character-conflict", requestProjectId);
+      const taskId = createWorkflowTaskId("character-conflict", requestProjectId);
       setLoadingTab("conflict");
       try {
         const rows = await runProgressTask(
@@ -470,7 +470,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     }
     const requestSeq = syncSeqRef.current + 1;
     syncSeqRef.current = requestSeq;
-    const taskId = allocateHostTaskId("character-sync", requestProjectId);
+    const taskId = createWorkflowTaskId("character-sync", requestProjectId);
     setSyncing(true);
     try {
       const result = await runProgressTask(

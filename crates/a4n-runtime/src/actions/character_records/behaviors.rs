@@ -1,8 +1,8 @@
 use super::access::require_profile_for_user;
-use super::contracts::{BehaviorRecordSummary, ListBehaviorsInput};
 use super::projections::behavior_record_summary;
 use crate::actions::app_error_message;
 use crate::state::AppState;
+use a4n_api_contract::character::{BehaviorRecordSummary, ListBehaviorsInput};
 
 pub async fn list_behaviors(
     state: &AppState,

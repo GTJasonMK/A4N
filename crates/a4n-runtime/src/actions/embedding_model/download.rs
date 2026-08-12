@@ -1,8 +1,7 @@
 #[cfg(feature = "local-embedding")]
 use super::models::{list_local_embedding_models, list_local_embedding_models_in_cache};
 use super::{
-    DownloadProgress,
-    contracts::{EmbeddingModelInput, LocalEmbeddingModelSummary},
+    DownloadProgress, EmbeddingModelInput, LocalEmbeddingModelSummary,
     host_adapter::{downloaded_model_summary, required_text},
 };
 use crate::AppState;

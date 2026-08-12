@@ -1,23 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { extractErrorMessage } from "../../../api";
-import { listProjects, type NovelProject } from "../../../api/project";
+import { listAllProjects, type NovelProject } from "../../../api/project";
 import { useToast } from "../../../components/feedback/Toast";
-
-const PAGE_SIZE = 100;
-
-const loadAllProjects = async (): Promise<NovelProject[]> => {
-  const projects: NovelProject[] = [];
-  let page = 1;
-
-  while (true) {
-    const result = await listProjects(page, PAGE_SIZE, { access_scope: "all" });
-    projects.push(...result.items);
-    if (projects.length >= result.total || result.items.length === 0) break;
-    page += 1;
-  }
-
-  return projects;
-};
 
 interface PromptProjectSelectProps {
   value: number | null;
@@ -41,7 +25,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    void loadAllProjects()
+    void listAllProjects({ access_scope: "all" })
       .then((items) => {
         if (active) setProjects(items);
       })

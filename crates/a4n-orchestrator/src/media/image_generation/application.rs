@@ -13,6 +13,7 @@ use a4n_core::{
         source_text_hash as source_content_sha256,
     },
 };
+use a4n_domain::profile_material::ProfileMaterialKind;
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use serde_json::{Value, json};
 
@@ -89,18 +90,18 @@ struct PreparedPageImage {
 
 #[derive(Clone, Copy)]
 struct ProfileImageSpec {
-    profile_kind: &'static str,
+    profile_kind: ProfileMaterialKind,
     image_type: &'static str,
     command: &'static str,
 }
 
 const OBJECT_PROFILE_IMAGE_SPEC: ProfileImageSpec = ProfileImageSpec {
-    profile_kind: "object",
+    profile_kind: ProfileMaterialKind::Object,
     image_type: "object_material",
     command: "image_object_profile",
 };
 const SCENE_PROFILE_IMAGE_SPEC: ProfileImageSpec = ProfileImageSpec {
-    profile_kind: "scene",
+    profile_kind: ProfileMaterialKind::Scene,
     image_type: "scene_material",
     command: "image_scene_profile",
 };
@@ -1050,7 +1051,8 @@ fn profile_image_plan(
 ) -> DirectImagePlan {
     let panel_id = format!(
         "{}_profile_{}",
-        material.spec.profile_kind, material.profile_id
+        material.spec.profile_kind.as_str(),
+        material.profile_id
     );
     DirectImagePlan {
         project_id: material.project_id,
@@ -1165,7 +1167,7 @@ fn profile_image_metadata(material: &ProfileImageMaterial) -> Value {
     if let Some(map) = metadata.as_object_mut() {
         map.insert(
             "source".to_string(),
-            json!(format!("{}_profile", material.spec.profile_kind)),
+            json!(format!("{}_profile", material.spec.profile_kind.as_str())),
         );
         map.insert("chapter_video_material".to_string(), json!(true));
         map.insert("prompt_snapshot".to_string(), json!(material.prompt));

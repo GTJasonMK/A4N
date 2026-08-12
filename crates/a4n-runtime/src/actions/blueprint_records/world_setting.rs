@@ -1,7 +1,7 @@
 use crate::AppState;
+use a4n_api_contract::blueprint::{BlueprintMutationResult, UpdateWorldSettingInput};
 use a4n_core::error::AppError;
 
-use super::contracts::{BlueprintMutationResult, UpdateWorldSettingInput};
 use super::manual::blueprint_material_sync_warnings;
 
 pub async fn update_world_setting(

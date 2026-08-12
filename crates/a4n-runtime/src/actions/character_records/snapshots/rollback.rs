@@ -1,6 +1,6 @@
 use super::super::access::require_profile_for_user;
-use super::super::contracts::{RollbackResultSummary, RollbackToChapterInput};
 use crate::state::AppState;
+use a4n_api_contract::character::{RollbackResultSummary, RollbackToChapterInput};
 use a4n_orchestrator::character::CharacterTimelineRollbackLifecycleResult;
 
 pub async fn rollback_to_chapter(

@@ -35,7 +35,7 @@ pub async fn reverse_engineer(
         REVERSE_VARIABLES_ERROR,
     )?;
     let prompt_renderer = state;
-    state
+    let mut result = state
         .orchestrator()
         .run_reverse_engineering_validated(ReverseEngineerApplicationInput {
             project_id: input.project_id,
@@ -48,7 +48,14 @@ pub async fn reverse_engineer(
             progress,
             active_task_id,
         })
-        .await
+        .await?;
+    if target == ReverseEngineeringTarget::Blueprint {
+        append_response_warnings(
+            &mut result,
+            reverse_material_sync_warnings(state, input.project_id, target).await,
+        )?;
+    }
+    Ok(result)
 }
 
 pub async fn confirm_reverse_engineering_candidate(
@@ -68,8 +75,66 @@ pub async fn confirm_reverse_engineering_candidate(
                 operation: "确认项目资料归纳候选".to_string(),
             })?;
     access::verify_project_editor(state, user_id, project_id).await?;
-    state
+    let target = run
+        .current_step_key
+        .as_deref()
+        .and_then(ReverseEngineeringTarget::from_prompt_name)
+        .ok_or_else(|| AppError::InvalidState {
+            current: run
+                .current_step_key
+                .clone()
+                .unwrap_or_else(|| "missing_reverse_candidate_step".to_string()),
+            operation: "确认项目资料归纳候选".to_string(),
+        })?;
+    let mut result = state
         .orchestrator()
         .confirm_reverse_engineering_candidate_validated(input.workflow_run_id)
-        .await
+        .await?;
+    append_response_warnings(
+        &mut result,
+        reverse_material_sync_warnings(state, project_id, target).await,
+    )?;
+    Ok(result)
+}
+
+async fn reverse_material_sync_warnings(
+    state: &AppState,
+    project_id: i64,
+    target: ReverseEngineeringTarget,
+) -> Vec<String> {
+    match target {
+        ReverseEngineeringTarget::Blueprint => {
+            crate::actions::blueprint_records::blueprint_material_sync_warnings(state, project_id)
+                .await
+        }
+        ReverseEngineeringTarget::Outline | ReverseEngineeringTarget::PartOutline => {
+            crate::actions::outline_records::outline_material_sync_warnings(state, project_id).await
+        }
+    }
+}
+
+pub(super) fn append_response_warnings(
+    response: &mut Value,
+    warnings: Vec<String>,
+) -> Result<(), AppError> {
+    if warnings.is_empty() {
+        return Ok(());
+    }
+    let response = response
+        .as_object_mut()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "invalid_reverse_engineering_response".to_string(),
+            operation: "附加项目资料同步警告".to_string(),
+        })?;
+    let response_warnings = response
+        .entry("warnings")
+        .or_insert_with(|| Value::Array(Vec::new()));
+    if !response_warnings.is_array() {
+        *response_warnings = Value::Array(Vec::new());
+    }
+    response_warnings
+        .as_array_mut()
+        .expect("warnings was normalized to an array")
+        .extend(warnings.into_iter().map(Value::String));
+    Ok(())
 }

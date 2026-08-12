@@ -56,6 +56,14 @@ export const parseReverseCandidateEnvelope = (
   } as unknown as ReverseCandidateEnvelope;
 };
 
+export const formalReverseNotice = (
+  successMessage: string,
+  warnings: string[],
+): { message: string; tone: "info" | "success" } => ({
+  message: warnings.length > 0 ? `${successMessage}；${warnings.join("；")}` : successMessage,
+  tone: warnings.length > 0 ? "info" : "success",
+});
+
 export const reverseCandidateFromCheckpoint = (
   checkpoint: WorkflowCheckpointSummary,
   target: ReverseType,

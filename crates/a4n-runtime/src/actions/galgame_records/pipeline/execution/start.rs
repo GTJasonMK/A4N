@@ -1,6 +1,5 @@
-use super::super::contracts::StartGalgamePipelineInput;
 use crate::AppState;
-use a4n_api_contract::galgame::GalgameScriptDetail;
+use a4n_api_contract::galgame::{GalgameScriptDetail, StartGalgamePipelineInput};
 use a4n_orchestrator::galgame::{GalgamePipelineApplicationInput, GalgameProgressReporter};
 
 pub async fn start_galgame_pipeline(

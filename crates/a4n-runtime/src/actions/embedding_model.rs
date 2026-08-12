@@ -1,16 +1,15 @@
-mod contracts;
 mod download;
 mod host_adapter;
 mod models;
 mod provider;
 mod runtime;
 
-pub use a4n_embedding::provider::DownloadProgress;
-pub use contracts::{
+pub use a4n_api_contract::embedding::{
     CancelEmbeddingModelDownloadInput, DownloadEmbeddingModelInput,
     EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, LocalEmbedTextsInput,
     LocalEmbedTextsOutput, LocalEmbeddingConfigInput, LocalEmbeddingModelSummary,
 };
+pub use a4n_embedding::provider::DownloadProgress;
 pub use download::{download_embedding_model, download_embedding_model_to_cache};
 pub use models::{
     EMBEDDING_MODEL_DOWNLOAD_INITIAL_MESSAGE, EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,

@@ -22,8 +22,11 @@ import {
   listProfileMaterials,
   setProfilePrimaryMaterial,
   uploadProfileMaterialImage,
+  type ProfileMaterialFilter,
   type ProfileMaterialGroup,
   type ProfileMaterialKind,
+  type ProfileMaterialKindFilter,
+  type ProfileMaterialSort,
   type ProfileMaterialState,
 } from "../../../api/profileMaterials";
 import { generateObjectProfileImagePrompt } from "../../../api/objectProfiles";
@@ -47,9 +50,6 @@ import {
   renderVisualStyleTemplate,
 } from "../styleTemplates";
 
-type MaterialKindFilter = "all" | ProfileMaterialKind;
-type MaterialFilter = "all" | ProfileMaterialState | "favorite";
-type MaterialSort = "missing_first" | "stale_first" | "newest" | "importance";
 type LoadMaterialsOptions = { force?: boolean };
 
 const CUSTOM_STYLE_VALUE = "custom";
@@ -57,13 +57,13 @@ const DEFAULT_STYLE_TEMPLATE_ID = IMAGE_STYLE_TEMPLATES[0]?.id ?? CUSTOM_STYLE_V
 const STYLE_TEMPLATE_VERSION = "1";
 const MAX_UPLOAD_IMAGE_BYTES = 20 * 1024 * 1024;
 
-const KIND_OPTIONS: Array<{ value: MaterialKindFilter; label: string }> = [
+const KIND_OPTIONS: Array<{ value: ProfileMaterialKindFilter; label: string }> = [
   { value: "all", label: "全部" },
   { value: "scene", label: "场景" },
   { value: "object", label: "物品" },
 ];
 
-const FILTER_OPTIONS: Array<{ value: MaterialFilter; label: string }> = [
+const FILTER_OPTIONS: Array<{ value: ProfileMaterialFilter; label: string }> = [
   { value: "all", label: "全部状态" },
   { value: "missing", label: "缺失" },
   { value: "stale", label: "已过期" },
@@ -72,7 +72,7 @@ const FILTER_OPTIONS: Array<{ value: MaterialFilter; label: string }> = [
   { value: "favorite", label: "收藏" },
 ];
 
-const SORT_OPTIONS: Array<{ value: MaterialSort; label: string }> = [
+const SORT_OPTIONS: Array<{ value: ProfileMaterialSort; label: string }> = [
   { value: "missing_first", label: "缺失优先" },
   { value: "stale_first", label: "过期优先" },
   { value: "newest", label: "最新素材" },
@@ -155,9 +155,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
-  const [kindFilter, setKindFilter] = useState<MaterialKindFilter>("all");
-  const [stateFilter, setStateFilter] = useState<MaterialFilter>("all");
-  const [sort, setSort] = useState<MaterialSort>("missing_first");
+  const [kindFilter, setKindFilter] = useState<ProfileMaterialKindFilter>("all");
+  const [stateFilter, setStateFilter] = useState<ProfileMaterialFilter>("all");
+  const [sort, setSort] = useState<ProfileMaterialSort>("missing_first");
   const [query, setQuery] = useState("");
   const [selectedStyleTemplateId, setSelectedStyleTemplateId] =
     useState(DEFAULT_STYLE_TEMPLATE_ID);
@@ -663,21 +663,21 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             value={kindFilter}
             options={KIND_OPTIONS}
             disabled={loading || busyKey != null || batchBusy}
-            onChange={(value) => setKindFilter(value as MaterialKindFilter)}
+            onChange={(value) => setKindFilter(value as ProfileMaterialKindFilter)}
           />
           <ToolbarSelect
             label="状态"
             value={stateFilter}
             options={FILTER_OPTIONS}
             disabled={loading || busyKey != null || batchBusy}
-            onChange={(value) => setStateFilter(value as MaterialFilter)}
+            onChange={(value) => setStateFilter(value as ProfileMaterialFilter)}
           />
           <ToolbarSelect
             label="排序"
             value={sort}
             options={SORT_OPTIONS}
             disabled={loading || busyKey != null || batchBusy}
-            onChange={(value) => setSort(value as MaterialSort)}
+            onChange={(value) => setSort(value as ProfileMaterialSort)}
           />
           <button
             type="button"

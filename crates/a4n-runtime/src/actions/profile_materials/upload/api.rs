@@ -1,4 +1,4 @@
-use a4n_orchestrator::profile_material::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
+use super::super::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
 
 use crate::AppState;
 

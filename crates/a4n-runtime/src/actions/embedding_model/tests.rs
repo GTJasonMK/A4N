@@ -1,6 +1,5 @@
 use super::{
-    contracts::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary},
-    host_adapter::required_text,
+    EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary, host_adapter::required_text,
     normalize_optional_embedding_download_task_id,
 };
 use a4n_core::error::AppError;

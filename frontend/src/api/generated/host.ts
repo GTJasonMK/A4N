@@ -406,19 +406,28 @@ export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<strin
 export type RuntimeConfigPolicy = "full" | "without_secrets";
 
 export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolicy>> = {
+  "accept_import_review": "full",
+  "apply_optimization_patches": "full",
   "apply_source_sync_decisions": "full",
+  "batch_accept_reviews": "full",
   "check_character_conflict": "full",
   "check_implicit_update": "full",
+  "confirm_reverse_engineering_candidate": "full",
+  "create_foreshadowing": "full",
   "create_optimization_analysis_session": "full",
   "create_optimization_chat_session": "full",
+  "create_profile": "full",
+  "create_scene_profile": "full",
+  "delete_latest_chapter_outlines": "full",
+  "delete_latest_parts": "full",
+  "delete_scene_profile": "full",
   "discover_character_profiles": "full",
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
   "generate_chapter_shooting_script": "full",
   "generate_next_chapter_shooting_script_unit": "full",
-  "generate_object_profile_image_prompt": "full",
   "generate_portrait_prompt": "full",
-  "generate_scene_profile_image_prompt": "full",
+  "import_chapter": "full",
   "optimize_chapter_video_prompt": "full",
   "optimize_manga_prompt": "full",
   "poll_video_job": "full",
@@ -479,6 +488,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "rag_prepare_enhanced_search": "full",
   "rag_prepare_ingest_all": "full",
   "rag_upload_ingest_embeddings": "full",
+  "restore_blueprint_version": "full",
   "resume_chapter_analysis_sync": "full",
   "resume_manga_pipeline": "full",
   "resume_workflow_run": "full",
@@ -489,6 +499,9 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "run_canvas_node": "full",
   "run_galgame_asset_generation": "full",
   "run_import_project_analysis": "full",
+  "save_blueprint": "full",
+  "save_chapter_outline": "full",
+  "save_part_outline": "full",
   "start_blueprint_generation": "full",
   "start_blueprint_refinement": "full",
   "start_chapter_generation": "full",
@@ -510,6 +523,12 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "test_embedding_config": "full",
   "test_image_config": "full",
   "test_llm_config": "full",
+  "update_chapter_content": "full",
+  "update_chapter_outline": "full",
+  "update_character_profile": "full",
+  "update_foreshadowing": "full",
+  "update_scene_profile": "full",
+  "update_world_setting": "full",
 };
 
 export interface SetLogLevelInput {
@@ -1091,6 +1110,8 @@ export interface GeneratedImage {
   prompt: string;
   width: number;
 }
+
+export type GeneratedImageSummary = GeneratedImage;
 
 export interface UpdateGeneratedImageInput {
   ai_score?: number | null;
@@ -3124,7 +3145,6 @@ export interface ListObjectProfilesInput {
 
 export interface ObjectProfileInput {
   aliases?: string[];
-  downstream_strategy?: string;
   evidence?: string[];
   first_seen_chapter: number;
   generation_usage: string;
@@ -3138,6 +3158,22 @@ export interface ObjectProfileInput {
   story_usage: string;
   visual_description: string;
   visual_usage: string;
+}
+
+export interface CreateObjectProfileInput {
+  profile: ObjectProfileInput;
+  project_id: number;
+}
+
+export interface UpdateObjectProfileInput {
+  downstream_strategy: DownstreamConflictStrategy;
+  object_profile_id: number;
+  profile: ObjectProfileInput;
+}
+
+export interface DeleteObjectProfileInput {
+  downstream_strategy: DownstreamConflictStrategy;
+  object_profile_id: number;
 }
 
 export interface ObjectProfileSummary {
@@ -3181,7 +3217,6 @@ export interface SceneProfileInput {
   aliases?: string[];
   atmosphere: string;
   base_description: string;
-  downstream_strategy?: string;
   entry_points_json?: unknown;
   evidence?: string[];
   first_seen_chapter: number;
@@ -3194,6 +3229,22 @@ export interface SceneProfileInput {
   scene_type: string;
   spatial_layout: string;
   visual_description: string;
+}
+
+export interface CreateSceneProfileInput {
+  profile: SceneProfileInput;
+  project_id: number;
+}
+
+export interface UpdateSceneProfileInput {
+  downstream_strategy: DownstreamConflictStrategy;
+  profile: SceneProfileInput;
+  scene_profile_id: number;
+}
+
+export interface DeleteSceneProfileInput {
+  downstream_strategy: DownstreamConflictStrategy;
+  scene_profile_id: number;
 }
 
 export interface SceneProfileSummary {
@@ -3230,6 +3281,115 @@ export interface SceneProfileMutationResult {
 
 export interface SceneProfileDeleteResult {
   warnings: string[];
+}
+
+export interface ObjectProfileImageInput {
+  chapter_id?: number | null;
+  config_id?: number | null;
+  custom_style?: string | null;
+  object_profile_id: number;
+  style?: string | null;
+  style_template_id?: string | null;
+  style_template_name?: string | null;
+  style_template_version?: string | null;
+}
+
+export interface ObjectProfileImagePromptOutput {
+  object_name: string;
+  object_profile_id: number;
+  prompt: string;
+}
+
+export interface SceneProfileImageInput {
+  chapter_id?: number | null;
+  config_id?: number | null;
+  custom_style?: string | null;
+  scene_profile_id: number;
+  style?: string | null;
+  style_template_id?: string | null;
+  style_template_name?: string | null;
+  style_template_version?: string | null;
+}
+
+export interface SceneProfileImagePromptOutput {
+  prompt: string;
+  scene_name: string;
+  scene_profile_id: number;
+}
+
+export type ProfileMaterialKind = "scene" | "object";
+
+export type ProfileMaterialKindFilter = "all" | "scene" | "object";
+
+export type ProfileMaterialState = "missing" | "ready" | "stale" | "unknown";
+
+export type ProfileMaterialImageStaleness = "fresh" | "stale" | "unknown";
+
+export type ProfileMaterialFilter = "all" | "missing" | "ready" | "stale" | "unknown" | "favorite";
+
+export type ProfileMaterialSort = "missing_first" | "stale_first" | "newest" | "importance";
+
+export interface ListProfileMaterialsInput {
+  filter: ProfileMaterialFilter;
+  image_limit_per_profile: number;
+  kind: ProfileMaterialKindFilter;
+  project_id: number;
+  query?: string | null;
+  sort: ProfileMaterialSort;
+}
+
+export interface SetProfilePrimaryMaterialInput {
+  image_id?: number | null;
+  profile_id: number;
+  profile_kind: ProfileMaterialKind;
+  project_id: number;
+}
+
+export interface UploadProfileMaterialImageInput {
+  custom_style?: string | null;
+  data_base64: string;
+  file_name: string;
+  mime_type: string;
+  profile_id: number;
+  profile_kind: ProfileMaterialKind;
+  project_id: number;
+  prompt_snapshot: string;
+  set_primary: boolean;
+  style_template_id?: string | null;
+  style_template_name?: string | null;
+  style_template_version?: string | null;
+}
+
+export interface ProfileMaterialProfileSummary {
+  category: string;
+  first_seen_chapter: number;
+  id: number;
+  importance: string;
+  last_seen_chapter: number;
+  name: string;
+  primary_text: string;
+  project_id: number;
+  secondary_text: string;
+  updated_at: string | null;
+}
+
+export interface ProfileMaterialImageSummary {
+  image: GeneratedImageSummary;
+  is_primary: boolean;
+  staleness: ProfileMaterialImageStaleness;
+  style_template_id: string | null;
+  style_template_name: string | null;
+}
+
+export interface ProfileMaterialGroup {
+  current_profile_content_sha256: string;
+  image_count: number;
+  images: ProfileMaterialImageSummary[];
+  kind: ProfileMaterialKind;
+  material_state: ProfileMaterialState;
+  primary_image: ProfileMaterialImageSummary | null;
+  primary_image_id: number | null;
+  profile: ProfileMaterialProfileSummary;
 }
 
 export interface ListForeshadowingInput {

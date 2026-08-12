@@ -1,10 +1,10 @@
-use super::contracts::{
+use super::projections::{profile_state_summary_from_snapshot, snapshot_reference_summary};
+use crate::state::AppState;
+use a4n_api_contract::character::{
     CheckProfileSyncConflictInput, DiffProfileChaptersInput, GetProfileStateAtChapterInput,
     GetSnapshotInput, ListSnapshotsInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,
     SnapshotDeltaSummary, SnapshotReferenceSummary, SnapshotSummary,
 };
-use super::projections::{profile_state_summary_from_snapshot, snapshot_reference_summary};
-use crate::state::AppState;
 
 pub use rollback::rollback_to_chapter;
 

@@ -1081,10 +1081,11 @@ fn generated_image_summary_contract_remains_json_compatible() {
         file_size: Some(5),
         ai_score: None,
         is_favorite: false,
+        is_system_managed: true,
         chapter_id: None,
         panel_id: None,
         metadata_json: Some(Value::Object(Default::default())),
-        created_at: None,
+        created_at: "2026-01-01 00:00:00".to_string(),
     };
 
     let value = serde_json::to_value(summary).expect("summary 应可序列化");

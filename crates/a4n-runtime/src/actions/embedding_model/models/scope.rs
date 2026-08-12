@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 
-use super::super::{contracts::CancelEmbeddingModelDownloadInput, host_adapter::required_text};
+use super::super::{CancelEmbeddingModelDownloadInput, host_adapter::required_text};
 
 pub const EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL: u32 = 1000;
 pub const EMBEDDING_MODEL_DOWNLOAD_INITIAL_MESSAGE: &str = "正在读取模型文件大小";

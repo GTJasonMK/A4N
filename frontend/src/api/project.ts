@@ -95,6 +95,12 @@ type PaginatedProjects = Omit<ApiPaginatedProjects, "items"> & {
   items: NovelProject[];
 };
 
+type ProjectListFilters = {
+  project_kind?: ProjectKind;
+  root_project_id?: number;
+  access_scope: ProjectAccessScope;
+};
+
 export type ProjectGeneratedDataResetSummary = Omit<
   ApiProjectGeneratedDataResetSummary,
   "project"
@@ -138,11 +144,7 @@ export type ProjectInvite = ProjectInviteSummary;
 export async function listProjects(
   page: number,
   pageSize: number,
-  filters: {
-    project_kind?: ProjectKind;
-    root_project_id?: number;
-    access_scope: ProjectAccessScope;
-  },
+  filters: ProjectListFilters,
 ): Promise<PaginatedProjects> {
   return apiInvoke<PaginatedProjects>("list_projects", {
     page,
@@ -151,6 +153,20 @@ export async function listProjects(
     rootProjectId: filters.root_project_id,
     accessScope: filters.access_scope,
   });
+}
+
+export async function listAllProjects(
+  filters: ProjectListFilters,
+): Promise<NovelProject[]> {
+  const projects: NovelProject[] = [];
+  let page = 1;
+
+  while (true) {
+    const result = await listProjects(page, 100, filters);
+    projects.push(...result.items);
+    if (projects.length >= result.total || result.items.length === 0) return projects;
+    page += 1;
+  }
 }
 
 export async function getProject(id: Id): Promise<NovelProject> {

@@ -10,7 +10,7 @@ pub enum ReverseEngineeringTarget {
 }
 
 impl ReverseEngineeringTarget {
-    pub(crate) fn from_prompt_name(value: &str) -> Option<Self> {
+    pub fn from_prompt_name(value: &str) -> Option<Self> {
         match value {
             "reverse_blueprint" => Some(Self::Blueprint),
             "reverse_outline" => Some(Self::Outline),

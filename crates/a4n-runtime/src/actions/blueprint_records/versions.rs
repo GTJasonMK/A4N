@@ -1,11 +1,11 @@
+use a4n_api_contract::blueprint::{
+    BlueprintDiffSummary, BlueprintMutationResult, BlueprintVersionSummary,
+    DiffBlueprintVersionsInput, ListBlueprintVersionsInput, RestoreBlueprintVersionInput,
+};
 use a4n_core::error::AppError;
 
 use crate::AppState;
 
-use super::contracts::{
-    BlueprintDiffSummary, BlueprintMutationResult, BlueprintVersionSummary,
-    DiffBlueprintVersionsInput, ListBlueprintVersionsInput, RestoreBlueprintVersionInput,
-};
 use super::manual::blueprint_material_sync_warnings;
 use super::projections::blueprint_version_summary;
 

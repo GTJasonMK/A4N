@@ -3,7 +3,7 @@ mod primary;
 mod queries;
 mod upload;
 
-pub use a4n_orchestrator::profile_material::{
+pub use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
     ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
 };

@@ -7,8 +7,7 @@ use a4n_embedding_fastembed::{FastEmbedDownloadInfo, fastembed_model_download_in
 use crate::AppState;
 
 use super::super::{
-    contracts::{EmbeddingModelDownloadInfoSummary, EmbeddingModelInput},
-    host_adapter::required_text,
+    EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, host_adapter::required_text,
 };
 
 pub async fn get_embedding_model_download_info(

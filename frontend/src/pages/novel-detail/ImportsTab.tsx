@@ -34,7 +34,7 @@ import {
   listWorkflowRuns,
 } from "../../api/streaming";
 import {
-  allocateHostTaskId,
+  createWorkflowTaskId,
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -50,6 +50,7 @@ import {
   REVERSE_CONTEXT_LIMITS,
   delay,
   emptyImportAnalysisDialog,
+  formalReverseNotice,
   importAnalysisDialogFromProgress,
   parseReverseCandidateEnvelope,
   reverseCandidateFromCheckpoint,
@@ -938,7 +939,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     }
     reverseBusyRef.current = true;
     const requestSeq = nextSequence(reverseSeqRef);
-    const taskId = allocateHostTaskId(
+    const taskId = createWorkflowTaskId(
       `import-reverse-${requestReverseType}-preview`,
       requestProjectId,
     );
@@ -991,13 +992,16 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         },
       );
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
+      const aggregation = parseReverseCandidateEnvelope(result, requestReverseType);
+      if (!aggregation) throw new Error("项目资料归纳接口返回的状态无效");
       setReverseResult(result);
-      addToast(
+      const notice = formalReverseNotice(
         writesFormalBlueprint
           ? "蓝图已归纳并写入正式资料"
           : `${reverseLabel}候选已生成，尚未写入正式资料`,
-        "success",
+        aggregation.warnings,
       );
+      addToast(notice.message, notice.tone);
       if (writesFormalBlueprint) await load(requestProjectId);
     } catch (err) {
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;

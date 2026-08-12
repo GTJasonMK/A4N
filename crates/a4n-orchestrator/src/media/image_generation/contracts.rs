@@ -1,3 +1,10 @@
+pub use a4n_api_contract::{
+    image::GeneratedImageSummary,
+    image_generation::{
+        ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
+        SceneProfileImagePromptOutput,
+    },
+};
 use a4n_core::{error::AppError, models::ai::image_gen_config};
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use async_trait::async_trait;
@@ -26,54 +33,6 @@ pub struct PageImageGenerationInput {
 pub struct BatchImageGenerationInput {
     pub project_id: i64,
     pub requests_json: Value,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ObjectProfileImageInput {
-    pub object_profile_id: i64,
-    pub chapter_id: Option<i64>,
-    pub style: Option<String>,
-    pub config_id: Option<i64>,
-    #[serde(default)]
-    pub style_template_id: Option<String>,
-    #[serde(default)]
-    pub style_template_name: Option<String>,
-    #[serde(default)]
-    pub style_template_version: Option<String>,
-    #[serde(default)]
-    pub custom_style: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ObjectProfileImagePromptOutput {
-    pub object_profile_id: i64,
-    pub object_name: String,
-    pub prompt: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SceneProfileImageInput {
-    pub scene_profile_id: i64,
-    pub chapter_id: Option<i64>,
-    pub style: Option<String>,
-    pub config_id: Option<i64>,
-    #[serde(default)]
-    pub style_template_id: Option<String>,
-    #[serde(default)]
-    pub style_template_name: Option<String>,
-    #[serde(default)]
-    pub style_template_version: Option<String>,
-    #[serde(default)]
-    pub custom_style: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SceneProfileImagePromptOutput {
-    pub scene_profile_id: i64,
-    pub scene_name: String,
-    pub prompt: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,25 +73,6 @@ pub struct PreparedImageGenerationRequest {
     pub preview_notes: Vec<String>,
     pub config: image_gen_config::Model,
     pub request: ImageGenerationRequest,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct GeneratedImageSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub image_type: String,
-    pub file_path: String,
-    pub prompt: String,
-    pub model: String,
-    pub width: i32,
-    pub height: i32,
-    pub file_size: Option<i64>,
-    pub ai_score: Option<f32>,
-    pub is_favorite: bool,
-    pub chapter_id: Option<i64>,
-    pub panel_id: Option<String>,
-    pub metadata_json: Option<Value>,
-    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Clone)]

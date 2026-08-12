@@ -1,6 +1,6 @@
-use super::contracts::ExportProjectPackageData;
+use super::ExportProjectPackageData;
 #[cfg(test)]
-use super::contracts::PROJECT_FAMILY_PACKAGE_SUFFIX;
+use super::PROJECT_FAMILY_PACKAGE_SUFFIX;
 use a4n_core::models::project::novel_project;
 use base64::Engine as _;
 

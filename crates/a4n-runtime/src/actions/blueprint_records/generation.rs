@@ -1,5 +1,6 @@
 use a4n_api_contract::{
-    blueprint::StartBlueprintGenerationInput, generation_tasks::GenerationTaskHandle,
+    blueprint::{BlueprintSummary, PreviewBlueprintGenerationInput, StartBlueprintGenerationInput},
+    generation_tasks::GenerationTaskHandle,
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::GenerationTaskAccessError;
@@ -8,7 +9,6 @@ use crate::AppState;
 use crate::actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state};
 use crate::actions::template_variables::parse_template_variables_app_error as parse_template_variables;
 
-use super::contracts::{BlueprintSummary, PreviewBlueprintGenerationInput};
 use super::projections::blueprint_summary;
 
 pub async fn start_blueprint_generation_typed(
