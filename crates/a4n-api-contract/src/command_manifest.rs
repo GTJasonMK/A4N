@@ -317,7 +317,7 @@ command_specs! {
     "confirm_reverse_engineering_candidate" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "create_derived_project" => args_create_derived_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
-    "create_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_freeform_video_project" => args_create_freeform_video_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
     "create_invite_code" => args_opaque, result_opaque, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
@@ -333,7 +333,7 @@ command_specs! {
     "delete_chapter_scene" => args_delete_chapter_scene, result_unit, "chapter", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_chapter_video_prompt" => args_delete_chapter_video_prompt, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
     "delete_embedding_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
-    "delete_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "delete_foreshadowing" => args_delete_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_galgame_line" => args_delete_galgame_line, result_unit, "galgame", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_image" => args_delete_image, result_unit, "asset", effect(DESTRUCTIVE_EFFECT);
     "delete_import_review" => args_import_review_id, result_unit, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
@@ -443,7 +443,7 @@ command_specs! {
     "list_chapters" => args_project_id, result_chapter_summaries, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_deletion_marks" => args_list_deletion_marks, result_list_deletion_marks, "profile", effect(READ_EFFECT);
     "list_embedding_config" => args_get_llm_max_tokens_config, result_list_embedding_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
-    "list_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT);
+    "list_foreshadowing" => args_list_foreshadowing, result_list_foreshadowing, "profile", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_image_configs" => args_get_llm_max_tokens_config, result_list_image_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_images_by_chapter" => args_list_images_by_chapter, result_list_images_by_chapter, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_images_by_project" => args_project_id, result_list_images_by_chapter, "asset", context(PROJECT_CONTEXT), effect(READ_EFFECT);
@@ -634,7 +634,7 @@ command_specs! {
     "update_chapter_video_segment_recipe" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "update_character_profile" => args_update_character_profile, result_update_character_profile, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_embedding_config" => args_update_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
-    "update_foreshadowing" => args_opaque, result_opaque, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "update_foreshadowing" => args_update_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_galgame_choices" => args_update_galgame_choices, result_update_galgame_choices, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_CHOICE_IDS);
     "update_galgame_line" => args_update_galgame_line, result_insert_galgame_line, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_LINE_IDS);
     "update_galgame_scene" => args_update_galgame_scene, result_update_galgame_scene, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_SCENE_IDS);
@@ -966,6 +966,10 @@ fn args_create_object_profile() -> Value {
     strict_typed_input_schema::<crate::profile::CreateObjectProfileInput>()
 }
 
+fn args_create_foreshadowing() -> Value {
+    strict_runtime_typed_input_schema::<crate::profile::CreateForeshadowingInput>()
+}
+
 fn args_create_scene_profile() -> Value {
     strict_runtime_typed_input_schema::<crate::profile::CreateSceneProfileInput>()
 }
@@ -1012,6 +1016,10 @@ fn args_delete_image() -> Value {
 
 fn args_delete_object_profile() -> Value {
     strict_typed_input_schema::<crate::profile::DeleteObjectProfileInput>()
+}
+
+fn args_delete_foreshadowing() -> Value {
+    strict_typed_input_schema::<crate::profile::DeleteForeshadowingInput>()
 }
 
 fn args_delete_scene_profile() -> Value {
@@ -1321,6 +1329,10 @@ fn args_list_images_by_chapter() -> Value {
 
 fn args_list_object_profiles() -> Value {
     strict_typed_input_schema::<crate::profile::ListObjectProfilesInput>()
+}
+
+fn args_list_foreshadowing() -> Value {
+    strict_typed_input_schema::<crate::profile::ListForeshadowingInput>()
 }
 
 fn args_list_profile_materials() -> Value {
@@ -1741,6 +1753,10 @@ fn args_update_object_profile() -> Value {
     strict_typed_input_schema::<crate::profile::UpdateObjectProfileInput>()
 }
 
+fn args_update_foreshadowing() -> Value {
+    strict_runtime_typed_input_schema::<crate::profile::UpdateForeshadowingInput>()
+}
+
 fn args_update_scene_profile() -> Value {
     strict_runtime_typed_input_schema::<crate::profile::UpdateSceneProfileInput>()
 }
@@ -1947,6 +1963,10 @@ fn result_create_project() -> Value {
 
 fn result_object_profile_mutation() -> Value {
     typed_schema::<crate::profile::ObjectProfileMutationResult>()
+}
+
+fn result_foreshadowing_write() -> Value {
+    typed_schema::<crate::profile::ForeshadowingWriteResult>()
 }
 
 fn result_scene_profile_mutation() -> Value {
@@ -2179,6 +2199,10 @@ fn result_list_images_by_chapter() -> Value {
 
 fn result_list_object_profiles() -> Value {
     typed_schema::<Vec<crate::profile::ObjectProfileSummary>>()
+}
+
+fn result_list_foreshadowing() -> Value {
+    typed_schema::<Vec<crate::profile::ForeshadowingSummary>>()
 }
 
 fn result_list_profile_materials() -> Value {
@@ -2642,6 +2666,10 @@ mod tests {
     #[test]
     fn profile_material_commands_expose_one_typed_contract() {
         for command in [
+            "list_foreshadowing",
+            "create_foreshadowing",
+            "update_foreshadowing",
+            "delete_foreshadowing",
             "list_object_profiles",
             "create_object_profile",
             "update_object_profile",

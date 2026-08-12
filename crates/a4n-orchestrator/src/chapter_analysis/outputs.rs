@@ -143,7 +143,6 @@ pub fn chapter_analysis_foreshadowing_drafts(
                 })?;
             Ok(ForeshadowingAnalysisDraft {
                 description,
-                status: entry.status,
                 related_characters: entry.related_entities,
                 importance,
             })

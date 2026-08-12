@@ -5,6 +5,59 @@ pub const CHARACTER_DELETION_THRESHOLD: i32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum ForeshadowingStatus {
+    Pending,
+    PartiallyRevealed,
+    Resolved,
+    Abandoned,
+}
+
+impl ForeshadowingStatus {
+    pub const ALL: [Self; 4] = [
+        Self::Pending,
+        Self::PartiallyRevealed,
+        Self::Resolved,
+        Self::Abandoned,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::PartiallyRevealed => "partially_revealed",
+            Self::Resolved => "resolved",
+            Self::Abandoned => "abandoned",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|status| status.as_str() == value)
+    }
+
+    pub const fn can_resolve(self) -> bool {
+        matches!(self, Self::Pending | Self::PartiallyRevealed)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ForeshadowingRecordInput {
+    pub description: String,
+    #[schemars(range(min = 1))]
+    pub setup_chapter: i32,
+    #[schemars(range(min = 1))]
+    #[serde(default)]
+    pub payoff_chapter: Option<i32>,
+    pub status: ForeshadowingStatus,
+    #[serde(default)]
+    pub related_characters: Vec<String>,
+    #[schemars(range(min = 1, max = 5))]
+    pub importance: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum CharacterAttributeCategory {
     Explicit,
     Implicit,
@@ -126,4 +179,21 @@ pub enum AppliedImplicitUpdateAction {
     Keep,
     Modify,
     MarkDeletion,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ForeshadowingStatus;
+
+    #[test]
+    fn foreshadowing_status_accepts_only_canonical_values() {
+        assert_eq!(
+            ForeshadowingStatus::parse("partially_revealed"),
+            Some(ForeshadowingStatus::PartiallyRevealed)
+        );
+        assert!(ForeshadowingStatus::Pending.can_resolve());
+        assert!(!ForeshadowingStatus::Resolved.can_resolve());
+        assert_eq!(ForeshadowingStatus::parse(" pending "), None);
+        assert_eq!(ForeshadowingStatus::parse("legacy_pending"), None);
+    }
 }

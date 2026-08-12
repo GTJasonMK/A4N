@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
@@ -109,7 +110,7 @@ where
                 description: Set(draft.description),
                 setup_chapter: Set(chapter_number),
                 payoff_chapter: Set(None),
-                status: Set(draft.status),
+                status: Set(ForeshadowingStatus::Pending.as_str().to_string()),
                 related_characters: Set(draft.related_characters),
                 importance: Set(draft.importance),
                 created_at: Set(now),
@@ -157,7 +158,7 @@ where
                     std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
                 let mut active: foreshadowing_index::ActiveModel = existing.clone().into();
                 active.payoff_chapter = Set(Some(chapter_number));
-                active.status = Set("resolved".to_string());
+                active.status = Set(ForeshadowingStatus::Resolved.as_str().to_string());
                 active.updated_at = Set(updated_at);
                 let resolved = active.update(db).await?;
                 result.resolved.push(resolved.clone());

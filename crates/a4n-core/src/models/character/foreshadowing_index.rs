@@ -20,7 +20,7 @@ pub struct Model {
     /// 揭示章节
     pub payoff_chapter: Option<i32>,
 
-    /// 状态：pending / partially_revealed / resolved / abandoned
+    /// 规范值由 `a4n_domain::character::ForeshadowingStatus` 定义。
     pub status: String,
 
     /// 关联角色

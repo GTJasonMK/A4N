@@ -35,7 +35,14 @@ pub(super) fn validate_foreshadowing_schema(
         required_string(item, "original_text", &context)?;
         required_string(item, "category", &context)?;
         required_string(item, "priority", &context)?;
-        required_array(item, "related_entities", &context)?;
+        let related_entities = required_array(item, "related_entities", &context)?;
+        for (related_index, related) in related_entities.iter().enumerate() {
+            if related.as_str().map(str::trim).is_none_or(str::is_empty) {
+                return Err(analysis_schema_error(format!(
+                    "{context}.related_entities[{related_index}] 必须是非空字符串"
+                )));
+            }
+        }
     }
     let resolved = required_array(foreshadowing, "resolved", "chapter_analysis.foreshadowing")?;
     for (index, item) in resolved.iter().enumerate() {

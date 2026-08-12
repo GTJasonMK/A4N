@@ -131,15 +131,14 @@ use a4n_api_contract::{
     profile::{
         CreateForeshadowingInput, CreateObjectProfileInput, CreateSceneProfileInput,
         DeleteForeshadowingInput, DeleteObjectProfileInput, DeleteSceneProfileInput,
-        ForeshadowingDeleteResult, ForeshadowingMutationResult, ForeshadowingRecordInput,
-        ForeshadowingSummary, ListForeshadowingInput, ListObjectProfilesInput,
-        ListProfileMaterialsInput, ListSceneProfilesInput, ObjectProfileDeleteResult,
-        ObjectProfileInput, ObjectProfileMutationResult, ObjectProfileSummary,
-        ProfileMaterialGroup, ProfileMaterialImageSummary, ProfileMaterialProfileSummary,
-        SceneProfileDeleteResult, SceneProfileInput, SceneProfileMutationResult,
-        SceneProfileSummary, SetProfilePrimaryMaterialInput, SyncSceneProfilesInput,
-        UpdateForeshadowingInput, UpdateObjectProfileInput, UpdateSceneProfileInput,
-        UploadProfileMaterialImageInput,
+        ForeshadowingSummary, ForeshadowingWriteResult, ListForeshadowingInput,
+        ListObjectProfilesInput, ListProfileMaterialsInput, ListSceneProfilesInput,
+        ObjectProfileDeleteResult, ObjectProfileInput, ObjectProfileMutationResult,
+        ObjectProfileSummary, ProfileMaterialGroup, ProfileMaterialImageSummary,
+        ProfileMaterialProfileSummary, SceneProfileDeleteResult, SceneProfileInput,
+        SceneProfileMutationResult, SceneProfileSummary, SetProfilePrimaryMaterialInput,
+        SyncSceneProfilesInput, UpdateForeshadowingInput, UpdateObjectProfileInput,
+        UpdateSceneProfileInput, UploadProfileMaterialImageInput,
     },
     project::{
         AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode,
@@ -215,7 +214,7 @@ use a4n_api_contract::{
 use a4n_domain::character::{
     AppliedImplicitUpdateAction, CHARACTER_DELETION_THRESHOLD, CharacterAttributeCategory,
     CharacterAttributeOperation, CharacterTimelineSourceKind, DeletionMarkStatus,
-    ImplicitUpdateDecision,
+    ForeshadowingRecordInput, ForeshadowingStatus, ImplicitUpdateDecision,
 };
 use a4n_domain::galgame::{
     GalgameAudioRole, GalgameCgImportance, GalgameFacingV2, GalgameGenerationTargetKind,
@@ -724,13 +723,13 @@ fn main() {
         &typescript_interface::<ProfileMaterialImageSummary>("ProfileMaterialImageSummary"),
         &typescript_interface::<ProfileMaterialGroup>("ProfileMaterialGroup"),
         &typescript_interface::<ListForeshadowingInput>("ListForeshadowingInput"),
+        &typescript_enum::<ForeshadowingStatus>("ForeshadowingStatus"),
         &typescript_interface::<ForeshadowingRecordInput>("ForeshadowingRecordInput"),
         &typescript_interface::<CreateForeshadowingInput>("CreateForeshadowingInput"),
         &typescript_interface::<UpdateForeshadowingInput>("UpdateForeshadowingInput"),
         &typescript_interface::<DeleteForeshadowingInput>("DeleteForeshadowingInput"),
         &typescript_interface::<ForeshadowingSummary>("ForeshadowingSummary"),
-        &typescript_interface::<ForeshadowingMutationResult>("ForeshadowingMutationResult"),
-        &typescript_interface::<ForeshadowingDeleteResult>("ForeshadowingDeleteResult"),
+        &typescript_interface::<ForeshadowingWriteResult>("ForeshadowingWriteResult"),
         &typescript_enum::<ChapterShootingScriptSchemaVersion>(
             "ChapterShootingScriptSchemaVersion",
         ),

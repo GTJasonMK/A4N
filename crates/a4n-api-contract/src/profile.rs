@@ -1,3 +1,4 @@
+pub use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
 use a4n_domain::{
     DownstreamConflictStrategy,
     profile_material::{
@@ -288,25 +289,14 @@ pub struct ProfileMaterialGroup {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ListForeshadowingInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct ForeshadowingRecordInput {
-    pub description: String,
-    pub setup_chapter: i32,
-    #[serde(default)]
-    pub payoff_chapter: Option<i32>,
-    pub status: String,
-    #[serde(default)]
-    pub related_characters: Vec<String>,
-    pub importance: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
 pub struct CreateForeshadowingInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
     pub record: ForeshadowingRecordInput,
 }
@@ -314,7 +304,9 @@ pub struct CreateForeshadowingInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateForeshadowingInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub foreshadowing_id: i64,
     pub expected_updated_at: String,
     pub record: ForeshadowingRecordInput,
@@ -323,7 +315,9 @@ pub struct UpdateForeshadowingInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteForeshadowingInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub foreshadowing_id: i64,
     pub expected_updated_at: String,
 }
@@ -335,7 +329,7 @@ pub struct ForeshadowingSummary {
     pub description: String,
     pub setup_chapter: i32,
     pub payoff_chapter: Option<i32>,
-    pub status: String,
+    pub status: ForeshadowingStatus,
     pub related_characters: Vec<String>,
     pub importance: i32,
     pub created_at: String,
@@ -343,14 +337,7 @@ pub struct ForeshadowingSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ForeshadowingMutationResult {
-    pub foreshadowing: ForeshadowingSummary,
-    #[serde(default)]
-    pub warnings: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct ForeshadowingDeleteResult {
+pub struct ForeshadowingWriteResult {
     #[serde(default)]
     pub warnings: Vec<String>,
 }
@@ -358,8 +345,8 @@ pub struct ForeshadowingDeleteResult {
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateObjectProfileInput, ListProfileMaterialsInput, SyncSceneProfilesInput,
-        UpdateSceneProfileInput, UploadProfileMaterialImageInput,
+        CreateForeshadowingInput, CreateObjectProfileInput, ListProfileMaterialsInput,
+        SyncSceneProfilesInput, UpdateSceneProfileInput, UploadProfileMaterialImageInput,
     };
     use serde_json::json;
 
@@ -431,6 +418,20 @@ mod tests {
                 "chapterNumber": 2,
                 "userId": 9,
                 "taskId": "legacy-task"
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<CreateForeshadowingInput>(json!({
+                "project_id": 1,
+                "record": {
+                    "description": "门后的脚步声",
+                    "setup_chapter": 2,
+                    "payoff_chapter": null,
+                    "status": "legacy_pending",
+                    "related_characters": [],
+                    "importance": 4
+                }
             }))
             .is_err()
         );

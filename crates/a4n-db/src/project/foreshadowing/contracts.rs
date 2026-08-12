@@ -1,4 +1,5 @@
 use a4n_core::models::character::foreshadowing_index;
+pub use a4n_domain::character::ForeshadowingRecordInput;
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -39,18 +40,7 @@ pub struct ForeshadowingCleanupResult {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForeshadowingAnalysisDraft {
     pub description: String,
-    pub status: String,
     pub related_characters: Option<Value>,
-    pub importance: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ForeshadowingRecordInput {
-    pub description: String,
-    pub setup_chapter: i32,
-    pub payoff_chapter: Option<i32>,
-    pub status: String,
-    pub related_characters: Vec<String>,
     pub importance: i32,
 }
 

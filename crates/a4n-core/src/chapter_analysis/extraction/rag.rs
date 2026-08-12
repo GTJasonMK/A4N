@@ -1,3 +1,4 @@
+use a4n_domain::character::ForeshadowingStatus;
 use serde_json::{Value, json};
 
 use crate::rag::RagDataType;
@@ -80,7 +81,7 @@ fn foreshadowing_items(analysis: &Value) -> impl Iterator<Item = AnalysisRagItem
             metadata: json!({
                 "category": entry.category,
                 "priority": entry.priority,
-                "status": entry.status,
+                "status": ForeshadowingStatus::Pending.as_str(),
                 "related_entities": entry.related_entities,
             }),
         })

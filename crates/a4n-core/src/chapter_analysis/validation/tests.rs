@@ -72,6 +72,18 @@ fn rejects_unknown_nested_field() {
 }
 
 #[test]
+fn rejects_non_string_or_empty_foreshadowing_related_entity() {
+    for invalid in [json!({"name": "沈砚"}), json!(" ")] {
+        let mut value = valid_analysis();
+        value["foreshadowing"]["planted"][0]["related_entities"] = json!([invalid]);
+        let error = validate_saved_chapter_analysis(&value).unwrap_err();
+        assert!(
+            matches!(error, AppError::InvalidArgument(message) if message.contains("related_entities[0] 必须是非空字符串"))
+        );
+    }
+}
+
+#[test]
 fn rejects_non_object_saved_analysis() {
     let error = validate_saved_chapter_analysis(&json!([])).unwrap_err();
     assert!(matches!(error, AppError::InvalidArgument(message) if message.contains("JSON 对象")));

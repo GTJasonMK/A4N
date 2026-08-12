@@ -188,7 +188,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn create_foreshadowing_record_validated(
+    pub async fn create_foreshadowing_record(
         &self,
         project_id: i64,
         input: a4n_db::project::ForeshadowingRecordInput,
@@ -198,7 +198,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_foreshadowing_record_validated(
+    pub async fn update_foreshadowing_record(
         &self,
         project_id: i64,
         foreshadowing_id: i64,
@@ -210,7 +210,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_foreshadowing_record_validated(
+    pub async fn delete_foreshadowing_record(
         &self,
         project_id: i64,
         foreshadowing_id: i64,

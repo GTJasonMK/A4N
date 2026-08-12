@@ -1,39 +1,38 @@
 pub use a4n_api_contract::profile::{
-    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingDeleteResult,
-    ForeshadowingMutationResult, ForeshadowingRecordInput, ForeshadowingSummary,
-    ListForeshadowingInput, UpdateForeshadowingInput,
+    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingSummary,
+    ForeshadowingWriteResult, ListForeshadowingInput, UpdateForeshadowingInput,
 };
 use a4n_core::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingStatus;
 
 use crate::{AppState, actions::access};
 
 pub async fn list_foreshadowing(
     state: &AppState,
     user_id: i64,
-    input: ListForeshadowingInput,
+    project_id: i64,
 ) -> Result<Vec<ForeshadowingSummary>, String> {
-    access::verify_project_access_string(state, user_id, input.project_id).await?;
-    state
+    access::verify_project_access_string(state, user_id, project_id).await?;
+    let items = state
         .orchestrator()
-        .foreshadowing_records_by_project(input.project_id)
+        .foreshadowing_records_by_project(project_id)
         .await
-        .map_err(|error| error.to_string())
-        .map(|items| items.iter().map(to_summary).collect())
+        .map_err(|error| error.to_string())?;
+    items.iter().map(to_summary).collect()
 }
 
 pub async fn create_foreshadowing(
     state: &AppState,
     user_id: i64,
     input: CreateForeshadowingInput,
-) -> Result<ForeshadowingMutationResult, String> {
+) -> Result<ForeshadowingWriteResult, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let record = state
         .orchestrator()
-        .create_foreshadowing_record_validated(input.project_id, into_db_input(input.record))
+        .create_foreshadowing_record(input.project_id, input.record)
         .await
         .map_err(|error| error.to_string())?;
-    Ok(ForeshadowingMutationResult {
-        foreshadowing: to_summary(&record),
+    Ok(ForeshadowingWriteResult {
         warnings: sync_rag_warning(state, &record).await,
     })
 }
@@ -42,20 +41,19 @@ pub async fn update_foreshadowing(
     state: &AppState,
     user_id: i64,
     input: UpdateForeshadowingInput,
-) -> Result<ForeshadowingMutationResult, String> {
+) -> Result<ForeshadowingWriteResult, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let record = state
         .orchestrator()
-        .update_foreshadowing_record_validated(
+        .update_foreshadowing_record(
             input.project_id,
             input.foreshadowing_id,
             &input.expected_updated_at,
-            into_db_input(input.record),
+            input.record,
         )
         .await
         .map_err(|error| error.to_string())?;
-    Ok(ForeshadowingMutationResult {
-        foreshadowing: to_summary(&record),
+    Ok(ForeshadowingWriteResult {
         warnings: sync_rag_warning(state, &record).await,
     })
 }
@@ -64,11 +62,11 @@ pub async fn delete_foreshadowing(
     state: &AppState,
     user_id: i64,
     input: DeleteForeshadowingInput,
-) -> Result<ForeshadowingDeleteResult, String> {
+) -> Result<ForeshadowingWriteResult, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let deleted = state
         .orchestrator()
-        .delete_foreshadowing_record_validated(
+        .delete_foreshadowing_record(
             input.project_id,
             input.foreshadowing_id,
             &input.expected_updated_at,
@@ -91,41 +89,30 @@ pub async fn delete_foreshadowing(
             vec!["伏笔已删除，但检索索引清理失败，可稍后重试".to_string()]
         }
     };
-    Ok(ForeshadowingDeleteResult { warnings })
+    Ok(ForeshadowingWriteResult { warnings })
 }
 
-fn into_db_input(input: ForeshadowingRecordInput) -> a4n_db::project::ForeshadowingRecordInput {
-    a4n_db::project::ForeshadowingRecordInput {
-        description: input.description,
-        setup_chapter: input.setup_chapter,
-        payoff_chapter: input.payoff_chapter,
-        status: input.status,
-        related_characters: input.related_characters,
-        importance: input.importance,
-    }
-}
-
-fn to_summary(record: &foreshadowing_index::Model) -> ForeshadowingSummary {
-    ForeshadowingSummary {
+fn to_summary(record: &foreshadowing_index::Model) -> Result<ForeshadowingSummary, String> {
+    Ok(ForeshadowingSummary {
         id: record.id,
         project_id: record.project_id,
         description: record.description.clone(),
         setup_chapter: record.setup_chapter,
         payoff_chapter: record.payoff_chapter,
-        status: record.status.clone(),
+        status: ForeshadowingStatus::parse(&record.status)
+            .ok_or_else(|| format!("伏笔 #{} 状态非法：{}", record.id, record.status))?,
         related_characters: record
             .related_characters
             .as_ref()
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(serde_json::Value::as_str)
-            .map(str::to_string)
-            .collect(),
+            .map_or_else(
+                || Ok(Vec::new()),
+                |value| serde_json::from_value::<Vec<String>>(value.clone()),
+            )
+            .map_err(|error| format!("伏笔 #{} 关联角色格式非法：{error}", record.id))?,
         importance: record.importance,
         created_at: record.created_at.to_string(),
         updated_at: record.updated_at.to_string(),
-    }
+    })
 }
 
 async fn sync_rag_warning(state: &AppState, record: &foreshadowing_index::Model) -> Vec<String> {

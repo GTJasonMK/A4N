@@ -3401,13 +3401,15 @@ export interface ListForeshadowingInput {
   project_id: number;
 }
 
+export type ForeshadowingStatus = "pending" | "partially_revealed" | "resolved" | "abandoned";
+
 export interface ForeshadowingRecordInput {
   description: string;
   importance: number;
   payoff_chapter?: number | null;
   related_characters?: string[];
   setup_chapter: number;
-  status: string;
+  status: ForeshadowingStatus;
 }
 
 export interface CreateForeshadowingInput {
@@ -3437,16 +3439,11 @@ export interface ForeshadowingSummary {
   project_id: number;
   related_characters: string[];
   setup_chapter: number;
-  status: string;
+  status: ForeshadowingStatus;
   updated_at: string;
 }
 
-export interface ForeshadowingMutationResult {
-  foreshadowing: ForeshadowingSummary;
-  warnings: string[];
-}
-
-export interface ForeshadowingDeleteResult {
+export interface ForeshadowingWriteResult {
   warnings: string[];
 }
 

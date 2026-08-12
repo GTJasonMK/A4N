@@ -23,7 +23,6 @@ pub fn foreshadowing_entries(analysis: &Value) -> Vec<ForeshadowingEntry> {
                 category: first_string(item, &["category"]),
                 priority: first_string(item, &["priority"]),
                 related_entities: item.get("related_entities").cloned(),
-                status: "pending".to_string(),
             })
         })
         .collect()

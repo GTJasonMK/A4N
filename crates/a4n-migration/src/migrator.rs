@@ -79,6 +79,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::galgame_presentation_contract_cleanup::Migration),
             Box::new(crate::migrations::chapter_video_timeline_retirement::Migration),
             Box::new(crate::migrations::import_review_contract_cleanup::Migration),
+            Box::new(crate::migrations::foreshadowing_index_integrity_contract::Migration),
         ]
     }
 }
@@ -128,7 +129,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(22)
+                .take(23)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -155,6 +156,7 @@ mod tests {
                 "galgame_presentation_contract_cleanup",
                 "chapter_video_timeline_retirement",
                 "import_review_contract_cleanup",
+                "foreshadowing_index_integrity_contract",
             ],
             "deployed migration history must remain registered in execution order"
         );

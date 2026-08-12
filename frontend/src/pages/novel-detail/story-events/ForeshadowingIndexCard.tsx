@@ -8,6 +8,7 @@ import {
   type Foreshadowing,
   type ForeshadowingInput,
 } from "../../../api/foreshadowing";
+import type { ForeshadowingStatus } from "../../../api/generated/host";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -15,19 +16,19 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Modal } from "../../../components/ui/Modal";
 import { EmptyHint, NumberField, SelectField, TextAreaField, splitLines } from "../shared";
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Record<ForeshadowingStatus, string> = {
   pending: "待回收",
   partially_revealed: "部分揭示",
   resolved: "已回收",
   abandoned: "已放弃",
 };
-const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
+const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as ForeshadowingStatus[];
 
 interface Draft {
   description: string;
   setupChapter: number;
   payoffChapter: number;
-  status: string;
+  status: ForeshadowingStatus;
   relatedCharacters: string;
   importance: number;
 }
@@ -250,15 +251,19 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
               value={draft.status}
               options={STATUS_OPTIONS}
               labels={STATUS_LABELS}
-              onChange={(status) => setDraft((current) => ({ ...current, status }))}
+              onChange={(status) =>
+                setDraft((current) => ({
+                  ...current,
+                  status: status as ForeshadowingStatus,
+                }))
+              }
             />
             <NumberField
               label="重要度（1-5）"
               value={draft.importance}
               min={1}
-              onChange={(importance) =>
-                setDraft((current) => ({ ...current, importance: Math.min(5, importance) }))
-              }
+              max={5}
+              onChange={(importance) => setDraft((current) => ({ ...current, importance }))}
             />
           </div>
           {draft.status === "resolved" ? (

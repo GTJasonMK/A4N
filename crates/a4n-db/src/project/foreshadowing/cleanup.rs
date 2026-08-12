@@ -1,4 +1,5 @@
 use a4n_core::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
@@ -44,7 +45,7 @@ where
         let updated_at = std::cmp::max(now, item.updated_at + chrono::Duration::microseconds(1));
         let mut active: foreshadowing_index::ActiveModel = item.into();
         active.payoff_chapter = Set(None);
-        active.status = Set("pending".to_string());
+        active.status = Set(ForeshadowingStatus::Pending.as_str().to_string());
         active.updated_at = Set(updated_at);
         active.update(db).await?;
     }

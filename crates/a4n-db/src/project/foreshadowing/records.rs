@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_core::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
@@ -39,7 +40,7 @@ pub async fn create_foreshadowing_record(
         description: Set(input.description),
         setup_chapter: Set(input.setup_chapter),
         payoff_chapter: Set(input.payoff_chapter),
-        status: Set(input.status),
+        status: Set(input.status.as_str().to_string()),
         related_characters: Set(related_characters_json(input.related_characters)),
         importance: Set(input.importance),
         created_at: Set(now),
@@ -74,7 +75,7 @@ pub async fn update_foreshadowing_record(
     active.description = Set(input.description);
     active.setup_chapter = Set(input.setup_chapter);
     active.payoff_chapter = Set(input.payoff_chapter);
-    active.status = Set(input.status);
+    active.status = Set(input.status.as_str().to_string());
     active.related_characters = Set(related_characters_json(input.related_characters));
     active.importance = Set(input.importance);
     active.updated_at = Set(updated_at);
@@ -207,17 +208,7 @@ fn normalize_record_input(
             "回收章节必须晚于埋设章节".to_string(),
         ));
     }
-    let status = input.status.trim().to_ascii_lowercase();
-    if !matches!(
-        status.as_str(),
-        "pending" | "partially_revealed" | "resolved" | "abandoned"
-    ) {
-        return Err(ForeshadowingDbError::InvalidArgument(format!(
-            "伏笔状态无效：{}",
-            input.status
-        )));
-    }
-    if (status == "resolved") != input.payoff_chapter.is_some() {
+    if (input.status == ForeshadowingStatus::Resolved) != input.payoff_chapter.is_some() {
         return Err(ForeshadowingDbError::InvalidArgument(
             "已回收伏笔必须填写回收章节，其他状态不能填写回收章节".to_string(),
         ));
@@ -239,7 +230,7 @@ fn normalize_record_input(
         description,
         setup_chapter: input.setup_chapter,
         payoff_chapter: input.payoff_chapter,
-        status,
+        status: input.status,
         related_characters,
         importance: input.importance,
     })

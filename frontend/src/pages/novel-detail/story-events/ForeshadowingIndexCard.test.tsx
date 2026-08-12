@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { Foreshadowing } from "../../../api/foreshadowing";
 import { ForeshadowingIndexCard } from "./ForeshadowingIndexCard";
 
 describe("ForeshadowingIndexCard", () => {
   it("renders the formal index and keeps mutations behind editor permission", () => {
-    const record = {
+    const record: Foreshadowing = {
       id: 7,
       project_id: 3,
       description: "门后的脚步声",

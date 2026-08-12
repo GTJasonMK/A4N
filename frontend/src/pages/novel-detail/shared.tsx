@@ -177,11 +177,13 @@ export function NumberField({
   label,
   value,
   min = 1,
+  max,
   onChange,
 }: {
   label: string;
   value: number;
   min?: number;
+  max?: number;
   onChange: (value: number) => void;
 }) {
   return (
@@ -190,6 +192,7 @@ export function NumberField({
       <input
         type="number"
         min={min}
+        max={max}
         value={value}
         onChange={(event) => onChange(Number(event.target.value) || min)}
         className="pyqt-input !px-2 !py-1 text-xs"

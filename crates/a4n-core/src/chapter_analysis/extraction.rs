@@ -26,7 +26,6 @@ pub struct ForeshadowingEntry {
     pub category: Option<String>,
     pub priority: Option<String>,
     pub related_entities: Option<Value>,
-    pub status: String,
 }
 
 #[derive(Debug, Clone)]

@@ -56,7 +56,6 @@ fn analysis_draft_only_fills_missing_related_characters() {
     let resolved = foreshadowing("resolved", Some(12));
     let matching = ForeshadowingAnalysisDraft {
         description: resolved.description.clone(),
-        status: "pending".to_string(),
         related_characters: resolved.related_characters.clone(),
         importance: resolved.importance,
     };
@@ -75,7 +74,6 @@ fn analysis_draft_only_fills_missing_related_characters() {
     missing.related_characters = None;
     let discovered = ForeshadowingAnalysisDraft {
         description: missing.description.clone(),
-        status: "pending".to_string(),
         related_characters: Some(json!(["配角"])),
         importance: 5,
     };

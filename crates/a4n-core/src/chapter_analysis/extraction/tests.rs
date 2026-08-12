@@ -61,7 +61,6 @@ fn projects_only_planted_foreshadowing() {
     let entries = foreshadowing_entries(&sample_analysis());
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].description, "敌人去向未明");
-    assert_eq!(entries[0].status, "pending");
 }
 
 #[test]

@@ -294,7 +294,6 @@ fn foreshadowing_drafts_preserve_stable_identity_and_importance() {
         drafts[0].description,
         "暗号指向后续叛徒身份 [plot_twist] 原文: 墙上的半枚印记"
     );
-    assert_eq!(drafts[0].status, "pending");
     assert_eq!(drafts[0].importance, 5);
     assert_eq!(drafts[0].related_characters, Some(json!(["林岚"])));
 }

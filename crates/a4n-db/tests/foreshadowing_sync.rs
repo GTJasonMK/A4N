@@ -5,6 +5,7 @@ use a4n_db::project::{
     cleanup_foreshadowing_for_chapter, create_foreshadowing_record, create_project_record,
     delete_foreshadowing_record, sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
 };
+use a4n_domain::character::ForeshadowingStatus;
 use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
 use serde_json::json;
@@ -146,19 +147,16 @@ async fn sync_reports_created_updated_and_existing_setups() {
         vec![
             ForeshadowingAnalysisDraft {
                 description: "保持不变".to_string(),
-                status: "pending".to_string(),
                 related_characters: None,
                 importance: 3,
             },
             ForeshadowingAnalysisDraft {
                 description: "需要更新".to_string(),
-                status: "pending".to_string(),
                 related_characters: Some(json!(["主角"])),
                 importance: 5,
             },
             ForeshadowingAnalysisDraft {
                 description: "本章新增".to_string(),
-                status: "pending".to_string(),
                 related_characters: None,
                 importance: 4,
             },
@@ -250,7 +248,6 @@ async fn stale_chapter_source_rejects_all_foreshadowing_writes() {
         source,
         vec![ForeshadowingAnalysisDraft {
             description: "旧模型识别的新伏笔".to_string(),
-            status: "pending".to_string(),
             related_characters: None,
             importance: 3,
         }],
@@ -332,7 +329,7 @@ async fn manual_foreshadowing_crud_rejects_stale_forms() {
             description: "  门后的脚步声  ".to_string(),
             setup_chapter: 2,
             payoff_chapter: None,
-            status: "pending".to_string(),
+            status: ForeshadowingStatus::Pending,
             related_characters: vec![" 主角 ".to_string(), "主角".to_string()],
             importance: 4,
         },
@@ -352,7 +349,7 @@ async fn manual_foreshadowing_crud_rejects_stale_forms() {
             description: created.description.clone(),
             setup_chapter: 2,
             payoff_chapter: Some(8),
-            status: "resolved".to_string(),
+            status: ForeshadowingStatus::Resolved,
             related_characters: vec!["主角".to_string(), "旧友".to_string()],
             importance: 5,
         },

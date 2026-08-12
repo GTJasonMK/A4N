@@ -3,6 +3,7 @@ use a4n_core::{
     error::AppError,
     models::{chapter::chapter, character::foreshadowing_index},
 };
+use a4n_domain::character::ForeshadowingStatus;
 use a4n_llm::provider::ChatRequest;
 use serde_json::{Value, json};
 
@@ -52,9 +53,10 @@ pub fn chapter_foreshadowing_resolution_context(
             .filter(|item| {
                 item.setup_chapter < chapter_number
                     && ((item.payoff_chapter.is_none()
-                        && matches!(item.status.as_str(), "pending" | "partially_revealed"))
+                        && ForeshadowingStatus::parse(&item.status)
+                            .is_some_and(ForeshadowingStatus::can_resolve))
                         || (item.payoff_chapter == Some(chapter_number)
-                            && item.status == "resolved"))
+                            && item.status == ForeshadowingStatus::Resolved.as_str()))
             })
             .map(|item| {
                 json!({

@@ -55,7 +55,7 @@ fn foreshadowing() -> foreshadowing_index::Model {
         setup_chapter: 3,
         payoff_chapter: Some(12),
         status: "pending".to_string(),
-        related_characters: Some(json!(["林舟", {"name": "沈砚", "role": "知情者"}])),
+        related_characters: Some(json!(["林舟", "沈砚"])),
         importance: 5,
         created_at: ts(),
         updated_at: ts(),
