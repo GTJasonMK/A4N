@@ -2,7 +2,6 @@ mod basic_record;
 mod blueprint_restore;
 mod blueprint_sync;
 mod chapter_context;
-mod chapter_media_cleanup;
 mod chapter_optimization_cleanup;
 #[path = "project/chapter_scene.rs"]
 mod chapter_scene_records;
@@ -27,7 +26,6 @@ pub use basic_record::*;
 pub use blueprint_restore::*;
 pub use blueprint_sync::*;
 pub use chapter_context::*;
-pub use chapter_media_cleanup::*;
 pub use chapter_optimization_cleanup::*;
 pub use chapter_scene_records::*;
 pub use chapter_source::*;

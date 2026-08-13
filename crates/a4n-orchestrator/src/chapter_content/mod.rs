@@ -18,21 +18,5 @@ pub use sync::{
     chapter_content_sync_run_input_matches,
 };
 
-pub(crate) use rules::{
-    chapter_content_edit_error_to_app_error, chapter_content_import_error_to_app_error,
-};
-pub use rules::{
-    ensure_chapter_content_not_empty, ensure_chapter_not_generating, ensure_import_chapter_number,
-    ensure_text_project_kind,
-};
-
-/// 章节后处理结果值对象。
-#[derive(Debug, Clone)]
-pub struct PostProcessResult {
-    pub style_tags: Vec<String>,
-    pub char_count: usize,
-    pub chinese_word_count: usize,
-    pub paragraph_count: usize,
-    pub dialogue_ratio: f64,
-    pub quality_score: f64,
-}
+pub(crate) use rules::chapter_content_import_error_to_app_error;
+pub use rules::ensure_text_project_kind;

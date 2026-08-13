@@ -231,7 +231,7 @@ impl OrchestratorContext {
         host_port: &dyn ChapterDerivedCleanupHostPort,
     ) -> Result<(), AppError> {
         if let Err(error) = self
-            .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id, true)
+            .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id)
             .await
         {
             tracing::warn!(

@@ -23,7 +23,7 @@ impl OptimizePatchApplyHostPort for RuntimeOptimizePatchApplyHostPort<'_> {
         let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(self.state);
         self.state
             .orchestrator()
-            .postprocess_chapter_derived_data_validated(&host_port, chapter_id, true)
+            .postprocess_chapter_derived_data_validated(&host_port, chapter_id)
             .await
     }
 }

@@ -14,8 +14,9 @@ use super::super::{
     CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP, ChapterAnalysisHostPort, ChapterAnalysisInput,
     ChapterAnalysisProgress, OrchestratorContext, chapter_analysis_phase_fingerprint,
     chapter_analysis_run_input_matches, chapter_analysis_workflow_business_key,
-    chapter_analysis_workflow_run_input, chapter_content_edit_error,
+    chapter_analysis_workflow_run_input,
 };
+use crate::chapter_content_edit_error_to_app_error;
 use crate::generation::generation_error;
 use crate::project::cleanup_chapter_derived_data_in;
 use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
@@ -40,7 +41,7 @@ impl OrchestratorContext {
         let started = async {
             lock_chapter_analysis_source(&tx, &source)
                 .await
-                .map_err(chapter_content_edit_error)?;
+                .map_err(chapter_content_edit_error_to_app_error)?;
             a4n_db::workflow::upsert_workflow_run_in_transaction(&tx, input)
                 .await
                 .map_err(workflow_write_app_error)
@@ -103,7 +104,7 @@ impl OrchestratorContext {
         let replacement = async {
             let locked = lock_chapter_analysis_source(&tx, &source)
                 .await
-                .map_err(chapter_content_edit_error)?;
+                .map_err(chapter_content_edit_error_to_app_error)?;
             let business_key = chapter_analysis_workflow_business_key(locked.project_id, locked.id);
             let latest = a4n_db::workflow::latest_workflow_run_by_business_key_for_update(
                 &tx,
@@ -135,7 +136,6 @@ impl OrchestratorContext {
                 locked.chapter_number,
                 false,
                 false,
-                false,
             )
             .await?;
             host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
@@ -150,7 +150,7 @@ impl OrchestratorContext {
                 },
             )
             .await
-            .map_err(chapter_content_edit_error)?;
+            .map_err(chapter_content_edit_error_to_app_error)?;
             a4n_db::generation::delete_generation_run_targets_for(
                 &tx,
                 "chapter_analysis",

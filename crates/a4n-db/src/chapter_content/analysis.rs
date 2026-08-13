@@ -4,7 +4,6 @@ use sea_orm::{
     QueryOrder, QuerySelect, Set,
 };
 
-use super::queries::chapter_for_post_process;
 use super::{ChapterContentEditError, StoreChapterAnalysisRecordInput};
 use crate::project::{ChapterSourceSnapshot, chapter_source_snapshot_matches};
 
@@ -99,13 +98,12 @@ where
 
 pub async fn update_chapter_style_tags_record<C>(
     db: &C,
-    chapter_id: i64,
+    chapter: chapter::Model,
     tags: &[String],
 ) -> Result<(), ChapterContentEditError>
 where
     C: ConnectionTrait,
 {
-    let chapter = chapter_for_post_process(db, chapter_id).await?;
     let mut active: chapter::ActiveModel = chapter.into();
     active.style_tags = Set(Some(serde_json::json!(tags)));
     active

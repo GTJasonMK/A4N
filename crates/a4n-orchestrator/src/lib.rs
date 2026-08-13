@@ -63,7 +63,8 @@ pub use service_health::{
 };
 
 pub(crate) use errors::{
-    freeform_generated_reset_error_to_app_error, project_delete_error_to_app_error,
+    chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,
+    project_delete_error_to_app_error,
 };
 
 #[cfg(test)]

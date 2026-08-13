@@ -557,16 +557,13 @@ async fn importing_content_preserves_existing_outline_and_does_not_create_placeh
     let db = a4n_migration::test_support::connect_test_database().await;
     let project_id = create_project(&db, "保留章纲").await;
     let outline = insert_user_outline(&db, project_id).await;
-    let now = Utc::now().naive_utc();
     let imported = import_chapter_content_record(
         &db,
         ImportChapterContentInput {
             project_id,
             chapter_number: 1,
             content: "已有正文".to_string(),
-            normalized_title: Some("第一章".to_string()),
-            word_count: 4,
-            now,
+            title: Some("第一章".to_string()),
         },
         "导入章节正文",
     )
@@ -589,9 +586,7 @@ async fn importing_content_preserves_existing_outline_and_does_not_create_placeh
             project_id: project_without_outline,
             chapter_number: 7,
             content: "另一份正文".to_string(),
-            normalized_title: Some("第七章".to_string()),
-            word_count: 5,
-            now,
+            title: Some("第七章".to_string()),
         },
         "导入章节正文",
     )
@@ -606,6 +601,63 @@ async fn importing_content_preserves_existing_outline_and_does_not_create_placeh
             .expect("outline lookup must succeed")
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn importing_content_validates_and_derives_persisted_fields() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project_id = create_project(&db, "导入正文写入合同").await;
+
+    let invalid_number = import_chapter_content_record(
+        &db,
+        ImportChapterContentInput {
+            project_id,
+            chapter_number: 0,
+            content: "正文".to_string(),
+            title: None,
+        },
+        "导入章节正文",
+    )
+    .await
+    .expect_err("non-positive chapter number must fail");
+    assert!(matches!(
+        invalid_number,
+        a4n_db::chapter_content::ChapterContentImportError::InvalidArgument(message)
+            if message == "章节序号必须大于 0"
+    ));
+
+    let blank_content = import_chapter_content_record(
+        &db,
+        ImportChapterContentInput {
+            project_id,
+            chapter_number: 1,
+            content: " \n ".to_string(),
+            title: None,
+        },
+        "导入章节正文",
+    )
+    .await
+    .expect_err("blank content must fail");
+    assert!(matches!(
+        blank_content,
+        a4n_db::chapter_content::ChapterContentImportError::InvalidArgument(message)
+            if message == "章节正文不能为空"
+    ));
+
+    let imported = import_chapter_content_record(
+        &db,
+        ImportChapterContentInput {
+            project_id,
+            chapter_number: 1,
+            content: "四个字符".to_string(),
+            title: Some("  第一章  ".to_string()),
+        },
+        "导入章节正文",
+    )
+    .await
+    .expect("valid content must import");
+    assert_eq!(imported.title.as_deref(), Some("第一章"));
+    assert_eq!(imported.word_count, 4);
 }
 
 #[tokio::test]

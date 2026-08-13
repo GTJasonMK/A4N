@@ -68,10 +68,6 @@ impl ChapterDerivedCleanupArtifacts {
             .extend(artifacts.attribute_event_ids);
     }
 
-    fn extend_media_file_paths(&mut self, paths: Vec<String>) {
-        self.media_file_paths.extend(paths);
-    }
-
     pub(crate) fn merge(&mut self, other: Self) {
         self.stale_profile_ids.extend(other.stale_profile_ids);
         self.stale_character_state_ids

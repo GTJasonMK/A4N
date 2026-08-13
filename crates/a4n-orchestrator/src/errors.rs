@@ -65,6 +65,22 @@ pub(crate) fn project_cleanup_error_to_app_error(
     }
 }
 
+pub(crate) fn chapter_content_edit_error_to_app_error(
+    error: a4n_db::chapter_content::ChapterContentEditError,
+) -> a4n_core::error::AppError {
+    use a4n_core::error::AppError;
+    use a4n_db::chapter_content::ChapterContentEditError;
+
+    match error {
+        ChapterContentEditError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        ChapterContentEditError::NotFound(message) => AppError::NotFound(message),
+        ChapterContentEditError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
+        ChapterContentEditError::Database(error) => AppError::Database(error),
+    }
+}
+
 pub(crate) fn freeform_generated_reset_error_to_app_error(
     error: a4n_db::project::FreeformGeneratedResetDbError,
 ) -> a4n_core::error::AppError {

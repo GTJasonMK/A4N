@@ -9,9 +9,7 @@ pub struct ImportChapterContentInput {
     pub project_id: i64,
     pub chapter_number: i32,
     pub content: String,
-    pub normalized_title: Option<String>,
-    pub word_count: i32,
-    pub now: NaiveDateTime,
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +49,8 @@ pub struct StoreChapterAnalysisRecordInput {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChapterContentImportError {
+    #[error("{0}")]
+    InvalidArgument(String),
     #[error(transparent)]
     Database(#[from] sea_orm::DbErr),
     #[error("第 {chapter_number} 章正在生成中，请等待当前生成完成后再{operation}")]

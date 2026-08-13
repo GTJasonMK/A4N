@@ -10,7 +10,6 @@ pub(crate) async fn cleanup_chapter_derived_data_in<C>(
     chapter_id: i64,
     chapter_number: i32,
     cleanup_foreshadowing: bool,
-    cleanup_generated_media: bool,
     prune_ai_scene_profiles: bool,
 ) -> Result<ChapterDerivedCleanupArtifacts, AppError>
 where
@@ -65,13 +64,5 @@ where
             .changed_foreshadowing_ids
             .extend(foreshadowing_artifacts.changed_ids);
     }
-    if cleanup_generated_media {
-        artifacts.extend_media_file_paths(
-            a4n_db::project::cleanup_chapter_media_data(db, project_id, chapter_id)
-                .await
-                .map_err(crate::errors::project_cleanup_error_to_app_error)?,
-        );
-    }
-
     Ok(artifacts)
 }

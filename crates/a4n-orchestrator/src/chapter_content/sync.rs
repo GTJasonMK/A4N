@@ -47,63 +47,29 @@ pub fn chapter_content_sync_run_input_matches(
     chapter: &chapter::Model,
 ) -> bool {
     run_fingerprint_json.as_ref().is_some_and(|fingerprint| {
-        match fingerprint.get("source_fingerprint") {
-            Some(source) => {
-                let schema_version = fingerprint.get("schema_version").and_then(Value::as_i64);
-                matches!(schema_version, Some(2 | 3))
-                    && (schema_version == Some(2)
-                        || fingerprint
-                            .get("sync_current_chapter_rag")
-                            .and_then(Value::as_bool)
-                            .is_some())
-                    && fingerprint.get("workflow_kind").and_then(Value::as_str)
-                        == Some(CHAPTER_CONTENT_SYNC_WORKFLOW_KIND)
-                    && fingerprint
-                        .get("sync_revision")
-                        .and_then(Value::as_str)
-                        .is_some_and(|revision| !revision.is_empty())
-                    && source == &chapter_content_sync_workflow_fingerprint(chapter)
-            }
-            None => fingerprint == &chapter_content_sync_workflow_fingerprint(chapter),
-        }
+        fingerprint.get("schema_version").and_then(Value::as_i64) == Some(3)
+            && fingerprint.get("workflow_kind").and_then(Value::as_str)
+                == Some(CHAPTER_CONTENT_SYNC_WORKFLOW_KIND)
+            && fingerprint
+                .get("sync_revision")
+                .and_then(Value::as_str)
+                .is_some_and(|revision| !revision.is_empty())
+            && fingerprint.get("source_fingerprint")
+                == Some(&chapter_content_sync_workflow_fingerprint(chapter))
     })
 }
 
-pub(crate) fn chapter_content_sync_should_sync_current_rag(
-    run_fingerprint_json: &Option<Value>,
-) -> bool {
-    chapter_content_sync_current_rag_intent(run_fingerprint_json) == Some(true)
-}
-
-pub fn chapter_content_sync_current_rag_intent(
-    run_fingerprint_json: &Option<Value>,
-) -> Option<bool> {
-    let fingerprint = run_fingerprint_json.as_ref()?;
-    (fingerprint.get("schema_version").and_then(Value::as_i64) == Some(3))
-        .then(|| {
-            fingerprint
-                .get("sync_current_chapter_rag")
-                .and_then(Value::as_bool)
-        })
-        .flatten()
-}
-
-fn chapter_content_sync_run_fingerprint(
-    chapter: &chapter::Model,
-    sync_current_chapter_rag: bool,
-) -> Value {
+fn chapter_content_sync_run_fingerprint(chapter: &chapter::Model) -> Value {
     json!({
         "schema_version": 3,
         "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
         "sync_revision": Uuid::new_v4(),
-        "sync_current_chapter_rag": sync_current_chapter_rag,
         "source_fingerprint": chapter_content_sync_workflow_fingerprint(chapter),
     })
 }
 
 pub(crate) fn chapter_content_sync_workflow_run_input(
     chapter: &chapter::Model,
-    sync_current_chapter_rag: bool,
 ) -> UpsertWorkflowRunInput {
     UpsertWorkflowRunInput {
         business_key: chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id),
@@ -115,10 +81,7 @@ pub(crate) fn chapter_content_sync_workflow_run_input(
         scope_id: Some(chapter.id),
         chapter_id: Some(chapter.id),
         mode: Some("content_change".to_string()),
-        input_fingerprint_json: Some(chapter_content_sync_run_fingerprint(
-            chapter,
-            sync_current_chapter_rag,
-        )),
+        input_fingerprint_json: Some(chapter_content_sync_run_fingerprint(chapter)),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some(CHAPTER_CONTENT_SYNC_EXTERNAL_STEP.to_string()),
         active_task_id: None,
@@ -257,8 +220,8 @@ impl OrchestratorContext {
         host_port: &dyn ChapterDerivedCleanupHostPort,
         requested_run: &workflow_run::Model,
     ) -> Result<chapter::Model, AppError> {
-        let chapter = self.chapter_content_sync_chapter(requested_run).await?;
-        let lock = self.chapter_content_sync_lock(chapter.project_id, chapter.chapter_number);
+        let (project_id, chapter_number) = chapter_content_sync_source_identity(requested_run)?;
+        let lock = self.chapter_content_sync_lock(project_id, chapter_number);
         let _guard = lock.lock_owned().await;
         let run = self.workflow_run_model_by_id(requested_run.id).await?;
         self.require_current_chapter_content_sync_run(&run).await?;
@@ -325,10 +288,8 @@ impl OrchestratorContext {
         if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_RAG_STEP)? {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_RAG_STEP)
                 .await?;
-            if chapter_content_sync_should_sync_current_rag(&run.input_fingerprint_json) {
-                host_port.sync_chapter_rag_records(&chapter, run.id).await?;
-                self.require_current_chapter_content_sync_run(run).await?;
-            }
+            host_port.sync_chapter_rag_records(&chapter, run.id).await?;
+            self.require_current_chapter_content_sync_run(run).await?;
             self.upsert_workflow_checkpoint(chapter_content_sync_completed_checkpoint_input(
                 run,
                 CHAPTER_CONTENT_SYNC_RAG_STEP,
@@ -344,7 +305,7 @@ impl OrchestratorContext {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP)
                 .await?;
             if chapter.has_available_content() {
-                self.process_chapter(chapter.id).await?;
+                self.process_chapter(chapter.clone()).await?;
             }
             self.refresh_project_current_chapter(chapter.project_id)
                 .await?;
@@ -362,10 +323,7 @@ impl OrchestratorContext {
         self.require_current_chapter_content_sync_run(run).await
     }
 
-    async fn chapter_content_sync_chapter(
-        &self,
-        run: &workflow_run::Model,
-    ) -> Result<chapter::Model, AppError> {
+    fn chapter_content_sync_chapter_id(&self, run: &workflow_run::Model) -> Result<i64, AppError> {
         if run.workflow_kind != CHAPTER_CONTENT_SYNC_WORKFLOW_KIND
             || run.scope_table.as_deref() != Some("chapter")
             || run.scope_id != run.chapter_id
@@ -375,18 +333,19 @@ impl OrchestratorContext {
                 operation: "读取章节资料同步目标".to_string(),
             });
         }
-        let chapter_id = run.chapter_id.ok_or_else(|| AppError::InvalidState {
+        run.chapter_id.ok_or_else(|| AppError::InvalidState {
             current: "missing_chapter_id".to_string(),
             operation: "读取章节资料同步目标".to_string(),
-        })?;
-        self.chapter_by_id_for_analysis(chapter_id).await
+        })
     }
 
     async fn require_current_chapter_content_sync_run(
         &self,
         run: &workflow_run::Model,
     ) -> Result<chapter::Model, AppError> {
-        let chapter = self.chapter_content_sync_chapter(run).await?;
+        let chapter = self
+            .chapter_by_id_for_analysis(self.chapter_content_sync_chapter_id(run)?)
+            .await?;
         let latest = self
             .latest_workflow_run_by_business_key(&chapter_content_sync_workflow_business_key(
                 chapter.project_id,
@@ -408,6 +367,26 @@ impl OrchestratorContext {
         }
         Ok(chapter)
     }
+}
+
+fn chapter_content_sync_source_identity(run: &workflow_run::Model) -> Result<(i64, i32), AppError> {
+    let source = run
+        .input_fingerprint_json
+        .as_ref()
+        .and_then(|fingerprint| fingerprint.get("source_fingerprint"));
+    let project_id = source
+        .and_then(|source| source.get("project_id"))
+        .and_then(Value::as_i64);
+    let chapter_number = source
+        .and_then(|source| source.get("chapter_number"))
+        .and_then(Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok());
+    project_id
+        .zip(chapter_number)
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("chapter_content_sync_run_id={}", run.id),
+            operation: "读取章节资料同步锁键".to_string(),
+        })
 }
 
 fn content_sync_phase_completed(
@@ -455,7 +434,9 @@ mod tests {
     #[test]
     fn fingerprint_tracks_formal_content_but_not_derived_fields() {
         let mut chapter = chapter();
-        let fingerprint = chapter_content_sync_workflow_fingerprint(&chapter);
+        let fingerprint = chapter_content_sync_workflow_run_input(&chapter)
+            .input_fingerprint_json
+            .expect("workflow fingerprint should exist");
         assert!(chapter_content_sync_run_input_matches(
             &Some(fingerprint.clone()),
             &chapter
@@ -463,14 +444,14 @@ mod tests {
         chapter.style_tags = Some(json!(["叙事为主"]));
         chapter.updated_at = Utc::now().naive_utc();
         assert_eq!(
-            fingerprint,
-            chapter_content_sync_workflow_fingerprint(&chapter)
+            fingerprint.get("source_fingerprint"),
+            Some(&chapter_content_sync_workflow_fingerprint(&chapter))
         );
 
         chapter.content = "新正文".to_string();
         assert_ne!(
-            fingerprint,
-            chapter_content_sync_workflow_fingerprint(&chapter)
+            fingerprint.get("source_fingerprint"),
+            Some(&chapter_content_sync_workflow_fingerprint(&chapter))
         );
     }
 
@@ -483,7 +464,7 @@ mod tests {
             ..Default::default()
         };
         let chapter = chapter();
-        let fingerprint = chapter_content_sync_workflow_run_input(&chapter, true)
+        let fingerprint = chapter_content_sync_workflow_run_input(&chapter)
             .input_fingerprint_json
             .expect("workflow fingerprint should exist");
         let checkpoint =
@@ -502,10 +483,10 @@ mod tests {
     #[test]
     fn repeated_saves_get_distinct_runs_for_the_same_formal_content() {
         let chapter = chapter();
-        let first = chapter_content_sync_workflow_run_input(&chapter, true)
+        let first = chapter_content_sync_workflow_run_input(&chapter)
             .input_fingerprint_json
             .expect("first workflow fingerprint should exist");
-        let second = chapter_content_sync_workflow_run_input(&chapter, true)
+        let second = chapter_content_sync_workflow_run_input(&chapter)
             .input_fingerprint_json
             .expect("second workflow fingerprint should exist");
 
@@ -531,63 +512,33 @@ mod tests {
     }
 
     #[test]
-    fn only_content_change_runs_sync_current_chapter_rag() {
-        let chapter = chapter();
-        let content_change =
-            chapter_content_sync_workflow_run_input(&chapter, true).input_fingerprint_json;
-        let analysis_cleanup =
-            chapter_content_sync_workflow_run_input(&chapter, false).input_fingerprint_json;
+    fn source_identity_uses_the_current_workflow_contract() {
+        let run_input = chapter_content_sync_workflow_run_input(&chapter());
+        let run = workflow_run::Model {
+            id: 9,
+            business_key: run_input.business_key,
+            workflow_kind: run_input.workflow_kind,
+            project_id: run_input.project_id,
+            root_project_id: run_input.root_project_id,
+            source_snapshot_id: run_input.source_snapshot_id,
+            scope_table: run_input.scope_table,
+            scope_id: run_input.scope_id,
+            chapter_id: run_input.chapter_id,
+            mode: run_input.mode,
+            input_fingerprint_json: run_input.input_fingerprint_json,
+            status: run_input.status,
+            current_step_key: run_input.current_step_key,
+            progress_json: None,
+            active_task_id: run_input.active_task_id,
+            can_resume: run_input.can_resume,
+            resume_block_reason: run_input.resume_block_reason,
+            error_message: run_input.error_message,
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            completed_at: None,
+        };
 
-        assert!(chapter_content_sync_should_sync_current_rag(
-            &content_change
-        ));
-        assert_eq!(
-            chapter_content_sync_current_rag_intent(&content_change),
-            Some(true)
-        );
-        assert!(!chapter_content_sync_should_sync_current_rag(
-            &analysis_cleanup
-        ));
-        assert_eq!(
-            chapter_content_sync_current_rag_intent(&analysis_cleanup),
-            Some(false)
-        );
-        assert!(chapter_content_sync_run_input_matches(
-            &content_change,
-            &chapter
-        ));
-        assert!(chapter_content_sync_run_input_matches(
-            &analysis_cleanup,
-            &chapter
-        ));
-        assert!(!chapter_content_sync_should_sync_current_rag(&Some(
-            chapter_content_sync_workflow_fingerprint(&chapter)
-        )));
-        assert_eq!(
-            chapter_content_sync_current_rag_intent(&Some(
-                chapter_content_sync_workflow_fingerprint(&chapter)
-            )),
-            None
-        );
-
-        let legacy_v2 = Some(json!({
-            "schema_version": 2,
-            "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-            "sync_revision": Uuid::new_v4(),
-            "source_fingerprint": chapter_content_sync_workflow_fingerprint(&chapter),
-        }));
-        assert!(chapter_content_sync_run_input_matches(&legacy_v2, &chapter));
-        assert!(!chapter_content_sync_should_sync_current_rag(&legacy_v2));
-
-        let malformed = Some(json!({
-            "schema_version": 3,
-            "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-            "sync_revision": Uuid::new_v4(),
-            "source_fingerprint": chapter_content_sync_workflow_fingerprint(&chapter),
-        }));
-        assert!(!chapter_content_sync_run_input_matches(
-            &malformed, &chapter
-        ));
+        assert_eq!(chapter_content_sync_source_identity(&run).unwrap(), (3, 5));
     }
 
     #[test]

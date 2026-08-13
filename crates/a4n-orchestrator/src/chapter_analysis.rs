@@ -5,7 +5,7 @@ use a4n_core::{
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use tokio_util::sync::CancellationToken;
 
-use crate::OrchestratorContext;
+use crate::{OrchestratorContext, chapter_content_edit_error_to_app_error};
 use owner::{build_chapter_analysis_preview_requests, chapter_foreshadowing_resolution_context};
 
 mod application;
@@ -105,7 +105,7 @@ impl OrchestratorContext {
             chapter_id,
         )
         .await
-        .map_err(chapter_content_edit_error)?;
+        .map_err(chapter_content_edit_error_to_app_error)?;
         ensure_chapter_has_analysis_content(&chapter)?;
         let foreshadowing = self
             .foreshadowing_items_for_rag_ingest(chapter.project_id)
@@ -117,22 +117,6 @@ impl OrchestratorContext {
     }
 }
 
-fn chapter_content_edit_error(error: a4n_db::chapter_content::ChapterContentEditError) -> AppError {
-    match error {
-        a4n_db::chapter_content::ChapterContentEditError::InvalidArgument(message) => {
-            AppError::InvalidArgument(message)
-        }
-        a4n_db::chapter_content::ChapterContentEditError::NotFound(message) => {
-            AppError::NotFound(message)
-        }
-        a4n_db::chapter_content::ChapterContentEditError::InvalidState { current, operation } => {
-            AppError::InvalidState { current, operation }
-        }
-        a4n_db::chapter_content::ChapterContentEditError::Database(error) => {
-            AppError::Database(error)
-        }
-    }
-}
 pub use application::{
     CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
     CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,

@@ -564,15 +564,9 @@ impl OrchestratorContext {
                         )
                         .await?;
                     let content_sync_run = context
-                        .begin_chapter_content_sync_in_transaction(
-                            tx,
-                            &chapter,
-                            true,
-                            true,
-                            &|artifacts| {
-                                completion_host_port.validate_chapter_cleanup_artifacts(artifacts)
-                            },
-                        )
+                        .begin_chapter_content_sync_in_transaction(tx, &chapter, &|artifacts| {
+                            completion_host_port.validate_chapter_cleanup_artifacts(artifacts)
+                        })
                         .await?;
                     chapter_id_slot.store(chapter.id, Ordering::Release);
                     content_sync_run_id_slot.store(content_sync_run.id, Ordering::Release);

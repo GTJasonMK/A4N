@@ -8,13 +8,13 @@ use async_trait::async_trait;
 
 use crate::{
     OrchestratorContext,
-    project::{ChapterDerivedCleanupArtifacts, chapter_cleanup_requires_snapshot},
+    project::{
+        ChapterDerivedCleanupArtifacts, chapter_cleanup_requires_snapshot,
+        validate_chapter_generation_number,
+    },
 };
 
-use super::{
-    ensure_chapter_content_not_empty, ensure_chapter_not_generating, ensure_import_chapter_number,
-    ensure_text_project_kind,
-};
+use super::ensure_text_project_kind;
 
 #[async_trait]
 pub trait ChapterDerivedCleanupHostPort: Send + Sync {
@@ -44,6 +44,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: i32,
     ) -> Result<(), AppError> {
+        validate_chapter_generation_number(chapter_number).map_err(AppError::InvalidArgument)?;
         let profiles = self.protagonist_profiles_for_project(project_id).await?;
         let snapshot_chapter = chapter_number - 1;
         let snapshot_profile_ids = profiles
@@ -82,18 +83,14 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
         chapter_id: i64,
-        cleanup_foreshadowing: bool,
     ) -> Result<(), AppError> {
         let chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
         let lock = self.chapter_content_sync_lock(chapter.project_id, chapter.chapter_number);
         let _guard = lock.lock_owned().await;
-        let (_, run) = self
-            .begin_existing_chapter_content_sync(
-                chapter_id,
-                cleanup_foreshadowing,
-                true,
-                |artifacts| host_port.validate_chapter_cleanup_artifacts(artifacts),
-            )
+        let run = self
+            .begin_existing_chapter_content_sync(chapter_id, |artifacts| {
+                host_port.validate_chapter_cleanup_artifacts(artifacts)
+            })
             .await?;
         self.settle_chapter_content_sync_run(host_port, &run)
             .await?;
@@ -128,8 +125,6 @@ impl OrchestratorContext {
         .await?;
         self.ensure_text_project_validated(chapter.project_id, "更新章节正文")
             .await?;
-        ensure_chapter_not_generating(&chapter, "更新章节正文")?;
-        ensure_chapter_content_not_empty(&content)?;
         self.preflight_chapter_content_change_validated(chapter.project_id, chapter.chapter_number)
             .await?;
         let (updated, run) = self
@@ -175,8 +170,6 @@ impl OrchestratorContext {
         .await?;
         self.ensure_text_project_validated(project_id, "导入章节正文")
             .await?;
-        ensure_import_chapter_number(chapter_number)?;
-        ensure_chapter_content_not_empty(&content)?;
         self.preflight_chapter_content_change_validated(project_id, chapter_number)
             .await?;
         let (chapter, run) = self
