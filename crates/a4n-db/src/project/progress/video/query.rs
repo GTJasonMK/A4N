@@ -46,7 +46,7 @@ pub(in crate::project::progress) async fn video_project_progress_by_project(
         let videos = videos_by_project.remove(project_id).unwrap_or_default();
         progress.insert(
             *project_id,
-            video_project_progress_from_counts(video_progress_facts_from_rows(&prompts, &videos)),
+            video_project_progress_from_counts(video_progress_facts_from_rows(&prompts, &videos)?),
         );
     }
     Ok(progress)

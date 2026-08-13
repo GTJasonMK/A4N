@@ -17,12 +17,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
 }) => {
   const projectDescription = project.description.trim();
   const chapterCurrent = project.current_chapter;
-  const chapterTotal =
-    project.target_chapters ||
-    project.total_chapters ||
-    project.progress.total ||
-    blueprint?.total_chapters ||
-    0;
+  const chapterTotal = project.target_chapters;
   const chapterProgress =
     chapterTotal > 0
       ? Math.min(100, Math.round((chapterCurrent / chapterTotal) * 100))

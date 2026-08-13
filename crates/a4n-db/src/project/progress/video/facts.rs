@@ -3,11 +3,11 @@ use super::identity::{
     video_slot_key_from_prompt, video_slot_key_from_video,
 };
 use super::{VIDEO_FRAME_PROMPT_TYPE, VIDEO_PROMPT_TYPE, VIDEO_SEGMENT_PLAN_PROMPT_TYPE};
+use crate::project::progress::ProjectProgressReadError;
 use crate::project::progress::shared::ProgressCounts;
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Copy)]
 pub(super) struct VideoProgressFacts {
     pub(super) prompt_counts: ProgressCounts,
     pub(super) video_counts: ProgressCounts,
@@ -19,7 +19,7 @@ pub(super) struct VideoProgressFacts {
 pub(super) fn video_progress_facts_from_rows(
     prompts: &[chapter_video_prompt::Model],
     videos: &[generated_video::Model],
-) -> VideoProgressFacts {
+) -> Result<VideoProgressFacts, ProjectProgressReadError> {
     let current_prompts = current_video_prompt_rows(prompts);
     let mut prompt_counts = ProgressCounts::default();
     let mut video_prompt_total = 0;
@@ -28,7 +28,7 @@ pub(super) fn video_progress_facts_from_rows(
     let mut prompt_slot_statuses = BTreeMap::new();
     let mut prompt_id_statuses = BTreeMap::new();
     for prompt in current_prompts {
-        prompt_counts.add(&prompt.status);
+        prompt_counts.add("chapter_video_prompt", prompt.id, &prompt.status)?;
         match prompt.prompt_type.as_str() {
             VIDEO_PROMPT_TYPE => {
                 video_prompt_total += 1;
@@ -46,17 +46,17 @@ pub(super) fn video_progress_facts_from_rows(
     let mut video_counts = ProgressCounts::default();
     for video in latest_video_rows(videos) {
         if should_count_video_for_progress(video, &prompt_slot_statuses, &prompt_id_statuses) {
-            video_counts.add(&video.status);
+            video_counts.add("generated_video", video.id, &video.status)?;
         }
     }
 
-    VideoProgressFacts {
+    Ok(VideoProgressFacts {
         prompt_counts,
         video_counts,
         video_prompt_total,
         frame_prompt_total,
         segment_plan_total,
-    }
+    })
 }
 
 fn should_count_video_for_progress(

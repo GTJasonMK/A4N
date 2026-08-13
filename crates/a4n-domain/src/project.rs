@@ -125,24 +125,9 @@ pub struct ProjectRollbackPreview {
     pub impacts: Vec<ProjectRollbackImpactSummary>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ProjectProgressStatus {
-    Idle,
-    Running,
-    Blocked,
-    Failed,
-    Completed,
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct ProjectProgressSummary {
-    pub kind: String,
-    pub stage: String,
     pub label: String,
-    pub current: Option<i64>,
-    pub total: Option<i64>,
-    pub status: ProjectProgressStatus,
     pub detail: Option<String>,
 }
 

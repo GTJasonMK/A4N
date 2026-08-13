@@ -6,9 +6,8 @@ use crate::collaboration::ProjectAccessRole;
 pub use a4n_domain::project::{
     AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
     AssetLineageRecord, AssetLineageRef, GenerationInputSource, GenerationRunSnapshot, ProjectKind,
-    ProjectProgressStatus, ProjectProgressSummary, ProjectRollbackImpactSummary,
-    ProjectRollbackPreview, ProjectStatus, ProjectStatusHistorySummary,
-    ProjectStatusMachineSummary, PromptSource,
+    ProjectProgressSummary, ProjectRollbackImpactSummary, ProjectRollbackPreview, ProjectStatus,
+    ProjectStatusHistorySummary, ProjectStatusMachineSummary, PromptSource,
 };
 
 #[derive(Serialize, JsonSchema)]

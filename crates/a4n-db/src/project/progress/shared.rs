@@ -1,7 +1,7 @@
-use super::{ProjectProgressReadError, ProjectProgressStatus, ProjectProgressSummary};
+use super::{ProjectProgressReadError, ProjectProgressSummary};
 use crate::workflow::{
-    WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
-    WORKFLOW_STATUS_RUNNING,
+    WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
+    WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
 };
 use a4n_core::models::generation::workflow_run;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
@@ -18,15 +18,39 @@ pub(super) struct ProgressCounts {
 }
 
 impl ProgressCounts {
-    pub(super) fn add(&mut self, status: &str) {
-        match status.trim() {
+    pub(super) fn add(
+        &mut self,
+        table: &'static str,
+        record_id: i64,
+        status: &str,
+    ) -> Result<(), ProjectProgressReadError> {
+        let valid = match table {
+            "chapter_manga_prompt" => matches!(
+                status,
+                "pending" | "generating" | "completed" | "failed" | "cancelled"
+            ),
+            "chapter_video_prompt" | "generated_video" => matches!(
+                status,
+                "pending" | "running" | "completed" | "failed" | "interrupted" | "cancelled"
+            ),
+            _ => false,
+        };
+        if !valid {
+            return Err(ProjectProgressReadError::invalid_persisted_status(
+                table,
+                record_id,
+                status.to_string(),
+            ));
+        }
+        match status {
             "pending" => self.pending += 1,
             "running" | "generating" => self.running += 1,
             "completed" => self.completed += 1,
-            "failed" => self.failed += 1,
+            "failed" | "interrupted" => self.failed += 1,
             "cancelled" => self.cancelled += 1,
-            _ => {}
+            _ => unreachable!("status vocabulary checked above"),
         }
+        Ok(())
     }
 
     pub(super) fn total(self) -> i64 {
@@ -63,10 +87,8 @@ pub(super) async fn latest_pipeline_states_by_project(
         .map_err(|error| ProjectProgressReadError::database(query_operation, error))?;
     let mut states = HashMap::<i64, PipelineProjectState>::new();
     for run in &runs {
-        let Some(project_id) = run.project_id else {
-            continue;
-        };
-        let current = pipeline_state_from_workflow_run(run);
+        let project_id = workflow_project_id(run)?;
+        let current = pipeline_state_from_workflow_run(run)?;
         let state = states.entry(project_id).or_default();
         if current.failed {
             state.failed = true;
@@ -88,13 +110,31 @@ pub(super) async fn latest_pipeline_states_by_project(
     Ok(states)
 }
 
-fn pipeline_state_from_workflow_run(run: &workflow_run::Model) -> PipelineProjectState {
+fn workflow_project_id(run: &workflow_run::Model) -> Result<i64, ProjectProgressReadError> {
+    run.project_id
+        .ok_or(ProjectProgressReadError::InvalidPersistedReference {
+            table: "workflow_run",
+            record_id: run.id,
+            field: "project_id",
+        })
+}
+
+fn pipeline_state_from_workflow_run(
+    run: &workflow_run::Model,
+) -> Result<PipelineProjectState, ProjectProgressReadError> {
     let mut pipeline = PipelineProjectState::default();
-    match run.status.trim() {
+    match run.status.as_str() {
         WORKFLOW_STATUS_RUNNING => pipeline.running = true,
         WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_INTERRUPTED => pipeline.failed = true,
         WORKFLOW_STATUS_CANCELLED => pipeline.cancelled = true,
-        _ => {}
+        WORKFLOW_STATUS_COMPLETED | WORKFLOW_STATUS_SUPERSEDED => {}
+        _ => {
+            return Err(ProjectProgressReadError::invalid_persisted_status(
+                "workflow_run",
+                run.id,
+                run.status.clone(),
+            ));
+        }
     }
     pipeline.message = run
         .error_message
@@ -111,25 +151,12 @@ fn pipeline_state_from_workflow_run(run: &workflow_run::Model) -> PipelineProjec
                 .filter(|message| !message.is_empty())
                 .map(str::to_string)
         });
-    pipeline
+    Ok(pipeline)
 }
 
-pub(super) fn project_progress(
-    kind: &str,
-    stage: &str,
-    label: &str,
-    current: Option<i64>,
-    total: Option<i64>,
-    status: ProjectProgressStatus,
-    detail: Option<String>,
-) -> ProjectProgressSummary {
+pub(super) fn project_progress(label: &str, detail: Option<String>) -> ProjectProgressSummary {
     ProjectProgressSummary {
-        kind: kind.to_string(),
-        stage: stage.to_string(),
         label: label.to_string(),
-        current,
-        total,
-        status,
         detail,
     }
 }
@@ -145,6 +172,76 @@ pub(super) fn progress_count_detail(
     }
 }
 
-pub(super) fn non_zero(value: i64) -> Option<i64> {
-    (value > 0).then_some(value)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn workflow_run(status: &str) -> workflow_run::Model {
+        let now = Utc::now().naive_utc();
+        workflow_run::Model {
+            id: 9,
+            business_key: "project-progress".to_string(),
+            workflow_kind: "manga_pipeline".to_string(),
+            project_id: Some(3),
+            root_project_id: None,
+            source_snapshot_id: None,
+            scope_table: None,
+            scope_id: None,
+            chapter_id: None,
+            mode: None,
+            input_fingerprint_json: None,
+            status: status.to_string(),
+            current_step_key: None,
+            progress_json: None,
+            active_task_id: None,
+            can_resume: false,
+            resume_block_reason: None,
+            error_message: None,
+            created_at: now,
+            updated_at: now,
+            completed_at: None,
+        }
+    }
+
+    #[test]
+    fn pipeline_progress_rejects_unknown_persisted_status() {
+        let mut counts = ProgressCounts::default();
+        assert!(matches!(
+            counts.add("generated_video", 4, "legacy"),
+            Err(ProjectProgressReadError::InvalidPersistedStatus {
+                table: "generated_video",
+                record_id: 4,
+                value,
+            }) if value == "legacy"
+        ));
+        assert!(matches!(
+            counts.add("chapter_manga_prompt", 5, "interrupted"),
+            Err(ProjectProgressReadError::InvalidPersistedStatus {
+                table: "chapter_manga_prompt",
+                record_id: 5,
+                value,
+            }) if value == "interrupted"
+        ));
+
+        assert!(matches!(
+            pipeline_state_from_workflow_run(&workflow_run("legacy")),
+            Err(ProjectProgressReadError::InvalidPersistedStatus {
+                table: "workflow_run",
+                record_id: 9,
+                value,
+            }) if value == "legacy"
+        ));
+
+        let mut missing_project = workflow_run(WORKFLOW_STATUS_COMPLETED);
+        missing_project.project_id = None;
+        assert!(matches!(
+            workflow_project_id(&missing_project),
+            Err(ProjectProgressReadError::InvalidPersistedReference {
+                table: "workflow_run",
+                record_id: 9,
+                field: "project_id",
+            })
+        ));
+    }
 }

@@ -1,9 +1,8 @@
 use super::shared::{
-    PipelineProjectState, ProgressCounts, latest_pipeline_states_by_project, non_zero,
-    progress_count_detail, project_progress,
+    PipelineProjectState, ProgressCounts, latest_pipeline_states_by_project, progress_count_detail,
+    project_progress,
 };
-use super::{ProjectProgressReadError, ProjectProgressStatus, ProjectProgressSummary};
-use crate::project::PROJECT_KIND_COMIC;
+use super::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::collections::HashMap;
@@ -25,10 +24,11 @@ pub(super) async fn comic_project_progress_by_project(
         .map_err(|error| ProjectProgressReadError::database("查询漫画页面提示词失败", error))?;
     let mut counts_by_project: HashMap<i64, ProgressCounts> = HashMap::new();
     for row in rows {
-        counts_by_project
-            .entry(row.project_id)
-            .or_default()
-            .add(&row.status);
+        counts_by_project.entry(row.project_id).or_default().add(
+            "chapter_manga_prompt",
+            row.id,
+            &row.status,
+        )?;
     }
     let mut pipeline_by_project = latest_pipeline_states_by_project(
         db,
@@ -54,74 +54,38 @@ fn comic_project_progress_from_counts(
     counts: ProgressCounts,
     pipeline: PipelineProjectState,
 ) -> ProjectProgressSummary {
-    let total = non_zero(counts.total());
+    let total = (counts.total() > 0).then_some(counts.total());
     let current = total.map(|_| counts.completed);
     if counts.failed > 0 || pipeline.failed {
         return project_progress(
-            PROJECT_KIND_COMIC,
-            "manga_failed",
             "漫画生成失败",
-            current,
-            total,
-            ProjectProgressStatus::Failed,
             Some("存在失败的漫画流水线或页面生成记录".to_string()),
         );
     }
     if counts.running > 0 || pipeline.running {
         return project_progress(
-            PROJECT_KIND_COMIC,
-            "manga_running",
             "漫画生成中",
-            current,
-            total,
-            ProjectProgressStatus::Running,
             pipeline
                 .message
                 .or_else(|| progress_count_detail("已完成页面", current, total)),
         );
     }
     if pipeline.cancelled {
-        return project_progress(
-            PROJECT_KIND_COMIC,
-            "manga_cancelled",
-            "漫画生成已取消",
-            current,
-            total,
-            ProjectProgressStatus::Blocked,
-            pipeline.message,
-        );
+        return project_progress("漫画生成已取消", pipeline.message);
     }
     if total.is_some() && counts.completed >= counts.total() {
         return project_progress(
-            PROJECT_KIND_COMIC,
-            "manga_ready",
             "漫画已生成",
-            current,
-            total,
-            ProjectProgressStatus::Completed,
             progress_count_detail("已完成页面", current, total),
         );
     }
     if counts.completed > 0 {
         return project_progress(
-            PROJECT_KIND_COMIC,
-            "manga_partial",
             "漫画部分完成",
-            current,
-            total,
-            ProjectProgressStatus::Idle,
             progress_count_detail("已完成页面", current, total),
         );
     }
-    project_progress(
-        PROJECT_KIND_COMIC,
-        "manga_workspace",
-        "漫画制作中",
-        current,
-        total,
-        ProjectProgressStatus::Idle,
-        progress_count_detail("页面", current, total),
-    )
+    project_progress("漫画制作中", progress_count_detail("页面", current, total))
 }
 
 #[cfg(test)]
@@ -137,10 +101,7 @@ mod tests {
         pipeline.message = Some("正在生成漫画页".to_string());
         let summary = comic_project_progress_from_counts(ProgressCounts::default(), pipeline);
 
-        assert_eq!(summary.kind, PROJECT_KIND_COMIC);
-        assert_eq!(summary.stage, "manga_running");
         assert_eq!(summary.label, "漫画生成中");
-        assert_eq!(summary.status, ProjectProgressStatus::Running);
         assert_eq!(summary.detail.as_deref(), Some("正在生成漫画页"));
     }
 }

@@ -1,7 +1,6 @@
 use super::facts::video_progress_facts_from_rows;
 use super::status::video_project_progress_from_counts;
 use super::{CHAPTER_VIDEO_TYPE, VIDEO_PROMPT_TYPE};
-use crate::project::progress::ProjectProgressStatus;
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -100,12 +99,9 @@ fn video_project_progress_ignores_stale_failed_video_when_prompt_is_current_pend
         generated_video_row(80, 2, 2, "completed", test_time(31)),
         generated_video_row(78, 3, 3, "failed", test_time(20)),
     ];
-    let facts = video_progress_facts_from_rows(&prompts, &videos);
+    let facts = video_progress_facts_from_rows(&prompts, &videos).unwrap();
     let summary = video_project_progress_from_counts(facts);
 
-    assert_eq!(summary.stage, "video_partial");
     assert_eq!(summary.label, "视频部分完成");
-    assert_eq!(summary.current, Some(2));
-    assert_eq!(summary.total, Some(3));
-    assert_eq!(summary.status, ProjectProgressStatus::Idle);
+    assert_eq!(summary.detail.as_deref(), Some("已完成视频片段 2/3"));
 }

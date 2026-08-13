@@ -9,17 +9,11 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
     project: &novel_project::Model,
     metadata: &ProjectFamilyMetadata,
     info: &ProjectAccessInfo,
+    project_kind: ProjectKind,
+    status: ProjectStatus,
     progress: ProjectProgressSummary,
-) -> Result<ProjectSummary, String> {
-    let status = ProjectStatus::parse(&project.status)
-        .ok_or_else(|| format!("项目 #{} 的状态无效: {}", project.id, project.status))?;
-    let project_kind = ProjectKind::parse(&project.project_kind).ok_or_else(|| {
-        format!(
-            "项目 #{} 的项目族无效: {}",
-            project.id, project.project_kind
-        )
-    })?;
-    Ok(ProjectSummary {
+) -> ProjectSummary {
+    ProjectSummary {
         id: project.id,
         title: project.title.clone(),
         description: project.description.clone(),
@@ -43,5 +37,5 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
         pending_invite_count: info.pending_invite_count,
         progress,
         updated_at: project.updated_at.to_string(),
-    })
+    }
 }

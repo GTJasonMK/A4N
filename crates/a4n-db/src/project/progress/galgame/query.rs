@@ -135,6 +135,6 @@ async fn line_counts_by_scene(
         .map_err(|error| ProjectProgressReadError::database("统计 Galgame 台词失败", error))?;
     Ok(rows
         .into_iter()
-        .map(|row| (row.scene_id, row.count.max(0)))
+        .map(|row| (row.scene_id, row.count))
         .collect())
 }

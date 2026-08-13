@@ -1,15 +1,13 @@
 use super::comic::comic_project_progress_by_project;
 use super::freeform::freeform_video_project_progress_by_project;
 use super::galgame::galgame_project_progress_by_project;
-use super::text::{text_project_progress, unknown_project_progress};
+use super::text::text_project_progress;
 use super::video::video_project_progress_by_project;
 use super::{ProjectProgressQuery, ProjectProgressReadError, ProjectProgressSummary};
-use crate::project::{
-    PROJECT_KIND_COMIC, PROJECT_KIND_GALGAME, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO,
-    SOURCE_MODE_FREEFORM, validate_positive_i64,
-};
+use crate::project::{SOURCE_MODE_FREEFORM, validate_positive_i64};
+use a4n_domain::project::ProjectKind;
 use sea_orm::DatabaseConnection;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub async fn project_progress_summary(
     db: &DatabaseConnection,
@@ -32,26 +30,27 @@ pub async fn project_progress_summaries(
     let mut video_project_ids = Vec::new();
     let mut freeform_video_project_ids = Vec::new();
     let mut galgame_project_ids = Vec::new();
+    let mut project_ids = HashSet::with_capacity(queries.len());
 
     for query in queries {
         validate_positive_i64(query.project_id, "project_id")
             .map_err(ProjectProgressReadError::InvalidArgument)?;
-        match query.project_kind.as_str() {
-            PROJECT_KIND_TEXT => {
+        if !project_ids.insert(query.project_id) {
+            return Err(ProjectProgressReadError::InvalidArgument(format!(
+                "项目进度查询包含重复 project_id: {}",
+                query.project_id
+            )));
+        }
+        match query.project_kind {
+            ProjectKind::Text => {
                 progress_by_project_id.insert(query.project_id, text_project_progress(query));
             }
-            PROJECT_KIND_COMIC => comic_project_ids.push(query.project_id),
-            PROJECT_KIND_VIDEO if query.source_mode == SOURCE_MODE_FREEFORM => {
+            ProjectKind::Comic => comic_project_ids.push(query.project_id),
+            ProjectKind::Video if query.source_mode == SOURCE_MODE_FREEFORM => {
                 freeform_video_project_ids.push(query.project_id);
             }
-            PROJECT_KIND_VIDEO => video_project_ids.push(query.project_id),
-            PROJECT_KIND_GALGAME => galgame_project_ids.push(query.project_id),
-            _ => {
-                progress_by_project_id.insert(
-                    query.project_id,
-                    unknown_project_progress(&query.project_kind),
-                );
-            }
+            ProjectKind::Video => video_project_ids.push(query.project_id),
+            ProjectKind::Galgame => galgame_project_ids.push(query.project_id),
         }
     }
 

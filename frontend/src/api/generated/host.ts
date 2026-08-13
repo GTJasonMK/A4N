@@ -2061,16 +2061,9 @@ export interface SendOptimizationMessageInput {
   session_id: number;
 }
 
-export type ProjectProgressStatus = "idle" | "running" | "blocked" | "failed" | "completed";
-
 export interface ProjectProgressSummary {
-  current: number | null;
   detail: string | null;
-  kind: string;
   label: string;
-  stage: string;
-  status: ProjectProgressStatus;
-  total: number | null;
 }
 
 export type ProjectKind = "text" | "comic" | "video" | "galgame";

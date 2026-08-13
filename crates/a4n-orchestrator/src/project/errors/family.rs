@@ -56,7 +56,14 @@ pub(crate) fn project_progress_read_error_to_app_error(
 ) -> AppError {
     match error {
         ProjectProgressReadError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        ProjectProgressReadError::SummaryMissing { .. } => {
+        ProjectProgressReadError::InvalidProjectKind { .. }
+        | ProjectProgressReadError::InvalidProjectStatus { .. }
+        | ProjectProgressReadError::InvalidSourceMode { .. }
+        | ProjectProgressReadError::InvalidProjectSource { .. }
+        | ProjectProgressReadError::InvalidChapterProgress { .. }
+        | ProjectProgressReadError::InvalidPersistedStatus { .. }
+        | ProjectProgressReadError::InvalidPersistedReference { .. }
+        | ProjectProgressReadError::SummaryMissing { .. } => {
             AppError::Internal(anyhow::anyhow!(error.to_string()))
         }
         ProjectProgressReadError::Database { source, .. } => AppError::Database(source),
