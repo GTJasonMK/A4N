@@ -1,14 +1,14 @@
 use super::types::CanvasGraphRecordInput;
-use super::validation::{CanvasRecordNodeRefKind, validate_canvas_record_node_ref_shape};
+use super::validation::validate_canvas_record_node_ref_shape;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::{
     ai::{generated_image, generated_video},
     canvas::canvas_text_asset,
-    chapter::chapter_video_prompt,
     generation::{generation_spec, prompt_artifact},
     media::media_asset,
     video_project::{assembly_timeline, video_segment},
 };
+use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 pub(super) async fn validate_canvas_graph_record_references<C>(
@@ -27,8 +27,8 @@ where
             continue;
         };
         match kind {
-            CanvasRecordNodeRefKind::Inline | CanvasRecordNodeRefKind::Config => {}
-            CanvasRecordNodeRefKind::CanvasTextAsset => {
+            CanvasNodeRefKind::Inline | CanvasNodeRefKind::Config => {}
+            CanvasNodeRefKind::CanvasTextAsset => {
                 let row = canvas_text_asset::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
@@ -42,7 +42,7 @@ where
                     ref_id,
                 )?;
             }
-            CanvasRecordNodeRefKind::PromptArtifact => {
+            CanvasNodeRefKind::PromptArtifact => {
                 let row = prompt_artifact::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
@@ -64,21 +64,21 @@ where
                     ref_id,
                 )?;
             }
-            CanvasRecordNodeRefKind::MediaAsset => {
+            CanvasNodeRefKind::MediaAsset => {
                 let row = media_asset::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
                     .ok_or_else(|| CanvasDbError::NotFound(format!("媒体资产不存在: {ref_id}")))?;
                 ensure_canvas_record_ref_project(row.project_id, project_id, "媒体资产", ref_id)?;
             }
-            CanvasRecordNodeRefKind::VideoSegment => {
+            CanvasNodeRefKind::VideoSegment => {
                 let row = video_segment::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
                     .ok_or_else(|| CanvasDbError::NotFound(format!("视频片段不存在: {ref_id}")))?;
                 ensure_canvas_record_ref_project(row.project_id, project_id, "视频片段", ref_id)?;
             }
-            CanvasRecordNodeRefKind::AssemblyTimeline => {
+            CanvasNodeRefKind::AssemblyTimeline => {
                 let row = assembly_timeline::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
@@ -87,42 +87,26 @@ where
                     })?;
                 ensure_canvas_record_ref_project(row.project_id, project_id, "成片时间线", ref_id)?;
             }
-            CanvasRecordNodeRefKind::GenerationSpec => {
+            CanvasNodeRefKind::GenerationSpec => {
                 let row = generation_spec::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
                     .ok_or_else(|| CanvasDbError::NotFound(format!("生成意图不存在: {ref_id}")))?;
                 ensure_canvas_record_ref_project(row.project_id, project_id, "生成意图", ref_id)?;
             }
-            CanvasRecordNodeRefKind::GeneratedImage
-            | CanvasRecordNodeRefKind::LegacyGeneratedImage => {
+            CanvasNodeRefKind::GeneratedImage => {
                 let row = generated_image::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
                     .ok_or_else(|| CanvasDbError::NotFound(format!("生成图片不存在: {ref_id}")))?;
                 ensure_canvas_record_ref_project(row.project_id, project_id, "生成图片", ref_id)?;
             }
-            CanvasRecordNodeRefKind::GeneratedVideo
-            | CanvasRecordNodeRefKind::LegacyGeneratedVideo => {
+            CanvasNodeRefKind::GeneratedVideo => {
                 let row = generated_video::Entity::find_by_id(ref_id)
                     .one(db)
                     .await?
                     .ok_or_else(|| CanvasDbError::NotFound(format!("生成视频不存在: {ref_id}")))?;
                 ensure_canvas_record_ref_project(row.project_id, project_id, "生成视频", ref_id)?;
-            }
-            CanvasRecordNodeRefKind::LegacyChapterVideoPrompt => {
-                let row = chapter_video_prompt::Entity::find_by_id(ref_id)
-                    .one(db)
-                    .await?
-                    .ok_or_else(|| {
-                        CanvasDbError::NotFound(format!("章节视频提示词不存在: {ref_id}"))
-                    })?;
-                ensure_canvas_record_ref_project(
-                    row.project_id,
-                    project_id,
-                    "章节视频提示词",
-                    ref_id,
-                )?;
             }
         }
     }

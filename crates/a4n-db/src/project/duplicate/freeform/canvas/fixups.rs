@@ -80,8 +80,16 @@ where
                 operation: "更新生成意图元数据".to_string(),
             })?;
         let params_json = remap_freeform_metadata(spec.params_json, maps)?;
+        let source_version_hash = generation_spec::freeform_source_version_hash(&params_json)
+            .ok_or_else(|| ProjectDuplicateError::InvalidState {
+                current: format!(
+                    "生成意图 {new_spec_id} 的 params_json.source_material 不是 JSON 对象"
+                ),
+                operation: "更新生成意图元数据".to_string(),
+            })?;
         generation_spec::ActiveModel {
             id: Set(new_spec_id),
+            source_version_hash: Set(source_version_hash),
             params_json: Set(params_json),
             updated_at: Set(now),
             ..Default::default()

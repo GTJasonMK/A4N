@@ -84,7 +84,7 @@ fn canvas_ref_shape_rejects_unknown_ref_type() {
 
 #[test]
 fn canvas_ref_shape_requires_id_for_project_owned_refs() {
-    let err = validate_canvas_record_node_ref_shape(&node(Some("legacy_generated_image"), None))
+    let err = validate_canvas_record_node_ref_shape(&node(Some("generated_image"), None))
         .expect_err("project-owned ref must have an id");
 
     assert!(err.to_string().contains("必须设置 ref_id"));
@@ -97,8 +97,8 @@ fn canvas_ref_shape_accepts_inline_without_id_and_config_with_positive_id() {
     let config = validate_canvas_record_node_ref_shape(&node(Some("config"), Some(12)))
         .expect("config can carry a positive config id");
 
-    assert_eq!(inline, Some(CanvasRecordNodeRefKind::Inline));
-    assert_eq!(config, Some(CanvasRecordNodeRefKind::Config));
+    assert_eq!(inline, Some(CanvasNodeRefKind::Inline));
+    assert_eq!(config, Some(CanvasNodeRefKind::Config));
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn canvas_edge_contract_uses_assembly_clip_role_for_assemble_node() {
     let video = node_with_kind(
         "VideoInputNode",
         "video",
-        Some("legacy_generated_video"),
+        Some("generated_video"),
         Some(9),
         json!({}),
     );
@@ -369,7 +369,7 @@ fn canvas_edge_contract_requires_explicit_assembly_clip_order() {
     let video = node_with_kind(
         "VideoInputNode",
         "video",
-        Some("legacy_generated_video"),
+        Some("generated_video"),
         Some(9),
         json!({}),
     );
@@ -395,14 +395,14 @@ fn canvas_edge_contract_rejects_duplicate_assembly_clip_order() {
     let first_video = node_with_kind(
         "VideoInputNode",
         "video-1",
-        Some("legacy_generated_video"),
+        Some("generated_video"),
         Some(9),
         json!({}),
     );
     let second_video = node_with_kind(
         "VideoInputNode",
         "video-2",
-        Some("legacy_generated_video"),
+        Some("generated_video"),
         Some(10),
         json!({}),
     );
@@ -425,7 +425,7 @@ fn canvas_edge_contract_rejects_invalid_role_for_port_pair() {
     let image = node_with_kind(
         "ImageInputNode",
         "image",
-        Some("legacy_generated_image"),
+        Some("generated_image"),
         Some(9),
         json!({}),
     );
@@ -451,7 +451,7 @@ fn canvas_edge_contract_accepts_generate_video_end_frame_input() {
     let image = node_with_kind(
         "ImageInputNode",
         "image",
-        Some("legacy_generated_image"),
+        Some("generated_image"),
         Some(9),
         json!({}),
     );

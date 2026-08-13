@@ -13,6 +13,36 @@ fn validate_video_studio_manifest_rejects_missing_generated_video_file_payload()
 }
 
 #[test]
+fn validate_video_studio_manifest_rejects_non_terminal_generated_video() {
+    let mut package = package();
+    let mut video = video_with_file();
+    video.file_path = None;
+    video.thumbnail_path = None;
+    video.status = "running".to_string();
+    package.generated_videos.push(video);
+
+    let err = validate_package_manifest(&package, &empty_payload())
+        .expect_err("active provider videos must not be transferred");
+
+    assert!(err.contains("只能传输终态生成视频"));
+}
+
+#[test]
+fn validate_video_studio_manifest_rejects_generated_video_runtime_identity() {
+    let mut package = package();
+    let mut video = video_with_file();
+    video.file_path = None;
+    video.thumbnail_path = None;
+    video.metadata_json = Some(serde_json::json!({"workflow_run_id":40}));
+    package.generated_videos.push(video);
+
+    let err = validate_package_manifest(&package, &empty_payload())
+        .expect_err("workflow identity must not cross project transfer");
+
+    assert!(err.contains("workflow_run_id"));
+}
+
+#[test]
 fn validate_video_studio_manifest_rejects_missing_generated_video_thumbnail_payload() {
     let mut package = package();
     let mut video = video_with_file();

@@ -1,5 +1,6 @@
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 
 use crate::canvas::{
@@ -145,10 +146,7 @@ fn source_generated_video_id(
     if let Some(output) = source_operation_checkpoint_output(checkpoints, node, consumer_label)? {
         return Ok(output.get("generated_video_id").and_then(Value::as_i64));
     }
-    if matches!(
-        node.ref_type.as_deref(),
-        Some("generated_video" | "legacy_generated_video")
-    ) {
+    if node.ref_type.as_deref() == Some(CanvasNodeRefKind::GeneratedVideo.as_str()) {
         return Ok(node.ref_id);
     }
     Ok(None)

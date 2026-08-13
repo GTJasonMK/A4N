@@ -1,4 +1,4 @@
-use super::super::remap::{remap_video_studio_canvas_node_refs, remap_video_studio_required_id};
+use super::super::remap::remap_video_studio_required_id;
 use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps, VideoStudioProjectImportRows,
 };
@@ -64,18 +64,12 @@ where
     for node in &rows.canvas_nodes {
         let graph_id =
             remap_video_studio_required_id(&maps.graph_ids, node.graph_id, "canvas_node.graph_id")?;
-        let (ref_type, ref_id, config_json) = remap_video_studio_canvas_node_refs(
-            node.ref_type.clone(),
-            node.ref_id,
-            node.config_json.clone(),
-            maps,
-        )?;
         let row = canvas_node::ActiveModel {
             graph_id: Set(graph_id),
             node_kind: Set(node.node_kind.clone()),
-            ref_type: Set(ref_type),
-            ref_id: Set(ref_id),
-            config_json: Set(config_json),
+            ref_type: Set(None),
+            ref_id: Set(None),
+            config_json: Set(node.config_json.clone()),
             position_json: Set(node.position_json.clone()),
             state: Set(node.state.clone()),
             created_at: Set(now),

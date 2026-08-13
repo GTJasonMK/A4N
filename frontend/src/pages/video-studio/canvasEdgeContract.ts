@@ -1,5 +1,4 @@
 import { nodeDisplayTitle } from "./StudioCanvasNode";
-import { isProbeNodeKind } from "./canvasNodeKinds";
 import {
   dataTypesCompatible,
   studioNodeContract,
@@ -63,19 +62,19 @@ export function inferCanvasEdgeContract(
       return {
         sourcePort: sourcePort.id,
         targetPort: targetPort.id,
-        role: canvasEdgeRoleForPorts(source.data.nodeKind, sourcePort.id, target.data.nodeKind, targetPort.id),
+        role: canvasEdgeRoleForPorts(sourcePort.id, target.data.nodeKind, targetPort.id),
       };
     }
   }
   return null;
 }
 
-export function canvasConnectionError(
+export function validateCanvasConnection(
   connection: CanvasConnectionLike,
   nodes: StudioNode[],
   edges: StudioEdge[],
   contractsByKind: StudioNodeContractMap,
-): string | null {
+): CanvasEdgeContract | string {
   if (!connection.source || !connection.target) return "连线缺少源节点或目标节点";
   if (connection.source === connection.target) return "画布不允许节点自连";
   const contract = inferCanvasEdgeContract(connection, nodes, contractsByKind, edges);
@@ -103,7 +102,7 @@ export function canvasConnectionError(
     );
     if (hasExistingInput) return `${targetPort.label} 输入只允许一个来源`;
   }
-  return null;
+  return contract;
 }
 
 export function canvasGraphSaveValidationError(
@@ -114,11 +113,18 @@ export function canvasGraphSaveValidationError(
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const singleInputEdges = new Set<string>();
   for (const edge of edges) {
-    if (!edge.source || !edge.target) continue;
+    if (!edge.source || !edge.target) return "连线缺少源节点或目标节点";
     const contract = inferCanvasEdgeContract(edge, nodesById, contractsByKind);
     const source = nodesById.get(edge.source);
     const target = nodesById.get(edge.target);
     if (!contract || !source || !target) {
+      return canvasEdgeMismatchMessage(edge, source, target);
+    }
+    if (
+      edge.sourceHandle !== contract.sourcePort ||
+      edge.targetHandle !== contract.targetPort ||
+      edge.data?.role !== contract.role
+    ) {
       return canvasEdgeMismatchMessage(edge, source, target);
     }
     const targetContract = studioNodeContract(contractsByKind, target.data.nodeKind);
@@ -150,7 +156,6 @@ function canvasEdgeMismatchMessage(edge: StudioEdge, source?: StudioNode, target
 }
 
 function canvasEdgeRoleForPorts(
-  _sourceKind: string,
   sourcePort: string,
   targetKind: string,
   targetPort: string,
@@ -159,9 +164,7 @@ function canvasEdgeRoleForPorts(
   if (targetPort === "end_frame") return "end_frame";
   if (targetPort === "reference_image") return "style_reference";
   if (targetPort === "clip") return "assembly_clip";
-  if (isProbeNodeKind(targetKind)) return "context";
   if (targetKind === "VideoOutputNode" && targetPort === "video") return "final_video";
   if (targetPort === "video" && sourcePort === "video") return "source_video";
-  if (targetPort === "text" || targetPort === "input") return "context";
   return "context";
 }

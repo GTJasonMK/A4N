@@ -5,7 +5,7 @@ use sea_orm::ConnectionTrait;
 use super::{
     images::copy_freeform_generated_images_record,
     refs::update_freeform_generated_video_source_refs_record,
-    videos::copy_freeform_generated_videos_record,
+    videos::{copy_freeform_generated_videos_record, freeform_generated_videos_for_copy_record},
 };
 use crate::project::duplicate::{
     ProjectDuplicateError,
@@ -29,6 +29,7 @@ where
     Copier: ProjectMediaFileCopier,
 {
     ensure_freeform_source_mode(&original.source_mode)?;
+    let source_videos = freeform_generated_videos_for_copy_record(db, original.id).await?;
     let project = insert_project_copy_record(
         db,
         original,
@@ -50,10 +51,15 @@ where
     let images =
         copy_freeform_generated_images_record(db, original.id, project.id, now, media_file_copier)
             .await?;
-    let videos =
-        copy_freeform_generated_videos_record(db, original.id, project.id, now, media_file_copier)
-            .await?;
-    update_freeform_generated_video_source_refs_record(db, original.id, &images, &videos, now)
+    let videos = copy_freeform_generated_videos_record(
+        db,
+        &source_videos,
+        project.id,
+        now,
+        media_file_copier,
+    )
+    .await?;
+    update_freeform_generated_video_source_refs_record(db, &source_videos, &images, &videos, now)
         .await?;
 
     Ok(FreeformProjectMediaCopyResult {

@@ -14,15 +14,13 @@ pub use reset::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MissingCanvasRef {
-    pub ref_type: &'static str,
+    pub ref_type: a4n_domain::CanvasNodeRefKind,
     pub ref_id: i64,
     pub clear_node_ref: bool,
 }
 
 #[cfg(test)]
-use config::{
-    IMAGE_REF_CONFIG_KEYS, remove_config_any_i64_refs, remove_config_i64_array_refs_for_any,
-};
+use config::{IMAGE_REF_CONFIG_KEY, remove_config_any_i64_ref};
 
 #[cfg(test)]
 mod tests;

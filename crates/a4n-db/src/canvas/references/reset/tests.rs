@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{canvas::references::MissingCanvasRef, project::FreeformGeneratedResetTargets};
 use a4n_core::models::canvas::canvas_node;
+use a4n_domain::CanvasNodeRefKind;
 use chrono::Utc;
 use serde_json::{Value, json};
 
@@ -39,7 +40,7 @@ fn reset_detection_prioritizes_direct_ref_before_config_refs() {
     assert_eq!(
         reset_missing_canvas_ref_for_node(&node, &targets),
         Some(MissingCanvasRef {
-            ref_type: "media_asset",
+            ref_type: CanvasNodeRefKind::MediaAsset,
             ref_id: 7,
             clear_node_ref: true,
         })
@@ -47,8 +48,8 @@ fn reset_detection_prioritizes_direct_ref_before_config_refs() {
 }
 
 #[test]
-fn reset_detection_reports_config_ref_without_clearing_node_ref() {
-    let node = node(None, None, json!({"reference_image_ids": [10, 12]}));
+fn reset_detection_reports_runtime_config_ref_without_clearing_node_ref() {
+    let node = node(None, None, json!({"generated_image_id": 10}));
     let targets = FreeformGeneratedResetTargets {
         image_ids: vec![10],
         ..Default::default()
@@ -57,7 +58,7 @@ fn reset_detection_reports_config_ref_without_clearing_node_ref() {
     assert_eq!(
         reset_missing_canvas_ref_for_node(&node, &targets),
         Some(MissingCanvasRef {
-            ref_type: "generated_image",
+            ref_type: CanvasNodeRefKind::GeneratedImage,
             ref_id: 10,
             clear_node_ref: false,
         })
@@ -68,12 +69,9 @@ fn reset_detection_reports_config_ref_without_clearing_node_ref() {
 fn reset_payload_removes_only_targeted_ids() {
     let mut config = json!({
         "generated_image_id": 10,
-        "source_image_id": 11,
-        "reference_image_ids": [10, 12],
         "generated_video_id": 20,
-        "video_ids": [20, 21],
         "generation_spec_id": 30,
-        "prompt_artifact_ids": [40, 41],
+        "prompt_artifact_id": 40,
         "media_asset_id": 50,
         "title": "keep"
     });
@@ -89,25 +87,25 @@ fn reset_payload_removes_only_targeted_ids() {
     clear_reset_generated_ref_payload(config.as_object_mut().expect("object config"), &targets);
 
     assert!(config.get("generated_image_id").is_none());
-    assert_eq!(config["source_image_id"], json!(11));
-    assert_eq!(config["reference_image_ids"], json!([12]));
     assert!(config.get("generated_video_id").is_none());
-    assert_eq!(config["video_ids"], json!([21]));
     assert!(config.get("generation_spec_id").is_none());
-    assert_eq!(config["prompt_artifact_ids"], json!([41]));
+    assert!(config.get("prompt_artifact_id").is_none());
     assert!(config.get("media_asset_id").is_none());
     assert_eq!(config["title"], json!("keep"));
 }
 
 #[test]
-fn reference_predicates_accept_legacy_and_config_shapes() {
-    let legacy_video = node(Some("legacy_generated_video"), Some(20), json!({}));
-    let config_video = node(None, None, json!({"video_ids": [20]}));
-    let legacy_image = node(Some("legacy_generated_image"), Some(10), json!({}));
-    let config_image = node(None, None, json!({"reference_image_ids": [10]}));
+fn reference_predicates_accept_canonical_and_runtime_config_shapes() {
+    let canonical_video = node(Some("generated_video"), Some(20), json!({}));
+    let config_video = node(None, None, json!({"generated_video_id": 20}));
+    let canonical_image = node(Some("generated_image"), Some(10), json!({}));
+    let config_image = node(None, None, json!({"generated_image_id": 10}));
 
-    assert!(canvas_node_references_generated_video(&legacy_video, 20));
+    assert!(canvas_node_references_generated_video(&canonical_video, 20));
     assert!(canvas_node_references_generated_video(&config_video, 20));
-    assert!(canvas_node_references_generated_image(&legacy_image, &[10]));
+    assert!(canvas_node_references_generated_image(
+        &canonical_image,
+        &[10]
+    ));
     assert!(canvas_node_references_generated_image(&config_image, &[10]));
 }

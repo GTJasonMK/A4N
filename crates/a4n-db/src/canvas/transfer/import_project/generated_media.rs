@@ -73,6 +73,12 @@ where
 {
     let mut imported = HashMap::new();
     for video in videos {
+        if !generated_video::is_terminal_status(&video.status) {
+            return Err(VideoStudioProjectImportError::InvalidPackage(format!(
+                "视频画布项目包不能导入非终态生成视频: generated_video_id={}, status={}",
+                video.id, video.status
+            )));
+        }
         let file_path = context
             .media_file_writer
             .write_imported_media_file(
@@ -113,7 +119,7 @@ where
             source_video_id: Set(None),
             source_image_id: Set(None),
             status: Set(video.status.clone()),
-            provider_job_id: Set(video.provider_job_id.clone()),
+            provider_job_id: Set(None),
             error_message: Set(video.error_message.clone()),
             metadata_json: Set(video.metadata_json.clone()),
             is_favorite: Set(video.is_favorite),

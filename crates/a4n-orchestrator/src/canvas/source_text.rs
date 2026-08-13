@@ -4,6 +4,7 @@ use crate::canvas::{
 };
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 
 pub(crate) struct CanvasTextSourceContext {
@@ -90,7 +91,7 @@ pub(crate) fn source_text_value(
 pub(crate) fn source_canvas_text_asset_id(node: &canvas_node::Model) -> Option<i64> {
     node.ref_type
         .as_deref()
-        .is_some_and(|value| value == "canvas_text_asset")
+        .is_some_and(|value| value == CanvasNodeRefKind::CanvasTextAsset.as_str())
         .then_some(node.ref_id)
         .flatten()
         .or_else(|| canvas_config_i64(&node.config_json, "canvas_text_asset_id"))

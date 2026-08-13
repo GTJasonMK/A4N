@@ -21,7 +21,7 @@ fn invalid_state(error: ProjectDuplicateError) -> (String, String) {
 }
 
 #[test]
-fn remap_freeform_canvas_legacy_image_ref_updates_id_and_file_path() {
+fn remap_freeform_canvas_generated_image_ref_updates_id_and_file_path() {
     let mut copied_images = FreeformGeneratedImageCopyRecords::default();
     copied_images.ids.insert(10, 20);
     copied_images
@@ -32,13 +32,13 @@ fn remap_freeform_canvas_legacy_image_ref_updates_id_and_file_path() {
         ..Default::default()
     };
     let (_, ref_id, config_json) = remap_freeform_canvas_node_refs(
-        Some("legacy_generated_image".to_string()),
+        Some("generated_image".to_string()),
         Some(10),
         json!({"file_path": "projects/10/images/source.png"}),
         &maps,
         None,
     )
-    .expect("legacy generated image ref should be remapped");
+    .expect("generated image ref should be remapped");
     assert_eq!(ref_id, Some(20));
     assert_eq!(
         config_json["file_path"],
@@ -106,14 +106,47 @@ fn remap_freeform_metadata_remaps_nested_canvas_ids() {
     maps.media_asset_ids.insert(44, 144);
     maps.graph_ids.insert(50, 150);
     maps.node_ids.insert(51, 151);
+    maps.images.ids.insert(52, 152);
+    maps.videos.ids.insert(53, 153);
     let metadata = remap_freeform_metadata(
-        json!({"media_asset_id":44,"canvas":{"graph_id":50,"node_id":51}}),
+        json!({
+            "media_asset_id":44,
+            "config_id": 70,
+            "canvas":{"graph_id":50,"node_id":51,"source_node_ids":[51],"workflow_run_id":71},
+            "source_material":{
+                "first_frame_image_id":52,
+                "last_frame_image_id":52,
+                "reference_image_ids":[52],
+                "video_ids":[53],
+                "source_node_ids":[51]
+            },
+            "metadata":{"generated_video_id":53,"provider_job_id":"job-72"}
+        }),
         &maps,
     )
     .expect("known project-local ids should remap");
     assert_eq!(metadata["media_asset_id"], json!(144));
     assert_eq!(metadata["canvas"]["graph_id"], json!(150));
     assert_eq!(metadata["canvas"]["node_id"], json!(151));
+    assert_eq!(metadata["canvas"]["source_node_ids"], json!([151]));
+    assert_eq!(
+        metadata["source_material"]["first_frame_image_id"],
+        json!(152)
+    );
+    assert_eq!(
+        metadata["source_material"]["last_frame_image_id"],
+        json!(152)
+    );
+    assert_eq!(
+        metadata["source_material"]["reference_image_ids"],
+        json!([152])
+    );
+    assert_eq!(metadata["source_material"]["video_ids"], json!([153]));
+    assert_eq!(metadata["source_material"]["source_node_ids"], json!([151]));
+    assert_eq!(metadata["metadata"]["generated_video_id"], json!(153));
+    assert!(metadata.get("config_id").is_none());
+    assert!(metadata["canvas"].get("workflow_run_id").is_none());
+    assert!(metadata["metadata"].get("provider_job_id").is_none());
 }
 
 #[test]

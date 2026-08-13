@@ -1,5 +1,6 @@
 use super::super::*;
 use super::contracts::ManifestIds;
+use a4n_domain::canvas_transfer_runtime_identity_key;
 
 pub(super) fn validate_generation_records(
     package: &VideoStudioProjectPackage,
@@ -31,6 +32,25 @@ pub(super) fn validate_generation_records(
         {
             return Err(format!(
                 "生成意图引用了不存在的画布文本资产: generation_spec_id={}, canvas_text_asset_id={asset_id}",
+                spec.id
+            ));
+        }
+        let expected_source_version_hash =
+            generation_spec::freeform_source_version_hash(&spec.params_json).ok_or_else(|| {
+                format!(
+                    "生成意图 params_json.source_material 必须是 JSON 对象: generation_spec_id={}",
+                    spec.id
+                )
+            })?;
+        if spec.source_version_hash != expected_source_version_hash {
+            return Err(format!(
+                "生成意图 source_version_hash 与 source_material 不一致: generation_spec_id={}",
+                spec.id
+            ));
+        }
+        if let Some(key) = canvas_transfer_runtime_identity_key(&spec.params_json) {
+            return Err(format!(
+                "生成意图 params_json 不能携带运行身份 {key}: generation_spec_id={}",
                 spec.id
             ));
         }

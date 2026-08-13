@@ -84,7 +84,3 @@ export function configOptionLabel(option: StudioConfigOption): string {
   const meta = [option.provider, option.model].filter(Boolean).join(" / ");
   return `${option.name}${option.isDefault ? "（默认）" : ""} #${option.id}${meta ? ` - ${meta}` : ""}`;
 }
-
-export function studioConfigKind(value: string): StudioConfigKind | null {
-  return value === "llm" || value === "image" || value === "video" ? value : null;
-}

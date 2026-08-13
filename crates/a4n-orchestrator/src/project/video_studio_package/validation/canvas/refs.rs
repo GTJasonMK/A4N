@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use a4n_core::models::canvas::canvas_node;
+use a4n_domain::CanvasNodeRefKind;
 
 pub(in crate::project::video_studio_package::validation) struct CanvasNodeRefIds<'a> {
     pub(in crate::project::video_studio_package::validation) text_asset_ids: &'a HashSet<i64>,
@@ -18,12 +19,7 @@ pub(in crate::project::video_studio_package::validation) fn validate_canvas_node
     node: &canvas_node::Model,
     refs: &CanvasNodeRefIds<'_>,
 ) -> Result<(), String> {
-    let Some(ref_type) = node
-        .ref_type
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
+    let Some(ref_type) = node.ref_type.as_deref() else {
         if node.ref_id.is_some() {
             return Err(format!(
                 "画布节点 ref_type 为空时不能设置 ref_id: canvas_node_id={}",
@@ -32,8 +28,11 @@ pub(in crate::project::video_studio_package::validation) fn validate_canvas_node
         }
         return Ok(());
     };
-    match ref_type {
-        "inline" => {
+    let kind = ref_type
+        .parse::<CanvasNodeRefKind>()
+        .map_err(|error| format!("canvas_node_id={}, {error}", node.id))?;
+    match kind {
+        CanvasNodeRefKind::Inline => {
             if node.ref_id.is_some() {
                 return Err(format!(
                     "inline 画布节点不能设置 ref_id: canvas_node_id={}",
@@ -42,7 +41,7 @@ pub(in crate::project::video_studio_package::validation) fn validate_canvas_node
             }
             Ok(())
         }
-        "config" => {
+        CanvasNodeRefKind::Config => {
             if let Some(ref_id) = node.ref_id
                 && ref_id <= 0
             {
@@ -53,38 +52,30 @@ pub(in crate::project::video_studio_package::validation) fn validate_canvas_node
             }
             Ok(())
         }
-        "legacy_generated_image" => {
+        CanvasNodeRefKind::GeneratedImage => {
             require_canvas_node_ref_id(node, ref_type, refs.image_ids, "生成图片")
         }
-        "legacy_generated_video" => {
+        CanvasNodeRefKind::GeneratedVideo => {
             require_canvas_node_ref_id(node, ref_type, refs.video_ids, "生成视频")
         }
-        "canvas_text_asset" => {
+        CanvasNodeRefKind::CanvasTextAsset => {
             require_canvas_node_ref_id(node, ref_type, refs.text_asset_ids, "画布文本资产")
         }
-        "generation_spec" => {
+        CanvasNodeRefKind::GenerationSpec => {
             require_canvas_node_ref_id(node, ref_type, refs.generation_spec_ids, "生成意图")
         }
-        "prompt_artifact" => {
+        CanvasNodeRefKind::PromptArtifact => {
             require_canvas_node_ref_id(node, ref_type, refs.prompt_artifact_ids, "提示词产物")
         }
-        "media_asset" => {
+        CanvasNodeRefKind::MediaAsset => {
             require_canvas_node_ref_id(node, ref_type, refs.media_asset_ids, "媒体资产")
         }
-        "video_segment" => {
+        CanvasNodeRefKind::VideoSegment => {
             require_canvas_node_ref_id(node, ref_type, refs.video_segment_ids, "视频片段")
         }
-        "assembly_timeline" => {
+        CanvasNodeRefKind::AssemblyTimeline => {
             require_canvas_node_ref_id(node, ref_type, refs.assembly_timeline_ids, "成片时间线")
         }
-        "legacy_chapter_video_prompt" => Err(format!(
-            "视频画布项目包不能包含章节视频提示词引用: canvas_node_id={}",
-            node.id
-        )),
-        other => Err(format!(
-            "视频画布项目包包含未知画布节点引用类型: canvas_node_id={}, ref_type={other}",
-            node.id
-        )),
     }
 }
 

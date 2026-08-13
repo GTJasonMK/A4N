@@ -1,6 +1,7 @@
 use super::super::{FreeformCanvasCopyMaps, FreeformCopyMaps};
 use super::ids::remap_freeform_canvas_json_ids;
 use crate::project::duplicate::ProjectDuplicateError;
+use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -12,22 +13,32 @@ pub(in crate::project::duplicate::freeform) fn remap_freeform_canvas_node_refs(
     canvas_maps: Option<&FreeformCanvasCopyMaps>,
 ) -> Result<(Option<String>, Option<i64>, Value), ProjectDuplicateError> {
     remap_freeform_canvas_json_ids(&mut config_json, maps, canvas_maps)?;
-    let Some(kind) = ref_type.as_deref() else {
+    let Some(raw_kind) = ref_type.as_deref() else {
+        if ref_id.is_some() {
+            return Err(ProjectDuplicateError::InvalidArgument(
+                "画布节点 ref_type 为空时不能设置 ref_id".to_string(),
+            ));
+        }
         return Ok((ref_type, ref_id, config_json));
     };
+    let kind = raw_kind
+        .parse::<CanvasNodeRefKind>()
+        .map_err(|error| ProjectDuplicateError::InvalidArgument(error.to_string()))?;
     match kind {
-        "inline" | "config" => Ok((ref_type, ref_id, config_json)),
-        "legacy_generated_image" => {
-            let old_id = required_freeform_canvas_ref_id(ref_id, kind)?;
-            let new_id = remap_freeform_canvas_ref_id(&maps.images.ids, old_id, kind)?;
+        CanvasNodeRefKind::Inline | CanvasNodeRefKind::Config => {
+            Ok((ref_type, ref_id, config_json))
+        }
+        CanvasNodeRefKind::GeneratedImage => {
+            let old_id = required_freeform_canvas_ref_id(ref_id, kind.as_str())?;
+            let new_id = remap_freeform_canvas_ref_id(&maps.images.ids, old_id, kind.as_str())?;
             if let Some(file_path) = maps.images.file_paths.get(&old_id) {
                 set_freeform_canvas_node_config_string(&mut config_json, "file_path", file_path);
             }
             Ok((ref_type, Some(new_id), config_json))
         }
-        "legacy_generated_video" => {
-            let old_id = required_freeform_canvas_ref_id(ref_id, kind)?;
-            let new_id = remap_freeform_canvas_ref_id(&maps.videos.ids, old_id, kind)?;
+        CanvasNodeRefKind::GeneratedVideo => {
+            let old_id = required_freeform_canvas_ref_id(ref_id, kind.as_str())?;
+            let new_id = remap_freeform_canvas_ref_id(&maps.videos.ids, old_id, kind.as_str())?;
             if let Some(file_path) = maps
                 .videos
                 .file_paths
@@ -50,27 +61,24 @@ pub(in crate::project::duplicate::freeform) fn remap_freeform_canvas_node_refs(
             }
             Ok((ref_type, Some(new_id), config_json))
         }
-        "canvas_text_asset" => remap_node_ref(ref_type, ref_id, config_json, &maps.text_asset_ids),
-        "generation_spec" => {
+        CanvasNodeRefKind::CanvasTextAsset => {
+            remap_node_ref(ref_type, ref_id, config_json, &maps.text_asset_ids)
+        }
+        CanvasNodeRefKind::GenerationSpec => {
             remap_node_ref(ref_type, ref_id, config_json, &maps.generation_spec_ids)
         }
-        "prompt_artifact" => {
+        CanvasNodeRefKind::PromptArtifact => {
             remap_node_ref(ref_type, ref_id, config_json, &maps.prompt_artifact_ids)
         }
-        "media_asset" => remap_node_ref(ref_type, ref_id, config_json, &maps.media_asset_ids),
-        "video_segment" => remap_node_ref(ref_type, ref_id, config_json, &maps.video_segment_ids),
-        "assembly_timeline" => {
+        CanvasNodeRefKind::MediaAsset => {
+            remap_node_ref(ref_type, ref_id, config_json, &maps.media_asset_ids)
+        }
+        CanvasNodeRefKind::VideoSegment => {
+            remap_node_ref(ref_type, ref_id, config_json, &maps.video_segment_ids)
+        }
+        CanvasNodeRefKind::AssemblyTimeline => {
             remap_node_ref(ref_type, ref_id, config_json, &maps.assembly_timeline_ids)
         }
-        "legacy_chapter_video_prompt" => Err(ProjectDuplicateError::InvalidArgument(format!(
-            "自由视频项目复制暂不支持重映射画布节点 {kind} 引用，不能保留源项目 ref_id: {}",
-            ref_id
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "NULL".to_string())
-        ))),
-        other => Err(ProjectDuplicateError::InvalidArgument(format!(
-            "自由视频项目复制遇到未知画布节点引用类型: {other}"
-        ))),
     }
 }
 

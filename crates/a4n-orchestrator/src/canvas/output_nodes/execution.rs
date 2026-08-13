@@ -1,5 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_db::canvas::{CanvasNodeArtifactUpdateInput, CanvasTextAssetRecordInput};
+use a4n_domain::CanvasNodeRefKind;
 use serde_json::{Value, json};
 
 use crate::{OrchestratorContext, canvas::canvas_config_string};
@@ -127,7 +128,9 @@ impl OrchestratorContext {
                             id: node
                                 .ref_type
                                 .as_deref()
-                                .is_some_and(|value| value == "canvas_text_asset")
+                                .is_some_and(|value| {
+                                    value == CanvasNodeRefKind::CanvasTextAsset.as_str()
+                                })
                                 .then_some(node.ref_id)
                                 .flatten(),
                             title,
@@ -143,7 +146,11 @@ impl OrchestratorContext {
                     "title": asset.title,
                     "text": asset.content,
                 });
-                Ok(("canvas_text_asset".to_string(), asset.id, artifact))
+                Ok((
+                    CanvasNodeRefKind::CanvasTextAsset.to_string(),
+                    asset.id,
+                    artifact,
+                ))
             }
             CanvasOutputDataType::Image => {
                 if let Some(image_id) = output.generated_image_id {
@@ -156,7 +163,11 @@ impl OrchestratorContext {
                         "file_path": image.file_path,
                         "media_asset_id": output.media_asset_id,
                     });
-                    return Ok(("generated_image".to_string(), image_id, artifact));
+                    return Ok((
+                        CanvasNodeRefKind::GeneratedImage.to_string(),
+                        image_id,
+                        artifact,
+                    ));
                 }
                 let media_asset_id = output.media_asset_id.ok_or_else(|| {
                     AppError::InvalidArgument("ImageOutputNode 缺少图片输入".to_string())
@@ -168,7 +179,11 @@ impl OrchestratorContext {
                     "file_path": asset.as_ref().and_then(|asset| asset.file_path.clone()),
                     "thumbnail_path": asset.as_ref().and_then(|asset| asset.thumbnail_path.clone()),
                 });
-                Ok(("media_asset".to_string(), media_asset_id, artifact))
+                Ok((
+                    CanvasNodeRefKind::MediaAsset.to_string(),
+                    media_asset_id,
+                    artifact,
+                ))
             }
             CanvasOutputDataType::Audio => {
                 let media_asset_id = output.media_asset_id.ok_or_else(|| {
@@ -181,7 +196,11 @@ impl OrchestratorContext {
                     "file_path": asset.as_ref().and_then(|asset| asset.file_path.clone()),
                     "duration_secs": asset.as_ref().and_then(|asset| asset.duration_secs),
                 });
-                Ok(("media_asset".to_string(), media_asset_id, artifact))
+                Ok((
+                    CanvasNodeRefKind::MediaAsset.to_string(),
+                    media_asset_id,
+                    artifact,
+                ))
             }
             CanvasOutputDataType::Video => {
                 let video_id = output.generated_video_id.ok_or_else(|| {
@@ -202,7 +221,11 @@ impl OrchestratorContext {
                         "thumbnail_path": video.thumbnail_path,
                     },
                 });
-                Ok(("generated_video".to_string(), video_id, artifact))
+                Ok((
+                    CanvasNodeRefKind::GeneratedVideo.to_string(),
+                    video_id,
+                    artifact,
+                ))
             }
         }
     }

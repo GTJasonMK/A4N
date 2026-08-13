@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::source_text_hash};
+use a4n_core::error::AppError;
 use a4n_db::canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput};
 use a4n_image::ImageGenerationRequest;
 use serde_json::json;
@@ -147,10 +147,6 @@ impl OrchestratorContext {
             "prompt": image_input.prompt,
             "source_node_ids": image_input.source_node_ids,
         });
-        let source_version_hash = source_text_hash(
-            &serde_json::to_string(&source_material_json)
-                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
-        );
         self.upsert_freeform_canvas_generation_spec_record(
             FreeformCanvasGenerationSpecUpsertInput {
                 project_id: input.project_id,
@@ -159,7 +155,6 @@ impl OrchestratorContext {
                 target_kind: "canvas_image".to_string(),
                 target_entity_kind: "canvas_node".to_string(),
                 status: WORKFLOW_STATUS_RUNNING.to_string(),
-                source_version_hash,
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,
                     "canvas_node_id": input.node.id,

@@ -2,18 +2,15 @@
 
 use a4n_core::{error::AppError, models::ai::generated_video};
 
-/// provider 轮询等待中。
-pub const GENERATED_VIDEO_WAITING_STATUS_PENDING: &str = "pending";
-/// provider 轮询执行中。
-pub const GENERATED_VIDEO_WAITING_STATUS_RUNNING: &str = "running";
-/// 生成失败终态。
-pub const GENERATED_VIDEO_ERROR_STATUS_FAILED: &str = "failed";
-/// 轮询中断（可恢复）终态。
-pub const GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED: &str = "interrupted";
-/// 生成完成终态。
-pub const GENERATED_VIDEO_STATUS_COMPLETED: &str = "completed";
-/// 用户取消终态。
-pub const GENERATED_VIDEO_STATUS_CANCELLED: &str = "cancelled";
+pub use generated_video::{
+    STATUS_CANCELLED as GENERATED_VIDEO_STATUS_CANCELLED,
+    STATUS_COMPLETED as GENERATED_VIDEO_STATUS_COMPLETED,
+    STATUS_FAILED as GENERATED_VIDEO_ERROR_STATUS_FAILED,
+    STATUS_INTERRUPTED as GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED,
+    STATUS_PENDING as GENERATED_VIDEO_WAITING_STATUS_PENDING,
+    STATUS_RUNNING as GENERATED_VIDEO_WAITING_STATUS_RUNNING,
+    is_terminal_status as is_terminal_generated_video_status,
+};
 
 pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
     matches!(error, AppError::Database(_))
@@ -45,16 +42,6 @@ pub fn validate_generated_video_interrupted_status(status: &str) -> Result<(), S
     } else {
         Err(format!("不支持的视频中断状态: {status}"))
     }
-}
-
-/// 生成视频是否已进入终态（不可再轮询）。
-pub fn is_terminal_generated_video_status(status: &str) -> bool {
-    matches!(
-        status,
-        GENERATED_VIDEO_STATUS_COMPLETED
-            | GENERATED_VIDEO_ERROR_STATUS_FAILED
-            | GENERATED_VIDEO_STATUS_CANCELLED
-    )
 }
 
 /// 规范化 provider job id：trim 后非空才有效。

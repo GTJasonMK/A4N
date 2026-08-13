@@ -19,7 +19,9 @@ pub mod progress;
 pub mod project;
 pub mod shooting_script;
 
-pub use canvas::CanvasNodeRefKind;
+pub use canvas::{
+    CanvasNodeRefKind, canvas_transfer_runtime_identity_key, clear_canvas_transfer_runtime_identity,
+};
 pub use image::is_system_managed_image_type;
 pub use llm::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,

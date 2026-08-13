@@ -3,6 +3,7 @@ use a4n_core::models::{
     canvas::canvas_node,
     media::media_asset,
 };
+use a4n_domain::CanvasNodeRefKind;
 use a4n_orchestrator::canvas::{
     MissingCanvasRef, clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
 };
@@ -213,7 +214,7 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "media_asset",
+            ref_type: CanvasNodeRefKind::MediaAsset,
             ref_id: 33,
             clear_node_ref: true
         })
@@ -228,7 +229,7 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "generated_image",
+            ref_type: CanvasNodeRefKind::GeneratedImage,
             ref_id: 11,
             clear_node_ref: false
         })
@@ -238,12 +239,12 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &canvas_node_row(
                 Some("inline"),
                 None,
-                json!({"video_ids": [22, 99], "title": "assembly"})
+                json!({"generated_video_id": 22, "title": "video runtime result"})
             ),
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "generated_video",
+            ref_type: CanvasNodeRefKind::GeneratedVideo,
             ref_id: 22,
             clear_node_ref: false
         })
@@ -269,7 +270,7 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "generation_spec",
+            ref_type: CanvasNodeRefKind::GenerationSpec,
             ref_id: 44,
             clear_node_ref: true
         })
@@ -284,7 +285,7 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "prompt_artifact",
+            ref_type: CanvasNodeRefKind::PromptArtifact,
             ref_id: 55,
             clear_node_ref: true
         })
@@ -299,7 +300,7 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "generation_spec",
+            ref_type: CanvasNodeRefKind::GenerationSpec,
             ref_id: 44,
             clear_node_ref: false
         })
@@ -314,7 +315,7 @@ fn freeform_reset_marks_canvas_nodes_that_reference_deleted_generated_assets() {
             &targets,
         ),
         Some(MissingCanvasRef {
-            ref_type: "prompt_artifact",
+            ref_type: CanvasNodeRefKind::PromptArtifact,
             ref_id: 55,
             clear_node_ref: false
         })
@@ -333,16 +334,10 @@ fn freeform_reset_missing_cleanup_removes_only_reset_generated_refs() {
     };
     let mut config = json!({
         "generated_image_id": 11,
-        "source_image_id": 99,
-        "reference_image_ids": [11, 12],
         "generated_video_id": 22,
-        "video_ids": [22, 23],
         "media_asset_id": 33,
-        "media_asset_ids": [33, 34],
         "generation_spec_id": 44,
-        "generation_spec_ids": [44, 45],
         "prompt_artifact_id": 55,
-        "prompt_artifact_ids": [55, 56],
         "title": "kept"
     });
     let object = config.as_object_mut().expect("object config");
@@ -350,15 +345,9 @@ fn freeform_reset_missing_cleanup_removes_only_reset_generated_refs() {
     clear_reset_generated_ref_payload(object, &targets);
 
     assert!(config.get("generated_image_id").is_none());
-    assert_eq!(config["source_image_id"], json!(99));
-    assert_eq!(config["reference_image_ids"], json!([12]));
     assert!(config.get("generated_video_id").is_none());
-    assert_eq!(config["video_ids"], json!([23]));
     assert!(config.get("media_asset_id").is_none());
-    assert_eq!(config["media_asset_ids"], json!([34]));
     assert!(config.get("generation_spec_id").is_none());
-    assert_eq!(config["generation_spec_ids"], json!([45]));
     assert!(config.get("prompt_artifact_id").is_none());
-    assert_eq!(config["prompt_artifact_ids"], json!([56]));
     assert_eq!(config["title"], json!("kept"));
 }

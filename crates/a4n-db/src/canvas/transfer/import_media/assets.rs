@@ -118,7 +118,7 @@ where
                     )
                 })
                 .transpose()?),
-            provider_job_id: Set(record.provider_job_id.clone()),
+            provider_job_id: Set(None),
             source_media_asset_id: Set(record
                 .source_media_asset_id
                 .map(|old_id| {

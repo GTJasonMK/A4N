@@ -1,5 +1,6 @@
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 
 use crate::canvas::{
@@ -46,10 +47,10 @@ pub(crate) fn collect_canvas_output_value(
                     consumer_label,
                     "generated_image_id",
                 )?
-                .or_else(|| source_ref_id(source, &["generated_image", "legacy_generated_image"]));
+                .or_else(|| source_ref_id(source, CanvasNodeRefKind::GeneratedImage));
                 output.media_asset_id =
                     source_checkpoint_i64(checkpoints, source, consumer_label, "media_asset_id")?
-                        .or_else(|| source_ref_id(source, &["media_asset"]));
+                        .or_else(|| source_ref_id(source, CanvasNodeRefKind::MediaAsset));
             }
             CanvasOutputDataType::Video => {
                 if require_video_target_port && edge.target_port != "video" {
@@ -61,15 +62,15 @@ pub(crate) fn collect_canvas_output_value(
                     consumer_label,
                     "generated_video_id",
                 )?
-                .or_else(|| source_ref_id(source, &["generated_video", "legacy_generated_video"]));
+                .or_else(|| source_ref_id(source, CanvasNodeRefKind::GeneratedVideo));
                 output.media_asset_id =
                     source_checkpoint_i64(checkpoints, source, consumer_label, "media_asset_id")?
-                        .or_else(|| source_ref_id(source, &["media_asset"]));
+                        .or_else(|| source_ref_id(source, CanvasNodeRefKind::MediaAsset));
             }
             CanvasOutputDataType::Audio => {
                 output.media_asset_id =
                     source_checkpoint_i64(checkpoints, source, consumer_label, "media_asset_id")?
-                        .or_else(|| source_ref_id(source, &["media_asset"]));
+                        .or_else(|| source_ref_id(source, CanvasNodeRefKind::MediaAsset));
             }
         }
     }
@@ -115,9 +116,9 @@ fn source_checkpoint_i64(
     )
 }
 
-fn source_ref_id(node: &canvas_node::Model, allowed_ref_types: &[&str]) -> Option<i64> {
+fn source_ref_id(node: &canvas_node::Model, kind: CanvasNodeRefKind) -> Option<i64> {
     node.ref_type
         .as_deref()
-        .filter(|ref_type| allowed_ref_types.contains(ref_type))
+        .filter(|ref_type| *ref_type == kind.as_str())
         .and(node.ref_id)
 }

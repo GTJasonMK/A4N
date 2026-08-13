@@ -1,5 +1,6 @@
 use super::super::*;
 use super::contracts::ManifestIds;
+use a4n_domain::canvas_transfer_runtime_identity_key;
 
 pub(super) fn validate_asset_records(
     package: &VideoStudioProjectPackage,
@@ -13,6 +14,16 @@ pub(super) fn validate_asset_records(
                 image.id
             ));
         }
+        if let Some(key) = image
+            .metadata_json
+            .as_ref()
+            .and_then(canvas_transfer_runtime_identity_key)
+        {
+            return Err(format!(
+                "视频画布项目包生成图片 metadata_json 不能携带运行身份 {key}: generated_image_id={}",
+                image.id
+            ));
+        }
         validate_optional_file_size(image.file_size, "generated_image", image.id)?;
         require_media_payload(media_payload, MEDIA_OWNER_IMAGE, image.id, MEDIA_FIELD_FILE)?;
     }
@@ -20,6 +31,28 @@ pub(super) fn validate_asset_records(
         if video.project_id != package.project.id || video.chapter_id.is_some() {
             return Err(format!(
                 "生成视频不是项目级画布资产: generated_video_id={}",
+                video.id
+            ));
+        }
+        if !generated_video::is_terminal_status(&video.status) {
+            return Err(format!(
+                "视频画布项目包只能传输终态生成视频: generated_video_id={}, status={}",
+                video.id, video.status
+            ));
+        }
+        if video.provider_job_id.is_some() {
+            return Err(format!(
+                "视频画布项目包生成视频不能携带 provider_job_id: generated_video_id={}",
+                video.id
+            ));
+        }
+        if let Some(key) = video
+            .metadata_json
+            .as_ref()
+            .and_then(canvas_transfer_runtime_identity_key)
+        {
+            return Err(format!(
+                "视频画布项目包生成视频 metadata_json 不能携带运行身份 {key}: generated_video_id={}",
                 video.id
             ));
         }
@@ -108,6 +141,22 @@ pub(super) fn validate_asset_records(
         if !ids.media_asset_ids.contains(&provenance.media_asset_id) {
             return Err(format!(
                 "媒体来源引用了不存在的媒体资产: media_asset_id={}",
+                provenance.media_asset_id
+            ));
+        }
+        if provenance.provider_job_id.is_some() {
+            return Err(format!(
+                "视频画布项目包媒体来源不能携带 provider_job_id: media_asset_id={}",
+                provenance.media_asset_id
+            ));
+        }
+        if let Some(key) = provenance
+            .request_snapshot_json
+            .as_ref()
+            .and_then(canvas_transfer_runtime_identity_key)
+        {
+            return Err(format!(
+                "视频画布项目包媒体来源 request_snapshot_json 不能携带运行身份 {key}: media_asset_id={}",
                 provenance.media_asset_id
             ));
         }

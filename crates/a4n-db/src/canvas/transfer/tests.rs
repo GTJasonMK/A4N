@@ -10,6 +10,8 @@ fn generation_spec_with_target(
     target_entity_id: Option<i64>,
 ) -> generation_spec::Model {
     let now = Utc::now().naive_utc();
+    let source_material = json!({"prompt":"prompt","source_node_ids":[]});
+    let params_json = json!({"source_material":source_material});
     generation_spec::Model {
         id: 1,
         project_id: 1,
@@ -23,8 +25,8 @@ fn generation_spec_with_target(
         target_entity_kind: target_entity_kind.to_string(),
         target_entity_id,
         status: "completed".to_string(),
-        source_version_hash: "hash".to_string(),
-        params_json: json!({}),
+        source_version_hash: generation_spec::freeform_source_version_hash(&params_json).unwrap(),
+        params_json,
         created_at: now,
         updated_at: now,
     }
@@ -60,20 +62,48 @@ fn video_studio_import_remap_canvas_metadata_remaps_known_project_local_ids() {
     let mut maps = VideoStudioProjectImportIdMaps::default();
     maps.media_asset_ids.insert(10, 110);
     maps.video_ids.insert(20, 120);
+    maps.image_ids.insert(30, 130);
+    maps.graph_ids.insert(40, 140);
+    maps.node_ids.insert(50, 150);
 
     let metadata = remap_video_studio_canvas_metadata(
         json!({
             "media_asset_id": 10,
+            "config_id": 60,
+            "first_frame_image_id": 30,
+            "last_frame_image_id": 30,
+            "reference_image_ids": [30],
             "canvas": {
-                "generated_video_id": 20
-            }
+                "graph_id": 40,
+                "node_id": 50,
+                "generated_video_id": 20,
+                "source_node_ids": [50],
+                "workflow_run_id": 61
+            },
+            "source_material": {
+                "video_ids": [20],
+                "source_node_ids": [50]
+            },
+            "metadata": {"generated_video_id": 20, "provider_job_id": "job-62"}
         }),
         &maps,
     )
     .expect("known ids should remap");
 
     assert_eq!(metadata["media_asset_id"], json!(110));
+    assert_eq!(metadata["first_frame_image_id"], json!(130));
+    assert_eq!(metadata["last_frame_image_id"], json!(130));
+    assert_eq!(metadata["reference_image_ids"], json!([130]));
+    assert_eq!(metadata["canvas"]["graph_id"], json!(140));
+    assert_eq!(metadata["canvas"]["node_id"], json!(150));
     assert_eq!(metadata["canvas"]["generated_video_id"], json!(120));
+    assert_eq!(metadata["canvas"]["source_node_ids"], json!([150]));
+    assert_eq!(metadata["source_material"]["video_ids"], json!([120]));
+    assert_eq!(metadata["source_material"]["source_node_ids"], json!([150]));
+    assert_eq!(metadata["metadata"]["generated_video_id"], json!(120));
+    assert!(metadata.get("config_id").is_none());
+    assert!(metadata["canvas"].get("workflow_run_id").is_none());
+    assert!(metadata["metadata"].get("provider_job_id").is_none());
 }
 
 #[test]

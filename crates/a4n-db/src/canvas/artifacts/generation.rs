@@ -16,6 +16,12 @@ where
     C: ConnectionTrait,
 {
     let now = Utc::now().naive_utc();
+    let source_version_hash = generation_spec::freeform_source_version_hash(&input.params_json)
+        .ok_or_else(|| {
+            CanvasDbError::InvalidArgument(
+                "自由画布生成意图 params_json.source_material 必须是 JSON 对象".to_string(),
+            )
+        })?;
     let existing = generation_spec::Entity::find()
         .filter(generation_spec::Column::ProjectId.eq(input.project_id))
         .filter(generation_spec::Column::SourceContextKind.eq(SOURCE_MODE_FREEFORM))
@@ -37,7 +43,7 @@ where
         active.target_entity_kind = Set(input.target_entity_kind);
         active.target_entity_id = Set(Some(input.target_entity_id));
         active.status = Set(input.status);
-        active.source_version_hash = Set(input.source_version_hash);
+        active.source_version_hash = Set(source_version_hash);
         active.params_json = Set(input.params_json);
         active.updated_at = Set(now);
         return Ok(active.update(db).await?);
@@ -55,7 +61,7 @@ where
         target_entity_kind: Set(input.target_entity_kind),
         target_entity_id: Set(Some(input.target_entity_id)),
         status: Set(input.status),
-        source_version_hash: Set(input.source_version_hash),
+        source_version_hash: Set(source_version_hash),
         params_json: Set(input.params_json),
         created_at: Set(now),
         updated_at: Set(now),

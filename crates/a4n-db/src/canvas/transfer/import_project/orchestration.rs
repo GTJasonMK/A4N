@@ -1,7 +1,7 @@
 use super::super::import_canvas::{
     import_video_studio_canvas_graphs, import_video_studio_canvas_text_assets,
     import_video_studio_generation_specs, import_video_studio_prompt_artifacts,
-    update_imported_generation_spec_targets,
+    update_imported_generation_spec_metadata, update_imported_generation_spec_targets,
 };
 use super::super::import_media::{
     import_video_studio_assembly_rows, import_video_studio_media_assets,
@@ -95,12 +95,13 @@ where
         now,
     };
     import_video_studio_media_assets(&mut media_context, &rows.media_assets).await?;
-    import_video_studio_media_provenance(db, &rows.media_provenance, &maps, now).await?;
     import_video_studio_video_segments(db, project.id, &rows.video_segments, &mut maps, now)
         .await?;
     import_video_studio_assembly_rows(db, project.id, &rows, &mut maps, now).await?;
     update_imported_generation_spec_targets(db, &deferred_generation_spec_targets, &maps, now)
         .await?;
+    update_imported_generation_spec_metadata(db, &rows.generation_specs, &maps, now).await?;
+    import_video_studio_media_provenance(db, &rows.media_provenance, &maps, now).await?;
     import_video_studio_media_bindings(db, &rows.media_bindings, &mut maps, now).await?;
     update_imported_canvas_node_refs(db, &rows, &maps, now).await?;
     update_imported_media_metadata(db, &rows, &maps, now).await?;

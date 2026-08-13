@@ -235,6 +235,8 @@ fn generation_spec_with_target(
     target_entity_kind: &str,
     target_entity_id: Option<i64>,
 ) -> generation_spec::Model {
+    let source_material = serde_json::json!({"prompt":"prompt","source_node_ids":[]});
+    let params_json = serde_json::json!({"source_material":source_material});
     generation_spec::Model {
         id: 50,
         project_id: 1,
@@ -248,8 +250,8 @@ fn generation_spec_with_target(
         target_entity_kind: target_entity_kind.to_string(),
         target_entity_id,
         status: "completed".to_string(),
-        source_version_hash: "hash".to_string(),
-        params_json: serde_json::json!({}),
+        source_version_hash: generation_spec::freeform_source_version_hash(&params_json).unwrap(),
+        params_json,
         created_at: now(),
         updated_at: now(),
     }

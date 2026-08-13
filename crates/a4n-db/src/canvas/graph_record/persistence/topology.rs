@@ -30,19 +30,13 @@ where
     let mut node_ids = BTreeMap::<String, i64>::new();
     for node in &input.nodes {
         let client_id = required_canvas_record_text(&node.client_id, "node.client_id")?;
-        let ref_type = node
-            .ref_type
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
         let row = canvas_node::ActiveModel {
             graph_id: Set(graph_id),
             node_kind: Set(required_canvas_record_text(
                 &node.node_kind,
                 "node.node_kind",
             )?),
-            ref_type: Set(ref_type),
+            ref_type: Set(node.ref_type.clone()),
             ref_id: Set(node.ref_id),
             config_json: Set(node.config_json.clone().unwrap_or_else(|| json!({}))),
             position_json: Set(node.position_json.clone()),

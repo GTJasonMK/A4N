@@ -1,11 +1,11 @@
 use super::super::canvas_node_references_generated_image;
 use super::super::config::{
-    IMAGE_REF_CONFIG_KEYS, first_config_array_i64_for_any, first_config_i64,
-    remove_config_any_i64_refs, remove_config_i64_array_refs_for_any, validate_positive_id,
+    IMAGE_REF_CONFIG_KEY, config_i64, remove_config_any_i64_ref, validate_positive_id,
 };
 use super::scope::canvas_nodes_for_projects;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::{ai::generated_image, canvas::canvas_node};
+use a4n_domain::CanvasNodeRefKind;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
@@ -42,15 +42,13 @@ where
         if !canvas_node_references_generated_image(&node, &image_ids) {
             continue;
         }
-        let primary_ref_matches = node.ref_type.as_deref() == Some("legacy_generated_image")
+        let primary_ref_matches = node.ref_type.as_deref()
+            == Some(CanvasNodeRefKind::GeneratedImage.as_str())
             && node.ref_id.is_some_and(|id| image_ids.contains(&id));
         let missing_ref_id = node
             .ref_id
             .filter(|id| image_ids.contains(id))
-            .or_else(|| first_config_i64(&node.config_json, IMAGE_REF_CONFIG_KEYS))
-            .or_else(|| {
-                first_config_array_i64_for_any(&node.config_json, "reference_image_ids", &image_ids)
-            });
+            .or_else(|| config_i64(&node.config_json, IMAGE_REF_CONFIG_KEY));
         let mut config = node.config_json.clone();
         if let Some(object) = config.as_object_mut() {
             object.insert(
@@ -59,13 +57,12 @@ where
             );
             object.insert(
                 "missing_ref_type".to_string(),
-                Value::String("generated_image".to_string()),
+                Value::String(CanvasNodeRefKind::GeneratedImage.to_string()),
             );
             if let Some(id) = missing_ref_id {
                 object.insert("missing_ref_id".to_string(), Value::from(id));
             }
-            remove_config_any_i64_refs(object, IMAGE_REF_CONFIG_KEYS, &image_ids);
-            remove_config_i64_array_refs_for_any(object, "reference_image_ids", &image_ids);
+            remove_config_any_i64_ref(object, IMAGE_REF_CONFIG_KEY, &image_ids);
         }
 
         let mut active: canvas_node::ActiveModel = node.into();

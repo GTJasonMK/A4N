@@ -1,176 +1,11 @@
 import { saveCanvasTextAsset, type CanvasGraphDocument, type CanvasGraphInput } from "../../api/canvas";
 import { edgeRoleLabel } from "./StudioCanvasNode";
 import {
-  configPositiveNumber,
   configText,
   firstLine,
-  studioConfigKind,
-  type StudioConfigKind,
-  type StudioConfigOptionsByKind,
 } from "./canvasConfig";
-import { edgeOrderIndex, nextAssembleClipOrder } from "./canvasAssemblyEdges";
-import { inferCanvasEdgeContract, type CanvasEdgeContract } from "./canvasEdgeContract";
-import { normalizeGenerateVideoInputMode, studioNodeContract, studioNodeInputPortsForData, type StudioNodeContractMap } from "./nodeContracts";
+import { normalizeGenerateVideoInputMode } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
-
-export function migrateLegacyCanvasGraph(
-  document: CanvasGraphDocument,
-  configOptions: StudioConfigOptionsByKind,
-): CanvasGraphDocument {
-  const configByNodeId = new Map<number, { type: StudioConfigKind; id: number; name: string }>();
-  for (const node of document.nodes) {
-    if (node.node_kind !== "ConfigNode") continue;
-    const type = studioConfigKind(configText(node.config_json, "config_type"));
-    const configId = configPositiveNumber(node.config_json, "config_id") ?? node.ref_id;
-    if (!type || !configId) continue;
-    const option = configOptions[type].find((item) => item.id === configId);
-    configByNodeId.set(node.id, {
-      type,
-      id: configId,
-      name: option?.name ?? configText(node.config_json, "config_name"),
-    });
-  }
-
-  const configPatchByNodeId = new Map<number, Record<string, unknown>>();
-  for (const edge of document.edges) {
-    const config = configByNodeId.get(edge.source_node_id);
-    if (!config) continue;
-    const key =
-      config.type === "llm"
-        ? "llm_config_id"
-        : config.type === "image"
-          ? "image_config_id"
-          : "video_config_id";
-    configPatchByNodeId.set(edge.target_node_id, {
-      ...(configPatchByNodeId.get(edge.target_node_id) ?? {}),
-      [key]: config.id,
-      [`${config.type}_config_name`]: config.name,
-    });
-  }
-
-  const nodes = document.nodes
-    .filter((node) => node.node_kind !== "ConfigNode")
-    .map((node) => migrateLegacyCanvasNode(node, configPatchByNodeId.get(node.id)));
-  const validNodeIds = new Set(nodes.map((node) => node.id));
-  const edges = document.edges
-    .filter((edge) => !configByNodeId.has(edge.source_node_id))
-    .filter((edge) => validNodeIds.has(edge.source_node_id) && validNodeIds.has(edge.target_node_id))
-    .map(migrateLegacyCanvasEdge)
-    .filter((edge): edge is CanvasGraphDocument["edges"][number] => edge !== null);
-  return { ...document, nodes, edges };
-}
-
-function migrateLegacyCanvasNode(
-  node: CanvasGraphDocument["nodes"][number],
-  configPatch: Record<string, unknown> | undefined,
-): CanvasGraphDocument["nodes"][number] {
-  const config = { ...node.config_json, ...(configPatch ?? {}) };
-  let nodeKind = node.node_kind;
-  let refType = node.ref_type;
-  let refId = node.ref_id;
-  if (nodeKind === "PromptNode") {
-    nodeKind = "TextInputNode";
-    config.content = configText(config, "prompt") || configText(config, "content");
-    delete config.prompt;
-  } else if (nodeKind === "TextNode") {
-    nodeKind = "TextInputNode";
-  } else if (nodeKind === "ImageNode" || nodeKind === "MediaAssetNode") {
-    const mediaKind = mediaKindFromConfig(config);
-    nodeKind = mediaKind === "video" ? "VideoInputNode" : "ImageInputNode";
-    if (mediaKind === "video") {
-      const generatedVideoId = configPositiveNumber(config, "generated_video_id");
-      if (!refType && generatedVideoId) {
-        refType = "generated_video";
-        refId = generatedVideoId;
-      } else {
-        refType = refType ?? "media_asset";
-      }
-    } else {
-      const generatedImageId = configPositiveNumber(config, "generated_image_id");
-      if (!refType && generatedImageId) {
-        refType = "generated_image";
-        refId = generatedImageId;
-      } else {
-        refType = refType ?? "media_asset";
-      }
-    }
-  } else if (nodeKind === "VideoNode" || nodeKind === "VideoSegmentNode") {
-    nodeKind = "VideoInputNode";
-    const generatedVideoId = configPositiveNumber(config, "generated_video_id");
-    if ((!refType || refType === "video_segment") && generatedVideoId) {
-      refType = "generated_video";
-      refId = generatedVideoId;
-    } else {
-      refType = refType === "video_segment" ? "media_asset" : refType;
-    }
-  } else if (nodeKind === "AudioNode") {
-    nodeKind = "AudioInputNode";
-  } else if (nodeKind === "PromptArtifactNode") {
-    nodeKind = "TextInputNode";
-    config.content = configText(config, "prompt_text") || configText(config, "content");
-  } else if (nodeKind === "RenderPromptNode") {
-    nodeKind = "RenderTextNode";
-  } else if (nodeKind === "LlmTransformNode") {
-    nodeKind = "LlmTextNode";
-  } else if (nodeKind === "AssembleNode") {
-    nodeKind = "AssembleVideoNode";
-  } else if (nodeKind === "ExportVideoNode") {
-    nodeKind = "VideoOutputNode";
-  }
-  if (nodeKind === "ImageInputNode" && refType === "media_asset") {
-    const generatedImageId = configPositiveNumber(config, "generated_image_id");
-    if (generatedImageId) {
-      refType = "generated_image";
-      refId = generatedImageId;
-    }
-  }
-  if (nodeKind === "VideoInputNode" && refType === "media_asset") {
-    const generatedVideoId = configPositiveNumber(config, "generated_video_id");
-    if (generatedVideoId) {
-      refType = "generated_video";
-      refId = generatedVideoId;
-    }
-  }
-  return {
-    ...node,
-    node_kind: nodeKind,
-    ref_type: refType,
-    ref_id: refId,
-    config_json: config,
-  };
-}
-
-function migrateLegacyCanvasEdge(edge: CanvasGraphDocument["edges"][number]): CanvasGraphDocument["edges"][number] | null {
-  let sourcePort = edge.source_port;
-  let targetPort = edge.target_port;
-  let role = edge.role;
-  if (sourcePort === "prompt" || sourcePort === "context") sourcePort = "text";
-  if (targetPort === "prompt") targetPort = "text";
-  if (targetPort === "context") targetPort = "input";
-  if (sourcePort === "timeline") sourcePort = "video";
-  if (targetPort === "timeline") targetPort = "video";
-  if (["character_reference", "object_reference", "scene_reference", "style_reference"].includes(targetPort)) {
-    targetPort = "reference_image";
-  }
-  if (role === "style_reference" && targetPort === "image") targetPort = "reference_image";
-  if (role === "timeline") role = "final_video";
-  if (role === "config") return null;
-  return {
-    ...edge,
-    source_port: sourcePort,
-    target_port: targetPort,
-    role,
-  };
-}
-
-function mediaKindFromConfig(config: Record<string, unknown>): string {
-  const mediaKind = configText(config, "media_kind");
-  if (mediaKind) return mediaKind;
-  const filePath = configText(config, "file_path");
-  if (/\.(mp4|mov|webm|mkv)$/i.test(filePath)) return "video";
-  if (/\.(mp3|wav|m4a|aac|flac)$/i.test(filePath)) return "audio";
-  return "image";
-}
 
 export function toFlowNode(node: CanvasGraphDocument["nodes"][number]): StudioNode {
   return {
@@ -304,80 +139,6 @@ export function toFlowEdge(edge: CanvasGraphDocument["edges"][number]): StudioEd
   };
 }
 
-export function normalizeLoadedCanvasEdges(
-  nodes: StudioNode[],
-  edges: StudioEdge[],
-  contractsByKind: StudioNodeContractMap,
-): { edges: StudioEdge[]; repaired: number; dropped: number } {
-  const nodesById = new Map(nodes.map((node) => [node.id, node]));
-  const normalized: StudioEdge[] = [];
-  let repaired = 0;
-  let dropped = 0;
-
-  for (const edge of edges) {
-    let contract = inferCanvasEdgeContract(edge, nodesById, contractsByKind, normalized);
-    if (contract && !edgeTargetInputAvailable(edge.target, contract, nodesById, contractsByKind, normalized)) {
-      contract = null;
-    }
-    contract ??= inferCanvasEdgeContract(
-      { source: edge.source, target: edge.target },
-      nodesById,
-      contractsByKind,
-      normalized,
-    );
-    if (!contract) {
-      dropped += 1;
-      continue;
-    }
-
-    const config =
-      contract.role === "assembly_clip"
-        ? {
-            ...(edge.data?.config ?? {}),
-            order_index: edgeOrderIndex(edge) ?? nextAssembleClipOrder(normalized, edge.target),
-          }
-        : edge.data?.config ?? {};
-    const nextEdge: StudioEdge = {
-      ...edge,
-      sourceHandle: contract.sourcePort,
-      targetHandle: contract.targetPort,
-      label: edgeRoleLabel(contract.role),
-      data: {
-        ...(edge.data ?? {}),
-        role: contract.role,
-        config,
-      },
-    };
-    if (
-      edge.sourceHandle !== nextEdge.sourceHandle ||
-      edge.targetHandle !== nextEdge.targetHandle ||
-      edge.data?.role !== nextEdge.data?.role
-    ) {
-      repaired += 1;
-    }
-    normalized.push(nextEdge);
-  }
-
-  return { edges: normalized, repaired, dropped };
-}
-
-function edgeTargetInputAvailable(
-  targetNodeId: string,
-  contract: CanvasEdgeContract,
-  nodesById: Map<string, StudioNode>,
-  contractsByKind: StudioNodeContractMap,
-  existingEdges: StudioEdge[],
-): boolean {
-  const target = nodesById.get(targetNodeId);
-  const targetContract = target ? studioNodeContract(contractsByKind, target.data.nodeKind) : null;
-  const targetPort =
-    target && targetContract
-      ? studioNodeInputPortsForData(target.data, targetContract).find((port) => port.id === contract.targetPort)
-      : null;
-  if (!targetPort || targetPort.multiple) return true;
-  return !existingEdges.some((edge) => edge.target === targetNodeId && edge.targetHandle === contract.targetPort);
-}
-
 export function preserveSelectedItems<T extends { id: string; selected?: boolean }>(next: T[], current: T[]): T[] {
   const selectedIds = new Set(current.filter((item) => item.selected).map((item) => item.id));
   if (selectedIds.size === 0) return next;
@@ -450,9 +211,7 @@ export function toCanvasGraphInput(
   document: CanvasGraphDocument,
   nodes: StudioNode[],
   edges: StudioEdge[],
-  contractsByKind: StudioNodeContractMap,
 ): CanvasGraphInput {
-  const nodesById = new Map(nodes.map((node) => [node.id, node]));
   return {
     id: document.graph.id,
     name: document.graph.name,
@@ -467,19 +226,14 @@ export function toCanvasGraphInput(
       position_json: node.position,
       state: node.data.state,
     })),
-    edges: edges
-      .filter((edge) => edge.source && edge.target)
-      .map((edge) => {
-        const contract = inferCanvasEdgeContract(edge, nodesById, contractsByKind);
-        return {
-          source_client_id: edge.source,
-          target_client_id: edge.target,
-          source_port: contract?.sourcePort ?? edge.sourceHandle ?? "",
-          target_port: contract?.targetPort ?? edge.targetHandle ?? "",
-          role: contract?.role ?? edge.data?.role ?? "",
-          config_json: edge.data?.config ?? {},
-        };
-      }),
+    edges: edges.map((edge) => ({
+      source_client_id: edge.source,
+      target_client_id: edge.target,
+      source_port: edge.sourceHandle!,
+      target_port: edge.targetHandle!,
+      role: edge.data!.role,
+      config_json: edge.data!.config,
+    })),
   };
 }
 

@@ -47,7 +47,7 @@ where
                 item.prompt_artifact_id,
                 "media_provenance.prompt_artifact_id",
             )?),
-            provider_job_id: Set(item.provider_job_id),
+            provider_job_id: Set(None),
             source_media_asset_id: Set(remap_derived_optional_id(
                 &maps.media_asset_ids,
                 item.source_media_asset_id,

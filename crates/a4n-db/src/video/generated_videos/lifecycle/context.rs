@@ -29,7 +29,7 @@ pub(super) fn ensure_generated_video_status_mutable(
     status: &str,
     operation: &str,
 ) -> Result<(), VideoDbError> {
-    if matches!(status, "completed" | "failed" | "cancelled") {
+    if generated_video::is_terminal_status(status) {
         Err(VideoDbError::InvalidState {
             current: status.to_string(),
             operation: operation.to_string(),

@@ -1,6 +1,9 @@
 use super::*;
 use crate::canvas::CanvasDbError;
-use a4n_core::models::media::{media_asset, media_binding, media_provenance};
+use a4n_core::models::{
+    generation::generation_spec,
+    media::{media_asset, media_binding, media_provenance},
+};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 
@@ -67,6 +70,48 @@ async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
         0
     );
     assert_eq!(media_binding::Entity::find().count(&db).await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn canvas_generation_spec_upsert_derives_source_version_hash() {
+    let db = setup_db().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        2,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "画布生成意图哈希测试".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let params_json = json!({
+        "source_material": {
+            "prompt": "雨夜追逐",
+            "source_node_ids": [11, 12]
+        },
+        "params": {"workflow": "generate_video"}
+    });
+
+    let spec = upsert_freeform_canvas_generation_spec_record(
+        &db,
+        FreeformCanvasGenerationSpecUpsertInput {
+            project_id: project.id,
+            target_entity_id: 21,
+            canvas_text_asset_id: None,
+            target_kind: "canvas_video".to_string(),
+            target_entity_kind: "canvas_node".to_string(),
+            status: "running".to_string(),
+            params_json: params_json.clone(),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        Some(spec.source_version_hash),
+        generation_spec::freeform_source_version_hash(&params_json)
+    );
 }
 
 #[test]

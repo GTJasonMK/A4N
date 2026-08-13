@@ -132,8 +132,8 @@ async fn delete_video_marks_canvas_nodes_missing_without_deleting_them() {
     .unwrap();
     let node = canvas_node::ActiveModel {
         graph_id: Set(graph.id),
-        node_kind: Set("VideoNode".to_string()),
-        ref_type: Set(Some("legacy_generated_video".to_string())),
+        node_kind: Set("VideoInputNode".to_string()),
+        ref_type: Set(Some("generated_video".to_string())),
         ref_id: Set(Some(video.id)),
         config_json: Set(json!({
             "generated_video_id": video.id,

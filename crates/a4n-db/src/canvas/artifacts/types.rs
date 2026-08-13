@@ -17,7 +17,6 @@ pub struct FreeformCanvasGenerationSpecUpsertInput {
     pub target_kind: String,
     pub target_entity_kind: String,
     pub status: String,
-    pub source_version_hash: String,
     pub params_json: Value,
 }
 

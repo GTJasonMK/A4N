@@ -3,6 +3,17 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub const STATUS_PENDING: &str = "pending";
+pub const STATUS_RUNNING: &str = "running";
+pub const STATUS_FAILED: &str = "failed";
+pub const STATUS_INTERRUPTED: &str = "interrupted";
+pub const STATUS_COMPLETED: &str = "completed";
+pub const STATUS_CANCELLED: &str = "cancelled";
+
+pub fn is_terminal_status(status: &str) -> bool {
+    matches!(status, STATUS_COMPLETED | STATUS_FAILED | STATUS_CANCELLED)
+}
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "generated_video")]
 pub struct Model {

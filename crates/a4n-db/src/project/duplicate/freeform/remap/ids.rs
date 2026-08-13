@@ -22,6 +22,7 @@ pub(in crate::project::duplicate::freeform::remap) fn remap_freeform_canvas_json
     remap_json_i64_field(object, "source_video_id", &maps.videos.ids)?;
     remap_json_i64_field(object, "source_image_id", &maps.images.ids)?;
     remap_json_i64_field(object, "first_frame_image_id", &maps.images.ids)?;
+    remap_json_i64_field(object, "last_frame_image_id", &maps.images.ids)?;
     remap_json_i64_array_field(object, "reference_image_ids", &maps.images.ids)?;
     remap_json_i64_field(object, "media_asset_id", &maps.media_asset_ids)?;
     remap_json_i64_array_field(object, "media_asset_ids", &maps.media_asset_ids)?;
@@ -36,11 +37,13 @@ pub(in crate::project::duplicate::freeform::remap) fn remap_freeform_canvas_json
         remap_json_i64_field(object, "canvas_graph_id", &canvas_maps.graph_ids)?;
         remap_json_i64_field(object, "node_id", &canvas_maps.node_ids)?;
         remap_json_i64_field(object, "canvas_node_id", &canvas_maps.node_ids)?;
+        remap_json_i64_array_field(object, "source_node_ids", &canvas_maps.node_ids)?;
     } else {
         remap_json_i64_field(object, "graph_id", &maps.graph_ids)?;
         remap_json_i64_field(object, "canvas_graph_id", &maps.graph_ids)?;
         remap_json_i64_field(object, "node_id", &maps.node_ids)?;
         remap_json_i64_field(object, "canvas_node_id", &maps.node_ids)?;
+        remap_json_i64_array_field(object, "source_node_ids", &maps.node_ids)?;
     }
     Ok(())
 }

@@ -27,3 +27,16 @@ fn validate_video_studio_manifest_rejects_unknown_generation_spec_target_kind() 
     assert!(err.contains("暂不支持生成意图目标类型"));
     assert!(err.contains("legacy_chapter"));
 }
+
+#[test]
+fn validate_video_studio_manifest_rejects_generation_spec_source_hash_mismatch() {
+    let mut package = package();
+    let mut spec = generation_spec_with_target("canvas_node", None);
+    spec.source_version_hash = "stale".to_string();
+    package.generation_specs.push(spec);
+
+    let err = validate_package_manifest(&package, &empty_payload())
+        .expect_err("source hash must match source_material");
+
+    assert!(err.contains("source_version_hash 与 source_material 不一致"));
+}

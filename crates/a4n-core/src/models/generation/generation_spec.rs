@@ -3,6 +3,15 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::source_spans::source_text_hash;
+
+pub fn freeform_source_version_hash(params_json: &serde_json::Value) -> Option<String> {
+    params_json
+        .get("source_material")
+        .filter(|value| value.is_object())
+        .map(|value| source_text_hash(&value.to_string()))
+}
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "generation_spec")]
 pub struct Model {
@@ -30,3 +39,21 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
+
+#[cfg(test)]
+mod tests {
+    use super::freeform_source_version_hash;
+    use serde_json::json;
+
+    #[test]
+    fn freeform_source_version_hash_requires_object_and_is_stable() {
+        assert_eq!(
+            freeform_source_version_hash(&json!({"source_material":{"a":1,"b":2}})),
+            freeform_source_version_hash(&json!({"source_material":{"b":2,"a":1}}))
+        );
+        assert_eq!(
+            freeform_source_version_hash(&json!({"source_material":"legacy"})),
+            None
+        );
+    }
+}

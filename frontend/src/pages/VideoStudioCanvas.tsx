@@ -101,17 +101,14 @@ import {
   setNodeTemplateDragImage,
 } from "./video-studio/canvasDragPreview";
 import {
-  canvasConnectionError,
   canvasGraphSaveValidationError,
-  inferCanvasEdgeContract,
+  validateCanvasConnection,
 } from "./video-studio/canvasEdgeContract";
 import {
   canvasNodePosition,
   defaultConfigForNode,
   mergeCanvasDocumentRuntimeResults,
   mergeStudioNodeRuntimeResults,
-  migrateLegacyCanvasGraph,
-  normalizeLoadedCanvasEdges,
   numericId,
   persistCanvasTextAssets,
   preserveSelectedItems,
@@ -366,49 +363,22 @@ export const VideoStudioCanvas: React.FC = () => {
       if (normalizedContracts.length === 0) {
         throw new Error("画布节点合同为空");
       }
-      const migratedDocument = migrateLegacyCanvasGraph(
-        graphDocument,
-        nextConfigOptions,
-      );
-      const migratedDocumentChanged =
-        JSON.stringify({
-          nodes: migratedDocument.nodes,
-          edges: migratedDocument.edges,
-        }) !==
-        JSON.stringify({
-          nodes: graphDocument.nodes,
-          edges: graphDocument.edges,
-        });
       const loadedContractsByKind = studioNodeContractMap(normalizedContracts);
-      const flowNodes = migratedDocument.nodes.map(toFlowNode);
-      const normalizedEdges = normalizeLoadedCanvasEdges(
+      const flowNodes = graphDocument.nodes.map(toFlowNode);
+      const flowEdges = graphDocument.edges.map(toFlowEdge);
+      const loadedEdgeError = canvasGraphSaveValidationError(
         flowNodes,
-        migratedDocument.edges.map(toFlowEdge),
+        flowEdges,
         loadedContractsByKind,
       );
+      if (loadedEdgeError) throw new Error(loadedEdgeError);
       setProject(projectRecord);
-      setDocument(migratedDocument);
+      setDocument(graphDocument);
       setNodeContracts(normalizedContracts);
       setConfigOptions(nextConfigOptions);
       setNodes((current) => preserveSelectedItems(flowNodes, current));
-      setEdges((current) =>
-        preserveSelectedItems(normalizedEdges.edges, current),
-      );
-      if (
-        migratedDocumentChanged ||
-        normalizedEdges.dropped > 0 ||
-        normalizedEdges.repaired > 0
-      ) {
-        addToast(
-          `已修复旧画布结构，连线修复 ${normalizedEdges.repaired} 条，移除 ${normalizedEdges.dropped} 条，请检查后保存。`,
-          normalizedEdges.dropped > 0 ? "info" : "success",
-        );
-      }
-      setDirty(
-        migratedDocumentChanged ||
-          normalizedEdges.dropped > 0 ||
-          normalizedEdges.repaired > 0,
-      );
+      setEdges((current) => preserveSelectedItems(flowEdges, current));
+      setDirty(false);
     } catch (err) {
       if (requestRef.current === requestId) {
         addToast(extractErrorMessage(err, "加载视频画布失败"), "error");
@@ -589,26 +559,17 @@ export const VideoStudioCanvas: React.FC = () => {
   const onConnect = useCallback(
     (connection: Connection) => {
       if (canvasMutationDisabled) return;
-      const contract = inferCanvasEdgeContract(
-        connection,
-        nodes,
-        nodeContractsByKind,
-        edges,
-      );
-      if (!contract) {
-        addToast("当前节点类型不能直接连接", "error");
-        return;
-      }
-      const connectionError = canvasConnectionError(
+      const validation = validateCanvasConnection(
         connection,
         nodes,
         edges,
         nodeContractsByKind,
       );
-      if (connectionError) {
-        addToast(connectionError, "error");
+      if (typeof validation === "string") {
+        addToast(validation, "error");
         return;
       }
+      const contract = validation;
       const config =
         contract.role === "assembly_clip" && connection.target
           ? { order_index: nextAssembleClipOrder(edges, connection.target) }
@@ -617,8 +578,8 @@ export const VideoStudioCanvas: React.FC = () => {
         addEdge(
           {
             ...connection,
-            sourceHandle: connection.sourceHandle ?? contract.sourcePort,
-            targetHandle: connection.targetHandle ?? contract.targetPort,
+            sourceHandle: contract.sourcePort,
+            targetHandle: contract.targetPort,
             type: "smoothstep",
             animated: false,
             label: edgeRoleLabel(contract.role),
@@ -645,7 +606,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const isValidCanvasConnection = useCallback<IsValidConnection>(
     (connection) =>
       !canvasMutationDisabled &&
-      !canvasConnectionError(connection, nodes, edges, nodeContractsByKind),
+      typeof validateCanvasConnection(connection, nodes, edges, nodeContractsByKind) !== "string",
     [canvasMutationDisabled, edges, nodeContractsByKind, nodes],
   );
 
@@ -796,7 +757,6 @@ export const VideoStudioCanvas: React.FC = () => {
           document,
           nodesWithTextAssets,
           edges,
-          nodeContractsByKind,
         ),
       );
       const savedEdges = saved.edges.map(toFlowEdge);
@@ -867,7 +827,7 @@ export const VideoStudioCanvas: React.FC = () => {
       ];
       const saved = await saveCanvasGraph(
         projectId,
-        toCanvasGraphInput(document, nextNodes, edges, nodeContractsByKind),
+        toCanvasGraphInput(document, nextNodes, edges),
       );
       const savedEdges = saved.edges.map(toFlowEdge);
       setDocument(saved);

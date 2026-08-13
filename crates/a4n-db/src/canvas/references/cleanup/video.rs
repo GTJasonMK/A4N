@@ -1,11 +1,11 @@
 use super::super::canvas_node_references_generated_video;
 use super::super::config::{
-    VIDEO_REF_CONFIG_KEYS, first_config_array_i64, first_config_i64, remove_config_i64_array_refs,
-    remove_config_i64_refs, validate_positive_id,
+    VIDEO_REF_CONFIG_KEY, config_i64, remove_config_i64_ref, validate_positive_id,
 };
 use super::scope::canvas_nodes_for_project;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::canvas::canvas_node;
+use a4n_domain::CanvasNodeRefKind;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::Value;
@@ -27,13 +27,13 @@ where
         if !canvas_node_references_generated_video(&node, video_id) {
             continue;
         }
-        let primary_ref_matches = node.ref_type.as_deref() == Some("legacy_generated_video")
+        let primary_ref_matches = node.ref_type.as_deref()
+            == Some(CanvasNodeRefKind::GeneratedVideo.as_str())
             && node.ref_id == Some(video_id);
         let missing_ref_id = node
             .ref_id
             .filter(|id| *id == video_id)
-            .or_else(|| first_config_i64(&node.config_json, VIDEO_REF_CONFIG_KEYS))
-            .or_else(|| first_config_array_i64(&node.config_json, "video_ids", video_id));
+            .or_else(|| config_i64(&node.config_json, VIDEO_REF_CONFIG_KEY));
         let mut config = node.config_json.clone();
         if let Some(object) = config.as_object_mut() {
             object.insert(
@@ -42,13 +42,12 @@ where
             );
             object.insert(
                 "missing_ref_type".to_string(),
-                Value::String("generated_video".to_string()),
+                Value::String(CanvasNodeRefKind::GeneratedVideo.to_string()),
             );
             if let Some(id) = missing_ref_id {
                 object.insert("missing_ref_id".to_string(), Value::from(id));
             }
-            remove_config_i64_refs(object, VIDEO_REF_CONFIG_KEYS, video_id);
-            remove_config_i64_array_refs(object, "video_ids", video_id);
+            remove_config_i64_ref(object, VIDEO_REF_CONFIG_KEY, video_id);
         }
 
         let mut active: canvas_node::ActiveModel = node.into();

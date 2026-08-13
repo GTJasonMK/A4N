@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::source_text_hash};
+use a4n_core::error::AppError;
 use a4n_db::canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput};
 use a4n_llm::{
     provider::{UsageInfo, is_truncated_finish_reason},
@@ -255,10 +255,6 @@ impl OrchestratorContext {
         if project.source_mode != SOURCE_MODE_FREEFORM {
             return Ok(None);
         }
-        let source_version_hash = source_text_hash(
-            &serde_json::to_string(&source_material_json)
-                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
-        );
         self.upsert_freeform_canvas_generation_spec_record(
             FreeformCanvasGenerationSpecUpsertInput {
                 project_id: input.project_id,
@@ -267,7 +263,6 @@ impl OrchestratorContext {
                 target_kind: "canvas_prompt".to_string(),
                 target_entity_kind: "canvas_node".to_string(),
                 status: status.to_string(),
-                source_version_hash,
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,
                     "canvas_node_id": input.node.id,

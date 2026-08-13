@@ -16,9 +16,11 @@ pub use validation::{
 };
 
 #[cfg(test)]
+use a4n_domain::CanvasNodeRefKind;
+#[cfg(test)]
 use persistence::GRAPH_KIND_VIDEO_STUDIO;
 #[cfg(test)]
-use validation::{CanvasRecordNodeRefKind, validate_canvas_record_node_ref_shape};
+use validation::validate_canvas_record_node_ref_shape;
 
 #[cfg(test)]
 mod tests;

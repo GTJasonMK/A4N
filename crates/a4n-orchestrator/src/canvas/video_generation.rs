@@ -5,9 +5,9 @@ use a4n_core::{
         canvas::canvas_node,
         generation::{generation_spec, workflow_checkpoint},
     },
-    source_spans::source_text_hash,
 };
 use a4n_db::canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput};
+use a4n_domain::CanvasNodeRefKind;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -820,13 +820,10 @@ impl OrchestratorContext {
         let source_material_json = json!({
             "prompt": video_input.prompt,
             "first_frame_image_id": video_input.first_frame_image_id,
+            "last_frame_image_id": video_input.last_frame_image_id,
             "reference_image_ids": video_input.reference_image_ids,
             "source_node_ids": video_input.source_node_ids,
         });
-        let source_version_hash = source_text_hash(
-            &serde_json::to_string(&source_material_json)
-                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
-        );
         self.upsert_freeform_canvas_generation_spec_record(
             FreeformCanvasGenerationSpecUpsertInput {
                 project_id: input.project_id,
@@ -835,7 +832,6 @@ impl OrchestratorContext {
                 target_kind: "canvas_video".to_string(),
                 target_entity_kind: "canvas_node".to_string(),
                 status: WORKFLOW_STATUS_RUNNING.to_string(),
-                source_version_hash,
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,
                     "canvas_node_id": input.node.id,
@@ -1052,10 +1048,7 @@ fn source_generated_image_id(
     {
         return Ok(output.get("generated_image_id").and_then(Value::as_i64));
     }
-    if matches!(
-        node.ref_type.as_deref(),
-        Some("generated_image" | "legacy_generated_image")
-    ) {
+    if node.ref_type.as_deref() == Some(CanvasNodeRefKind::GeneratedImage.as_str()) {
         return Ok(node.ref_id);
     }
     Ok(None)
