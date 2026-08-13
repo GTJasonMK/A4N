@@ -2,7 +2,6 @@ use a4n_core::models::project::novel_project;
 use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 
-use super::rules::parse_project_status;
 use crate::project::duplicate::{
     ProjectDuplicateError,
     shared::{ProjectCopyInsert, insert_project_copy_record},
@@ -16,6 +15,7 @@ use crate::project::duplicate::{
         rules::project_copy_status_includes_blueprint,
     },
 };
+use a4n_core::state::validator::parse_project_status;
 
 pub(super) async fn duplicate_text_project_data_record<C>(
     db: &C,
@@ -27,7 +27,8 @@ pub(super) async fn duplicate_text_project_data_record<C>(
 where
     C: ConnectionTrait,
 {
-    let original_status = parse_project_status(&original.status)?;
+    let original_status = parse_project_status(&original.status)
+        .map_err(|error| ProjectDuplicateError::InvalidArgument(error.to_string()))?;
     let source_graph = load_project_blueprint_graph(db, original.id).await?;
     if project_copy_status_includes_blueprint(original_status) && source_graph.is_none() {
         return Err(ProjectDuplicateError::InvalidState {

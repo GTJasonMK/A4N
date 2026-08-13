@@ -41,7 +41,7 @@ fn project_status_history_summary_maps_fields_and_timestamp() {
     assert_eq!(summary.id, 9);
     assert_eq!(summary.from_status, ProjectStatus::Draft);
     assert_eq!(summary.to_status, ProjectStatus::BlueprintReady);
-    assert_eq!(summary.reason.as_deref(), Some("蓝图生成完成"));
+    assert_eq!(summary.reason, "蓝图生成完成");
     assert_eq!(summary.created_at, changed_at.to_string());
 }
 
@@ -69,13 +69,66 @@ fn project_status_history_rejects_unknown_persisted_status() {
 }
 
 #[test]
-fn project_status_history_normalizes_optional_actor() {
-    assert_eq!(
-        normalize_optional_text(Some(" system ".to_string())).as_deref(),
-        Some("system")
-    );
-    assert_eq!(normalize_optional_text(Some(" ".to_string())), None);
-    assert_eq!(normalize_optional_text(None), None);
+fn project_status_history_rejects_missing_or_noncanonical_text() {
+    let item = project_status_history::Model {
+        id: 9,
+        project_id: 7,
+        from_status: "draft".to_string(),
+        to_status: "blueprint_ready".to_string(),
+        reason: Some("蓝图生成完成".to_string()),
+        changed_by: Some("system".to_string()),
+        changed_at: naive_datetime(),
+    };
+
+    for (reason, changed_by, expected) in [
+        (None, item.changed_by.clone(), "缺少 reason"),
+        (
+            Some(" 蓝图生成完成 ".to_string()),
+            item.changed_by.clone(),
+            "reason 非规范",
+        ),
+        (item.reason.clone(), None, "缺少 changed_by"),
+        (
+            item.reason.clone(),
+            Some(" system ".to_string()),
+            "changed_by 非规范",
+        ),
+    ] {
+        let mut invalid = item.clone();
+        invalid.reason = reason;
+        invalid.changed_by = changed_by;
+        assert!(matches!(
+            project_status_history_summary(invalid),
+            Err(ProjectStatusReadError::InvalidArgument(message)) if message.contains(expected)
+        ));
+    }
+}
+
+#[tokio::test]
+async fn project_status_history_write_rejects_noncanonical_text_before_database_access() {
+    for (reason, changed_by, expected) in [
+        ("", "system", "reason"),
+        (" reason ", "system", "reason"),
+        ("reason", "", "changed_by"),
+        ("reason", " system ", "changed_by"),
+    ] {
+        let result = insert_project_status_history(
+            &DatabaseConnection::Disconnected,
+            ProjectStatusHistoryInput {
+                project_id: 7,
+                from_status: ProjectStatus::Draft,
+                to_status: ProjectStatus::BlueprintReady,
+                reason: reason.to_string(),
+                changed_by: changed_by.to_string(),
+                changed_at: naive_datetime(),
+            },
+        )
+        .await;
+        assert!(matches!(
+            result,
+            Err(ProjectStatusWriteError::InvalidArgument(message)) if message.contains(expected)
+        ));
+    }
 }
 
 #[test]
@@ -165,20 +218,9 @@ async fn update_project_status_record_updates_project_and_history() {
     let project = active.update(&db).await.unwrap();
     let changed_at = test_time(30);
 
-    let updated = update_project_status_record(
-        &db,
-        project,
-        UpdateProjectStatusRecordInput {
-            to_status: ProjectStatus::Draft,
-            history_from_status: ProjectStatus::Writing,
-            history_reason: " 项目状态回退 ".to_string(),
-            changed_by: Some(" system ".to_string()),
-            changed_at,
-            clear_draft_fields: true,
-        },
-    )
-    .await
-    .unwrap();
+    let updated = update_project_status_record(&db, project, ProjectStatus::Draft, changed_at)
+        .await
+        .unwrap();
 
     assert_eq!(updated.status, ProjectStatus::Draft.as_str());
     assert_eq!(updated.raw_blueprint, None);

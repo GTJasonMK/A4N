@@ -1,15 +1,15 @@
+use a4n_core::state::validator::parse_project_status;
 use a4n_domain::project::ProjectStatus;
 
-use super::rules::{ensure_branch_status_allowed, parse_project_status};
+use super::rules::ensure_branch_status_allowed;
 use crate::project::duplicate::ProjectDuplicateError;
 
 #[test]
 fn project_status_parser_preserves_invalid_status_error() {
-    assert!(matches!(
-        parse_project_status("future"),
-        Err(ProjectDuplicateError::InvalidArgument(message))
-            if message == "未知项目状态：future"
-    ));
+    assert_eq!(
+        parse_project_status("future").unwrap_err().to_string(),
+        "参数无效：未知项目状态：future"
+    );
 }
 
 #[test]

@@ -23,9 +23,5 @@ pub fn increment_blueprint_version(current: &str) -> Result<String, AppError> {
 }
 
 pub fn project_status_after_blueprint_generation(previous: ProjectStatus) -> ProjectStatus {
-    if previous.ordinal() < ProjectStatus::BlueprintReady.ordinal() {
-        ProjectStatus::BlueprintReady
-    } else {
-        previous
-    }
+    previous.max(ProjectStatus::BlueprintReady)
 }

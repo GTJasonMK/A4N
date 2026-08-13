@@ -4,7 +4,9 @@ use a4n_core::models::project::novel_project;
 use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 
-use super::rules::{ensure_branch_status_allowed, parse_project_status};
+use a4n_core::state::validator::parse_project_status;
+
+use super::rules::ensure_branch_status_allowed;
 use crate::project::duplicate::{
     ProjectDuplicateError,
     shared::{ProjectCopyInsert, insert_project_copy_record},
@@ -32,8 +34,10 @@ pub(super) async fn branch_text_project_data_record<C>(
 where
     C: ConnectionTrait,
 {
-    let original_status = parse_project_status(&original.status)?;
-    let branch_status = parse_project_status(branch_status)?;
+    let original_status = parse_project_status(&original.status)
+        .map_err(|error| ProjectDuplicateError::InvalidArgument(error.to_string()))?;
+    let branch_status = parse_project_status(branch_status)
+        .map_err(|error| ProjectDuplicateError::InvalidArgument(error.to_string()))?;
     ensure_branch_status_allowed(original_status, branch_status)?;
 
     let source_graph = load_project_blueprint_graph(db, original.id).await?;

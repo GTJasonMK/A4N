@@ -134,9 +134,9 @@ pub struct BlueprintSummary {
 pub struct BlueprintVersionSummary {
     pub id: i64,
     pub version: String,
-    pub change_description: Option<String>,
+    pub change_description: String,
     pub created_at: String,
-    pub created_by: Option<String>,
+    pub created_by: String,
 }
 
 #[derive(Serialize, JsonSchema)]

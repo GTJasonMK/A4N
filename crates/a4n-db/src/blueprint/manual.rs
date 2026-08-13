@@ -105,6 +105,7 @@ where
             "world_setting 不能为 null".to_string(),
         ));
     }
+    let created_by = required_text(input.created_by, "created_by", 256)?;
     let txn = db.begin().await?;
     let rows = locked_blueprint_sources(&txn, input.project_id, "保存世界观").await?;
     let existing = rows
@@ -138,7 +139,7 @@ where
         next_version,
         "用户更新世界观",
         snapshot,
-        input.created_by,
+        created_by,
         now,
     )
     .await?;
@@ -184,6 +185,7 @@ fn normalize_manual_input(
     input.target_audience = optional_text(input.target_audience, "目标读者", 1024)?;
     input.one_sentence_summary = optional_text(input.one_sentence_summary, "一句话概要", 4096)?;
     input.full_synopsis = optional_text(input.full_synopsis, "完整梗概", 131_072)?;
+    input.created_by = required_text(input.created_by, "created_by", 256)?;
     if !(1..=MAX_BLUEPRINT_TOTAL_CHAPTERS).contains(&input.total_chapters) {
         return Err(BlueprintDbError::InvalidArgument(format!(
             "总章节数必须是 1 到 {MAX_BLUEPRINT_TOTAL_CHAPTERS} 之间的整数"
@@ -324,7 +326,7 @@ async fn persist_blueprint_version_and_project<C>(
     version: String,
     change_description: &str,
     snapshot: Value,
-    created_by: Option<String>,
+    created_by: String,
     now: chrono::NaiveDateTime,
 ) -> Result<Option<BlueprintMutationStatusChange>, BlueprintDbError>
 where
@@ -335,7 +337,7 @@ where
         InsertBlueprintVersionInput {
             project_id: blueprint.project_id,
             version,
-            change_description: Some(change_description.to_string()),
+            change_description: change_description.to_string(),
             blueprint_data: snapshot.clone(),
             now,
             created_by: created_by.clone(),
@@ -376,7 +378,7 @@ where
             project_id: blueprint.project_id,
             from_status: previous_status,
             to_status: next_status,
-            reason: Some(change_description.to_string()),
+            reason: change_description.to_string(),
             changed_by: created_by,
             changed_at: now,
         },
@@ -472,7 +474,7 @@ mod tests {
             one_sentence_summary: None,
             full_synopsis: None,
             total_chapters: 1,
-            created_by: Some("user".to_string()),
+            created_by: "user".to_string(),
         })
         .unwrap();
 

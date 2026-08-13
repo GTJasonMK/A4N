@@ -235,7 +235,7 @@ impl OrchestratorContext {
             a4n_db::blueprint::UpdateBlueprintWorldSettingInput {
                 project_id,
                 world_setting,
-                created_by: Some(format!("user:{user_id}")),
+                created_by: format!("user:{user_id}"),
             },
         )
         .await
@@ -262,7 +262,7 @@ impl OrchestratorContext {
                 one_sentence_summary: input.one_sentence_summary,
                 full_synopsis: input.full_synopsis,
                 total_chapters: input.total_chapters,
-                created_by: Some(format!("user:{user_id}")),
+                created_by: format!("user:{user_id}"),
             },
         )
         .await

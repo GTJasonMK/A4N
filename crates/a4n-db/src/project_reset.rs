@@ -3,7 +3,6 @@
 use a4n_core::models::project::novel_project;
 use a4n_core::state::{
     rollback::{CleanupAction, rollback_actions},
-    transitions::is_valid_rollback,
     validator::parse_project_status,
 };
 use a4n_domain::project::ProjectStatus;

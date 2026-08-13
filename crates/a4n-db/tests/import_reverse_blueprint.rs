@@ -462,7 +462,7 @@ async fn manual_blueprint_save_preserves_owned_materials_and_creates_restorable_
             one_sentence_summary: Some("追查倒走钟声。".to_string()),
             full_synopsis: None,
             total_chapters: 1,
-            created_by: Some("user:1".to_string()),
+            created_by: "user:1".to_string(),
         },
     )
     .await
@@ -525,7 +525,7 @@ async fn blueprint_source_review_tracks_changes_after_last_blueprint_save() {
             one_sentence_summary: None,
             full_synopsis: None,
             total_chapters: 1,
-            created_by: Some("user:1".to_string()),
+            created_by: "user:1".to_string(),
         },
     )
     .await
@@ -656,7 +656,7 @@ async fn manual_blueprint_save_rejects_total_before_existing_materials_without_p
             one_sentence_summary: None,
             full_synopsis: None,
             total_chapters: 19,
-            created_by: Some("user:1".to_string()),
+            created_by: "user:1".to_string(),
         },
     )
     .await
@@ -701,7 +701,7 @@ async fn world_setting_update_creates_version_without_replacing_other_blueprint_
             one_sentence_summary: Some("追查钟楼。".to_string()),
             full_synopsis: Some("林岚追查钟楼失踪案。".to_string()),
             total_chapters: 12,
-            created_by: Some("user:1".to_string()),
+            created_by: "user:1".to_string(),
         },
     )
     .await
@@ -712,7 +712,7 @@ async fn world_setting_update_creates_version_without_replacing_other_blueprint_
         UpdateBlueprintWorldSettingInput {
             project_id,
             world_setting: json!({"premise": "午夜钟声会让时间倒退"}),
-            created_by: Some("user:1".to_string()),
+            created_by: "user:1".to_string(),
         },
     )
     .await
@@ -751,7 +751,7 @@ async fn blueprint_profile_seed_only_fills_missing_manual_profile_fields() {
             one_sentence_summary: None,
             full_synopsis: None,
             total_chapters: 1,
-            created_by: Some("user:1".to_string()),
+            created_by: "user:1".to_string(),
         },
     )
     .await

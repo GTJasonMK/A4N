@@ -79,10 +79,10 @@ pub async fn apply_reverse_blueprint_records(
         crate::blueprint::InsertBlueprintVersionInput {
             project_id,
             version: record.current_version.clone(),
-            change_description: Some("依据当前正式资料归纳蓝图".to_string()),
+            change_description: "依据当前正式资料归纳蓝图".to_string(),
             blueprint_data: snapshot.clone(),
             now,
-            created_by: Some("system".to_string()),
+            created_by: "system".to_string(),
         },
     )
     .await?;

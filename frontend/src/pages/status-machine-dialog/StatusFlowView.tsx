@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
 import type { ProjectStatus } from "../../api/project";
-import { PROJECT_STATUSES, getProjectStatusText } from "../../utils/projectStatus";
+import { PROJECT_STATUSES, PROJECT_STATUS_LABELS } from "../../api/generated/host";
 
 interface StatusFlowViewProps {
   currentStatus: ProjectStatus;
@@ -15,7 +15,7 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="text-caption text-book-text-muted">当前阶段</span>
         <strong className="truncate text-sm font-semibold text-book-text-main">
-          {getProjectStatusText(currentStatus)}
+          {PROJECT_STATUS_LABELS[currentStatus]}
         </strong>
       </div>
       <p className="mt-1 text-caption text-book-text-muted">
@@ -46,7 +46,7 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
                         : "border-transparent text-book-text-sub"
                     }`}
                   >
-                    {getProjectStatusText(status)}
+                    {PROJECT_STATUS_LABELS[status]}
                   </li>
                   {index < PROJECT_STATUSES.length - 1 ? (
                     <span aria-hidden="true" className="shrink-0 text-book-border">

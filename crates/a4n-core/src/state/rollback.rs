@@ -23,21 +23,19 @@ pub enum CleanupAction {
 pub fn rollback_actions(from: ProjectStatus, to: ProjectStatus) -> Vec<CleanupAction> {
     use ProjectStatus::*;
 
-    if from.ordinal() <= to.ordinal() {
+    if from <= to {
         return Vec::new();
     }
 
     let mut actions = Vec::new();
-    let deletes_chapters = from.ordinal() >= Writing.ordinal() && to.ordinal() < Writing.ordinal();
+    let deletes_chapters = from >= Writing && to < Writing;
     if deletes_chapters {
         actions.push(CleanupAction::DeleteChapters);
     }
-    if from.ordinal() >= PartOutlinesReady.ordinal()
-        && to.ordinal() < ChapterOutlinesReady.ordinal()
-    {
+    if from >= PartOutlinesReady && to < ChapterOutlinesReady {
         actions.push(CleanupAction::DeleteChapterOutlines);
     }
-    if from.ordinal() >= PartOutlinesReady.ordinal() && to.ordinal() < PartOutlinesReady.ordinal() {
+    if from >= PartOutlinesReady && to < PartOutlinesReady {
         actions.push(CleanupAction::DeletePartOutlines);
     }
     if to == Draft {
@@ -82,5 +80,20 @@ mod tests {
         // 前进方向不应有清理动作
         let actions = rollback_actions(ProjectStatus::Draft, ProjectStatus::BlueprintReady);
         assert!(actions.is_empty(), "前进转换不应是回退边");
+    }
+
+    #[test]
+    fn rollback_cleanup_covers_every_valid_destructive_edge() {
+        for from in ProjectStatus::ALL {
+            for to in ProjectStatus::ALL {
+                if from > to && !(from == ProjectStatus::Completed && to == ProjectStatus::Writing)
+                {
+                    assert!(
+                        !rollback_actions(from, to).is_empty(),
+                        "{from:?}->{to:?} 缺少清理动作"
+                    );
+                }
+            }
+        }
     }
 }

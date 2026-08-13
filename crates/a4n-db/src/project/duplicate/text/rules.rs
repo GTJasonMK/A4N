@@ -9,15 +9,15 @@ pub(super) fn project_copy_status_includes_blueprint(branch_status: ProjectStatu
 }
 
 pub(super) fn project_copy_status_includes_part_outlines(branch_status: ProjectStatus) -> bool {
-    branch_status.ordinal() >= ProjectStatus::PartOutlinesReady.ordinal()
+    branch_status >= ProjectStatus::PartOutlinesReady
 }
 
 pub(super) fn project_copy_status_includes_chapter_outlines(branch_status: ProjectStatus) -> bool {
-    branch_status.ordinal() >= ProjectStatus::ChapterOutlinesReady.ordinal()
+    branch_status >= ProjectStatus::ChapterOutlinesReady
 }
 
 pub(super) fn project_copy_status_includes_chapters(branch_status: ProjectStatus) -> bool {
-    branch_status.ordinal() >= ProjectStatus::Writing.ordinal()
+    branch_status >= ProjectStatus::Writing
 }
 
 pub(super) fn ensure_text_project_record_for_copy(

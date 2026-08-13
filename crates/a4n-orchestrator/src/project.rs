@@ -1,4 +1,3 @@
-pub(crate) use a4n_db::project::ProjectStatusArtifacts;
 pub use a4n_db::project::{
     BlueprintRestoreError, BlueprintRestoreResult, ChapterGenerationReferenceContextRows,
     ChapterMangaSourceSummary, CreateDerivedProjectParams, CreateFreeformVideoProjectParams,
@@ -153,7 +152,6 @@ mod generation_params_rules;
 mod input_rules;
 mod json_field_rules;
 mod package_rules;
-mod status;
 mod video_studio_package;
 mod video_studio_transfer;
 
@@ -242,7 +240,3 @@ pub(crate) use errors::project_reset_error_to_app_error;
 pub(crate) use errors::project_rollback_impact_read_error_to_app_error;
 pub(crate) use errors::project_status_read_error_to_app_error;
 pub(crate) use errors::project_status_write_error_to_app_error;
-pub(crate) use status::{
-    forward_status_artifacts_ready, next_status_from_artifact_flags, rollback_path,
-    validate_forward_status_artifacts_record,
-};

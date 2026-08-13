@@ -21,11 +21,8 @@ where
             status: project.status.clone(),
         }
     })?;
-    let next_status = if previous_status.ordinal() < ProjectStatus::BlueprintReady.ordinal() {
-        ProjectStatus::BlueprintReady
-    } else {
-        previous_status
-    };
+    let next_status =
+        a4n_core::blueprint::project_status_after_blueprint_generation(previous_status);
     let total_chapters = blueprint.total_chapters.ok_or_else(|| {
         BlueprintRestoreError::invalid_snapshot("蓝图版本缺少 total_chapters，无法同步项目章节目标")
     })?;
@@ -56,8 +53,8 @@ where
             project_id,
             from_status: previous_status,
             to_status: next_status,
-            reason: Some("蓝图版本恢复".to_string()),
-            changed_by: Some("system".to_string()),
+            reason: "蓝图版本恢复".to_string(),
+            changed_by: "system".to_string(),
             changed_at: now,
         },
     )

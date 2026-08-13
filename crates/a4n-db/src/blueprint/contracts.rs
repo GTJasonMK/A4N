@@ -60,14 +60,14 @@ pub struct SaveManualBlueprintInput {
     pub one_sentence_summary: Option<String>,
     pub full_synopsis: Option<String>,
     pub total_chapters: i32,
-    pub created_by: Option<String>,
+    pub created_by: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct UpdateBlueprintWorldSettingInput {
     pub project_id: i64,
     pub world_setting: Value,
-    pub created_by: Option<String>,
+    pub created_by: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,10 +98,10 @@ pub struct BlueprintRefinePatchInput {
 pub struct InsertBlueprintVersionInput {
     pub project_id: i64,
     pub version: String,
-    pub change_description: Option<String>,
+    pub change_description: String,
     pub blueprint_data: Value,
     pub now: NaiveDateTime,
-    pub created_by: Option<String>,
+    pub created_by: String,
 }
 
 /// 蓝图生成完成后同步项目主表字段。

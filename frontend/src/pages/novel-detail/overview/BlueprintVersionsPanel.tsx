@@ -308,17 +308,13 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                       <time className="text-caption tabular-nums text-book-text-muted">
                         {formatUiDateTime(version.created_at)}
                       </time>
-                      {version.created_by ? (
-                        <span className="text-caption text-book-text-muted">
-                          {version.created_by}
-                        </span>
-                      ) : null}
-                    </span>
-                    {version.change_description ? (
-                      <span className="mt-0.5 block truncate text-small text-book-text-sub">
-                        {version.change_description}
+                      <span className="text-caption text-book-text-muted">
+                        {version.created_by}
                       </span>
-                    ) : null}
+                    </span>
+                    <span className="mt-0.5 block truncate text-small text-book-text-sub">
+                      {version.change_description}
+                    </span>
                   </span>
                   {restoring != null ? (
                     restoring === version.version ? (

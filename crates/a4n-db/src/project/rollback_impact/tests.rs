@@ -1,71 +1,9 @@
-use super::contracts::ProjectRollbackImpactReadError;
-use super::facts::{ProjectRollbackImpactFacts, project_rollback_impacts};
-use super::projection::rollback_impacts_from_facts;
+use super::{ProjectRollbackImpactReadError, project_rollback_impacts};
+use a4n_core::models::chapter::chapter_outline;
 use a4n_core::state::rollback::CleanupAction;
-use sea_orm::{DatabaseConnection, DbErr};
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, Set};
 use std::error::Error;
-
-#[test]
-fn rollback_impacts_from_facts_builds_requested_impacts() {
-    let actions = [
-        CleanupAction::DeleteChapters,
-        CleanupAction::DeleteChapterOutlines,
-        CleanupAction::DeletePartOutlines,
-        CleanupAction::DeleteBlueprintVersions,
-    ];
-    let facts = ProjectRollbackImpactFacts {
-        chapter_numbers: vec![3, 1, 2],
-        outline_numbers: vec![8, 5],
-        part_numbers: vec![2, 1],
-        media_image_count: 4,
-        media_video_count: 5,
-        task_count: 6,
-        object_profile_count: 7,
-        scene_profile_count: 8,
-        scene_occurrence_count: 9,
-        scene_transition_count: 10,
-        scene_entity_state_count: 11,
-        blueprint_character_count: 12,
-        blueprint_relationship_count: 13,
-        blueprint_version_count: 14,
-        novel_blueprint_count: 15,
-    };
-
-    let impacts = rollback_impacts_from_facts(&actions, &facts)
-        .expect("small rollback impact counts should fit i32");
-
-    let titles: Vec<&str> = impacts.iter().map(|impact| impact.title.as_str()).collect();
-    assert_eq!(
-        titles,
-        vec![
-            "删除章节正文与派生数据",
-            "删除章节大纲",
-            "删除分部大纲",
-            "删除蓝图与版本",
-        ]
-    );
-    let chapter_impact = &impacts[0];
-    assert_eq!(chapter_impact.count, 3);
-    assert_eq!(chapter_impact.chapter_start, Some(1));
-    assert_eq!(chapter_impact.chapter_end, Some(3));
-    let note = chapter_impact.note.as_deref().expect("chapter note");
-    assert!(note.contains("4 张章节图片"));
-    assert!(note.contains("5 条视频记录"));
-    assert!(note.contains("7 个物体档案"));
-    assert!(note.contains("8 个场景档案"));
-    assert!(note.contains("9 条场景出场"));
-    assert!(note.contains("10 条场景位移"));
-    assert!(note.contains("11 条场景实体状态"));
-    assert!(note.contains("6 个项目任务"));
-
-    assert_eq!(impacts[1].count, 2);
-    assert_eq!(impacts[1].chapter_start, Some(5));
-    assert_eq!(impacts[1].chapter_end, Some(8));
-    assert_eq!(impacts[2].count, 2);
-    assert_eq!(impacts[2].part_start, Some(1));
-    assert_eq!(impacts[2].part_end, Some(2));
-    assert_eq!(impacts[3].count, 54);
-}
 
 #[test]
 fn project_rollback_impact_read_error_preserves_operation_and_source() {
@@ -96,4 +34,64 @@ async fn project_rollback_impacts_rejects_invalid_id_before_database_access() {
         Err(ProjectRollbackImpactReadError::InvalidArgument(message))
             if message == "project_id 必须大于 0"
     ));
+}
+
+#[tokio::test]
+async fn rollback_without_cleanup_actions_needs_no_database_query() {
+    let impacts = project_rollback_impacts(&DatabaseConnection::Disconnected, 1, &[])
+        .await
+        .unwrap();
+
+    assert!(impacts.is_empty());
+}
+
+#[tokio::test]
+async fn rollback_queries_only_requested_outline_impact() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "回退影响查询范围".to_string(),
+            description: String::new(),
+            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    for chapter_number in [2, 5] {
+        chapter_outline::ActiveModel {
+            project_id: Set(project.id),
+            part_id: Set(None),
+            chapter_number: Set(chapter_number),
+            title: Set(None),
+            summary: Set(None),
+            beats: Set(None),
+            key_scenes: Set(None),
+            pacing_score: Set(None),
+            foreshadowing_setup: Set(None),
+            foreshadowing_payoff: Set(None),
+            characters_involved: Set(None),
+            word_count_target: Set(None),
+            status: Set(chapter_outline::STATUS_COMPLETED.to_string()),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+    }
+
+    let impacts =
+        project_rollback_impacts(&db, project.id, &[CleanupAction::DeleteChapterOutlines])
+            .await
+            .unwrap();
+
+    assert_eq!(impacts.len(), 1);
+    assert_eq!(impacts[0].title, "删除章节大纲");
+    assert_eq!(impacts[0].count, 2);
+    assert_eq!(impacts[0].chapter_start, Some(2));
+    assert_eq!(impacts[0].chapter_end, Some(5));
 }

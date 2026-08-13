@@ -5,7 +5,7 @@ import { listAllProjects, type AdminProjectSummary } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { getAdminProjectTypeLabel } from "../../../utils/projectRouting";
-import { getProjectStatusText } from "../../../utils/projectStatus";
+import { PROJECT_STATUS_LABELS } from "../../../api/generated/host";
 
 export const ProjectsSection: React.FC = () => {
   const [projects, setProjects] = useState<AdminProjectSummary[]>([]);
@@ -43,7 +43,7 @@ export const ProjectsSection: React.FC = () => {
                 <div className="min-w-0">
                   <div className="truncate font-medium text-book-text-main">{p.title}</div>
                   <div className="mt-1 truncate text-small text-book-text-muted">
-                    {getAdminProjectTypeLabel(p)} · {getProjectStatusText(p.status)}
+                    {getAdminProjectTypeLabel(p)} · {PROJECT_STATUS_LABELS[p.status]}
                   </div>
                 </div>
                 {(p.total_chapters ?? p.target_chapters) > 0 ? (

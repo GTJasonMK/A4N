@@ -127,14 +127,14 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
         a4n_db::blueprint::InsertBlueprintVersionInput {
             project_id,
             version: next_version.clone(),
-            change_description: Some(if next_version == "1.0" {
+            change_description: if next_version == "1.0" {
                 "自动生成首版蓝图".to_string()
             } else {
                 "重新生成蓝图".to_string()
-            }),
+            },
             blueprint_data: parsed.raw.clone(),
             now,
-            created_by: Some("system".to_string()),
+            created_by: "system".to_string(),
         },
     )
     .await
@@ -192,8 +192,8 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
                 project_id,
                 from_status: *from_status,
                 to_status: *to_status,
-                reason: Some("蓝图生成完成".to_string()),
-                changed_by: Some("system".to_string()),
+                reason: "蓝图生成完成".to_string(),
+                changed_by: "system".to_string(),
                 changed_at: *changed_at,
             },
         )

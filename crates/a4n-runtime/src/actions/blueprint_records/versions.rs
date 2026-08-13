@@ -18,7 +18,7 @@ pub async fn list_blueprint_versions(
         .orchestrator()
         .blueprint_versions_for_user_validated(user_id, input.project_id)
         .await?;
-    Ok(versions.iter().map(blueprint_version_summary).collect())
+    versions.iter().map(blueprint_version_summary).collect()
 }
 
 pub async fn diff_blueprint_versions(

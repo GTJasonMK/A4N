@@ -1,4 +1,5 @@
 use a4n_domain::project::ProjectStatus;
+pub use a4n_domain::project::ProjectStatusArtifacts;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 
@@ -7,19 +8,9 @@ pub struct ProjectStatusHistoryInput {
     pub project_id: i64,
     pub from_status: ProjectStatus,
     pub to_status: ProjectStatus,
-    pub reason: Option<String>,
-    pub changed_by: Option<String>,
+    pub reason: String,
+    pub changed_by: String,
     pub changed_at: NaiveDateTime,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateProjectStatusRecordInput {
-    pub to_status: ProjectStatus,
-    pub history_from_status: ProjectStatus,
-    pub history_reason: String,
-    pub changed_by: Option<String>,
-    pub changed_at: NaiveDateTime,
-    pub clear_draft_fields: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -41,14 +32,6 @@ impl From<DbErr> for ProjectStatusWriteError {
     fn from(source: DbErr) -> Self {
         Self::Database { source }
     }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ProjectStatusArtifacts {
-    pub has_blueprint: bool,
-    pub has_part_outline: bool,
-    pub has_chapter_outline: bool,
-    pub has_chapter_content: bool,
 }
 
 #[derive(Debug, thiserror::Error)]

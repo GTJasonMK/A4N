@@ -10,10 +10,10 @@ import {
   type ProjectStatus,
   type ProjectStatusMachineSummary,
 } from "../api/project";
+import { PROJECT_STATUS_LABELS } from "../api/generated/host";
 import { useToast } from "../components/feedback/Toast";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
-import { getProjectStatusText } from "../utils/projectStatus";
 import { ForwardActionCard } from "./status-machine-dialog/ForwardActionCard";
 import { RollbackCard } from "./status-machine-dialog/RollbackCard";
 import { StatusFlowView } from "./status-machine-dialog/StatusFlowView";
@@ -163,7 +163,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       await executeStatusAction(
         `forward-${target}`,
         () => forwardProjectStatus(project.id, target),
-        `已推进至「${getProjectStatusText(target)}」`,
+        `已推进至「${PROJECT_STATUS_LABELS[target]}」`,
       );
     },
     [addToast, canForwardStatus, executeStatusAction, project.id],
@@ -220,7 +220,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     const completed = await executeStatusAction(
       `rollback-${rollbackTarget}`,
       () => rollbackProjectStatus(project.id, rollbackTarget),
-      `已回滚至「${getProjectStatusText(rollbackTarget)}」`,
+      `已回滚至「${PROJECT_STATUS_LABELS[rollbackTarget]}」`,
     );
     if (completed && mountedRef.current && activeProjectIdRef.current === requestProjectId) {
       clearRollbackPreview();

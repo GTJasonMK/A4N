@@ -2,27 +2,21 @@ use a4n_core::{
     error::AppError,
     event::bridge::InternalEvent,
     models::project::novel_project,
-    state::{
-        rollback::rollback_actions,
-        transitions::{is_valid_forward, is_valid_rollback, valid_forward_targets},
-        validator::parse_project_status,
-    },
+    state::{rollback::rollback_actions, validator::parse_project_status},
 };
-use a4n_db::{
-    DbHandle, project::UpdateProjectStatusRecordInput, project_reset::ProjectStatusRollbackOutcome,
+use a4n_db::{DbHandle, project_reset::ProjectStatusRollbackOutcome};
+use a4n_domain::project::{
+    ProjectRollbackPreview, ProjectStatus, ProjectStatusArtifacts, ProjectStatusMachineSummary,
 };
-use a4n_domain::project::{ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary};
 use chrono::{NaiveDateTime, Utc};
 
 use super::OrchestratorContext;
 use crate::{
     collaboration::ProjectAccessRole,
     project::{
-        PROJECT_KIND_TEXT, ProjectStatusArtifacts, forward_status_artifacts_ready,
-        next_status_from_artifact_flags, project_mutation_error_to_app_error,
-        project_reset_error_to_app_error, project_rollback_impact_read_error_to_app_error,
-        project_status_read_error_to_app_error, project_status_write_error_to_app_error,
-        rollback_path, validate_forward_status_artifacts_record,
+        PROJECT_KIND_TEXT, project_mutation_error_to_app_error, project_reset_error_to_app_error,
+        project_rollback_impact_read_error_to_app_error, project_status_read_error_to_app_error,
+        project_status_write_error_to_app_error,
     },
 };
 
@@ -82,14 +76,13 @@ impl ProjectStatusApplication {
             .project_with_status(project_id, "读取项目状态机")
             .await?;
         let artifacts = self.artifacts(project_id).await?;
-        let forward_targets = valid_forward_targets(current_status)
-            .iter()
-            .copied()
-            .filter(|target| forward_status_artifacts_ready(*target, artifacts))
+        let forward_targets = ProjectStatus::ALL
+            .into_iter()
+            .filter(|target| current_status < *target && artifacts.supports(*target))
             .collect();
         let rollback_targets = ProjectStatus::ALL
             .into_iter()
-            .filter(|target| is_valid_rollback(current_status, *target))
+            .filter(|target| current_status > *target)
             .collect();
         let history =
             a4n_db::project::project_status_history(self.database.connection(), project_id)
@@ -112,7 +105,7 @@ impl ProjectStatusApplication {
         let (_, current_status) = self
             .project_with_status(project_id, "预览项目状态回退")
             .await?;
-        if !is_valid_rollback(current_status, target) {
+        if current_status <= target {
             return Err(AppError::InvalidState {
                 current: current_status.as_str().to_string(),
                 operation: format!("回退到状态 {}", target.as_str()),
@@ -128,7 +121,11 @@ impl ProjectStatusApplication {
         .map_err(project_rollback_impact_read_error_to_app_error)?;
 
         Ok(ProjectRollbackPreview {
-            path: rollback_path(current_status, target),
+            path: ProjectStatus::ALL
+                .into_iter()
+                .rev()
+                .filter(|status| *status <= current_status && *status >= target)
+                .collect(),
             impacts,
         })
     }
@@ -139,27 +136,44 @@ impl ProjectStatusApplication {
         target: ProjectStatus,
     ) -> Result<ProjectStatusTransition, AppError> {
         let (project, from) = self.project_with_status(project_id, "推进项目状态").await?;
-        if !is_valid_forward(from, target) {
+        let artifacts = self.artifacts(project.id).await?;
+        self.forward_loaded(project, from, target, artifacts).await
+    }
+
+    async fn forward_loaded(
+        &self,
+        project: novel_project::Model,
+        from: ProjectStatus,
+        target: ProjectStatus,
+        artifacts: ProjectStatusArtifacts,
+    ) -> Result<ProjectStatusTransition, AppError> {
+        if from >= target {
             return Err(AppError::InvalidState {
                 current: from.as_str().to_string(),
                 operation: format!("前进到状态 {}", target.as_str()),
             });
         }
-        let artifacts = self.artifacts(project.id).await?;
-        validate_forward_status_artifacts_record(&project, target, artifacts)?;
+        if !artifacts.supports(target) {
+            let operation = match target {
+                ProjectStatus::Draft => unreachable!("前进目标不能是草稿状态"),
+                ProjectStatus::BlueprintReady => "前进到蓝图后续阶段（缺少故事蓝图）",
+                ProjectStatus::PartOutlinesReady => "前进到分部大纲后续阶段（缺少分部大纲）",
+                ProjectStatus::ChapterOutlinesReady => "前进到章节大纲后续阶段（缺少章节大纲）",
+                ProjectStatus::Writing => "前进到 writing（至少需要一个章节已有正文）",
+                ProjectStatus::Completed => "前进到 completed（至少需要一个章节已有正文）",
+            };
+            return Err(AppError::InvalidState {
+                current: project.status.clone(),
+                operation: operation.to_string(),
+            });
+        }
 
         let changed_at = Utc::now().naive_utc();
         let project = a4n_db::project::update_project_status_record(
             self.database.connection(),
             project,
-            UpdateProjectStatusRecordInput {
-                to_status: target,
-                history_from_status: from,
-                history_reason: "项目状态推进".to_string(),
-                changed_by: Some("system".to_string()),
-                changed_at,
-                clear_draft_fields: false,
-            },
+            target,
+            changed_at,
         )
         .await
         .map_err(project_status_write_error_to_app_error)?;
@@ -172,13 +186,45 @@ impl ProjectStatusApplication {
         })
     }
 
+    async fn advance(
+        &self,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<Option<ProjectStatusTransition>, AppError> {
+        let (project, current) = self
+            .project_with_status(project_id, "自动推进项目状态")
+            .await?;
+        if current >= target {
+            return Ok(None);
+        }
+        let artifacts = self.artifacts(project.id).await?;
+        self.forward_loaded(project, current, target, artifacts)
+            .await
+            .map(Some)
+    }
+
+    async fn sync_from_artifacts(
+        &self,
+        project_id: i64,
+    ) -> Result<Option<ProjectStatusTransition>, AppError> {
+        let (project, current) = self.project_with_status(project_id, "同步项目状态").await?;
+        let artifacts = self.artifacts(project.id).await?;
+        let target = artifacts.furthest_status();
+        if current >= target {
+            return Ok(None);
+        }
+        self.forward_loaded(project, current, target, artifacts)
+            .await
+            .map(Some)
+    }
+
     async fn rollback(
         &self,
         project_id: i64,
         target: ProjectStatus,
     ) -> Result<ProjectStatusRollback, AppError> {
         let (_, from) = self.project_with_status(project_id, "回退项目状态").await?;
-        if !is_valid_rollback(from, target) {
+        if from <= target {
             return Err(AppError::InvalidState {
                 current: from.as_str().to_string(),
                 operation: format!("回退到状态 {}", target.as_str()),
@@ -205,6 +251,20 @@ impl ProjectStatusApplication {
 }
 
 impl OrchestratorContext {
+    fn publish_project_status_transition(
+        &self,
+        project_id: i64,
+        transition: &ProjectStatusTransition,
+    ) -> Result<(), AppError> {
+        self.publish_internal_event(InternalEvent::ProjectStatusChanged {
+            project_id,
+            from: transition.from,
+            to: transition.to,
+            timestamp: transition.changed_at,
+        })?;
+        Ok(())
+    }
+
     pub async fn project_status_machine_for_user_validated(
         &self,
         user_id: i64,
@@ -268,12 +328,7 @@ impl OrchestratorContext {
         target: ProjectStatus,
     ) -> Result<novel_project::Model, AppError> {
         let transition = self.project_status.forward(project_id, target).await?;
-        self.publish_internal_event(InternalEvent::ProjectStatusChanged {
-            project_id,
-            from: transition.from,
-            to: transition.to,
-            timestamp: transition.changed_at,
-        })?;
+        self.publish_project_status_transition(project_id, &transition)?;
         Ok(transition.project)
     }
 
@@ -282,42 +337,18 @@ impl OrchestratorContext {
         project_id: i64,
         target: ProjectStatus,
     ) -> Result<(), AppError> {
-        let project = self
-            .project_by_id(project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        let current =
-            parse_project_status(&project.status).map_err(|err| AppError::InvalidState {
-                current: project.status.clone(),
-                operation: format!("自动推进项目状态到 {}: {err}", target.as_str()),
-            })?;
-
-        if current.ordinal() >= target.ordinal() {
-            return Ok(());
+        if let Some(transition) = self.project_status.advance(project_id, target).await? {
+            self.publish_project_status_transition(project_id, &transition)?;
         }
-
-        self.forward_project_status_record(project_id, target)
-            .await
-            .map(|_| ())
+        Ok(())
     }
 
     pub async fn sync_project_status_from_artifacts(
         &self,
         project_id: i64,
     ) -> Result<(), AppError> {
-        let project = self
-            .project_by_id(project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        let status =
-            parse_project_status(&project.status).map_err(|err| AppError::InvalidState {
-                current: project.status.clone(),
-                operation: format!("同步项目状态: {err}"),
-            })?;
-        let artifacts = self.project_status.artifacts(project.id).await?;
-        if let Some(next) = next_status_from_artifact_flags(status, artifacts) {
-            self.advance_project_status_if_allowed(project_id, next)
-                .await?;
+        if let Some(transition) = self.project_status.sync_from_artifacts(project_id).await? {
+            self.publish_project_status_transition(project_id, &transition)?;
         }
         Ok(())
     }

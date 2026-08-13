@@ -111,10 +111,10 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
         InsertBlueprintVersionInput {
             project_id,
             version: next_version,
-            change_description: Some("优化蓝图".to_string()),
+            change_description: "优化蓝图".to_string(),
             blueprint_data: snapshot.clone(),
             now,
-            created_by: Some("system".to_string()),
+            created_by: "system".to_string(),
         },
     )
     .await

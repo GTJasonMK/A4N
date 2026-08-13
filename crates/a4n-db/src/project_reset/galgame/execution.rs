@@ -49,8 +49,8 @@ pub(in crate::project_reset) async fn reset_galgame_generated_data_in_tx(
                 project_id,
                 from_status: previous_status,
                 to_status: ProjectStatus::Draft,
-                reason: Some("Galgame 项目生成数据重置".to_string()),
-                changed_by: Some("system".to_string()),
+                reason: "Galgame 项目生成数据重置".to_string(),
+                changed_by: "system".to_string(),
                 changed_at: now,
             },
         )

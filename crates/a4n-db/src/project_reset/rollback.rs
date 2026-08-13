@@ -30,7 +30,7 @@ pub async fn rollback_project_status_record(
             actual: actual_from.as_str().to_string(),
         });
     }
-    if !is_valid_rollback(actual_from, to) {
+    if actual_from <= to {
         return Err(ProjectResetDbError::InvalidState {
             current: actual_from.as_str().to_string(),
             operation: format!("回退到状态 {}", to.as_str()),
@@ -76,19 +76,7 @@ pub async fn rollback_project_status_record(
             }
         }
     }
-    let updated = project_db::update_project_status_record_in(
-        &tx,
-        project,
-        project_db::UpdateProjectStatusRecordInput {
-            to_status: to,
-            history_from_status: actual_from,
-            history_reason: "项目状态回退".to_string(),
-            changed_by: Some("system".to_string()),
-            changed_at,
-            clear_draft_fields: to == ProjectStatus::Draft,
-        },
-    )
-    .await?;
+    let updated = project_db::update_project_status_record_in(&tx, project, to, changed_at).await?;
     project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, changed_at).await?;
     crate::media::schedule_unreferenced_media_cleanup(
         &tx,

@@ -6,6 +6,7 @@
 
 use a4n_core::{
     error::AppError,
+    event::bridge::InternalEvent,
     import_reverse::ReverseContentRequest,
     models::generation::{workflow_checkpoint, workflow_run},
 };
@@ -248,10 +249,14 @@ async fn apply_reverse_engineering_checkpoint(
     let parsed_output = restored_import_reverse_checkpoint(checkpoint_json, prompt_name)?;
     validate_reverse_engineer_output(prompt_name, &parsed_output)?;
 
-    let mut artifacts = checkpoint
-        .artifacts_json
-        .clone()
-        .unwrap_or_else(|| json!({}));
+    let mut artifacts =
+        checkpoint
+            .artifacts_json
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_reverse_candidate_artifacts".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
+            })?;
     let artifacts_object = artifacts
         .as_object_mut()
         .ok_or_else(|| AppError::InvalidState {
@@ -280,26 +285,30 @@ async fn apply_reverse_engineering_checkpoint(
 
     if let Some(applied) = confirmed_reverse_candidate_apply_result(candidate_object)? {
         tx.rollback().await?;
-        // 正式资料可能已提交但状态推进在响应前失败；重试应只补状态，不重写资料。
-        let mut warnings = project_status_warnings(
-            context
-                .advance_project_status_if_allowed(project_id, target.applied_status())
+        let current_status =
+            a4n_db::project::project_by_id_record(context.database.connection(), project_id)
                 .await
-                .err()
-                .map(|error| error.to_string()),
-        );
-        if let Some(warning) =
-            publish_reverse_blueprint_updated(context, project_id, target, &applied)
-        {
-            warnings.push(warning);
+                .map_err(crate::project::project_mutation_error_to_app_error)?
+                .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?
+                .status;
+        let current_status = a4n_core::state::validator::parse_project_status(&current_status)?;
+        if current_status < target.applied_status() {
+            return Err(AppError::InvalidState {
+                current: current_status.as_str().to_string(),
+                operation: format!(
+                    "读取已确认的项目资料归纳结果（期望项目状态至少为 {}）",
+                    target.applied_status().as_str()
+                ),
+            });
         }
+        publish_reverse_blueprint_updated(context, project_id, target, &applied)?;
         return Ok(reverse_candidate_response(
             workflow_run_id,
             target,
             "already_confirmed",
             None,
             Some(applied),
-            warnings,
+            Vec::new(),
         ));
     }
 
@@ -343,6 +352,16 @@ async fn apply_reverse_engineering_checkpoint(
     };
 
     let now = Utc::now().naive_utc();
+    let current_status = a4n_core::state::validator::parse_project_status(&project.status)?;
+    let target_status = target.applied_status();
+    let status_change = if current_status < target_status {
+        a4n_db::project::update_project_status_record_in(&tx, project, target_status, now)
+            .await
+            .map_err(crate::project::project_status_write_error_to_app_error)?;
+        Some((current_status, target_status))
+    } else {
+        None
+    };
     candidate_object.insert("state".to_string(), json!("confirmed"));
     candidate_object.insert("confirmed_at".to_string(), json!(now.to_string()));
     candidate_object.insert("apply_result".to_string(), applied.clone());
@@ -356,32 +375,23 @@ async fn apply_reverse_engineering_checkpoint(
         .map_err(AppError::Database)?;
     tx.commit().await?;
 
-    let mut warnings = project_status_warnings(
-        context
-            .advance_project_status_if_allowed(project_id, target.applied_status())
-            .await
-            .err()
-            .map(|error| error.to_string()),
-    );
-    if let Some(warning) = publish_reverse_blueprint_updated(context, project_id, target, &applied)
-    {
-        warnings.push(warning);
+    if let Some((from, to)) = status_change {
+        context.publish_internal_event(InternalEvent::ProjectStatusChanged {
+            project_id,
+            from,
+            to,
+            timestamp: now,
+        })?;
     }
+    publish_reverse_blueprint_updated(context, project_id, target, &applied)?;
     Ok(reverse_candidate_response(
         workflow_run_id,
         target,
         "confirmed",
         None,
         Some(applied),
-        warnings,
+        Vec::new(),
     ))
-}
-
-fn project_status_warnings(error: Option<String>) -> Vec<String> {
-    error
-        .map(|error| format!("项目进度状态更新失败：{error}。正式资料已写入，可重试确认恢复状态"))
-        .into_iter()
-        .collect()
 }
 
 fn publish_reverse_blueprint_updated(
@@ -389,20 +399,22 @@ fn publish_reverse_blueprint_updated(
     project_id: i64,
     target: ReverseEngineeringTarget,
     applied: &Value,
-) -> Option<String> {
+) -> Result<(), AppError> {
     if target != ReverseEngineeringTarget::Blueprint {
-        return None;
+        return Ok(());
     }
-    let Some(version) = applied.get("blueprint_version").and_then(Value::as_str) else {
-        return Some("正式蓝图已写入，但确认结果缺少蓝图版本，页面可能需要重新打开".to_string());
-    };
-    context
-        .publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
-            project_id,
-            version: version.to_string(),
-        })
-        .err()
-        .map(|error| format!("正式蓝图已写入，但蓝图刷新事件发布失败：{error}。可重新打开项目刷新"))
+    let version = applied
+        .get("blueprint_version")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::InvalidState {
+            current: "missing_applied_blueprint_version".to_string(),
+            operation: "发布蓝图归纳结果".to_string(),
+        })?;
+    context.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
+        project_id,
+        version: version.to_string(),
+    })?;
+    Ok(())
 }
 
 fn validate_reverse_candidate_run(
@@ -524,11 +536,14 @@ async fn validate_reverse_candidate_source_freshness(
     target: ReverseEngineeringTarget,
     fingerprint: &Value,
 ) -> Result<(), AppError> {
-    if !fingerprint
+    let auto_context = fingerprint
         .get("auto_context")
         .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
+        .ok_or_else(|| AppError::InvalidState {
+            current: "invalid_reverse_candidate_input_fingerprint_shape".to_string(),
+            operation: "写入项目资料归纳结果".to_string(),
+        })?;
+    if !auto_context {
         return Ok(());
     }
 
@@ -831,26 +846,6 @@ mod tests {
         assert_eq!(response["state"], "proposal");
         assert_eq!(response["result"], output);
         assert!(response.get("applied").is_none());
-    }
-
-    #[test]
-    fn post_commit_status_failure_is_returned_as_a_warning() {
-        let response = reverse_candidate_response(
-            42,
-            ReverseEngineeringTarget::Outline,
-            "confirmed",
-            None,
-            Some(json!({"outline_count": 3})),
-            project_status_warnings(Some("状态服务不可用".to_string())),
-        );
-
-        assert_eq!(response["state"], "confirmed");
-        assert_eq!(response["applied"]["outline_count"], 3);
-        assert!(
-            response["warnings"][0]
-                .as_str()
-                .is_some_and(|warning| warning.contains("正式资料已写入"))
-        );
     }
 
     #[test]

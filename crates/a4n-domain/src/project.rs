@@ -28,7 +28,9 @@ impl ProjectKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
     Draft,
@@ -65,17 +67,6 @@ impl ProjectStatus {
             .into_iter()
             .find(|status| status.as_str() == value)
     }
-
-    pub const fn ordinal(self) -> u8 {
-        match self {
-            Self::Draft => 0,
-            Self::BlueprintReady => 1,
-            Self::PartOutlinesReady => 2,
-            Self::ChapterOutlinesReady => 3,
-            Self::Writing => 4,
-            Self::Completed => 5,
-        }
-    }
 }
 
 impl std::fmt::Display for ProjectStatus {
@@ -91,12 +82,46 @@ impl std::fmt::Display for ProjectStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ProjectStatusArtifacts {
+    pub has_blueprint: bool,
+    pub has_part_outline: bool,
+    pub has_chapter_outline: bool,
+    pub has_chapter_content: bool,
+}
+
+impl ProjectStatusArtifacts {
+    pub const fn supports(self, status: ProjectStatus) -> bool {
+        match status {
+            ProjectStatus::Draft => true,
+            ProjectStatus::BlueprintReady => self.has_blueprint,
+            ProjectStatus::PartOutlinesReady => self.has_part_outline,
+            ProjectStatus::ChapterOutlinesReady => self.has_chapter_outline,
+            ProjectStatus::Writing | ProjectStatus::Completed => self.has_chapter_content,
+        }
+    }
+
+    pub const fn furthest_status(self) -> ProjectStatus {
+        if self.has_chapter_content {
+            ProjectStatus::Writing
+        } else if self.has_chapter_outline {
+            ProjectStatus::ChapterOutlinesReady
+        } else if self.has_part_outline {
+            ProjectStatus::PartOutlinesReady
+        } else if self.has_blueprint {
+            ProjectStatus::BlueprintReady
+        } else {
+            ProjectStatus::Draft
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct ProjectStatusHistorySummary {
     pub id: i64,
     pub from_status: ProjectStatus,
     pub to_status: ProjectStatus,
-    pub reason: Option<String>,
+    pub reason: String,
     pub created_at: String,
 }
 
@@ -252,4 +277,31 @@ pub struct GenerationInputSource {
     pub text: Option<String>,
     pub value: Option<Value>,
     pub source_record_id: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProjectStatus, ProjectStatusArtifacts};
+
+    #[test]
+    fn project_status_order_matches_all_and_artifact_progress() {
+        assert!(ProjectStatus::ALL.windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(
+            ProjectStatusArtifacts {
+                has_blueprint: true,
+                has_part_outline: true,
+                has_chapter_outline: true,
+                has_chapter_content: true,
+            }
+            .furthest_status(),
+            ProjectStatus::Writing
+        );
+        assert!(
+            ProjectStatusArtifacts {
+                has_chapter_content: true,
+                ..Default::default()
+            }
+            .supports(ProjectStatus::Completed)
+        );
+    }
 }

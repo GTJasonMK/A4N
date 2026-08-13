@@ -1,15 +1,17 @@
-use super::{
-    ProjectStatusHistoryInput, ProjectStatusWriteError, UpdateProjectStatusRecordInput,
-    insert_project_status_history,
-};
-use crate::project::{project_by_id_for_update, required_text, validate_positive_i64};
+use super::{ProjectStatusHistoryInput, ProjectStatusWriteError, insert_project_status_history};
+use crate::project::{project_by_id_for_update, validate_positive_i64};
 use a4n_core::models::project::novel_project;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
+use a4n_domain::project::ProjectStatus;
+use chrono::NaiveDateTime;
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait, sea_query::Expr,
+};
 
 pub async fn update_project_status_record<C>(
     db: &C,
     project: novel_project::Model,
-    input: UpdateProjectStatusRecordInput,
+    to_status: ProjectStatus,
+    changed_at: NaiveDateTime,
 ) -> Result<novel_project::Model, ProjectStatusWriteError>
 where
     C: ConnectionTrait + TransactionTrait,
@@ -29,42 +31,74 @@ where
             actual: locked.status,
         });
     }
-    let updated = update_project_status_record_in(&txn, locked, input).await?;
+    let updated = update_project_status_record_in(&txn, locked, to_status, changed_at).await?;
     txn.commit().await?;
     Ok(updated)
 }
 
-pub(crate) async fn update_project_status_record_in<C>(
+pub async fn update_project_status_record_in<C>(
     db: &C,
     project: novel_project::Model,
-    input: UpdateProjectStatusRecordInput,
+    to_status: ProjectStatus,
+    changed_at: NaiveDateTime,
 ) -> Result<novel_project::Model, ProjectStatusWriteError>
 where
     C: ConnectionTrait,
 {
     validate_positive_i64(project.id, "project_id")
         .map_err(ProjectStatusWriteError::InvalidArgument)?;
-    let history_reason = required_text(input.history_reason, "reason")
-        .map_err(ProjectStatusWriteError::InvalidArgument)?;
-
-    let mut active: novel_project::ActiveModel = project.into();
-    active.status = Set(input.to_status.as_str().to_string());
-    active.updated_at = Set(input.changed_at);
-    if input.clear_draft_fields {
-        active.raw_blueprint = Set(None);
-        active.total_chapters = Set(None);
+    let from_status = ProjectStatus::parse(&project.status).ok_or_else(|| {
+        ProjectStatusWriteError::InvalidArgument(format!("未知项目状态：{}", project.status))
+    })?;
+    if from_status == to_status {
+        return Err(ProjectStatusWriteError::InvalidArgument(format!(
+            "项目状态没有变化：{}",
+            to_status.as_str()
+        )));
     }
-    let updated = active.update(db).await?;
+    let history_reason = if from_status < to_status {
+        "项目状态推进"
+    } else {
+        "项目状态回退"
+    };
+
+    let project_id = project.id;
+    let mut update = novel_project::Entity::update_many()
+        .col_expr(
+            novel_project::Column::Status,
+            Expr::value(to_status.as_str()),
+        )
+        .col_expr(novel_project::Column::UpdatedAt, Expr::value(changed_at))
+        .filter(novel_project::Column::Id.eq(project_id));
+    if to_status == ProjectStatus::Draft {
+        update = update
+            .col_expr(
+                novel_project::Column::RawBlueprint,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                novel_project::Column::TotalChapters,
+                Expr::value(Option::<i32>::None),
+            );
+    }
+    let result = update.exec(db).await?;
+    if result.rows_affected != 1 {
+        return Err(ProjectStatusWriteError::ProjectNotFound { project_id });
+    }
+    let updated = novel_project::Entity::find_by_id(project_id)
+        .one(db)
+        .await?
+        .ok_or(ProjectStatusWriteError::ProjectNotFound { project_id })?;
 
     insert_project_status_history(
         db,
         ProjectStatusHistoryInput {
             project_id: updated.id,
-            from_status: input.history_from_status,
-            to_status: input.to_status,
-            reason: Some(history_reason),
-            changed_by: input.changed_by,
-            changed_at: input.changed_at,
+            from_status,
+            to_status,
+            reason: history_reason.to_string(),
+            changed_by: "system".to_string(),
+            changed_at,
         },
     )
     .await?;

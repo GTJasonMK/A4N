@@ -3,8 +3,8 @@ import { ChevronRight, Undo2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import type { ProjectRollbackPreview, ProjectStatus } from "../../api/project";
+import { PROJECT_STATUS_LABELS } from "../../api/generated/host";
 import { RollbackPreviewView } from "./RollbackPreviewView";
-import { getProjectStatusText } from "../../utils/projectStatus";
 
 interface RollbackCardProps {
   targets: ProjectStatus[];
@@ -63,7 +63,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
             <option value="">选择要恢复的阶段</option>
             {targets.map((status) => (
               <option key={status} value={status}>
-                {getProjectStatusText(status)}
+                {PROJECT_STATUS_LABELS[status]}
               </option>
             ))}
           </select>
@@ -71,7 +71,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
         {target ? (
           <div className="border-l-2 border-warning/55 py-1 pl-3">
             <div className="mb-1.5 text-xs text-warning">
-              回滚到「{getProjectStatusText(target)}」将影响以下内容：
+              回滚到「{PROJECT_STATUS_LABELS[target]}」将影响以下内容：
             </div>
             {preview == null ? (
               <div className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">

@@ -2083,7 +2083,7 @@ export interface ProjectStatusHistorySummary {
   created_at: string;
   from_status: ProjectStatus;
   id: number;
-  reason: string | null;
+  reason: string;
   to_status: ProjectStatus;
 }
 
@@ -2406,9 +2406,9 @@ export interface BlueprintSummary {
 }
 
 export interface BlueprintVersionSummary {
-  change_description: string | null;
+  change_description: string;
   created_at: string;
-  created_by: string | null;
+  created_by: string;
   id: number;
   version: string;
 }

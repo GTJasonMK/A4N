@@ -3,7 +3,7 @@ import type {
   ProjectRollbackImpactSummary,
   ProjectRollbackPreview,
 } from "../../api/project";
-import { getProjectStatusText } from "../../utils/projectStatus";
+import { PROJECT_STATUS_LABELS } from "../../api/generated/host";
 
 interface RollbackPreviewViewProps {
   preview: ProjectRollbackPreview;
@@ -15,7 +15,7 @@ export const RollbackPreviewView: React.FC<RollbackPreviewViewProps> = ({ previe
       <div>
         <div className="mb-1 text-book-text-muted">回退路径</div>
         <div className="break-words text-book-text-sub">
-          {preview.path.map((status) => getProjectStatusText(status)).join(" → ")}
+          {preview.path.map((status) => PROJECT_STATUS_LABELS[status]).join(" → ")}
         </div>
       </div>
 
