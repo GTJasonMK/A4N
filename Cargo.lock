@@ -460,14 +460,12 @@ dependencies = [
  "a4n-core",
  "a4n-domain",
  "anyhow",
- "async-trait",
  "chrono",
  "dashmap",
  "parking_lot",
  "serde",
  "tokio",
  "tokio-util",
- "uuid",
 ]
 
 [[package]]

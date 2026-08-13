@@ -1,8 +1,5 @@
-use crate::workflow::{
-    WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WorkflowWriteError,
-    is_terminal_workflow_status, locked_workflow_run_by_id, required_text, validate_positive_i64,
-};
-use a4n_core::models::{generation::generation_run, generation::workflow_run, task::task_queue};
+use crate::workflow::{WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WorkflowWriteError};
+use a4n_core::models::{generation::generation_run, generation::workflow_run};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -11,39 +8,6 @@ use sea_orm::{
 };
 
 const DURABLE_RUNNING_WORKFLOW_KIND: &str = "video_provider_job";
-
-pub async fn mark_recovered_task_workflow_interrupted(
-    db: &DatabaseConnection,
-    workflow_run_id: i64,
-    task_id: &str,
-) -> Result<(), WorkflowWriteError> {
-    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
-    let task_id = required_text(task_id.to_string(), "task_id")?;
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
-    let Some(run) = workflow_run::Entity::find_by_id(workflow_run_id)
-        .lock_exclusive()
-        .one(&tx)
-        .await
-        .map_err(WorkflowWriteError::Database)?
-    else {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(());
-    };
-    if is_terminal_workflow_status(&run.status) {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(());
-    }
-
-    mark_workflow_interrupted(
-        &tx,
-        run,
-        true,
-        format!("应用重启后中断任务 {task_id}，可从最近有效检查点继续"),
-    )
-    .await?;
-    tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(())
-}
 
 pub async fn recover_stale_in_process_workflows(
     db: &DatabaseConnection,
@@ -72,7 +36,7 @@ pub async fn recover_stale_in_process_workflows(
             tx.commit().await.map_err(WorkflowWriteError::Database)?;
             continue;
         }
-        let can_resume = run.can_resume || run.workflow_kind == "chapter_analysis";
+        let can_resume = run.can_resume;
         mark_workflow_interrupted(
             &tx,
             run,
@@ -129,49 +93,5 @@ async fn mark_workflow_interrupted(
         .exec(db)
         .await
         .map_err(WorkflowWriteError::Database)?;
-    Ok(())
-}
-
-pub async fn sync_workflow_active_task_for_queue_status(
-    db: &DatabaseConnection,
-    task_id: &str,
-    status: &str,
-) -> Result<(), WorkflowWriteError> {
-    let task_id = required_text(task_id.to_string(), "task_id")?;
-    let status = required_text(status.to_string(), "status")?;
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
-    let Some(task) = task_queue::Entity::find_by_id(task_id.clone())
-        .one(&tx)
-        .await
-        .map_err(WorkflowWriteError::Database)?
-    else {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(());
-    };
-    let Some(workflow_run_id) = task.workflow_run_id else {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(());
-    };
-    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
-    if is_terminal_workflow_status(&run.status) {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(());
-    }
-    let next_active_task_id = match status.as_str() {
-        "pending" | "running" => Some(task_id),
-        _ if run.active_task_id.as_deref() == Some(task_id.as_str()) => None,
-        _ => {
-            tx.commit().await.map_err(WorkflowWriteError::Database)?;
-            return Ok(());
-        }
-    };
-    let mut active: workflow_run::ActiveModel = run.into();
-    active.active_task_id = Set(next_active_task_id);
-    active.updated_at = Set(Utc::now().naive_utc());
-    active
-        .update(&tx)
-        .await
-        .map_err(WorkflowWriteError::Database)?;
-    tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(())
 }

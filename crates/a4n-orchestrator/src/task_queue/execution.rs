@@ -4,13 +4,12 @@ use a4n_core::error::AppError;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use tokio_util::sync::CancellationToken;
 
-use super::{PersistentTaskQueue, RunTrackedTaskInput, SubmittedTaskGuard};
+use super::{PersistentTaskQueue, RunTrackedTaskInput};
 
 mod cancellation;
 mod contexts;
 mod entrypoints;
 mod lifecycle;
-mod outcome;
 
 impl PersistentTaskQueue {
     pub async fn run_tracked_with_cancel<F, Fut, T>(
@@ -56,24 +55,28 @@ impl PersistentTaskQueue {
             context,
             workflow,
         } = input;
-        let submitted_id = self
-            .submit_internal(
-                task_type,
-                priority,
-                project_id,
-                context.as_ref(),
-                workflow.as_ref(),
-            )
-            .await?;
-        let submitted_guard =
-            SubmittedTaskGuard::new(self.inner.clone(), self.db.clone(), submitted_id.clone());
-        let Some(permit) = self
-            .acquire_task_with_cancel(&submitted_id, cancel_token)
-            .await?
-        else {
-            return self
-                .cancel_submitted_task(&submitted_id, submitted_guard)
-                .await;
+        let running_task = if let Some(context) = context {
+            let task_id = self
+                .submit_internal(
+                    task_type,
+                    priority,
+                    project_id,
+                    Some(&context),
+                    workflow.as_ref(),
+                )
+                .await?;
+            let mut guard = self.submitted_task_guard(task_id.clone());
+            let Some(permit) = self
+                .acquire_task_with_cancel(&task_id, cancel_token)
+                .await?
+            else {
+                return self.cancel_submitted_task(&task_id, guard).await;
+            };
+            guard.disarm();
+            crate::task_queue::RunningTask::new(self.db.clone(), permit)
+        } else {
+            self.start_task_with_cancel(task_type, priority, project_id, workflow, cancel_token)
+                .await?
         };
         let result = match task_type {
             TaskKind::LlmCall | TaskKind::TextGeneration => {
@@ -81,7 +84,6 @@ impl PersistentTaskQueue {
             }
             _ => operation().await,
         };
-        self.finish_tracked_operation(permit, submitted_guard, result)
-            .await
+        running_task.finish(result).await
     }
 }

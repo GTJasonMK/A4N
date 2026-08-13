@@ -1,6 +1,6 @@
+use super::QueueDbError;
 use super::concurrency::positive_concurrency;
 use super::status::{TaskStatusTimestampUpdate, is_terminal_status, task_status_timestamp_update};
-use super::{PersistTaskFamilyContext, PersistTaskQueueRecordInput, QueueDbError};
 
 #[test]
 fn positive_concurrency_accepts_positive_values() {
@@ -55,43 +55,4 @@ fn task_status_timestamp_rules_match_queue_lifecycle() {
             "{status} should not update lifecycle timestamps"
         );
     }
-}
-
-#[test]
-fn persisted_task_record_project_id_prefers_family_context() {
-    let input = PersistTaskQueueRecordInput {
-        task_id: "task-1".to_string(),
-        task_type: "llm_call".to_string(),
-        priority: "high".to_string(),
-        project_id: Some(11),
-        family: Some(PersistTaskFamilyContext {
-            project_id: 22,
-            root_project_id: 33,
-            source_snapshot_id: Some(44),
-            task_scope: "source_sync".to_string(),
-        }),
-        workflow_run_id: Some(55),
-    };
-
-    assert_eq!(input.persisted_project_id(), Some(22));
-    assert_eq!(input.root_project_id(), Some(33));
-    assert_eq!(input.source_snapshot_id(), Some(44));
-    assert_eq!(input.task_scope().as_deref(), Some("source_sync"));
-}
-
-#[test]
-fn persisted_task_record_project_id_uses_standalone_project_without_family_context() {
-    let input = PersistTaskQueueRecordInput {
-        task_id: "task-1".to_string(),
-        task_type: "llm_call".to_string(),
-        priority: "high".to_string(),
-        project_id: Some(11),
-        family: None,
-        workflow_run_id: None,
-    };
-
-    assert_eq!(input.persisted_project_id(), Some(11));
-    assert_eq!(input.root_project_id(), None);
-    assert_eq!(input.source_snapshot_id(), None);
-    assert_eq!(input.task_scope(), None);
 }

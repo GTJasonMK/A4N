@@ -10,8 +10,7 @@ use std::{
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext, UsageInfo};
-use a4n_orchestrator::DynamicProviderFacade;
-use a4n_queue::priority::TaskPermit;
+use a4n_orchestrator::{DynamicProviderFacade, task_queue::RunningTask};
 
 pub(in crate::dynamic_llm::streams) use kind::StreamKind;
 use sync::{TerminalSyncContext, start_completed_sync, start_failed_sync};
@@ -19,8 +18,7 @@ use sync::{TerminalSyncContext, start_completed_sync, start_failed_sync};
 pub(super) struct QueueTrackedStreamTerminal {
     kind: StreamKind,
     facade: DynamicProviderFacade,
-    permit: Option<TaskPermit>,
-    task_id: String,
+    running_task: Option<RunningTask>,
     trace_context: Option<LlmTraceContext>,
     model_name: String,
     started: Instant,
@@ -34,17 +32,15 @@ impl QueueTrackedStreamTerminal {
     pub(super) fn new(
         kind: StreamKind,
         facade: DynamicProviderFacade,
-        permit: TaskPermit,
+        running_task: RunningTask,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,
     ) -> Self {
-        let task_id = permit.task_id().to_string();
         Self {
             kind,
             facade,
-            permit: Some(permit),
-            task_id,
+            running_task: Some(running_task),
             trace_context,
             model_name,
             started,
@@ -64,7 +60,7 @@ impl QueueTrackedStreamTerminal {
     }
 
     pub(super) fn is_pending(&self) -> bool {
-        self.permit.is_some() && !self.finished
+        self.running_task.is_some() && !self.finished
     }
 
     pub(super) fn observe_chunk(&mut self, chunk: &ChatChunk) {
@@ -88,22 +84,20 @@ impl QueueTrackedStreamTerminal {
         if self.finished || self.terminal_task.is_some() {
             return;
         }
-        let Some(permit) = self.permit.take() else {
+        let Some(running_task) = self.running_task.take() else {
             return;
         };
         let kind = self.kind;
-        let task_id = self.task_id.clone();
         let facade = self.facade.clone();
         let trace_context = self.trace_context.clone();
         let model_name = self.model_name.clone();
         let duration_ms = Some(self.started.elapsed().as_millis() as i64);
         let usage = self.usage.clone();
         let finish_reason = self.finish_reason.clone();
-        permit.complete();
         self.terminal_task = Some(start_completed_sync(
             TerminalSyncContext {
                 kind,
-                task_id,
+                running_task,
                 facade,
                 trace_context,
                 model_name,
@@ -118,21 +112,46 @@ impl QueueTrackedStreamTerminal {
         if self.finished || self.terminal_task.is_some() {
             return;
         }
-        let Some(permit) = self.permit.take() else {
+        let Some(running_task) = self.running_task.take() else {
             return;
         };
         let kind = self.kind;
         let message = error.to_string();
-        let task_id = self.task_id.clone();
         let facade = self.facade.clone();
         let trace_context = self.trace_context.clone();
         let model_name = self.model_name.clone();
         let duration_ms = Some(self.started.elapsed().as_millis() as i64);
-        permit.fail(message.clone());
         self.terminal_task = Some(start_failed_sync(
             TerminalSyncContext {
                 kind,
-                task_id,
+                running_task,
+                facade,
+                trace_context,
+                model_name,
+                duration_ms,
+            },
+            error,
+            message,
+        ));
+    }
+
+    pub(super) fn start_dropped(&mut self, error: AppError) {
+        if self.finished || self.terminal_task.is_some() {
+            return;
+        }
+        let Some(running_task) = self.running_task.take() else {
+            return;
+        };
+        let kind = self.kind;
+        let message = error.to_string();
+        let facade = self.facade.clone();
+        let trace_context = self.trace_context.clone();
+        let model_name = self.model_name.clone();
+        let duration_ms = Some(self.started.elapsed().as_millis() as i64);
+        drop(start_failed_sync(
+            TerminalSyncContext {
+                kind,
+                running_task,
                 facade,
                 trace_context,
                 model_name,

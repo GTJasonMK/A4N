@@ -1,5 +1,4 @@
 use a4n_core::error::AppError;
-use a4n_queue::priority::TaskQueue;
 
 use super::super::{PersistentTaskQueue, SubmittedTaskGuard};
 
@@ -9,7 +8,7 @@ impl PersistentTaskQueue {
         submitted_id: &str,
         mut submitted_guard: SubmittedTaskGuard,
     ) -> Result<T, AppError> {
-        let cancel_result = TaskQueue::cancel(self, submitted_id).await;
+        let cancel_result = self.cancel(submitted_id).await;
         submitted_guard.disarm();
         match cancel_result {
             Ok(()) => Err(AppError::Cancelled),

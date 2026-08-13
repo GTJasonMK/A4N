@@ -68,29 +68,10 @@ impl DynamicLlmProvider {
         .map_err(|err| AppError::ConfigError(format!("LLM sidecar stream 请求构造失败：{err}")))?;
         let sidecar_request_id = sidecar_request.request_id.clone();
         let started = Instant::now();
-        let submitted_id = self
+        let running_task = self
             .facade
-            .queue_submit(TaskKind::LlmCall, TaskPriority::Medium, None)
+            .queue_start_task(TaskKind::LlmCall, TaskPriority::Medium, None)
             .await?;
-        let mut submitted_guard = self.facade.queue_submitted_task_guard(submitted_id.clone());
-        let Some(permit) = self
-            .facade
-            .queue_acquire_task_with_cancel(
-                &submitted_id,
-                tokio_util::sync::CancellationToken::new(),
-            )
-            .await?
-        else {
-            let cancel_result = self.facade.queue_cancel(&submitted_id).await;
-            submitted_guard.disarm();
-            return match cancel_result {
-                Ok(()) => Err(AppError::Cancelled),
-                Err(status_error) => Err(AppError::Internal(anyhow::anyhow!(
-                    "LLM sidecar stream 任务已取消；同步队列取消状态失败: {status_error}"
-                ))),
-            };
-        };
-        submitted_guard.disarm();
 
         let (tx, rx) = tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
         let stream_tx = tx.clone();
@@ -105,7 +86,7 @@ impl DynamicLlmProvider {
         Ok(Box::pin(QueueTrackedSidecarLlmStream::new(
             rx,
             self.facade.clone(),
-            permit,
+            running_task,
             Some(trace_context),
             model_name,
             started,

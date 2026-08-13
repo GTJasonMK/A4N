@@ -3,18 +3,22 @@ use a4n_core::error::AppError;
 use super::{PersistentTaskQueue, queue_db_error};
 use crate::workflow::workflow_write_app_error;
 
-mod task;
 #[cfg(test)]
 mod tests;
 
-use task::recover_task;
-
 pub(super) async fn recover_pending(queue: &PersistentTaskQueue) -> Result<(), AppError> {
-    let active_tasks = a4n_db::queue::recoverable_active_tasks(queue.db.as_ref())
+    let active_task_ids = a4n_db::queue::recoverable_active_task_ids(queue.db.as_ref())
         .await
         .map_err(queue_db_error)?;
-    for task in active_tasks {
-        recover_task(queue, task).await?;
+    for task_id in active_task_ids {
+        a4n_db::queue::update_task_status(
+            queue.db.as_ref(),
+            &task_id,
+            "interrupted",
+            Some("应用重启后中断未绑定执行器的队列任务"),
+        )
+        .await
+        .map_err(queue_db_error)?;
     }
     a4n_db::workflow::recover_stale_in_process_workflows(queue.db.as_ref())
         .await

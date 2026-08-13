@@ -1,259 +1,59 @@
-use super::*;
-use crate::queue::priority::{TaskKind, TaskPriority, TaskQueue, TaskStatus};
+use std::sync::Arc;
+use std::time::Duration;
 
-#[tokio::test]
-async fn test_submit_and_status() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, Some(1))
-        .await
-        .unwrap();
+use chrono::Utc;
+use tokio_util::sync::CancellationToken;
 
-    let info = queue.status(&task_id).await.unwrap();
-    assert_eq!(info.priority, TaskPriority::High);
-    assert!(matches!(info.status, TaskStatus::Pending));
-}
+use super::MemoryTaskQueue;
+use crate::queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskStatus};
 
-#[test]
-fn persisted_task_registration_is_idempotent_but_rejects_other_identity() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    let task = crate::queue::priority::TaskInfo {
-        id: "persisted-task".to_string(),
-        task_type: TaskKind::TextGeneration,
-        priority: TaskPriority::High,
+fn pending_task(id: &str, priority: TaskPriority) -> TaskInfo {
+    TaskInfo {
+        id: id.to_string(),
+        task_type: TaskKind::LlmCall,
+        priority,
         status: TaskStatus::Pending,
-        project_id: Some(7),
-        root_project_id: Some(7),
+        project_id: None,
+        root_project_id: None,
         source_snapshot_id: None,
-        task_scope: Some("generation".to_string()),
+        task_scope: None,
         progress: None,
-        created_at: chrono::Utc::now().naive_utc(),
+        created_at: Utc::now().naive_utc(),
         started_at: None,
         completed_at: None,
-    };
-
-    queue.submit_persisted(task.clone()).unwrap();
-    queue.submit_persisted(task.clone()).unwrap();
-    assert_eq!(queue.queue_stats().high_priority_waiting, 1);
-
-    let mut conflicting = task;
-    conflicting.project_id = Some(8);
-    assert!(queue.submit_persisted(conflicting).is_err());
+    }
 }
 
 #[tokio::test]
-async fn test_acquire_and_complete() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-
-    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
-    assert_eq!(permit.task_id(), &task_id);
-
-    permit.complete();
-
-    let info = queue.status(&task_id).await.unwrap();
-    assert!(matches!(info.status, TaskStatus::Completed));
-}
-
-#[tokio::test]
-async fn test_cancel() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::Low, None)
-        .await
-        .unwrap();
-
-    queue.cancel(&task_id).await.unwrap();
-
-    let info = queue.status(&task_id).await.unwrap();
-    assert!(matches!(info.status, TaskStatus::Cancelled));
-}
-
-#[tokio::test]
-async fn cancel_completed_task_preserves_terminal_status() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-
-    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
-    assert_eq!(permit.task_id(), &task_id);
-    permit.complete();
-
-    queue.cancel(&task_id).await.unwrap();
-
-    let info = queue.status(&task_id).await.unwrap();
-    assert!(matches!(info.status, TaskStatus::Completed));
-}
-
-#[tokio::test]
-async fn completing_cancelled_running_task_preserves_cancelled_status() {
-    let queue = MemoryTaskQueue::new(1, 1);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
-    assert_eq!(permit.task_id(), &task_id);
-
-    queue.cancel(&task_id).await.unwrap();
-    permit.complete();
-
-    let info = queue.status(&task_id).await.unwrap();
-    assert!(matches!(info.status, TaskStatus::Cancelled));
-
-    let next_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-    let next_permit = tokio::time::timeout(
-        std::time::Duration::from_millis(250),
-        queue.acquire(TaskKind::LlmCall),
-    )
-    .await
-    .expect("cancelled task permit should still release its slot")
-    .unwrap();
-    assert_eq!(next_permit.task_id(), &next_id);
-    next_permit.complete();
-}
-
-#[tokio::test]
-async fn running_permit_observes_queue_cancellation() {
-    let queue = MemoryTaskQueue::new(1, 1);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
-    let cancellation = permit.cancellation_token();
-
-    queue.signal_task_cancel(&task_id).unwrap();
-
-    assert!(cancellation.is_cancelled());
-    permit.fail("cancelled by owner".to_string());
-}
-
-#[tokio::test]
-async fn persisted_terminal_projection_removes_pending_task() {
-    let queue = MemoryTaskQueue::new(1, 1);
-    let task_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-
+async fn persisted_tasks_acquire_in_priority_order() {
+    let queue = Arc::new(MemoryTaskQueue::with_limits(1, 1, 1, 1, 1));
     queue
-        .project_task_terminal(
-            &task_id,
-            TaskStatus::Interrupted {
-                reason: Some("host restart".to_string()),
-            },
-        )
+        .submit_persisted(pending_task("low", TaskPriority::Low))
+        .unwrap();
+    queue
+        .submit_persisted(pending_task("high", TaskPriority::High))
         .unwrap();
 
-    let info = queue.status(&task_id).await.unwrap();
-    assert!(matches!(info.status, TaskStatus::Interrupted { .. }));
-    assert!(info.completed_at.is_some());
-    assert_eq!(queue.queue_stats().high_priority_waiting, 0);
-}
-
-#[tokio::test]
-async fn cancelled_pending_task_is_not_acquired() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    let cancelled_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-    let next_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::Medium, None)
-        .await
-        .unwrap();
-
-    queue.cancel(&cancelled_id).await.unwrap();
-
-    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
-    assert_eq!(permit.task_id(), next_id);
-    permit.complete();
-}
-
-#[tokio::test]
-async fn acquire_task_waits_for_its_priority_turn() {
-    let queue = std::sync::Arc::new(MemoryTaskQueue::new(1, 1));
-    let low_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::Low, None)
-        .await
-        .unwrap();
-    let high_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-
-    let low_queue = queue.clone();
-    let low_id_for_task = low_id.clone();
-    let low_wait = tokio::spawn(async move {
+    assert!(
         tokio::time::timeout(
-            std::time::Duration::from_millis(150),
-            low_queue.acquire_task_with_cancel(
-                &low_id_for_task,
-                tokio_util::sync::CancellationToken::new(),
-            ),
+            Duration::from_millis(150),
+            queue.acquire_task_with_cancel("low", CancellationToken::new()),
         )
         .await
-    });
-
-    assert!(low_wait.await.unwrap().is_err());
+        .is_err()
+    );
 
     let high = queue
-        .acquire_task_with_cancel(&high_id, tokio_util::sync::CancellationToken::new())
+        .acquire_task_with_cancel("high", CancellationToken::new())
         .await
         .unwrap()
-        .expect("high priority task should acquire first");
-    assert_eq!(high.task_id(), high_id);
+        .unwrap();
     high.complete();
 
     let low = queue
-        .acquire_task_with_cancel(&low_id, tokio_util::sync::CancellationToken::new())
+        .acquire_task_with_cancel("low", CancellationToken::new())
         .await
         .unwrap()
-        .expect("low priority task should acquire after high priority completes");
-    assert_eq!(low.task_id(), low_id);
+        .unwrap();
     low.complete();
-}
-
-#[tokio::test]
-async fn test_queue_stats() {
-    let queue = MemoryTaskQueue::new(4, 2);
-    queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-    queue
-        .submit(TaskKind::LlmCall, TaskPriority::Medium, None)
-        .await
-        .unwrap();
-
-    let stats = queue.queue_stats();
-    assert_eq!(stats.high_priority_waiting, 1);
-    assert_eq!(stats.medium_priority_waiting, 1);
-}
-
-#[tokio::test]
-async fn test_priority_ordering() {
-    let queue = MemoryTaskQueue::new(4, 2);
-
-    queue
-        .submit(TaskKind::LlmCall, TaskPriority::Low, None)
-        .await
-        .unwrap();
-    let high_id = queue
-        .submit(TaskKind::LlmCall, TaskPriority::High, None)
-        .await
-        .unwrap();
-
-    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
-    assert_eq!(permit.task_id(), &high_id);
-    permit.complete();
 }

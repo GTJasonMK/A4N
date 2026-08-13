@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_llm::provider::{LlmTraceContext, UsageInfo};
-use a4n_orchestrator::DynamicProviderFacade;
+use a4n_orchestrator::{DynamicProviderFacade, task_queue::RunningTask};
 
 use crate::dynamic_llm::trace::record_dynamic_llm_trace;
 
@@ -8,7 +8,7 @@ use super::StreamKind;
 
 pub(super) struct TerminalSyncContext {
     pub(super) kind: StreamKind,
-    pub(super) task_id: String,
+    pub(super) running_task: RunningTask,
     pub(super) facade: DynamicProviderFacade,
     pub(super) trace_context: Option<LlmTraceContext>,
     pub(super) model_name: String,
@@ -21,7 +21,7 @@ pub(super) fn start_completed_sync(
     finish_reason: Option<String>,
 ) -> tokio::task::JoinHandle<Result<(), AppError>> {
     tokio::spawn(async move {
-        let status_result = context.facade.queue_mark_done(&context.task_id).await;
+        let status_result = context.running_task.complete().await;
         record_dynamic_llm_trace(
             &context.facade,
             context.trace_context.as_ref(),
@@ -45,10 +45,7 @@ pub(super) fn start_failed_sync(
     message: String,
 ) -> tokio::task::JoinHandle<Result<(), AppError>> {
     tokio::spawn(async move {
-        let status_result = context
-            .facade
-            .queue_mark_failed(&context.task_id, &message)
-            .await;
+        let status_result = context.running_task.fail(&message).await;
         record_dynamic_llm_trace(
             &context.facade,
             context.trace_context.as_ref(),

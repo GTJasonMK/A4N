@@ -50,44 +50,23 @@ impl DynamicLlmProvider {
             "LLM stream 请求"
         );
         let started = Instant::now();
-        let submitted_id = self
+        let running_task = self
             .facade
-            .queue_submit(TaskKind::LlmCall, TaskPriority::Medium, None)
+            .queue_start_task(TaskKind::LlmCall, TaskPriority::Medium, None)
             .await?;
-        let mut submitted_guard = self.facade.queue_submitted_task_guard(submitted_id.clone());
-        let Some(permit) = self
-            .facade
-            .queue_acquire_task_with_cancel(
-                &submitted_id,
-                tokio_util::sync::CancellationToken::new(),
-            )
-            .await?
-        else {
-            let cancel_result = self.facade.queue_cancel(&submitted_id).await;
-            submitted_guard.disarm();
-            return match cancel_result {
-                Ok(()) => Err(AppError::Cancelled),
-                Err(status_error) => Err(AppError::Internal(anyhow::anyhow!(
-                    "LLM stream 任务已取消；同步队列取消状态失败: {status_error}"
-                ))),
-            };
-        };
-        submitted_guard.disarm();
-        let running_id = permit.task_id().to_string();
         let result = provider.chat_stream(request).await;
         match result {
             Ok(stream) => Ok(Box::pin(QueueTrackedLlmStream::new(
                 stream,
                 self.facade.clone(),
-                permit,
+                running_task,
                 trace_context,
                 model_name,
                 started,
             ))),
             Err(error) => {
                 let message = error.to_string();
-                permit.fail(message.clone());
-                let error = match self.facade.queue_mark_failed(&running_id, &message).await {
+                let error = match running_task.fail(&message).await {
                     Ok(()) => error,
                     Err(status_error) => AppError::Internal(anyhow::anyhow!(
                         "{error}；同步 LLM stream 建立失败队列状态失败: {status_error}"

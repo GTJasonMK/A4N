@@ -16,14 +16,14 @@ use a4n_core::{
 };
 use a4n_db::generation::RecordLlmCallTraceInput;
 use a4n_db::llm_context::RecordOrReuseContextPackInput;
-use a4n_queue::priority::{TaskKind, TaskPermit, TaskPriority, TaskQueue};
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use tokio_util::sync::CancellationToken;
 
 use super::{
     ConfigApplication, GenerationApplication, LlmContextApplication, OrchestratorContext,
     ProjectReadApplication,
 };
-use crate::task_queue::{PersistentTaskQueue, SubmittedTaskGuard};
+use crate::task_queue::{PersistentTaskQueue, RunningTask};
 
 /// 动态 provider 运行期依赖：队列 + settings/generation/llm_context/project_read owner。
 #[derive(Clone)]
@@ -107,38 +107,20 @@ impl DynamicProviderFacade {
             .await
     }
 
-    pub async fn queue_submit(
+    pub async fn queue_start_task(
         &self,
         task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
-    ) -> Result<String, AppError> {
-        TaskQueue::submit(self.task_queue.as_ref(), task_type, priority, project_id).await
-    }
-
-    pub fn queue_submitted_task_guard(&self, task_id: String) -> SubmittedTaskGuard {
-        self.task_queue.submitted_task_guard(task_id)
-    }
-
-    pub async fn queue_acquire_task_with_cancel(
-        &self,
-        task_id: &str,
-        cancel_token: CancellationToken,
-    ) -> Result<Option<TaskPermit>, AppError> {
+    ) -> Result<RunningTask, AppError> {
         self.task_queue
-            .acquire_task_with_cancel(task_id, cancel_token)
+            .start_task_with_cancel(
+                task_type,
+                priority,
+                project_id,
+                None,
+                CancellationToken::new(),
+            )
             .await
-    }
-
-    pub async fn queue_cancel(&self, task_id: &str) -> Result<(), AppError> {
-        TaskQueue::cancel(self.task_queue.as_ref(), task_id).await
-    }
-
-    pub async fn queue_mark_done(&self, task_id: &str) -> Result<(), AppError> {
-        self.task_queue.mark_done(task_id).await
-    }
-
-    pub async fn queue_mark_failed(&self, task_id: &str, error: &str) -> Result<(), AppError> {
-        self.task_queue.mark_failed(task_id, error).await
     }
 }

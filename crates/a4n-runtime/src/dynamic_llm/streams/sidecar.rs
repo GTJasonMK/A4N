@@ -7,7 +7,7 @@ use std::{
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
 use a4n_orchestrator::DynamicProviderFacade;
-use a4n_queue::priority::TaskPermit;
+use a4n_orchestrator::task_queue::RunningTask;
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 use futures::Stream;
 
@@ -23,7 +23,7 @@ impl QueueTrackedSidecarLlmStream {
     pub(in crate::dynamic_llm) fn new(
         events: tokio::sync::mpsc::Receiver<CapabilityTaskEvent>,
         facade: DynamicProviderFacade,
-        permit: TaskPermit,
+        running_task: RunningTask,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,
@@ -33,7 +33,7 @@ impl QueueTrackedSidecarLlmStream {
             terminal: QueueTrackedStreamTerminal::new(
                 StreamKind::Sidecar,
                 facade,
-                permit,
+                running_task,
                 trace_context,
                 model_name,
                 started,
@@ -120,7 +120,7 @@ impl Unpin for QueueTrackedSidecarLlmStream {}
 impl Drop for QueueTrackedSidecarLlmStream {
     fn drop(&mut self) {
         if self.terminal.is_pending() {
-            self.terminal.start_failed(AppError::LlmError(
+            self.terminal.start_dropped(AppError::LlmError(
                 "LLM sidecar stream 在完成前被释放".to_string(),
             ));
         }

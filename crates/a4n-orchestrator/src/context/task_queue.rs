@@ -2,15 +2,28 @@ use std::future::Future;
 
 use a4n_core::error::AppError;
 use a4n_queue::{
-    priority::{QueueStats, TaskKind, TaskPermit, TaskPriority, TaskQueue},
+    priority::{QueueStats, TaskKind, TaskPriority},
     queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 use tokio_util::sync::CancellationToken;
 
 use super::OrchestratorContext;
-use crate::task_queue::SubmittedTaskGuard;
+use crate::task_queue::RunningTask;
 
 impl OrchestratorContext {
+    pub async fn queue_start_task_with_cancel(
+        &self,
+        task_type: TaskKind,
+        priority: TaskPriority,
+        project_id: Option<i64>,
+        workflow: Option<TaskWorkflowContext>,
+        cancel_token: CancellationToken,
+    ) -> Result<RunningTask, AppError> {
+        self.task_queue
+            .start_task_with_cancel(task_type, priority, project_id, workflow, cancel_token)
+            .await
+    }
+
     pub async fn queue_run_tracked<F, Fut, T>(
         &self,
         task_type: TaskKind,
@@ -77,53 +90,8 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn queue_submit(
-        &self,
-        task_type: TaskKind,
-        priority: TaskPriority,
-        project_id: Option<i64>,
-    ) -> Result<String, AppError> {
-        self.task_queue
-            .submit(task_type, priority, project_id)
-            .await
-    }
-
-    pub async fn queue_submit_with_workflow_context(
-        &self,
-        task_type: TaskKind,
-        priority: TaskPriority,
-        project_id: Option<i64>,
-        workflow: TaskWorkflowContext,
-    ) -> Result<String, AppError> {
-        self.task_queue
-            .submit_with_workflow_context(task_type, priority, project_id, workflow)
-            .await
-    }
-
-    pub fn queue_submitted_task_guard(&self, task_id: String) -> SubmittedTaskGuard {
-        self.task_queue.submitted_task_guard(task_id)
-    }
-
-    pub async fn queue_acquire_task_with_cancel(
-        &self,
-        task_id: &str,
-        cancel_token: CancellationToken,
-    ) -> Result<Option<TaskPermit>, AppError> {
-        self.task_queue
-            .acquire_task_with_cancel(task_id, cancel_token)
-            .await
-    }
-
     pub async fn queue_cancel(&self, task_id: &str) -> Result<(), AppError> {
         self.task_queue.cancel(task_id).await
-    }
-
-    pub async fn queue_mark_done(&self, task_id: &str) -> Result<(), AppError> {
-        self.task_queue.mark_done(task_id).await
-    }
-
-    pub async fn queue_mark_failed(&self, task_id: &str, error: &str) -> Result<(), AppError> {
-        self.task_queue.mark_failed(task_id, error).await
     }
 
     pub fn queue_stats(&self) -> QueueStats {

@@ -12,13 +12,12 @@ use tokio_util::sync::CancellationToken;
 mod acquire;
 mod cancellation;
 mod kind;
-mod task_queue_impl;
 mod waiting;
 
 #[cfg(test)]
 mod tests;
 
-use super::priority::{TaskInfo, TaskProgress, TaskStatus};
+use super::priority::{QueueSlotStats, QueueStats, TaskInfo, TaskProgress, TaskStatus};
 use kind::QueueKind;
 use waiting::WaitingTask;
 
@@ -46,11 +45,6 @@ pub struct MemoryTaskQueue {
 }
 
 impl MemoryTaskQueue {
-    /// 创建内存任务队列
-    pub fn new(max_llm_concurrent: usize, max_image_concurrent: usize) -> Self {
-        Self::with_limits(max_llm_concurrent, max_image_concurrent, 1, 2, 2)
-    }
-
     /// 创建带完整槽位配置的内存任务队列
     pub fn with_limits(
         max_llm_concurrent: usize,
@@ -122,6 +116,42 @@ impl MemoryTaskQueue {
         Ok(())
     }
 
+    pub fn queue_stats(&self) -> QueueStats {
+        let counts = waiting::counts(&self.waiting, &self.tasks);
+        QueueStats {
+            llm_queue: QueueSlotStats {
+                max_concurrent: self.max_llm_concurrent,
+                running: self.max_llm_concurrent - self.llm_semaphore.available_permits(),
+                waiting: counts.llm_waiting,
+            },
+            image_queue: QueueSlotStats {
+                max_concurrent: self.max_image_concurrent,
+                running: self.max_image_concurrent - self.image_semaphore.available_permits(),
+                waiting: counts.image_waiting,
+            },
+            video_queue: QueueSlotStats {
+                max_concurrent: self.max_video_concurrent,
+                running: self.max_video_concurrent - self.video_semaphore.available_permits(),
+                waiting: counts.video_waiting,
+            },
+            embedding_queue: QueueSlotStats {
+                max_concurrent: self.max_embedding_concurrent,
+                running: self.max_embedding_concurrent
+                    - self.embedding_semaphore.available_permits(),
+                waiting: counts.embedding_waiting,
+            },
+            background_queue: QueueSlotStats {
+                max_concurrent: self.max_background_concurrent,
+                running: self.max_background_concurrent
+                    - self.background_semaphore.available_permits(),
+                waiting: counts.background_waiting,
+            },
+            high_priority_waiting: counts.high_priority_waiting,
+            medium_priority_waiting: counts.medium_priority_waiting,
+            low_priority_waiting: counts.low_priority_waiting,
+        }
+    }
+
     /// 更新任务状态
     fn update_status(&self, task_id: &str, status: TaskStatus, progress: Option<TaskProgress>) {
         if let Some(mut task) = self.tasks.get_mut(task_id) {
@@ -134,12 +164,6 @@ impl MemoryTaskQueue {
             task.status = status;
             task.progress = progress;
         }
-    }
-}
-
-impl Default for MemoryTaskQueue {
-    fn default() -> Self {
-        Self::new(4, 2)
     }
 }
 

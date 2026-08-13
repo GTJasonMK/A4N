@@ -7,7 +7,7 @@ use std::{
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
 use a4n_orchestrator::DynamicProviderFacade;
-use a4n_queue::priority::TaskPermit;
+use a4n_orchestrator::task_queue::RunningTask;
 use futures::Stream;
 
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};
@@ -21,7 +21,7 @@ impl QueueTrackedLlmStream {
     pub(in crate::dynamic_llm) fn new(
         inner: Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>,
         facade: DynamicProviderFacade,
-        permit: TaskPermit,
+        running_task: RunningTask,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,
@@ -31,7 +31,7 @@ impl QueueTrackedLlmStream {
             terminal: QueueTrackedStreamTerminal::new(
                 StreamKind::Embedded,
                 facade,
-                permit,
+                running_task,
                 trace_context,
                 model_name,
                 started,
@@ -74,7 +74,7 @@ impl Drop for QueueTrackedLlmStream {
     fn drop(&mut self) {
         if self.terminal.is_pending() {
             self.terminal
-                .start_failed(AppError::LlmError("LLM stream 在完成前被释放".to_string()));
+                .start_dropped(AppError::LlmError("LLM stream 在完成前被释放".to_string()));
         }
     }
 }

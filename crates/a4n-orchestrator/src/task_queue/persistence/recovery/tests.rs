@@ -14,6 +14,7 @@ use a4n_db::{
         upsert_workflow_run,
     },
 };
+use sea_orm::{ActiveModelTrait, Set};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::super::super::PersistentTaskQueue;
@@ -60,7 +61,7 @@ async fn interrupts_stale_in_process_workflows() {
     let db = setup_db().await;
     let chapter = upsert_workflow_run(
         db.as_ref(),
-        workflow_input("chapter-analysis-recovery", "chapter_analysis"),
+        resumable_workflow_input("chapter-analysis-recovery", "chapter_analysis"),
     )
     .await
     .unwrap();
@@ -72,16 +73,17 @@ async fn interrupts_stale_in_process_workflows() {
     .unwrap();
     let character_sync = upsert_workflow_run(
         db.as_ref(),
-        workflow_input("character-sync-recovery", "character_profile_sync"),
+        resumable_workflow_input("character-sync-recovery", "character_profile_sync"),
     )
     .await
     .unwrap();
     let unrelated = upsert_workflow_run(
         db.as_ref(),
-        workflow_input("unrelated-recovery", "video_provider_job"),
+        resumable_workflow_input("unrelated-recovery", "video_provider_job"),
     )
     .await
     .unwrap();
+    bind_task_to_workflow(db.as_ref(), "unrelated-recovery-task", unrelated.id).await;
 
     let _queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
 
@@ -117,6 +119,17 @@ async fn interrupts_stale_in_process_workflows() {
         .unwrap()
         .unwrap();
     assert_eq!(unrelated.status, WORKFLOW_STATUS_RUNNING);
+    assert!(unrelated.can_resume);
+    assert!(unrelated.active_task_id.is_none());
+    assert_eq!(
+        task_queue::Entity::find_by_id("unrelated-recovery-task".to_string())
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        WORKFLOW_STATUS_INTERRUPTED
+    );
 }
 
 #[tokio::test]
@@ -247,4 +260,36 @@ fn workflow_input(business_key: &str, workflow_kind: &str) -> UpsertWorkflowRunI
         resume_block_reason: None,
         error_message: None,
     }
+}
+
+fn resumable_workflow_input(business_key: &str, workflow_kind: &str) -> UpsertWorkflowRunInput {
+    UpsertWorkflowRunInput {
+        can_resume: true,
+        ..workflow_input(business_key, workflow_kind)
+    }
+}
+
+async fn bind_task_to_workflow(
+    db: &sea_orm::DatabaseConnection,
+    task_id: &str,
+    workflow_run_id: i64,
+) {
+    super::super::super::test_support::insert_task_row(db, task_id, "running", None).await;
+    let task = task_queue::Entity::find_by_id(task_id.to_string())
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut active: task_queue::ActiveModel = task.into();
+    active.workflow_run_id = Set(Some(workflow_run_id));
+    active.update(db).await.unwrap();
+
+    let workflow = workflow_run::Entity::find_by_id(workflow_run_id)
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut active: workflow_run::ActiveModel = workflow.into();
+    active.active_task_id = Set(Some(task_id.to_string()));
+    active.update(db).await.unwrap();
 }

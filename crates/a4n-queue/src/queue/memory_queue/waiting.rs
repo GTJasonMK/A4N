@@ -64,39 +64,6 @@ impl PartialOrd for WaitingTask {
     }
 }
 
-pub(super) fn pop_matching_task(
-    waiting: &Arc<RwLock<BinaryHeap<WaitingTask>>>,
-    tasks: &Arc<DashMap<String, TaskInfo>>,
-    kind: QueueKind,
-) -> Option<(String, TaskKind, TaskPriority)> {
-    let mut waiting = waiting.write();
-    let mut found = None;
-    let mut remaining = Vec::new();
-
-    while let Some(waiting_task) = waiting.pop() {
-        if let Some(task_info) = tasks.get(&waiting_task.task_id) {
-            if queue_kind_for_task_type(&task_info.task_type) == kind
-                && matches!(task_info.status, TaskStatus::Pending)
-                && found.is_none()
-            {
-                found = Some((
-                    waiting_task.task_id.clone(),
-                    task_info.task_type,
-                    task_info.priority,
-                ));
-            } else if matches!(task_info.status, TaskStatus::Pending) {
-                remaining.push(waiting_task);
-            }
-        }
-    }
-
-    for waiting_task in remaining {
-        waiting.push(waiting_task);
-    }
-
-    found
-}
-
 pub(super) fn pop_specific_if_next(
     waiting: &Arc<RwLock<BinaryHeap<WaitingTask>>>,
     tasks: &Arc<DashMap<String, TaskInfo>>,

@@ -9,14 +9,12 @@ a4n-core = { path = "../a4n-core" }
 a4n-domain = { path = "../a4n-domain" }
 
 anyhow = { workspace = true }
-async-trait = { workspace = true }
 chrono = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-uuid = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -81,7 +81,7 @@ fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
         input.active_task_id.as_deref(),
         Some("chapter-analysis-task-3")
     );
-    assert!(!input.can_resume);
+    assert!(input.can_resume);
     let fingerprint = input
         .input_fingerprint_json
         .expect("workflow input should include fingerprint");

@@ -40,7 +40,7 @@ pub fn chapter_analysis_workflow_run_input(
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some(current_step_key.to_string()),
         active_task_id: active_task_id.map(str::to_string),
-        can_resume: false,
+        can_resume: true,
         resume_block_reason: None,
         error_message: None,
     }
