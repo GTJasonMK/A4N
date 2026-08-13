@@ -1,5 +1,4 @@
 import { apiInvoke } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type {
   BatchExportInput,
   ExportFileData,
@@ -17,7 +16,6 @@ export type {
 } from "./generated/host";
 
 const exportArgs = (input: unknown, taskId: string) => ({
-  userId: currentUserId(),
   input,
   taskId,
 });

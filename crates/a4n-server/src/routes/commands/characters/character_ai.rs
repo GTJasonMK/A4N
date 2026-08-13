@@ -3,8 +3,9 @@ use serde_json::{Value, json};
 use super::super::{
     ApiError, ServerState, TaskKind, character_ai_actions, character_conflict_actions,
     command_input, finish_web_task, i64_arg, optional_i32_field, optional_string_field,
-    register_web_task, sanitize_optional_task_id, sanitize_task_id, string_action_result,
-    string_arg, to_value, web_fire_and_forget_progress_reporter, web_progress_reporter,
+    register_web_task, reject_unknown_command_args, sanitize_optional_task_id, sanitize_task_id,
+    string_action_result, string_arg, to_value, web_fire_and_forget_progress_reporter,
+    web_progress_reporter,
 };
 
 macro_rules! character_ai_web_task_command {
@@ -21,6 +22,11 @@ macro_rules! character_ai_web_task_command {
             $user_id: i64,
             $args: &Value,
         ) -> Result<Value, ApiError> {
+            reject_unknown_command_args(
+                $args,
+                stringify!($name),
+                &["input", "runtime_config_snapshot", "taskId"],
+            )?;
             let $input: $input_ty = command_input($args, stringify!($name))?;
             let scope = $scope($state.runtime(), $user_id, &$input)
                 .await

@@ -84,7 +84,6 @@ export async function syncCharacterFromChapters(
 ): Promise<SyncCharacterProfileResult> {
   const input = characterProfileSyncInput(projectId, name, chapterNumber);
   return apiInvoke<SyncCharacterProfileResult>("sync_character_from_chapters", {
-    userId: currentUserId(),
     input,
     taskId,
   });

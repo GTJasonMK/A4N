@@ -1,6 +1,5 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -26,7 +25,7 @@ pub struct ExportPublicationInput {
     pub metadata: ExportPublicationMetadata,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BatchExportFormat {
     Txt,
@@ -47,11 +46,9 @@ impl BatchExportFormat {
             Self::Pdf => "pdf",
         }
     }
-}
 
-impl fmt::Display for BatchExportFormat {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
+    pub const fn requires_metadata(self) -> bool {
+        matches!(self, Self::Markdown | Self::Epub)
     }
 }
 
@@ -60,7 +57,7 @@ impl fmt::Display for BatchExportFormat {
 pub struct BatchExportInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
-    #[schemars(length(min = 1))]
+    #[schemars(length(min = 1, max = 5))]
     pub formats: Vec<BatchExportFormat>,
     pub metadata: Option<ExportPublicationMetadata>,
 }
@@ -81,6 +78,19 @@ mod tests {
         for legacy in ["md", "MD", " EPUB "] {
             assert!(serde_json::from_value::<BatchExportFormat>(legacy.into()).is_err());
         }
+
+        for (format, canonical) in [
+            (BatchExportFormat::Txt, "txt"),
+            (BatchExportFormat::Markdown, "markdown"),
+            (BatchExportFormat::Epub, "epub"),
+            (BatchExportFormat::OutlineJson, "json"),
+            (BatchExportFormat::Pdf, "pdf"),
+        ] {
+            assert_eq!(format.as_str(), canonical);
+        }
+        assert!(BatchExportFormat::Markdown.requires_metadata());
+        assert!(BatchExportFormat::Epub.requires_metadata());
+        assert!(!BatchExportFormat::Pdf.requires_metadata());
 
         let partial_metadata = serde_json::json!({
             "project_id": 42,

@@ -1,20 +1,16 @@
+import { base64ToBytes } from "./base64";
+
 interface DownloadableBase64File {
   file_name: string;
-  mime_type?: string | null;
+  mime_type: string;
   data_base64: string;
 }
 
-function base64DataToBlob(
+export function base64DataToBlob(
   dataBase64: string,
-  mimeType = "application/octet-stream",
+  mimeType: string,
 ): Blob {
-  const parts = dataBase64.split(";base64,");
-  const raw = (parts[parts.length - 1] ?? "").trim();
-  const binary = window.atob(raw);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
+  const bytes = base64ToBytes(dataBase64);
   return new Blob([bytes], { type: mimeType });
 }
 
@@ -41,18 +37,9 @@ export function downloadTextFile(
   downloadBlob(fileName, new Blob([content], { type: mimeType }));
 }
 
-export function downloadBase64File(
-  fileName: string,
-  dataBase64: string,
-  mimeType = "application/octet-stream",
-): void {
-  downloadBlob(fileName, base64DataToBlob(dataBase64, mimeType));
-}
-
 export function downloadBase64ExportFile(file: DownloadableBase64File): void {
-  downloadBase64File(
+  downloadBlob(
     file.file_name,
-    file.data_base64,
-    file.mime_type || "application/octet-stream",
+    base64DataToBlob(file.data_base64, file.mime_type),
   );
 }

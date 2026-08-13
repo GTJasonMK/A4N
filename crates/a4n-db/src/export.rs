@@ -7,46 +7,35 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOr
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ExportChapter {
-    pub id: i64,
     pub chapter_number: i32,
     pub title: Option<String>,
     pub content: String,
 }
 
-pub async fn ensure_project_exists(
+#[derive(Debug)]
+pub struct ExportDocument {
+    pub title: String,
+    pub chapters: Vec<ExportChapter>,
+}
+
+async fn export_project(
     db: &DatabaseConnection,
     project_id: i64,
-) -> Result<(), AppError> {
+) -> Result<novel_project::Model, AppError> {
     novel_project::Entity::find_by_id(project_id)
         .one(db)
         .await
         .map_err(AppError::Database)?
-        .map(|_| ())
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
 }
 
-pub async fn export_txt(db: &DatabaseConnection, project_id: i64) -> Result<String, AppError> {
-    let chapters = export_chapters(db, project_id).await?;
-    Ok(render_txt_document(&chapters))
-}
-
-pub async fn export_markdown(
+pub async fn export_document(
     db: &DatabaseConnection,
     project_id: i64,
-    title: &str,
-    author: &str,
-) -> Result<String, AppError> {
-    let chapters = export_chapters(db, project_id).await?;
-    Ok(render_markdown_document(&chapters, title, author))
-}
-
-pub async fn export_chapters(
-    db: &DatabaseConnection,
-    project_id: i64,
-) -> Result<Vec<ExportChapter>, AppError> {
-    ensure_project_exists(db, project_id).await?;
+) -> Result<ExportDocument, AppError> {
+    let project = export_project(db, project_id).await?;
 
     let chapters = chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(project_id))
@@ -68,7 +57,6 @@ pub async fn export_chapters(
                 None
             } else {
                 Some(ExportChapter {
-                    id: chapter.id,
                     chapter_number: chapter.chapter_number,
                     title: chapter.title,
                     content,
@@ -77,14 +65,17 @@ pub async fn export_chapters(
         })
         .collect();
 
-    Ok(exportable)
+    Ok(ExportDocument {
+        title: project.title,
+        chapters: exportable,
+    })
 }
 
 pub async fn export_outline_json(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<serde_json::Value, AppError> {
-    ensure_project_exists(db, project_id).await?;
+    export_project(db, project_id).await?;
 
     let parts = part_outline::Entity::find()
         .filter(part_outline::Column::ProjectId.eq(project_id))
@@ -111,7 +102,7 @@ pub async fn export_characters_json(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<serde_json::Value, AppError> {
-    ensure_project_exists(db, project_id).await?;
+    export_project(db, project_id).await?;
 
     let profiles = protagonist_profile::Entity::find()
         .filter(protagonist_profile::Column::ProjectId.eq(project_id))

@@ -12,16 +12,15 @@ use super::{
     AdminApplication, AssetApplication, AssetLineageSyncApplication, AuthApplication,
     BootstrapUnavailableEmbedding, BootstrapUnavailableLlm, CanvasApplication,
     ChapterContentApplication, CharacterApplication, CollaborationApplication, ConfigApplication,
-    ExportApplication, GalgameApplication, GenerationApplication, ImportReverseApplication,
-    ImportReviewApplication, InspirationApplication, LlmContextApplication, MangaApplication,
-    OptimizeApplication, OrchestratorContext, ProfileMaterialApplication,
-    ProjectBlueprintApplication, ProjectChapterContextApplication,
-    ProjectChapterRecordsApplication, ProjectDependencyGraphApplication,
-    ProjectDuplicationApplication, ProjectFamilyApplication, ProjectMutationApplication,
-    ProjectOutlineRecordsApplication, ProjectReadApplication, ProjectSceneRecordsApplication,
-    ProjectStatusApplication, PromptOverrideApplication, RagApplication, SceneProfileApplication,
-    ShootingScriptApplication, SourceSyncApplication, TextAnchorApplication, VideoApplication,
-    WorkflowApplication,
+    GalgameApplication, GenerationApplication, ImportReverseApplication, ImportReviewApplication,
+    InspirationApplication, LlmContextApplication, MangaApplication, OptimizeApplication,
+    OrchestratorContext, ProfileMaterialApplication, ProjectBlueprintApplication,
+    ProjectChapterContextApplication, ProjectChapterRecordsApplication,
+    ProjectDependencyGraphApplication, ProjectDuplicationApplication, ProjectFamilyApplication,
+    ProjectMutationApplication, ProjectOutlineRecordsApplication, ProjectReadApplication,
+    ProjectSceneRecordsApplication, ProjectStatusApplication, PromptOverrideApplication,
+    RagApplication, SceneProfileApplication, ShootingScriptApplication, SourceSyncApplication,
+    TextAnchorApplication, VideoApplication, WorkflowApplication,
 };
 use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
@@ -58,7 +57,6 @@ impl OrchestratorContext {
         let chapter_content = ChapterContentApplication::new(db.clone());
         let character = CharacterApplication::new(db.clone());
         let collaboration = CollaborationApplication::new(db.clone());
-        let export = ExportApplication::new(db.clone());
         let galgame = GalgameApplication::new(db.clone());
         let generation = GenerationApplication::new(db.clone(), Arc::clone(&task_queue));
         let import_reverse = ImportReverseApplication::new(db.clone());
@@ -98,7 +96,6 @@ impl OrchestratorContext {
             chapter_content,
             character,
             collaboration,
-            export,
             galgame,
             generation,
             import_reverse,

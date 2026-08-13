@@ -11,10 +11,8 @@ import {
   loadVideoScrubPlaybackData,
 } from "../../../api/video";
 import type { GeneratedVideo, VideoPlaybackData } from "../../../api/video";
-import {
-  base64ToBytes,
-  videoPlaybackDataToObjectUrl,
-} from "../../../utils/videoPlayback";
+import { base64ToBytes } from "../../../utils/base64";
+import { videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
 
 const PLAYBACK_LOAD_TIMEOUT_MS = 20_000;
 const SCRUB_PROXY_LOAD_TIMEOUT_MS = 120_000;

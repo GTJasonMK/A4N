@@ -1688,7 +1688,7 @@ fn args_start_video_generation() -> Value {
 }
 
 fn args_sync_all_character_profiles() -> Value {
-    required_task_typed_input_schema::<crate::character::SyncAllCharacterProfilesInput>()
+    required_task_runtime_typed_input_schema::<crate::character::SyncAllCharacterProfilesInput>()
 }
 
 fn args_sync_scene_profiles() -> Value {
@@ -1696,7 +1696,7 @@ fn args_sync_scene_profiles() -> Value {
 }
 
 fn args_sync_character_from_chapters() -> Value {
-    required_task_typed_input_schema::<crate::character::SyncCharacterProfileInput>()
+    required_task_runtime_typed_input_schema::<crate::character::SyncCharacterProfileInput>()
 }
 
 fn args_unbind_galgame_media() -> Value {
@@ -2567,9 +2567,21 @@ fn required_task_typed_input_schema<T: JsonSchema>() -> Value {
             },
         },
         "required": ["input", "taskId"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
+}
+
+fn required_task_runtime_typed_input_schema<T: JsonSchema>() -> Value {
+    let mut schema = required_task_typed_input_schema::<T>();
+    schema["properties"]
+        .as_object_mut()
+        .expect("task input properties must be an object")
+        .insert(
+            "runtime_config_snapshot".into(),
+            json!({ "type": ["object", "null"] }),
+        );
+    schema
 }
 
 fn project_typed_input_schema<T: JsonSchema>() -> Value {
@@ -2806,6 +2818,42 @@ mod tests {
         );
         assert_eq!(descriptor.result_schema["x-a4n-schema-quality"], "typed");
         assert!(descriptor.result_references.is_empty());
+    }
+
+    #[test]
+    fn required_task_commands_reject_duplicate_identity_fields() {
+        for command in [
+            "export_batch_data",
+            "export_epub_data",
+            "export_markdown_data",
+            "export_outline_json_data",
+            "export_pdf_data",
+            "export_txt_data",
+            "export_characters_json_data",
+            "sync_all_character_profiles",
+            "sync_character_from_chapters",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command}"
+            );
+            assert!(
+                descriptor.args_schema["properties"].get("userId").is_none(),
+                "{command}"
+            );
+        }
+        for command in [
+            "sync_all_character_profiles",
+            "sync_character_from_chapters",
+        ] {
+            assert!(
+                command_descriptor(command).unwrap().args_schema["properties"]
+                    .get("runtime_config_snapshot")
+                    .is_some(),
+                "{command}"
+            );
+        }
     }
 
     #[test]

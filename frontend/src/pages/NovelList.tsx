@@ -58,7 +58,7 @@ import {
   type Quote,
 } from "./novel-list/novelListUtils";
 import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
-import { downloadBase64File } from "../utils/downloadFile";
+import { base64DataToBlob, downloadBlob } from "../utils/downloadFile";
 
 /**
  * 首页
@@ -521,7 +521,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
               derived_project_id: project.id,
             });
       if (!mountedRef.current) return;
-      downloadBase64File(result.file_name, result.data_base64, "application/zip");
+      downloadBlob(
+        result.file_name,
+        base64DataToBlob(result.data_base64, "application/zip"),
+      );
       addToast(`项目包已下载：${result.file_name}`, "success");
     } catch (err) {
       if (!mountedRef.current) return;

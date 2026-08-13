@@ -87,7 +87,6 @@ export async function syncAllCharacterProfiles(
 ): Promise<SyncAllCharacterProfilesResult> {
   const input = allCharacterProfilesSyncInput(projectId, chapterNumber);
   return apiInvoke<SyncAllCharacterProfilesResult>("sync_all_character_profiles", {
-    userId: currentUserId(),
     input,
     taskId,
   });

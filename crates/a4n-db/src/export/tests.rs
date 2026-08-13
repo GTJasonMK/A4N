@@ -40,11 +40,7 @@ async fn export_rejects_missing_project_instead_of_returning_empty_results() {
     let missing_project_id = 404;
 
     for result in [
-        export_chapters(&db, missing_project_id).await.map(|_| ()),
-        export_txt(&db, missing_project_id).await.map(|_| ()),
-        export_markdown(&db, missing_project_id, "测试书名", "测试作者")
-            .await
-            .map(|_| ()),
+        export_document(&db, missing_project_id).await.map(|_| ()),
         export_outline_json(&db, missing_project_id)
             .await
             .map(|_| ()),
@@ -64,12 +60,12 @@ async fn export_existing_empty_project_returns_empty_exports() {
     let db = setup_db().await;
     let project = insert_project(&db).await;
 
-    assert_eq!(export_chapters(&db, project.id).await.unwrap().len(), 0);
-    assert_eq!(export_txt(&db, project.id).await.unwrap(), "");
+    let document = export_document(&db, project.id).await.unwrap();
+    assert_eq!(document.title, project.title);
+    assert!(document.chapters.is_empty());
+    assert_eq!(render_txt_document(&document.chapters), "");
 
-    let markdown = export_markdown(&db, project.id, "测试书名", "测试作者")
-        .await
-        .unwrap();
+    let markdown = render_markdown_document(&document.chapters, "测试书名", "测试作者");
     assert_eq!(markdown, "# 测试书名\n\n作者：测试作者\n\n---\n");
 
     let outline = export_outline_json(&db, project.id).await.unwrap();
