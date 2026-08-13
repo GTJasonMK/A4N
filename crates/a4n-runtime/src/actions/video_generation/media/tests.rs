@@ -29,6 +29,7 @@ fn video_with_chapter(chapter_id: Option<i64>) -> generated_video::Model {
         status: "completed".to_string(),
         provider_job_id: None,
         error_message: None,
+        timeline_item_id: None,
         metadata_json: None,
         is_favorite: false,
         created_at: Utc::now().naive_utc(),

@@ -54,7 +54,10 @@ fn fixed_time(day: u32) -> chrono::NaiveDateTime {
         .unwrap()
 }
 
-async fn insert_video_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+pub(in crate::video) async fn insert_video_project(
+    db: &DatabaseConnection,
+    title: &str,
+) -> novel_project::Model {
     let now = fixed_time(3);
     novel_project::ActiveModel {
         user_id: Set(1),
@@ -82,7 +85,7 @@ async fn insert_video_project(db: &DatabaseConnection, title: &str) -> novel_pro
     .unwrap()
 }
 
-async fn insert_derived_video_project(
+pub(in crate::video) async fn insert_derived_video_project(
     db: Arc<DatabaseConnection>,
     root_project_id: i64,
     title: &str,
@@ -138,7 +141,7 @@ async fn insert_video_chapter(
     chapter
 }
 
-async fn insert_video_chapter_without_shooting_script(
+pub(in crate::video) async fn insert_video_chapter_without_shooting_script(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_number: i32,
@@ -191,42 +194,6 @@ async fn insert_video_chapter_without_shooting_script(
         .await
         .expect("video test workflow run pool should insert");
     chapter
-}
-
-async fn replace_video_chapter_shooting_script_with_single_shot(
-    db: &DatabaseConnection,
-    project_id: i64,
-    chapter: &chapter::Model,
-) {
-    let source = a4n_db::project::resolve_chapter_source(db, project_id, chapter.id)
-        .await
-        .expect("video test chapter source should resolve");
-    let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(db, &source)
-        .await
-        .expect("video test shooting script should load")
-        .expect("video test shooting script should exist");
-    let source_span = a4n_core::source_spans::source_spans_for_content(
-        chapter.id,
-        chapter.chapter_number,
-        &chapter.content,
-    )
-    .into_iter()
-    .next()
-    .expect("video test chapter should have a source span");
-    let mut script = test_chapter_shooting_script(&source_span.id);
-    script.scenes[0].shots.truncate(1);
-    a4n_db::shooting_script::update_chapter_shooting_script(
-        db,
-        a4n_db::shooting_script::UpdateChapterShootingScriptInput {
-            record_id: existing.record.id,
-            expected_revision: existing.record.revision,
-            input_fingerprint_sha256: existing.record.input_fingerprint_sha256,
-            script,
-            workflow_run_id: None,
-        },
-    )
-    .await
-    .expect("video test shooting script should update");
 }
 
 async fn insert_video_prompt(

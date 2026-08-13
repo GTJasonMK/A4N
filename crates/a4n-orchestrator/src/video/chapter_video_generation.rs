@@ -7,8 +7,8 @@ use a4n_core::{
     },
     source_spans::{metadata_source_content_sha256, source_text_hash},
     video_execution::{
-        VideoSegmentExecutionRecipeV1, resolve_video_segment_number,
-        video_segment_recipes_for_plan_from_metadata,
+        VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
+        resolve_video_segment_number, video_segment_recipes_for_plan_from_metadata,
     },
 };
 use a4n_db::collaboration::ProjectAccessRole;
@@ -24,7 +24,6 @@ use super::chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
     append_provider_input_note, append_provider_input_notes,
     append_video_request_prompt_length_context, apply_chapter_video_prompt_preview_override,
-    attach_chapter_video_snapshot_identity,
     build_video_generation_provider_preview_prompt_with_renderer,
     build_video_generation_provider_prompt_with_renderer, chapter_video_provider_descriptor,
     enforce_provider_image_binding_contract, enforce_provider_prompt_length_contract,
@@ -40,7 +39,7 @@ use super::{
     ensure_newapi_first_frame_image_supported, first_frame_prompt_matches_video_prompt,
     frame_prompt_matches_video_prompt, image_generation_prompt_id, image_generation_source,
     latest_boundary_frame_image_id, latest_storyboard_image_id, linked_video_preview_config_id,
-    prompt_provider_workflow, reference_ids_with_storyboard_image, reference_image_ids,
+    prompt_provider_workflow_for_recipe, reference_ids_with_storyboard_image, reference_image_ids,
     required_prompt_source_prompt_type, required_video_execution_identity,
     storyboard_prompt_matches_video_prompt, tail_frame_image_belongs_to_video,
     validate_video_duration_for_config_secs,
@@ -137,6 +136,12 @@ struct ChapterProviderReferences {
     provider_reference_image_ids_json: Option<Value>,
     provider_reference_image_ids: Vec<i64>,
     provider_reference_image_count: usize,
+}
+
+struct VideoPromptExecutionContract {
+    source_prompt_type: String,
+    execution_identity: Value,
+    recipe: VideoSegmentExecutionRecipeV1,
 }
 
 impl OrchestratorContext {
@@ -322,9 +327,13 @@ impl OrchestratorContext {
         if prompt.prompt_type != "video_prompt" {
             return Err(invalid_argument("请选择 video_prompt 类型的提示词生成视频"));
         }
-        self.require_current_segment_recipe_for_video_prompt(&prompt)
+        let execution_contract = self
+            .require_current_segment_recipe_for_video_prompt(&prompt)
             .await?;
 
+        let provider_workflow =
+            prompt_provider_workflow_for_recipe(&prompt, &execution_contract.recipe)
+                .map_err(AppError::InvalidArgument)?;
         let mut provider_input_note = None;
         if mode == VideoProviderValidationMode::Preview {
             apply_chapter_video_prompt_preview_override(
@@ -334,23 +343,16 @@ impl OrchestratorContext {
             )
             .map_err(AppError::InvalidArgument)?;
             ensure_chapter_video_prompt_preview_texts(&mut prompt, &mut provider_input_note);
-            ensure_chapter_video_prompt_preview_metadata(&mut prompt, &mut provider_input_note)
-                .map_err(AppError::InvalidArgument)?;
+            ensure_chapter_video_prompt_preview_metadata(
+                &mut prompt,
+                provider_workflow,
+                &mut provider_input_note,
+            )
+            .map_err(AppError::InvalidArgument)?;
         } else {
             if prompt.status == "running" {
                 return Err(invalid_argument(
                     "当前视频提示词正在生成视频，请先等待完成后再重新生成",
-                ));
-            }
-            if prompt
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("continuity_stale"))
-                .and_then(Value::as_bool)
-                == Some(true)
-            {
-                return Err(invalid_argument(
-                    "当前首帧续接来源已被新的片段候选替换，请重新选择续接来源后再生成",
                 ));
             }
             if let Some(source_hash) = metadata_source_content_sha256(prompt.metadata_json.as_ref())
@@ -377,16 +379,8 @@ impl OrchestratorContext {
             reference_image_ids(prompt_reference_image_ids_json.as_ref())
                 .map_err(AppError::InvalidArgument)?;
         let prompt_reference_image_count = prompt_reference_image_ids.len();
-        let source_prompt_type = Some(
-            required_prompt_source_prompt_type(prompt.id, prompt.metadata_json.as_ref())
-                .map_err(AppError::InvalidArgument)?
-                .to_string(),
-        );
-        let video_execution_identity =
-            required_video_execution_identity(prompt.id, prompt.metadata_json.as_ref())
-                .map_err(AppError::InvalidArgument)?;
-        let provider_workflow =
-            prompt_provider_workflow(&prompt).map_err(AppError::InvalidArgument)?;
+        let source_prompt_type = Some(execution_contract.source_prompt_type);
+        let video_execution_identity = execution_contract.execution_identity;
         let prompt_workflow_mode = prompt.workflow_mode.clone();
         if provider_workflow.uses_text_only() && !prompt_reference_image_ids.is_empty() {
             return Err(invalid_argument(
@@ -418,6 +412,7 @@ impl OrchestratorContext {
                 &prompt_reference_image_ids,
                 prompt_reference_image_ids_json.as_ref(),
                 provider_workflow,
+                &execution_contract.recipe,
                 mode,
                 &mut provider_input_note,
             )
@@ -473,13 +468,19 @@ impl OrchestratorContext {
         };
         let full_prompt = match mode {
             VideoProviderValidationMode::Generate => {
-                build_video_generation_provider_prompt_with_renderer(self, &prompt, image_binding)
-                    .await
+                build_video_generation_provider_prompt_with_renderer(
+                    self,
+                    &prompt,
+                    provider_workflow,
+                    image_binding,
+                )
+                .await
             }
             VideoProviderValidationMode::Preview => {
                 build_video_generation_provider_preview_prompt_with_renderer(
                     self,
                     &prompt,
+                    provider_workflow,
                     image_binding,
                 )
                 .await
@@ -555,26 +556,23 @@ impl OrchestratorContext {
         let descriptor =
             chapter_video_provider_descriptor(context, &format!("生成时{}", body.source_label))
                 .map_err(AppError::InvalidArgument)?;
-        let provider_request_snapshot = attach_chapter_video_snapshot_identity(
-            super::provider_request_snapshot_value(
-                "chapter_video",
-                descriptor.request_title,
-                descriptor.request_kind,
-                Some("chapter_video_prompt"),
-                Some(descriptor.note),
-                body.request,
-            ),
-            context,
+        let provider_request_snapshot = super::provider_request_snapshot_value(
+            "chapter_video",
+            descriptor.request_title,
+            descriptor.request_kind,
+            Some("chapter_video_prompt"),
+            Some(descriptor.note),
+            body.request,
         );
-        let metadata = json!({
+        let mut metadata = json!({
             "config_id": context.config.id,
             "prompt_id": context.prompt.id,
             "shot_number": context.prompt.shot_number,
             "source": context.prompt_source.clone(),
             "source_prompt_type": context.source_prompt_type.clone(),
             "video_execution_identity": context.video_execution_identity.clone(),
-            "generation_asset_fingerprint": context.video_execution_identity.get("generation_asset_fingerprint"),
-            "prompt_output_language": context.video_execution_identity.get("prompt_output_language"),
+            "prompt_output_language": context.prompt.metadata_json.as_ref()
+                .and_then(|metadata| metadata.get("prompt_output_language")),
             "prompt_reference_image_ids": context.prompt_reference_image_ids.clone(),
             "prompt_reference_image_count": context.prompt_reference_image_count,
             "provider_reference_image_ids": context.provider_reference_image_ids.clone(),
@@ -595,6 +593,14 @@ impl OrchestratorContext {
             "provider_request_snapshot": provider_request_snapshot.clone(),
             "runtime_config_snapshot": host_port.runtime_config_snapshot(),
         });
+        if context.prompt.timeline_item_id.is_none()
+            && let Some(fingerprint) = context
+                .video_execution_identity
+                .get("generation_asset_fingerprint")
+                .cloned()
+        {
+            metadata["generation_asset_fingerprint"] = fingerprint;
+        }
         self.create_video_generation_record_validated(VideoGenerationRecordInput {
             project_id: prepared.project_id,
             chapter_id: Some(prepared.chapter_id),
@@ -694,18 +700,6 @@ impl OrchestratorContext {
                     row.id
                 )));
             }
-            if row
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("continuity_stale"))
-                .and_then(Value::as_bool)
-                == Some(true)
-            {
-                return Err(invalid_argument(format!(
-                    "视频提示词 #{} 的首帧续接来源已失效，请重新选择后再生成",
-                    row.id
-                )));
-            }
         }
         Ok(rows.into_iter().map(|row| row.id).collect())
     }
@@ -713,12 +707,79 @@ impl OrchestratorContext {
     async fn require_current_segment_recipe_for_video_prompt(
         &self,
         prompt: &chapter_video_prompt::Model,
-    ) -> Result<VideoSegmentExecutionRecipeV1, AppError> {
+    ) -> Result<VideoPromptExecutionContract, AppError> {
         let metadata = prompt
             .metadata_json
             .as_ref()
             .and_then(Value::as_object)
             .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少 metadata", prompt.id)))?;
+        let source_prompt_type =
+            required_prompt_source_prompt_type(prompt.id, prompt.metadata_json.as_ref())
+                .map_err(AppError::InvalidArgument)?;
+        if prompt.timeline_item_id.is_some() {
+            if source_prompt_type != super::timeline::INSERTED_SEGMENT_SOURCE_PROMPT_TYPE {
+                return Err(invalid_argument(format!(
+                    "插入片段提示词 #{} source_prompt_type 无效",
+                    prompt.id
+                )));
+            }
+            let item_id = prompt
+                .timeline_item_id
+                .filter(|id| *id > 0)
+                .ok_or_else(|| {
+                    invalid_argument(format!("插入片段提示词 #{} 缺少有效时间线项 ID", prompt.id))
+                })?;
+            let timeline = self
+                .chapter_video_timeline_by_scope(
+                    prompt.project_id,
+                    prompt.chapter_id,
+                    super::timeline::SHARED_VIDEO_TIMELINE_MODE,
+                )
+                .await?
+                .ok_or_else(|| invalid_argument("当前章节不存在插入片段时间线"))?;
+            let snapshot = self.chapter_video_timeline_snapshot(timeline.id).await?;
+            let item = snapshot
+                .items
+                .iter()
+                .find(|item| item.id == item_id)
+                .ok_or_else(|| invalid_argument(format!("插入片段时间线项 #{item_id} 不存在")))?;
+            if item.item_kind != a4n_db::video::TIMELINE_INSERTED_KIND
+                || item.status != a4n_db::video::TIMELINE_ACTIVE_STATUS
+                || item.insert_plan_prompt_id != Some(prompt.id)
+            {
+                return Err(invalid_argument(format!(
+                    "插入片段提示词 #{} 对应的时间线项不是当前活动项，请刷新时间线后重试",
+                    prompt.id
+                )));
+            }
+            let recipe = serde_json::from_value::<VideoSegmentExecutionRecipeV1>(
+                metadata.get("segment_recipe").cloned().ok_or_else(|| {
+                    invalid_argument(format!("插入片段提示词 #{} 缺少 segment_recipe", prompt.id))
+                })?,
+            )
+            .map_err(|error| {
+                invalid_argument(format!(
+                    "插入片段提示词 #{} segment_recipe 无效: {error}",
+                    prompt.id
+                ))
+            })?;
+            recipe
+                .validate_generation_ready()
+                .map_err(AppError::InvalidArgument)?;
+            let execution_identity = inserted_video_execution_identity(prompt, &recipe)?;
+            return Ok(VideoPromptExecutionContract {
+                source_prompt_type: source_prompt_type.to_string(),
+                execution_identity,
+                recipe,
+            });
+        }
+        if source_prompt_type != super::FRAME_SEGMENT_PLAN_PROMPT_TYPE {
+            return Err(invalid_argument(format!(
+                "视频提示词 #{} source_prompt_type={source_prompt_type}，当前要求 {}",
+                prompt.id,
+                super::FRAME_SEGMENT_PLAN_PROMPT_TYPE
+            )));
+        }
         let execution_identity =
             required_video_execution_identity(prompt.id, prompt.metadata_json.as_ref())
                 .map_err(AppError::InvalidArgument)?;
@@ -782,8 +843,6 @@ impl OrchestratorContext {
                 .get("prompt_output_language")
                 .and_then(Value::as_str)
                 == Some(recipe.prompt_output_language.as_str())
-            && metadata.get("guidance_mode").and_then(Value::as_str)
-                == Some(recipe.guidance_mode.as_str())
             && reference_image_ids(prompt.reference_image_ids_json.as_ref())
                 .map_err(AppError::InvalidArgument)?
                 == recipe.provider_reference_image_ids();
@@ -793,7 +852,11 @@ impl OrchestratorContext {
                 prompt.id
             )));
         }
-        Ok(recipe)
+        Ok(VideoPromptExecutionContract {
+            source_prompt_type: source_prompt_type.to_string(),
+            execution_identity,
+            recipe,
+        })
     }
 
     async fn resolve_chapter_provider_references(
@@ -804,64 +867,66 @@ impl OrchestratorContext {
         prompt_reference_image_ids: &[i64],
         prompt_reference_image_ids_json: Option<&Value>,
         provider_workflow: ProviderGenerationWorkflow,
+        recipe: &VideoSegmentExecutionRecipeV1,
         mode: VideoProviderValidationMode,
         provider_input_note: &mut Option<String>,
     ) -> Result<ChapterProviderReferences, AppError> {
         let storyboard_workflow = provider_workflow.uses_storyboard();
-        let (boundary_frame_ids, storyboard_image_id) =
-            if provider_workflow.uses_text_only() || provider_workflow.uses_keyframes() {
-                (BoundaryFrameImageIds::default(), None)
-            } else if provider_workflow.uses_first_frame_chain() {
-                let start = self
-                    .first_frame_chain_start_image_id_for_prompt(project_id, chapter_id, prompt)
-                    .await?;
-                if start.is_none() {
-                    let message = super::first_frame_chain_missing_start_image_message(prompt);
-                    missing_image_error_or_note(
-                        mode,
-                        provider_input_note,
-                        message,
-                        "当前首帧串联起始帧缺失",
-                    )?;
-                }
-                (
-                    BoundaryFrameImageIds {
-                        first: start,
-                        last: None,
-                    },
-                    None,
-                )
-            } else if storyboard_workflow {
-                let storyboard_image_id = self
-                    .storyboard_image_id_for_prompt(project_id, chapter_id, prompt)
-                    .await?;
-                if storyboard_image_id.is_none() {
-                    missing_image_error_or_note(
-                        mode,
-                        provider_input_note,
-                        super::storyboard_missing_image_message(prompt),
-                        "当前分镜图缺失",
-                    )?;
-                }
-                (BoundaryFrameImageIds::default(), storyboard_image_id)
-            } else {
-                let frame_ids = self
-                    .boundary_frame_image_ids_for_prompt(project_id, chapter_id, prompt)
-                    .await?;
-                if let Some(message) = super::boundary_frame_missing_image_message(
-                    prompt,
-                    frame_ids.first.is_some(),
-                    frame_ids.last.is_some(),
-                ) {
-                    missing_image_error_or_note(
-                        mode,
-                        provider_input_note,
-                        message,
-                        "当前首尾帧图片不完整",
-                    )?;
-                }
-                (frame_ids, None)
-            };
+        let (boundary_frame_ids, storyboard_image_id) = if provider_workflow.uses_text_only()
+            || provider_workflow.uses_keyframes()
+        {
+            (BoundaryFrameImageIds::default(), None)
+        } else if provider_workflow.uses_first_frame_chain() {
+            let start = self
+                .first_frame_chain_start_image_id_for_prompt(project_id, chapter_id, prompt, recipe)
+                .await?;
+            if start.is_none() {
+                let message = super::first_frame_chain_missing_start_image_message(prompt);
+                missing_image_error_or_note(
+                    mode,
+                    provider_input_note,
+                    message,
+                    "当前首帧串联起始帧缺失",
+                )?;
+            }
+            (
+                BoundaryFrameImageIds {
+                    first: start,
+                    last: None,
+                },
+                None,
+            )
+        } else if storyboard_workflow {
+            let storyboard_image_id = self
+                .storyboard_image_id_for_prompt(project_id, chapter_id, prompt)
+                .await?;
+            if storyboard_image_id.is_none() {
+                missing_image_error_or_note(
+                    mode,
+                    provider_input_note,
+                    super::storyboard_missing_image_message(prompt),
+                    "当前分镜图缺失",
+                )?;
+            }
+            (BoundaryFrameImageIds::default(), storyboard_image_id)
+        } else {
+            let frame_ids = self
+                .boundary_frame_image_ids_for_prompt(project_id, chapter_id, prompt)
+                .await?;
+            if let Some(message) = super::boundary_frame_missing_image_message(
+                prompt,
+                frame_ids.first.is_some(),
+                frame_ids.last.is_some(),
+            ) {
+                missing_image_error_or_note(
+                    mode,
+                    provider_input_note,
+                    message,
+                    "当前首尾帧图片不完整",
+                )?;
+            }
+            (frame_ids, None)
+        };
         let provider_reference_image_ids = if provider_workflow.uses_text_only() {
             Vec::new()
         } else if provider_workflow.uses_keyframes() {
@@ -946,8 +1011,9 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         prompt: &chapter_video_prompt::Model,
+        recipe: &VideoSegmentExecutionRecipeV1,
     ) -> Result<Option<i64>, AppError> {
-        if prompt.shot_number <= 1 {
+        if prompt.timeline_item_id.is_none() && prompt.shot_number <= 1 {
             let candidates = self
                 .chapter_video_first_frame_prompt_candidates(project_id, chapter_id)
                 .await?;
@@ -969,22 +1035,10 @@ impl OrchestratorContext {
                 })
                 .map(|image| image.id));
         }
-        if prompt
-            .metadata_json
-            .as_ref()
-            .and_then(|metadata| metadata.get("guidance_mode"))
-            .and_then(Value::as_str)
-            == Some("continuity")
-        {
-            let source_video_id = prompt
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("continuity_source"))
-                .and_then(|source| source.get("video_id"))
-                .and_then(Value::as_i64)
-                .ok_or_else(|| {
-                    invalid_argument("首帧续接提示词缺少已冻结的 continuity_source.video_id")
-                })?;
+        if recipe.guidance_mode == VideoSegmentGuidanceModeV1::Continuity {
+            let source_video_id = recipe.continuity_source_video_id.ok_or_else(|| {
+                invalid_argument("首帧续接提示词缺少已冻结的 continuity_source_video_id")
+            })?;
             let source_video = self
                 .generated_video_by_id(source_video_id)
                 .await?
@@ -1034,6 +1088,70 @@ impl OrchestratorContext {
             .await?;
         Ok(latest_storyboard_image_id(&images, storyboard_prompt))
     }
+}
+
+fn inserted_video_execution_identity(
+    prompt: &chapter_video_prompt::Model,
+    recipe: &VideoSegmentExecutionRecipeV1,
+) -> Result<Value, AppError> {
+    let metadata = prompt
+        .metadata_json
+        .as_ref()
+        .and_then(Value::as_object)
+        .ok_or_else(|| invalid_argument(format!("插入片段提示词 #{} 缺少 metadata", prompt.id)))?;
+    let identity = metadata
+        .get("video_execution_identity")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            invalid_argument(format!(
+                "插入片段提示词 #{} 缺少 video_execution_identity",
+                prompt.id
+            ))
+        })?;
+    if identity.get("contract_epoch").and_then(Value::as_u64)
+        != Some(VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
+    {
+        return Err(invalid_argument(format!(
+            "插入片段提示词 #{} 的执行合同已失效，请重新生成插入片段",
+            prompt.id
+        )));
+    }
+    let source_content_sha256 = metadata
+        .get("source")
+        .and_then(|source| source.get("content_sha256"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| invalid_argument(format!("插入片段提示词 #{} 缺少正文指纹", prompt.id)))?;
+    let prompt_matches_recipe = prompt.workflow_mode == recipe.workflow_mode.as_str()
+        && prompt.style.as_deref().map(str::trim) == Some(recipe.style.trim())
+        && prompt.duration_secs == recipe.duration_secs
+        && prompt.aspect_ratio.as_deref() == Some(recipe.aspect_ratio.as_str())
+        && metadata
+            .get("prompt_output_language")
+            .and_then(Value::as_str)
+            == Some(recipe.prompt_output_language.as_str())
+        && reference_image_ids(prompt.reference_image_ids_json.as_ref())
+            .map_err(AppError::InvalidArgument)?
+            == recipe.provider_reference_image_ids();
+    if !prompt_matches_recipe
+        || identity
+            .get("source_content_sha256")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            != Some(source_content_sha256)
+        || identity
+            .get("segment_sha256")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .is_none_or(str::is_empty)
+    {
+        return Err(invalid_argument(format!(
+            "插入片段提示词 #{} 不属于当前执行方案，请重新生成插入片段",
+            prompt.id
+        )));
+    }
+    Ok(Value::Object(identity.clone()))
 }
 
 fn missing_image_error_or_note(

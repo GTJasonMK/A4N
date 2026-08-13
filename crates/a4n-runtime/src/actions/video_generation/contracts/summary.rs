@@ -24,6 +24,7 @@ pub(crate) fn video_to_summary(v: &generated_video::Model) -> GeneratedVideoSumm
         provider_job_id: v.provider_job_id.clone(),
         error_message: v.error_message.clone(),
         metadata_json: v.metadata_json.clone(),
+        timeline_item_id: v.timeline_item_id,
         is_favorite: v.is_favorite,
         created_at: v.created_at.to_string(),
         updated_at: v.updated_at.to_string(),

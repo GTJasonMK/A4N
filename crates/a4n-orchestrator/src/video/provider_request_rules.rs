@@ -2,7 +2,7 @@
 
 use serde_json::{Value, json};
 
-use super::{FRAME_SEGMENT_PLAN_PROMPT_TYPE, boundary_frame_numbers_for_prompt};
+use super::boundary_frame_numbers_for_prompt;
 
 /// CLIProxy / Grok 参考图数量上限。
 pub const MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES: usize = 7;
@@ -69,28 +69,17 @@ impl ProviderGenerationWorkflow {
     }
 }
 
-/// 校验提示词 `source_prompt_type` 为当前共享片段规划合同。
+/// 校验并返回提示词来源类型。
 pub fn required_prompt_source_prompt_type(
     prompt_id: i64,
     metadata_json: Option<&Value>,
 ) -> Result<&str, String> {
-    let source_prompt_type = metadata_json
+    metadata_json
         .and_then(|metadata| metadata.get("source_prompt_type"))
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            format!(
-                "视频提示词 #{prompt_id} 缺少 source_prompt_type，请按当前共享片段规划合同重新生成"
-            )
-        })?;
-    if source_prompt_type != FRAME_SEGMENT_PLAN_PROMPT_TYPE {
-        return Err(format!(
-            "视频提示词 #{prompt_id} source_prompt_type={source_prompt_type}，当前要求 {}",
-            FRAME_SEGMENT_PLAN_PROMPT_TYPE
-        ));
-    }
-    Ok(source_prompt_type)
+        .ok_or_else(|| format!("视频提示词 #{prompt_id} 缺少 source_prompt_type"))
 }
 
 pub fn ensure_provider_generation_workflow(
@@ -109,58 +98,41 @@ pub fn ensure_provider_generation_workflow(
     }
 }
 
-pub fn prompt_provider_workflow(
+pub(crate) fn prompt_provider_workflow_for_recipe(
     prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    recipe: &a4n_core::video_execution::VideoSegmentExecutionRecipeV1,
 ) -> Result<ProviderGenerationWorkflow, String> {
     ensure_provider_generation_workflow(prompt)?;
-    provider_generation_workflow_for_values(
+    provider_generation_workflow_for_guidance(
         prompt.id,
         &prompt.workflow_mode,
-        prompt.metadata_json.as_ref(),
+        recipe.guidance_mode,
     )
 }
 
-fn provider_generation_workflow_for_values(
+fn provider_generation_workflow_for_guidance(
     prompt_id: i64,
     workflow_mode: &str,
-    metadata_json: Option<&Value>,
+    guidance_mode: a4n_core::video_execution::VideoSegmentGuidanceModeV1,
 ) -> Result<ProviderGenerationWorkflow, String> {
-    let guidance_mode = metadata_json
-        .and_then(|metadata| metadata.get("guidance_mode"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("视频提示词 #{} 缺少 guidance_mode", prompt_id))?;
-    match guidance_mode {
-        "none" => return Ok(ProviderGenerationWorkflow::TextOnly),
-        "keyframes" => return Ok(ProviderGenerationWorkflow::Keyframes),
-        "continuity" if workflow_mode != "first_frame_chain" => {
-            return Err(format!(
-                "视频提示词 #{} 只有首帧续接方案可以使用 continuity 引导",
-                prompt_id
-            ));
-        }
-        "continuity" | "system_frames" => {}
-        other => {
-            return Err(format!(
-                "视频提示词 #{} guidance_mode 无效: {other}",
-                prompt_id
-            ));
-        }
-    }
-    match workflow_mode {
-        "boundary_frames" => Ok(ProviderGenerationWorkflow::BoundaryFrames),
-        "first_frame_chain" => Ok(ProviderGenerationWorkflow::FirstFrameChain),
-        "storyboard" => Ok(ProviderGenerationWorkflow::Storyboard),
-        other => Err(format!(
-            "视频提示词 #{} workflow_mode 无效: {}",
-            prompt_id, other
-        )),
-    }
-}
+    use a4n_core::video_execution::VideoSegmentGuidanceModeV1;
 
-pub fn prompt_is_first_frame_chain(
-    prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
-) -> Result<bool, String> {
-    Ok(prompt_provider_workflow(prompt)?.uses_first_frame_chain())
+    match guidance_mode {
+        VideoSegmentGuidanceModeV1::None => Ok(ProviderGenerationWorkflow::TextOnly),
+        VideoSegmentGuidanceModeV1::Keyframes => Ok(ProviderGenerationWorkflow::Keyframes),
+        VideoSegmentGuidanceModeV1::Continuity if workflow_mode != "first_frame_chain" => Err(
+            format!("视频提示词 #{prompt_id} 只有首帧续接方案可以使用 continuity 引导"),
+        ),
+        VideoSegmentGuidanceModeV1::Continuity => Ok(ProviderGenerationWorkflow::FirstFrameChain),
+        VideoSegmentGuidanceModeV1::SystemFrames => match workflow_mode {
+            "boundary_frames" => Ok(ProviderGenerationWorkflow::BoundaryFrames),
+            "first_frame_chain" => Ok(ProviderGenerationWorkflow::FirstFrameChain),
+            "storyboard" => Ok(ProviderGenerationWorkflow::Storyboard),
+            other => Err(format!(
+                "视频提示词 #{prompt_id} workflow_mode 无效: {other}"
+            )),
+        },
+    }
 }
 
 pub fn first_frame_chain_missing_start_image_message(
@@ -440,6 +412,7 @@ pub fn cliproxy_prompt_length_violation_message(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::video::FRAME_SEGMENT_PLAN_PROMPT_TYPE;
 
     #[test]
     fn reference_ids_dedupe_and_order() {
@@ -527,6 +500,14 @@ mod tests {
                 .unwrap(),
             plan
         );
+        assert_eq!(
+            required_prompt_source_prompt_type(
+                2,
+                Some(&json!({"source_prompt_type": "inserted_segment"})),
+            )
+            .unwrap(),
+            "inserted_segment"
+        );
         assert!(required_prompt_source_prompt_type(1, Some(&json!({}))).is_err());
         assert!(required_video_execution_identity(1, None).is_err());
 
@@ -574,36 +555,59 @@ mod tests {
     }
 
     #[test]
-    fn guidance_mode_selects_provider_media_contract() {
-        assert!(
-            provider_generation_workflow_for_values(1, "boundary_frames", Some(&json!({})))
-                .is_err()
-        );
+    fn provider_workflow_uses_recipe_instead_of_legacy_metadata() {
+        use a4n_core::models::chapter::chapter_video_prompt;
+        use a4n_core::video_execution::{
+            VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentExecutionRecipeV1,
+            VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
+        };
+        use chrono::Utc;
+
+        let now = Utc::now().naive_utc();
+        let prompt = chapter_video_prompt::Model {
+            id: 1,
+            project_id: 1,
+            chapter_id: 1,
+            style: Some("cinematic".to_string()),
+            prompt_type: "video_prompt".to_string(),
+            workflow_mode: "boundary_frames".to_string(),
+            shot_number: 1,
+            title: None,
+            scene_summary: None,
+            visual_prompt: "visual".to_string(),
+            motion_prompt: None,
+            negative_prompt: None,
+            duration_secs: 6,
+            aspect_ratio: Some("16:9".to_string()),
+            reference_image_ids_json: None,
+            status: "completed".to_string(),
+            generated_video_id: None,
+            timeline_item_id: None,
+            metadata_json: Some(json!({"guidance_mode": "none"})),
+            created_at: now,
+            updated_at: now,
+        };
+        let recipe = VideoSegmentExecutionRecipeV1 {
+            schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
+            segment_number: 1,
+            workflow_mode: VideoSegmentWorkflowModeV1::BoundaryFrames,
+            style: "cinematic".to_string(),
+            prompt_output_language: "zh_cn".to_string(),
+            duration_secs: 6,
+            duration_secs_options: vec![6],
+            aspect_ratio: "16:9".to_string(),
+            reference_image_ids: Vec::new(),
+            video_library_image_ids: Vec::new(),
+            guidance_mode: VideoSegmentGuidanceModeV1::SystemFrames,
+            guidance_reference_image_ids: Vec::new(),
+            continuity_source_video_id: None,
+            reference_media: None,
+            adopted_video_id: None,
+        };
+
         assert_eq!(
-            provider_generation_workflow_for_values(
-                1,
-                "boundary_frames",
-                Some(&json!({"guidance_mode": "keyframes"})),
-            )
-            .unwrap(),
-            ProviderGenerationWorkflow::Keyframes,
-        );
-        assert_eq!(
-            provider_generation_workflow_for_values(
-                1,
-                "boundary_frames",
-                Some(&json!({"guidance_mode": "none"})),
-            )
-            .unwrap(),
-            ProviderGenerationWorkflow::TextOnly,
-        );
-        assert!(
-            provider_generation_workflow_for_values(
-                1,
-                "boundary_frames",
-                Some(&json!({"guidance_mode": "continuity"})),
-            )
-            .is_err()
+            prompt_provider_workflow_for_recipe(&prompt, &recipe).unwrap(),
+            ProviderGenerationWorkflow::BoundaryFrames
         );
     }
 }

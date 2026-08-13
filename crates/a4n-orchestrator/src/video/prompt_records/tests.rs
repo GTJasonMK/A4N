@@ -24,6 +24,7 @@ mod tests {
             reference_image_ids_json: None,
             status: "completed".to_string(),
             generated_video_id: None,
+            timeline_item_id: None,
             metadata_json: Some(json!({
                 "source": {"content_sha256": "same-source"},
                 "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION

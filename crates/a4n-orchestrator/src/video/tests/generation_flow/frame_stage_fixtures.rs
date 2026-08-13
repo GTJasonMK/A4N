@@ -1,4 +1,4 @@
-async fn generate_chat_video_segment_plan_stage(
+async fn generate_shared_segment_plan_stage(
     service: &OrchestratorContext,
     llm_switch: &SwitchableLlmProvider,
     project_id: i64,
@@ -11,7 +11,7 @@ async fn generate_chat_video_segment_plan_stage(
                 llm_switch,
                 project_id,
                 chapter_id,
-                "chat_video",
+                "shared_segment_plan",
                 &SequenceLlmProvider::new_owned(vec![
                     segment_plan_json_for_shot(1, None),
                     segment_plan_json_for_shot(2, None),
@@ -23,6 +23,37 @@ async fn generate_chat_video_segment_plan_stage(
             None,
             None,
         )
+        .await
+        .unwrap();
+}
+
+async fn set_segment_recipe_mode(
+    service: &OrchestratorContext,
+    project_id: i64,
+    chapter_id: i64,
+    segment_number: i32,
+    workflow_mode: a4n_core::video_execution::VideoSegmentWorkflowModeV1,
+    guidance_mode: a4n_core::video_execution::VideoSegmentGuidanceModeV1,
+) {
+    let plan = service
+        .current_shared_segment_plan(project_id, chapter_id)
+        .await
+        .unwrap();
+    let mut recipe = a4n_core::video_execution::video_segment_recipes_for_plan_from_metadata(
+        plan.metadata_json.as_ref(),
+        plan.style.as_deref().unwrap(),
+    )
+    .unwrap()
+    .into_iter()
+    .find(|recipe| recipe.segment_number == segment_number)
+    .unwrap();
+    recipe.workflow_mode = workflow_mode;
+    recipe.guidance_mode = guidance_mode;
+    if guidance_mode == a4n_core::video_execution::VideoSegmentGuidanceModeV1::SystemFrames {
+        recipe.reference_image_ids.clear();
+    }
+    service
+        .update_chapter_video_segment_recipe(plan.id, recipe)
         .await
         .unwrap();
 }

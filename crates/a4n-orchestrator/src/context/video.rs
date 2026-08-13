@@ -6,10 +6,11 @@
 use a4n_core::error::AppError;
 use a4n_core::models::{
     ai::{generated_image, generated_video},
-    chapter::chapter_video_prompt,
+    chapter::{chapter_video_prompt, chapter_video_timeline},
 };
 use a4n_core::source_spans::source_text_hash as source_content_sha256;
 use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+use a4n_core::video_execution::VideoTimelineGap;
 use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
@@ -644,10 +645,175 @@ impl VideoApplication {
         .await
         .map_err(video_db_error)
     }
+
+    pub(super) async fn chapter_video_timeline_by_scope(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+    ) -> Result<Option<chapter_video_timeline::Model>, AppError> {
+        a4n_db::video::chapter_video_timeline_by_scope(
+            self.connection(),
+            project_id,
+            chapter_id,
+            workflow_mode,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn chapter_video_timeline_snapshot(
+        &self,
+        timeline_id: i64,
+    ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
+        a4n_db::video::chapter_video_timeline_snapshot(self.connection(), timeline_id)
+            .await
+            .map_err(video_db_error)
+    }
+
+    pub(super) async fn ensure_chapter_video_timeline(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+    ) -> Result<chapter_video_timeline::Model, AppError> {
+        a4n_db::video::ensure_chapter_video_timeline(
+            self.connection(),
+            project_id,
+            chapter_id,
+            workflow_mode,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn reconcile_native_video_timeline(
+        &self,
+        timeline_id: i64,
+        keys: &[a4n_core::video_execution::NativeVideoTimelineKey],
+    ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
+        a4n_db::video::reconcile_native_timeline(self.connection(), timeline_id, keys)
+            .await
+            .map_err(video_db_error)
+    }
+
+    pub(super) async fn commit_inserted_video_timeline_item(
+        &self,
+        input: a4n_db::video::CommitInsertedTimelineItemInput,
+    ) -> Result<(), AppError> {
+        a4n_db::video::commit_inserted_timeline_item(self.connection(), input)
+            .await
+            .map_err(video_db_error)
+    }
+
+    pub(super) async fn move_inserted_video_timeline_item(
+        &self,
+        timeline_id: i64,
+        expected_revision: i64,
+        item_id: i64,
+        gap: VideoTimelineGap,
+    ) -> Result<chapter_video_timeline::Model, AppError> {
+        a4n_db::video::move_inserted_timeline_item_persisted(
+            self.connection(),
+            timeline_id,
+            expected_revision,
+            item_id,
+            gap,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn delete_inserted_video_timeline_item(
+        &self,
+        timeline_id: i64,
+        expected_revision: i64,
+        item_id: i64,
+    ) -> Result<chapter_video_timeline::Model, AppError> {
+        a4n_db::video::delete_inserted_timeline_item(
+            self.connection(),
+            timeline_id,
+            expected_revision,
+            item_id,
+        )
+        .await
+        .map_err(video_db_error)
+    }
 }
 
 // OrchestratorContext 委托：供 video/ 编排与 runtime facade 使用。
 impl OrchestratorContext {
+    pub(crate) async fn chapter_video_timeline_by_scope(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+    ) -> Result<Option<chapter_video_timeline::Model>, AppError> {
+        self.video
+            .chapter_video_timeline_by_scope(project_id, chapter_id, workflow_mode)
+            .await
+    }
+
+    pub(crate) async fn chapter_video_timeline_snapshot(
+        &self,
+        timeline_id: i64,
+    ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
+        self.video
+            .chapter_video_timeline_snapshot(timeline_id)
+            .await
+    }
+
+    pub(crate) async fn ensure_chapter_video_timeline(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+    ) -> Result<chapter_video_timeline::Model, AppError> {
+        self.video
+            .ensure_chapter_video_timeline(project_id, chapter_id, workflow_mode)
+            .await
+    }
+
+    pub(crate) async fn reconcile_native_video_timeline(
+        &self,
+        timeline_id: i64,
+        keys: &[a4n_core::video_execution::NativeVideoTimelineKey],
+    ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
+        self.video
+            .reconcile_native_video_timeline(timeline_id, keys)
+            .await
+    }
+
+    pub(crate) async fn commit_inserted_video_timeline_item(
+        &self,
+        input: a4n_db::video::CommitInsertedTimelineItemInput,
+    ) -> Result<(), AppError> {
+        self.video.commit_inserted_video_timeline_item(input).await
+    }
+
+    pub(crate) async fn move_inserted_video_timeline_item(
+        &self,
+        timeline_id: i64,
+        expected_revision: i64,
+        item_id: i64,
+        gap: VideoTimelineGap,
+    ) -> Result<chapter_video_timeline::Model, AppError> {
+        self.video
+            .move_inserted_video_timeline_item(timeline_id, expected_revision, item_id, gap)
+            .await
+    }
+
+    pub(crate) async fn delete_inserted_video_timeline_item(
+        &self,
+        timeline_id: i64,
+        expected_revision: i64,
+        item_id: i64,
+    ) -> Result<chapter_video_timeline::Model, AppError> {
+        self.video
+            .delete_inserted_video_timeline_item(timeline_id, expected_revision, item_id)
+            .await
+    }
+
     pub async fn ensure_video_capacity(
         &self,
         config_id: i64,

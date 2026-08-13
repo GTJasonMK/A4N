@@ -109,7 +109,28 @@ fn image_lookup_context_ignores_generation_asset_fingerprint() {
         },
         "prompt_output_language": "zh_cn"
     }));
-    let execution_identity = json!({"contract_epoch": 5});
+    let segment = segment(1);
+    let recipe = a4n_core::video_execution::default_video_segment_recipes(
+        std::slice::from_ref(&segment),
+        "测试风格",
+        "zh_cn",
+    )
+    .unwrap()
+    .remove(0);
+    let execution_identity = video_segment_frame_execution_identity(
+        video_execution_chain_identity(
+            &shooting_script_projection(),
+            std::slice::from_ref(&segment),
+            "测试风格",
+            5,
+            "16:9",
+        )
+        .unwrap(),
+        Some(44),
+        Some(&recipe),
+        (&segment.source_shot_id, segment.segment_index_in_shot),
+    )
+    .unwrap();
     row.metadata_json
         .as_mut()
         .expect("frame metadata")

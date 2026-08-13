@@ -34,6 +34,7 @@ export const HOST_API_COMMANDS = [
   "check_import_dedup",
   "check_profile_sync_conflict",
   "cleanup_orphan_project_data_dirs",
+  "commit_inserted_segment_draft",
   "confirm_reverse_engineering_candidate",
   "create_derived_project",
   "create_embedding_config",
@@ -57,6 +58,7 @@ export const HOST_API_COMMANDS = [
   "delete_galgame_line",
   "delete_image",
   "delete_import_review",
+  "delete_inserted_segment",
   "delete_latest_chapter_outlines",
   "delete_latest_parts",
   "delete_llm_config",
@@ -110,6 +112,7 @@ export const HOST_API_COMMANDS = [
   "get_chapter_outlines_pacing",
   "get_chapter_shooting_script",
   "get_chapter_shooting_script_unit_progress",
+  "get_chapter_video_timeline",
   "get_character_arc_status",
   "get_character_voice_fingerprint",
   "get_current_user",
@@ -202,6 +205,7 @@ export const HOST_API_COMMANDS = [
   "load_video_segment_plan_draft",
   "login_user",
   "modify_profile_attribute",
+  "move_inserted_segment",
   "oauth2_authorize_url",
   "oauth2_callback",
   "optimize_chapter_video_prompt",
@@ -3720,6 +3724,7 @@ export interface GeneratedVideoSummary {
   source_video_id: number | null;
   status: string;
   thumbnail_path: string | null;
+  timeline_item_id: number | null;
   updated_at: string;
   video_type: string;
   width: number;
@@ -3800,6 +3805,53 @@ export interface VideoScrubFramesData {
   data_base64: string;
   frames_per_second: number;
   mime_type: string;
+}
+
+export interface GetVideoTimelineInput {
+  chapter_id: number;
+  project_id: number;
+}
+
+export interface CommitInsertedSegmentDraftInput {
+  expected_timeline_revision: number;
+  timeline_id: number;
+  workflow_run_id: number;
+}
+
+export interface MoveInsertedSegmentInput {
+  expected_timeline_revision: number;
+  next_item_id?: number | null;
+  previous_item_id?: number | null;
+  timeline_id: number;
+  timeline_item_id: number;
+}
+
+export interface DeleteInsertedSegmentInput {
+  expected_timeline_revision: number;
+  timeline_id: number;
+  timeline_item_id: number;
+}
+
+export type VideoTimelineItemKind = "native" | "inserted";
+
+export type VideoTimelineItemStatus = "active" | "needs_reanchor";
+
+export interface VideoTimelineItemSummary {
+  display_index: number;
+  generated_video_id: number | null;
+  id: number;
+  kind: VideoTimelineItemKind;
+  plan_prompt_id: number | null;
+  segment_number: number | null;
+  source_shot_id: string | null;
+  status: VideoTimelineItemStatus;
+  title: string | null;
+}
+
+export interface VideoTimelineSummary {
+  id: number;
+  items: VideoTimelineItemSummary[];
+  revision: number;
 }
 
 export interface AssembledChapterVideoClipSummary {

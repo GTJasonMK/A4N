@@ -256,6 +256,7 @@ impl OrchestratorContext {
                 .await
             }
             VideoGenerationOperation::PromptSegmentPlan { .. }
+            | VideoGenerationOperation::PromptInsertedSegment { .. }
             | VideoGenerationOperation::PromptFrames { .. }
             | VideoGenerationOperation::PromptVideos { .. } => Err(AppError::InvalidState {
                 current: "video_prompt_generation".to_string(),
@@ -552,6 +553,7 @@ fn video_operation_key(operation: &VideoGenerationOperation) -> &'static str {
         VideoGenerationOperation::ChapterBatch { .. } => "video_chapter_batch",
         VideoGenerationOperation::ReferenceMedia { .. } => "video_reference_media",
         VideoGenerationOperation::PromptSegmentPlan { .. } => "video_prompt_segment_plan",
+        VideoGenerationOperation::PromptInsertedSegment { .. } => "video_prompt_inserted_segment",
         VideoGenerationOperation::PromptFrames { .. } => "video_prompt_frames",
         VideoGenerationOperation::PromptVideos { .. } => "video_prompt_videos",
     }
@@ -652,6 +654,7 @@ mod unit_tests {
             status: crate::video::GENERATED_VIDEO_STATUS_COMPLETED.to_string(),
             provider_job_id: None,
             error_message: None,
+            timeline_item_id: None,
             metadata_json: None,
             is_favorite: false,
             created_at: now,

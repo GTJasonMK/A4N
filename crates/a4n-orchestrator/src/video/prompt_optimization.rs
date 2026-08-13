@@ -132,8 +132,32 @@ impl OrchestratorContext {
 
         let current_language =
             PromptOutputLanguage::from_metadata(input.prompt.metadata_json.as_ref());
-        let prompt_output_language =
-            prompt_output_language_from_instruction(instruction, current_language);
+        let prompt_output_language = if input.prompt.timeline_item_id.is_some() {
+            let recipe_language = input
+                .prompt
+                .metadata_json
+                .as_ref()
+                .and_then(|metadata| metadata.get("segment_recipe"))
+                .and_then(|recipe| recipe.get("prompt_output_language"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(
+                        "插入片段提示词缺少 segment_recipe.prompt_output_language，不能优化"
+                            .to_string(),
+                    )
+                })?;
+            let recipe_language = PromptOutputLanguage::from_optional_code(Some(recipe_language))?;
+            let requested = prompt_output_language_from_instruction(instruction, current_language);
+            if requested != recipe_language {
+                return Err(AppError::InvalidArgument(
+                    "插入片段输出语言由 segment_recipe 管理，请修改执行方案后重新生成提示词"
+                        .to_string(),
+                ));
+            }
+            recipe_language
+        } else {
+            prompt_output_language_from_instruction(instruction, current_language)
+        };
         let request = build_video_prompt_optimization_request(
             prompt_renderer,
             &input.prompt,
@@ -245,7 +269,6 @@ impl OrchestratorContext {
                 negative_prompt: Some(negative_prompt.clone()),
                 duration_secs: None,
                 reference_image_ids_json: None,
-                metadata_patch: None,
             },
             Some(optimized_metadata),
             prepared.allow_downstream,
@@ -702,6 +725,7 @@ mod tests {
             reference_image_ids_json: None,
             status: "completed".to_string(),
             generated_video_id: None,
+            timeline_item_id: None,
             metadata_json: None,
             created_at: now,
             updated_at: now,
@@ -748,6 +772,7 @@ mod tests {
             reference_image_ids_json: None,
             status: "completed".to_string(),
             generated_video_id: None,
+            timeline_item_id: None,
             metadata_json: None,
             created_at: now,
             updated_at: now,

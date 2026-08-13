@@ -18,37 +18,60 @@ fn frame_generation_options() -> ChapterVideoPromptOptions {
     }
 }
 
-fn video_generation_options_with_batch_size(prompt_batch_size: i32) -> ChapterVideoPromptOptions {
-    let mut options = frame_generation_options();
-    options.prompt_batch_size = prompt_batch_size;
-    options
-}
-
-fn english_video_generation_options_with_batch_size(
-    prompt_batch_size: i32,
+async fn target_generation_options(
+    service: &OrchestratorContext,
+    project_id: i64,
+    chapter_id: i64,
+    segment_number: i32,
 ) -> ChapterVideoPromptOptions {
-    let mut options = video_generation_options_with_batch_size(prompt_batch_size);
-    options.prompt_output_language = PromptOutputLanguage::En;
-    options
-}
-
-fn regenerate_generation_options() -> ChapterVideoPromptOptions {
-    let mut options = frame_generation_options();
-    options.regenerate_existing = true;
-    options
-}
-
-fn regenerate_generation_options_with_duration(duration_secs: i32) -> ChapterVideoPromptOptions {
-    let mut options = regenerate_generation_options();
-    options.duration_secs = duration_secs;
-    options
-}
-
-fn single_segment_plan_json(duration_secs: i32) -> String {
-    let mut value = segment_plan_fixture();
-    value["segments"].as_array_mut().unwrap().truncate(1);
-    value["segments"][0]["performance_plan"]["time_blocks"][0]["end_sec"] = json!(duration_secs);
-    value.to_string()
+    let plan = service
+        .current_shared_segment_plan(project_id, chapter_id)
+        .await
+        .expect("test segment plan should exist");
+    let metadata = plan
+        .metadata_json
+        .as_ref()
+        .expect("test segment plan should include metadata");
+    let segment = serde_json::from_value::<Vec<a4n_core::video_execution::VideoSegmentPlanV2>>(
+        metadata
+            .get("segments")
+            .cloned()
+            .expect("test segment plan should include segments"),
+    )
+    .unwrap()
+    .into_iter()
+    .find(|segment| segment.segment_number == segment_number)
+    .expect("test segment should exist");
+    let recipe = a4n_core::video_execution::video_segment_recipes_for_plan_from_metadata(
+        Some(metadata),
+        plan.style.as_deref().expect("test segment plan style"),
+    )
+    .unwrap()
+    .into_iter()
+    .find(|recipe| recipe.segment_number == segment_number)
+    .expect("test segment recipe should exist");
+    let reference_image_ids = recipe.reference_image_ids.clone();
+    ChapterVideoPromptOptions {
+        style: recipe.style.clone(),
+        prompt_output_language: match recipe.prompt_output_language.as_str() {
+            "zh_cn" => PromptOutputLanguage::ZhCn,
+            "en" => PromptOutputLanguage::En,
+            other => panic!("unexpected test prompt language: {other}"),
+        },
+        prompt_batch_size: 1,
+        segment_plan_prompt_id: Some(plan.id),
+        target_shot_number: Some(segment_number),
+        target_narrative_unit_index: None,
+        segment_recipe: Some(recipe),
+        duration_secs: segment.duration_secs,
+        duration_secs_options: vec![segment.duration_secs],
+        aspect_ratio: segment.aspect_ratio,
+        reference_image_ids,
+        video_library_image_ids: Vec::new(),
+        duration_capability: None,
+        regenerate_existing: false,
+        workflow_run_id: None,
+    }
 }
 
 pub(in crate::video) fn segment_plan_json_for_shot(
@@ -84,23 +107,6 @@ fn frame_prompt_json(frame_number: usize) -> String {
         frame.remove("reference_image_ids");
     }
     json!({ "frames": [frame] }).to_string()
-}
-
-fn boundary_frame_prompt_replies() -> Vec<String> {
-    vec![
-        frame_prompt_json(1),
-        frame_prompt_json(2),
-        frame_prompt_json(3),
-    ]
-}
-
-fn boundary_frame_generation_replies() -> Vec<String> {
-    let mut replies = vec![
-        segment_plan_json_for_shot(1, None),
-        segment_plan_json_for_shot(2, None),
-    ];
-    replies.extend(boundary_frame_prompt_replies());
-    replies
 }
 
 fn single_segment_frame_prompt_replies() -> Vec<String> {

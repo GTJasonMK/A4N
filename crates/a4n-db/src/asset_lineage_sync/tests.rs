@@ -234,6 +234,7 @@ fn video_prompt_artifact_text_keeps_motion_and_negative_sections() {
         reference_image_ids_json: None,
         status: "pending".to_string(),
         generated_video_id: None,
+        timeline_item_id: None,
         metadata_json: None,
         created_at: now,
         updated_at: now,

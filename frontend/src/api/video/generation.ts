@@ -157,6 +157,7 @@ function normalizeVideoGenerationOperation(
       };
     }
     case "prompt_segment_plan":
+    case "prompt_inserted_segment":
     case "prompt_frames":
     case "prompt_videos":
       return {

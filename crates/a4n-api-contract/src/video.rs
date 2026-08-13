@@ -50,6 +50,12 @@ pub enum VideoGenerationOperation {
         chapter_id: i64,
         options: VideoPromptGenerationOptions,
     },
+    /// 根据时间线前后片段和用户提示词生成尚未提交的插入片段草稿。
+    PromptInsertedSegment {
+        #[schemars(range(min = 1))]
+        chapter_id: i64,
+        options: VideoInsertedSegmentGenerationOptions,
+    },
     PromptFrames {
         #[schemars(range(min = 1))]
         chapter_id: i64,
@@ -66,7 +72,10 @@ impl VideoGenerationOperation {
     pub fn is_prompt_generation(&self) -> bool {
         matches!(
             self,
-            Self::PromptSegmentPlan { .. } | Self::PromptFrames { .. } | Self::PromptVideos { .. }
+            Self::PromptSegmentPlan { .. }
+                | Self::PromptInsertedSegment { .. }
+                | Self::PromptFrames { .. }
+                | Self::PromptVideos { .. }
         )
     }
 }
@@ -112,6 +121,122 @@ pub struct VideoSegmentTarget {
     pub source_shot_id: String,
     #[schemars(range(min = 1))]
     pub segment_index_in_shot: i32,
+}
+
+/// 插入规划生成输入；只生成草稿，不修改共享原生片段规划。
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct VideoInsertedSegmentGenerationOptions {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub previous_item_id: Option<i64>,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub next_item_id: Option<i64>,
+    #[schemars(length(min = 1))]
+    pub user_prompt: String,
+    pub style: String,
+    #[serde(default)]
+    pub prompt_output_language: Option<String>,
+    #[schemars(range(min = 1, max = 60))]
+    pub duration_secs: i32,
+    pub duration_secs_options: Vec<i32>,
+    pub aspect_ratio: String,
+    #[serde(default)]
+    pub reference_image_ids: Vec<i64>,
+    #[serde(default)]
+    pub allow_without_visual_anchor: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoTimelineItemKind {
+    Native,
+    Inserted,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoTimelineItemStatus {
+    Active,
+    NeedsReanchor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct VideoTimelineItemSummary {
+    pub id: i64,
+    pub kind: VideoTimelineItemKind,
+    pub status: VideoTimelineItemStatus,
+    pub display_index: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_number: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_shot_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_prompt_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_video_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct VideoTimelineSummary {
+    pub id: i64,
+    pub revision: i64,
+    pub items: Vec<VideoTimelineItemSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GetVideoTimelineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CommitInsertedSegmentDraftInput {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MoveInsertedSegmentInput {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[schemars(range(min = 1))]
+    pub timeline_item_id: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub previous_item_id: Option<i64>,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub next_item_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteInsertedSegmentInput {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[schemars(range(min = 1))]
+    pub timeline_item_id: i64,
 }
 
 /// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
@@ -300,6 +425,7 @@ pub struct GeneratedVideoSummary {
     pub provider_job_id: Option<String>,
     pub error_message: Option<String>,
     pub metadata_json: Option<Value>,
+    pub timeline_item_id: Option<i64>,
     pub is_favorite: bool,
     pub created_at: String,
     pub updated_at: String,

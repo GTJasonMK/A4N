@@ -554,3 +554,53 @@ fn video_prompt_metadata_sync_updates_request_duration() {
         json!(10)
     );
 }
+
+#[test]
+fn inserted_video_prompt_metadata_sync_does_not_rewrite_recipe_identity() {
+    let recipe = json!({
+        "schema_version": "video_segment_execution_recipe_v1",
+        "segment_number": 1,
+        "workflow_mode": "boundary_frames",
+        "style": "电影感",
+        "prompt_output_language": "zh_cn",
+        "duration_secs": 6,
+        "duration_secs_options": [6],
+        "aspect_ratio": "16:9",
+        "reference_image_ids": [],
+        "video_library_image_ids": [],
+        "guidance_mode": "none",
+        "guidance_reference_image_ids": [],
+        "continuity_source_video_id": null,
+        "reference_media": null,
+        "adopted_video_id": null
+    });
+    let metadata = json!({
+        "source_prompt_type": "inserted_segment",
+        "segment_recipe": recipe,
+        "video_execution_identity": {"duration_secs": 6}
+    });
+
+    let synced = sync_chapter_video_prompt_metadata_after_update(
+        "video_prompt",
+        Some(metadata.clone()),
+        "提示词",
+        None,
+        6,
+        None,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(synced, metadata);
+
+    assert!(
+        sync_chapter_video_prompt_metadata_after_update(
+            "video_prompt",
+            Some(metadata),
+            "提示词",
+            None,
+            10,
+            None,
+        )
+        .is_err()
+    );
+}

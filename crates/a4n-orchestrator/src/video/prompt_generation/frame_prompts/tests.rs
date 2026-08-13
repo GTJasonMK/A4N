@@ -156,17 +156,38 @@ pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
 fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt::Model {
     let now = chrono::Utc::now().naive_utc();
     let segment = segment(1);
+    let projection = shooting_script_projection();
+    let execution_identity = video_execution_chain_identity(
+        &projection,
+        std::slice::from_ref(&segment),
+        "测试风格",
+        5,
+        "16:9",
+    )
+    .unwrap();
+    let recipes = a4n_core::video_execution::default_video_segment_recipes(
+        std::slice::from_ref(&segment),
+        "测试风格",
+        "zh_cn",
+    )
+    .unwrap();
     let metadata_json = Some(match source_hash {
         Some(hash) => json!({
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
+            "video_execution_identity": execution_identity,
             "segments": [segment.clone()],
+            "segment_recipes": recipes,
+            "plan_complete": true,
             "source": {
                 "content_sha256": hash
             }
         }),
         None => json!({
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
-            "segments": [segment.clone()]
+            "video_execution_identity": execution_identity,
+            "segments": [segment.clone()],
+            "segment_recipes": recipes,
+            "plan_complete": true
         }),
     });
 
@@ -176,7 +197,7 @@ fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt:
         chapter_id: 1,
         style: Some("测试风格".to_string()),
         prompt_type: "frame_segment_plan".to_string(),
-        workflow_mode: PromptWorkflowMode::BoundaryFrames.as_str().to_string(),
+        workflow_mode: PromptWorkflowMode::SharedSegmentPlan.as_str().to_string(),
         shot_number: 0,
         title: Some("视频片段规划".to_string()),
         scene_summary: None,
@@ -188,6 +209,7 @@ fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt:
         reference_image_ids_json: Some(json!([])),
         status: "completed".to_string(),
         generated_video_id: None,
+        timeline_item_id: None,
         metadata_json,
         created_at: now,
         updated_at: now,
@@ -227,6 +249,7 @@ pub(super) fn row_for_boundary_frame(
         reference_image_ids_json: Some(json!(frame.reference_image_ids.clone())),
         status: "pending".to_string(),
         generated_video_id: None,
+        timeline_item_id: None,
         metadata_json: Some(json!({
             "boundary_frame": frame
         })),

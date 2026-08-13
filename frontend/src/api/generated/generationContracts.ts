@@ -259,6 +259,11 @@ export type VideoGenerationOperation =
     }
   | {
       chapter_id: number;
+      kind: "prompt_inserted_segment";
+      options: VideoInsertedSegmentGenerationOptions;
+    }
+  | {
+      chapter_id: number;
       kind: "prompt_frames";
       options: VideoPromptGenerationOptions;
     }
@@ -702,6 +707,23 @@ export interface VideoPromptGenerationOptions {
   target_segment?: VideoSegmentTarget | null;
   video_library_image_ids?: number[];
   workflow_mode?: string | null;
+}
+/**
+ * 插入规划生成输入；只生成草稿，不修改共享原生片段规划。
+ */
+export interface VideoInsertedSegmentGenerationOptions {
+  allow_without_visual_anchor?: boolean;
+  aspect_ratio: string;
+  duration_secs: number;
+  duration_secs_options: number[];
+  expected_timeline_revision: number;
+  next_item_id?: number | null;
+  previous_item_id?: number | null;
+  prompt_output_language?: string | null;
+  reference_image_ids?: number[];
+  style: string;
+  timeline_id: number;
+  user_prompt: string;
 }
 export interface GenerationSubscriptionHandle {
   subscription_id: string;

@@ -249,8 +249,35 @@ async fn delete_generated_image_removes_only_generated_target_binding() {
 #[tokio::test]
 async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "片段方案图片引用删除测试").await;
-    let chapter = video_test_chapter(&db, project.id).await;
+    let root = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "片段方案图片引用删除测试".to_string(),
+            description: String::new(),
+            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let chapter = video_test_chapter(&db, root.id).await;
+    let project = crate::project::create_derived_project_record(
+        &db,
+        1,
+        crate::project::CreateDerivedProjectParams {
+            root_project_id: root.id,
+            derived_kind: crate::project::PROJECT_KIND_VIDEO.to_string(),
+            title: "片段方案视频派生".to_string(),
+            description: String::new(),
+            chapter_scope: crate::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+            creation_options_json: json!({}),
+        },
+    )
+    .await
+    .unwrap();
     let image = create_generated_image_record(
         &db,
         CreateGeneratedImageRecordDraftInput {

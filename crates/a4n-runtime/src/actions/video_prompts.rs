@@ -8,7 +8,10 @@ use crate::{
     actions::{image_records, video_records},
 };
 
-pub use a4n_api_contract::video::DeleteChapterVideoPromptInput;
+pub use a4n_api_contract::video::{
+    CommitInsertedSegmentDraftInput, DeleteChapterVideoPromptInput, DeleteInsertedSegmentInput,
+    GetVideoTimelineInput, MoveInsertedSegmentInput, VideoTimelineSummary,
+};
 pub use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 pub use a4n_orchestrator::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
@@ -51,6 +54,54 @@ pub async fn list_chapter_video_prompts(
     state
         .orchestrator()
         .list_chapter_video_prompts_validated(user_id, project_id, chapter_id)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn get_chapter_video_timeline(
+    state: &AppState,
+    user_id: i64,
+    input: GetVideoTimelineInput,
+) -> Result<VideoTimelineSummary, String> {
+    state
+        .orchestrator()
+        .get_video_timeline(user_id, input)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn commit_inserted_segment_draft(
+    state: &AppState,
+    user_id: i64,
+    input: CommitInsertedSegmentDraftInput,
+) -> Result<VideoTimelineSummary, String> {
+    state
+        .orchestrator()
+        .commit_inserted_segment_draft(user_id, input)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn move_inserted_segment(
+    state: &AppState,
+    user_id: i64,
+    input: MoveInsertedSegmentInput,
+) -> Result<VideoTimelineSummary, String> {
+    state
+        .orchestrator()
+        .move_video_timeline_item(user_id, input)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn delete_inserted_segment(
+    state: &AppState,
+    user_id: i64,
+    input: DeleteInsertedSegmentInput,
+) -> Result<VideoTimelineSummary, String> {
+    state
+        .orchestrator()
+        .delete_video_timeline_item(user_id, input)
         .await
         .map_err(error_message)
 }

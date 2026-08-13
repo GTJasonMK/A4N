@@ -3,6 +3,7 @@ mod boundary_sync;
 mod checkpoint;
 mod frame_chain;
 mod generation_spec;
+mod inserted_segment;
 mod parsing;
 mod prepared;
 mod progress;
@@ -81,6 +82,9 @@ use self::frame_chain::{
     generate_shared_segment_plan,
 };
 use self::generation_spec::*;
+pub(crate) use self::inserted_segment::{
+    generate_inserted_segment_draft, validate_video_inserted_segment_generation_options,
+};
 use self::parsing::*;
 use self::prepared::{
     LoadedSharedSegmentPlan, PreparedSegmentPlan, SHARED_SEGMENT_PLAN_CONTEXT,

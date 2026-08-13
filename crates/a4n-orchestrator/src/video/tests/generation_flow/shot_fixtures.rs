@@ -27,73 +27,6 @@ fn video_shot_json(shot_number: i64) -> String {
     json!({ "shots": [shot] }).to_string()
 }
 
-fn english_video_shot_json(shot_number: i64) -> String {
-    let (title, scene_summary, focus) = match shot_number {
-        1 => (
-            "Entering The Hall",
-            "The young eunuch pushes open the palace door and senses something wrong.",
-            "the young eunuch steps through the vermilion palace door",
-        ),
-        2 => (
-            "Looking Back",
-            "The young eunuch looks back toward the dark corridor and suppresses fear.",
-            "the young eunuch turns toward the dark corridor",
-        ),
-        other => panic!("unexpected English video shot number: {other}"),
-    };
-    let visual_prompt = format!(
-        "[Subject And Asset Binding]\nThe segment begins from the established first-frame chain state; use the saved first-frame asset only as the opening visual anchor when present, while keeping the character identity, costume, palace door, threshold, pillars, and candle direction consistent.\n\n[Segment Context]\nThis shot shows {focus}. The character is a twelve or thirteen year old palace eunuch in neat attendant clothing, tense but controlled, moving through a dim palace interior where the right rear shadowed corner becomes the emotional threat.\n\n[Shot Storyboard]\nShot 1: an eye-level medium-wide view holds the starting pose, letting the character hesitate while the palace door, threshold, pillars, and candle direction remain readable.\nShot 2: the camera makes a restrained slow push as he advances carefully, shoulders tightening and steps staying small, with the door still behind him as a spatial anchor.\nShot 3: the movement settles into the required ending position; he pauses, looks toward the right rear darkness, and the frame stabilizes for downstream continuation.\n\n[Visual Style]\nCinematic realistic low-light palace lighting, warm candlelight from screen right, clean shadow edges, restrained camera language, detailed costume folds, muted colors, and a suspenseful but grounded atmosphere.\n\n[Continuity And End State]\nThe end frame must keep the character near the center-left palace interior position, facing the right rear dark corner, with the palace door behind him and the candlelight direction unchanged.\n\n[Constraints And Avoidances]\nDo not change the character face, costume, palace layout, camera axis, door position, candle direction, or spatial relationship between the character and the dark corner. Avoid blur, extra limbs, subtitles, watermarks, and sudden teleporting."
-    );
-    let motion_prompt = format!(
-        "[Camera And Action]\nUse a restrained eye-level medium-wide camera with a very slow push forward. The action follows {focus}: his hand and shoulder move first, then his feet advance in small cautious steps, and the body settles into a tense pause near the end.\n\n[Dialogue And Performance]\nNo spoken dialogue in this test shot. Performance is expressed through shallow breathing, tightened shoulders, a slight pause before moving, and a controlled glance toward the right rear darkness."
-    );
-    json!({
-        "shots": [
-            {
-                "title": title,
-                "scene_summary": scene_summary,
-                "visual_prompt": visual_prompt,
-                "motion_prompt": motion_prompt,
-                "negative_prompt": "low quality, blurry image, distorted anatomy, extra limbs, inconsistent face, spatial jump, lighting discontinuity, subtitles, watermark",
-                "dialogue_cues": []
-            }
-        ]
-    })
-    .to_string()
-}
-
-fn regenerated_video_shot_json(shot_number: i64) -> String {
-    let mut value: serde_json::Value = serde_json::from_str(&video_shot_json(shot_number))
-        .expect("test shot json should remain valid JSON");
-    let shot = value
-        .get_mut("shots")
-        .and_then(serde_json::Value::as_array_mut)
-        .and_then(|shots| shots.first_mut())
-        .expect("test shot wrapper should contain one shot");
-    let visual_prompt = shot["visual_prompt"]
-        .as_str()
-        .expect("test shot should contain visual_prompt");
-    shot["visual_prompt"] = json!(visual_prompt.replace(
-        "[片段内容以及前因后果]\n",
-        &format!("[片段内容以及前因后果]\n重新生成后的镜头 {shot_number} 视觉提示词。\n"),
-    ));
-    let motion_prompt = shot["motion_prompt"]
-        .as_str()
-        .expect("test shot should contain motion_prompt");
-    shot["motion_prompt"] = json!(motion_prompt.replace(
-        "[运镜与动作]\n",
-        &format!("[运镜与动作]\n重新生成后的镜头 {shot_number} 运动提示词。\n"),
-    ));
-    value.to_string()
-}
-
-fn regenerated_video_shot_replies() -> Vec<String> {
-    vec![
-        regenerated_video_shot_json(1),
-        regenerated_video_shot_json(2),
-    ]
-}
-
 fn chat_video_shot_json(shot_number: i64) -> String {
     let (title, scene_summary, prompt_body) = match shot_number {
         1 => (
@@ -163,31 +96,4 @@ fn chat_video_shot_json(shot_number: i64) -> String {
         ]
     })
     .to_string()
-}
-
-fn regenerated_chat_video_shot_json(shot_number: i64) -> String {
-    let mut value: serde_json::Value = serde_json::from_str(&chat_video_shot_json(shot_number))
-        .expect("test chat shot json should remain valid JSON");
-    let shot = value
-        .get_mut("shots")
-        .and_then(serde_json::Value::as_array_mut)
-        .and_then(|shots| shots.first_mut())
-        .expect("test chat shot wrapper should contain one shot");
-    let prompt = shot
-        .get("chat_prompt")
-        .and_then(serde_json::Value::as_str)
-        .expect("test chat shot should contain chat_prompt");
-    shot["chat_prompt"] = json!(prompt.replace(
-        "[片段内容以及前因后果]\n",
-        &format!("[片段内容以及前因后果]\n重新生成后的 Chat 视频提示词 {shot_number}。\n"),
-    ));
-    value.to_string()
-}
-
-fn serial_chat_video_shot_replies() -> Vec<String> {
-    vec![chat_video_shot_json(1), chat_video_shot_json(2)]
-}
-
-fn serial_video_shot_replies() -> Vec<String> {
-    vec![video_shot_json(1), video_shot_json(2)]
 }

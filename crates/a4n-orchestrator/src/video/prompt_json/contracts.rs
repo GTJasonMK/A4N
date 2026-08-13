@@ -73,6 +73,25 @@ pub(in crate::video) struct VideoPromptShotInput {
     pub dialogue_cues: Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(in crate::video) struct InsertedSegmentDraft {
+    pub title: String,
+    pub scene_summary: String,
+    pub visual_prompt: String,
+    pub motion_prompt: String,
+    pub negative_prompt: String,
+}
+
+impl InsertedSegmentDraft {
+    pub(in crate::video) fn validate(
+        self,
+        prompt_output_language: a4n_core::prompt_language::PromptOutputLanguage,
+    ) -> Result<Self, a4n_core::error::AppError> {
+        super::validation::validate_inserted_segment_draft(self, prompt_output_language)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoSegmentPlanInput {

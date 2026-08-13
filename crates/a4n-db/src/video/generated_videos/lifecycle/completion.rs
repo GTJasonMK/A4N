@@ -65,6 +65,9 @@ where
             metadata_json,
         )?);
     }
+    if let Some(prompt) = prompt.as_ref() {
+        active.timeline_item_id = Set(prompt.timeline_item_id);
+    }
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(db).await?;
     if let Some(prompt) = prompt {

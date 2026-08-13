@@ -471,8 +471,8 @@ impl crate::OrchestratorContext {
         let rows = self
             .generated_videos_for_chapter(project_id, chapter_id)
             .await?;
-        let adopted_video_ids = self
-            .adopted_video_ids_for_workflow(project_id, chapter_id, workflow_mode, &rows)
+        let (adopted_video_ids, timeline_order) = self
+            .assembly_selection_for_workflow(project_id, chapter_id, workflow_mode, &rows)
             .await?;
         Ok(AssemblyVideoRecords {
             workflow_mode: workflow_mode.to_string(),
@@ -483,6 +483,7 @@ impl crate::OrchestratorContext {
                 workflow_mode,
                 None,
                 adopted_video_ids.as_ref(),
+                timeline_order.as_ref(),
             )?,
         })
     }
@@ -492,6 +493,7 @@ impl crate::OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         videos: &[generated_video::Model],
+        snapshot: &a4n_db::video::VideoTimelineSnapshot,
     ) -> Result<HashSet<i64>, AppError> {
         let plan = self
             .current_shared_segment_plan(project_id, chapter_id)
@@ -567,23 +569,55 @@ impl crate::OrchestratorContext {
                 }
             }
         }
+        let prompts = self
+            .chapter_video_prompts_for_chapter(project_id, chapter_id)
+            .await?;
+        for item in snapshot.items.iter().filter(|item| {
+            item.item_kind == a4n_db::video::TIMELINE_INSERTED_KIND
+                && item.status == a4n_db::video::TIMELINE_ACTIVE_STATUS
+        }) {
+            let current_video_id = item
+                .insert_plan_prompt_id
+                .and_then(|prompt_id| prompts.iter().find(|prompt| prompt.id == prompt_id))
+                .and_then(|prompt| prompt.generated_video_id);
+            let Some(video_id) =
+                super::timeline::current_timeline_item_video_id(item, current_video_id, videos)?
+            else {
+                continue;
+            };
+            if !adopted.insert(video_id) {
+                return Err(AppError::InvalidArgument(format!(
+                    "视频 #{video_id} 被多个时间线片段重复采用"
+                )));
+            }
+        }
         Ok(adopted)
     }
 
-    async fn adopted_video_ids_for_workflow(
+    async fn assembly_selection_for_workflow(
         &self,
         project_id: i64,
         chapter_id: i64,
         workflow_mode: &str,
         videos: &[generated_video::Model],
-    ) -> Result<Option<HashSet<i64>>, AppError> {
+    ) -> Result<
+        (
+            Option<HashSet<i64>>,
+            Option<super::timeline::VideoTimelineAssemblyOrder>,
+        ),
+        AppError,
+    > {
         if workflow_mode != "mixed" {
-            return Ok(None);
+            return Ok((None, None));
         }
-        Ok(Some(
-            self.current_mixed_adopted_video_ids(project_id, chapter_id, videos)
-                .await?,
-        ))
+        let snapshot = self
+            .current_video_timeline_snapshot(project_id, chapter_id)
+            .await?;
+        let order = super::timeline::video_timeline_assembly_order_from_snapshot(&snapshot)?;
+        let adopted = self
+            .current_mixed_adopted_video_ids(project_id, chapter_id, videos, &snapshot)
+            .await?;
+        Ok((Some(adopted), Some(order)))
     }
 
     async fn prepare_assembly_insert_metadata_validated(
@@ -601,8 +635,8 @@ impl crate::OrchestratorContext {
         let rows = self
             .generated_videos_for_chapter(project_id, chapter_id)
             .await?;
-        let adopted_video_ids = self
-            .adopted_video_ids_for_workflow(project_id, chapter_id, workflow_mode, &rows)
+        let (adopted_video_ids, timeline_order) = self
+            .assembly_selection_for_workflow(project_id, chapter_id, workflow_mode, &rows)
             .await?;
         assembly_insert_position_metadata_from_rows(
             &rows,
@@ -611,6 +645,7 @@ impl crate::OrchestratorContext {
             workflow_mode,
             None,
             adopted_video_ids.as_ref(),
+            timeline_order.as_ref(),
             base_metadata,
             insert_after_video_id,
         )
@@ -1542,8 +1577,8 @@ impl crate::OrchestratorContext {
         let rows = self
             .generated_videos_for_chapter(video.project_id, chapter_id)
             .await?;
-        let adopted_video_ids = self
-            .adopted_video_ids_for_workflow(video.project_id, chapter_id, workflow_mode, &rows)
+        let (adopted_video_ids, timeline_order) = self
+            .assembly_selection_for_workflow(video.project_id, chapter_id, workflow_mode, &rows)
             .await?;
         assembly_insert_position_metadata_from_rows(
             &rows,
@@ -1552,6 +1587,7 @@ impl crate::OrchestratorContext {
             workflow_mode,
             Some(video.id),
             adopted_video_ids.as_ref(),
+            timeline_order.as_ref(),
             base_metadata,
             insert_after_video_id,
         )
@@ -1565,6 +1601,7 @@ fn assembly_insert_position_metadata_from_rows(
     workflow_mode: &str,
     excluded_video_id: Option<i64>,
     adopted_video_ids: Option<&HashSet<i64>>,
+    timeline_order: Option<&super::timeline::VideoTimelineAssemblyOrder>,
     base_metadata: Option<Value>,
     insert_after_video_id: Option<i64>,
 ) -> Result<Value, AppError> {
@@ -1575,6 +1612,7 @@ fn assembly_insert_position_metadata_from_rows(
         workflow_mode,
         excluded_video_id,
         adopted_video_ids,
+        timeline_order,
     )?
     .into_iter()
     .map(|clip| AssemblyClipOrderAnchor {
@@ -1629,6 +1667,7 @@ fn assembly_clip_records_from_rows(
     workflow_mode: &str,
     excluded_video_id: Option<i64>,
     adopted_video_ids: Option<&HashSet<i64>>,
+    timeline_order: Option<&super::timeline::VideoTimelineAssemblyOrder>,
 ) -> Result<Vec<AssemblyClipRecord>, AppError> {
     let mut clips = rows
         .iter()
@@ -1650,21 +1689,42 @@ fn assembly_clip_records_from_rows(
             .then_some((video, file_path))
         })
         .map(|(video, file_path)| {
+            let timeline_display_index = if video.video_type == ASSEMBLY_INSERT_VIDEO_TYPE {
+                None
+            } else {
+                timeline_order.and_then(|order| order.display_index_for_video(video))
+            };
+            if timeline_order.is_some()
+                && video.video_type != ASSEMBLY_INSERT_VIDEO_TYPE
+                && timeline_display_index.is_none()
+            {
+                return Err(AppError::InvalidArgument(format!(
+                    "视频 #{} 不属于当前章节视频时间线",
+                    video.id
+                )));
+            }
+            let (shot_number, sort_order) = match timeline_display_index {
+                Some(index) => (index, f64::from(index) * 1000.0),
+                None => (
+                    assembly_clip_display_shot_number(
+                        video.id,
+                        &video.video_type,
+                        video.metadata_json.as_ref(),
+                    )
+                    .map_err(AppError::InvalidArgument)?,
+                    assembly_clip_sort_order(
+                        video.id,
+                        &video.video_type,
+                        video.metadata_json.as_ref(),
+                    )
+                    .map_err(AppError::InvalidArgument)?,
+                ),
+            };
             Ok(AssemblyClipRecord {
                 video_id: video.id,
                 video_type: video.video_type.clone(),
-                shot_number: assembly_clip_display_shot_number(
-                    video.id,
-                    &video.video_type,
-                    video.metadata_json.as_ref(),
-                )
-                .map_err(AppError::InvalidArgument)?,
-                sort_order: assembly_clip_sort_order(
-                    video.id,
-                    &video.video_type,
-                    video.metadata_json.as_ref(),
-                )
-                .map_err(AppError::InvalidArgument)?,
+                shot_number,
+                sort_order,
                 insert_after_video_id: assembly_clip_insert_after_video_id(
                     video.id,
                     &video.video_type,

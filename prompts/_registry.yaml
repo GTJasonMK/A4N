@@ -772,6 +772,18 @@ prompts:
       - "chapter_video_prompt_targeted_repair"
     description: "视频提示词 builder 注入到 JSON payload 的可编辑业务规则集合"
 
+  chapter_video_inserted_segment:
+    path: "novel/08_video/chapter_video_inserted_segment.md"
+    title: "章节视频插入片段草稿"
+    category: "video"
+    tags: ["video", "segment", "inserted"]
+    version: "1.0"
+    used_by:
+      - "video::prompt_generation::frame_prompts::inserted_segment"
+    dependencies:
+      - "chapter_video_builder_rules"
+    description: "根据时间线前后片段、视觉锚点和用户要求生成尚未提交的插入片段草稿"
+
   chapter_video_segment_plan:
     path: "novel/08_video/chapter_video_segment_plan.md"
     title: "章节视频片段规划"

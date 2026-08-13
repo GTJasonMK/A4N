@@ -326,6 +326,7 @@ mod tests {
             reference_image_ids_json: Some(json!([])),
             status: "completed".to_string(),
             generated_video_id: None,
+            timeline_item_id: None,
             metadata_json: Some(json!({
                 "contract_version": "v1",
                 "source": {"content_sha256": "same"},

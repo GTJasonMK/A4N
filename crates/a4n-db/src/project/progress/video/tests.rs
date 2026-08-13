@@ -42,6 +42,7 @@ fn video_prompt_row(
         reference_image_ids_json: None,
         status: status.to_string(),
         generated_video_id,
+        timeline_item_id: None,
         metadata_json: None,
         created_at: test_time(0),
         updated_at,
@@ -76,6 +77,7 @@ fn generated_video_row(
         status: status.to_string(),
         provider_job_id: None,
         error_message: None,
+        timeline_item_id: None,
         metadata_json: Some(json!({
             "prompt_id": prompt_id,
             "shot_number": shot_number

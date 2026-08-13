@@ -23,7 +23,6 @@ pub(super) struct VideoPromptFinalizationInput<'a> {
     pub chapter_id: i64,
     pub style: &'a str,
     pub prompt_output_language: PromptOutputLanguage,
-    pub segment_plan_prompt_id: i64,
     pub segment_recipe: &'a VideoSegmentExecutionRecipeV1,
     pub source_metadata: &'a Value,
     pub segment_by_number: &'a HashMap<i32, &'a VideoSegmentPlan>,
@@ -54,7 +53,6 @@ pub(super) async fn finalize_video_prompt_chain(
         chapter_id,
         style,
         prompt_output_language,
-        segment_plan_prompt_id,
         segment_recipe,
         source_metadata,
         segment_by_number,
@@ -106,8 +104,8 @@ pub(super) async fn finalize_video_prompt_chain(
         preserved_generated_reused_shots,
     })?
     .into_iter()
-    .map(|draft| draft.with_segment_recipe_metadata(segment_plan_prompt_id, segment_recipe))
-    .collect::<Result<Vec<_>, _>>()?;
+    .map(|draft| draft.with_segment_recipe(segment_recipe))
+    .collect::<Vec<_>>();
     let video_drafts =
         generated_video_prompt_traces
             .iter()

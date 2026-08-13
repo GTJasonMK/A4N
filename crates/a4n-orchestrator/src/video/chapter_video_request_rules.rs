@@ -11,9 +11,9 @@ use super::{
     MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
     OPENAI_COMPATIBLE_VIDEO_BACKEND, PromptOutputLanguage, ProviderGenerationWorkflow,
     ProviderPromptTextViolation, VideoProviderValidationMode,
-    cliproxy_prompt_length_violation_message, prompt_is_first_frame_chain,
-    provider_image_binding_violation_messages, provider_prompt_text_violation, reference_image_ids,
-    validate_provider_model_text, validation_error_or_preview_note,
+    cliproxy_prompt_length_violation_message, provider_image_binding_violation_messages,
+    provider_prompt_text_violation, reference_image_ids, validate_provider_model_text,
+    validation_error_or_preview_note,
 };
 
 const CHAPTER_VIDEO_PROVIDER_PROMPT_NAME: &str = "chapter_video_provider_prompt";
@@ -132,28 +132,48 @@ pub fn provider_specific_negative_prompt(specific: Option<&str>) -> Option<Strin
 pub async fn build_video_generation_provider_prompt_with_renderer(
     prompt_renderer: &dyn PromptRenderer,
     prompt: &chapter_video_prompt::Model,
+    provider_workflow: ProviderGenerationWorkflow,
     image_binding: ProviderPromptImageBinding,
 ) -> Result<String, String> {
-    build_video_generation_provider_prompt_inner(prompt_renderer, prompt, image_binding, false)
-        .await
+    build_video_generation_provider_prompt_inner(
+        prompt_renderer,
+        prompt,
+        provider_workflow,
+        image_binding,
+        false,
+    )
+    .await
 }
 
 pub async fn build_video_generation_provider_preview_prompt_with_renderer(
     prompt_renderer: &dyn PromptRenderer,
     prompt: &chapter_video_prompt::Model,
+    provider_workflow: ProviderGenerationWorkflow,
     image_binding: ProviderPromptImageBinding,
 ) -> Result<String, String> {
-    build_video_generation_provider_prompt_inner(prompt_renderer, prompt, image_binding, true).await
+    build_video_generation_provider_prompt_inner(
+        prompt_renderer,
+        prompt,
+        provider_workflow,
+        image_binding,
+        true,
+    )
+    .await
 }
 
 async fn build_video_generation_provider_prompt_inner(
     prompt_renderer: &dyn PromptRenderer,
     prompt: &chapter_video_prompt::Model,
+    provider_workflow: ProviderGenerationWorkflow,
     image_binding: ProviderPromptImageBinding,
     allow_preview_placeholders: bool,
 ) -> Result<String, String> {
-    let (prompt_name, variables) =
-        build_provider_prompt_plan(prompt, image_binding, allow_preview_placeholders)?;
+    let (prompt_name, variables) = build_provider_prompt_plan(
+        prompt,
+        provider_workflow,
+        image_binding,
+        allow_preview_placeholders,
+    )?;
     prompt_renderer
         .render_prompt(prompt_name, &variables, Some(prompt.project_id))
         .await
@@ -163,14 +183,19 @@ async fn build_video_generation_provider_prompt_inner(
 
 fn build_provider_prompt_plan(
     prompt: &chapter_video_prompt::Model,
+    provider_workflow: ProviderGenerationWorkflow,
     image_binding: ProviderPromptImageBinding,
     allow_preview_placeholders: bool,
 ) -> Result<(&'static str, HashMap<String, Value>), String> {
-    let prompt_name = if prompt_is_first_frame_chain(prompt)? {
+    let inserted = prompt.timeline_item_id.is_some();
+    let first_frame_chain = provider_workflow.uses_first_frame_chain();
+    let prompt_name = if first_frame_chain {
         validate_first_frame_chain_metadata(prompt)?;
         CHAPTER_VIDEO_FIRST_FRAME_PROVIDER_PROMPT_NAME
     } else {
-        validate_standard_metadata(prompt)?;
+        if !inserted {
+            validate_standard_metadata(prompt)?;
+        }
         CHAPTER_VIDEO_PROVIDER_PROMPT_NAME
     };
     let variables =
@@ -195,7 +220,7 @@ fn validate_first_frame_chain_metadata(prompt: &chapter_video_prompt::Model) -> 
             prompt.id
         )
     })?;
-    if prompt.shot_number <= 1 {
+    if prompt.timeline_item_id.is_none() && prompt.shot_number <= 1 {
         required_object(metadata, "start_first_frame", prompt.id)?;
     }
     Ok(())
@@ -470,9 +495,9 @@ fn replace_with_preview_placeholder(
 
 pub fn ensure_chapter_video_prompt_preview_metadata(
     prompt: &mut chapter_video_prompt::Model,
+    provider_workflow: ProviderGenerationWorkflow,
     note: &mut Option<String>,
 ) -> Result<(), String> {
-    let provider_workflow = super::prompt_provider_workflow(prompt)?;
     let mut metadata = match prompt.metadata_json.take() {
         Some(Value::Object(map)) => Value::Object(map),
         Some(_) => {
@@ -500,7 +525,7 @@ pub fn ensure_chapter_video_prompt_preview_metadata(
     if provider_workflow.uses_text_only() || provider_workflow.uses_keyframes() {
         // These modes intentionally have no system-frame metadata.
     } else if provider_workflow.uses_first_frame_chain() {
-        if prompt.shot_number <= 1 {
+        if prompt.timeline_item_id.is_none() && prompt.shot_number <= 1 {
             ensure_preview_object_field(
                 root,
                 "start_first_frame",
@@ -854,32 +879,6 @@ fn historical_image_placeholder_media_url(id: i64, role: &str) -> String {
     format!(
         "https://example.invalid/a4n-media/<omitted for historical provider request snapshot: {role} generated_image #{id}; media input was omitted from snapshot>"
     )
-}
-
-pub(crate) fn attach_chapter_video_snapshot_identity(
-    mut snapshot: Value,
-    context: &ChapterVideoProviderRequestContext,
-) -> Value {
-    let Some(object) = snapshot.as_object_mut() else {
-        return snapshot;
-    };
-    object.insert(
-        "video_execution_identity".to_string(),
-        context.video_execution_identity.clone(),
-    );
-    object.insert(
-        "source_prompt_type".to_string(),
-        context
-            .source_prompt_type
-            .clone()
-            .map(Value::String)
-            .unwrap_or(Value::Null),
-    );
-    object.insert(
-        "workflow_mode".to_string(),
-        Value::String(context.workflow_mode.clone()),
-    );
-    snapshot
 }
 
 #[cfg(test)]

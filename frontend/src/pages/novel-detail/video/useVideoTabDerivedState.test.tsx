@@ -95,6 +95,7 @@ const video = (
   file_size: 1,
   source_video_id: null,
   source_image_id: null,
+  timeline_item_id: null,
   status: "completed",
   provider_job_id: null,
   error_message: null,

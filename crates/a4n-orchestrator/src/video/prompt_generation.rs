@@ -21,6 +21,9 @@ pub(in crate::video) use self::frame_prompts::{
     video_prompt_segments_with_reference_ids, video_segment_execution_identity,
     video_units_for_segment_plan,
 };
+pub(crate) use self::frame_prompts::{
+    generate_inserted_segment_draft, validate_video_inserted_segment_generation_options,
+};
 pub(in crate::video) use self::llm_chat::build_video_prompt_request;
 use self::llm_chat::{
     RenderedVideoPromptTrace, VideoPromptLlmCallTraceContext, VideoPromptRenderInput,

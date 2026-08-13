@@ -12,6 +12,9 @@ pub use generated_videos::*;
 mod segment_plan_draft;
 pub use segment_plan_draft::*;
 
+mod timeline;
+pub use timeline::*;
+
 #[derive(Debug, thiserror::Error)]
 pub enum VideoDbError {
     #[error("{0}")]
@@ -58,9 +61,15 @@ where
     C: ConnectionTrait,
 {
     let project_id = validate_positive_video_i64(project_id, "project_id")?;
-    crate::project::project_by_id_for_update(db, project_id)
+    let project = crate::project::project_by_id_for_update(db, project_id)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(VideoDbError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "写入生成媒体".to_string(),
+        });
+    }
     Ok(())
 }
 

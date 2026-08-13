@@ -26,6 +26,7 @@ fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> generate
         status: "completed".to_string(),
         provider_job_id: None,
         error_message: None,
+        timeline_item_id: None,
         metadata_json,
         is_favorite: false,
         created_at: now,

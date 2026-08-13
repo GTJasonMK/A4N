@@ -68,12 +68,15 @@ describe("VideoPromptSetupPanel", () => {
           acting={acting}
           savingRecipeSegments={new Set()}
           finalPromptBlockedReasons={new Map()}
+          timeline={null}
           layout="selected"
           onLoad={() => undefined}
           onSelectPrompt={() => undefined}
           onSelectSegment={() => undefined}
           onWorkflowModeChange={() => undefined}
           onDeletePrompt={() => undefined}
+          onInsertSegment={() => undefined}
+          onOpenInsertedSegment={() => undefined}
         />,
       );
     const firstSelected = renderSelected(1);
@@ -139,12 +142,15 @@ describe("VideoPromptSetupPanel", () => {
         acting={null}
         savingRecipeSegments={new Set()}
         finalPromptBlockedReasons={new Map()}
+        timeline={null}
         layout="index"
         onLoad={() => undefined}
         onSelectPrompt={() => undefined}
         onSelectSegment={() => undefined}
         onWorkflowModeChange={() => undefined}
         onDeletePrompt={() => undefined}
+        onInsertSegment={() => undefined}
+        onOpenInsertedSegment={() => undefined}
       />,
     );
 

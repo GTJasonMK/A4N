@@ -33,7 +33,6 @@ import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
-import { asJsonRecord } from "../../../utils/jsonRecord";
 import { nonEmptyText } from "../../../utils/text";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
@@ -207,11 +206,6 @@ export function useVideoRecordActions({
       return "Chat 生视频模式不使用应用内 provider 生成，请复制提示词到外部 Chat 后导入视频";
     }
     if (prompt.status === "running") return `视频提示词 #${prompt.id} 正在运行`;
-    if (
-      asJsonRecord(prompt.metadata_json)?.continuity_stale === true
-    ) {
-      return "该首帧续接方案的来源视频已被替换，请重新选择续接来源";
-    }
     const promptSourceHash = extractPromptSourceHash(prompt.metadata_json);
     if (
       promptSourceHash &&

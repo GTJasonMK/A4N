@@ -55,6 +55,24 @@ pub fn validate_provider_model_text<'a>(
     min_chars: usize,
     allow_preview_placeholders: bool,
 ) -> Result<&'a str, String> {
+    validate_provider_model_text_for_context(
+        value,
+        field,
+        &format!("视频提示词 #{prompt_id}"),
+        prompt_output_language,
+        min_chars,
+        allow_preview_placeholders,
+    )
+}
+
+pub(in crate::video) fn validate_provider_model_text_for_context<'a>(
+    value: &'a str,
+    field: &str,
+    context: &str,
+    prompt_output_language: PromptOutputLanguage,
+    min_chars: usize,
+    allow_preview_placeholders: bool,
+) -> Result<&'a str, String> {
     let text = value.trim();
     if let Some(violation) = provider_prompt_text_violation(
         text,
@@ -63,7 +81,7 @@ pub fn validate_provider_model_text<'a>(
         min_chars,
         allow_preview_placeholders,
     ) {
-        return Err(provider_prompt_text_error(prompt_id, field, violation));
+        return Err(provider_prompt_text_error(context, field, violation));
     }
     Ok(text)
 }
@@ -118,47 +136,39 @@ pub fn provider_prompt_text_violation(
 
 /// 将违规转为带 prompt_id 的错误文案。
 fn provider_prompt_text_error(
-    prompt_id: i64,
+    context: &str,
     field: &str,
     violation: ProviderPromptTextViolation,
 ) -> String {
     match violation {
-        ProviderPromptTextViolation::Empty => format!("视频提示词 #{} 缺少 {}", prompt_id, field),
+        ProviderPromptTextViolation::Empty => format!("{context} 缺少 {field}"),
         ProviderPromptTextViolation::TooShort {
             min_chars,
             actual_chars,
         } => format!(
-            "视频提示词 #{} 的 {} 过短，至少需要 {} 个字符，当前 {} 个字符；请重新生成或补全视频提示词",
-            prompt_id, field, min_chars, actual_chars
+            "{context} 的 {field} 过短，至少需要 {min_chars} 个字符，当前 {actual_chars} 个字符；请重新生成或补全视频提示词"
         ),
         ProviderPromptTextViolation::DictionaryLike => format!(
-            "视频提示词 #{} 的 {} 包含 JSON/字典结构片段，请重新生成或改写为自然语言提示词后再生成视频",
-            prompt_id, field
+            "{context} 的 {field} 包含 JSON/字典结构片段，请重新生成或改写为自然语言提示词后再生成视频"
         ),
-        ProviderPromptTextViolation::PreviewPlaceholder => format!(
-            "视频提示词 #{} 的 {} 包含请求预览占位文本，请保存完整提示词后再生成视频",
-            prompt_id, field
-        ),
+        ProviderPromptTextViolation::PreviewPlaceholder => {
+            format!("{context} 的 {field} 包含请求预览占位文本，请保存完整提示词后再生成视频")
+        }
         ProviderPromptTextViolation::InternalWorkflowTerm(term) => format!(
-            "视频提示词 #{} 的 {} 包含视频生成内部流程说明“{}”，请重新生成或改写为只描述画面和动作的自然语言提示词后再生成视频",
-            prompt_id, field, term
+            "{context} 的 {field} 包含视频生成内部流程说明“{term}”，请重新生成或改写为只描述画面和动作的自然语言提示词后再生成视频"
         ),
         ProviderPromptTextViolation::UploadStatusTerm(term) => format!(
-            "视频提示词 #{} 的 {} 包含上传状态说明“{}”，请优化或重新生成为只描述实际起点、输入帧画面或上一段尾态的自然语言提示词后再生成视频",
-            prompt_id, field, term
+            "{context} 的 {field} 包含上传状态说明“{term}”，请优化或重新生成为只描述实际起点、输入帧画面或上一段尾态的自然语言提示词后再生成视频"
         ),
         ProviderPromptTextViolation::StaleSection(section) => format!(
-            "视频提示词 #{} 的 {} 使用旧版视频提示词章节 {}，请重新生成或优化为当前格式后再生成视频",
-            prompt_id, field, section
+            "{context} 的 {field} 使用旧版视频提示词章节 {section}，请重新生成或优化为当前格式后再生成视频"
         ),
         ProviderPromptTextViolation::DuplicateMotionTimeline => format!(
-            "视频提示词 #{} 的 motion_prompt 不应重复镜头分镜；请把镜头分镜、连续性和尾态只保留在 visual_prompt 中，motion_prompt 只写运镜、动作和表演补充",
-            prompt_id
+            "{context} 的 motion_prompt 不应重复镜头分镜；请把镜头分镜、连续性和尾态只保留在 visual_prompt 中，motion_prompt 只写运镜、动作和表演补充"
         ),
-        ProviderPromptTextViolation::MissingRequiredSection(section) => format!(
-            "视频提示词 #{} 的 {} 缺少必需章节 {}，请重新生成或补全视频提示词",
-            prompt_id, field, section
-        ),
+        ProviderPromptTextViolation::MissingRequiredSection(section) => {
+            format!("{context} 的 {field} 缺少必需章节 {section}，请重新生成或补全视频提示词")
+        }
         ProviderPromptTextViolation::DirectPrompt(message) => message,
     }
 }

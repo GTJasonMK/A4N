@@ -247,6 +247,7 @@ mod tests {
             status: "running".to_string(),
             provider_job_id: Some("provider-job".to_string()),
             error_message: None,
+            timeline_item_id: None,
             metadata_json: None,
             is_favorite: false,
             created_at: now,

@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
-    video::{StartVideoGenerationInput, VideoGenerationOperation, VideoPromptGenerationOptions},
+    video::{
+        StartVideoGenerationInput, VideoGenerationOperation, VideoInsertedSegmentGenerationOptions,
+        VideoPromptGenerationOptions,
+    },
 };
 use a4n_core::{
     error::AppError,
@@ -40,23 +43,22 @@ enum PromptTaskEvent {
     Text(String),
 }
 
-#[derive(Clone, Copy)]
-enum PromptTaskKind {
-    SegmentPlan,
-    Frames,
-    Videos,
+enum PromptTaskOperation {
+    SegmentPlan(VideoPromptGenerationOptions),
+    Inserted(VideoInsertedSegmentGenerationOptions),
+    Frames(VideoPromptGenerationOptions),
+    Videos(VideoPromptGenerationOptions),
 }
 
 struct PromptTaskInput {
     project_id: i64,
     chapter_id: i64,
     retry_of_task_id: Option<String>,
-    options: VideoPromptGenerationOptions,
-    kind: PromptTaskKind,
+    operation: PromptTaskOperation,
 }
 
 struct PromptTaskResult {
-    rows: Vec<ChapterVideoPromptSummary>,
+    result_ref: GenerationResultRef,
     summary: &'static str,
 }
 
@@ -69,9 +71,8 @@ impl OrchestratorContext {
         context: VideoPromptApplicationContext<'_>,
     ) -> Result<(), String> {
         let task_input = prompt_task_input(input)?;
-        let result_id = format!("{}:{}", task_input.project_id, task_input.chapter_id);
-        let operation_key = task_input.kind.operation_key();
-        let batch_total = task_input.kind.batch_total();
+        let operation_key = task_input.operation.operation_key();
+        let batch_total = task_input.operation.batch_total();
         let Some(execution) = self
             .acquire_generation_task_execution(&handle)
             .await
@@ -210,11 +211,6 @@ impl OrchestratorContext {
             })
             .collect::<Vec<_>>();
         let final_usage = snapshot.usage;
-        let result_ref = GenerationResultRef {
-            kind: "chapter_video_prompts".to_string(),
-            id: result_id,
-            revision: prompt_rows_revision(&result.rows),
-        };
         let batch_summary = completed_batch_summary(batch_total);
         let failure_batch_summary = batch_summary.clone();
         let completion = execution
@@ -222,7 +218,7 @@ impl OrchestratorContext {
             .complete_with(&session, move |_tx| {
                 Box::pin(async move {
                     Ok(CompletionDescriptor {
-                        result_ref: Some(result_ref),
+                        result_ref: Some(result.result_ref),
                         final_text_hashes,
                         final_usage,
                         finish_reason: Some(GenerationFinishReason::Stop),
@@ -259,11 +255,10 @@ impl OrchestratorContext {
             project_id,
             chapter_id,
             retry_of_task_id,
-            options,
-            kind,
+            operation,
         } = input;
-        match kind {
-            PromptTaskKind::SegmentPlan => {
+        match operation {
+            PromptTaskOperation::SegmentPlan(options) => {
                 let rows = self
                     .generate_chapter_video_segment_plan_validated(
                         context,
@@ -291,11 +286,32 @@ impl OrchestratorContext {
                     "视频片段规划已保存",
                 ))?;
                 Ok(PromptTaskResult {
-                    rows,
+                    result_ref: prompt_rows_result_ref(project_id, chapter_id, &rows),
                     summary: "视频片段规划已生成",
                 })
             }
-            PromptTaskKind::Frames => {
+            PromptTaskOperation::Inserted(options) => {
+                let result_ref = super::generate_inserted_segment_draft(
+                    self,
+                    user_id,
+                    project_id,
+                    chapter_id,
+                    &active_task_id,
+                    root_project_id,
+                    retry_of_task_id.as_deref(),
+                    options,
+                    context.prompt_renderer,
+                    Some(progress),
+                    Some(chunks),
+                    &cancel_token,
+                )
+                .await?;
+                Ok(PromptTaskResult {
+                    result_ref,
+                    summary: "插入片段草稿已生成",
+                })
+            }
+            PromptTaskOperation::Frames(options) => {
                 let rows = self
                     .generate_chapter_video_frame_prompts_validated(
                         context,
@@ -314,11 +330,11 @@ impl OrchestratorContext {
                     )
                     .await?;
                 Ok(PromptTaskResult {
-                    rows,
+                    result_ref: prompt_rows_result_ref(project_id, chapter_id, &rows),
                     summary: "帧提示词已生成",
                 })
             }
-            PromptTaskKind::Videos => {
+            PromptTaskOperation::Videos(options) => {
                 let rows = self
                     .generate_video_prompt_for_target(
                         user_id,
@@ -335,7 +351,7 @@ impl OrchestratorContext {
                     )
                     .await?;
                 Ok(PromptTaskResult {
-                    rows,
+                    result_ref: prompt_rows_result_ref(project_id, chapter_id, &rows),
                     summary: "视频提示词已生成",
                 })
             }
@@ -407,17 +423,18 @@ impl OrchestratorContext {
     }
 }
 
-impl PromptTaskKind {
-    fn operation_key(self) -> &'static str {
+impl PromptTaskOperation {
+    fn operation_key(&self) -> &'static str {
         match self {
-            Self::SegmentPlan => "video_prompt_segment_plan",
-            Self::Frames => "video_prompt_frames",
-            Self::Videos => "video_prompt_videos",
+            Self::SegmentPlan(_) => "video_prompt_segment_plan",
+            Self::Inserted(_) => "video_prompt_inserted_segment",
+            Self::Frames(_) => "video_prompt_frames",
+            Self::Videos(_) => "video_prompt_videos",
         }
     }
 
-    fn batch_total(self) -> Option<u32> {
-        (!matches!(self, Self::SegmentPlan)).then_some(1)
+    fn batch_total(&self) -> Option<u32> {
+        matches!(self, Self::Frames(_) | Self::Videos(_)).then_some(1)
     }
 }
 
@@ -578,8 +595,16 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
             project_id,
             chapter_id,
             retry_of_task_id,
+            operation: PromptTaskOperation::SegmentPlan(options),
+        },
+        VideoGenerationOperation::PromptInsertedSegment {
+            chapter_id,
             options,
-            kind: PromptTaskKind::SegmentPlan,
+        } => PromptTaskInput {
+            project_id,
+            chapter_id,
+            retry_of_task_id,
+            operation: PromptTaskOperation::Inserted(options),
         },
         VideoGenerationOperation::PromptFrames {
             chapter_id,
@@ -588,8 +613,7 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
             project_id,
             chapter_id,
             retry_of_task_id,
-            options,
-            kind: PromptTaskKind::Frames,
+            operation: PromptTaskOperation::Frames(options),
         },
         VideoGenerationOperation::PromptVideos {
             chapter_id,
@@ -598,16 +622,10 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
             project_id,
             chapter_id,
             retry_of_task_id,
-            options,
-            kind: PromptTaskKind::Videos,
+            operation: PromptTaskOperation::Videos(options),
         },
         _ => return Err("非视频提示词操作不能进入 LLM generation worker".to_string()),
     };
-    if matches!(task.kind, PromptTaskKind::Frames | PromptTaskKind::Videos)
-        && (task.options.segment_plan_prompt_id.is_none() || task.options.target_segment.is_none())
-    {
-        return Err("片段卡片生成必须提供规划 ID 与目标片段".to_string());
-    }
     Ok(task)
 }
 
@@ -669,14 +687,6 @@ fn video_prompt_matches(
             .and_then(serde_json::Value::as_str)
             == Some("frame_segment_plan")
         && metadata_matches_prompt_output_language(Some(metadata), identity.prompt_output_language)
-        && metadata
-            .get("segment_plan_prompt_id")
-            .and_then(serde_json::Value::as_i64)
-            == Some(identity.segment_plan_prompt_id)
-        && metadata
-            .get("segment_recipe_fingerprint")
-            .and_then(serde_json::Value::as_str)
-            == Some(identity.recipe_fingerprint.as_str())
         && required_video_execution_identity(row.id, Some(metadata)).is_ok()
         && video_execution_segment_identity_matches(Some(metadata), &identity.execution_identity)
         && metadata
@@ -687,9 +697,7 @@ fn video_prompt_matches(
 }
 
 struct VideoPromptTargetIdentity {
-    segment_plan_prompt_id: i64,
     segment_number: i32,
-    recipe_fingerprint: String,
     workflow_mode: String,
     prompt_output_language: PromptOutputLanguage,
     execution_identity: serde_json::Value,
@@ -756,9 +764,6 @@ fn current_video_prompt_target_identity(
             "片段提示词语言已变化，请刷新后重试".to_string(),
         ));
     }
-    let recipe_fingerprint = recipe
-        .generation_fingerprint()
-        .map_err(AppError::InvalidArgument)?;
     let plan_identity = plan_metadata
         .get("video_execution_identity")
         .cloned()
@@ -774,9 +779,7 @@ fn current_video_prompt_target_identity(
         ),
     )?;
     Ok(VideoPromptTargetIdentity {
-        segment_plan_prompt_id,
         segment_number,
-        recipe_fingerprint,
         workflow_mode: recipe.workflow_mode.as_str().to_string(),
         prompt_output_language,
         execution_identity,
@@ -796,6 +799,18 @@ fn prompt_rows_revision(rows: &[ChapterVideoPromptSummary]) -> String {
         digest.update(updated_at.as_bytes());
     }
     format!("{:x}", digest.finalize())
+}
+
+fn prompt_rows_result_ref(
+    project_id: i64,
+    chapter_id: i64,
+    rows: &[ChapterVideoPromptSummary],
+) -> GenerationResultRef {
+    GenerationResultRef {
+        kind: "chapter_video_prompts".to_string(),
+        id: format!("{project_id}:{chapter_id}"),
+        revision: prompt_rows_revision(rows),
+    }
 }
 
 fn completed_batch_summary(total: Option<u32>) -> Option<BatchSummary> {
@@ -967,7 +982,6 @@ mod tests {
         let mut old_contract = test_prompt(2, 1, "2026-01-01 00:00:00", "zh_cn");
         old_contract.metadata_json.as_mut().unwrap()["contract_version"] = json!("old_contract");
         let mut old_plan = test_prompt(3, 1, "2026-01-01 00:00:00", "zh_cn");
-        old_plan.metadata_json.as_mut().unwrap()["segment_plan_prompt_id"] = json!(41);
         old_plan.metadata_json.as_mut().unwrap()["video_execution_identity"]["segment_plan_prompt_id"] =
             json!(41);
         let mut other_language = test_prompt(4, 1, "2026-01-01 00:00:00", "en");
@@ -984,7 +998,6 @@ mod tests {
 
         let mut renumbered = test_prompt(6, 1, "2026-01-01 00:00:00", "zh_cn");
         let metadata = renumbered.metadata_json.as_mut().unwrap();
-        metadata["segment_recipe_fingerprint"] = json!("recipe-2");
         metadata["video_execution_identity"]["source_shot_id"] = json!("shot-2");
         metadata["video_execution_identity"]["segment_sha256"] = json!("segment-2");
         metadata["video_execution_identity"]["segment_recipe_fingerprint"] = json!("recipe-2");
@@ -1036,9 +1049,7 @@ mod tests {
             json!(format!("recipe-{segment_number}")),
         );
         VideoPromptTargetIdentity {
-            segment_plan_prompt_id: 42,
             segment_number,
-            recipe_fingerprint: format!("recipe-{segment_number}"),
             workflow_mode: "chat_video".to_string(),
             prompt_output_language: PromptOutputLanguage::ZhCn,
             execution_identity,
@@ -1119,9 +1130,6 @@ mod tests {
                 "contract_version": crate::video::CHAT_VIDEO_CONTRACT_VERSION,
                 "source_prompt_type": "frame_segment_plan",
                 "prompt_output_language": language,
-                "segment_plan_prompt_id": 42,
-                "segment_number": shot_number,
-                "segment_recipe_fingerprint": format!("recipe-{shot_number}"),
                 "video_execution_identity": execution_identity,
             })),
             created_at: "2026-01-01 00:00:00".to_string(),

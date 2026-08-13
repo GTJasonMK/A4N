@@ -2,6 +2,7 @@ mod density;
 mod references;
 mod sections;
 
+pub(in crate::video::prompt_json) use density::validate_inserted_segment_draft;
 pub(in crate::video::prompt_json::validation) use density::{
     required_min_prompt_text, required_text, validate_optional_prompt_text,
 };

@@ -314,6 +314,7 @@ command_specs! {
     "check_import_dedup" => args_check_import_dedup, result_dedup, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "check_profile_sync_conflict" => args_check_profile_sync_conflict, result_check_profile_sync_conflict, "profile", effect(READ_EFFECT);
     "cleanup_orphan_project_data_dirs" => args_cleanup_orphan_project_data_dirs, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "commit_inserted_segment_draft" => args_commit_inserted_segment_draft, result_video_timeline, "video";
     "confirm_reverse_engineering_candidate" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "create_derived_project" => args_create_derived_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
@@ -337,6 +338,7 @@ command_specs! {
     "delete_galgame_line" => args_delete_galgame_line, result_unit, "galgame", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_image" => args_delete_image, result_unit, "asset", effect(DESTRUCTIVE_EFFECT);
     "delete_import_review" => args_import_review_id, result_unit, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "delete_inserted_segment" => args_delete_inserted_segment, result_video_timeline, "video", effect(DESTRUCTIVE_EFFECT);
     "delete_latest_chapter_outlines" => args_delete_latest_outline_records, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
     "delete_latest_parts" => args_delete_latest_outline_records, result_opaque, "outline", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "delete_llm_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -390,6 +392,7 @@ command_specs! {
     "get_chapter_outlines_pacing" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_chapter_shooting_script" => args_get_chapter_shooting_script, result_get_chapter_shooting_script, "chapter", effect(READ_EFFECT);
     "get_chapter_shooting_script_unit_progress" => args_get_chapter_shooting_script, result_get_chapter_shooting_script_unit_progress, "chapter", effect(READ_EFFECT);
+    "get_chapter_video_timeline" => args_get_video_timeline, result_video_timeline, "video", effect(READ_EFFECT);
     "get_character_arc_status" => args_opaque, result_opaque, "profile", effect(READ_EFFECT);
     "get_character_voice_fingerprint" => args_opaque, result_opaque, "profile", effect(READ_EFFECT);
     "get_current_user" => empty_args_schema, result_get_current_user, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -482,6 +485,7 @@ command_specs! {
     "load_video_segment_plan_draft" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "login_user" => args_login_user, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "modify_profile_attribute" => args_modify_profile_attribute, result_unit, "profile";
+    "move_inserted_segment" => args_move_inserted_segment, result_video_timeline, "video";
     "oauth2_authorize_url" => args_opaque, result_opaque, "auth", identity(PUBLIC_IDENTITY);
     "oauth2_callback" => args_opaque, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(OAUTH_CODE_SECRET_POINTERS);
     "optimize_chapter_video_prompt" => args_optimize_chapter_video_prompt, result_optimize_chapter_video_prompt, "video", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
@@ -986,8 +990,16 @@ fn args_create_user() -> Value {
     typed_input_schema::<crate::admin::CreateUserInput>()
 }
 
+fn args_commit_inserted_segment_draft() -> Value {
+    typed_input_schema::<crate::video::CommitInsertedSegmentDraftInput>()
+}
+
 fn args_delete_chapter_video_prompt() -> Value {
     typed_input_schema::<crate::video::DeleteChapterVideoPromptInput>()
+}
+
+fn args_delete_inserted_segment() -> Value {
+    typed_input_schema::<crate::video::DeleteInsertedSegmentInput>()
 }
 
 fn args_delete_chapter_scene() -> Value {
@@ -1317,6 +1329,14 @@ fn args_list_chapter_video_prompts() -> Value {
         "additionalProperties": true,
         "x-a4n-schema-quality": "typed",
     })
+}
+
+fn args_get_video_timeline() -> Value {
+    typed_input_schema::<crate::video::GetVideoTimelineInput>()
+}
+
+fn args_move_inserted_segment() -> Value {
+    typed_input_schema::<crate::video::MoveInsertedSegmentInput>()
 }
 
 fn args_list_deletion_marks() -> Value {
@@ -2179,6 +2199,10 @@ fn result_list_behaviors() -> Value {
 
 fn result_list_chapter_video_prompts() -> Value {
     typed_schema::<Vec<crate::video::ChapterVideoPromptSummary>>()
+}
+
+fn result_video_timeline() -> Value {
+    typed_schema::<crate::video::VideoTimelineSummary>()
 }
 
 fn result_list_embedding_config() -> Value {

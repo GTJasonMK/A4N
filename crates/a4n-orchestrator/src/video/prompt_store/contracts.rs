@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1};
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use a4n_llm::provider::{ChatRequest, UsageInfo};
 use serde_json::{Value, json};
 
@@ -114,56 +114,12 @@ impl NewChapterVideoPrompt {
             && self.shot_number == shot_number
     }
 
-    pub(in crate::video) fn with_segment_recipe_metadata(
+    pub(in crate::video) fn with_segment_recipe(
         mut self,
-        segment_plan_prompt_id: i64,
         recipe: &VideoSegmentExecutionRecipeV1,
-    ) -> Result<Self, AppError> {
-        let metadata = self
-            .metadata_json
-            .get_or_insert_with(|| json!({}))
-            .as_object_mut()
-            .ok_or_else(|| {
-                AppError::InvalidArgument("视频提示词 metadata_json 必须是对象".to_string())
-            })?;
-        metadata.insert(
-            "segment_plan_prompt_id".to_string(),
-            json!(segment_plan_prompt_id),
-        );
-        metadata.insert("segment_number".to_string(), json!(recipe.segment_number));
-        metadata.insert(
-            "segment_recipe_fingerprint".to_string(),
-            json!(
-                recipe
-                    .generation_fingerprint()
-                    .map_err(AppError::InvalidArgument)?
-            ),
-        );
-        metadata.insert(
-            "guidance_mode".to_string(),
-            json!(recipe.guidance_mode.as_str()),
-        );
-        metadata.insert(
-            "keyframe_image_ids".to_string(),
-            if recipe.guidance_mode == VideoSegmentGuidanceModeV1::Keyframes {
-                json!(recipe.guidance_reference_image_ids)
-            } else {
-                Value::Null
-            },
-        );
-        metadata.insert(
-            "continuity_source".to_string(),
-            if recipe.guidance_mode == VideoSegmentGuidanceModeV1::Continuity {
-                recipe
-                    .continuity_source_video_id
-                    .map(|video_id| json!({ "video_id": video_id }))
-                    .unwrap_or(Value::Null)
-            } else {
-                Value::Null
-            },
-        );
+    ) -> Self {
         self.reference_image_ids_json = Some(json!(recipe.provider_reference_image_ids()));
-        Ok(self)
+        self
     }
 }
 
@@ -211,7 +167,7 @@ pub(in crate::video) fn new_prompt_draft(
 mod tests {
     use super::*;
     use a4n_core::video_execution::{
-        VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentWorkflowModeV1,
+        VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
     };
 
     #[test]
@@ -272,13 +228,9 @@ mod tests {
             reference_image_ids_json: None,
             metadata_json: None,
         })
-        .with_segment_recipe_metadata(9, &recipe)
-        .unwrap();
+        .with_segment_recipe(&recipe);
 
         assert_eq!(draft.reference_image_ids_json, Some(json!([11])));
-        let metadata = draft.metadata_json.unwrap();
-        assert_eq!(metadata["guidance_mode"], "system_frames");
-        assert!(metadata["keyframe_image_ids"].is_null());
-        assert!(metadata["continuity_source"].is_null());
+        assert!(draft.metadata_json.is_none());
     }
 }

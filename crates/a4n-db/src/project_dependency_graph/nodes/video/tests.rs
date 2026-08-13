@@ -34,6 +34,7 @@ fn video_prompt_model(
         reference_image_ids_json: None,
         status: "completed".to_string(),
         generated_video_id: None,
+        timeline_item_id: None,
         metadata_json: None,
         created_at: now,
         updated_at: now,

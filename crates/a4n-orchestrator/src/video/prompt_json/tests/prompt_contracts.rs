@@ -14,6 +14,31 @@ fn rejects_video_prompt_response_wrapped_in_single_json_fence() {
 }
 
 #[test]
+fn inserted_segment_draft_uses_the_provider_prompt_contract() {
+    let shot = valid_shot_value(1);
+    let draft: InsertedSegmentDraft = serde_json::from_value(json!({
+        "title": shot["title"],
+        "scene_summary": shot["scene_summary"],
+        "visual_prompt": shot["visual_prompt"],
+        "motion_prompt": shot["motion_prompt"],
+        "negative_prompt": shot["negative_prompt"],
+    }))
+    .unwrap();
+
+    assert!(draft.validate(PromptOutputLanguage::ZhCn).is_ok());
+
+    let invalid: InsertedSegmentDraft = serde_json::from_value(json!({
+        "title": "补镜",
+        "scene_summary": "补充人物反应",
+        "visual_prompt": "镜头缓慢推进",
+        "motion_prompt": "人物抬眼",
+        "negative_prompt": "避免字幕",
+    }))
+    .unwrap();
+    assert!(invalid.validate(PromptOutputLanguage::ZhCn).is_err());
+}
+
+#[test]
 fn rejects_video_prompt_motion_prompt_with_duplicate_shot_storyboard() {
     let mut shot = valid_shot_value(1);
     shot["motion_prompt"] = json!(

@@ -11,11 +11,34 @@ pub fn sync_chapter_video_prompt_metadata_after_update(
     reference_image_ids_json: Option<&Value>,
 ) -> Result<Option<Value>, VideoDbError> {
     if prompt_type == "video_prompt" {
-        let mut metadata = metadata_json.ok_or_else(|| {
+        let metadata = metadata_json.ok_or_else(|| {
             VideoDbError::InvalidArgument(
                 "视频提示词缺少 video_execution_identity，不能编辑；请重新生成该提示词".to_string(),
             )
         })?;
+        if metadata.get("source_prompt_type").and_then(Value::as_str) == Some("inserted_segment") {
+            let recipe =
+                serde_json::from_value::<a4n_core::video_execution::VideoSegmentExecutionRecipeV1>(
+                    metadata.get("segment_recipe").cloned().ok_or_else(|| {
+                        VideoDbError::InvalidArgument(
+                            "插入片段提示词缺少 segment_recipe，不能编辑".to_string(),
+                        )
+                    })?,
+                )
+                .map_err(|error| {
+                    VideoDbError::InvalidArgument(format!(
+                        "插入片段提示词 segment_recipe 无效，不能编辑：{error}"
+                    ))
+                })?;
+            if duration_secs != recipe.duration_secs {
+                return Err(VideoDbError::InvalidArgument(
+                    "插入片段时长由 segment_recipe 管理，请修改执行方案后重新生成提示词"
+                        .to_string(),
+                ));
+            }
+            return Ok(Some(metadata));
+        }
+        let mut metadata = metadata;
         let identity = metadata
             .as_object_mut()
             .and_then(|root| root.get_mut("video_execution_identity"))

@@ -21,6 +21,9 @@ where
             "已存在由该视频提示词生成的视频，不能再次生成；请先删除对应视频".to_string(),
         ));
     }
+    let mut video_active: generated_video::ActiveModel = video.clone().into();
+    video_active.timeline_item_id = Set(prompt.timeline_item_id);
+    video_active.update(db).await?;
     let mut active: chapter_video_prompt::ActiveModel = prompt.into();
     active.status = Set("running".to_string());
     active.updated_at = Set(Utc::now().naive_utc());

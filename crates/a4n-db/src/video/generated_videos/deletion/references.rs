@@ -1,8 +1,8 @@
 use crate::video::VideoDbError;
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use a4n_core::video_execution::{
-    VIDEO_SEGMENT_RECIPES_METADATA_KEY, propagate_adopted_video_change,
-    video_segment_recipes_from_metadata,
+    VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1,
+    propagate_adopted_video_change, video_segment_recipes_from_metadata,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
@@ -81,6 +81,40 @@ fn clear_segment_recipe_video_references(
     Ok(changed)
 }
 
+fn clear_inserted_prompt_video_reference(
+    metadata: &mut Value,
+    video_ids: &[i64],
+) -> Result<bool, VideoDbError> {
+    let Some(value) = metadata.get("segment_recipe").cloned() else {
+        return Ok(false);
+    };
+    let mut recipe =
+        serde_json::from_value::<VideoSegmentExecutionRecipeV1>(value).map_err(|error| {
+            VideoDbError::InvalidArgument(format!(
+                "清理插入片段视频引用时发现 segment_recipe 无效：{error}"
+            ))
+        })?;
+    if !recipe
+        .continuity_source_video_id
+        .is_some_and(|video_id| video_ids.contains(&video_id))
+    {
+        return Ok(false);
+    }
+    recipe.continuity_source_video_id = None;
+    metadata
+        .as_object_mut()
+        .ok_or_else(|| {
+            VideoDbError::InvalidArgument("插入片段 metadata_json 必须为对象".to_string())
+        })?
+        .insert(
+            "segment_recipe".to_string(),
+            serde_json::to_value(recipe).map_err(|error| {
+                VideoDbError::InvalidArgument(format!("序列化插入片段执行方案失败：{error}"))
+            })?,
+        );
+    Ok(true)
+}
+
 pub(crate) async fn clear_generated_video_references_record<C>(
     db: &C,
     videos: &[generated_video::Model],
@@ -137,32 +171,27 @@ where
         .all(db)
         .await?;
     for prompt in referenced_prompts {
-        let source_video_id = prompt
-            .metadata_json
-            .as_ref()
-            .and_then(|metadata| metadata.get("continuity_source"))
-            .and_then(|source| source.get("video_id"))
-            .and_then(Value::as_i64);
         let mut metadata = prompt.metadata_json.clone().unwrap_or(Value::Null);
         let mut changed = clear_segment_recipe_video_references(&mut metadata, &video_ids)?;
-        if source_video_id.is_some_and(|source_id| video_ids.contains(&source_id)) {
-            let metadata = metadata.as_object_mut().ok_or_else(|| {
-                VideoDbError::InvalidArgument(format!(
-                    "视频提示词 #{} metadata_json 必须为对象",
-                    prompt.id
-                ))
-            })?;
-            metadata.insert("continuity_stale".to_string(), Value::Bool(true));
-            metadata.insert(
-                "continuity_stale_reason".to_string(),
-                Value::String("continuity_source_deleted".to_string()),
-            );
-            changed = true;
-        }
+        changed |= clear_inserted_prompt_video_reference(&mut metadata, &video_ids)?;
         if !changed {
             continue;
         }
+        let inserted = prompt.timeline_item_id.is_some();
         let mut active: chapter_video_prompt::ActiveModel = prompt.into();
+        if inserted {
+            let recipe = serde_json::from_value::<VideoSegmentExecutionRecipeV1>(
+                metadata.get("segment_recipe").cloned().ok_or_else(|| {
+                    VideoDbError::InvalidArgument("已清理的插入片段缺少 segment_recipe".to_string())
+                })?,
+            )
+            .map_err(|error| {
+                VideoDbError::InvalidArgument(format!("读取已清理插入片段执行方案失败：{error}"))
+            })?;
+            active.reference_image_ids_json = Set(Some(serde_json::json!(
+                recipe.provider_reference_image_ids()
+            )));
+        }
         active.metadata_json = Set(Some(metadata));
         active.updated_at = Set(now);
         active.update(db).await?;
@@ -298,5 +327,41 @@ mod tests {
             metadata["segment_recipes"][2]["adopted_video_id"],
             Value::Null
         );
+    }
+
+    #[test]
+    fn inserted_prompt_cleanup_only_clears_recipe_continuity_source() {
+        let mut metadata = json!({
+            "source_prompt_type": "inserted_segment",
+            "segment_recipe": {
+                "schema_version": "video_segment_execution_recipe_v1",
+                "segment_number": 2,
+                "workflow_mode": "first_frame_chain",
+                "style": "cinematic",
+                "prompt_output_language": "zh_cn",
+                "duration_secs": 6,
+                "duration_secs_options": [6],
+                "aspect_ratio": "16:9",
+                "reference_image_ids": [],
+                "video_library_image_ids": [],
+                "guidance_mode": "continuity",
+                "guidance_reference_image_ids": [],
+                "continuity_source_video_id": 41,
+                "reference_media": null,
+                "adopted_video_id": null
+            },
+            "video_execution_identity": {"segment_sha256": "stable"}
+        });
+
+        assert!(clear_inserted_prompt_video_reference(&mut metadata, &[41]).unwrap());
+        assert_eq!(
+            metadata["segment_recipe"]["continuity_source_video_id"],
+            Value::Null
+        );
+        assert_eq!(
+            metadata["video_execution_identity"],
+            json!({"segment_sha256": "stable"})
+        );
+        assert!(metadata.get("continuity_stale").is_none());
     }
 }

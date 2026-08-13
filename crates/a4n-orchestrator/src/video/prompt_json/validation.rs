@@ -11,6 +11,7 @@ mod shot;
 pub(super) use frame::validate_frame_prompt;
 pub(in crate::video) use prompt_text::direct_prompt_internal_reference_term;
 use prompt_text::required_text;
+pub(super) use prompt_text::validate_inserted_segment_draft;
 pub use prompt_text::{
     validate_direct_prompt_text, validate_reference_label_text,
     video_motion_prompt_has_temporal_storyboard,

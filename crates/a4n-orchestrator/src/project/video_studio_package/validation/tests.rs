@@ -85,6 +85,7 @@ fn video_with_file() -> generated_video::Model {
         status: MEDIA_STATUS_COMPLETED.to_string(),
         provider_job_id: None,
         error_message: None,
+        timeline_item_id: None,
         metadata_json: None,
         is_favorite: false,
         created_at: now(),

@@ -38,6 +38,12 @@ pub(super) async fn try_dispatch(
         }
         "trim_video" => trim_video(state, user_id, args).await?,
         "list_chapter_video_prompts" => list_chapter_video_prompts(state, user_id, args).await?,
+        "get_chapter_video_timeline" => get_chapter_video_timeline(state, user_id, args).await?,
+        "commit_inserted_segment_draft" => {
+            commit_inserted_segment_draft(state, user_id, args).await?
+        }
+        "move_inserted_segment" => move_inserted_segment(state, user_id, args).await?,
+        "delete_inserted_segment" => delete_inserted_segment(state, user_id, args).await?,
         "load_video_segment_plan_draft" => {
             load_video_segment_plan_draft(state, user_id, args).await?
         }

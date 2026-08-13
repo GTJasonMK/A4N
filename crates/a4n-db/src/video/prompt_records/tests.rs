@@ -26,6 +26,7 @@ fn prompt(status: &str) -> chapter_video_prompt::Model {
         reference_image_ids_json: None,
         status: status.to_string(),
         generated_video_id: None,
+        timeline_item_id: None,
         metadata_json: None,
         created_at: now,
         updated_at: now,

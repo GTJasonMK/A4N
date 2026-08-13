@@ -1544,6 +1544,9 @@ impl OrchestratorContext {
                 options,
                 crate::video::validate_video_segment_plan_generation_options,
             )?,
+            VideoGenerationOperation::PromptInsertedSegment { options, .. } => {
+                crate::video::validate_video_inserted_segment_generation_options(options)?
+            }
             VideoGenerationOperation::PromptFrames {
                 chapter_id,
                 options,
@@ -2350,6 +2353,7 @@ fn video_generation_operation_kind(operation: &VideoGenerationOperation) -> &'st
         VideoGenerationOperation::ChapterBatch { .. } => "chapter_batch",
         VideoGenerationOperation::ReferenceMedia { .. } => "reference_media",
         VideoGenerationOperation::PromptSegmentPlan { .. } => "prompt_segment_plan",
+        VideoGenerationOperation::PromptInsertedSegment { .. } => "prompt_inserted_segment",
         VideoGenerationOperation::PromptFrames { .. } => "prompt_frames",
         VideoGenerationOperation::PromptVideos { .. } => "prompt_videos",
     }
@@ -2376,6 +2380,15 @@ fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperat
         VideoGenerationOperation::PromptSegmentPlan { chapter_id, .. } => {
             format!("{project_id}:chapter:{chapter_id}:prompt_segment_plan:shared")
         }
+        VideoGenerationOperation::PromptInsertedSegment {
+            chapter_id,
+            options,
+        } => format!(
+            "{project_id}:chapter:{chapter_id}:prompt_inserted_segment:timeline:{}:gap:{}:{}",
+            options.timeline_id,
+            options.previous_item_id.unwrap_or(0),
+            options.next_item_id.unwrap_or(0),
+        ),
         VideoGenerationOperation::PromptFrames {
             chapter_id,
             options,

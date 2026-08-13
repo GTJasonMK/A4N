@@ -45,6 +45,9 @@ pub struct Model {
 
     pub generated_video_id: Option<i64>,
 
+    /// 已提交插入片段对应的稳定时间线项。
+    pub timeline_item_id: Option<i64>,
+
     #[sea_orm(column_type = "Json")]
     pub metadata_json: Option<serde_json::Value>,
 

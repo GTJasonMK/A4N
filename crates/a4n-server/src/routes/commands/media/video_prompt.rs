@@ -22,6 +22,60 @@ pub(in crate::routes::commands) async fn list_chapter_video_prompts(
     to_value(prompts)
 }
 
+pub(in crate::routes::commands) async fn get_chapter_video_timeline(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::GetVideoTimelineInput =
+        command_input(args, "get_chapter_video_timeline")?;
+    let timeline =
+        video_prompt_actions::get_chapter_video_timeline(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
+pub(in crate::routes::commands) async fn commit_inserted_segment_draft(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::CommitInsertedSegmentDraftInput =
+        command_input(args, "commit_inserted_segment_draft")?;
+    let timeline =
+        video_prompt_actions::commit_inserted_segment_draft(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
+pub(in crate::routes::commands) async fn move_inserted_segment(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::MoveInsertedSegmentInput =
+        command_input(args, "move_inserted_segment")?;
+    let timeline = video_prompt_actions::move_inserted_segment(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
+pub(in crate::routes::commands) async fn delete_inserted_segment(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::DeleteInsertedSegmentInput =
+        command_input(args, "delete_inserted_segment")?;
+    let timeline = video_prompt_actions::delete_inserted_segment(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
 pub(in crate::routes::commands) async fn load_video_segment_plan_draft(
     state: &ServerState,
     user_id: i64,

@@ -45,6 +45,7 @@ mod reference_media_rules;
 mod source;
 mod storyboard_frame_rules;
 mod tail_frame_rules;
+mod timeline;
 
 #[cfg(test)]
 mod facade_tests;
@@ -150,6 +151,9 @@ pub(crate) use prompt_application::{
     validate_video_segment_plan_generation_options,
 };
 pub use prompt_chain_rules::{prompt_chain_matches, prompt_source_type_matches};
+pub(crate) use prompt_generation::{
+    generate_inserted_segment_draft, validate_video_inserted_segment_generation_options,
+};
 pub(in crate::video) use prompt_generation::{
     load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
     update_video_segment_plan_draft_recipe_checkpoint,
@@ -182,13 +186,13 @@ pub use provider_prompt_text_rules::{
     MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, ProviderPromptTextViolation,
     provider_prompt_text_violation, validate_provider_model_text,
 };
+pub(crate) use provider_request_rules::prompt_provider_workflow_for_recipe;
 pub use provider_request_rules::{
     MAX_CLIPROXY_VIDEO_PROMPT_BYTES, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
     ProviderGenerationWorkflow, boundary_frame_missing_image_message,
     cliproxy_prompt_length_violation_message, data_url_mime,
     ensure_newapi_first_frame_image_supported, ensure_provider_generation_workflow,
     first_frame_chain_missing_start_image_message, linked_video_preview_config_id,
-    prompt_is_first_frame_chain, prompt_provider_workflow,
     provider_image_binding_violation_messages, provider_request_snapshot_value,
     reference_ids_with_storyboard_image, required_prompt_source_prompt_type,
     required_video_execution_identity, storyboard_missing_image_message,
@@ -255,3 +259,8 @@ pub use records::{
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(in crate::video) use tests::{
+    insert_derived_video_project, insert_video_chapter_without_shooting_script,
+    insert_video_project,
+};

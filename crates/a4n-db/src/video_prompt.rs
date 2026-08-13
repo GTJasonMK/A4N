@@ -47,7 +47,6 @@ pub struct ChapterVideoPromptPatch {
     pub negative_prompt: Option<Option<String>>,
     pub duration_secs: Option<i32>,
     pub reference_image_ids_json: Option<Option<Value>>,
-    pub metadata_patch: Option<Value>,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -67,6 +67,7 @@ mod tests {
             reference_image_ids_json: None,
             status: "pending".to_string(),
             generated_video_id: None,
+            timeline_item_id: None,
             metadata_json: Some(json!({
                 "contract_version": contract_version,
                 "source_prompt_type": FRAME_SEGMENT_PLAN_PROMPT_TYPE,

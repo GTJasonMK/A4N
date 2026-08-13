@@ -131,6 +131,7 @@ mod tests {
             status: "completed".to_string(),
             provider_job_id: None,
             error_message: None,
+            timeline_item_id: None,
             metadata_json: None,
             is_favorite: false,
             created_at: now,

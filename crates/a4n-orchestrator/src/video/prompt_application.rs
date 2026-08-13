@@ -736,6 +736,28 @@ impl OrchestratorContext {
         self.chapter_video_prompt(prompt_id).await
     }
 
+    pub(in crate::video) async fn current_shared_segment_plan_optional(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Option<chapter_video_prompt::Model>, AppError> {
+        let current_source_hash = self
+            .current_video_source_hash(project_id, chapter_id)
+            .await?;
+        let prompt_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+            &current_source_hash,
+        )
+        .await
+        .map_err(video_db_error)?;
+        match prompt_id {
+            Some(prompt_id) => self.chapter_video_prompt(prompt_id).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
     pub(in crate::video) async fn require_current_shared_segment_plan(
         &self,
         project_id: i64,

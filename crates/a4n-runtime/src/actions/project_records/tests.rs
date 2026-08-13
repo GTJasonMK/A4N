@@ -70,6 +70,7 @@ fn canvas_video_row(
         status: "completed".to_string(),
         provider_job_id: None,
         error_message: None,
+        timeline_item_id: None,
         metadata_json,
         is_favorite: false,
         created_at: test_time(0),

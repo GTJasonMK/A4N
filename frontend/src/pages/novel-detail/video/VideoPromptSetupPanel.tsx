@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type {
   ChapterVideoPrompt,
   VideoSegmentExecutionRecipe,
+  VideoTimelineItemSummary,
+  VideoTimelineSummary,
 } from "../../../api/video";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
@@ -18,6 +20,11 @@ import {
   type VideoSegmentCardPlan,
 } from "./videoTabUtils";
 import { promptTitle } from "./videoGenerationDisplay";
+import {
+  gapLabel,
+  timelineGaps,
+  type InsertedSegmentGap,
+} from "./InsertedSegmentTimelinePanel";
 
 interface VideoPromptSetupPanelProps {
   prompts: ChapterVideoPrompt[];
@@ -30,6 +37,7 @@ interface VideoPromptSetupPanelProps {
   acting: string | null;
   savingRecipeSegments: Set<number>;
   finalPromptBlockedReasons: Map<number, string>;
+  timeline: VideoTimelineSummary | null;
   layout: "index" | "selected";
   onLoad: () => void | Promise<void>;
   onSelectPrompt: (id: number) => void | Promise<void>;
@@ -39,6 +47,8 @@ interface VideoPromptSetupPanelProps {
     shotNumber: number,
   ) => void | Promise<void>;
   onDeletePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onInsertSegment: (gap: InsertedSegmentGap) => void;
+  onOpenInsertedSegment: (timelineItemId: number) => void;
 }
 
 export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
@@ -52,12 +62,15 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
   acting,
   savingRecipeSegments,
   finalPromptBlockedReasons,
+  timeline,
   layout,
   onLoad,
   onSelectPrompt,
   onSelectSegment,
   onWorkflowModeChange,
   onDeletePrompt,
+  onInsertSegment,
+  onOpenInsertedSegment,
 }) => {
   const promptsBySegment = useMemo(() => {
     const groups = new Map<number, ChapterVideoPrompt[]>();
@@ -254,7 +267,41 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     );
   }
 
-  const renderNativeCard = (card: VideoSegmentCardPlan) => {
+  const segmentCardByNumber = new Map(
+    segmentCards.map((card) => [card.segmentNumber, card]),
+  );
+  const nativeTimelineItems =
+    timeline?.items.filter((item) => item.kind === "native") ?? [];
+  const nativeSegmentNumbers = new Set(
+    nativeTimelineItems.map((item) => item.segment_number),
+  );
+  const timelineMatchesSegments = Boolean(
+    timeline &&
+    nativeTimelineItems.length === segmentCards.length &&
+    nativeSegmentNumbers.size === segmentCards.length &&
+    nativeTimelineItems.every(
+      (item) =>
+        item.segment_number != null &&
+        segmentCardByNumber.has(item.segment_number),
+    ),
+  );
+  const timelineItemById = new Map(
+    timeline?.items.map((item) => [item.id, item]) ?? [],
+  );
+  const reanchorItemIds = new Set(
+    timeline?.items
+      .filter((item) => item.status === "needs_reanchor")
+      .map((item) => item.id) ?? [],
+  );
+  const gapBlocked = (gap: InsertedSegmentGap) =>
+    (gap.previous_item_id != null &&
+      reanchorItemIds.has(gap.previous_item_id)) ||
+    (gap.next_item_id != null && reanchorItemIds.has(gap.next_item_id));
+
+  const renderNativeCard = (
+    card: VideoSegmentCardPlan,
+    timelineItem?: VideoTimelineItemSummary,
+  ) => {
     const shotNumber = card.segmentNumber;
     const recipe = segmentRecipes.get(shotNumber) ?? null;
     const variants = promptsBySegment.get(shotNumber) ?? [];
@@ -276,7 +323,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
 
     return (
       <section
-        key={shotNumber}
+        key={timelineItem ? `timeline-${timelineItem.id}` : shotNumber}
         className={`a4n-flat-surface overflow-hidden ${
           selectedCard
             ? "border-book-primary/50 ring-1 ring-book-primary/25"
@@ -297,8 +344,13 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-xs font-semibold text-book-text-main">
-                  片段 {shotNumber}
+                  片段 {timelineItem?.display_index ?? shotNumber}
                 </span>
+                {timelineItem && timelineItem.display_index !== shotNumber ? (
+                  <span className="text-caption text-book-text-muted">
+                    原生 #{shotNumber}
+                  </span>
+                ) : null}
                 <span className="text-caption text-book-text-muted">
                   {card.durationSecs}s · {card.aspectRatio}
                 </span>
@@ -334,6 +386,81 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     );
   };
 
+  const renderInsertedCard = (item: VideoTimelineItemSummary) => {
+    const needsReanchor = item.status === "needs_reanchor";
+    const promptMissing = item.plan_prompt_id == null;
+    return (
+      <section
+        key={`timeline-${item.id}`}
+        className="overflow-hidden rounded-[var(--pyqt-radius-md)] border border-book-primary/40 bg-book-primary/6"
+      >
+        <button
+          type="button"
+          onClick={() => onOpenInsertedSegment(item.id)}
+          disabled={promptMissing}
+          className="block w-full min-w-0 p-3 text-left hover:bg-book-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-semibold text-book-text-main">
+                  片段 {item.display_index}
+                </span>
+                <span className="rounded-full bg-book-primary/12 px-1.5 py-0.5 text-caption text-book-primary">
+                  插入
+                </span>
+              </div>
+              <div className="mt-0.5 truncate text-xs font-medium text-book-text-main">
+                {item.title ?? "未命名插入片段"}
+              </div>
+            </div>
+            <span
+              className={`shrink-0 rounded-full px-2 py-1 text-caption ${
+                needsReanchor
+                  ? "bg-warning-bg text-warning"
+                  : item.generated_video_id != null
+                    ? "bg-success/10 text-success"
+                    : "bg-book-bg-tertiary text-book-text-muted"
+              }`}
+            >
+              {promptMissing
+                ? "数据不完整"
+                : needsReanchor
+                  ? "需重新定位"
+                  : item.generated_video_id != null
+                    ? "已有视频"
+                    : "待生成视频"}
+            </span>
+          </div>
+          <div className="mt-2 text-caption text-book-text-sub">
+            点击编辑提示词、移动位置或生成视频
+          </div>
+        </button>
+      </section>
+    );
+  };
+
+  const renderGap = (gap: InsertedSegmentGap) => {
+    const blocked = gapBlocked(gap);
+    return (
+      <button
+        key={`gap-${gap.previous_item_id ?? 0}-${gap.next_item_id ?? 0}`}
+        type="button"
+        aria-label={`在${gapLabel(gap, timeline?.items ?? [])}插入片段`}
+        title={blocked ? "请先重新定位相邻的插入片段" : "插入片段"}
+        disabled={loading || acting != null || blocked}
+        onClick={() => onInsertSegment(gap)}
+        className="group flex h-6 w-full items-center gap-2 px-1 text-caption text-book-text-muted transition-colors hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        <span className="min-w-0 flex-1 border-t border-dashed border-book-border/60 group-hover:border-book-primary/55" />
+        <span className="inline-flex shrink-0 items-center gap-1">
+          <Plus size={10} /> 插入
+        </span>
+        <span className="min-w-0 flex-1 border-t border-dashed border-book-border/60 group-hover:border-book-primary/55" />
+      </button>
+    );
+  };
+
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="mb-3 flex items-center gap-2">
@@ -342,17 +469,49 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             片段执行方案
           </div>
           <div className="mt-0.5 text-caption text-book-text-muted">
-            点击片段进行配置
+            点击片段进行配置；使用卡片间的“插入”补充镜头
           </div>
         </div>
         {refreshButton}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible custom-scrollbar pr-2">
-        {segmentCards.length === 0 ? (
+        {timelineMatchesSegments && timeline ? (
+          <div>
+            {timelineGaps(timeline.items).map((gap) => {
+              const nextItem =
+                gap.next_item_id == null
+                  ? null
+                  : (timelineItemById.get(gap.next_item_id) ?? null);
+              return (
+                <React.Fragment
+                  key={`timeline-gap-${gap.previous_item_id ?? 0}-${gap.next_item_id ?? 0}`}
+                >
+                  {renderGap(gap)}
+                  {nextItem?.kind === "inserted"
+                    ? renderInsertedCard(nextItem)
+                    : nextItem?.segment_number != null
+                      ? renderNativeCard(
+                          segmentCardByNumber.get(nextItem.segment_number)!,
+                          nextItem,
+                        )
+                      : null}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        ) : segmentCards.length === 0 ? (
           <EmptyHint text="请先生成片段规划。规划完成后，每个片段会在这里独立选择生成方案。" />
         ) : (
           <div className="space-y-2">
+            {timeline ? (
+              <div
+                role="alert"
+                className="rounded-lg border border-warning/35 bg-warning-bg px-2.5 py-2 text-caption text-warning"
+              >
+                时间线与当前片段规划尚未同步，插入入口暂时停用；刷新后再试。
+              </div>
+            ) : null}
             {segmentCards.map((card) => renderNativeCard(card))}
           </div>
         )}

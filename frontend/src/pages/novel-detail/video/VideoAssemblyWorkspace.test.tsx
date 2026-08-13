@@ -21,6 +21,7 @@ const adoptedVideo: GeneratedVideo = {
   file_size: 1,
   source_video_id: null,
   source_image_id: null,
+  timeline_item_id: null,
   status: "completed",
   provider_job_id: null,
   error_message: null,
@@ -37,6 +38,23 @@ describe("VideoAssemblyWorkspace", () => {
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
         videos={[adoptedVideo]}
+        timeline={{
+          id: 1,
+          revision: 1,
+          items: [
+            {
+              id: 1,
+              display_index: 1,
+              kind: "native",
+              segment_number: 1,
+              source_shot_id: "shot-1",
+              plan_prompt_id: null,
+              generated_video_id: adoptedVideo.id,
+              status: "active",
+              title: "片段 1",
+            },
+          ],
+        }}
         adoptedVideoIds={new Set([adoptedVideo.id])}
         unavailableSegmentNumbers={[2]}
         onToast={() => undefined}
@@ -70,6 +88,34 @@ describe("VideoAssemblyWorkspace", () => {
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
         videos={[late, early]}
+        timeline={{
+          id: 1,
+          revision: 1,
+          items: [
+            {
+              id: 1,
+              display_index: 1,
+              kind: "native",
+              segment_number: 1,
+              source_shot_id: "shot-1",
+              plan_prompt_id: null,
+              generated_video_id: early.id,
+              status: "active",
+              title: "片段 1",
+            },
+            {
+              id: 2,
+              display_index: 2,
+              kind: "native",
+              segment_number: 2,
+              source_shot_id: "shot-2",
+              plan_prompt_id: null,
+              generated_video_id: late.id,
+              status: "active",
+              title: "片段 2",
+            },
+          ],
+        }}
         adoptedVideoIds={new Set([late.id, early.id])}
         onToast={() => undefined}
         onRefresh={() => undefined}

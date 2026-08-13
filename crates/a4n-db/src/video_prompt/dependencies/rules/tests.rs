@@ -36,6 +36,7 @@ fn prompt(
         reference_image_ids_json: None,
         status: "pending".to_string(),
         generated_video_id: None,
+        timeline_item_id: None,
         metadata_json,
         created_at: now,
         updated_at: now,

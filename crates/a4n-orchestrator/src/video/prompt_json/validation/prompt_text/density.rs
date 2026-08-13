@@ -1,5 +1,5 @@
 use super::references::validate_direct_prompt_text;
-use crate::video::prompt_json::validation::PromptTextKind;
+use crate::video::prompt_json::{InsertedSegmentDraft, validation::PromptTextKind};
 use a4n_core::error::AppError;
 use a4n_core::prompt_language::PromptOutputLanguage;
 
@@ -38,6 +38,47 @@ pub(in crate::video::prompt_json::validation) fn validate_optional_prompt_text(
     }
     validate_direct_prompt_text(text, field)?;
     Ok(())
+}
+
+pub(in crate::video::prompt_json) fn validate_inserted_segment_draft(
+    mut draft: InsertedSegmentDraft,
+    prompt_output_language: PromptOutputLanguage,
+) -> Result<InsertedSegmentDraft, AppError> {
+    draft.title = required_text(draft.title, "插入片段草稿 title")?;
+    draft.scene_summary = required_text(draft.scene_summary, "插入片段草稿 scene_summary")?;
+    draft.visual_prompt = provider_prompt_text(
+        draft.visual_prompt,
+        "visual_prompt",
+        prompt_output_language,
+        crate::video::MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+    )?;
+    draft.motion_prompt = provider_prompt_text(
+        draft.motion_prompt,
+        "motion_prompt",
+        prompt_output_language,
+        crate::video::MIN_PROVIDER_MOTION_PROMPT_CHARS,
+    )?;
+    draft.negative_prompt = required_text(draft.negative_prompt, "插入片段草稿 negative_prompt")?;
+    validate_optional_prompt_text(&draft.negative_prompt, "插入片段草稿 negative_prompt")?;
+    Ok(draft)
+}
+
+fn provider_prompt_text(
+    value: String,
+    field_key: &str,
+    prompt_output_language: PromptOutputLanguage,
+    min_chars: usize,
+) -> Result<String, AppError> {
+    crate::video::provider_prompt_text_rules::validate_provider_model_text_for_context(
+        &value,
+        field_key,
+        "插入片段草稿",
+        prompt_output_language,
+        min_chars,
+        false,
+    )
+    .map(str::to_string)
+    .map_err(AppError::InvalidArgument)
 }
 
 fn validate_prompt_text_density(
