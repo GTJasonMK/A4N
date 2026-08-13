@@ -8,6 +8,7 @@ use super::super::summaries::{
 };
 use crate::AppState;
 use crate::actions::{access, app_error_message};
+use a4n_domain::project::ProjectKind;
 use a4n_orchestrator::collaboration::{AccessibleProjectListInput, ProjectAccessScope};
 use a4n_orchestrator::project::project_list_offset;
 
@@ -62,9 +63,15 @@ pub async fn list_projects(
             user_id,
             offset,
             limit: page_size,
-            project_kind: project_kind.map(str::to_string),
+            project_kind: project_kind
+                .map(|value| {
+                    ProjectKind::parse(value).ok_or_else(|| format!("项目族类型无效: {value}"))
+                })
+                .transpose()?,
             root_project_id,
-            access_scope: ProjectAccessScope::from_optional(access_scope)
+            access_scope: access_scope
+                .unwrap_or("all")
+                .parse::<ProjectAccessScope>()
                 .map_err(|error| error.to_string())?,
         })
         .await

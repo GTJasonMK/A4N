@@ -1,21 +1,9 @@
 use crate::AppState;
 use crate::actions::app_error_message;
-pub use a4n_orchestrator::collaboration::{ProjectInviteSummary, ProjectMemberSummary};
-use a4n_orchestrator::collaboration::{ProjectMemberRole, parse_project_member_role};
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct InviteProjectMemberInput {
-    pub username_or_email: String,
-    pub role: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateProjectMemberRoleInput {
-    pub role: String,
-}
+pub use a4n_api_contract::collaboration::{
+    InviteProjectMemberInput, ProjectInviteSummary, ProjectMemberSummary,
+    UpdateProjectMemberRoleInput,
+};
 
 pub async fn list_project_members(
     state: &AppState,
@@ -34,11 +22,10 @@ pub async fn invite_project_member(
     user_id: i64,
     project_id: i64,
     input: InviteProjectMemberInput,
-) -> Result<ProjectInviteSummary, String> {
-    let role = parse_role(&input.role)?;
+) -> Result<(), String> {
     state
         .orchestrator()
-        .invite_project_member(user_id, project_id, &input.username_or_email, role)
+        .invite_project_member(user_id, project_id, &input.username_or_email, input.role)
         .await
         .map_err(app_error_message)
 }
@@ -70,7 +57,7 @@ pub async fn accept_project_invite(
     state: &AppState,
     user_id: i64,
     invite_id: i64,
-) -> Result<ProjectMemberSummary, String> {
+) -> Result<(), String> {
     state
         .orchestrator()
         .accept_project_invite(user_id, invite_id)
@@ -82,7 +69,7 @@ pub async fn decline_project_invite(
     state: &AppState,
     user_id: i64,
     invite_id: i64,
-) -> Result<ProjectInviteSummary, String> {
+) -> Result<(), String> {
     state
         .orchestrator()
         .decline_project_invite(user_id, invite_id)
@@ -95,7 +82,7 @@ pub async fn revoke_project_invite(
     user_id: i64,
     project_id: i64,
     invite_id: i64,
-) -> Result<ProjectInviteSummary, String> {
+) -> Result<(), String> {
     state
         .orchestrator()
         .revoke_project_invite(user_id, project_id, invite_id)
@@ -109,11 +96,10 @@ pub async fn update_project_member_role(
     project_id: i64,
     member_user_id: i64,
     input: UpdateProjectMemberRoleInput,
-) -> Result<ProjectMemberSummary, String> {
-    let role = parse_role(&input.role)?;
+) -> Result<(), String> {
     state
         .orchestrator()
-        .update_project_member_role(user_id, project_id, member_user_id, role)
+        .update_project_member_role(user_id, project_id, member_user_id, input.role)
         .await
         .map_err(app_error_message)
 }
@@ -137,8 +123,4 @@ pub async fn leave_project(state: &AppState, user_id: i64, project_id: i64) -> R
         .leave_project(user_id, project_id)
         .await
         .map_err(app_error_message)
-}
-
-fn parse_role(value: &str) -> Result<ProjectMemberRole, String> {
-    parse_project_member_role(value).map_err(|error| error.to_string())
 }

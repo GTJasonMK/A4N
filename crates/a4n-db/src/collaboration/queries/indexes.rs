@@ -5,6 +5,7 @@ use a4n_core::models::{
     user::user,
 };
 use chrono::Utc;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
@@ -12,7 +13,7 @@ use std::collections::HashMap;
 
 pub(in crate::collaboration) fn accessible_member_condition(root_ids: &[i64]) -> Condition {
     if root_ids.is_empty() {
-        Condition::all().add(novel_project::Column::Id.eq(-1))
+        Condition::all().add(Expr::value(false))
     } else {
         Condition::any()
             .add(novel_project::Column::Id.is_in(root_ids.to_vec()))

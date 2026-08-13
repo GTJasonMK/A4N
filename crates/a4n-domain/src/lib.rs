@@ -83,6 +83,8 @@ pub enum DomainError {
     InvalidVideoDurationMode { value: String },
     #[error("未知项目协作角色: {value}")]
     InvalidProjectMemberRole { value: String },
+    #[error("项目访问范围无效: {value}")]
+    InvalidProjectAccessScope { value: String },
     #[error("未知画布节点引用类型: {value}")]
     InvalidCanvasNodeRefKind { value: String },
 }

@@ -18,6 +18,21 @@ pub enum ProjectAccessScope {
     Collaborating,
 }
 
+impl FromStr for ProjectAccessScope {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "all" => Ok(Self::All),
+            "owned" => Ok(Self::Owned),
+            "collaborating" => Ok(Self::Collaborating),
+            _ => Err(DomainError::InvalidProjectAccessScope {
+                value: value.to_string(),
+            }),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectAccessRole {
@@ -109,4 +124,48 @@ pub struct ProjectInviteSummary {
     pub inviter_username: String,
     pub invitee_username: String,
     pub role: ProjectMemberRole,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn access_roles_follow_the_single_permission_hierarchy() {
+        assert!(ProjectAccessRole::Owner.satisfies(ProjectAccessRole::Editor));
+        assert!(ProjectAccessRole::Manager.satisfies(ProjectAccessRole::Viewer));
+        assert!(ProjectAccessRole::Editor.satisfies(ProjectAccessRole::Editor));
+        assert!(!ProjectAccessRole::Viewer.satisfies(ProjectAccessRole::Editor));
+        assert!(!ProjectAccessRole::Editor.satisfies(ProjectAccessRole::Manager));
+    }
+
+    #[test]
+    fn access_scope_parser_rejects_defaults_and_whitespace() {
+        assert_eq!(
+            "all".parse::<ProjectAccessScope>().expect("all scope"),
+            ProjectAccessScope::All
+        );
+        assert_eq!(
+            "owned".parse::<ProjectAccessScope>().expect("owned scope"),
+            ProjectAccessScope::Owned
+        );
+        assert_eq!(
+            "collaborating"
+                .parse::<ProjectAccessScope>()
+                .expect("collaborating scope"),
+            ProjectAccessScope::Collaborating
+        );
+        assert!("".parse::<ProjectAccessScope>().is_err());
+        assert!(" owned ".parse::<ProjectAccessScope>().is_err());
+    }
+
+    #[test]
+    fn member_role_parser_rejects_owner_and_whitespace() {
+        assert_eq!(
+            "editor".parse::<ProjectMemberRole>().expect("editor role"),
+            ProjectMemberRole::Editor
+        );
+        assert!("owner".parse::<ProjectMemberRole>().is_err());
+        assert!(" editor ".parse::<ProjectMemberRole>().is_err());
+    }
 }

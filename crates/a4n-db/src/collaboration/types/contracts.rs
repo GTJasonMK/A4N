@@ -1,30 +1,30 @@
-use super::scope::ProjectAccessScope;
+use super::{ProjectAccessRole, ProjectAccessScope};
 use a4n_core::models::project::novel_project;
-use serde::{Deserialize, Serialize};
+use a4n_domain::project::ProjectKind;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct AccessibleProjectListInput {
     pub user_id: i64,
     pub offset: u64,
     pub limit: u64,
-    pub project_kind: Option<String>,
+    pub project_kind: Option<ProjectKind>,
     pub root_project_id: Option<i64>,
     pub access_scope: ProjectAccessScope,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct AccessibleProjectsPage {
     pub items: Vec<novel_project::Model>,
     pub total: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CollaborationRootProject {
     pub id: i64,
     pub user_id: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectAccessInfoQuery {
     pub project_id: i64,
     pub root_project_id: Option<i64>,
@@ -39,43 +39,11 @@ impl ProjectAccessInfoQuery {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectAccessInfo {
     pub collaboration_root_project_id: i64,
-    pub owner_user_id: i64,
-    pub owner_username: Option<String>,
-    pub my_role: Option<String>,
+    pub owner_username: String,
+    pub my_role: ProjectAccessRole,
     pub member_count: u64,
     pub pending_invite_count: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectMemberSummary {
-    pub project_id: i64,
-    pub user_id: i64,
-    pub username: String,
-    pub email: String,
-    pub role: String,
-    pub is_owner: bool,
-    pub invited_by_user_id: Option<i64>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectInviteSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub project_title: Option<String>,
-    pub inviter_user_id: i64,
-    pub inviter_username: Option<String>,
-    pub invitee_user_id: i64,
-    pub invitee_username: Option<String>,
-    pub invitee_email: Option<String>,
-    pub role: String,
-    pub status: String,
-    pub expires_at: String,
-    pub accepted_at: Option<String>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
 }

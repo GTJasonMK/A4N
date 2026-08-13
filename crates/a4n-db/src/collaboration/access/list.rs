@@ -5,7 +5,7 @@ use sea_orm::{
 
 use super::super::{
     AccessibleProjectListInput, AccessibleProjectsPage, CollaborationDbError, ProjectAccessScope,
-    accessible_member_condition, member_root_ids, normalize_project_kind, validate_positive_i64,
+    accessible_member_condition, member_root_ids, validate_positive_i64,
 };
 use sea_orm::DatabaseConnection;
 
@@ -14,9 +14,8 @@ pub async fn list_accessible_projects(
     input: AccessibleProjectListInput,
 ) -> Result<AccessibleProjectsPage, CollaborationDbError> {
     let mut condition = accessible_project_condition(db, input.user_id, input.access_scope).await?;
-    if let Some(kind) = input.project_kind.as_deref() {
-        condition =
-            condition.add(novel_project::Column::ProjectKind.eq(normalize_project_kind(kind)?));
+    if let Some(kind) = input.project_kind {
+        condition = condition.add(novel_project::Column::ProjectKind.eq(kind.as_str()));
     }
     if let Some(root_project_id) = input.root_project_id {
         validate_positive_i64(root_project_id, "root_project_id")?;

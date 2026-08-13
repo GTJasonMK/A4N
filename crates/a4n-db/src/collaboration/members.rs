@@ -19,31 +19,22 @@ pub async fn list_project_members(
         .get(&root.user_id)
         .ok_or_else(|| CollaborationDbError::Internal(format!("用户不存在: {}", root.user_id)))?;
     let mut members = vec![ProjectMemberSummary {
-        project_id: root.id,
         user_id: owner.id,
         username: owner.username.clone(),
         email: owner.email.clone(),
-        role: ProjectAccessRole::Owner.as_str().to_string(),
-        is_owner: true,
-        invited_by_user_id: None,
-        created_at: Some(root.created_at.to_string()),
-        updated_at: Some(root.updated_at.to_string()),
+        role: ProjectAccessRole::Owner,
     }];
 
     for row in rows {
-        if let Some(user) = users_by_id.get(&row.user_id) {
-            members.push(ProjectMemberSummary {
-                project_id: root.id,
-                user_id: row.user_id,
-                username: user.username.clone(),
-                email: user.email.clone(),
-                role: row.role,
-                is_owner: false,
-                invited_by_user_id: Some(row.invited_by_user_id),
-                created_at: Some(row.created_at.to_string()),
-                updated_at: Some(row.updated_at.to_string()),
-            });
-        }
+        let user = users_by_id.get(&row.user_id).ok_or_else(|| {
+            CollaborationDbError::Internal(format!("协作者用户不存在: {}", row.user_id))
+        })?;
+        members.push(ProjectMemberSummary {
+            user_id: row.user_id,
+            username: user.username.clone(),
+            email: user.email.clone(),
+            role: parse_stored_member_role(&row.role)?.into(),
+        });
     }
     Ok(members)
 }
@@ -54,7 +45,7 @@ pub async fn update_project_member_role(
     project_id: i64,
     member_user_id: i64,
     role: ProjectMemberRole,
-) -> Result<ProjectMemberSummary, CollaborationDbError> {
+) -> Result<(), CollaborationDbError> {
     let actor_role =
         verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager)
             .await?;
@@ -65,7 +56,7 @@ pub async fn update_project_member_role(
         ));
     }
     let member = find_member(db, root.id, member_user_id).await?;
-    let current_role = parse_project_member_role(&member.role)?;
+    let current_role = parse_stored_member_role(&member.role)?;
     if actor_role != ProjectAccessRole::Owner
         && (current_role == ProjectMemberRole::Manager || role == ProjectMemberRole::Manager)
     {
@@ -77,11 +68,11 @@ pub async fn update_project_member_role(
     let mut active: project_member::ActiveModel = member.into();
     active.role = Set(role.as_str().to_string());
     active.updated_at = Set(now);
-    let updated = active
+    active
         .update(db)
         .await
         .map_err(CollaborationDbError::Database)?;
-    member_summary(db, updated).await
+    Ok(())
 }
 
 pub async fn remove_project_member(
@@ -100,7 +91,7 @@ pub async fn remove_project_member(
         ));
     }
     let member = find_member(db, root.id, member_user_id).await?;
-    let current_role = parse_project_member_role(&member.role)?;
+    let current_role = parse_stored_member_role(&member.role)?;
     if actor_role != ProjectAccessRole::Owner && current_role == ProjectMemberRole::Manager {
         return Err(CollaborationDbError::Forbidden(
             "manager 不能移除其他 manager".to_string(),
@@ -124,9 +115,8 @@ pub async fn leave_project(
             "项目所有者不能离开自己的项目".to_string(),
         ));
     }
-    project_member::Entity::delete_many()
-        .filter(project_member::Column::ProjectId.eq(root.id))
-        .filter(project_member::Column::UserId.eq(user_id))
+    let member = find_member(db, root.id, user_id).await?;
+    project_member::Entity::delete_by_id(member.id)
         .exec(db)
         .await
         .map_err(CollaborationDbError::Database)?;

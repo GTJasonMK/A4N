@@ -1,7 +1,4 @@
-use a4n_api_contract::{
-    collaboration::ProjectAccessRole,
-    project::{ProjectKind, ProjectStatus},
-};
+use a4n_api_contract::project::{ProjectKind, ProjectStatus};
 use a4n_core::models::project::novel_project;
 use a4n_orchestrator::collaboration::ProjectAccessInfo;
 use a4n_orchestrator::project::ProjectFamilyMetadata;
@@ -22,18 +19,6 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
             project.id, project.project_kind
         )
     })?;
-    let owner_username = info
-        .owner_username
-        .clone()
-        .ok_or_else(|| format!("项目 #{} 缺少所有者用户名", project.id))?;
-    let my_role = match info.my_role.as_deref() {
-        Some("owner") => ProjectAccessRole::Owner,
-        Some("manager") => ProjectAccessRole::Manager,
-        Some("editor") => ProjectAccessRole::Editor,
-        Some("viewer") => ProjectAccessRole::Viewer,
-        Some(role) => return Err(format!("项目 #{} 的访问角色无效: {role}", project.id)),
-        None => return Err(format!("项目 #{} 缺少当前用户访问角色", project.id)),
-    };
     Ok(ProjectSummary {
         id: project.id,
         title: project.title.clone(),
@@ -51,8 +36,8 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
         target_chapters: project.target_chapters,
         total_chapters: project.total_chapters,
         chapters_per_part: project.chapters_per_part,
-        owner_username,
-        my_role,
+        owner_username: info.owner_username.clone(),
+        my_role: info.my_role,
         collaboration_root_project_id: info.collaboration_root_project_id,
         member_count: info.member_count,
         pending_invite_count: info.pending_invite_count,

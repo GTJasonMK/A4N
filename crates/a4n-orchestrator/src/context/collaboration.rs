@@ -100,7 +100,7 @@ impl CollaborationApplication {
         project_id: i64,
         username_or_email: &str,
         role: ProjectMemberRole,
-    ) -> Result<ProjectInviteSummary, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::collaboration::invite_project_member(
             self.database.connection(),
             inviter_user_id,
@@ -135,21 +135,13 @@ impl CollaborationApplication {
             .map_err(collaboration_db_error_to_app_error)
     }
 
-    async fn accept_project_invite(
-        &self,
-        user_id: i64,
-        invite_id: i64,
-    ) -> Result<ProjectMemberSummary, AppError> {
+    async fn accept_project_invite(&self, user_id: i64, invite_id: i64) -> Result<(), AppError> {
         a4n_db::collaboration::accept_project_invite(self.database.connection(), user_id, invite_id)
             .await
             .map_err(collaboration_db_error_to_app_error)
     }
 
-    async fn decline_project_invite(
-        &self,
-        user_id: i64,
-        invite_id: i64,
-    ) -> Result<ProjectInviteSummary, AppError> {
+    async fn decline_project_invite(&self, user_id: i64, invite_id: i64) -> Result<(), AppError> {
         a4n_db::collaboration::decline_project_invite(
             self.database.connection(),
             user_id,
@@ -164,7 +156,7 @@ impl CollaborationApplication {
         actor_user_id: i64,
         project_id: i64,
         invite_id: i64,
-    ) -> Result<ProjectInviteSummary, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::collaboration::revoke_project_invite(
             self.database.connection(),
             actor_user_id,
@@ -195,7 +187,7 @@ impl CollaborationApplication {
         project_id: i64,
         member_user_id: i64,
         role: ProjectMemberRole,
-    ) -> Result<ProjectMemberSummary, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::collaboration::update_project_member_role(
             self.database.connection(),
             actor_user_id,
@@ -293,7 +285,7 @@ impl OrchestratorContext {
         project_id: i64,
         username_or_email: &str,
         role: ProjectMemberRole,
-    ) -> Result<ProjectInviteSummary, AppError> {
+    ) -> Result<(), AppError> {
         self.collaboration
             .invite_project_member(inviter_user_id, project_id, username_or_email, role)
             .await
@@ -320,7 +312,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         invite_id: i64,
-    ) -> Result<ProjectMemberSummary, AppError> {
+    ) -> Result<(), AppError> {
         self.collaboration
             .accept_project_invite(user_id, invite_id)
             .await
@@ -330,7 +322,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         invite_id: i64,
-    ) -> Result<ProjectInviteSummary, AppError> {
+    ) -> Result<(), AppError> {
         self.collaboration
             .decline_project_invite(user_id, invite_id)
             .await
@@ -341,7 +333,7 @@ impl OrchestratorContext {
         actor_user_id: i64,
         project_id: i64,
         invite_id: i64,
-    ) -> Result<ProjectInviteSummary, AppError> {
+    ) -> Result<(), AppError> {
         self.collaboration
             .revoke_project_invite(actor_user_id, project_id, invite_id)
             .await
@@ -363,7 +355,7 @@ impl OrchestratorContext {
         project_id: i64,
         member_user_id: i64,
         role: ProjectMemberRole,
-    ) -> Result<ProjectMemberSummary, AppError> {
+    ) -> Result<(), AppError> {
         self.collaboration
             .update_project_member_role(actor_user_id, project_id, member_user_id, role)
             .await

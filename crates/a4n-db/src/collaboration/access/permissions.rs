@@ -5,8 +5,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::super::{
     CollaborationDbError, ProjectAccessRole, effective_role_for_root, find_user,
-    member_role_to_project_access_role, projects_by_id, validate_collaboration_root,
-    validate_positive_i64,
+    parse_stored_member_role, projects_by_id, validate_collaboration_root, validate_positive_i64,
 };
 use super::roots::resolve_root_project_model;
 
@@ -90,7 +89,7 @@ pub async fn verify_project_permissions(
     for member in members {
         member_roles.insert(
             member.project_id,
-            member_role_to_project_access_role(&member.role)?,
+            parse_stored_member_role(&member.role)?.into(),
         );
     }
 

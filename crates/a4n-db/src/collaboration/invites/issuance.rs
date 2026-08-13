@@ -1,8 +1,7 @@
 use crate::collaboration::{
     CollaborationDbError, INVITE_STATUS_PENDING, INVITE_TTL_DAYS, ProjectAccessRole,
-    ProjectInviteSummary, ProjectMemberRole, expire_project_invites, expire_user_invites,
-    find_user_by_identity, invite_summaries, invite_summary, resolve_root_project_model,
-    verify_project_permission,
+    ProjectInviteSummary, ProjectMemberRole, expire_project_invites, find_user_by_identity,
+    invite_summaries, resolve_root_project_model, verify_project_permission,
 };
 use a4n_core::models::project::{project_invite, project_member};
 use chrono::{Duration, Utc};
@@ -16,7 +15,7 @@ pub async fn invite_project_member(
     project_id: i64,
     username_or_email: &str,
     role: ProjectMemberRole,
-) -> Result<ProjectInviteSummary, CollaborationDbError> {
+) -> Result<(), CollaborationDbError> {
     let inviter_role =
         verify_project_permission(db, project_id, inviter_user_id, ProjectAccessRole::Manager)
             .await?;
@@ -71,7 +70,7 @@ pub async fn invite_project_member(
     }
 
     let now = Utc::now().naive_utc();
-    let invite = project_invite::ActiveModel {
+    project_invite::ActiveModel {
         project_id: Set(root.id),
         inviter_user_id: Set(inviter_user_id),
         invitee_user_id: Set(invitee.id),
@@ -86,7 +85,7 @@ pub async fn invite_project_member(
     .insert(db)
     .await
     .map_err(CollaborationDbError::Database)?;
-    invite_summary(db, invite).await
+    Ok(())
 }
 
 pub async fn list_project_invites(
@@ -96,9 +95,10 @@ pub async fn list_project_invites(
 ) -> Result<Vec<ProjectInviteSummary>, CollaborationDbError> {
     verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager).await?;
     let root = resolve_root_project_model(db, project_id).await?;
-    expire_project_invites(db, root.id).await?;
     let invites = project_invite::Entity::find()
         .filter(project_invite::Column::ProjectId.eq(root.id))
+        .filter(project_invite::Column::Status.eq(INVITE_STATUS_PENDING))
+        .filter(project_invite::Column::ExpiresAt.gt(Utc::now().naive_utc()))
         .order_by_desc(project_invite::Column::CreatedAt)
         .all(db)
         .await
@@ -110,7 +110,6 @@ pub async fn list_my_project_invites(
     db: &DatabaseConnection,
     user_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, CollaborationDbError> {
-    expire_user_invites(db, user_id).await?;
     let invites = project_invite::Entity::find()
         .filter(project_invite::Column::InviteeUserId.eq(user_id))
         .filter(project_invite::Column::Status.eq(INVITE_STATUS_PENDING))

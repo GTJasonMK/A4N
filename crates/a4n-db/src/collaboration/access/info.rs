@@ -4,10 +4,9 @@ use a4n_core::models::{project::project_member, user::role::ROLE_READ_ONLY};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::super::{
-    ACCESS_ROLE_OWNER, CollaborationDbError, MEMBER_ROLE_VIEWER, ProjectAccessInfo,
-    ProjectAccessInfoQuery, find_user, member_role_to_access_role, pending_invite_counts_by_root,
-    projects_by_id, role_satisfies_manager, users_by_id, validate_collaboration_root,
-    validate_positive_i64,
+    CollaborationDbError, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, find_user,
+    parse_stored_member_role, pending_invite_counts_by_root, projects_by_id, users_by_id,
+    validate_collaboration_root, validate_positive_i64,
 };
 
 pub async fn project_access_info(
@@ -57,11 +56,14 @@ pub async fn project_access_info_batch(
         .await
         .map_err(CollaborationDbError::Database)?;
     let mut member_counts: HashMap<i64, u64> = HashMap::new();
-    let mut member_roles: HashMap<i64, String> = HashMap::new();
+    let mut member_roles = HashMap::new();
     for member in members {
         *member_counts.entry(member.project_id).or_insert(0) += 1;
         if member.user_id == user_id {
-            member_roles.insert(member.project_id, member_role_to_access_role(&member.role)?);
+            member_roles.insert(
+                member.project_id,
+                parse_stored_member_role(&member.role)?.into(),
+            );
         }
     }
 
@@ -76,14 +78,16 @@ pub async fn project_access_info_batch(
     for root_id in &root_ids {
         let root = roots_by_id.get(root_id).expect("root was validated above");
         let mut role = if root.user_id == user_id {
-            Some(ACCESS_ROLE_OWNER.to_string())
+            ProjectAccessRole::Owner
         } else {
-            member_roles.get(root_id).cloned()
+            member_roles.get(root_id).copied().ok_or_else(|| {
+                CollaborationDbError::Forbidden(format!("无权访问项目: {root_id}"))
+            })?
         };
-        if user.role == ROLE_READ_ONLY && role.is_some() {
-            role = Some(MEMBER_ROLE_VIEWER.to_string());
+        if user.role == ROLE_READ_ONLY {
+            role = ProjectAccessRole::Viewer;
         }
-        if role.as_deref().map(role_satisfies_manager).unwrap_or(false) {
+        if role.satisfies(ProjectAccessRole::Manager) {
             manager_root_ids.push(*root_id);
         }
         role_by_root.insert(*root_id, role);
@@ -94,22 +98,18 @@ pub async fn project_access_info_batch(
     for query in queries {
         let root_id = query.root_project_id.unwrap_or(query.project_id);
         let root = roots_by_id.get(&root_id).expect("root was validated above");
-        let role = role_by_root.get(&root_id).cloned().flatten();
+        let role = *role_by_root.get(&root_id).expect("role was resolved above");
+        let owner = owners_by_id.get(&root.user_id).ok_or_else(|| {
+            CollaborationDbError::Internal(format!("项目所有者不存在: {}", root.user_id))
+        })?;
         infos.insert(
             query.project_id,
             ProjectAccessInfo {
                 collaboration_root_project_id: root.id,
-                owner_user_id: root.user_id,
-                owner_username: owners_by_id
-                    .get(&root.user_id)
-                    .map(|owner| owner.username.clone()),
-                my_role: role.clone(),
+                owner_username: owner.username.clone(),
+                my_role: role,
                 member_count: member_counts.get(&root.id).copied().unwrap_or(0),
-                pending_invite_count: if role
-                    .as_deref()
-                    .map(role_satisfies_manager)
-                    .unwrap_or(false)
-                {
+                pending_invite_count: if role.satisfies(ProjectAccessRole::Manager) {
                     Some(pending_invite_counts.get(&root.id).copied().unwrap_or(0))
                 } else {
                     None
