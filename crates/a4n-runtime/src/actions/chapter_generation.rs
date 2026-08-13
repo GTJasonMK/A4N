@@ -19,16 +19,6 @@ pub use a4n_orchestrator::chapter_generation::{
     PreviewChapterGenerationInput as PreviewChapterPromptInput,
 };
 
-pub async fn start_chapter_generation(
-    state: &AppState,
-    user_id: i64,
-    input: StartChapterGenerationInput,
-) -> Result<GenerationTaskHandle, String> {
-    start_chapter_generation_typed(state, user_id, input)
-        .await
-        .map_err(|error| error.to_string())
-}
-
 pub async fn start_chapter_generation_typed(
     state: &AppState,
     user_id: i64,

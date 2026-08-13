@@ -187,7 +187,8 @@ impl OrchestratorContext {
                 )
                 .await);
         }
-        execution.complete_queue_task().await
+        execution.finish();
+        Ok(())
     }
 
     async fn execute_video_generation_operation<H>(

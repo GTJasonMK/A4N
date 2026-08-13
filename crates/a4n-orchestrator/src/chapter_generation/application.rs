@@ -13,8 +13,7 @@ use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
-    GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
-    ProgressPhaseKind, StreamTextHash,
+    GenerationError, GenerationResultRef, GenerationTaskStatus, ProgressPhaseKind, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -29,11 +28,12 @@ use crate::{
     context::GenerationTaskExecution,
     generation::{
         checkpoint::GenerationCheckpointMetadata,
-        events::{GenerationEventPublisher, GenerationSessionError},
+        events::GenerationEventPublisher,
         generation_finish_reason_text as shared_generation_finish_reason_text,
-        generation_progress as chapter_progress, generation_public_error,
+        generation_progress as chapter_progress, generation_public_error, generation_session_error,
+        generation_terminal_error,
         stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation},
-        terminal::{CompletionDescriptor, GenerationTerminalError},
+        terminal::CompletionDescriptor,
     },
     workflow::workflow_checkpoint_contract_app_error,
 };
@@ -158,11 +158,7 @@ impl OrchestratorContext {
                     execution,
                     None,
                     None,
-                    generation_error_from_text(
-                        "generation_request_invalid",
-                        "chapter_prepare",
-                        error,
-                    ),
+                    generation_public_error("generation_request_invalid", "chapter_prepare", error),
                 )
                 .await;
             }
@@ -182,7 +178,7 @@ impl OrchestratorContext {
                 execution,
                 None,
                 None,
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -199,7 +195,7 @@ impl OrchestratorContext {
                     execution,
                     None,
                     None,
-                    generation_error_from_app(
+                    generation_public_error(
                         "generation_validation_failed",
                         "chapter_prepare",
                         error,
@@ -230,11 +226,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     None,
-                    generation_error_from_text(
-                        "generation_request_invalid",
-                        "chapter_prepare",
-                        error,
-                    ),
+                    generation_public_error("generation_request_invalid", "chapter_prepare", error),
                 )
                 .await;
             }
@@ -254,7 +246,7 @@ impl OrchestratorContext {
                 execution,
                 Some(Arc::clone(&chapter_session)),
                 None,
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -271,11 +263,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     None,
-                    generation_error_from_app(
-                        "generation_request_invalid",
-                        "chapter_prompt",
-                        error,
-                    ),
+                    generation_public_error("generation_request_invalid", "chapter_prompt", error),
                 )
                 .await;
             }
@@ -295,7 +283,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     None,
-                    generation_error_from_text(
+                    generation_public_error(
                         "generation_request_invalid",
                         "chapter_prompt",
                         error.to_string(),
@@ -326,11 +314,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     None,
-                    generation_error_from_text(
-                        "generation_persist_failed",
-                        "chapter_workflow",
-                        error,
-                    ),
+                    generation_public_error("generation_persist_failed", "chapter_workflow", error),
                 )
                 .await;
             }
@@ -356,11 +340,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     Some(workflow_run_id),
-                    generation_error_from_app(
-                        "generation_request_invalid",
-                        "chapter_prompt",
-                        error,
-                    ),
+                    generation_public_error("generation_request_invalid", "chapter_prompt", error),
                 )
                 .await;
             }
@@ -394,7 +374,7 @@ impl OrchestratorContext {
                 execution,
                 Some(Arc::clone(&chapter_session)),
                 Some(workflow_run_id),
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -439,7 +419,7 @@ impl OrchestratorContext {
                 execution,
                 Some(Arc::clone(&chapter_session)),
                 Some(workflow_run_id),
-                generation_error_from_text(
+                generation_public_error(
                     "generation_checkpoint_unavailable",
                     "checkpoint",
                     error.to_string(),
@@ -461,7 +441,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     Some(workflow_run_id),
-                    generation_error_from_app(
+                    generation_public_error(
                         "generation_validation_failed",
                         "chapter_validate",
                         error,
@@ -490,7 +470,7 @@ impl OrchestratorContext {
                     execution,
                     Some(Arc::clone(&chapter_session)),
                     Some(workflow_run_id),
-                    generation_error_from_text(
+                    generation_public_error(
                         "generation_source_revalidation_failed",
                         "chapter_source_revalidate",
                         error,
@@ -509,7 +489,7 @@ impl OrchestratorContext {
                 execution,
                 Some(Arc::clone(&chapter_session)),
                 Some(workflow_run_id),
-                generation_error_from_text(
+                generation_public_error(
                     "generation_source_changed",
                     "chapter_source_revalidate",
                     error,
@@ -517,7 +497,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let finish_reason_text = generation_finish_reason_text(output.finish_reason);
+        let finish_reason_text = shared_generation_finish_reason_text(output.finish_reason);
         if let Err(error) =
             save_completed_chapter_generation_checkpoint(ChapterGenerationCheckpointSaveInput {
                 service: &chapter_service,
@@ -537,7 +517,7 @@ impl OrchestratorContext {
                 execution,
                 Some(Arc::clone(&chapter_session)),
                 Some(workflow_run_id),
-                generation_error_from_app("generation_persist_failed", "chapter_checkpoint", error),
+                generation_public_error("generation_persist_failed", "chapter_checkpoint", error),
             )
             .await;
         }
@@ -623,12 +603,12 @@ impl OrchestratorContext {
                 execution,
                 Some(chapter_session),
                 Some(workflow_run_id),
-                generation_error_from_terminal(error),
+                generation_terminal_error(error),
             )
             .await;
         }
 
-        execution.complete_queue_task().await?;
+        execution.finish();
         let chapter_id = chapter_id.load(Ordering::Acquire);
         if chapter_id <= 0 {
             return Err("generation completed 但缺少章节结果 id".to_string());
@@ -1303,26 +1283,6 @@ fn chapter_generation_failure_outcome(
     } else {
         crate::workflow::WorkflowRunFinalizeOutcome::Failed
     }
-}
-
-fn generation_error_from_app(code: &str, stage_code: &str, error: AppError) -> GenerationError {
-    generation_error_from_text(code, stage_code, error.to_string())
-}
-
-fn generation_error_from_session(error: GenerationSessionError) -> GenerationError {
-    generation_error_from_text(error.code(), "checkpoint", error.to_string())
-}
-
-fn generation_error_from_terminal(error: GenerationTerminalError) -> GenerationError {
-    generation_error_from_text(error.code(), "persist", error.to_string())
-}
-
-fn generation_error_from_text(code: &str, stage_code: &str, message: String) -> GenerationError {
-    generation_public_error(code, stage_code, message)
-}
-
-fn generation_finish_reason_text(reason: GenerationFinishReason) -> String {
-    shared_generation_finish_reason_text(reason)
 }
 
 fn check_optional_cancelled(cancel_token: Option<&CancellationToken>) -> Result<(), String> {

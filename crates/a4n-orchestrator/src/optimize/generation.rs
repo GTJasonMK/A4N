@@ -3,11 +3,7 @@ use std::sync::Arc;
 use a4n_core::error::AppError;
 use a4n_service_protocol::{GenerationError, GenerationTaskStatus, GenerationUsage};
 
-use crate::generation::{
-    events::{GenerationSessionError, GenerationTaskSession},
-    generation_public_error,
-    terminal::GenerationTerminalError,
-};
+use crate::generation::{events::GenerationTaskSession, generation_public_error};
 
 use super::AgentLoopExecutionError;
 
@@ -17,18 +13,6 @@ pub(in crate::optimize) struct GenerationStreamCompletion {
     pub(in crate::optimize) raw_utf8_bytes: u64,
     pub(in crate::optimize) raw_sha256: String,
     pub(in crate::optimize) final_usage: Option<GenerationUsage>,
-}
-
-pub(in crate::optimize) fn generation_error_from_session(
-    error: GenerationSessionError,
-) -> GenerationError {
-    generation_public_error(error.code(), "checkpoint", error)
-}
-
-pub(in crate::optimize) fn generation_error_from_terminal(
-    error: GenerationTerminalError,
-) -> GenerationError {
-    generation_public_error(error.code(), "persist", error)
 }
 
 pub(in crate::optimize) fn agent_loop_error_to_generation_error(

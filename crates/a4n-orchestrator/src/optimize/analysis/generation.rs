@@ -12,11 +12,13 @@ use sha2::{Digest, Sha256};
 use crate::{
     OrchestratorContext,
     context::GenerationTaskExecution,
-    generation::{checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher},
+    generation::{
+        checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher,
+        generation_session_error, generation_terminal_error,
+    },
     optimize::{
         AgentLoopGenerationContext, agent_loop_error_to_generation_error,
-        app_error_to_generation_error, generation_error_from_session,
-        generation_error_from_terminal, generation_stream_completion, is_generation_cancelled,
+        app_error_to_generation_error, generation_stream_completion, is_generation_cancelled,
         optimize_db_error, optimize_progress,
     },
     workflow::WorkflowRunFinalizeOutcome,
@@ -72,7 +74,7 @@ impl OrchestratorContext {
                 input.session_id,
                 None,
                 None,
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -235,12 +237,12 @@ impl OrchestratorContext {
                 input.session_id,
                 Some(workflow.id),
                 Some(turn_id),
-                generation_error_from_terminal(error),
+                generation_terminal_error(error),
             )
             .await;
         }
 
-        execution.complete_queue_task().await?;
+        execution.finish();
         self.finalize_workflow_run_outcome_validated(
             workflow.id,
             WorkflowRunFinalizeOutcome::Completed,

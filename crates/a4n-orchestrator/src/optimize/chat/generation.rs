@@ -14,14 +14,13 @@ use crate::{
     OrchestratorContext,
     context::GenerationTaskExecution,
     generation::{
-        checkpoint::GenerationCheckpointMetadata,
-        events::{GenerationEventPublisher, GenerationSessionError},
-        generation_progress as optimize_progress, generation_public_error,
-        terminal::{CompletionDescriptor, GenerationTerminalError},
+        checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher,
+        generation_public_error, generation_session_error, generation_terminal_error,
+        terminal::CompletionDescriptor,
     },
     optimize::{
-        AgentLoopExecutionError, AgentLoopGenerationContext, OptimizeAgentPermissions,
-        OptimizeSendUserMessageInput,
+        AgentLoopGenerationContext, OptimizeAgentPermissions, OptimizeSendUserMessageInput,
+        agent_loop_error_to_generation_error, app_error_to_generation_error, optimize_progress,
     },
     workflow::WorkflowRunFinalizeOutcome,
 };
@@ -90,7 +89,7 @@ impl OrchestratorContext {
                 execution,
                 None,
                 None,
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -267,12 +266,12 @@ impl OrchestratorContext {
                 execution,
                 Some(workflow.id),
                 Some(pending.turn_id),
-                generation_error_from_terminal(error),
+                generation_terminal_error(error),
             )
             .await;
         }
 
-        execution.complete_queue_task().await?;
+        execution.finish();
         self.finalize_workflow_run_outcome_validated(
             workflow.id,
             WorkflowRunFinalizeOutcome::Completed,
@@ -329,37 +328,4 @@ async fn fail_optimize_generation_execution(
         ));
     }
     Err(message)
-}
-
-fn generation_error_from_session(error: GenerationSessionError) -> GenerationError {
-    generation_public_error(error.code(), "checkpoint", error)
-}
-
-fn generation_error_from_terminal(error: GenerationTerminalError) -> GenerationError {
-    generation_public_error(error.code(), "persist", error)
-}
-
-fn agent_loop_error_to_generation_error(error: AgentLoopExecutionError) -> GenerationError {
-    match error {
-        AgentLoopExecutionError::Generation(error) => error,
-        AgentLoopExecutionError::App(error) => app_error_to_generation_error(error, "agent_loop"),
-    }
-}
-
-fn app_error_to_generation_error(error: AppError, stage_code: &str) -> GenerationError {
-    let (code, stage) = match error {
-        AppError::Cancelled => ("generation_interrupted", "provider_stream"),
-        AppError::LlmError(_) | AppError::Timeout(_) => ("provider_job_failed", "provider_stream"),
-        AppError::Database(_) | AppError::Serialization(_) => {
-            ("generation_persist_failed", "persist")
-        }
-        AppError::Forbidden(_) | AppError::Unauthorized(_) | AppError::NotFound(_) => {
-            ("generation_task_forbidden", stage_code)
-        }
-        AppError::InvalidArgument(_) | AppError::InvalidState { .. } => {
-            ("generation_request_invalid", stage_code)
-        }
-        _ => ("generation_persist_failed", stage_code),
-    };
-    generation_public_error(code, stage, error)
 }

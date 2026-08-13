@@ -13,8 +13,9 @@ use a4n_db::generation::{
     ProjectLifecycleOperation, ReserveGenerationTaskInput, begin_project_lifecycle_gate,
     canonical_json_sha256, expire_generation_snapshot_bodies, extend_generation_sequence_lease,
     list_active_generation_task_checkpoints, list_generation_task_history_checkpoints,
-    load_generation_task, persist_generation_checkpoint, persist_generation_terminal,
-    purge_expired_generation_task_trees, reserve_generation_task, restore_project_lifecycle_gate,
+    load_generation_task, persist_generation_checkpoint, persist_generation_status_changed,
+    persist_generation_terminal, purge_expired_generation_task_trees, reserve_generation_task,
+    restore_project_lifecycle_gate,
 };
 use a4n_db::workflow::{
     ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
@@ -429,10 +430,29 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
         Some(canonical_json_sha256(&execution).unwrap().as_str())
     );
     assert_eq!(loaded.checkpoint.execution_checkpoint_json, Some(execution));
-    assert_eq!(
-        loaded.public_snapshot.unwrap().status,
-        GenerationTaskStatus::Reserved
-    );
+    let mut running_snapshot = loaded.public_snapshot.unwrap();
+    assert_eq!(running_snapshot.status, GenerationTaskStatus::Reserved);
+    running_snapshot.covers_through_sequence += 1;
+    running_snapshot.status = GenerationTaskStatus::Running;
+    running_snapshot.updated_at_ms = Utc::now().timestamp_millis();
+    persist_generation_status_changed(
+        &db,
+        a4n_db::generation::PersistGenerationLifecycleInput {
+            task_id: running_snapshot.task_id.clone(),
+            attempt: running_snapshot.attempt,
+            expected_checkpoint_revision: loaded.checkpoint.checkpoint_revision,
+            expected_status: GenerationTaskStatus::Reserved,
+            public_snapshot: running_snapshot,
+        },
+    )
+    .await
+    .unwrap();
+    let running_queue = task_queue::Entity::find_by_id(first.task.checkpoint.task_id.clone())
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(running_queue.status, "running");
     let claim =
         begin_project_lifecycle_gate(&db, project.id, user.id, ProjectLifecycleOperation::Reset)
             .await
@@ -487,12 +507,22 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
             task_id: terminal_snapshot.task_id.clone(),
             attempt: terminal_snapshot.attempt,
             expected_checkpoint_revision: loaded.checkpoint.checkpoint_revision,
-            expected_status: GenerationTaskStatus::Reserved,
+            expected_status: GenerationTaskStatus::Running,
             public_snapshot: terminal_snapshot,
         },
     )
     .await
     .unwrap();
+    let interrupted_queue = task_queue::Entity::find_by_id(first.task.checkpoint.task_id.clone())
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(interrupted_queue.status, "interrupted");
+    assert_eq!(
+        interrupted_queue.error_message.as_deref(),
+        Some("TTL persistence test")
+    );
     db.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "UPDATE generation_task_checkpoint SET expires_at = NOW() WHERE task_id = $1",

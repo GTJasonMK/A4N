@@ -19,14 +19,14 @@ use crate::{
     context::GenerationTaskExecution,
     generation::{
         checkpoint::GenerationCheckpointMetadata,
-        events::{GenerationEventPublisher, GenerationSessionError},
+        events::GenerationEventPublisher,
         generation_finish_reason_text, generation_progress as inspiration_progress,
-        generation_public_error,
+        generation_public_error, generation_session_error, generation_terminal_error,
         stream::{
             LlmGenerationCheckpoint, LlmGenerationOutput, LlmGenerationRequest,
             execute_llm_generation,
         },
-        terminal::{CompletionDescriptor, GenerationTerminalError},
+        terminal::CompletionDescriptor,
     },
     workflow::WorkflowRunFinalizeOutcome,
 };
@@ -110,7 +110,7 @@ impl OrchestratorContext {
                 self,
                 execution,
                 None,
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -219,7 +219,7 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow.id),
-                    generation_error_from_session(error),
+                    generation_session_error(error),
                 )
                 .await;
             }
@@ -285,7 +285,7 @@ impl OrchestratorContext {
                 self,
                 execution,
                 Some(workflow.id),
-                generation_error_from_session(error),
+                generation_session_error(error),
             )
             .await;
         }
@@ -377,12 +377,12 @@ impl OrchestratorContext {
                 self,
                 execution,
                 Some(workflow.id),
-                generation_error_from_terminal(error),
+                generation_terminal_error(error),
             )
             .await;
         }
 
-        execution.complete_queue_task().await?;
+        execution.finish();
         self.finalize_workflow_run_outcome_validated(
             workflow.id,
             WorkflowRunFinalizeOutcome::Completed,
@@ -420,12 +420,4 @@ async fn fail_inspiration_generation_execution(
         ));
     }
     Err(message)
-}
-
-fn generation_error_from_session(error: GenerationSessionError) -> GenerationError {
-    generation_public_error(error.code(), "checkpoint", error)
-}
-
-fn generation_error_from_terminal(error: GenerationTerminalError) -> GenerationError {
-    generation_public_error(error.code(), "persist", error)
 }

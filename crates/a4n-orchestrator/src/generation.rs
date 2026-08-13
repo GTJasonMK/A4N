@@ -144,6 +144,16 @@ pub(crate) fn generation_public_error(
     }
 }
 
+pub(crate) fn generation_session_error(error: events::GenerationSessionError) -> GenerationError {
+    generation_public_error(error.code(), "checkpoint", error)
+}
+
+pub(crate) fn generation_terminal_error(
+    error: terminal::GenerationTerminalError,
+) -> GenerationError {
+    generation_public_error(error.code(), "persist", error)
+}
+
 pub(crate) fn generation_progress(
     stage_code: &str,
     phase_kind: ProgressPhaseKind,

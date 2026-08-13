@@ -82,7 +82,7 @@ impl OrchestratorContext {
                     self,
                     execution,
                     None,
-                    app_generation_error(
+                    generation_public_error(
                         "generation_request_invalid",
                         "blueprint_refine_prepare",
                         error,
@@ -129,7 +129,7 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error(code, "blueprint_refine_call", error),
+                    generation_public_error(code, "blueprint_refine_call", error),
                 )
                 .await;
             }
@@ -231,7 +231,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        execution.complete_queue_task().await?;
+        execution.finish();
         let outcome = completion_slot
             .lock()
             .map_err(|_| "蓝图优化结果槽位损坏".to_string())?
@@ -291,8 +291,4 @@ async fn fail_blueprint_refinement_execution(
         message.push_str(&format!("; 记录蓝图优化 workflow 终态失败: {error}"));
     }
     Err(message)
-}
-
-fn app_generation_error(code: &str, stage_code: &str, error: impl ToString) -> GenerationError {
-    generation_public_error(code, stage_code, error)
 }

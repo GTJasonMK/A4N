@@ -40,7 +40,6 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use serde_json::Value;
 use std::sync::Arc;
-use tokio_util::sync::CancellationToken;
 
 use super::OrchestratorContext;
 use crate::generation::{
@@ -131,7 +130,6 @@ pub(crate) struct GenerationTaskExecution {
     pub(crate) publisher: SessionGenerationEventPublisher,
     pub(crate) checkpoint_writer: GenerationCheckpointWriter,
     pub(crate) terminal: GenerationTerminalCoordinator,
-    pub(crate) queue: Arc<PersistentTaskQueue>,
     pub(crate) permit: TaskPermit,
 }
 
@@ -173,15 +171,16 @@ impl GenerationTaskExecution {
                 )
                 .await);
         }
-        self.complete_queue_task().await
+        self.finish();
+        Ok(())
     }
 
-    pub(crate) async fn complete_queue_task(self) -> Result<(), String> {
-        let task_id = self.permit.task_id().to_string();
-        self.queue
-            .complete_generation_task(self.permit)
-            .await
-            .map_err(|error| format!("generation queue 完成投影失败 ({task_id}): {error}"))
+    pub(crate) fn finish(self) {
+        settle_generation_permit(
+            self.permit,
+            self.session.snapshot().status,
+            "generation task execution 已结束".to_string(),
+        );
     }
 
     pub(crate) async fn fail(self, error: GenerationError) -> String {
@@ -197,7 +196,6 @@ impl GenerationTaskExecution {
         let Self {
             session,
             terminal,
-            queue,
             permit,
             ..
         } = self;
@@ -225,35 +223,25 @@ impl GenerationTaskExecution {
             }
         };
         let final_status = session.snapshot().status;
-        let task_id = permit.task_id().to_string();
-        let queue_result = match final_status {
-            GenerationTaskStatus::Completed => queue.complete_generation_task(permit).await,
-            GenerationTaskStatus::Cancelled => {
-                let result = queue.project_generation_terminal(&task_id, TaskStatus::Cancelled);
-                permit.cancel();
-                result
-            }
-            GenerationTaskStatus::Interrupted => {
-                let result = queue.project_generation_terminal(
-                    &task_id,
-                    TaskStatus::Interrupted {
-                        reason: Some(error.message.clone()),
-                    },
-                );
-                permit.interrupt(Some(error.message.clone()));
-                result
-            }
-            _ => queue.fail_generation_task(permit, &error.message).await,
-        };
+        settle_generation_permit(permit, final_status, error.message.clone());
 
         let mut message = error.message;
         if let Err(terminal_error) = terminal_result {
             message.push_str(&format!("; generation 终态写入失败: {terminal_error}"));
         }
-        if let Err(queue_error) = queue_result {
-            message.push_str(&format!("; generation queue 终态投影失败: {queue_error}"));
-        }
         message
+    }
+}
+
+fn settle_generation_permit(permit: TaskPermit, status: GenerationTaskStatus, message: String) {
+    match status {
+        GenerationTaskStatus::Completed => permit.complete(),
+        GenerationTaskStatus::Cancelled => permit.cancel(),
+        GenerationTaskStatus::Interrupted => permit.interrupt(Some(message)),
+        GenerationTaskStatus::Failed => permit.fail(message),
+        status => permit.fail(format!(
+            "{message}; generation lifecycle 未进入终态: {status:?}"
+        )),
     }
 }
 
@@ -271,6 +259,27 @@ fn snapshot_text_hashes(streams: &[TextStreamSnapshot]) -> Vec<StreamTextHash> {
 #[cfg(test)]
 mod completion_hash_tests {
     use super::*;
+
+    fn settled_permit_status(status: GenerationTaskStatus) -> TaskStatus {
+        let settled = Arc::new(std::sync::Mutex::new(None));
+        let observed = Arc::clone(&settled);
+        let permit = TaskPermit::new(
+            "00000000-0000-4000-8000-000000000001".to_string(),
+            TaskKind::LlmCall,
+            TaskPriority::High,
+            Box::new(move |status| {
+                *observed.lock().expect("permit status mutex poisoned") = Some(status);
+            }),
+        );
+
+        settle_generation_permit(permit, status, "terminal summary".to_string());
+
+        Arc::try_unwrap(settled)
+            .expect("permit status observer still shared")
+            .into_inner()
+            .expect("permit status mutex poisoned")
+            .expect("permit was not settled")
+    }
 
     #[test]
     fn completion_hashes_cover_every_snapshot_stream() {
@@ -297,6 +306,30 @@ mod completion_hash_tests {
             assert_eq!(hash.utf8_bytes, stream.next_offset);
             assert_eq!(hash.sha256, stream.sha256);
         }
+    }
+
+    #[test]
+    fn generation_permit_settlement_mirrors_terminal_status() {
+        assert!(matches!(
+            settled_permit_status(GenerationTaskStatus::Completed),
+            TaskStatus::Completed
+        ));
+        assert!(matches!(
+            settled_permit_status(GenerationTaskStatus::Failed),
+            TaskStatus::Failed { error } if error == "terminal summary"
+        ));
+        assert!(matches!(
+            settled_permit_status(GenerationTaskStatus::Cancelled),
+            TaskStatus::Cancelled
+        ));
+        assert!(matches!(
+            settled_permit_status(GenerationTaskStatus::Interrupted),
+            TaskStatus::Interrupted { reason: Some(reason) } if reason == "terminal summary"
+        ));
+        assert!(matches!(
+            settled_permit_status(GenerationTaskStatus::Running),
+            TaskStatus::Failed { error } if error.contains("未进入终态: Running")
+        ));
     }
 }
 
@@ -986,7 +1019,7 @@ impl GenerationApplication {
             .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
         let Some(permit) = self
             .task_queue
-            .acquire_generation_task_with_cancel(&handle.task_id, CancellationToken::new())
+            .acquire_generation_task(&handle.task_id)
             .await
             .map_err(GenerationTaskAccessError::Queue)?
         else {
@@ -1008,13 +1041,16 @@ impl GenerationApplication {
                         self.database.shared_connection(),
                     ),
                     terminal: self.terminal.clone(),
-                    queue: Arc::clone(&self.task_queue),
                     permit,
                 }))
             }
             Ok(GenerationTerminalWriteOutcome::AlreadyTerminal)
             | Ok(GenerationTerminalWriteOutcome::NoLiveSession) => {
-                permit.cancel();
+                settle_generation_permit(
+                    permit,
+                    session.snapshot().status,
+                    "generation task 在取得执行权前已结束".to_string(),
+                );
                 Ok(None)
             }
             Err(error) => {
@@ -1444,7 +1480,14 @@ impl GenerationApplication {
             GenerationTaskStatus::Interrupted => TaskStatus::Interrupted {
                 reason: Some("generation task interrupted".to_string()),
             },
-            _ => return Ok(()),
+            status => {
+                return Err(GenerationTerminalError::QueueSignal(
+                    AppError::InvalidState {
+                        current: format!("{status:?}"),
+                        operation: "投影 generation 终态到内存队列".to_string(),
+                    },
+                ));
+            }
         };
         self.task_queue
             .project_generation_terminal(&snapshot.task_id, status)

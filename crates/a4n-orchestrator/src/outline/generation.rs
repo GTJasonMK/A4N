@@ -246,7 +246,8 @@ impl OrchestratorContext {
             )
             .await;
         }
-        execution.complete_queue_task().await
+        execution.finish();
+        Ok(())
     }
 
     async fn ensure_outline_part_project(

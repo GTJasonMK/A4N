@@ -90,26 +90,33 @@ impl OrchestratorContext {
                     self,
                     execution,
                     None,
-                    app_generation_error("generation_persist_failed", "blueprint_workflow", error),
+                    generation_public_error(
+                        "generation_persist_failed",
+                        "blueprint_workflow",
+                        error,
+                    ),
                 )
                 .await;
             }
         };
         let workflow_run_id = workflow.id;
-        let expected_source_snapshot = match blueprint_generation_source_snapshot(self, project_id)
-            .await
-        {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                return fail_blueprint_generation_execution(
-                    self,
-                    execution,
-                    Some(workflow_run_id),
-                    app_generation_error("generation_persist_failed", "blueprint_prepare", error),
-                )
-                .await;
-            }
-        };
+        let expected_source_snapshot =
+            match blueprint_generation_source_snapshot(self, project_id).await {
+                Ok(snapshot) => snapshot,
+                Err(error) => {
+                    return fail_blueprint_generation_execution(
+                        self,
+                        execution,
+                        Some(workflow_run_id),
+                        generation_public_error(
+                            "generation_persist_failed",
+                            "blueprint_prepare",
+                            error,
+                        ),
+                    )
+                    .await;
+                }
+            };
 
         if let Err(error) = publish_blueprint_progress(
             &publisher,
@@ -133,7 +140,7 @@ impl OrchestratorContext {
                 self,
                 execution,
                 Some(workflow_run_id),
-                app_generation_error("generation_interrupted", "blueprint_prepare", error),
+                generation_public_error("generation_interrupted", "blueprint_prepare", error),
             )
             .await;
         }
@@ -148,7 +155,11 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error("generation_request_invalid", "blueprint_prompt", error),
+                    generation_public_error(
+                        "generation_request_invalid",
+                        "blueprint_prompt",
+                        error,
+                    ),
                 )
                 .await;
             }
@@ -165,7 +176,11 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error("generation_request_invalid", "blueprint_prepare", error),
+                    generation_public_error(
+                        "generation_request_invalid",
+                        "blueprint_prepare",
+                        error,
+                    ),
                 )
                 .await;
             }
@@ -177,7 +192,11 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error("generation_request_invalid", "blueprint_prepare", error),
+                    generation_public_error(
+                        "generation_request_invalid",
+                        "blueprint_prepare",
+                        error,
+                    ),
                 )
                 .await;
             }
@@ -213,7 +232,11 @@ impl OrchestratorContext {
                             self,
                             execution,
                             Some(workflow_run_id),
-                            app_generation_error("generation_validation_failed", spec.key, error),
+                            generation_public_error(
+                                "generation_validation_failed",
+                                spec.key,
+                                error,
+                            ),
                         )
                         .await;
                     }
@@ -245,7 +268,7 @@ impl OrchestratorContext {
                         self,
                         execution,
                         Some(workflow_run_id),
-                        app_generation_error(code, spec.key, error),
+                        generation_public_error(code, spec.key, error),
                     )
                     .await;
                 }
@@ -307,7 +330,7 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error(
+                    generation_public_error(
                         "generation_validation_failed",
                         "blueprint_assemble",
                         error,
@@ -323,7 +346,7 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error(
+                    generation_public_error(
                         "generation_validation_failed",
                         "blueprint_validate",
                         error,
@@ -352,7 +375,7 @@ impl OrchestratorContext {
                     self,
                     execution,
                     Some(workflow_run_id),
-                    app_generation_error("generation_request_invalid", "blueprint_trace", error),
+                    generation_public_error("generation_request_invalid", "blueprint_trace", error),
                 )
                 .await;
             }
@@ -426,7 +449,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        execution.complete_queue_task().await?;
+        execution.finish();
         let outcome = completion_slot
             .lock()
             .map_err(|_| "蓝图生成结果槽位损坏".to_string())?
@@ -530,8 +553,4 @@ async fn fail_blueprint_generation_execution(
         message.push_str(&format!("; 记录蓝图 workflow 终态失败: {error}"));
     }
     Err(message)
-}
-
-fn app_generation_error(code: &str, stage_code: &str, error: impl ToString) -> GenerationError {
-    generation_public_error(code, stage_code, error)
 }
