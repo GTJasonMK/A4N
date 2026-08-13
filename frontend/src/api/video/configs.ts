@@ -149,7 +149,6 @@ export async function removeVideoConfig(configId: Id): Promise<void> {
 
 export async function setDefaultServerVideoConfig(configId: Id): Promise<void> {
   return apiInvoke<void>("set_default_video_config", {
-    callerUserId: requireCurrentUserId(),
     configId: videoConfigId(configId),
   });
 }

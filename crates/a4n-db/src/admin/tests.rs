@@ -1,12 +1,12 @@
 use std::error::Error;
 
 use a4n_core::models::task::task_queue;
-use a4n_core::models::user::{invite_code, llm_usage_log, theme_config, user};
+use a4n_core::models::user::{llm_usage_log, theme_config};
 use chrono::{NaiveDate, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, Set};
 
 use super::overview::find_active_global_theme;
-use super::resources::{admin_user_summary, invite_code_summary, priority_rank};
+use super::resources::priority_rank;
 use super::usage::{usage_trends_since, validate_positive_i64};
 use super::{AdminDbError, admin_overview_summary};
 
@@ -84,68 +84,6 @@ fn priority_rank_orders_semantic_task_priorities() {
     let mut priorities = ["urgent", "low", "medium", "high"];
     priorities.sort_by_key(|priority| priority_rank(priority));
     assert_eq!(priorities, ["high", "medium", "low", "urgent"]);
-}
-
-#[test]
-fn admin_user_summary_uses_username_as_display_name() {
-    let now = NaiveDate::from_ymd_opt(2026, 1, 2)
-        .unwrap()
-        .and_hms_opt(3, 4, 5)
-        .unwrap();
-    let user = user::Model {
-        id: 7,
-        username: "alice".to_string(),
-        email: "alice@example.com".to_string(),
-        password_hash: "hash".to_string(),
-        role: "admin".to_string(),
-        oauth_provider: Some("github".to_string()),
-        oauth_subject: Some("42".to_string()),
-        avatar_url: Some("https://example.com/avatar.png".to_string()),
-        is_active: true,
-        lifecycle_gate: "active".to_string(),
-        created_at: now,
-        updated_at: now,
-        last_login_at: Some(now),
-    };
-
-    let summary = admin_user_summary(&user);
-
-    assert_eq!(summary.id, 7);
-    assert_eq!(summary.username, "alice");
-    assert_eq!(summary.display_name.as_deref(), Some("alice"));
-    assert_eq!(
-        summary.last_login_at.as_deref(),
-        Some("2026-01-02 03:04:05")
-    );
-}
-
-#[test]
-fn invite_code_summary_preserves_usage_metadata() {
-    let now = NaiveDate::from_ymd_opt(2026, 1, 2)
-        .unwrap()
-        .and_hms_opt(3, 4, 5)
-        .unwrap();
-    let used_at = NaiveDate::from_ymd_opt(2026, 1, 3)
-        .unwrap()
-        .and_hms_opt(6, 7, 8)
-        .unwrap();
-    let code = invite_code::Model {
-        id: 11,
-        code: "INVITE".to_string(),
-        created_by_user_id: Some(1),
-        used_by_user_id: Some(2),
-        created_at: now,
-        used_at: Some(used_at),
-    };
-
-    let summary = invite_code_summary(&code);
-
-    assert_eq!(summary.id, 11);
-    assert_eq!(summary.code, "INVITE");
-    assert_eq!(summary.created_by_user_id, Some(1));
-    assert_eq!(summary.used_by_user_id, Some(2));
-    assert_eq!(summary.created_at.as_deref(), Some("2026-01-02 03:04:05"));
-    assert_eq!(summary.used_at.as_deref(), Some("2026-01-03 06:07:08"));
 }
 
 async fn insert_theme(

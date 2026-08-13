@@ -1,6 +1,8 @@
 use super::StoragePathsSummary;
 use crate::AppState;
+use crate::actions::admin_records::{AdminPermission, require_admin_permission};
 use a4n_core::config::app_config::portable_home_dir;
+use a4n_core::error::AppError;
 use std::path::{Path, PathBuf};
 
 pub fn data_dir_path(data_dir: &Path) -> PathBuf {
@@ -15,9 +17,13 @@ pub fn frontend_state_file_path(state: &AppState) -> PathBuf {
     state.app_paths().frontend_state_file()
 }
 
-pub fn get_storage_paths(state: &AppState) -> StoragePathsSummary {
+pub async fn get_storage_paths(
+    state: &AppState,
+    caller_user_id: i64,
+) -> Result<StoragePathsSummary, AppError> {
+    require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings).await?;
     let paths = state.app_paths();
-    StoragePathsSummary {
+    Ok(StoragePathsSummary {
         application_home: path_to_string(portable_home_dir()),
         data_dir: path_to_string(&paths.data_dir),
         config_file: path_to_string(&paths.config_file),
@@ -40,7 +46,7 @@ pub fn get_storage_paths(state: &AppState) -> StoragePathsSummary {
         qdrant_url: std::env::var("A4N_QDRANT_URL").unwrap_or_else(|_| String::new()),
         qdrant_collection: std::env::var("A4N_QDRANT_COLLECTION")
             .unwrap_or_else(|_| "a4n_rag".to_string()),
-    }
+    })
 }
 
 pub(super) fn path_to_string(path: impl AsRef<Path>) -> String {

@@ -53,12 +53,22 @@ const NATIVE_TAURI_COMMANDS = new Set([
   "read_recent_logs",
   "set_log_level",
 ]);
+const NATIVE_USER_CONTEXT_COMMANDS = new Set([
+  "get_log_dir",
+  "read_recent_logs",
+  "set_log_level",
+]);
 
 export async function runtimeInvoke<T>(
   cmd: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  if (NATIVE_TAURI_COMMANDS.has(cmd)) return tauriInvoke<T>(cmd, args);
+  if (NATIVE_TAURI_COMMANDS.has(cmd)) {
+    const nativeArgs = NATIVE_USER_CONTEXT_COMMANDS.has(cmd)
+      ? { ...args, callerUserId: requireCurrentUserId() }
+      : args;
+    return tauriInvoke<T>(cmd, nativeArgs);
+  }
   return tauriInvoke<T>("invoke_host_command", {
     command: cmd,
     args: args ?? {},

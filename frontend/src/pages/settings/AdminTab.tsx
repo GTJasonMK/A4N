@@ -62,12 +62,12 @@ export const AdminTab: React.FC = () => {
       </div>
 
       <div className="custom-scrollbar min-h-0 overflow-visible md:flex-1 md:overflow-y-auto md:pr-2">
-        {section === "overview" && <OverviewSection callerUserId={user.id} />}
-        {section === "users" && <UsersSection callerUserId={user.id} />}
-        {section === "projects" && <ProjectsSection callerUserId={user.id} />}
-        {section === "tasks" && <TasksSection callerUserId={user.id} />}
+        {section === "overview" && <OverviewSection />}
+        {section === "users" && <UsersSection currentUserId={user.id} />}
+        {section === "projects" && <ProjectsSection />}
+        {section === "tasks" && <TasksSection />}
         {section === "api" && <ApiConfigSection />}
-        {section === "trends" && <TrendsSection callerUserId={user.id} />}
+        {section === "trends" && <TrendsSection />}
       </div>
     </div>
   );

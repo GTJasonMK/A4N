@@ -9,8 +9,6 @@ import { getProjectProgressText } from "../../utils/projectStatus";
 import {
   getProjectHomeEntryLabel,
   getProjectHomeEntryRoute,
-  getProjectPrimaryLabel,
-  getProjectPrimaryRoute,
   getProjectWorkspaceLabel,
   getProjectWorkspaceRoute,
 } from "../../utils/projectRouting";
@@ -175,8 +173,8 @@ const ProjectRow: React.FC<{
   const hasActionItems = actions.some((item) => !("type" in item && item.type === "divider"));
   const entryLabel = getProjectHomeEntryLabel(project);
   const entryRoute = getProjectHomeEntryRoute(project);
-  const workspaceLabel = getProjectWorkspaceLabel(project) || getProjectPrimaryLabel(project);
-  const workspaceRoute = getProjectWorkspaceRoute(project) || getProjectPrimaryRoute(project);
+  const workspaceLabel = getProjectWorkspaceLabel(project);
+  const workspaceRoute = getProjectWorkspaceRoute(project);
   const lifecycleBlockedReason = projectLifecycleBlockedReason(project);
   const lifecycleLabel =
     project.lifecycle_gate === "resetting"

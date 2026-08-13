@@ -1,4 +1,4 @@
-use super::{CleanupOrphanProjectDataDirsInput, OrphanProjectDataDirsSummary, scanning};
+use super::{OrphanProjectDataDirsSummary, scanning};
 use crate::{
     AppState,
     actions::{
@@ -80,9 +80,9 @@ pub async fn list_orphan_project_data_dirs(
 
 pub async fn cleanup_orphan_project_data_dirs(
     state: &AppState,
-    input: CleanupOrphanProjectDataDirsInput,
+    caller_user_id: i64,
 ) -> Result<OrphanProjectDataDirsSummary, String> {
-    require_admin_permission(state, input.caller_user_id, AdminPermission::ManageSettings)
+    require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
         .await
         .map_err(|error| error.to_string())?;
     remove_unowned_project_data_dirs(state).await

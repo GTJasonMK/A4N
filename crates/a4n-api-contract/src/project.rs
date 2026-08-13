@@ -5,7 +5,7 @@ use serde_json::Value;
 use crate::collaboration::ProjectAccessRole;
 pub use a4n_domain::project::{
     AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
-    AssetLineageRecord, AssetLineageRef, GenerationInputSource, GenerationRunSnapshot,
+    AssetLineageRecord, AssetLineageRef, GenerationInputSource, GenerationRunSnapshot, ProjectKind,
     ProjectProgressStatus, ProjectProgressSummary, ProjectRollbackImpactSummary,
     ProjectRollbackPreview, ProjectStatus, ProjectStatusHistorySummary,
     ProjectStatusMachineSummary, PromptSource,
@@ -18,7 +18,7 @@ pub struct ProjectSummary {
     pub description: String,
     pub lifecycle_gate: String,
     pub project_type: String,
-    pub project_kind: String,
+    pub project_kind: ProjectKind,
     pub source_mode: String,
     pub root_project_id: Option<i64>,
     pub source_sync_status: String,

@@ -4,9 +4,9 @@ use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
 use crate::admin::{
-    AdminDbError, AdminOverviewSummary, AdminPermission, AdminUserSummary, DailyUsagePoint,
-    GenerationCallAnalytics, GenerationCallAnalyticsInput, InviteCodeSummary, ProjectSummary,
-    TaskQueueSummary, UsageLogSummary, UsageTrendsInput, require_admin_role,
+    AdminDbError, AdminOverviewSummary, AdminPermission, AdminProjectSummary, DailyUsagePoint,
+    GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, UsageLogSummary,
+    UsageTrendsInput, require_admin_role,
 };
 
 #[derive(Clone)]
@@ -40,18 +40,6 @@ impl AdminApplication {
             .map_err(admin_db_error)
     }
 
-    async fn all_user_summaries(&self) -> Result<Vec<AdminUserSummary>, AppError> {
-        a4n_db::admin::all_user_summaries(self.database.connection())
-            .await
-            .map_err(admin_db_error)
-    }
-
-    async fn invite_code_summaries(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
-        a4n_db::admin::invite_code_summaries(self.database.connection())
-            .await
-            .map_err(admin_db_error)
-    }
-
     async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
         a4n_db::admin::token_summary(self.database.connection(), user_id)
             .await
@@ -64,7 +52,7 @@ impl AdminApplication {
             .map_err(admin_db_error)
     }
 
-    async fn all_project_summaries(&self) -> Result<Vec<ProjectSummary>, AppError> {
+    async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
         a4n_db::admin::all_project_summaries(self.database.connection())
             .await
             .map_err(admin_db_error)
@@ -126,14 +114,6 @@ impl OrchestratorContext {
         self.admin.user_usage(user_id, limit).await
     }
 
-    pub async fn all_user_summaries(&self) -> Result<Vec<AdminUserSummary>, AppError> {
-        self.admin.all_user_summaries().await
-    }
-
-    pub async fn invite_code_summaries(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
-        self.admin.invite_code_summaries().await
-    }
-
     pub async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
         self.admin.token_summary(user_id).await
     }
@@ -142,7 +122,7 @@ impl OrchestratorContext {
         self.admin.pending_tasks().await
     }
 
-    pub async fn all_project_summaries(&self) -> Result<Vec<ProjectSummary>, AppError> {
+    pub async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
         self.admin.all_project_summaries().await
     }
 

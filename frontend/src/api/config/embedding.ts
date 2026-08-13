@@ -44,7 +44,6 @@ export async function setDefaultEmbeddingConfig(configId: Id): Promise<void> {
     return;
   }
   return apiInvoke<void>("set_default_embedding_config", {
-    callerUserId: requireCurrentUserId(),
     configId: idNum(configId, "Embedding 配置 ID"),
   });
 }

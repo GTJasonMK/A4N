@@ -8,13 +8,13 @@ import {
 } from "./projectRouting";
 
 describe("project type labels", () => {
-  it("accepts canonical and legacy project_type values", () => {
+  it("accepts only canonical project_type values", () => {
     expect(
       ["novel_long", "novel_short", "script", "prose"].map(getProjectTypeLabel),
     ).toEqual(["长篇小说", "短篇故事", "剧本", "散文"]);
 
     expect(["novel", "text", "video", "comic", "manga", "galgame"].map(getProjectTypeLabel))
-      .toEqual(["文本项目", "文本项目", "视频项目", "漫画项目", "漫画项目", "GALGame 项目"]);
+      .toEqual(["未知类型", "未知类型", "未知类型", "未知类型", "未知类型", "未知类型"]);
     expect(getProjectTypeLabel("")).toBe("未知类型");
   });
 });

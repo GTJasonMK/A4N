@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import {
@@ -11,12 +11,12 @@ import {
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 
-export const OverviewSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
+export const OverviewSection: React.FC = () => {
   const [overview, setOverview] = useState<AdminOverviewSummary | null>(null);
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
   const loadOverview = useCallback(
-    () => Promise.all([getAdminOverview(callerUserId), healthCheck(callerUserId)]),
-    [callerUserId],
+    () => Promise.all([getAdminOverview(), healthCheck()]),
+    [],
   );
   const applyOverview = useCallback(
     ([nextOverview, nextHealth]: [AdminOverviewSummary, AdminHealthCheck]) => {
@@ -26,16 +26,11 @@ export const OverviewSection: React.FC<{ callerUserId: number }> = ({ callerUser
     [],
   );
   const { loading, load } = useAdminSectionLoader(
-    callerUserId,
+    "admin-overview",
     loadOverview,
     applyOverview,
     "加载失败",
   );
-
-  useEffect(() => {
-    setOverview(null);
-    setHealth(null);
-  }, [callerUserId]);
 
   return (
     <div className="flex flex-col gap-3">

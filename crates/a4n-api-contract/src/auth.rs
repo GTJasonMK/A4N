@@ -3,30 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
 
-/// Web/Tauri 用户摘要。
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct UserSummary {
-    pub id: i64,
-    pub username: String,
-    pub email: String,
-    pub role: String,
-    pub oauth_provider: Option<String>,
-    pub oauth_subject: Option<String>,
-    pub avatar_url: Option<String>,
-    pub is_active: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub display_name: Option<String>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-    pub last_login_at: Option<String>,
-}
-
-impl UserSummary {
-    pub fn with_display_name(mut self) -> Self {
-        self.display_name = Some(self.username.clone());
-        self
-    }
-}
+pub use a4n_domain::auth::UserSummary;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]

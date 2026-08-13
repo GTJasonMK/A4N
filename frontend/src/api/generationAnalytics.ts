@@ -16,11 +16,9 @@ export type {
 } from "./generated/host";
 
 export async function getGenerationCallAnalytics(
-  callerUserId: number,
   input: GenerationCallAnalyticsInput,
 ): Promise<GenerationCallAnalytics> {
   return apiInvoke<GenerationCallAnalytics>("get_generation_call_analytics", {
-    callerUserId,
     input,
   });
 }

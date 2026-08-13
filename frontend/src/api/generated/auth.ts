@@ -4,7 +4,6 @@
 export interface UserSummary {
   avatar_url: string | null;
   created_at: string | null;
-  display_name: string | null;
   email: string;
   id: number;
   is_active: boolean;

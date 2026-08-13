@@ -204,7 +204,6 @@ impl CommandSpec {
 
 const NO_CONTEXT: &[&str] = &[];
 const USER_CONTEXT: &[&str] = &["userId"];
-const CALLER_CONTEXT: &[&str] = &["callerUserId"];
 const PROJECT_CONTEXT: &[&str] = &["projectId"];
 const CHAPTER_CONTEXT: &[&str] = &["chapterId"];
 const PROJECT_CHAPTER_CONTEXT: &[&str] = &["projectId", "chapterId"];
@@ -217,7 +216,7 @@ const PUBLIC_IDENTITY: Identity = Identity {
 };
 const ADMIN_IDENTITY: Identity = Identity {
     auth: "admin",
-    context_fields: CALLER_CONTEXT,
+    context_fields: NO_CONTEXT,
 };
 const READ_EFFECT: Effect = Effect {
     effect: "read",
@@ -300,7 +299,7 @@ command_specs! {
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
     "bind_manga_reference_image" => args_bind_manga_reference_image, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
     "branch_project" => args_opaque, result_opaque, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
-    "cancel_admin_task" => args_opaque, result_opaque, "task", identity(ADMIN_IDENTITY), context(USER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "cancel_admin_task" => args_task_id, result_unit, "task", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_embedding_model_download" => args_cancel_embedding_model_download, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "cancel_galgame_pipeline" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
     "cancel_generation_task" => args_cancel_generation_task, result_generation_task_handle, "task", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -313,14 +312,14 @@ command_specs! {
     "check_implicit_update" => args_check_implicit_update, result_check_implicit_update, "profile", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "check_import_dedup" => args_check_import_dedup, result_dedup, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "check_profile_sync_conflict" => args_check_profile_sync_conflict, result_check_profile_sync_conflict, "profile", effect(READ_EFFECT);
-    "cleanup_orphan_project_data_dirs" => args_cleanup_orphan_project_data_dirs, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "cleanup_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "commit_inserted_segment_draft" => args_commit_inserted_segment_draft, result_video_timeline, "video";
     "confirm_reverse_engineering_candidate" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "create_derived_project" => args_create_derived_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
     "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_freeform_video_project" => args_create_freeform_video_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
-    "create_invite_code" => args_opaque, result_opaque, "collaboration", identity(ADMIN_IDENTITY);
+    "create_invite_code" => args_create_invite_code, result_opaque, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
     "create_object_profile" => args_create_object_profile, result_object_profile_mutation, "profile";
     "create_optimization_analysis_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -358,7 +357,7 @@ command_specs! {
     "detect_video_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "diff_blueprint_versions" => args_diff_blueprint_versions, result_diff_blueprint_versions, "blueprint", effect(READ_EFFECT);
     "diff_profile_chapters" => args_diff_profile_chapters, result_diff_profile_chapters, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
-    "disable_user" => args_opaque, result_opaque, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
+    "disable_user" => args_user_id, result_unit, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "discover_character_profiles" => args_opaque, result_opaque, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "download_embedding_model" => args_download_embedding_model, result_download_embedding_model, "rag", execution("task"), capabilities(CAPABILITIES_EMBEDDING);
     "duplicate_project" => args_duplicate_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
@@ -385,7 +384,7 @@ command_specs! {
     "generate_object_profile_image_prompt" => args_generate_object_profile_image_prompt, result_object_profile_image_prompt, "profile", effect(READ_EFFECT);
     "generate_portrait_prompt" => args_opaque, result_opaque, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
     "generate_scene_profile_image_prompt" => args_generate_scene_profile_image_prompt, result_scene_profile_image_prompt, "profile", effect(READ_EFFECT);
-    "get_admin_overview" => args_opaque, result_get_admin_overview, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_admin_overview" => empty_args_schema, result_get_admin_overview, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_blueprint" => args_opaque, result_get_blueprint, "blueprint", effect(READ_EFFECT);
     "get_canvas_graph" => args_get_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_canvas_node_contracts" => args_get_canvas_node_contracts, result_get_canvas_node_contracts, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -404,7 +403,7 @@ command_specs! {
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
     "get_inspiration_history" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT);
     "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", effect(READ_EFFECT);
-    "get_log_dir" => args_opaque, result_export_theme, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_log_dir" => empty_args_schema, result_export_theme, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "get_optimize_session" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
     "get_primary_portrait" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
@@ -416,14 +415,14 @@ command_specs! {
     "get_project_status_machine" => args_project_id, result_get_project_status_machine, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_queue_stats" => empty_args_schema, result_get_queue_stats, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_snapshot" => args_get_snapshot, result_get_snapshot, "profile", effect(READ_EFFECT);
-    "get_storage_paths" => args_opaque, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_storage_paths" => empty_args_schema, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_task_history" => args_get_task_history, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_TASK_IDS);
-    "get_token_summary" => args_opaque, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_token_summary" => args_user_id, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_usage_trends" => args_get_usage_trends, result_get_usage_trends, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
-    "get_user_usage" => args_opaque, result_get_user_usage, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_user_usage" => args_user_usage, result_get_user_usage, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_workflow_progress_events" => args_get_workflow_progress_events, result_get_workflow_progress_events, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
     "get_workflow_run_detail" => args_get_workflow_run_detail, result_get_workflow_run_detail, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
-    "health_check" => args_opaque, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "health_check" => empty_args_schema, result_opaque, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "import_all_configs" => args_import_all_configs, result_import_all_configs, "import", identity(ADMIN_IDENTITY), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "import_canvas_media" => args_import_canvas_media, result_import_canvas_media, "canvas", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_chapter" => args_import_chapter, result_chapter_summary, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
@@ -436,8 +435,8 @@ command_specs! {
     "invite_project_member" => args_invite_project_member, result_unit, "project", context(PROJECT_CONTEXT);
     "leave_project" => empty_args_schema, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "list_active_workflows" => empty_args_schema, result_list_active_workflows, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_TASK_IDS);
-    "list_all_projects" => args_opaque, result_list_all_projects, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "list_all_users" => args_opaque, result_opaque, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "list_all_projects" => empty_args_schema, result_list_all_projects, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "list_all_users" => empty_args_schema, result_opaque, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_behaviors" => args_list_behaviors, result_list_behaviors, "profile", effect(READ_EFFECT);
     "list_blueprint_versions" => args_list_blueprint_versions, result_list_blueprint_versions, "blueprint", effect(READ_EFFECT);
     "list_chapter_outlines" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
@@ -451,7 +450,7 @@ command_specs! {
     "list_images_by_chapter" => args_list_images_by_chapter, result_list_images_by_chapter, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_images_by_project" => args_project_id, result_list_images_by_chapter, "asset", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "list_import_queue" => args_import_project_reviews, result_import_reviews, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
-    "list_invite_codes" => args_opaque, result_opaque, "collaboration", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "list_invite_codes" => empty_args_schema, result_opaque, "collaboration", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_llm_config" => args_get_llm_max_tokens_config, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_local_embedding_models" => args_get_llm_max_tokens_config, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_manga_page_prompts" => args_cancel_manga_pipeline, result_list_manga_page_prompts, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -461,9 +460,9 @@ command_specs! {
     "list_optimize_patch_sets" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
     "list_optimize_sessions" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
     "list_optimize_turns" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
-    "list_orphan_project_data_dirs" => args_opaque, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "list_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_parts" => args_opaque, result_opaque, "outline", effect(READ_EFFECT);
-    "list_pending_tasks" => args_opaque, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "list_pending_tasks" => empty_args_schema, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_portraits_by_project" => args_opaque, result_opaque, "profile", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_profile_materials" => args_list_profile_materials, result_list_profile_materials, "profile", effect(READ_EFFECT);
     "list_profiles" => args_list_profiles, result_list_profiles, "profile", effect(READ_EFFECT);
@@ -653,7 +652,7 @@ command_specs! {
     "update_scene_profile" => args_update_scene_profile, result_scene_profile_mutation, "profile", context(USER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_theme" => args_update_theme, result_activate_theme, "settings";
     "update_user_profile" => args_update_user_profile, result_get_current_user, "auth", context(NO_CONTEXT);
-    "update_user_role" => args_opaque, result_opaque, "auth", identity(ADMIN_IDENTITY);
+    "update_user_role" => args_update_user_role, result_opaque, "auth", identity(ADMIN_IDENTITY);
     "update_video" => args_update_video, result_select_segment_video, "video";
     "update_video_config" => args_update_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "update_video_segment_plan_draft_recipe" => args_opaque, result_opaque, "video", capabilities(CAPABILITIES_VIDEO);
@@ -942,10 +941,6 @@ fn args_chapter_analysis_task() -> Value {
     optional_task_runtime_typed_input_schema::<crate::chapter::ChapterAnalysisInput>()
 }
 
-fn args_cleanup_orphan_project_data_dirs() -> Value {
-    typed_input_schema::<crate::storage::CleanupOrphanProjectDataDirsInput>()
-}
-
 fn args_create_derived_project() -> Value {
     typed_input_schema::<crate::project::CreateDerivedProjectInput>()
 }
@@ -986,8 +981,12 @@ fn args_create_theme() -> Value {
     typed_input_schema::<crate::theme::CreateThemeInput>()
 }
 
+fn args_create_invite_code() -> Value {
+    strict_typed_input_schema::<crate::admin::CreateInviteCodeInput>()
+}
+
 fn args_create_user() -> Value {
-    typed_input_schema::<crate::admin::CreateUserInput>()
+    strict_typed_input_schema::<crate::admin::CreateUserInput>()
 }
 
 fn args_commit_inserted_segment_draft() -> Value {
@@ -1211,7 +1210,7 @@ fn args_get_chapter_shooting_script() -> Value {
 }
 
 fn args_get_generation_call_analytics() -> Value {
-    typed_input_schema::<crate::admin::GenerationCallAnalyticsInput>()
+    strict_typed_input_schema::<crate::admin::GenerationCallAnalyticsInput>()
 }
 
 fn args_get_implicit_review() -> Value {
@@ -1234,8 +1233,41 @@ fn args_get_task_history() -> Value {
     typed_schema::<crate::task::GetTaskHistoryInput>()
 }
 
+fn args_user_id() -> Value {
+    json!({
+        "type": "object",
+        "properties": { "userId": { "type": "integer", "minimum": 1 } },
+        "required": ["userId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
+fn args_task_id() -> Value {
+    json!({
+        "type": "object",
+        "properties": { "taskId": { "type": "string", "minLength": 1 } },
+        "required": ["taskId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
+fn args_user_usage() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "userId": { "type": "integer", "minimum": 1 },
+            "limit": { "type": "integer", "minimum": 1 },
+        },
+        "required": ["userId", "limit"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
 fn args_get_usage_trends() -> Value {
-    typed_input_schema::<crate::admin::UsageTrendsInput>()
+    strict_typed_input_schema::<crate::admin::UsageTrendsInput>()
 }
 
 fn args_get_workflow_progress_events() -> Value {
@@ -1806,6 +1838,19 @@ fn args_update_theme() -> Value {
 
 fn args_update_user_profile() -> Value {
     typed_input_schema::<crate::auth::UpdateProfileInput>()
+}
+
+fn args_update_user_role() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "userId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<crate::admin::UpdateUserRoleInput>(),
+        },
+        "required": ["userId", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
 }
 
 fn args_update_video() -> Value {
@@ -3221,10 +3266,46 @@ mod tests {
             assert_eq!(descriptor.auth, "admin");
             assert_eq!(
                 descriptor.args_schema["x-a4n-context-fields"],
-                serde_json::json!(["callerUserId"])
+                serde_json::json!([])
             );
             assert_eq!(descriptor.args_schema["additionalProperties"], false);
             assert_eq!(descriptor.result_schema["x-a4n-schema-quality"], "typed");
+        }
+    }
+
+    #[test]
+    fn admin_commands_use_authenticated_identity_without_caller_args() {
+        for command in [
+            "get_admin_overview",
+            "get_generation_call_analytics",
+            "get_storage_paths",
+            "get_token_summary",
+            "get_usage_trends",
+            "get_user_usage",
+            "health_check",
+            "list_all_projects",
+            "list_all_users",
+            "list_invite_codes",
+            "list_orphan_project_data_dirs",
+            "list_pending_tasks",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(descriptor.auth, "admin", "{command}");
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!([]),
+                "{command}"
+            );
+            assert!(
+                descriptor.args_schema["properties"]
+                    .get("callerUserId")
+                    .is_none(),
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command}"
+            );
         }
     }
 }

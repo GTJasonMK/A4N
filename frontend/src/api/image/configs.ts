@@ -185,7 +185,6 @@ export async function removeImageConfig(configId: Id): Promise<void> {
 
 export async function setDefaultServerImageConfig(configId: Id): Promise<void> {
   return apiInvoke<void>("set_default_image_config", {
-    callerUserId: requireCurrentUserId(),
     configId: imageConfigId(configId),
   });
 }

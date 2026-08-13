@@ -1,5 +1,5 @@
 use super::aggregate::build_generation_call_analytics;
-use super::query::{MAX_DAYS, validate_generation_call_analytics_input};
+use super::query::validate_generation_call_analytics_input;
 use super::*;
 use serde_json::json;
 
@@ -18,8 +18,8 @@ fn analytics_input_rejects_unknown_fields_at_the_wire_boundary() {
 #[test]
 fn analytics_input_rejects_out_of_range_days_as_invalid_argument() {
     let error = validate_generation_call_analytics_input(GenerationCallAnalyticsInput {
-        days: Some(MAX_DAYS + 1),
-        recent_limit: None,
+        days: GENERATION_ANALYTICS_MAX_DAYS + 1,
+        recent_limit: 1,
     })
     .expect_err("days above the supported range must fail");
 
@@ -30,8 +30,8 @@ fn analytics_input_rejects_out_of_range_days_as_invalid_argument() {
 #[test]
 fn analytics_input_rejects_out_of_range_recent_limit_as_invalid_argument() {
     let error = validate_generation_call_analytics_input(GenerationCallAnalyticsInput {
-        days: None,
-        recent_limit: Some(0),
+        days: 1,
+        recent_limit: 0,
     })
     .expect_err("zero recent limit must fail");
 

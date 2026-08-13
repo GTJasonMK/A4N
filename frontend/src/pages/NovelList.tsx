@@ -4,7 +4,6 @@ import { usePersistedTab } from "../hooks/usePersistedTab";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import {
   getProjectHomeEntryRoute,
-  getProjectPrimaryRoute,
   getProjectWorkspaceRoute,
 } from "../utils/projectRouting";
 import { isCancelledOperation } from "../utils/cancellation";
@@ -711,7 +710,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
   };
 
   const handleOpenWorkspace = (project: NovelProject) => {
-    navigate(getProjectWorkspaceRoute(project) || getProjectPrimaryRoute(project));
+    navigate(getProjectWorkspaceRoute(project));
   };
 
   const projectActions = (project: NovelProject) =>

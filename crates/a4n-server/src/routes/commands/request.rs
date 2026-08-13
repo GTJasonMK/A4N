@@ -2,7 +2,7 @@ use std::future::Future;
 
 use serde_json::Value;
 
-use super::{ApiError, i64_arg};
+use super::ApiError;
 
 pub(in crate::routes::commands) async fn run_with_runtime_context<F>(
     user_id: i64,
@@ -21,17 +21,6 @@ where
             "Web command 后台任务异常退出: {error}"
         ))
     })?
-}
-
-pub(in crate::routes::commands) fn require_admin_caller(
-    authenticated_user_id: i64,
-    args: &Value,
-) -> Result<(), ApiError> {
-    let caller_user_id = i64_arg(args, "callerUserId")?;
-    if caller_user_id != authenticated_user_id {
-        return Err(ApiError::forbidden("请求用户与登录用户不一致"));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

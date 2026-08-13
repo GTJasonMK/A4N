@@ -80,7 +80,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
         </section>
 
         {user?.role === "admin" && (
-          <StoragePathsPanel callerUserId={user.id} isAdmin className="" />
+          <StoragePathsPanel isAdmin className="" />
         )}
       </div>
     </div>

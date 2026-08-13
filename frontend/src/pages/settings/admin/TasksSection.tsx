@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { RefreshCw, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
@@ -30,7 +30,7 @@ const formatTaskDate = (value: string | null): string => {
   });
 };
 
-export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
+export const TasksSection: React.FC = () => {
   const { addToast } = useToast();
   const [tasks, setTasks] = useState<TaskQueueSummary[]>([]);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
@@ -40,17 +40,11 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
   tasksRef.current = tasks;
   cancellingIdsRef.current = cancellingIds;
 
-  const loadTasks = useCallback(() => listPendingTasks(callerUserId), [callerUserId]);
-  const { loading, load, isCurrentScope: isCurrentCaller } =
-    useAdminSectionLoader(callerUserId, loadTasks, setTasks, "加载失败", {
+  const loadTasks = useCallback(() => listPendingTasks(), []);
+  const { loading, load } =
+    useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "加载失败", {
       intervalMs: 5000,
     });
-
-  useEffect(() => {
-    setTasks([]);
-    cancellingIdsRef.current = new Set();
-    setCancellingIds(new Set());
-  }, [callerUserId]);
 
   const setTaskCancelling = (id: string, value: boolean) => {
     const next = new Set(cancellingIdsRef.current);
@@ -61,7 +55,6 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
   };
 
   const handleCancel = async (id: string) => {
-    const requestCallerUserId = callerUserId;
     if (cancellingIdsRef.current.has(id)) return;
     if (!tasksRef.current.some((task) => task.id === id)) {
       addToast("任务已不在待处理列表中", "info");
@@ -69,15 +62,13 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
     }
     setTaskCancelling(id, true);
     try {
-      await cancelAdminTask(requestCallerUserId, id);
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      await cancelAdminTask(id);
       addToast("已取消任务", "success");
       await load();
     } catch (err) {
-      if (!isCurrentCaller(requestCallerUserId)) return;
       addToast(extractErrorMessage(err, "取消失败"), "error");
     } finally {
-      if (isCurrentCaller(requestCallerUserId)) setTaskCancelling(id, false);
+      setTaskCancelling(id, false);
     }
   };
 

@@ -1,4 +1,7 @@
-use a4n_api_contract::{collaboration::ProjectAccessRole, project::ProjectStatus};
+use a4n_api_contract::{
+    collaboration::ProjectAccessRole,
+    project::{ProjectKind, ProjectStatus},
+};
 use a4n_core::models::project::novel_project;
 use a4n_orchestrator::collaboration::ProjectAccessInfo;
 use a4n_orchestrator::project::ProjectFamilyMetadata;
@@ -13,6 +16,12 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
 ) -> Result<ProjectSummary, String> {
     let status = ProjectStatus::parse(&project.status)
         .ok_or_else(|| format!("项目 #{} 的状态无效: {}", project.id, project.status))?;
+    let project_kind = ProjectKind::parse(&project.project_kind).ok_or_else(|| {
+        format!(
+            "项目 #{} 的项目族无效: {}",
+            project.id, project.project_kind
+        )
+    })?;
     let owner_username = info
         .owner_username
         .clone()
@@ -31,7 +40,7 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
         description: project.description.clone(),
         lifecycle_gate: project.lifecycle_gate.clone(),
         project_type: project.project_type.clone(),
-        project_kind: project.project_kind.clone(),
+        project_kind,
         source_mode: project.source_mode.clone(),
         root_project_id: project.root_project_id,
         source_sync_status: project.source_sync_status.clone(),

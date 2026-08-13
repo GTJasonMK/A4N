@@ -5,14 +5,14 @@ import { getUsageTrends, type DailyUsagePoint } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 
-export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
+export const TrendsSection: React.FC = () => {
   const [trends, setTrends] = useState<DailyUsagePoint[]>([]);
   const [days, setDays] = useState(30);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
-  const activeKey = `${callerUserId}:${days}`;
+  const activeKey = String(days);
   const loadTrends = useCallback(
-    () => getUsageTrends(callerUserId, days),
-    [callerUserId, days],
+    () => getUsageTrends(days),
+    [days],
   );
   const applyTrends = useCallback(
     (nextTrends: DailyUsagePoint[]) => {

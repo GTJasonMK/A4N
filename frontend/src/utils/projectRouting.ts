@@ -1,9 +1,9 @@
-import type { ProjectStatus } from "../api/project";
+import type { ProjectKind, ProjectStatus } from "../api/project";
 
 export interface RoutedProject {
-  id?: number | string;
+  id: number | string;
   status: ProjectStatus;
-  project_kind?: string | null;
+  project_kind: ProjectKind;
   source_mode?: string | null;
 }
 
@@ -13,9 +13,6 @@ export interface DerivedProjectPresentation {
   source_sync_status?: string | null;
 }
 
-const PROJECT_KINDS = ["text", "video", "comic", "galgame"] as const;
-export type RoutedProjectKind = (typeof PROJECT_KINDS)[number];
-
 const PROJECT_TYPE_LABELS = {
   novel_long: "长篇小说",
   novel_short: "短篇故事",
@@ -23,7 +20,7 @@ const PROJECT_TYPE_LABELS = {
   prose: "散文",
 } as const;
 
-export const PROJECT_KIND_LABELS: Record<RoutedProjectKind, string> = {
+export const PROJECT_KIND_LABELS: Record<ProjectKind, string> = {
   text: "文本项目",
   video: "视频项目",
   comic: "漫画项目",
@@ -44,29 +41,16 @@ const SOURCE_SYNC_STATUS_LABELS: Record<string, string> = {
   detached: "已脱离源项目",
 };
 
-const projectId = (project: RoutedProject): string => {
-  const id = String(project.id ?? "").trim();
-  if (!id) throw new Error("项目 ID 缺失，无法计算项目路由");
-  return id;
-};
+export const getProjectTypeLabel = (value: string): string =>
+  PROJECT_TYPE_LABELS[value as keyof typeof PROJECT_TYPE_LABELS] ?? "未知类型";
 
-const projectKind = (project: RoutedProject): RoutedProjectKind => {
-  const kind = String(project.project_kind ?? "").trim();
-  if (PROJECT_KINDS.includes(kind as RoutedProjectKind)) return kind as RoutedProjectKind;
-  throw new Error(`项目族类型无效，无法计算项目路由: ${kind || "<empty>"}`);
-};
-
-/** 兼容管理端和旧项目记录仍返回的 project_type/project_kind 值。 */
-export const getProjectTypeLabel = (value: string | null | undefined): string => {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  const canonical = PROJECT_TYPE_LABELS[normalized as keyof typeof PROJECT_TYPE_LABELS];
-  if (canonical) return canonical;
-  if (normalized === "novel" || normalized === "text") return PROJECT_KIND_LABELS.text;
-  if (normalized === "video") return PROJECT_KIND_LABELS.video;
-  if (normalized === "comic" || normalized === "manga") return PROJECT_KIND_LABELS.comic;
-  if (normalized === "galgame") return PROJECT_KIND_LABELS.galgame;
-  return "未知类型";
-};
+export const getAdminProjectTypeLabel = (project: {
+  project_kind: ProjectKind;
+  project_type: string;
+}): string =>
+  project.project_kind === "text"
+    ? getProjectTypeLabel(project.project_type)
+    : PROJECT_KIND_LABELS[project.project_kind];
 
 const getSourceSyncStatusLabel = (value: string | null | undefined): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -95,61 +79,59 @@ export const getDerivedProjectSubtitle = (
 };
 
 export const getProjectPrimaryRoute = (project: RoutedProject): string => {
-  const id = projectId(project);
-  if (projectKind(project) === "video" && project.source_mode === "freeform") {
+  const id = project.id;
+  if (project.project_kind === "video" && project.source_mode === "freeform") {
     return `/video-project/${id}/studio`;
   }
-  if (projectKind(project) === "video") return `/video-project/${id}`;
-  if (projectKind(project) === "comic") return `/comic-project/${id}`;
-  if (projectKind(project) === "galgame") return `/galgame-project/${id}`;
+  if (project.project_kind === "video") return `/video-project/${id}`;
+  if (project.project_kind === "comic") return `/comic-project/${id}`;
+  if (project.project_kind === "galgame") return `/galgame-project/${id}`;
   return `/novel/${id}`;
 };
 
 export const getProjectPrimaryLabel = (project: RoutedProject): string =>
-  projectKind(project) === "video"
+  project.project_kind === "video"
     ? "进入视频项目"
-    : projectKind(project) === "comic"
+    : project.project_kind === "comic"
       ? "进入漫画项目"
-      : projectKind(project) === "galgame"
+      : project.project_kind === "galgame"
         ? "进入 GALGame 项目"
         : "进入项目详情";
 
-export const getProjectWorkspaceRoute = (project: RoutedProject): string | null => {
-  const id = projectId(project);
-  if (projectKind(project) === "video" && project.source_mode === "freeform") {
+export const getProjectWorkspaceRoute = (project: RoutedProject): string => {
+  const id = project.id;
+  if (project.project_kind === "video" && project.source_mode === "freeform") {
     return `/video-project/${id}/studio`;
   }
-  if (projectKind(project) === "video") return `/video-project/${id}`;
-  if (projectKind(project) === "comic") return `/comic-project/${id}`;
-  if (projectKind(project) === "galgame") return `/galgame-project/${id}`;
+  if (project.project_kind === "video") return `/video-project/${id}`;
+  if (project.project_kind === "comic") return `/comic-project/${id}`;
+  if (project.project_kind === "galgame") return `/galgame-project/${id}`;
   return `/write/${id}`;
 };
 
-export const getProjectWorkspaceLabel = (project: RoutedProject): string | null =>
-  projectKind(project) === "video"
+export const getProjectWorkspaceLabel = (project: RoutedProject): string =>
+  project.project_kind === "video"
     ? "进入视频工作台"
-    : projectKind(project) === "comic"
+    : project.project_kind === "comic"
       ? "进入漫画工作台"
-      : projectKind(project) === "galgame"
+      : project.project_kind === "galgame"
         ? "进入游戏工作台"
-        : getProjectWorkspaceRoute(project)
-          ? "进入写作台"
-          : null;
+        : "进入写作台";
 
 export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
-  if (projectKind(project) !== "text") return getProjectPrimaryRoute(project);
+  if (project.project_kind !== "text") return getProjectPrimaryRoute(project);
 
   if (project.status === "writing" || project.status === "completed") {
-    return getProjectWorkspaceRoute(project) || getProjectPrimaryRoute(project);
+    return getProjectWorkspaceRoute(project);
   }
   return getProjectPrimaryRoute(project);
 };
 
 export const getProjectHomeEntryLabel = (project: RoutedProject): string => {
-  if (projectKind(project) !== "text") return getProjectPrimaryLabel(project);
+  if (project.project_kind !== "text") return getProjectPrimaryLabel(project);
 
   if (project.status === "writing" || project.status === "completed") {
-    return getProjectWorkspaceLabel(project) || getProjectPrimaryLabel(project);
+    return getProjectWorkspaceLabel(project);
   }
   return getProjectPrimaryLabel(project);
 };

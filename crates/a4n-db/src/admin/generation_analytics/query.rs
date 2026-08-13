@@ -2,11 +2,6 @@ use super::*;
 
 use super::aggregate::build_generation_call_analytics;
 
-const DEFAULT_DAYS: u32 = 30;
-pub(super) const MAX_DAYS: u32 = 180;
-const DEFAULT_RECENT_LIMIT: u64 = 40;
-const MAX_RECENT_LIMIT: u64 = 200;
-
 pub async fn generation_call_analytics(
     db: &DatabaseConnection,
     input: GenerationCallAnalyticsInput,
@@ -50,16 +45,16 @@ pub async fn generation_call_analytics(
 pub(super) fn validate_generation_call_analytics_input(
     input: GenerationCallAnalyticsInput,
 ) -> Result<(u32, u64), AdminDbError> {
-    let days = input.days.unwrap_or(DEFAULT_DAYS);
-    if days == 0 || days > MAX_DAYS {
+    let days = input.days;
+    if days == 0 || days > GENERATION_ANALYTICS_MAX_DAYS {
         return Err(AdminDbError::InvalidArgument(format!(
-            "days 必须在 1..={MAX_DAYS} 之间"
+            "days 必须在 1..={GENERATION_ANALYTICS_MAX_DAYS} 之间"
         )));
     }
-    let recent_limit = input.recent_limit.unwrap_or(DEFAULT_RECENT_LIMIT);
-    if recent_limit == 0 || recent_limit > MAX_RECENT_LIMIT {
+    let recent_limit = input.recent_limit;
+    if recent_limit == 0 || recent_limit > GENERATION_ANALYTICS_MAX_RECENT_LIMIT {
         return Err(AdminDbError::InvalidArgument(format!(
-            "recent_limit 必须在 1..={MAX_RECENT_LIMIT} 之间"
+            "recent_limit 必须在 1..={GENERATION_ANALYTICS_MAX_RECENT_LIMIT} 之间"
         )));
     }
     Ok((days, recent_limit))

@@ -6,9 +6,11 @@ mod usage;
 mod users;
 
 pub use a4n_api_contract::admin::{CreateInviteCodeInput, CreateUserInput, UpdateUserRoleInput};
+pub use a4n_api_contract::auth::UserSummary;
+pub use a4n_domain::admin::InviteCodeSummary;
 pub use a4n_orchestrator::admin::{
-    AdminOverviewSummary, AdminUserSummary, DailyUsagePoint, InviteCodeSummary, ProjectSummary,
-    TaskQueueSummary, ThemeInfo, UsageLogSummary, UsageTrendsInput,
+    AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint, TaskQueueSummary, ThemeInfo,
+    UsageLogSummary, UsageTrendsInput,
 };
 pub use authorized::*;
 pub use projects::*;

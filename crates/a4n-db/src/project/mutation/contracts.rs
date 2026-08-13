@@ -1,9 +1,10 @@
+use a4n_domain::project::ProjectKind;
 use sea_orm::DbErr;
 
-pub const PROJECT_KIND_TEXT: &str = "text";
-pub const PROJECT_KIND_COMIC: &str = "comic";
-pub const PROJECT_KIND_VIDEO: &str = "video";
-pub const PROJECT_KIND_GALGAME: &str = "galgame";
+pub const PROJECT_KIND_TEXT: &str = ProjectKind::Text.as_str();
+pub const PROJECT_KIND_COMIC: &str = ProjectKind::Comic.as_str();
+pub const PROJECT_KIND_VIDEO: &str = ProjectKind::Video.as_str();
+pub const PROJECT_KIND_GALGAME: &str = ProjectKind::Galgame.as_str();
 pub const SOURCE_MODE_SELF: &str = "self";
 pub const SOURCE_MODE_DERIVED: &str = "derived";
 pub const SOURCE_MODE_FREEFORM: &str = "freeform";

@@ -169,7 +169,7 @@ pub(in crate::routes::commands) fn strict_command_input<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
-    reject_unknown_command_args(args, command, &[])?;
+    reject_unknown_command_args(args, command, &["input"])?;
     command_input(args, command)
 }
 
@@ -180,7 +180,7 @@ pub(in crate::routes::commands) fn strict_runtime_command_input<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
-    reject_unknown_command_args(args, command, &["runtime_config_snapshot"])?;
+    reject_unknown_command_args(args, command, &["input", "runtime_config_snapshot"])?;
     command_input(args, command)
 }
 
@@ -191,11 +191,15 @@ pub(in crate::routes::commands) fn strict_optional_task_runtime_command_input<T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    reject_unknown_command_args(args, command, &["runtime_config_snapshot", "taskId"])?;
+    reject_unknown_command_args(
+        args,
+        command,
+        &["input", "runtime_config_snapshot", "taskId"],
+    )?;
     command_input(args, command)
 }
 
-fn reject_unknown_command_args(
+pub(in crate::routes::commands) fn reject_unknown_command_args(
     args: &Value,
     command: &str,
     allowed_fields: &[&str],
@@ -205,7 +209,7 @@ fn reject_unknown_command_args(
         .ok_or_else(|| ApiError::bad_request(format!("{command} 参数必须是对象")))?;
     if let Some(field) = fields
         .keys()
-        .find(|field| field.as_str() != "input" && !allowed_fields.contains(&field.as_str()))
+        .find(|field| !allowed_fields.contains(&field.as_str()))
     {
         return Err(ApiError::bad_request(format!(
             "{command} 不接受参数: {field}"
@@ -239,8 +243,8 @@ pub(in crate::routes::commands) fn required_json_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        strict_command_input, strict_optional_task_runtime_command_input,
-        strict_runtime_command_input,
+        reject_unknown_command_args, strict_command_input,
+        strict_optional_task_runtime_command_input, strict_runtime_command_input,
     };
     use serde::Deserialize;
     use serde_json::json;
@@ -296,5 +300,6 @@ mod tests {
             )
             .is_err()
         );
+        assert!(reject_unknown_command_args(&json!({ "input": {} }), "empty", &[]).is_err());
     }
 }

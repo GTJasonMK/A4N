@@ -4,6 +4,32 @@ use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum ProjectKind {
+    Text,
+    Comic,
+    Video,
+    Galgame,
+}
+
+impl ProjectKind {
+    pub const ALL: [Self; 4] = [Self::Text, Self::Comic, Self::Video, Self::Galgame];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Comic => "comic",
+            Self::Video => "video",
+            Self::Galgame => "galgame",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
     Draft,
     BlueprintReady,

@@ -165,6 +165,14 @@ impl AuthApplication {
         a4n_db::auth::create_invite_code(self.database.connection(), code, created_by_user_id).await
     }
 
+    async fn list_auth_users(&self) -> Result<Vec<user::Model>, AppError> {
+        a4n_db::auth::list_users(self.database.connection()).await
+    }
+
+    async fn list_invite_code_records(&self) -> Result<Vec<invite_code::Model>, AppError> {
+        a4n_db::auth::list_invite_codes(self.database.connection()).await
+    }
+
     async fn update_auth_user_role(
         &self,
         user_id: i64,
@@ -322,6 +330,14 @@ impl OrchestratorContext {
         self.auth
             .create_invite_code_record(code, created_by_user_id)
             .await
+    }
+
+    pub async fn list_auth_users(&self) -> Result<Vec<user::Model>, AppError> {
+        self.auth.list_auth_users().await
+    }
+
+    pub async fn list_invite_code_records(&self) -> Result<Vec<invite_code::Model>, AppError> {
+        self.auth.list_invite_code_records().await
     }
 
     pub async fn update_auth_user_role(

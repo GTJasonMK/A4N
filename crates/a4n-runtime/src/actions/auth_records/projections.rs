@@ -11,7 +11,6 @@ pub fn to_user_summary(user: &user::Model) -> UserSummary {
         oauth_subject: user.oauth_subject.clone(),
         avatar_url: user.avatar_url.clone(),
         is_active: user.is_active,
-        display_name: None,
         created_at: Some(user.created_at.to_string()),
         updated_at: Some(user.updated_at.to_string()),
         last_login_at: user.last_login_at.map(|date| date.to_string()),

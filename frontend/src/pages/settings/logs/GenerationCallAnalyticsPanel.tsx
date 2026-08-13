@@ -73,7 +73,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
     setErrorState(null);
     setLoading(true);
     try {
-      const result = await getGenerationCallAnalytics(callerUserId, {
+      const result = await getGenerationCallAnalytics({
         days,
         recent_limit: 40,
       });

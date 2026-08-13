@@ -1214,7 +1214,7 @@ fn apply_context_args(
             continue;
         }
         let value = match field {
-            "userId" | "callerUserId" => context.user_id,
+            "userId" => context.user_id,
             "projectId" => context.project_id,
             "chapterId" => context.chapter_id,
             "snapshotId" => context.snapshot_id,
@@ -2716,7 +2716,7 @@ mod tests {
     }
 
     #[test]
-    fn call_context_injects_user_and_admin_caller_ids() {
+    fn call_context_injects_only_explicit_resource_identity() {
         let mut context = SessionContext::load(None, "http://localhost/api").unwrap();
         context.bind_user(7).unwrap();
         let mut user_args = json!({});
@@ -2727,7 +2727,7 @@ mod tests {
         let mut admin_args = json!({});
         let admin_descriptor = catalog::command_descriptor("list_all_users").unwrap();
         apply_context_args(&mut admin_args, &admin_descriptor, &context).unwrap();
-        assert_eq!(admin_args["callerUserId"], 7);
+        assert_eq!(admin_args, json!({}));
     }
 
     #[test]

@@ -37,9 +37,3 @@ pub struct OrphanProjectDataDirsSummary {
     pub total_count: usize,
     pub total_size_bytes: u64,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct CleanupOrphanProjectDataDirsInput {
-    pub caller_user_id: i64,
-}

@@ -286,7 +286,7 @@ export const NovelDetail: React.FC = () => {
         (item) => item.id !== "characters" && item.id !== "relationships" && item.id !== "imports",
       );
   const workspaceRoute = getProjectWorkspaceRoute(project);
-  const workspaceLabel = getProjectWorkspaceLabel(project) ?? "进入写作桌";
+  const workspaceLabel = getProjectWorkspaceLabel(project);
   const showHomeEntryButton =
     canEditProject &&
     homeEntryRoute !== `/novel/${projectId}` &&
@@ -520,7 +520,7 @@ export const NovelDetail: React.FC = () => {
                 {homeEntryLabel}
               </BookButton>
             )}
-            {workspaceRoute && canEditProject && (
+            {canEditProject && (
               <BookButton
                 variant="primary"
                 size="sm"

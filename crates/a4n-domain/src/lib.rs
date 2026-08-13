@@ -4,6 +4,7 @@
 //! dependencies.
 
 pub mod admin;
+pub mod auth;
 pub mod canvas;
 pub mod character;
 pub mod collaboration;

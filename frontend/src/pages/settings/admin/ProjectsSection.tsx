@@ -1,25 +1,21 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { listAllProjects, type AdminProjectSummary } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
-import { getProjectTypeLabel } from "../../../utils/projectRouting";
+import { getAdminProjectTypeLabel } from "../../../utils/projectRouting";
 import { getProjectStatusText } from "../../../utils/projectStatus";
 
-export const ProjectsSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
+export const ProjectsSection: React.FC = () => {
   const [projects, setProjects] = useState<AdminProjectSummary[]>([]);
-  const loadProjects = useCallback(() => listAllProjects(callerUserId), [callerUserId]);
+  const loadProjects = useCallback(() => listAllProjects(), []);
   const { loading, load } = useAdminSectionLoader(
-    callerUserId,
+    "admin-projects",
     loadProjects,
     setProjects,
     "加载失败",
   );
-
-  useEffect(() => {
-    setProjects([]);
-  }, [callerUserId]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -47,7 +43,7 @@ export const ProjectsSection: React.FC<{ callerUserId: number }> = ({ callerUser
                 <div className="min-w-0">
                   <div className="truncate font-medium text-book-text-main">{p.title}</div>
                   <div className="mt-1 truncate text-small text-book-text-muted">
-                    {getProjectTypeLabel(p.project_type)} · {getProjectStatusText(p.status)}
+                    {getAdminProjectTypeLabel(p)} · {getProjectStatusText(p.status)}
                   </div>
                 </div>
                 {(p.total_chapters ?? p.target_chapters) > 0 ? (

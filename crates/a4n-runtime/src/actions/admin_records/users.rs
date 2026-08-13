@@ -1,39 +1,37 @@
 use super::{
-    AdminUserSummary, CreateInviteCodeInput, CreateUserInput, InviteCodeSummary,
-    UpdateUserRoleInput,
+    CreateInviteCodeInput, CreateUserInput, InviteCodeSummary, UpdateUserRoleInput, UserSummary,
 };
 use crate::{
     AppState,
     actions::{app_error_message, auth_records::to_user_summary},
 };
-use a4n_core::models::user::{invite_code, user};
+use a4n_core::models::user::invite_code;
 
-pub async fn list_all_users(state: &AppState) -> Result<Vec<AdminUserSummary>, String> {
-    state
+pub async fn list_all_users(state: &AppState) -> Result<Vec<UserSummary>, String> {
+    let users = state
         .orchestrator()
-        .all_user_summaries()
+        .list_auth_users()
         .await
-        .map_err(app_error_message)
+        .map_err(app_error_message)?;
+    Ok(users.iter().map(to_user_summary).collect())
 }
 
-pub async fn create_user(
-    state: &AppState,
-    input: CreateUserInput,
-) -> Result<AdminUserSummary, String> {
+pub async fn create_user(state: &AppState, input: CreateUserInput) -> Result<UserSummary, String> {
     let user = state
         .orchestrator()
         .create_auth_user(&input.username, &input.email, &input.password, &input.role)
         .await
         .map_err(|error| error.to_string())?;
-    Ok(admin_user_summary(&user))
+    Ok(to_user_summary(&user))
 }
 
 pub async fn list_invite_codes(state: &AppState) -> Result<Vec<InviteCodeSummary>, String> {
-    state
+    let codes = state
         .orchestrator()
-        .invite_code_summaries()
+        .list_invite_code_records()
         .await
-        .map_err(app_error_message)
+        .map_err(app_error_message)?;
+    Ok(codes.iter().map(invite_code_summary).collect())
 }
 
 pub async fn create_invite_code(
@@ -53,13 +51,13 @@ pub async fn update_user_role(
     state: &AppState,
     user_id: i64,
     input: UpdateUserRoleInput,
-) -> Result<AdminUserSummary, String> {
+) -> Result<UserSummary, String> {
     let user = state
         .orchestrator()
         .update_auth_user_role(user_id, &input.role)
         .await
         .map_err(|error| error.to_string())?;
-    Ok(admin_user_summary(&user))
+    Ok(to_user_summary(&user))
 }
 
 pub async fn disable_user(
@@ -71,24 +69,6 @@ pub async fn disable_user(
         .destructive_lifecycle()
         .disable_user(state, caller_user_id, user_id)
         .await
-}
-
-fn admin_user_summary(user: &user::Model) -> AdminUserSummary {
-    let base = to_user_summary(user).with_display_name();
-    AdminUserSummary {
-        id: base.id,
-        username: base.username,
-        email: base.email,
-        role: base.role,
-        oauth_provider: base.oauth_provider,
-        oauth_subject: base.oauth_subject,
-        avatar_url: base.avatar_url,
-        is_active: base.is_active,
-        display_name: base.display_name,
-        created_at: base.created_at,
-        updated_at: base.updated_at,
-        last_login_at: base.last_login_at,
-    }
 }
 
 fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {

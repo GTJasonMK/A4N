@@ -17,6 +17,7 @@ import type {
   ProjectGeneratedDataResetResponse as ApiProjectGeneratedDataResetResponse,
   ProjectGeneratedDataResetSummary as ApiProjectGeneratedDataResetSummary,
   ProjectInviteSummary,
+  ProjectKind,
   ProjectMemberRole as ApiProjectMemberRole,
   ProjectMemberSummary,
   ProjectRollbackPreview,
@@ -52,6 +53,7 @@ export type {
   ProjectStatus,
   ProjectStatusHistorySummary,
   ProjectStatusMachineSummary,
+  ProjectKind,
 } from "./generated/host";
 
 // ============================================================================
@@ -82,7 +84,6 @@ export interface SourceSnapshotChapter {
   analysis_hash: string | null;
 }
 
-export type ProjectKind = "text" | "comic" | "video" | "galgame";
 export type ProjectLifecycleGate = "active" | "deleting" | "resetting";
 type ProjectSourceMode = "self" | "derived" | "freeform";
 

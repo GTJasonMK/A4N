@@ -19,8 +19,8 @@ pub(crate) fn require_admin_role(role: &str, permission: AdminPermission) -> Res
 }
 
 pub use a4n_db::admin::{
-    AdminDbError, AdminOverviewSummary, AdminUserSummary, DailyUsagePoint, GenerationCallAnalytics,
-    GenerationCallAnalyticsInput, InviteCodeSummary, ProjectSummary, TaskQueueSummary, ThemeInfo,
+    AdminDbError, AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint,
+    GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, ThemeInfo,
     UsageLogSummary, UsageTrendsInput,
 };
 

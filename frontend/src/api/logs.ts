@@ -8,19 +8,17 @@ import type {
 export type { LogReadResult, ReadLogsInput, SetLogLevelInput } from "./generated/host";
 
 export async function readRecentLogs(
-  callerUserId: number,
   input: ReadLogsInput,
 ): Promise<LogReadResult> {
-  return apiInvoke<LogReadResult>("read_recent_logs", { callerUserId, input });
+  return apiInvoke<LogReadResult>("read_recent_logs", { input });
 }
 
-export async function getLogDir(callerUserId: number): Promise<string> {
-  return apiInvoke<string>("get_log_dir", { callerUserId });
+export async function getLogDir(): Promise<string> {
+  return apiInvoke<string>("get_log_dir");
 }
 
 export async function setLogLevel(
-  callerUserId: number,
   input: SetLogLevelInput,
 ): Promise<void> {
-  return apiInvoke<void>("set_log_level", { callerUserId, input });
+  return apiInvoke<void>("set_log_level", { input });
 }

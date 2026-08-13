@@ -20,7 +20,6 @@ import {
 import { copyTextToClipboard } from "../../../utils/clipboard";
 
 interface StoragePathsPanelProps {
-  callerUserId?: number | null;
   isAdmin?: boolean;
   className?: string;
 }
@@ -38,7 +37,6 @@ const formatBytes = (bytes: number): string => {
 };
 
 export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
-  callerUserId,
   isAdmin = false,
   className = "mt-5",
 }) => {
@@ -76,7 +74,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!isAdmin || callerUserId == null) {
+    if (!isAdmin) {
       refreshInFlightRef.current = false;
       setPaths(null);
       setLoading(false);
@@ -88,7 +86,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     refreshSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const nextPaths = await getStoragePaths(callerUserId);
+      const nextPaths = await getStoragePaths();
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       setPaths(nextPaths);
     } catch (err) {
@@ -100,7 +98,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         refreshInFlightRef.current = false;
       }
     }
-  }, [addToast, callerUserId, isAdmin]);
+  }, [addToast, isAdmin]);
 
   useEffect(() => {
     void refresh();
@@ -129,7 +127,6 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   const scanOrphanProjectDirs = useCallback(async () => {
     if (
       !isAdmin ||
-      callerUserId == null ||
       orphanScanningRef.current ||
       orphanCleaningRef.current
     ) {
@@ -140,7 +137,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     orphanSeqRef.current = requestSeq;
     setOrphanLoading(true);
     try {
-      const summary = await listOrphanProjectDataDirs(callerUserId);
+      const summary = await listOrphanProjectDataDirs();
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
       setOrphanSummary(summary);
     } catch (err) {
@@ -154,12 +151,11 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         setOrphanLoading(false);
       }
     }
-  }, [addToast, callerUserId, isAdmin]);
+  }, [addToast, isAdmin]);
 
   const cleanupOrphanProjectDirs = useCallback(async () => {
     if (
       !isAdmin ||
-      callerUserId == null ||
       orphanCleaningRef.current ||
       orphanScanningRef.current
     ) {
@@ -184,7 +180,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     const requestSeq = orphanSeqRef.current + 1;
     orphanSeqRef.current = requestSeq;
     try {
-      const summary = await cleanupOrphanProjectDataDirs(callerUserId);
+      const summary = await cleanupOrphanProjectDataDirs();
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
       setOrphanSummary({ items: [], total_count: 0, total_size_bytes: 0 });
       addToast(
@@ -202,7 +198,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         setOrphanCleaning(false);
       }
     }
-  }, [addToast, callerUserId, isAdmin, orphanSummary]);
+  }, [addToast, isAdmin, orphanSummary]);
 
   const rows = paths
     ? [
@@ -291,7 +287,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         )}
       </section>
 
-      {isAdmin && callerUserId != null && (
+      {isAdmin && (
         <section aria-label="存储清理" className="a4n-flat-surface space-y-3 p-3">
           <div className="flex items-center gap-2">
             <Trash2 size={14} className="shrink-0 text-book-primary" />

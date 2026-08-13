@@ -80,14 +80,14 @@ export const LogsTab: React.FC = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await readRecentLogs(callerUserId, {
+      const res = await readRecentLogs({
         lines: requestLines,
         days_ago: requestDaysAgo,
       });
       if (!isCurrentRefresh(key, requestSeq)) return;
       setResult(res);
       setLoadError(null);
-      const dir = await getLogDir(callerUserId);
+      const dir = await getLogDir();
       if (!isCurrentRefresh(key, requestSeq)) return;
       setLogDir(dir);
     } catch (err) {
@@ -140,7 +140,7 @@ export const LogsTab: React.FC = () => {
     applyingFilterRef.current = true;
     setApplyingFilter(true);
     try {
-      await setLogLevel(callerUserId, { filter: requestFilter });
+      await setLogLevel({ filter: requestFilter });
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
         return;
       addToast(`日志级别已更新：${requestFilter}`, "success");

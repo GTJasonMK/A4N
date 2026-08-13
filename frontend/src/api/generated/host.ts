@@ -583,10 +583,6 @@ export interface OrphanProjectDataDirsSummary {
   total_size_bytes: number;
 }
 
-export interface CleanupOrphanProjectDataDirsInput {
-  caller_user_id: number;
-}
-
 export interface ImportProjectTextUploadInput {
   data_base64: string;
   file_name: string;
@@ -924,18 +920,14 @@ export interface TaskQueueSummary {
 }
 
 export interface AdminProjectSummary {
-  avatar_animal: string | null;
-  chapters_per_part: number | null;
-  created_at: string | null;
   current_chapter: number;
-  description: string;
   id: number;
+  project_kind: ProjectKind;
   project_type: string;
   status: ProjectStatus;
   target_chapters: number;
   title: string;
   total_chapters: number | null;
-  updated_at: string | null;
   user_id: number;
 }
 
@@ -2081,6 +2073,8 @@ export interface ProjectProgressSummary {
   total: number | null;
 }
 
+export type ProjectKind = "text" | "comic" | "video" | "galgame";
+
 export const PROJECT_STATUSES = ["draft", "blueprint_ready", "part_outlines_ready", "chapter_outlines_ready", "writing", "completed"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -2248,7 +2242,7 @@ export interface ProjectSummary {
   owner_username: string;
   pending_invite_count: number | null;
   progress: ProjectProgressSummary;
-  project_kind: string;
+  project_kind: ProjectKind;
   project_type: string;
   root_project_id: number | null;
   root_project_title: string | null;

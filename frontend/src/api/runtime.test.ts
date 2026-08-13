@@ -78,4 +78,13 @@ describe("runtimeInvoke", () => {
     });
     expect(mocks.requireCurrentUserId).not.toHaveBeenCalled();
   });
+
+  it("injects authenticated identity only for native diagnostics", async () => {
+    await runtimeInvoke("read_recent_logs", { input: { lines: 50, days_ago: 0 } });
+
+    expect(mocks.invoke).toHaveBeenCalledWith("read_recent_logs", {
+      callerUserId: 7,
+      input: { lines: 50, days_ago: 0 },
+    });
+  });
 });

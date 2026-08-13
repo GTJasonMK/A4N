@@ -77,8 +77,8 @@ function generateInviteCode(): string {
   return `A4N-${raw.match(/.{1,4}/g)?.join("-") ?? raw}`;
 }
 
-export const UsersSection: React.FC<{ callerUserId: number }> = ({
-  callerUserId,
+export const UsersSection: React.FC<{ currentUserId: number }> = ({
+  currentUserId,
 }) => {
   const { addToast } = useToast();
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -123,8 +123,8 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
   }, []);
 
   const loadUsers = useCallback(
-    () => Promise.all([listAllUsers(callerUserId), listInviteCodes(callerUserId)]),
-    [callerUserId],
+    () => Promise.all([listAllUsers(), listInviteCodes()]),
+    [],
   );
   const applyUsers = useCallback(
     ([nextUsers, nextInviteCodes]: [UserSummary[], InviteCodeSummary[]]) => {
@@ -133,9 +133,9 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     },
     [],
   );
-  const { loading, load, isCurrentScope: isCurrentCaller } =
+  const { loading, load, isCurrentScope: isCurrentUser } =
     useAdminSectionLoader(
-      callerUserId,
+      currentUserId,
       loadUsers,
       applyUsers,
       "加载用户失败",
@@ -155,7 +155,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     setUsageInfo(null);
     setUsageLoadingFor(null);
     usageInFlightForRef.current = null;
-  }, [callerUserId]);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (tokenFor != null && !users.some((user) => user.id === tokenFor)) {
@@ -202,12 +202,12 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
       addToast("用户名、邮箱、密码不能为空", "error");
       return;
     }
-    const requestCallerUserId = callerUserId;
+    const requestCurrentUserId = currentUserId;
     const actionKey = "create-user";
     if (!tryStartAction(actionKey)) return;
     try {
-      await createAdminUser(requestCallerUserId, input);
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      await createAdminUser(input);
+      if (!isCurrentUser(requestCurrentUserId)) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast("用户已创建", "success");
         closeCreate();
@@ -216,15 +216,15 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
       }
       await load();
     } catch (err) {
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, "创建用户失败"), "error");
     } finally {
-      if (isCurrentCaller(requestCallerUserId)) finishAction(actionKey);
+      if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };
 
   const handleCreateInviteCode = async () => {
-    const requestCallerUserId = callerUserId;
+    const requestCurrentUserId = currentUserId;
     const actionKey = "create-invite-code";
     if (!tryStartAction(actionKey)) return;
     try {
@@ -242,21 +242,21 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
         addToast("邀请码不能为空", "error");
         return;
       }
-      if (!isCurrentCaller(requestCallerUserId)) return;
-      await createInviteCode(requestCallerUserId, { code: trimmedCode });
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
+      await createInviteCode({ code: trimmedCode });
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast("邀请码已创建", "success");
       await load();
     } catch (err) {
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, "创建邀请码失败"), "error");
     } finally {
-      if (isCurrentCaller(requestCallerUserId)) finishAction(actionKey);
+      if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };
 
   const handleRole = async (u: UserSummary) => {
-    const requestCallerUserId = callerUserId;
+    const requestCurrentUserId = currentUserId;
     const actionKey = `role-${u.id}`;
     if (!tryStartAction(actionKey)) return;
     try {
@@ -269,31 +269,31 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
         confirmText: "更新角色",
       });
       if (!next || next === u.role) return;
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
       const inputRole = next.trim();
       const role = USER_ROLE_VALUES_BY_LABEL[inputRole] ?? inputRole;
       if (!isUserRole(role)) {
         addToast("角色必须是管理员、普通用户或只读用户", "error");
         return;
       }
-      await updateUserRole(requestCallerUserId, u.id, role);
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      await updateUserRole(u.id, role);
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast("角色已更新", "success");
       await load();
     } catch (err) {
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, "更新失败"), "error");
     } finally {
-      if (isCurrentCaller(requestCallerUserId)) finishAction(actionKey);
+      if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };
 
   const handleDel = async (u: UserSummary) => {
-    if (u.id === callerUserId) {
+    if (u.id === currentUserId) {
       addToast("不能删除自己", "error");
       return;
     }
-    const requestCallerUserId = callerUserId;
+    const requestCurrentUserId = currentUserId;
     const actionKey = `del-${u.id}`;
     if (!tryStartAction(actionKey)) return;
     try {
@@ -304,22 +304,22 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
         dialogType: "danger",
       });
       if (!ok) return;
-      if (!isCurrentCaller(requestCallerUserId)) return;
-      await disableUser(requestCallerUserId, u.id);
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
+      await disableUser(u.id);
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast("已禁用", "success");
       await load();
     } catch (err) {
-      if (!isCurrentCaller(requestCallerUserId)) return;
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, "禁用失败"), "error");
     } finally {
-      if (isCurrentCaller(requestCallerUserId)) finishAction(actionKey);
+      if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };
 
   const handleToken = async (u: UserSummary) => {
     if (tokenInFlightForRef.current === u.id) return;
-    const requestCallerUserId = callerUserId;
+    const requestCurrentUserId = currentUserId;
     const requestSeq = tokenSeqRef.current + 1;
     tokenSeqRef.current = requestSeq;
     tokenInFlightForRef.current = u.id;
@@ -327,23 +327,23 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     setTokenInfo(null);
     setTokenLoadingFor(u.id);
     try {
-      const nextTokenInfo = await getTokenSummary(requestCallerUserId, u.id);
+      const nextTokenInfo = await getTokenSummary(u.id);
       if (
-        !isCurrentCaller(requestCallerUserId) ||
+        !isCurrentUser(requestCurrentUserId) ||
         tokenSeqRef.current !== requestSeq
       )
         return;
       setTokenInfo(nextTokenInfo);
     } catch (err) {
       if (
-        !isCurrentCaller(requestCallerUserId) ||
+        !isCurrentUser(requestCurrentUserId) ||
         tokenSeqRef.current !== requestSeq
       )
         return;
       addToast(extractErrorMessage(err, "加载 Token 失败"), "error");
     } finally {
       if (
-        isCurrentCaller(requestCallerUserId) &&
+        isCurrentUser(requestCurrentUserId) &&
         tokenSeqRef.current === requestSeq
       ) {
         tokenInFlightForRef.current = null;
@@ -354,7 +354,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
 
   const handleUsage = async (u: UserSummary) => {
     if (usageInFlightForRef.current === u.id) return;
-    const requestCallerUserId = callerUserId;
+    const requestCurrentUserId = currentUserId;
     const requestSeq = usageSeqRef.current + 1;
     usageSeqRef.current = requestSeq;
     usageInFlightForRef.current = u.id;
@@ -362,23 +362,23 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     setUsageInfo(null);
     setUsageLoadingFor(u.id);
     try {
-      const data = await getUserUsage(requestCallerUserId, u.id, 20);
+      const data = await getUserUsage(u.id, 20);
       if (
-        !isCurrentCaller(requestCallerUserId) ||
+        !isCurrentUser(requestCurrentUserId) ||
         usageSeqRef.current !== requestSeq
       )
         return;
       setUsageInfo(data);
     } catch (err) {
       if (
-        !isCurrentCaller(requestCallerUserId) ||
+        !isCurrentUser(requestCurrentUserId) ||
         usageSeqRef.current !== requestSeq
       )
         return;
       addToast(extractErrorMessage(err, "加载用量失败"), "error");
     } finally {
       if (
-        isCurrentCaller(requestCallerUserId) &&
+        isCurrentUser(requestCurrentUserId) &&
         usageSeqRef.current === requestSeq
       ) {
         usageInFlightForRef.current = null;
@@ -426,7 +426,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
         onClick: () => void handleRole(u),
       },
     ];
-    if (u.id !== callerUserId && u.is_active !== false) {
+    if (u.id !== currentUserId && u.is_active !== false) {
       items.push({
         label: "禁用用户",
         icon: <UserX size={12} />,

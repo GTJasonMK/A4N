@@ -12,7 +12,7 @@ mod query;
 mod types;
 
 pub use query::generation_call_analytics;
-pub use types::*;
+use types::*;
 
 #[cfg(test)]
 mod tests;

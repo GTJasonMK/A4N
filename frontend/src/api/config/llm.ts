@@ -154,7 +154,6 @@ export async function updateLlmConfig(
 
 export async function setDefaultServerLlmConfig(configId: Id): Promise<void> {
   return apiInvoke<void>("set_default_llm_config", {
-    callerUserId: requireCurrentUserId(),
     configId: llmConfigId(configId),
   });
 }

@@ -1,7 +1,7 @@
-use super::ProjectSummary;
+use super::AdminProjectSummary;
 use crate::{AppState, actions::app_error_message};
 
-pub async fn list_all_projects(state: &AppState) -> Result<Vec<ProjectSummary>, String> {
+pub async fn list_all_projects(state: &AppState) -> Result<Vec<AdminProjectSummary>, String> {
     state
         .orchestrator()
         .all_project_summaries()

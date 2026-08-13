@@ -1,8 +1,7 @@
 use super::{
-    AdminOverviewSummary, AdminPermission, AdminUserSummary, CreateInviteCodeInput,
-    CreateUserInput, DailyUsagePoint, InviteCodeSummary, ProjectSummary, TaskQueueSummary,
-    UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput, permissions, projects, tasks, usage,
-    users,
+    AdminOverviewSummary, AdminPermission, AdminProjectSummary, CreateInviteCodeInput,
+    CreateUserInput, DailyUsagePoint, InviteCodeSummary, TaskQueueSummary, UpdateUserRoleInput,
+    UsageLogSummary, UsageTrendsInput, UserSummary, permissions, projects, tasks, usage, users,
 };
 use crate::AppState;
 use a4n_core::error::AppError;
@@ -56,13 +55,13 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    list_all_users_for_admin() -> Vec<AdminUserSummary>,
+    list_all_users_for_admin() -> Vec<UserSummary>,
     AdminPermission::ManageUsers,
     |state, caller_user_id| users::list_all_users(state),
 );
 
 admin_record_command!(
-    create_user_for_admin(input: CreateUserInput) -> AdminUserSummary,
+    create_user_for_admin(input: CreateUserInput) -> UserSummary,
     AdminPermission::ManageUsers,
     |state, caller_user_id| users::create_user(state, input),
 );
@@ -80,7 +79,7 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    update_user_role_for_admin(user_id: i64, input: UpdateUserRoleInput) -> AdminUserSummary,
+    update_user_role_for_admin(user_id: i64, input: UpdateUserRoleInput) -> UserSummary,
     AdminPermission::ManageUsers,
     |state, caller_user_id| users::update_user_role(state, user_id, input),
 );
@@ -92,7 +91,7 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    list_all_projects_for_admin() -> Vec<ProjectSummary>,
+    list_all_projects_for_admin() -> Vec<AdminProjectSummary>,
     AdminPermission::ManageUsers,
     |state, caller_user_id| projects::list_all_projects(state),
 );
