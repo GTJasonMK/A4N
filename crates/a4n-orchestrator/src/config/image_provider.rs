@@ -1,11 +1,10 @@
+#[cfg(feature = "embedded-media-providers")]
+use a4n_core::config::{image_backend_api_key, validate_image_config_model};
 use a4n_core::error::AppError;
 use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageProvider;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_image_providers::pick_image_provider;
-
-#[cfg(feature = "embedded-media-providers")]
-use a4n_core::config::validate_image_config_model;
 
 pub fn configured_image_provider(
     config: &image_gen_config::Model,
@@ -13,7 +12,7 @@ pub fn configured_image_provider(
     #[cfg(feature = "embedded-media-providers")]
     {
         let params = validate_image_config_model(config)?;
-        let api_key = image_provider_api_key(&params.backend, params.api_key_encrypted.as_deref())?;
+        let api_key = image_backend_api_key(&params.backend, params.api_key_encrypted.as_deref())?;
         pick_image_provider(&params.backend, &params.base_url, api_key)
     }
     #[cfg(not(feature = "embedded-media-providers"))]
@@ -24,37 +23,6 @@ pub fn configured_image_provider(
                 .to_string(),
         ))
     }
-}
-
-#[cfg(feature = "embedded-media-providers")]
-fn image_provider_api_key<'a>(
-    backend: &str,
-    api_key: Option<&'a str>,
-) -> Result<&'a str, AppError> {
-    if image_backend_requires_api_key(backend) {
-        return api_key
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| AppError::InvalidArgument("图片生成配置缺少 api_key_encrypted".into()));
-    }
-    Ok(api_key.unwrap_or(""))
-}
-
-pub fn image_backend_requires_api_key(backend: &str) -> bool {
-    matches!(
-        backend,
-        "openai-compatible-image"
-            | "openai-compatible-image-edit"
-            | "openai-chat-image"
-            | "cliproxy-image"
-    )
-}
-
-pub fn image_backend_supports_reference_images(backend: &str) -> bool {
-    matches!(
-        backend,
-        "openai-compatible-image-edit" | "openai-chat-image" | "cliproxy-image"
-    )
 }
 
 #[cfg(test)]
@@ -108,19 +76,5 @@ mod tests {
 
         assert!(matches!(err, AppError::ConfigError(_)));
         assert!(err.to_string().contains("请使用 image sidecar"));
-    }
-
-    #[test]
-    fn reference_image_support_is_limited_to_image_input_backends() {
-        assert!(image_backend_supports_reference_images(
-            "openai-compatible-image-edit"
-        ));
-        assert!(image_backend_supports_reference_images("openai-chat-image"));
-        assert!(image_backend_supports_reference_images("cliproxy-image"));
-        assert!(!image_backend_supports_reference_images(
-            "openai-compatible-image"
-        ));
-        assert!(!image_backend_supports_reference_images("stable-diffusion"));
-        assert!(!image_backend_supports_reference_images("comfyui"));
     }
 }

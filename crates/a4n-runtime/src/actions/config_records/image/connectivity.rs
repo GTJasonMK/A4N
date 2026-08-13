@@ -101,10 +101,12 @@ async fn resolve_image_config_for_connectivity_test(
         validate_runtime_snapshot_config_id("image", config.id, config_id)?;
         return Ok(config);
     }
-    require_config_admin(state, user_id).await?;
+    require_config_admin(state, user_id)
+        .await
+        .map_err(app_error_message)?;
     state
         .orchestrator()
-        .image_config_record_by_id(config_id)
+        .image_config_by_id(config_id)
         .await
         .map_err(app_error_message)
 }

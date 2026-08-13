@@ -144,7 +144,11 @@ pub struct VideoPollingProfile {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VideoProviderCleanupCapabilities {
+pub struct VideoProviderCapabilities {
+    pub backend: &'static str,
+    pub display_name: &'static str,
+    pub min_duration_secs: i32,
+    pub max_duration_secs: i32,
     pub asynchronous: bool,
     pub cancel: bool,
     pub status_query: bool,
@@ -153,46 +157,73 @@ pub struct VideoProviderCleanupCapabilities {
     pub polling_profile: Option<VideoPollingProfile>,
 }
 
-const ASYNC_VIDEO_CLEANUP_CAPABILITIES: VideoProviderCleanupCapabilities =
-    VideoProviderCleanupCapabilities {
+const fn async_video_provider(
+    backend: &'static str,
+    display_name: &'static str,
+    min_duration_secs: i32,
+    max_duration_secs: i32,
+) -> VideoProviderCapabilities {
+    VideoProviderCapabilities {
+        backend,
+        display_name,
+        min_duration_secs,
+        max_duration_secs,
         asynchronous: true,
         cancel: false,
         status_query: true,
         delete: false,
         cancel_confirmation: VideoCancelConfirmation::RequiresReconcile,
         polling_profile: Some(VideoPollingProfile { interval_secs: 60 }),
-    };
+    }
+}
 
-const OPENAI_VIDEO_CLEANUP_CAPABILITIES: VideoProviderCleanupCapabilities =
-    VideoProviderCleanupCapabilities {
+pub const VIDEO_PROVIDER_CAPABILITIES: &[VideoProviderCapabilities] = &[
+    async_video_provider(OPENAI_COMPATIBLE_VIDEO_BACKEND, "OpenAI 兼容视频", 1, 60),
+    async_video_provider(NEWAPI_VIDEO_BACKEND, "New API 视频", 1, 60),
+    async_video_provider(GEMINI_VEO_VIDEO_BACKEND, "Gemini Veo 视频", 1, 60),
+    async_video_provider(SEEDANCE2_VIDEO_BACKEND, "Seedance 2.0 参考媒体", 4, 15),
+    VideoProviderCapabilities {
         delete: true,
-        ..ASYNC_VIDEO_CLEANUP_CAPABILITIES
-    };
-
-const SYNC_VIDEO_CLEANUP_CAPABILITIES: VideoProviderCleanupCapabilities =
-    VideoProviderCleanupCapabilities {
+        ..async_video_provider(CLIPROXY_OPENAI_VIDEO_BACKEND, "CLIProxy / Grok 视频", 1, 15)
+    },
+    VideoProviderCapabilities {
+        backend: OPENAI_CHAT_VIDEO_BACKEND,
+        display_name: "Chat Completions 视频",
+        min_duration_secs: 1,
+        max_duration_secs: 60,
         asynchronous: false,
         cancel: false,
         status_query: false,
         delete: false,
         cancel_confirmation: VideoCancelConfirmation::NotApplicable,
         polling_profile: None,
-    };
+    },
+];
 
-/// The single backend/capability registry used by config validation, sidecars,
-/// and cleanup. Unknown backends intentionally return `None`.
-pub fn video_provider_cleanup_capabilities(
-    backend: &str,
-) -> Option<VideoProviderCleanupCapabilities> {
-    match backend {
-        OPENAI_COMPATIBLE_VIDEO_BACKEND
-        | NEWAPI_VIDEO_BACKEND
-        | GEMINI_VEO_VIDEO_BACKEND
-        | SEEDANCE2_VIDEO_BACKEND => Some(ASYNC_VIDEO_CLEANUP_CAPABILITIES),
-        CLIPROXY_OPENAI_VIDEO_BACKEND => Some(OPENAI_VIDEO_CLEANUP_CAPABILITIES),
-        OPENAI_CHAT_VIDEO_BACKEND => Some(SYNC_VIDEO_CLEANUP_CAPABILITIES),
-        _ => None,
+/// The single backend registry used by config validation, provider routing,
+/// capability discovery, and cleanup. Unknown backends intentionally return `None`.
+pub fn video_provider_capabilities(backend: &str) -> Option<VideoProviderCapabilities> {
+    VIDEO_PROVIDER_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capabilities| capabilities.backend == backend)
+}
+
+pub fn validate_video_provider_duration(backend: &str, duration_secs: i32) -> Result<(), String> {
+    let capabilities = video_provider_capabilities(backend)
+        .ok_or_else(|| format!("未知视频生成后端: {backend}"))?;
+    if duration_secs < capabilities.min_duration_secs
+        || duration_secs > capabilities.max_duration_secs
+    {
+        return Err(format!(
+            "{}支持时长必须在 {}-{} 秒之间，当前为 {} 秒",
+            capabilities.display_name,
+            capabilities.min_duration_secs,
+            capabilities.max_duration_secs,
+            duration_secs
+        ));
     }
+    Ok(())
 }
 
 #[async_trait]
@@ -238,13 +269,13 @@ mod tests {
 
     #[test]
     fn registry_covers_all_supported_backends_once() {
+        assert_eq!(VIDEO_PROVIDER_CAPABILITIES.len(), 6);
         for backend in [
             OPENAI_COMPATIBLE_VIDEO_BACKEND,
             NEWAPI_VIDEO_BACKEND,
             GEMINI_VEO_VIDEO_BACKEND,
-            SEEDANCE2_VIDEO_BACKEND,
         ] {
-            let capabilities = video_provider_cleanup_capabilities(backend).unwrap();
+            let capabilities = video_provider_capabilities(backend).unwrap();
             assert!(capabilities.asynchronous);
             assert!(capabilities.status_query);
             assert!(!capabilities.cancel);
@@ -254,15 +285,31 @@ mod tests {
                 VideoCancelConfirmation::RequiresReconcile
             );
         }
-        let openai = video_provider_cleanup_capabilities(CLIPROXY_OPENAI_VIDEO_BACKEND).unwrap();
+        let seedance = video_provider_capabilities(SEEDANCE2_VIDEO_BACKEND).unwrap();
+        assert_eq!(seedance.min_duration_secs, 4);
+        assert_eq!(seedance.max_duration_secs, 15);
+        let openai = video_provider_capabilities(CLIPROXY_OPENAI_VIDEO_BACKEND).unwrap();
         assert!(openai.asynchronous);
         assert!(openai.status_query);
         assert!(!openai.cancel);
         assert!(openai.delete);
-        let chat = video_provider_cleanup_capabilities(OPENAI_CHAT_VIDEO_BACKEND).unwrap();
+        assert_eq!(openai.min_duration_secs, 1);
+        assert_eq!(openai.max_duration_secs, 15);
+        let chat = video_provider_capabilities(OPENAI_CHAT_VIDEO_BACKEND).unwrap();
         assert!(!chat.asynchronous);
         assert!(!chat.status_query);
-        assert!(video_provider_cleanup_capabilities("unknown").is_none());
+        assert!(video_provider_capabilities("unknown").is_none());
+    }
+
+    #[test]
+    fn provider_duration_uses_registry_bounds() {
+        assert!(validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, 4).is_ok());
+        assert!(validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, 15).is_ok());
+        assert!(
+            validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, 3)
+                .unwrap_err()
+                .contains("4-15 秒")
+        );
     }
 
     #[test]

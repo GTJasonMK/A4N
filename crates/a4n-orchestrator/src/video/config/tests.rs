@@ -71,6 +71,8 @@ fn validate_video_config_params_accepts_gemini_veo_backend() {
 fn validate_video_config_params_accepts_seedance2_backend() {
     let mut params = valid_params();
     params.backend = SEEDANCE2_VIDEO_BACKEND.to_string();
+    params.min_duration_secs = 4;
+    params.max_duration_secs = 15;
 
     let params = validate_video_config_params(params).expect("seedance2 config");
 
@@ -100,7 +102,20 @@ fn validate_video_config_params_rejects_cliproxy_duration_over_15_secs() {
 
     let err = validate_video_config_params(params).expect_err("cliproxy duration cap should fail");
 
-    assert!(err.contains("1-15 秒"));
+    assert!(err.contains("1-15"));
+}
+
+#[test]
+fn validate_video_config_params_rejects_seedance_duration_outside_provider_range() {
+    let mut params = valid_params();
+    params.backend = SEEDANCE2_VIDEO_BACKEND.to_string();
+    params.default_duration_secs = 3;
+    params.min_duration_secs = 1;
+    params.max_duration_secs = 15;
+
+    let err = validate_video_config_params(params).expect_err("seedance duration cap should fail");
+
+    assert!(err.contains("4-15"));
 }
 
 #[test]

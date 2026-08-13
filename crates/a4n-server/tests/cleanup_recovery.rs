@@ -1826,7 +1826,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
     .unwrap();
     let llm = a4n_db::config::create_llm_config_record(
         &db,
-        a4n_db::config::LlmConfigCreateRecordInput {
+        a4n_db::config::LlmConfigRecordInput {
             name: format!("chapter-process-{suffix}"),
             provider: "openai".to_string(),
             base_url: "http://127.0.0.1:1/v1".to_string(),
@@ -2031,7 +2031,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
     .unwrap();
     let llm = a4n_db::config::create_llm_config_record(
         &db,
-        a4n_db::config::LlmConfigCreateRecordInput {
+        a4n_db::config::LlmConfigRecordInput {
             name: format!("outline-process-{suffix}"),
             provider: "openai".to_string(),
             base_url: "http://127.0.0.1:1/v1".to_string(),
@@ -2264,7 +2264,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     .unwrap();
     let llm = a4n_db::config::create_llm_config_record(
         &db,
-        a4n_db::config::LlmConfigCreateRecordInput {
+        a4n_db::config::LlmConfigRecordInput {
             name: format!("inspiration-process-success-{suffix}"),
             provider: "openai".to_string(),
             base_url: provider.base_url(),
@@ -2690,7 +2690,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
     .unwrap();
     let llm = a4n_db::config::create_llm_config_record(
         &db,
-        a4n_db::config::LlmConfigCreateRecordInput {
+        a4n_db::config::LlmConfigRecordInput {
             name: format!("inspiration-process-{suffix}"),
             provider: "openai".to_string(),
             base_url: "http://127.0.0.1:1/v1".to_string(),
@@ -2876,7 +2876,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
     .unwrap();
     let llm = a4n_db::config::create_llm_config_record(
         &db,
-        a4n_db::config::LlmConfigCreateRecordInput {
+        a4n_db::config::LlmConfigRecordInput {
             name: format!("optimize-chat-process-{suffix}"),
             provider: "openai".to_string(),
             base_url: "http://127.0.0.1:1/v1".to_string(),

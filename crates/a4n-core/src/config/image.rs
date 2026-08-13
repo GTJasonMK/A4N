@@ -28,34 +28,89 @@ pub struct UpdateImageConfigParams {
     pub default_height: i32,
 }
 
+pub const OPENAI_COMPATIBLE_IMAGE_BACKEND: &str = "openai-compatible-image";
+pub const OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND: &str = "openai-compatible-image-edit";
+pub const OPENAI_CHAT_IMAGE_BACKEND: &str = "openai-chat-image";
+pub const CLIPROXY_IMAGE_BACKEND: &str = "cliproxy-image";
+pub const STABLE_DIFFUSION_IMAGE_BACKEND: &str = "stable-diffusion";
+pub const COMFYUI_IMAGE_BACKEND: &str = "comfyui";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImageProviderCapabilities {
+    pub backend: &'static str,
+    pub display_name: &'static str,
+    pub requires_api_key: bool,
+    pub supports_reference_images: bool,
+}
+
+pub const IMAGE_PROVIDER_CAPABILITIES: &[ImageProviderCapabilities] = &[
+    ImageProviderCapabilities {
+        backend: OPENAI_COMPATIBLE_IMAGE_BACKEND,
+        display_name: "OpenAI 兼容图像",
+        requires_api_key: true,
+        supports_reference_images: false,
+    },
+    ImageProviderCapabilities {
+        backend: OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND,
+        display_name: "OpenAI 兼容图像编辑",
+        requires_api_key: true,
+        supports_reference_images: true,
+    },
+    ImageProviderCapabilities {
+        backend: OPENAI_CHAT_IMAGE_BACKEND,
+        display_name: "Chat Completions 图像",
+        requires_api_key: true,
+        supports_reference_images: true,
+    },
+    ImageProviderCapabilities {
+        backend: CLIPROXY_IMAGE_BACKEND,
+        display_name: "CLIProxy / Grok 图片",
+        requires_api_key: true,
+        supports_reference_images: true,
+    },
+    ImageProviderCapabilities {
+        backend: STABLE_DIFFUSION_IMAGE_BACKEND,
+        display_name: "Stable Diffusion WebUI",
+        requires_api_key: false,
+        supports_reference_images: false,
+    },
+    ImageProviderCapabilities {
+        backend: COMFYUI_IMAGE_BACKEND,
+        display_name: "ComfyUI",
+        requires_api_key: false,
+        supports_reference_images: false,
+    },
+];
+
+pub fn image_provider_capabilities(backend: &str) -> Option<ImageProviderCapabilities> {
+    IMAGE_PROVIDER_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capabilities| capabilities.backend == backend)
+}
+
 pub fn image_backend_requires_api_key(backend: &str) -> bool {
-    matches!(
-        backend,
-        "openai-compatible-image"
-            | "openai-compatible-image-edit"
-            | "openai-chat-image"
-            | "cliproxy-image"
-    )
+    image_provider_capabilities(backend).is_some_and(|capabilities| capabilities.requires_api_key)
 }
 
 pub fn image_backend_supports_reference_images(backend: &str) -> bool {
-    matches!(
-        backend,
-        "openai-compatible-image-edit" | "openai-chat-image" | "cliproxy-image"
-    )
+    image_provider_capabilities(backend)
+        .is_some_and(|capabilities| capabilities.supports_reference_images)
 }
 
 pub fn image_backend_api_key<'a>(
     backend: &str,
     api_key: Option<&'a str>,
 ) -> Result<&'a str, AppError> {
-    if image_backend_requires_api_key(backend) {
+    let capabilities = image_provider_capabilities(backend)
+        .ok_or_else(|| AppError::InvalidArgument(format!("未知图片生成后端: {backend}")))?;
+    if capabilities.requires_api_key {
         return api_key
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .ok_or_else(|| AppError::InvalidArgument("图片生成配置缺少 api_key_encrypted".into()));
     }
-    Ok(api_key.unwrap_or(""))
+    Ok("")
 }
 
 pub fn validate_image_config_params(
@@ -95,15 +150,12 @@ fn normalize_image_backend_api_key(
     backend: &str,
     api_key_encrypted: Option<String>,
 ) -> Result<Option<String>, AppError> {
-    if image_backend_requires_api_key(backend) {
+    let capabilities = image_provider_capabilities(backend)
+        .ok_or_else(|| AppError::InvalidArgument(format!("未知图片生成后端: {backend}")))?;
+    if capabilities.requires_api_key {
         return Ok(normalize_optional_config_value(api_key_encrypted));
     }
-    match backend {
-        "stable-diffusion" | "comfyui" => Ok(None),
-        other => Err(AppError::InvalidArgument(format!(
-            "未知图片生成后端: {other}"
-        ))),
-    }
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -152,14 +204,12 @@ mod tests {
 
     #[test]
     fn accepts_supported_remote_backends_without_required_api_keys() {
-        for backend in [
-            "openai-compatible-image",
-            "openai-compatible-image-edit",
-            "openai-chat-image",
-            "cliproxy-image",
-        ] {
+        for backend in IMAGE_PROVIDER_CAPABILITIES
+            .iter()
+            .filter(|capabilities| capabilities.requires_api_key)
+        {
             let mut params = params();
-            params.backend = backend.to_string();
+            params.backend = backend.backend.to_string();
             params.api_key_encrypted = None;
             assert_eq!(
                 validate_image_config_params(params)
@@ -172,9 +222,12 @@ mod tests {
 
     #[test]
     fn clears_api_keys_for_local_backends_and_rejects_unknown_backends() {
-        for backend in ["stable-diffusion", "comfyui"] {
+        for backend in IMAGE_PROVIDER_CAPABILITIES
+            .iter()
+            .filter(|capabilities| !capabilities.requires_api_key)
+        {
             let mut params = params();
-            params.backend = backend.to_string();
+            params.backend = backend.backend.to_string();
             assert_eq!(
                 validate_image_config_params(params)
                     .expect("supported local backend")
@@ -193,32 +246,17 @@ mod tests {
 
     #[test]
     fn image_backend_capabilities_have_one_canonical_rule_set() {
-        for backend in [
-            "openai-compatible-image",
-            "openai-compatible-image-edit",
-            "openai-chat-image",
-            "cliproxy-image",
-        ] {
-            assert!(image_backend_requires_api_key(backend));
+        for capabilities in IMAGE_PROVIDER_CAPABILITIES {
+            assert_eq!(
+                image_backend_requires_api_key(capabilities.backend),
+                capabilities.requires_api_key
+            );
+            assert_eq!(
+                image_backend_supports_reference_images(capabilities.backend),
+                capabilities.supports_reference_images
+            );
         }
-        for backend in ["stable-diffusion", "comfyui", "unknown-image-backend"] {
-            assert!(!image_backend_requires_api_key(backend));
-        }
-        for backend in [
-            "openai-compatible-image-edit",
-            "openai-chat-image",
-            "cliproxy-image",
-        ] {
-            assert!(image_backend_supports_reference_images(backend));
-        }
-        for backend in [
-            "openai-compatible-image",
-            "stable-diffusion",
-            "comfyui",
-            "unknown-image-backend",
-        ] {
-            assert!(!image_backend_supports_reference_images(backend));
-        }
+        assert!(image_provider_capabilities("unknown-image-backend").is_none());
 
         assert_eq!(
             image_backend_api_key("openai-compatible-image", Some("  secret  "))

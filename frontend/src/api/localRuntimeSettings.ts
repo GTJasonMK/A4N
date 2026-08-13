@@ -1,5 +1,10 @@
 import type { LocalEmbeddingConfig } from "./config";
-import type { LlmConfigSummary, LlmMaxTokensConfig } from "./generated/config";
+import type {
+  LlmConfigSummary,
+  LlmMaxTokensConfig,
+  UpdateEmbeddingInput,
+  UpdateLlmInput,
+} from "./generated/config";
 import type {
   ImageConfigInput,
   ImageGenConfig,
@@ -895,31 +900,20 @@ export function createLocalLlmConfig(input: {
 
 export function updateLocalLlmConfig(
   id: number,
-  input: Partial<{
-    name: string;
-    provider: string;
-    base_url: string;
-    api_key_encrypted?: string | null;
-    model: string;
-    max_concurrent: number;
-    timeout_secs: number;
-    max_context_tokens: number;
-    max_output_tokens: number;
-    extra_body_json?: unknown | null;
-  }>,
+  input: UpdateLlmInput,
 ): LocalLlmConfig {
   return mutateSettings((settings) => {
     const item = settings.llm.find((row) => row.id === id);
     if (!item) throw new Error(`本机 LLM 配置不存在: ${id}`);
-    if (item.is_default && input.max_output_tokens != null) {
+    if (item.is_default) {
       assertMaxTokensWithinModelCap(
         settings.llm_max_tokens,
         input.max_output_tokens,
       );
     }
-    if (input.name != null) item.name = input.name.trim();
-    if (input.provider != null) item.provider = input.provider.trim();
-    if (input.base_url != null) item.base_url = input.base_url.trim();
+    item.name = input.name.trim();
+    item.provider = input.provider.trim();
+    item.base_url = input.base_url.trim();
     if (input.api_key_encrypted === null) {
       item.api_key_encrypted = null;
     } else if (
@@ -928,17 +922,12 @@ export function updateLocalLlmConfig(
     ) {
       item.api_key_encrypted = input.api_key_encrypted.trim();
     }
-    if (input.model != null) item.model = input.model.trim();
-    if (input.max_concurrent != null)
-      item.max_concurrent = input.max_concurrent;
-    if (input.timeout_secs != null) item.timeout_secs = input.timeout_secs;
-    if (input.max_context_tokens != null)
-      item.max_context_tokens = input.max_context_tokens;
-    if (input.max_output_tokens != null)
-      item.max_output_tokens = input.max_output_tokens;
-    if (input.extra_body_json !== undefined) {
-      item.extra_body_json = input.extra_body_json ?? null;
-    }
+    item.model = input.model.trim();
+    item.max_concurrent = input.max_concurrent;
+    item.timeout_secs = input.timeout_secs;
+    item.max_context_tokens = input.max_context_tokens;
+    item.max_output_tokens = input.max_output_tokens;
+    item.extra_body_json = input.extra_body_json;
     const normalized = normalizeLocalLlmConfig(item);
     Object.assign(item, normalized);
     return normalized;
@@ -1233,24 +1222,14 @@ export function createLocalEmbeddingConfig(input: {
 
 export function updateLocalEmbeddingConfig(
   id: number,
-  input: Partial<{
-    name: string;
-    backend: string;
-    base_url?: string | null;
-    api_key_encrypted?: string | null;
-    model: string;
-    dimension: number;
-    batch_size: number | null;
-    local_model_path?: string | null;
-  }>,
+  input: UpdateEmbeddingInput,
 ): LocalEmbeddingConfig {
   return mutateSettings((settings) => {
     const item = settings.embedding.find((row) => row.id === id);
     if (!item) throw new Error(`本机 Embedding 配置不存在: ${id}`);
-    if (input.name != null) item.name = input.name.trim();
-    if (input.backend != null) item.backend = input.backend.trim();
-    if (input.base_url !== undefined)
-      item.base_url = input.base_url?.trim() || null;
+    item.name = input.name.trim();
+    item.backend = input.backend.trim();
+    item.base_url = input.base_url?.trim() || null;
     if (input.api_key_encrypted === null) {
       item.api_key_encrypted = null;
     } else if (
@@ -1259,12 +1238,10 @@ export function updateLocalEmbeddingConfig(
     ) {
       item.api_key_encrypted = input.api_key_encrypted.trim();
     }
-    if (input.model != null) item.model = input.model.trim();
-    if (input.dimension != null) item.dimension = input.dimension;
-    if (input.batch_size != null) item.batch_size = input.batch_size;
-    if (input.local_model_path !== undefined) {
-      item.local_model_path = input.local_model_path?.trim() || null;
-    }
+    item.model = input.model.trim();
+    item.dimension = input.dimension;
+    item.batch_size = input.batch_size;
+    item.local_model_path = input.local_model_path?.trim() || null;
     const normalized = normalizeLocalEmbeddingConfig(item);
     Object.assign(item, normalized);
     return normalized;

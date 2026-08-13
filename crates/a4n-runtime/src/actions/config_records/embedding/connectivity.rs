@@ -90,7 +90,9 @@ async fn resolve_embedding_config_for_connectivity_test(
         validate_runtime_snapshot_config_id("embedding", config.id, config_id)?;
         return Ok(config);
     }
-    require_config_admin(state, user_id).await?;
+    require_config_admin(state, user_id)
+        .await
+        .map_err(app_error_message)?;
     state
         .orchestrator()
         .embedding_config_by_id(config_id)

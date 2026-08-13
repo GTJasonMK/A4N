@@ -67,7 +67,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     .unwrap();
     let image_config = a4n_db::config::create_image_config_record(
         &db,
-        a4n_db::config::ImageConfigCreateRecordInput {
+        a4n_db::config::ImageConfigRecordInput {
             name: "tauri-image-provider".to_string(),
             backend: "openai-compatible-image".to_string(),
             base_url: format!("{}/v1", provider.base_url()),

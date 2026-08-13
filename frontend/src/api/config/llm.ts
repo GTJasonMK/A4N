@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId } from "../authStorage";
 import {
   withLocalRuntimeDiscoveryKey,
   type ModelDiscoveryInput,
@@ -188,7 +187,6 @@ export async function deleteLlmConfig(configId: Id): Promise<void> {
 
 export async function testServerLlmConfig(configId: Id): Promise<void> {
   return apiInvoke<void>("test_llm_config", {
-    userId: requireCurrentUserId(),
     configId: llmConfigId(configId),
     runtime_config_snapshot: null,
   });
@@ -198,7 +196,6 @@ export async function testLlmConfig(configId: Id): Promise<void> {
   if (isSystemDefaultLlmConfigId(configId)) {
     const llm = await loadSystemDefaultRuntimeLlmConfig();
     return apiInvoke<void>("test_llm_config", {
-      userId: requireCurrentUserId(),
       configId: SYSTEM_LLM_CONFIG_ID,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({ llm }),
     });
@@ -206,7 +203,6 @@ export async function testLlmConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings()) {
     const id = llmConfigId(configId);
     return apiInvoke<void>("test_llm_config", {
-      userId: requireCurrentUserId(),
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({
         llm: getLocalLlmConfig(id),
@@ -220,7 +216,6 @@ export async function previewServerTestLlmConfigRequest(
   configId: Id,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
-    userId: requireCurrentUserId(),
     configId: llmConfigId(configId),
     runtime_config_snapshot: null,
   });
@@ -234,7 +229,6 @@ export async function previewTestLlmConfigRequest(
       requireApiKey: false,
     });
     return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
-      userId: requireCurrentUserId(),
       configId: SYSTEM_LLM_CONFIG_ID,
       runtime_config_snapshot: buildRuntimeConfigSnapshot(
         { llm },
@@ -249,7 +243,6 @@ export async function previewTestLlmConfigRequest(
   if (usesLocalRuntimeSettings()) {
     const id = llmConfigId(configId);
     return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
-      userId: requireCurrentUserId(),
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot(
         { llm: getLocalLlmConfig(id) },
@@ -292,7 +285,6 @@ export async function detectServerLlmConfigModels(
   input: ModelDiscoveryInput,
 ): Promise<ModelDiscoveryResult> {
   return apiInvoke<ModelDiscoveryResult>("detect_llm_config_models", {
-    userId: requireCurrentUserId(),
     input,
   });
 }

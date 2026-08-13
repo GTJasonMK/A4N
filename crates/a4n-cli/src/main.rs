@@ -2719,8 +2719,13 @@ mod tests {
     fn call_context_injects_only_explicit_resource_identity() {
         let mut context = SessionContext::load(None, "http://localhost/api").unwrap();
         context.bind_user(7).unwrap();
+        let mut settings_args = json!({});
+        let settings_descriptor = catalog::command_descriptor("detect_llm_config_models").unwrap();
+        apply_context_args(&mut settings_args, &settings_descriptor, &context).unwrap();
+        assert_eq!(settings_args, json!({}));
+
         let mut user_args = json!({});
-        let user_descriptor = catalog::command_descriptor("detect_llm_config_models").unwrap();
+        let user_descriptor = catalog::command_descriptor("create_scene_profile").unwrap();
         apply_context_args(&mut user_args, &user_descriptor, &context).unwrap();
         assert_eq!(user_args["userId"], 7);
 

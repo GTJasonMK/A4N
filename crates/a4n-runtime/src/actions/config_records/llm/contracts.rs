@@ -1,3 +1,4 @@
+use crate::actions::config_records::shared::has_configured_api_key;
 pub use a4n_api_contract::config::{CreateLlmInput, LlmConfigSummary, UpdateLlmInput};
 use a4n_core::models::ai::llm_config;
 
@@ -7,10 +8,7 @@ pub(super) fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary
         name: config.name.clone(),
         provider: config.provider.clone(),
         base_url: config.base_url.clone(),
-        has_api_key: config
-            .api_key_encrypted
-            .as_ref()
-            .is_some_and(|value| !value.trim().is_empty()),
+        has_api_key: has_configured_api_key(config.api_key_encrypted.as_deref()),
         model: config.model.clone(),
         max_concurrent: config.max_concurrent,
         timeout_secs: config.timeout_secs,

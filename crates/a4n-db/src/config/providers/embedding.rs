@@ -6,19 +6,7 @@ use sea_orm::{
 };
 
 #[derive(Clone, Debug)]
-pub struct EmbeddingConfigCreateRecordInput {
-    pub name: String,
-    pub backend: String,
-    pub base_url: Option<String>,
-    pub api_key_encrypted: Option<String>,
-    pub model: String,
-    pub dimension: i32,
-    pub batch_size: i32,
-    pub local_model_path: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct EmbeddingConfigUpdateRecordInput {
+pub struct EmbeddingConfigRecordInput {
     pub name: String,
     pub backend: String,
     pub base_url: Option<String>,
@@ -73,7 +61,7 @@ where
 
 pub async fn create_embedding_config_record<C>(
     db: &C,
-    input: EmbeddingConfigCreateRecordInput,
+    input: EmbeddingConfigRecordInput,
 ) -> Result<embedding_config::Model, AppError>
 where
     C: ConnectionTrait,
@@ -102,7 +90,7 @@ where
 pub async fn update_embedding_config_record<C>(
     db: &C,
     existing: embedding_config::Model,
-    input: EmbeddingConfigUpdateRecordInput,
+    input: EmbeddingConfigRecordInput,
 ) -> Result<embedding_config::Model, AppError>
 where
     C: ConnectionTrait,

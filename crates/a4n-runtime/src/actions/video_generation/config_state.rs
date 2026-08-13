@@ -45,7 +45,7 @@ async fn persisted_video_config(
     config_id: Option<i64>,
 ) -> Result<video_gen_config::Model, String> {
     match config_id {
-        Some(id) => settings.video_config(id).await,
+        Some(id) => settings.video_config_by_id(id).await,
         None => settings.default_video_config().await,
     }
     .map_err(crate::actions::app_error_message)

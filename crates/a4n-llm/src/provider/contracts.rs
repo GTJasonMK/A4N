@@ -7,13 +7,58 @@ pub enum LlmProtocolKind {
     AnthropicMessages,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LlmProviderCapabilities {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub default_base_url: &'static str,
+    pub protocol: LlmProtocolKind,
+}
+
+pub const LLM_PROVIDER_CAPABILITIES: &[LlmProviderCapabilities] = &[
+    LlmProviderCapabilities {
+        id: "openai",
+        display_name: "OpenAI / 兼容协议",
+        default_base_url: "https://api.openai.com/v1",
+        protocol: LlmProtocolKind::OpenAiChatCompletions,
+    },
+    LlmProviderCapabilities {
+        id: "anthropic",
+        display_name: "Anthropic Claude",
+        default_base_url: "https://api.anthropic.com",
+        protocol: LlmProtocolKind::AnthropicMessages,
+    },
+    LlmProviderCapabilities {
+        id: "deepseek",
+        display_name: "DeepSeek",
+        default_base_url: "https://api.deepseek.com/v1",
+        protocol: LlmProtocolKind::OpenAiChatCompletions,
+    },
+    LlmProviderCapabilities {
+        id: "qwen",
+        display_name: "通义千问",
+        default_base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        protocol: LlmProtocolKind::OpenAiChatCompletions,
+    },
+    LlmProviderCapabilities {
+        id: "ollama",
+        display_name: "Ollama 本地",
+        default_base_url: "http://127.0.0.1:11434/v1",
+        protocol: LlmProtocolKind::OpenAiChatCompletions,
+    },
+];
+
+pub fn llm_provider_capabilities(provider: &str) -> Option<LlmProviderCapabilities> {
+    let provider = provider.trim();
+    LLM_PROVIDER_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capabilities| capabilities.id.eq_ignore_ascii_case(provider))
+}
+
 impl LlmProtocolKind {
     pub fn for_provider(provider: &str) -> Option<Self> {
-        match provider.trim().to_ascii_lowercase().as_str() {
-            "openai" | "deepseek" | "qwen" | "ollama" => Some(Self::OpenAiChatCompletions),
-            "anthropic" => Some(Self::AnthropicMessages),
-            _ => None,
-        }
+        llm_provider_capabilities(provider).map(|capabilities| capabilities.protocol)
     }
 }
 

@@ -8,7 +8,7 @@ use crate::actions::app_error_message;
 use crate::file_utils::{deletable_data_dir_path, remove_data_dir_in_data_dir};
 use a4n_core::files::paths::ProjectPaths;
 use a4n_db::cleanup_outbox::{GenerationCleanupOutcome, GenerationCleanupPayload};
-use a4n_video::{VideoJobDeleteOutcome, VideoJobStatus, video_provider_cleanup_capabilities};
+use a4n_video::{VideoJobDeleteOutcome, VideoJobStatus, video_provider_capabilities};
 
 pub(super) async fn process_claimed_cleanup(
     state: &AppState,
@@ -358,7 +358,7 @@ async fn process_claimed_provider_job_cleanup(
         .ok_or_else(|| format!("cleanup outbox claim 缺少 lease token: id={id}"))?;
     let action = match payload.operation {
         a4n_db::cleanup_outbox::GenerationProviderJobCleanupOperation::Cancel => {
-            if video_provider_cleanup_capabilities(&payload.provider_kind)
+            if video_provider_capabilities(&payload.provider_kind)
                 .is_some_and(|capabilities| capabilities.cancel)
             {
                 return Err(format!(
@@ -369,7 +369,7 @@ async fn process_claimed_provider_job_cleanup(
             ProviderCleanupAction::Complete(GenerationCleanupOutcome::Unsupported)
         }
         a4n_db::cleanup_outbox::GenerationProviderJobCleanupOperation::Delete => {
-            let declared_capabilities = video_provider_cleanup_capabilities(&payload.provider_kind)
+            let declared_capabilities = video_provider_capabilities(&payload.provider_kind)
                 .ok_or_else(|| format!("未知视频生成后端: {}", payload.provider_kind))?;
             if !declared_capabilities.delete {
                 ProviderCleanupAction::Complete(GenerationCleanupOutcome::Unsupported)
@@ -413,7 +413,7 @@ async fn process_claimed_provider_job_cleanup(
                 )
                 .await
                 .map_err(app_error_message)?;
-            let capabilities = video_provider_cleanup_capabilities(&config.backend)
+            let capabilities = video_provider_capabilities(&config.backend)
                 .ok_or_else(|| format!("未知视频生成后端: {}", config.backend))?;
             if !capabilities.status_query {
                 ProviderCleanupAction::Complete(GenerationCleanupOutcome::Unsupported)

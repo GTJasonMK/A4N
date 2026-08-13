@@ -13,9 +13,7 @@ use super::super::super::{
     global_provider_service_request, service_app_error, service_error_app_error,
     service_response_payload,
 };
-use super::super::contracts::{
-    EmbeddingTextsOutput, EmbeddingTextsPayload, positive_usize, required_text,
-};
+use super::super::contracts::{EmbeddingTextsOutput, embedding_texts_payload, positive_usize};
 
 pub(in crate::sidecar_clients::embedding) struct SidecarEmbeddingProvider {
     metadata_dimension: usize,
@@ -47,55 +45,13 @@ impl SidecarEmbeddingProvider {
         self.facade.default_embedding_config().await
     }
 
-    pub(in crate::sidecar_clients::embedding) fn normalized_sidecar_backend(
-        model: &embedding_config::Model,
-    ) -> Result<String, AppError> {
-        match model.backend.trim().to_ascii_lowercase().as_str() {
-            "api" => Ok("api".to_string()),
-            "fastembed" => Ok("fastembed".to_string()),
-            "local_hash" => Ok("local_hash".to_string()),
-            backend => Err(AppError::ConfigError(format!(
-                "embedding sidecar 不支持 backend={backend}"
-            ))),
-        }
-    }
-
-    fn embedding_payload(
-        &self,
-        model: &embedding_config::Model,
-        texts: Vec<String>,
-    ) -> Result<EmbeddingTextsPayload, AppError> {
-        let backend = Self::normalized_sidecar_backend(model)?;
-        let (base_url, api_key) = if backend == "api" {
-            (
-                Some(required_text(
-                    model.base_url.as_deref().unwrap_or_default(),
-                    "Base URL",
-                    &model.name,
-                )?),
-                model.api_key_encrypted.clone(),
-            )
-        } else {
-            (None, None)
-        };
-        Ok(EmbeddingTextsPayload {
-            backend,
-            base_url,
-            api_key,
-            model: required_text(&model.model, "模型名", &model.name)?,
-            dimension: positive_usize(model.dimension, "向量维度", &model.name)?,
-            batch_size: positive_usize(model.batch_size, "批量大小", &model.name)?,
-            texts,
-        })
-    }
-
     async fn embed_via_sidecar(
         &self,
         model: embedding_config::Model,
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
         let expected_dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
-        let payload = self.embedding_payload(&model, texts)?;
+        let payload = embedding_texts_payload(&model, texts)?;
         let client = self.client.clone();
         let response = self
             .facade
@@ -153,7 +109,6 @@ impl EmbeddingProvider for SidecarEmbeddingProvider {
 
     async fn model_identity(&self) -> Result<EmbeddingModelIdentity, AppError> {
         let model = self.resolve_default_model().await?;
-        Self::normalized_sidecar_backend(&model)?;
         dynamic_embedding::model_identity_from_config(&model)
     }
 

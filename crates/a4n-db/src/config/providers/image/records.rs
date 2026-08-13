@@ -1,4 +1,4 @@
-use super::contracts::{ImageConfigCreateRecordInput, ImageConfigUpdateRecordInput};
+use super::contracts::ImageConfigRecordInput;
 use a4n_core::{error::AppError, models::ai::image_gen_config};
 use chrono::Utc;
 use sea_orm::{
@@ -17,7 +17,7 @@ where
         .map_err(AppError::Database)
 }
 
-pub async fn image_config_record_by_id<C>(
+pub async fn image_config_by_id<C>(
     db: &C,
     config_id: i64,
 ) -> Result<image_gen_config::Model, AppError>
@@ -28,12 +28,12 @@ where
         .one(db)
         .await
         .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound("图片配置不存在".to_string()))
+        .ok_or_else(|| AppError::NotFound(format!("图片配置 #{config_id} 不存在")))
 }
 
 pub async fn create_image_config_record<C>(
     db: &C,
-    input: ImageConfigCreateRecordInput,
+    input: ImageConfigRecordInput,
 ) -> Result<image_gen_config::Model, AppError>
 where
     C: ConnectionTrait,
@@ -62,7 +62,7 @@ where
 pub async fn update_image_config_record<C>(
     db: &C,
     existing: image_gen_config::Model,
-    input: ImageConfigUpdateRecordInput,
+    input: ImageConfigRecordInput,
 ) -> Result<image_gen_config::Model, AppError>
 where
     C: ConnectionTrait,

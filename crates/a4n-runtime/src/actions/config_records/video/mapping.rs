@@ -1,11 +1,10 @@
-mod params;
-
-use super::contracts::{UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary};
+use super::{
+    super::shared::has_configured_api_key,
+    contracts::{UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary},
+};
 use a4n_core::models::ai::video_gen_config;
-use a4n_orchestrator::video::validate_video_config_params;
+use a4n_orchestrator::video::{UpdateVideoConfigParams, VideoConfigParams};
 use std::str::FromStr;
-
-use params::{video_config_params, video_update_config_params};
 
 pub(super) fn video_config_summary(
     config: &video_gen_config::Model,
@@ -18,10 +17,7 @@ pub(super) fn video_config_summary(
             .base_url
             .clone()
             .ok_or_else(|| format!("视频配置 #{} 缺少 base_url", config.id))?,
-        has_api_key: config
-            .api_key_encrypted
-            .as_ref()
-            .is_some_and(|value| !value.trim().is_empty()),
+        has_api_key: has_configured_api_key(config.api_key_encrypted.as_deref()),
         model: config.model.clone(),
         max_concurrent: config.max_concurrent,
         default_width: config.default_width,
@@ -37,18 +33,42 @@ pub(super) fn video_config_summary(
     })
 }
 
-pub(super) fn video_create_params(
-    input: VideoConfigInput,
-) -> Result<a4n_orchestrator::video::VideoConfigParams, String> {
-    validate_video_config_params(video_config_params(input))
-        .map_err(|err| a4n_core::error::AppError::InvalidArgument(err).to_string())
+pub(super) fn video_create_params(input: VideoConfigInput) -> VideoConfigParams {
+    VideoConfigParams {
+        name: input.name,
+        backend: input.backend,
+        base_url: input.base_url,
+        api_key_encrypted: input.api_key_encrypted,
+        model: input.model,
+        max_concurrent: input.max_concurrent,
+        default_width: input.default_width,
+        default_height: input.default_height,
+        default_duration_secs: input.default_duration_secs,
+        min_duration_secs: input.min_duration_secs,
+        max_duration_secs: input.max_duration_secs,
+        duration_mode: input.duration_mode.to_string(),
+        supported_durations_json: input.supported_durations_json,
+        default_fps: input.default_fps,
+    }
 }
 
-pub(super) fn video_update_params(
-    _existing: &video_gen_config::Model,
-    input: UpdateVideoConfigInput,
-) -> Result<a4n_orchestrator::video::UpdateVideoConfigParams, String> {
-    Ok(video_update_config_params(input))
+pub(super) fn video_update_params(input: UpdateVideoConfigInput) -> UpdateVideoConfigParams {
+    UpdateVideoConfigParams {
+        name: input.name,
+        backend: input.backend,
+        base_url: input.base_url,
+        api_key_encrypted: input.api_key_encrypted,
+        model: input.model,
+        max_concurrent: input.max_concurrent,
+        default_width: input.default_width,
+        default_height: input.default_height,
+        default_duration_secs: input.default_duration_secs,
+        min_duration_secs: input.min_duration_secs,
+        max_duration_secs: input.max_duration_secs,
+        duration_mode: input.duration_mode.to_string(),
+        supported_durations_json: input.supported_durations_json,
+        default_fps: input.default_fps,
+    }
 }
 
 #[cfg(test)]
@@ -76,10 +96,7 @@ mod tests {
         let missing_key = serde_json::from_value::<UpdateVideoConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");
         assert_eq!(missing_key.api_key_encrypted, None);
-        assert_eq!(
-            video_update_config_params(missing_key).api_key_encrypted,
-            None
-        );
+        assert_eq!(video_update_params(missing_key).api_key_encrypted, None);
         let mut clear_value = base.clone();
         clear_value["api_key_encrypted"] = Value::Null;
         let clear_key = serde_json::from_value::<UpdateVideoConfigInput>(clear_value)
@@ -90,7 +107,7 @@ mod tests {
         let replace_key = serde_json::from_value::<UpdateVideoConfigInput>(replace_value)
             .expect("string api_key_encrypted should replace the old key");
         assert_eq!(
-            video_update_config_params(replace_key).api_key_encrypted,
+            video_update_params(replace_key).api_key_encrypted,
             Some(Some("sk-new".to_string()))
         );
     }

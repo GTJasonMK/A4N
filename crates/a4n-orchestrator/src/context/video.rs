@@ -1224,9 +1224,9 @@ impl OrchestratorContext {
                     operation: "恢复视频 provider job".to_string(),
                 })
             })?;
-        let config = self.video_config(config_id).await?;
-        let capabilities = a4n_video::video_provider_cleanup_capabilities(&config.backend)
-            .ok_or_else(|| {
+        let config = self.video_config_by_id(config_id).await?;
+        let capabilities =
+            a4n_video::video_provider_capabilities(&config.backend).ok_or_else(|| {
                 AppError::ConfigError(format!("未知视频生成后端: {}", config.backend))
             })?;
         if !capabilities.asynchronous {

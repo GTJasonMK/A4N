@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId } from "../authStorage";
 import { runtimeInvoke } from "../runtime";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
@@ -83,7 +82,6 @@ export async function testEmbeddingConfig(configId: Id): Promise<void> {
       });
     }
     return apiInvoke<void>("test_embedding_config", {
-      userId: requireCurrentUserId(),
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({
         embedding: getLocalEmbeddingConfig(id),
@@ -91,7 +89,6 @@ export async function testEmbeddingConfig(configId: Id): Promise<void> {
     });
   }
   return apiInvoke<void>("test_embedding_config", {
-    userId: requireCurrentUserId(),
     configId: idNum(configId, "Embedding 配置 ID"),
   });
 }
@@ -104,7 +101,6 @@ export async function previewTestEmbeddingConfigRequest(
     return apiInvoke<ModelRequestPreview>(
       "preview_test_embedding_config_request",
       {
-        userId: requireCurrentUserId(),
         configId: id,
         runtime_config_snapshot: buildRuntimeConfigSnapshot(
           {
@@ -118,7 +114,6 @@ export async function previewTestEmbeddingConfigRequest(
   return apiInvoke<ModelRequestPreview>(
     "preview_test_embedding_config_request",
     {
-      userId: requireCurrentUserId(),
       configId: idNum(configId, "Embedding 配置 ID"),
     },
   );

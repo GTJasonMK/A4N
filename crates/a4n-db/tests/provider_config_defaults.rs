@@ -1,11 +1,11 @@
 use a4n_db::config::{
-    LlmConfigCreateRecordInput, ProviderConfigKind, create_llm_config_record,
-    delete_llm_config_record, list_llm_config_records, set_default_provider_config,
+    LlmConfigRecordInput, ProviderConfigKind, create_llm_config_record, delete_llm_config_record,
+    list_llm_config_records, set_default_provider_config,
 };
 use uuid::Uuid;
 
-fn llm_input(name: String) -> LlmConfigCreateRecordInput {
-    LlmConfigCreateRecordInput {
+fn llm_input(name: String) -> LlmConfigRecordInput {
+    LlmConfigRecordInput {
         name,
         provider: "openai".to_string(),
         base_url: "https://llm.example.test/v1".to_string(),

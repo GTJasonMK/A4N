@@ -157,7 +157,6 @@ fn image_provider_request_step_uses_backend_request_body_and_redacts_media() {
                 data_uri: "data:image/png;base64,QUJDREVGRw==".into(),
             }],
         },
-        None,
     )
     .expect("image provider preview");
 
@@ -196,7 +195,6 @@ fn image_provider_request_step_blocks_unsupported_reference_images() {
                 data_uri: "data:image/png;base64,QUJDREVGRw==".into(),
             }],
         },
-        None,
     )
     .expect("blocked preview step");
 

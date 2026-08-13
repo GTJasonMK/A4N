@@ -1,6 +1,9 @@
-use super::contracts::{ImageConfigInput, ImageConfigSummary, UpdateImageConfigInput};
+use super::{
+    super::shared::has_configured_api_key,
+    contracts::{ImageConfigInput, ImageConfigSummary, UpdateImageConfigInput},
+};
 use a4n_core::{
-    config::{CreateImageConfigParams, UpdateImageConfigParams, validate_image_config_params},
+    config::{CreateImageConfigParams, UpdateImageConfigParams},
     models::ai::image_gen_config,
 };
 
@@ -15,10 +18,7 @@ pub(super) fn image_config_summary(
             .base_url
             .clone()
             .ok_or_else(|| format!("图片配置 #{} 缺少 base_url", config.id))?,
-        has_api_key: config
-            .api_key_encrypted
-            .as_ref()
-            .is_some_and(|value| !value.trim().is_empty()),
+        has_api_key: has_configured_api_key(config.api_key_encrypted.as_deref()),
         model: config.model.clone(),
         max_concurrent: config.max_concurrent,
         default_width: config.default_width,
@@ -27,7 +27,7 @@ pub(super) fn image_config_summary(
     })
 }
 
-fn image_config_params(input: ImageConfigInput) -> CreateImageConfigParams {
+pub(super) fn image_create_params(input: ImageConfigInput) -> CreateImageConfigParams {
     CreateImageConfigParams {
         name: input.name,
         backend: input.backend,
@@ -40,7 +40,7 @@ fn image_config_params(input: ImageConfigInput) -> CreateImageConfigParams {
     }
 }
 
-fn image_update_config_params(input: UpdateImageConfigInput) -> UpdateImageConfigParams {
+pub(super) fn image_update_params(input: UpdateImageConfigInput) -> UpdateImageConfigParams {
     UpdateImageConfigParams {
         name: input.name,
         backend: input.backend,
@@ -51,19 +51,6 @@ fn image_update_config_params(input: UpdateImageConfigInput) -> UpdateImageConfi
         default_width: input.default_width,
         default_height: input.default_height,
     }
-}
-
-pub(super) fn image_create_params(
-    input: ImageConfigInput,
-) -> Result<CreateImageConfigParams, String> {
-    validate_image_config_params(image_config_params(input)).map_err(|err| err.to_string())
-}
-
-pub(super) fn image_update_params(
-    _existing: &image_gen_config::Model,
-    input: UpdateImageConfigInput,
-) -> Result<UpdateImageConfigParams, String> {
-    Ok(image_update_config_params(input))
 }
 
 #[cfg(test)]
@@ -85,10 +72,7 @@ mod tests {
         let missing_key = serde_json::from_value::<UpdateImageConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");
         assert_eq!(missing_key.api_key_encrypted, None);
-        assert_eq!(
-            image_update_config_params(missing_key).api_key_encrypted,
-            None
-        );
+        assert_eq!(image_update_params(missing_key).api_key_encrypted, None);
 
         let mut clear_value = base.clone();
         clear_value["api_key_encrypted"] = Value::Null;
@@ -101,7 +85,7 @@ mod tests {
         let replace_key = serde_json::from_value::<UpdateImageConfigInput>(replace_value)
             .expect("string api_key_encrypted should replace the old key");
         assert_eq!(
-            image_update_config_params(replace_key).api_key_encrypted,
+            image_update_params(replace_key).api_key_encrypted,
             Some(Some("sk-new".to_string()))
         );
     }

@@ -3,9 +3,8 @@ use super::contracts::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
     VideoDurationCapabilityValues,
 };
-use super::provider::validate_backend_duration_constraints;
 use a4n_core::models::ai::video_gen_config;
-use a4n_video::video_provider_cleanup_capabilities;
+use a4n_video::video_provider_capabilities;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -41,24 +40,27 @@ pub fn validate_video_config_params(
     params.base_url = required_video_config_value(params.base_url, "base_url")?;
     params.model = required_video_config_value(params.model, "model")?;
 
-    match video_provider_cleanup_capabilities(&params.backend) {
-        Some(_) => {
-            params.api_key_encrypted = params
-                .api_key_encrypted
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty());
-        }
-        None => {
-            return Err(format!("未知视频生成后端: {}", params.backend));
-        }
-    }
+    let capabilities = video_provider_capabilities(&params.backend)
+        .ok_or_else(|| format!("未知视频生成后端: {}", params.backend))?;
+    params.api_key_encrypted = params
+        .api_key_encrypted
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
 
     validate_video_max_concurrent(params.max_concurrent)?;
     validate_i32_positive(params.default_width, "default_width")?;
     validate_i32_positive(params.default_height, "default_height")?;
-    validate_i32_range(params.default_duration_secs, "default_duration_secs", 1, 60)?;
-    validate_video_duration_capability(&mut params)?;
-    validate_backend_duration_constraints(&params)?;
+    validate_i32_range(
+        params.default_duration_secs,
+        "default_duration_secs",
+        capabilities.min_duration_secs,
+        capabilities.max_duration_secs,
+    )?;
+    validate_video_duration_capability(
+        &mut params,
+        capabilities.min_duration_secs,
+        capabilities.max_duration_secs,
+    )?;
     validate_i32_range(params.default_fps, "default_fps", 1, 120)?;
     Ok(params)
 }
@@ -66,12 +68,16 @@ pub fn validate_video_config_params(
 pub fn duration_capability_for_config(
     cfg: &video_gen_config::Model,
 ) -> Result<VideoDurationCapability, String> {
+    let capabilities = video_provider_capabilities(&cfg.backend)
+        .ok_or_else(|| format!("未知视频生成后端: {}", cfg.backend))?;
     validate_video_duration_capability_values(
         &cfg.duration_mode,
         cfg.default_duration_secs,
         cfg.min_duration_secs,
         cfg.max_duration_secs,
         cfg.supported_durations_json.as_ref(),
+        capabilities.min_duration_secs,
+        capabilities.max_duration_secs,
     )
     .map(|values| VideoDurationCapability {
         model: Some(cfg.model.clone()),
@@ -118,13 +124,19 @@ fn validate_i32_range(value: i32, field: &str, min: i32, max: i32) -> Result<(),
     Ok(())
 }
 
-fn validate_video_duration_capability(params: &mut VideoConfigParams) -> Result<(), String> {
+fn validate_video_duration_capability(
+    params: &mut VideoConfigParams,
+    min_duration_secs: i32,
+    max_duration_secs: i32,
+) -> Result<(), String> {
     let values = validate_video_duration_capability_values(
         &params.duration_mode,
         params.default_duration_secs,
         params.min_duration_secs,
         params.max_duration_secs,
         params.supported_durations_json.as_ref(),
+        min_duration_secs,
+        max_duration_secs,
     )?;
     params.duration_mode = values.duration_mode;
     if params.min_duration_secs != values.min_duration_secs {
@@ -152,11 +164,17 @@ fn validate_video_duration_capability_values(
     min_duration_secs: i32,
     max_duration_secs: i32,
     supported_durations_json: Option<&Value>,
+    provider_min_duration_secs: i32,
+    provider_max_duration_secs: i32,
 ) -> Result<VideoDurationCapabilityValues, String> {
     let duration_mode = normalize_video_duration_mode(duration_mode)?;
     match duration_mode.as_str() {
         VIDEO_DURATION_MODE_FIXED => {
-            let supported = validate_supported_durations(supported_durations_json)?;
+            let supported = validate_supported_durations(
+                supported_durations_json,
+                provider_min_duration_secs,
+                provider_max_duration_secs,
+            )?;
             let Some(first) = supported.first().copied() else {
                 return Err("固定时间档位模式必须填写 supported_durations_json".to_string());
             };
@@ -180,8 +198,18 @@ fn validate_video_duration_capability_values(
                         .to_string(),
                 );
             }
-            validate_i32_range(min_duration_secs, "min_duration_secs", 1, 60)?;
-            validate_i32_range(max_duration_secs, "max_duration_secs", 1, 60)?;
+            validate_i32_range(
+                min_duration_secs,
+                "min_duration_secs",
+                provider_min_duration_secs,
+                provider_max_duration_secs,
+            )?;
+            validate_i32_range(
+                max_duration_secs,
+                "max_duration_secs",
+                provider_min_duration_secs,
+                provider_max_duration_secs,
+            )?;
             if min_duration_secs > max_duration_secs {
                 return Err("视频配置 min_duration_secs 不能大于 max_duration_secs".to_string());
             }
@@ -217,7 +245,11 @@ fn normalize_video_duration_mode(value: &str) -> Result<String, String> {
     }
 }
 
-fn validate_supported_durations(value: Option<&Value>) -> Result<Vec<i32>, String> {
+fn validate_supported_durations(
+    value: Option<&Value>,
+    min_duration_secs: i32,
+    max_duration_secs: i32,
+) -> Result<Vec<i32>, String> {
     let Some(value) = value.filter(|value| !value.is_null()) else {
         return Ok(Vec::new());
     };
@@ -232,7 +264,12 @@ fn validate_supported_durations(value: Option<&Value>) -> Result<Vec<i32>, Strin
         };
         let duration = i32::try_from(raw)
             .map_err(|_| "视频配置 supported_durations_json 包含超出 i32 范围的整数".to_string())?;
-        validate_i32_range(duration, "supported_durations_json", 1, 60)?;
+        validate_i32_range(
+            duration,
+            "supported_durations_json",
+            min_duration_secs,
+            max_duration_secs,
+        )?;
         if !seen.insert(duration) {
             return Err(format!(
                 "视频配置 supported_durations_json 包含重复时长：{duration}"

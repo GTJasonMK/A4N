@@ -1,16 +1,7 @@
 use a4n_core::{error::AppError, models::ai::image_gen_config};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
-pub async fn image_config_by_id(
-    db: &DatabaseConnection,
-    id: i64,
-) -> Result<image_gen_config::Model, AppError> {
-    image_gen_config::Entity::find_by_id(id)
-        .one(db)
-        .await
-        .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound(format!("图片配置 #{id} 不存在")))
-}
+use super::records::image_config_by_id;
 
 pub async fn default_image_config(
     db: &DatabaseConnection,

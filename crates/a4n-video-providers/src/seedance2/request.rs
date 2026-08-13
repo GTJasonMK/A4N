@@ -1,7 +1,10 @@
 use serde_json::{Map, Value, json};
 
 use a4n_core::error::AppError;
-use a4n_video::{VideoGenerationRequest, VideoMediaInput};
+use a4n_video::{
+    SEEDANCE2_VIDEO_BACKEND, VideoGenerationRequest, VideoMediaInput,
+    validate_video_provider_duration,
+};
 
 use super::Seedance2VideoProvider;
 
@@ -35,12 +38,8 @@ impl Seedance2VideoProvider {
             "ratio".into(),
             json!(ratio_from_size(req.width, req.height)),
         );
-        if !(4..=15).contains(&req.duration_secs) {
-            return Err(AppError::InvalidArgument(format!(
-                "Seedance 2.0 duration 必须在 4-15 秒之间，当前为 {} 秒",
-                req.duration_secs
-            )));
-        }
+        validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, req.duration_secs)
+            .map_err(AppError::InvalidArgument)?;
         parameters.insert("duration".into(), json!(req.duration_secs));
 
         Ok(json!({

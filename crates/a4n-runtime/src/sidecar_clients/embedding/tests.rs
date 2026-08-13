@@ -7,7 +7,6 @@ use super::download::{
     download_embedding_model_events, handle_embedding_download_event,
     test_embedding_config_via_sidecar,
 };
-use super::provider::SidecarEmbeddingProvider;
 use crate::state::RuntimeProfile;
 use a4n_capabilities::A4nCapabilities;
 use a4n_capabilities::JsonResponse;
@@ -47,27 +46,32 @@ fn embedding_model(backend: &str) -> embedding_config::Model {
 fn embedding_sidecar_accepts_supported_backends_case_insensitively() {
     let model = embedding_model(" FastEmbed ");
     assert_eq!(
-        SidecarEmbeddingProvider::normalized_sidecar_backend(&model)
-            .expect("fastembed must be supported"),
+        embedding_connectivity_test_payload(&model)
+            .expect("fastembed must be supported")
+            .backend,
         "fastembed"
     );
 
     let model = embedding_model(" Local_Hash ");
     assert_eq!(
-        SidecarEmbeddingProvider::normalized_sidecar_backend(&model)
-            .expect("local_hash must be supported"),
+        embedding_connectivity_test_payload(&model)
+            .expect("local_hash must be supported")
+            .backend,
         "local_hash"
     );
 }
 
 #[test]
 fn embedding_sidecar_accepts_api_backend() {
-    let model = embedding_model("api");
+    let mut model = embedding_model("api");
+    model.base_url = Some("https://provider.example/v1".to_string());
     assert_eq!(
-        SidecarEmbeddingProvider::normalized_sidecar_backend(&model)
-            .expect("API embedding must run in the trusted sidecar"),
+        embedding_connectivity_test_payload(&model)
+            .expect("API embedding must run in the trusted sidecar")
+            .backend,
         "api"
     );
+    assert!(embedding_connectivity_test_payload(&embedding_model("unknown")).is_err());
 }
 
 #[test]
@@ -112,6 +116,8 @@ fn embedding_model_sidecar_payload_never_forwards_host_cache_path() {
 #[test]
 fn embedding_connectivity_payload_omits_host_cache_path_and_keeps_explicit_model() {
     let mut model = embedding_model("fastembed");
+    model.base_url = Some("https://unused.example/v1".to_string());
+    model.api_key_encrypted = Some("unused-secret".to_string());
     model.local_model_path = Some("/host/private/cache".to_string());
     model.batch_size = 16;
 

@@ -498,7 +498,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             .await
             .expect("FastEmbed model delete should cross the independent process");
         assert_eq!(deleted.status, ServiceStatus::Ok);
-        assert!(deleted.payload.is_none());
+        assert_eq!(deleted.payload, Some(serde_json::Value::Null));
         assert!(!cache_path.exists());
         force_finish_sidecar(complete, &manager, EMBEDDING_SERVICE_NAME, addr).await;
 

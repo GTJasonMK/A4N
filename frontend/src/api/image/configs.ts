@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId } from "../authStorage";
 import {
   withLocalRuntimeDiscoveryKey,
   type ModelDiscoveryInput,
@@ -204,7 +203,6 @@ export async function setDefaultImageConfig(configId: Id): Promise<void> {
 
 export async function testServerImageConfig(configId: Id): Promise<void> {
   return apiInvoke<void>("test_image_config", {
-    userId: requireCurrentUserId(),
     configId: imageConfigId(configId),
     runtime_config_snapshot: null,
   });
@@ -214,7 +212,6 @@ export async function testImageConfig(configId: Id): Promise<void> {
   if (isSystemDefaultImageConfigId(configId)) {
     const image = await loadSystemDefaultRuntimeImageConfig();
     return apiInvoke<void>("test_image_config", {
-      userId: requireCurrentUserId(),
       configId: SYSTEM_IMAGE_CONFIG_ID,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({ image }),
     });
@@ -222,7 +219,6 @@ export async function testImageConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings()) {
     const id = imageConfigId(configId);
     return apiInvoke<void>("test_image_config", {
-      userId: requireCurrentUserId(),
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({
         image: getLocalImageConfig(id),
@@ -236,7 +232,6 @@ export async function previewServerTestImageConfigRequest(
   configId: Id,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
-    userId: requireCurrentUserId(),
     configId: imageConfigId(configId),
     runtime_config_snapshot: null,
   });
@@ -250,7 +245,6 @@ export async function previewTestImageConfigRequest(
       requireApiKey: false,
     });
     return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
-      userId: requireCurrentUserId(),
       configId: SYSTEM_IMAGE_CONFIG_ID,
       runtime_config_snapshot: buildRuntimeConfigSnapshot(
         { image },
@@ -261,7 +255,6 @@ export async function previewTestImageConfigRequest(
   if (usesLocalRuntimeSettings()) {
     const id = imageConfigId(configId);
     return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
-      userId: requireCurrentUserId(),
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot(
         { image: getLocalImageConfig(id) },
@@ -276,7 +269,6 @@ export async function detectServerImageConfigModels(
   input: ModelDiscoveryInput,
 ): Promise<ModelDiscoveryResult> {
   return apiInvoke<ModelDiscoveryResult>("detect_image_config_models", {
-    userId: requireCurrentUserId(),
     input,
   });
 }

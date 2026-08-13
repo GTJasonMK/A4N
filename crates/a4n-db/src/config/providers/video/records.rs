@@ -5,7 +5,7 @@ use sea_orm::{
     QueryOrder, Set,
 };
 
-use super::contracts::{VideoConfigCreateRecordInput, VideoConfigUpdateRecordInput};
+use super::contracts::VideoConfigRecordInput;
 
 pub async fn list_video_config_records<C>(db: &C) -> Result<Vec<video_gen_config::Model>, AppError>
 where
@@ -18,7 +18,7 @@ where
         .map_err(AppError::Database)
 }
 
-pub async fn video_config_record_by_id<C>(
+pub async fn video_config_by_id<C>(
     db: &C,
     config_id: i64,
 ) -> Result<video_gen_config::Model, AppError>
@@ -29,12 +29,12 @@ where
         .one(db)
         .await
         .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound("视频配置不存在".to_string()))
+        .ok_or_else(|| AppError::NotFound(format!("视频配置 #{config_id} 不存在")))
 }
 
 pub async fn create_video_config_record<C>(
     db: &C,
-    input: VideoConfigCreateRecordInput,
+    input: VideoConfigRecordInput,
 ) -> Result<video_gen_config::Model, AppError>
 where
     C: ConnectionTrait,
@@ -69,7 +69,7 @@ where
 pub async fn update_video_config_record<C>(
     db: &C,
     existing: video_gen_config::Model,
-    input: VideoConfigUpdateRecordInput,
+    input: VideoConfigRecordInput,
 ) -> Result<video_gen_config::Model, AppError>
 where
     C: ConnectionTrait,

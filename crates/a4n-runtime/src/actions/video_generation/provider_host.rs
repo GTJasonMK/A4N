@@ -7,11 +7,6 @@ use a4n_orchestrator::canvas::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoImageInput,
     CanvasVideoPersistedFile, CanvasVideoProviderInput, CanvasVideoResolvedImages,
 };
-#[cfg(feature = "embedded-media-providers")]
-use a4n_orchestrator::video::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
-    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
-};
 use a4n_orchestrator::video::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, PersistedVideoResult,
     ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort,
@@ -22,6 +17,8 @@ use a4n_orchestrator::video::{
 };
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_service_protocol::GenerationArtifactRef;
+#[cfg(feature = "embedded-media-providers")]
+use a4n_video::video_provider_capabilities;
 use a4n_video::{VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -30,10 +27,7 @@ use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "embedded-media-providers")]
-use a4n_video_providers::{
-    ChatCompletionsVideoProvider, CliProxyOpenAiVideoProvider, GeminiVeoVideoProvider,
-    HttpVideoProvider, NewApiVideoProvider, Seedance2VideoProvider,
-};
+use a4n_video_providers::video_provider_request_body_preview;
 
 use crate::actions::image_generation::run_queued_request_with_cancel_and_workflow;
 use crate::{
@@ -101,47 +95,25 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
 
         #[cfg(feature = "embedded-media-providers")]
         {
-            let (request, source_label) = match input.config.backend.as_str() {
-                NEWAPI_VIDEO_BACKEND => (
-                    NewApiVideoProvider::request_body_preview(&input.request)
-                        .map_err(|error| host_error(error.to_string()))?,
-                    "由 embedded New API provider 生成真实请求体",
-                ),
-                OPENAI_COMPATIBLE_VIDEO_BACKEND => (
-                    HttpVideoProvider::request_body_preview(&input.request),
-                    "由 embedded OpenAI 兼容视频 provider 生成真实请求体",
-                ),
-                CLIPROXY_OPENAI_VIDEO_BACKEND => (
-                    CliProxyOpenAiVideoProvider::request_body_preview_for_base_url(
-                        &input.request,
-                        input.config.base_url.as_deref().unwrap_or_default(),
-                    )
-                    .map_err(|error| host_error(error.to_string()))?,
-                    "由 embedded CLIProxy OpenAI 视频 provider 生成真实请求体",
-                ),
-                GEMINI_VEO_VIDEO_BACKEND => (
-                    GeminiVeoVideoProvider::request_body_preview(&input.request)
-                        .map_err(|error| host_error(error.to_string()))?,
-                    "由 embedded Gemini Veo provider 生成真实请求体",
-                ),
-                OPENAI_CHAT_VIDEO_BACKEND => (
-                    ChatCompletionsVideoProvider::request_body_preview(&input.request),
-                    "由 embedded Chat-Completions 视频 provider 生成真实请求体",
-                ),
-                SEEDANCE2_VIDEO_BACKEND => (
-                    Seedance2VideoProvider::request_body_preview(&input.request)
-                        .map_err(|error| host_error(error.to_string()))?,
-                    "由 embedded Seedance 2.0 provider 生成真实请求体",
-                ),
-                backend => {
-                    return Err(host_error(format!(
-                        "未知视频 backend={backend}，无法展示真实 provider 请求体"
-                    )));
-                }
-            };
+            let capabilities =
+                video_provider_capabilities(&input.config.backend).ok_or_else(|| {
+                    host_error(format!(
+                        "未知视频 backend={}，无法展示真实 provider 请求体",
+                        input.config.backend
+                    ))
+                })?;
+            let request = video_provider_request_body_preview(
+                &input.config.backend,
+                input.config.base_url.as_deref().unwrap_or_default(),
+                &input.request,
+            )
+            .map_err(|error| host_error(error.to_string()))?;
             return Ok(VideoProviderRequestBody {
                 request,
-                source_label: source_label.to_string(),
+                source_label: format!(
+                    "由 embedded {} provider 生成真实请求体",
+                    capabilities.display_name
+                ),
             });
         }
 

@@ -17,7 +17,7 @@ mod transport;
 
 pub use chat::ChatCompletionsVideoProvider;
 pub use cliproxy_openai::CliProxyOpenAiVideoProvider;
-pub use factory::pick_video_provider;
+pub use factory::{pick_video_provider, video_provider_request_body_preview};
 pub use gemini_veo::GeminiVeoVideoProvider;
 pub use http::HttpVideoProvider;
 pub use newapi::NewApiVideoProvider;

@@ -1,4 +1,4 @@
-use a4n_core::config::validate_image_config_model;
+use a4n_core::config::{image_backend_api_key, validate_image_config_model};
 use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 use serde::{Deserialize, Serialize};
@@ -8,30 +8,15 @@ pub(super) fn image_provider_payload(
     request: ImageGenerationRequest,
 ) -> Result<ImageProviderPayload, String> {
     let params = validate_image_config_model(config).map_err(|err| err.to_string())?;
-    let api_key =
-        image_sidecar_api_key(&params.backend, params.api_key_encrypted.as_deref())?.to_string();
+    let api_key = image_backend_api_key(&params.backend, params.api_key_encrypted.as_deref())
+        .map_err(|error| error.to_string())?
+        .to_string();
     Ok(ImageProviderPayload {
         backend: params.backend.clone(),
         base_url: params.base_url.clone(),
         api_key,
         request,
     })
-}
-
-fn image_sidecar_api_key<'a>(backend: &str, api_key: Option<&'a str>) -> Result<&'a str, String> {
-    if matches!(
-        backend,
-        "openai-compatible-image"
-            | "openai-compatible-image-edit"
-            | "openai-chat-image"
-            | "cliproxy-image"
-    ) {
-        return api_key
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| "图片生成配置缺少 api_key_encrypted".to_string());
-    }
-    Ok(api_key.unwrap_or(""))
 }
 
 pub(super) fn image_provider_error_with_config(

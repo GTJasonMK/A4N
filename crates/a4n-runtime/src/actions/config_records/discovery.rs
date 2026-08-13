@@ -84,7 +84,9 @@ async fn resolve_model_discovery_api_key(
     if !input.use_saved_api_key {
         return Ok(explicit_api_key);
     }
-    require_config_admin(state, user_id).await?;
+    require_config_admin(state, user_id)
+        .await
+        .map_err(app_error_message)?;
     let config_id = input
         .config_id
         .filter(|value| *value > 0)
@@ -93,7 +95,7 @@ async fn resolve_model_discovery_api_key(
         ModelDiscoveryKind::Llm => {
             state
                 .orchestrator()
-                .llm_config_record_by_id(config_id)
+                .llm_config_by_id(config_id)
                 .await
                 .map_err(app_error_message)?
                 .api_key_encrypted
@@ -101,7 +103,7 @@ async fn resolve_model_discovery_api_key(
         ModelDiscoveryKind::Image => {
             state
                 .orchestrator()
-                .image_config_record_by_id(config_id)
+                .image_config_by_id(config_id)
                 .await
                 .map_err(app_error_message)?
                 .api_key_encrypted
@@ -109,7 +111,7 @@ async fn resolve_model_discovery_api_key(
         ModelDiscoveryKind::Video => {
             state
                 .orchestrator()
-                .video_config_record_by_id(config_id)
+                .video_config_by_id(config_id)
                 .await
                 .map_err(app_error_message)?
                 .api_key_encrypted

@@ -78,10 +78,12 @@ async fn resolve_llm_config_for_connectivity_test(
         validate_llm_runtime_snapshot_config_id(&config, config_id)?;
         return Ok(config);
     }
-    require_config_admin(state, user_id).await?;
+    require_config_admin(state, user_id)
+        .await
+        .map_err(app_error_message)?;
     state
         .orchestrator()
-        .llm_config_record_by_id(config_id)
+        .llm_config_by_id(config_id)
         .await
         .map_err(app_error_message)
 }

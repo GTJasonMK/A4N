@@ -1,6 +1,8 @@
 use super::response::aspect_ratio_from_size;
 use a4n_core::error::AppError;
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{
+    CLIPROXY_OPENAI_VIDEO_BACKEND, VideoGenerationRequest, validate_video_provider_duration,
+};
 use serde_json::{Map, Value, json};
 
 const MAX_REFERENCE_IMAGES: usize = 7;
@@ -9,11 +11,8 @@ pub(super) fn request_body_for_route(
     req: &VideoGenerationRequest,
     openai_route: bool,
 ) -> Result<Value, AppError> {
-    if !(1..=15).contains(&req.duration_secs) {
-        return Err(AppError::InvalidArgument(
-            "CLIProxy / Grok 视频时长必须是 1-15 秒整数".to_string(),
-        ));
-    }
+    validate_video_provider_duration(CLIPROXY_OPENAI_VIDEO_BACKEND, req.duration_secs)
+        .map_err(AppError::InvalidArgument)?;
     let mut body = Map::new();
     body.insert("model".into(), json!(req.model));
     body.insert("prompt".into(), json!(req.prompt));

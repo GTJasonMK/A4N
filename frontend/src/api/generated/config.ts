@@ -47,13 +47,13 @@ export interface CreateEmbeddingInput {
 
 export interface UpdateEmbeddingInput {
   api_key_encrypted?: string | null;
-  backend?: string | null;
-  base_url?: string | null;
-  batch_size?: number | null;
-  dimension?: number | null;
-  local_model_path?: string | null;
-  model?: string | null;
-  name?: string | null;
+  backend: string;
+  base_url: string | null;
+  batch_size: number;
+  dimension: number;
+  local_model_path: string | null;
+  model: string;
+  name: string;
 }
 
 export interface ImageConfigSummary {
@@ -121,15 +121,15 @@ export interface CreateLlmInput {
 
 export interface UpdateLlmInput {
   api_key_encrypted?: string | null;
-  base_url?: string;
-  extra_body_json?: unknown;
-  max_concurrent?: number;
-  max_context_tokens?: number;
-  max_output_tokens?: number;
-  model?: string;
-  name?: string;
-  provider?: string;
-  timeout_secs?: number;
+  base_url: string;
+  extra_body_json: unknown;
+  max_concurrent: number;
+  max_context_tokens: number;
+  max_output_tokens: number;
+  model: string;
+  name: string;
+  provider: string;
+  timeout_secs: number;
 }
 
 export interface LlmMaxTokensConfig {

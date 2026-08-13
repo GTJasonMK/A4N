@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId } from "../authStorage";
 import {
   withLocalRuntimeDiscoveryKey,
   type ModelDiscoveryInput,
@@ -170,7 +169,6 @@ export async function detectServerVideoConfigModels(
   input: ModelDiscoveryInput,
 ): Promise<ModelDiscoveryResult> {
   return apiInvoke<ModelDiscoveryResult>("detect_video_config_models", {
-    userId: requireCurrentUserId(),
     input,
   });
 }

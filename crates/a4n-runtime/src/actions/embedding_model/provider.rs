@@ -1,9 +1,9 @@
 use super::LocalEmbeddingConfigInput;
 #[cfg(feature = "local-embedding")]
 use super::host_adapter::required_text;
-use a4n_core::error::AppError;
 #[cfg(feature = "local-embedding")]
-use a4n_embedding::provider::EmbeddingBackend;
+use a4n_core::config::{EmbeddingBackendKind, embedding_provider_capabilities};
+use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::FastEmbedProvider;
@@ -76,20 +76,24 @@ pub(super) fn resolve_fastembed_config(
 
 #[cfg(feature = "local-embedding")]
 fn normalized_fastembed_backend_name(value: &str) -> Result<String, AppError> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "fastembed" => Ok(format!("{:?}", EmbeddingBackend::FastEmbed)),
-        "local_hash" => Err(AppError::InvalidArgument(
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(AppError::InvalidArgument("嵌入后端不能为空".to_string()));
+    }
+    let capabilities = embedding_provider_capabilities(value)
+        .ok_or_else(|| AppError::InvalidArgument(format!("不支持的嵌入后端: {value}")))?;
+    match capabilities.kind {
+        EmbeddingBackendKind::FastEmbed => Ok(EmbeddingBackendKind::FastEmbed
+            .identity_backend_name()
+            .to_string()),
+        EmbeddingBackendKind::LocalHash => Err(AppError::InvalidArgument(
             "远程桌面本机 Embedding 模式不支持 local_hash，请选择 fastembed 并下载本机模型"
                 .to_string(),
         )),
-        "api" => Err(AppError::InvalidArgument(
+        EmbeddingBackendKind::Api => Err(AppError::InvalidArgument(
             "远程桌面本机 Embedding 模式不支持 API 后端，请选择 fastembed 并下载本机模型"
                 .to_string(),
         )),
-        "" => Err(AppError::InvalidArgument("嵌入后端不能为空".to_string())),
-        other => Err(AppError::InvalidArgument(format!(
-            "不支持的嵌入后端: {other}"
-        ))),
     }
 }
 

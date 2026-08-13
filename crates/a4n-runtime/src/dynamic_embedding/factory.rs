@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
+use a4n_core::{
+    config::{EmbeddingBackendKind, embedding_provider_capabilities},
+    error::AppError,
+};
 use a4n_embedding::http::HttpEmbeddingProvider;
 use a4n_embedding::local::LocalEmbeddingProvider;
 use a4n_embedding::provider::EmbeddingProvider;
@@ -10,8 +13,7 @@ use a4n_embedding::provider::EmbeddingProvider;
 use a4n_embedding_fastembed::FastEmbedProvider;
 
 use super::contracts::{
-    ResolvedEmbeddingConfig, SupportedEmbeddingBackend, positive_usize, required_text,
-    resolve_fastembed_cache_dir,
+    ResolvedEmbeddingConfig, positive_usize, required_text, resolve_fastembed_cache_dir,
 };
 
 pub fn make_provider_from_model(
@@ -45,7 +47,7 @@ pub(super) fn make_provider_from_default_model(
 }
 
 fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
-    let backend = SupportedEmbeddingBackend::parse(&config.backend).ok_or_else(|| {
+    let backend = embedding_provider_capabilities(&config.backend).ok_or_else(|| {
         AppError::ConfigError(format!(
             "嵌入配置 {} 使用不支持的后端: {}",
             config.name, config.backend
@@ -53,8 +55,8 @@ fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingPro
     })?;
     let model = required_text(&config.model, "模型名", &config.name)?;
 
-    match backend {
-        SupportedEmbeddingBackend::Api => {
+    match backend.kind {
+        EmbeddingBackendKind::Api => {
             let base_url = required_text(
                 config.base_url.as_deref().unwrap_or(""),
                 "API Base URL",
@@ -68,10 +70,10 @@ fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingPro
                 config.batch_size,
             )))
         }
-        SupportedEmbeddingBackend::LocalHash => {
+        EmbeddingBackendKind::LocalHash => {
             Ok(Arc::new(LocalEmbeddingProvider::new(config.dimension)))
         }
-        SupportedEmbeddingBackend::FastEmbed => make_fastembed_provider(
+        EmbeddingBackendKind::FastEmbed => make_fastembed_provider(
             &config.name,
             model,
             config.dimension,

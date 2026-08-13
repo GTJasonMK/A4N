@@ -76,7 +76,6 @@ pub(crate) async fn test_embedding_config_via_sidecar(
     capabilities: &A4nCapabilities,
     model: &embedding_config::Model,
 ) -> Result<(), AppError> {
-    super::provider::SidecarEmbeddingProvider::normalized_sidecar_backend(model)?;
     let expected_dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
     let client = capabilities
         .embedding

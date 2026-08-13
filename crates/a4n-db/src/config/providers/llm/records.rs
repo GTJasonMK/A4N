@@ -1,4 +1,4 @@
-use super::contracts::{LlmConfigCreateRecordInput, LlmConfigUpdateRecordInput};
+use super::contracts::LlmConfigRecordInput;
 use a4n_core::{error::AppError, models::ai::llm_config};
 use chrono::Utc;
 use sea_orm::{
@@ -17,10 +17,7 @@ where
         .map_err(AppError::Database)
 }
 
-pub async fn llm_config_record_by_id<C>(
-    db: &C,
-    config_id: i64,
-) -> Result<llm_config::Model, AppError>
+pub async fn llm_config_by_id<C>(db: &C, config_id: i64) -> Result<llm_config::Model, AppError>
 where
     C: ConnectionTrait,
 {
@@ -33,7 +30,7 @@ where
 
 pub async fn create_llm_config_record<C>(
     db: &C,
-    input: LlmConfigCreateRecordInput,
+    input: LlmConfigRecordInput,
 ) -> Result<llm_config::Model, AppError>
 where
     C: ConnectionTrait,
@@ -64,7 +61,7 @@ where
 pub async fn update_llm_config_record<C>(
     db: &C,
     existing: llm_config::Model,
-    input: LlmConfigUpdateRecordInput,
+    input: LlmConfigRecordInput,
 ) -> Result<llm_config::Model, AppError>
 where
     C: ConnectionTrait,

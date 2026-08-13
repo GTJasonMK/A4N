@@ -9,15 +9,16 @@ use super::seedance2::Seedance2VideoProvider;
 use a4n_video::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
-    VideoProvider, video_provider_cleanup_capabilities,
+    VideoGenerationRequest, VideoProvider, video_provider_capabilities,
 };
+use serde_json::Value;
 
 pub fn pick_video_provider(
     backend: &str,
     base_url: &str,
     api_key: &str,
 ) -> Result<Box<dyn VideoProvider>, AppError> {
-    if video_provider_cleanup_capabilities(backend).is_none() {
+    if video_provider_capabilities(backend).is_none() {
         return Err(AppError::Internal(anyhow::anyhow!(
             "未知视频 backend={backend}"
         )));
@@ -37,23 +38,68 @@ pub fn pick_video_provider(
     }
 }
 
+pub fn video_provider_request_body_preview(
+    backend: &str,
+    base_url: &str,
+    request: &VideoGenerationRequest,
+) -> Result<Value, AppError> {
+    match backend {
+        OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(HttpVideoProvider::request_body_preview(request)),
+        NEWAPI_VIDEO_BACKEND => NewApiVideoProvider::request_body_preview(request),
+        GEMINI_VEO_VIDEO_BACKEND => GeminiVeoVideoProvider::request_body_preview(request),
+        SEEDANCE2_VIDEO_BACKEND => Seedance2VideoProvider::request_body_preview(request),
+        CLIPROXY_OPENAI_VIDEO_BACKEND => {
+            CliProxyOpenAiVideoProvider::request_body_preview_for_base_url(request, base_url)
+        }
+        OPENAI_CHAT_VIDEO_BACKEND => {
+            Ok(ChatCompletionsVideoProvider::request_body_preview(request))
+        }
+        other => Err(AppError::InvalidArgument(format!(
+            "未知视频生成后端: {other}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_video::{VIDEO_PROVIDER_CAPABILITIES, VideoMediaInput};
 
     #[test]
     fn accepts_canonical_video_backends() {
-        for backend in [
-            "openai-compatible-video",
-            "newapi-video",
-            "gemini-veo-video",
-            "seedance2-video",
-            "cliproxy-openai-video",
-            "openai-chat-video",
-        ] {
+        let request = VideoGenerationRequest {
+            prompt: "test".into(),
+            negative_prompt: None,
+            width: 1280,
+            height: 720,
+            duration_secs: 5,
+            fps: 24,
+            model: "video-model".into(),
+            media: VideoMediaInput::None,
+        };
+        for backend in VIDEO_PROVIDER_CAPABILITIES {
+            let mut preview_request = request.clone();
+            if backend.backend == SEEDANCE2_VIDEO_BACKEND {
+                preview_request.media = VideoMediaInput::References {
+                    images: vec!["data:image/png;base64,AA==".into()],
+                    videos: Vec::new(),
+                    audio: Vec::new(),
+                };
+            }
             assert!(
-                pick_video_provider(backend, "http://localhost:3000", "test-key").is_ok(),
-                "backend should be accepted: {backend}"
+                pick_video_provider(backend.backend, "http://localhost:3000", "test-key").is_ok(),
+                "backend should be accepted: {}",
+                backend.backend
+            );
+            assert!(
+                video_provider_request_body_preview(
+                    backend.backend,
+                    "http://localhost:3000/v1",
+                    &preview_request,
+                )
+                .is_ok(),
+                "backend request preview should be available: {}",
+                backend.backend
             );
         }
     }
@@ -65,6 +111,23 @@ mod tests {
                 "unsupported-video-backend",
                 "http://localhost:3000",
                 "test-key",
+            )
+            .is_err()
+        );
+        assert!(
+            video_provider_request_body_preview(
+                "unsupported-video-backend",
+                "http://localhost:3000",
+                &VideoGenerationRequest {
+                    prompt: "test".into(),
+                    negative_prompt: None,
+                    width: 1280,
+                    height: 720,
+                    duration_secs: 5,
+                    fps: 24,
+                    model: "video-model".into(),
+                    media: VideoMediaInput::None,
+                },
             )
             .is_err()
         );

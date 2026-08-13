@@ -4,6 +4,7 @@ use super::contracts::{
 use super::mapping::{embedding_create_params, embedding_update_params};
 use crate::actions::config_records::shared::require_config_admin;
 use crate::{AppState, actions::app_error_message};
+use a4n_core::error::AppError;
 
 pub async fn list_embedding_config(
     state: &AppState,
@@ -18,33 +19,30 @@ pub async fn list_embedding_config(
 
 pub async fn create_embedding_config(
     state: &AppState,
+    caller_user_id: i64,
     input: CreateEmbeddingInput,
-) -> Result<EmbeddingConfigSummary, String> {
-    let params = embedding_create_params(input)?;
+) -> Result<EmbeddingConfigSummary, AppError> {
+    require_config_admin(state, caller_user_id).await?;
+    let params = embedding_create_params(input);
     let config = state
         .orchestrator()
         .create_embedding_config_validated(params)
-        .await
-        .map_err(app_error_message)?;
+        .await?;
     Ok(embedding_config_summary(&config))
 }
 
 pub async fn update_embedding_config(
     state: &AppState,
+    caller_user_id: i64,
     config_id: i64,
     input: UpdateEmbeddingInput,
-) -> Result<EmbeddingConfigSummary, String> {
-    let existing = state
-        .orchestrator()
-        .embedding_config_by_id(config_id)
-        .await
-        .map_err(app_error_message)?;
-    let params = embedding_update_params(&existing, input)?;
+) -> Result<EmbeddingConfigSummary, AppError> {
+    require_config_admin(state, caller_user_id).await?;
+    let params = embedding_update_params(input);
     let updated = state
         .orchestrator()
         .update_embedding_config_validated(config_id, params)
-        .await
-        .map_err(app_error_message)?;
+        .await?;
     Ok(embedding_config_summary(&updated))
 }
 
@@ -52,19 +50,22 @@ pub async fn set_default_embedding_config(
     state: &AppState,
     caller_user_id: i64,
     config_id: i64,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     require_config_admin(state, caller_user_id).await?;
     state
         .orchestrator()
         .set_default_embedding_config_validated(config_id)
         .await
-        .map_err(app_error_message)
 }
 
-pub async fn delete_embedding_config(state: &AppState, config_id: i64) -> Result<(), String> {
+pub async fn delete_embedding_config(
+    state: &AppState,
+    caller_user_id: i64,
+    config_id: i64,
+) -> Result<(), AppError> {
+    require_config_admin(state, caller_user_id).await?;
     state
         .orchestrator()
         .delete_embedding_config_if_allowed(config_id)
         .await
-        .map_err(app_error_message)
 }

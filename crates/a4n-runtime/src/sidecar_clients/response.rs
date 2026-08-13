@@ -59,8 +59,11 @@ pub(super) fn service_response_unit(
     sanitize_service_response(&mut response)
         .map_err(|err| format!("{service} sidecar 返回非法 response: {err}"))?;
     match response.status {
-        ServiceStatus::Ok if response.payload.is_none() => Ok(()),
-        ServiceStatus::Ok => Err(format!("{service} sidecar unit 响应不应包含 payload")),
+        ServiceStatus::Ok if response.payload == Some(Value::Null) => Ok(()),
+        ServiceStatus::Ok if response.payload.is_none() => {
+            Err(format!("{service} sidecar unit 响应缺少 payload: null"))
+        }
+        ServiceStatus::Ok => Err(format!("{service} sidecar unit 响应必须是 payload: null")),
         ServiceStatus::Error => Err(response
             .error
             .map(|error| error.message)
@@ -96,8 +99,9 @@ mod tests {
     }
 
     #[test]
-    fn unit_response_rejects_legacy_payloads() {
-        service_response_unit(ok_response(None), "embedding").expect("unit response");
+    fn unit_response_requires_explicit_null_payload() {
+        service_response_unit(ok_response(Some(Value::Null)), "embedding").expect("unit response");
+        assert!(service_response_unit(ok_response(None), "embedding").is_err());
         assert!(
             service_response_unit(
                 ok_response(Some(serde_json::json!({ "deleted": true }))),

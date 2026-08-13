@@ -5,30 +5,13 @@ use crate::contracts::{
 use a4n_core::error::AppError;
 use a4n_service_protocol::redact_sensitive_message;
 use a4n_video::{VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};
-use a4n_video_providers::{
-    ChatCompletionsVideoProvider, CliProxyOpenAiVideoProvider, GeminiVeoVideoProvider,
-    HttpVideoProvider, NewApiVideoProvider, Seedance2VideoProvider,
-};
+use a4n_video_providers::video_provider_request_body_preview;
 use base64::Engine as _;
 use serde_json::{Value, json};
 
 pub(crate) fn video_request_preview(payload: &VideoProviderPayload) -> Result<Value, AppError> {
-    let req = &payload.request;
-    let body = match payload.backend.as_str() {
-        "openai-compatible-video" => HttpVideoProvider::request_body_preview(req),
-        "newapi-video" => NewApiVideoProvider::request_body_preview(req)?,
-        "gemini-veo-video" => GeminiVeoVideoProvider::request_body_preview(req)?,
-        "seedance2-video" => Seedance2VideoProvider::request_body_preview(req)?,
-        "cliproxy-openai-video" => {
-            CliProxyOpenAiVideoProvider::request_body_preview_for_base_url(req, &payload.base_url)?
-        }
-        "openai-chat-video" => ChatCompletionsVideoProvider::request_body_preview(req),
-        other => {
-            return Err(AppError::InvalidArgument(format!(
-                "未知视频生成后端: {other}"
-            )));
-        }
-    };
+    let body =
+        video_provider_request_body_preview(&payload.backend, &payload.base_url, &payload.request)?;
     Ok(json!({ "request": body }))
 }
 

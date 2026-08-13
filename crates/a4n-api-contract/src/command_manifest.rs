@@ -352,9 +352,9 @@ command_specs! {
     "delete_theme" => args_activate_theme, result_unit, "settings", effect(DESTRUCTIVE_EFFECT);
     "delete_video" => args_delete_video, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
     "detach_derived_project" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "detect_image_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
-    "detect_llm_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS);
-    "detect_video_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
+    "detect_image_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
+    "detect_llm_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS);
+    "detect_video_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "diff_blueprint_versions" => args_diff_blueprint_versions, result_diff_blueprint_versions, "blueprint", effect(READ_EFFECT);
     "diff_profile_chapters" => args_diff_profile_chapters, result_diff_profile_chapters, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "disable_user" => args_user_id, result_unit, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
@@ -402,7 +402,7 @@ command_specs! {
     "get_generation_progress" => args_opaque, result_opaque, "task", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
     "get_inspiration_history" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT);
-    "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", effect(READ_EFFECT);
+    "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_log_dir" => empty_args_schema, result_export_theme, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "get_optimize_session" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
@@ -454,7 +454,7 @@ command_specs! {
     "list_llm_config" => args_get_llm_max_tokens_config, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_local_embedding_models" => args_get_llm_max_tokens_config, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_manga_page_prompts" => args_cancel_manga_pipeline, result_list_manga_page_prompts, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
-    "list_model_provider_catalog" => args_opaque, result_list_model_provider_catalog, "system", effect(READ_EFFECT);
+    "list_model_provider_catalog" => args_get_llm_max_tokens_config, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
     "list_optimize_patch_sets" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
@@ -540,9 +540,9 @@ command_specs! {
     "preview_start_manga_pipeline_request" => args_preview_start_manga_pipeline_request, result_model_request_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_sync_all_character_profiles_request" => args_preview_sync_all_character_profiles_request, result_model_request_preview, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_sync_character_from_chapters_request" => args_preview_sync_character_from_chapters_request, result_model_request_preview, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_test_embedding_config_request" => args_preview_test_embedding_config_request, result_model_request_preview, "settings", context(USER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_test_image_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(USER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_test_llm_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(USER_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_test_embedding_config_request" => args_preview_test_embedding_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_test_image_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_test_llm_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_video_provider_request_by_video_id" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "prompt_list" => args_prompt_list, result_prompt_list, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_categories" => args_prompt_list, result_prompt_list_categories, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
@@ -624,9 +624,9 @@ command_specs! {
     "sync_character_from_chapters" => args_sync_character_from_chapters, result_sync_character_from_chapters, "chapter", context(USER_CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "sync_outline_materials" => args_project_id, result_sync_outline_materials, "outline", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "sync_scene_profiles" => args_sync_scene_profiles, result_unit, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
-    "test_embedding_config" => args_preview_test_embedding_config_request, result_unit, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::Full);
-    "test_image_config" => args_preview_test_image_config_request, result_unit, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full);
-    "test_llm_config" => args_preview_test_image_config_request, result_unit, "settings", context(USER_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "test_embedding_config" => args_preview_test_embedding_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::Full);
+    "test_image_config" => args_preview_test_image_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full);
+    "test_llm_config" => args_preview_test_image_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "trim_video" => args_opaque, result_opaque, "video", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "unbind_galgame_media" => args_unbind_galgame_media, result_unbind_galgame_media, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "update_assembly_push_status" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
@@ -862,11 +862,11 @@ fn args_add_profile_attribute() -> Value {
 }
 
 fn args_add_image_config() -> Value {
-    typed_input_schema::<crate::config::ImageConfigInput>()
+    strict_typed_input_schema::<crate::config::ImageConfigInput>()
 }
 
 fn args_add_video_config() -> Value {
-    typed_input_schema::<crate::config::VideoConfigInput>()
+    strict_typed_input_schema::<crate::config::VideoConfigInput>()
 }
 
 fn args_apply_assembly_postprocess_edit() -> Value {
@@ -946,7 +946,7 @@ fn args_create_derived_project() -> Value {
 }
 
 fn args_create_embedding_config() -> Value {
-    typed_input_schema::<crate::config::CreateEmbeddingInput>()
+    strict_typed_input_schema::<crate::config::CreateEmbeddingInput>()
 }
 
 fn args_create_freeform_video_project() -> Value {
@@ -954,7 +954,7 @@ fn args_create_freeform_video_project() -> Value {
 }
 
 fn args_create_llm_config() -> Value {
-    typed_input_schema::<crate::config::CreateLlmInput>()
+    strict_typed_input_schema::<crate::config::CreateLlmInput>()
 }
 
 fn args_create_profile() -> Value {
@@ -1084,16 +1084,7 @@ fn args_duplicate_project() -> Value {
 }
 
 fn args_detect_image_config_models() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "userId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::config::ModelDiscoveryInput>(),
-        },
-        "required": ["userId", "input"],
-        "additionalProperties": false,
-        "x-a4n-schema-quality": "typed-input",
-    })
+    strict_typed_input_schema::<crate::config::ModelDiscoveryInput>()
 }
 
 fn args_diff_blueprint_versions() -> Value {
@@ -1492,11 +1483,10 @@ fn args_preview_test_embedding_config_request() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "userId": { "type": "integer", "minimum": 1 },
             "configId": { "type": "integer", "minimum": 1 },
             "runtime_config_snapshot": { "type": ["object", "null"] },
         },
-        "required": ["userId", "configId"],
+        "required": ["configId"],
         "additionalProperties": false,
         "x-a4n-schema-quality": "typed",
     })
@@ -1506,14 +1496,13 @@ fn args_preview_test_image_config_request() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "userId": { "type": "integer", "minimum": 1 },
             "configId": {
                 "type": "integer",
                 "anyOf": [{ "const": -1 }, { "minimum": 1 }],
             },
             "runtime_config_snapshot": { "type": ["object", "null"] },
         },
-        "required": ["userId", "configId"],
+        "required": ["configId"],
         "additionalProperties": false,
         "x-a4n-schema-quality": "typed",
     })
@@ -1740,7 +1729,7 @@ fn args_update_chapter_scene() -> Value {
 }
 
 fn args_update_embedding_config() -> Value {
-    typed_input_schema::<crate::config::UpdateEmbeddingInput>()
+    config_typed_input_schema::<crate::config::UpdateEmbeddingInput>()
 }
 
 fn args_update_galgame_choices() -> Value {
@@ -1769,15 +1758,15 @@ fn args_update_image() -> Value {
 }
 
 fn args_update_image_config() -> Value {
-    typed_input_schema::<crate::config::UpdateImageConfigInput>()
+    config_typed_input_schema::<crate::config::UpdateImageConfigInput>()
 }
 
 fn args_update_llm_config() -> Value {
-    typed_input_schema::<crate::config::UpdateLlmInput>()
+    config_typed_input_schema::<crate::config::UpdateLlmInput>()
 }
 
 fn args_update_llm_max_tokens_config() -> Value {
-    typed_input_schema::<crate::config::LlmMaxTokensConfig>()
+    strict_typed_input_schema::<crate::config::LlmMaxTokensConfig>()
 }
 
 fn args_update_manga_prompt() -> Value {
@@ -1867,7 +1856,7 @@ fn args_update_video() -> Value {
 }
 
 fn args_update_video_config() -> Value {
-    typed_input_schema::<crate::config::UpdateVideoConfigInput>()
+    config_typed_input_schema::<crate::config::UpdateVideoConfigInput>()
 }
 
 fn args_update_world_setting() -> Value {
@@ -2522,6 +2511,19 @@ fn strict_typed_input_schema<T: JsonSchema>() -> Value {
     schema
 }
 
+fn config_typed_input_schema<T: JsonSchema>() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "configId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<T>(),
+        },
+        "required": ["configId", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
 fn strict_runtime_typed_input_schema<T: JsonSchema>() -> Value {
     json!({
         "type": "object",
@@ -3062,6 +3064,48 @@ mod tests {
             descriptor.args_schema["properties"]["input"]["properties"]["email"]["type"],
             "string"
         );
+    }
+
+    #[test]
+    fn provider_config_commands_use_session_identity_and_strict_contracts() {
+        for command in [
+            "detect_llm_config_models",
+            "detect_image_config_models",
+            "detect_video_config_models",
+            "test_llm_config",
+            "test_image_config",
+            "test_embedding_config",
+            "preview_test_llm_config_request",
+            "preview_test_image_config_request",
+            "preview_test_embedding_config_request",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!([]),
+                "{command}"
+            );
+            assert!(
+                descriptor.args_schema["properties"].get("userId").is_none(),
+                "{command}"
+            );
+            assert_eq!(descriptor.args_schema["additionalProperties"], false);
+        }
+
+        for command in [
+            "update_llm_config",
+            "update_image_config",
+            "update_video_config",
+            "update_embedding_config",
+        ] {
+            let schema = command_descriptor(command).unwrap().args_schema;
+            assert_eq!(schema["required"], serde_json::json!(["configId", "input"]));
+            assert_eq!(schema["additionalProperties"], false);
+        }
+
+        let catalog = command_descriptor("list_model_provider_catalog").unwrap();
+        assert_eq!(catalog.args_schema["additionalProperties"], false);
+        assert!(catalog.args_schema.get("x-a4n-schema-quality").is_some());
     }
 
     #[test]

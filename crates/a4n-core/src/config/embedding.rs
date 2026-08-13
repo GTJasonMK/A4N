@@ -28,22 +28,89 @@ pub struct UpdateEmbeddingConfigParams {
     pub local_model_path: Option<String>,
 }
 
+pub const API_EMBEDDING_BACKEND: &str = "api";
+pub const FASTEMBED_EMBEDDING_BACKEND: &str = "fastembed";
+pub const LOCAL_HASH_EMBEDDING_BACKEND: &str = "local_hash";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmbeddingBackendKind {
+    Api,
+    FastEmbed,
+    LocalHash,
+}
+
+impl EmbeddingBackendKind {
+    pub const fn identity_backend_name(self) -> &'static str {
+        match self {
+            Self::Api => "Api",
+            Self::FastEmbed => "FastEmbed",
+            Self::LocalHash => "LocalHash",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmbeddingProviderCapabilities {
+    pub backend: &'static str,
+    pub display_name: &'static str,
+    pub kind: EmbeddingBackendKind,
+    pub requires_base_url: bool,
+    pub accepts_api_key: bool,
+}
+
+pub const EMBEDDING_PROVIDER_CAPABILITIES: &[EmbeddingProviderCapabilities] = &[
+    EmbeddingProviderCapabilities {
+        backend: API_EMBEDDING_BACKEND,
+        display_name: "OpenAI 兼容 API",
+        kind: EmbeddingBackendKind::Api,
+        requires_base_url: true,
+        accepts_api_key: true,
+    },
+    EmbeddingProviderCapabilities {
+        backend: FASTEMBED_EMBEDDING_BACKEND,
+        display_name: "FastEmbed 本地模型",
+        kind: EmbeddingBackendKind::FastEmbed,
+        requires_base_url: false,
+        accepts_api_key: false,
+    },
+    EmbeddingProviderCapabilities {
+        backend: LOCAL_HASH_EMBEDDING_BACKEND,
+        display_name: "本地哈希（开发）",
+        kind: EmbeddingBackendKind::LocalHash,
+        requires_base_url: false,
+        accepts_api_key: false,
+    },
+];
+
+pub fn embedding_provider_capabilities(value: &str) -> Option<EmbeddingProviderCapabilities> {
+    let value = value.trim();
+    EMBEDDING_PROVIDER_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capabilities| capabilities.backend.eq_ignore_ascii_case(value))
+}
+
 pub fn validate_embedding_config_params(
     mut params: CreateEmbeddingConfigParams,
 ) -> Result<CreateEmbeddingConfigParams, AppError> {
     params.name = normalize_config_name(params.name, "嵌入配置")?;
-    params.backend = normalize_embedding_backend(&params.backend)?;
+    let capabilities = required_embedding_provider_capabilities(&params.backend)?;
+    params.backend = capabilities.backend.to_string();
     params.model = required_config_value(&params.model, "嵌入配置", "model")?;
     params.dimension = positive_i32(params.dimension, "嵌入配置 dimension")?;
     params.batch_size = positive_i32(params.batch_size, "嵌入配置 batch_size")?;
     params.base_url = normalize_optional_config_value(params.base_url);
-    params.api_key_encrypted = if params.backend == "api" {
+    params.api_key_encrypted = if capabilities.accepts_api_key {
         normalize_optional_config_value(params.api_key_encrypted)
     } else {
         None
     };
     params.local_model_path = normalize_optional_config_value(params.local_model_path);
-    ensure_embedding_backend_endpoint(&params.backend, params.base_url.as_deref())?;
+    if capabilities.requires_base_url && params.base_url.is_none() {
+        return Err(AppError::InvalidArgument(
+            "api 嵌入后端必须填写 base_url".into(),
+        ));
+    }
     Ok(params)
 }
 
@@ -62,28 +129,15 @@ pub fn validate_embedding_config_model(
     })
 }
 
-fn normalize_embedding_backend(value: &str) -> Result<String, AppError> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "api" => Ok("api".to_string()),
-        "fastembed" => Ok("fastembed".to_string()),
-        "local_hash" => Ok("local_hash".to_string()),
-        "" => Err(AppError::InvalidArgument("嵌入后端不能为空".into())),
-        other => Err(AppError::InvalidArgument(format!(
-            "不支持的嵌入后端: {other}"
-        ))),
+fn required_embedding_provider_capabilities(
+    value: &str,
+) -> Result<EmbeddingProviderCapabilities, AppError> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(AppError::InvalidArgument("嵌入后端不能为空".into()));
     }
-}
-
-fn ensure_embedding_backend_endpoint(
-    backend: &str,
-    base_url: Option<&str>,
-) -> Result<(), AppError> {
-    if backend == "api" && base_url.is_none() {
-        return Err(AppError::InvalidArgument(
-            "api 嵌入后端必须填写 base_url".into(),
-        ));
-    }
-    Ok(())
+    embedding_provider_capabilities(value)
+        .ok_or_else(|| AppError::InvalidArgument(format!("不支持的嵌入后端: {value}")))
 }
 
 #[cfg(test)]
@@ -105,13 +159,18 @@ mod tests {
 
     #[test]
     fn normalizes_supported_local_backends_and_clears_irrelevant_api_keys() {
-        for backend in [" FastEmbed ", "LOCAL_HASH"] {
+        for capabilities in EMBEDDING_PROVIDER_CAPABILITIES
+            .iter()
+            .filter(|capabilities| !capabilities.accepts_api_key)
+        {
+            let backend = match capabilities.kind {
+                EmbeddingBackendKind::FastEmbed => " FastEmbed ",
+                EmbeddingBackendKind::LocalHash => "LOCAL_HASH",
+                EmbeddingBackendKind::Api => unreachable!(),
+            };
             let params = validate_embedding_config_params(params(backend))
                 .expect("supported local embedding backend");
-            assert!(matches!(
-                params.backend.as_str(),
-                "fastembed" | "local_hash"
-            ));
+            assert_eq!(params.backend, capabilities.backend);
             assert_eq!(params.name, "默认嵌入");
             assert_eq!(params.model, "embedding-model");
             assert_eq!(params.api_key_encrypted, None);
@@ -125,13 +184,13 @@ mod tests {
     #[test]
     fn api_backend_requires_and_normalizes_endpoint() {
         assert_eq!(
-            validate_embedding_config_params(params("api"))
+            validate_embedding_config_params(params(API_EMBEDDING_BACKEND))
                 .expect_err("api endpoint must be explicit")
                 .to_string(),
             "参数无效：api 嵌入后端必须填写 base_url"
         );
 
-        let mut params = params("api");
+        let mut params = params(API_EMBEDDING_BACKEND);
         params.base_url = Some("  https://embedding.example/v1  ".to_string());
         assert_eq!(
             validate_embedding_config_params(params)
@@ -157,7 +216,7 @@ mod tests {
             "参数无效：不支持的嵌入后端: embedded"
         );
 
-        let mut invalid_dimension = params("fastembed");
+        let mut invalid_dimension = params(FASTEMBED_EMBEDDING_BACKEND);
         invalid_dimension.dimension = 0;
         assert_eq!(
             validate_embedding_config_params(invalid_dimension)
@@ -166,7 +225,7 @@ mod tests {
             "参数无效：嵌入配置 dimension 必须大于 0"
         );
 
-        let mut invalid_batch = params("fastembed");
+        let mut invalid_batch = params(FASTEMBED_EMBEDDING_BACKEND);
         invalid_batch.batch_size = 0;
         assert_eq!(
             validate_embedding_config_params(invalid_batch)

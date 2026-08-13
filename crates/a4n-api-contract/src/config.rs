@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
+use crate::serde_update::{deserialize_nullable_update_field, deserialize_required_nullable_field};
 
 pub use a4n_domain::{
     DiscoveredModel, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
@@ -17,7 +17,7 @@ pub struct ModelDiscoveryInput {
     pub provider: String,
     pub base_url: String,
     pub api_key: Option<String>,
-    #[serde(deserialize_with = "deserialize_required_config_id")]
+    #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub config_id: Option<i64>,
     pub use_saved_api_key: bool,
 }
@@ -51,15 +51,28 @@ pub struct CreateEmbeddingInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[schemars(extend(
+    "required" = [
+        "name",
+        "backend",
+        "base_url",
+        "model",
+        "dimension",
+        "batch_size",
+        "local_model_path"
+    ]
+))]
 pub struct UpdateEmbeddingInput {
-    pub name: Option<String>,
-    pub backend: Option<String>,
+    pub name: String,
+    pub backend: String,
+    #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub base_url: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
     pub api_key_encrypted: Option<Option<String>>,
-    pub model: Option<String>,
-    pub dimension: Option<i32>,
-    pub batch_size: Option<i32>,
+    pub model: String,
+    pub dimension: i32,
+    pub batch_size: i32,
+    #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub local_model_path: Option<String>,
 }
 
@@ -137,35 +150,32 @@ pub struct CreateLlmInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[schemars(extend(
+    "required" = [
+        "name",
+        "provider",
+        "base_url",
+        "model",
+        "max_concurrent",
+        "timeout_secs",
+        "max_context_tokens",
+        "max_output_tokens",
+        "extra_body_json"
+    ]
+))]
 pub struct UpdateLlmInput {
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "String")]
-    pub name: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "String")]
-    pub provider: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "String")]
-    pub base_url: Option<String>,
+    pub name: String,
+    pub provider: String,
+    pub base_url: String,
     #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
     pub api_key_encrypted: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "String")]
-    pub model: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "i32")]
-    pub max_concurrent: Option<i32>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "i32")]
-    pub timeout_secs: Option<i32>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "i32")]
-    pub max_context_tokens: Option<i32>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "i32")]
-    pub max_output_tokens: Option<i32>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub extra_body_json: Option<Option<Value>>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub timeout_secs: i32,
+    pub max_context_tokens: i32,
+    pub max_output_tokens: i32,
+    #[serde(deserialize_with = "deserialize_required_nullable_field")]
+    pub extra_body_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -234,27 +244,48 @@ pub struct ImportAllConfigsInput {
     pub overwrite: bool,
 }
 
-fn deserialize_required_config_id<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Option::<i64>::deserialize(deserializer)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        ImportAllConfigsInput, ModelDiscoveryInput, UpdateLlmInput, VideoConfigInput,
-        VideoDurationMode,
+        ImportAllConfigsInput, ModelDiscoveryInput, UpdateEmbeddingInput, UpdateLlmInput,
+        VideoConfigInput, VideoDurationMode,
     };
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     #[test]
-    fn config_updates_preserve_null_semantics() {
-        let input: UpdateLlmInput =
-            serde_json::from_value(json!({"api_key_encrypted": null})).unwrap();
+    fn config_updates_require_complete_fields_and_preserve_key_intent() {
+        let llm = json!({
+            "name": "updated",
+            "provider": "openai",
+            "base_url": "https://example.invalid/v1",
+            "model": "model",
+            "max_concurrent": 1,
+            "timeout_secs": 30,
+            "max_context_tokens": 4096,
+            "max_output_tokens": 1024,
+            "extra_body_json": null
+        });
+        let input: UpdateLlmInput = serde_json::from_value(llm.clone()).unwrap();
+        assert_eq!(input.api_key_encrypted, None);
+        let mut clear_key = llm.clone();
+        clear_key["api_key_encrypted"] = Value::Null;
+        let input: UpdateLlmInput = serde_json::from_value(clear_key).unwrap();
         assert_eq!(input.api_key_encrypted, Some(None));
-        assert!(serde_json::from_value::<UpdateLlmInput>(json!({"name": null})).is_err());
+        let mut missing_name = llm;
+        missing_name.as_object_mut().unwrap().remove("name");
+        assert!(serde_json::from_value::<UpdateLlmInput>(missing_name).is_err());
+
+        assert!(
+            serde_json::from_value::<UpdateEmbeddingInput>(json!({
+                "name": "embedding",
+                "backend": "api",
+                "base_url": null,
+                "model": "model",
+                "dimension": 1536,
+                "batch_size": 32
+            }))
+            .is_err()
+        );
     }
 
     #[test]

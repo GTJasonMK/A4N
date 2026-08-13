@@ -1,11 +1,8 @@
 use super::OrchestratorContext;
 use crate::config::{
     BaselineImageConfigSeed, BaselineLlmConfigSeed, BaselineVideoConfigSeed,
-    DefaultLlmOutputCapRow, EmbeddingConfigCreateRecordInput, EmbeddingConfigUpdateRecordInput,
-    ImageConfigCreateRecordInput, ImageConfigUpdateRecordInput, LlmConfigCreateRecordInput,
-    LlmConfigUpdateRecordInput, ProviderConfigKind, SettingsAllConfigImportCounts,
-    SettingsAllConfigImportInput, SettingsAllConfigRows, VideoConfigCreateRecordInput,
-    VideoConfigUpdateRecordInput,
+    DefaultLlmOutputCapRow, ProviderConfigKind, SettingsAllConfigImportCounts,
+    SettingsAllConfigImportInput, SettingsAllConfigRows,
 };
 use crate::video::{
     UpdateVideoConfigParams, VideoConfigParams, validate_video_config_model,
@@ -25,7 +22,13 @@ use a4n_core::{
         user::theme_config,
     },
 };
-use a4n_db::DbHandle;
+use a4n_db::{
+    DbHandle,
+    config::{
+        EmbeddingConfigRecordInput, ImageConfigRecordInput, LlmConfigRecordInput,
+        VideoConfigRecordInput,
+    },
+};
 use a4n_domain::{ThemeCssVariables, ThemeMode};
 use a4n_llm::config::{
     CreateLlmConfigInput, NormalizedLlmConfig, UpdateLlmConfigInput,
@@ -107,27 +110,8 @@ impl ConfigApplication {
         a4n_db::config::list_llm_config_records(self.database.connection()).await
     }
 
-    async fn llm_config_record_by_id(&self, config_id: i64) -> Result<llm_config::Model, AppError> {
-        a4n_db::config::llm_config_record_by_id(self.database.connection(), config_id).await
-    }
-
-    async fn create_llm_config_record(
-        &self,
-        input: LlmConfigCreateRecordInput,
-    ) -> Result<llm_config::Model, AppError> {
-        a4n_db::config::create_llm_config_record(self.database.connection(), input).await
-    }
-
-    async fn update_llm_config_record(
-        &self,
-        existing: llm_config::Model,
-        input: LlmConfigUpdateRecordInput,
-    ) -> Result<llm_config::Model, AppError> {
-        a4n_db::config::update_llm_config_record(self.database.connection(), existing, input).await
-    }
-
-    async fn delete_llm_config_record(&self, config_id: i64) -> Result<(), AppError> {
-        a4n_db::config::delete_llm_config_record(self.database.connection(), config_id).await
+    async fn llm_config_by_id(&self, config_id: i64) -> Result<llm_config::Model, AppError> {
+        a4n_db::config::llm_config_by_id(self.database.connection(), config_id).await
     }
 
     /// 规范化 LLM 创建输入后落库。
@@ -136,8 +120,11 @@ impl ConfigApplication {
         input: CreateLlmConfigInput<'_>,
     ) -> Result<llm_config::Model, AppError> {
         let normalized = normalize_create_llm_config_input(input)?;
-        self.create_llm_config_record(llm_create_record_input(normalized))
-            .await
+        a4n_db::config::create_llm_config_record(
+            self.database.connection(),
+            llm_record_input(normalized),
+        )
+        .await
     }
 
     /// 读库、规范化更新、默认配置与全局 max_tokens 门禁后落库。
@@ -146,19 +133,23 @@ impl ConfigApplication {
         config_id: i64,
         input: UpdateLlmConfigInput<'_>,
     ) -> Result<llm_config::Model, AppError> {
-        let existing = self.llm_config_record_by_id(config_id).await?;
+        let existing = self.llm_config_by_id(config_id).await?;
         let normalized = normalize_update_llm_config_input(&existing, input)?;
         if existing.is_default {
             self.ensure_llm_max_tokens_fits_model_output(normalized.max_output_tokens)
                 .await?;
         }
-        self.update_llm_config_record(existing, llm_update_record_input(normalized))
-            .await
+        a4n_db::config::update_llm_config_record(
+            self.database.connection(),
+            existing,
+            llm_record_input(normalized),
+        )
+        .await
     }
 
     /// 模型校验与 max_tokens 门禁后设为默认 LLM 配置。
     async fn set_default_llm_config_validated(&self, config_id: i64) -> Result<(), AppError> {
-        let target = self.llm_config_record_by_id(config_id).await?;
+        let target = self.llm_config_by_id(config_id).await?;
         validate_llm_config_model(&target)?;
         self.ensure_llm_max_tokens_fits_model_output(target.max_output_tokens)
             .await?;
@@ -168,9 +159,9 @@ impl ConfigApplication {
 
     /// 非默认门禁后删除 LLM 配置。
     async fn delete_llm_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
-        let target = self.llm_config_record_by_id(config_id).await?;
+        let target = self.llm_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed(" LLM 配置", target.is_default)?;
-        self.delete_llm_config_record(config_id).await
+        a4n_db::config::delete_llm_config_record(self.database.connection(), config_id).await
     }
 
     async fn ensure_llm_max_tokens_fits_model_output(
@@ -195,31 +186,11 @@ impl ConfigApplication {
         a4n_db::config::list_image_config_records(self.database.connection()).await
     }
 
-    async fn image_config_record_by_id(
+    async fn image_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<image_gen_config::Model, AppError> {
-        a4n_db::config::image_config_record_by_id(self.database.connection(), config_id).await
-    }
-
-    async fn create_image_config_record(
-        &self,
-        input: ImageConfigCreateRecordInput,
-    ) -> Result<image_gen_config::Model, AppError> {
-        a4n_db::config::create_image_config_record(self.database.connection(), input).await
-    }
-
-    async fn update_image_config_record(
-        &self,
-        existing: image_gen_config::Model,
-        input: ImageConfigUpdateRecordInput,
-    ) -> Result<image_gen_config::Model, AppError> {
-        a4n_db::config::update_image_config_record(self.database.connection(), existing, input)
-            .await
-    }
-
-    async fn delete_image_config_record(&self, config_id: i64) -> Result<(), AppError> {
-        a4n_db::config::delete_image_config_record(self.database.connection(), config_id).await
+        a4n_db::config::image_config_by_id(self.database.connection(), config_id).await
     }
 
     /// 校验图片配置参数后创建。
@@ -228,16 +199,10 @@ impl ConfigApplication {
         params: CreateImageConfigParams,
     ) -> Result<image_gen_config::Model, AppError> {
         let params = validate_image_config_params(params)?;
-        self.create_image_config_record(ImageConfigCreateRecordInput {
-            name: params.name,
-            backend: params.backend,
-            base_url: params.base_url,
-            api_key_encrypted: params.api_key_encrypted,
-            model: params.model,
-            max_concurrent: params.max_concurrent,
-            default_width: params.default_width,
-            default_height: params.default_height,
-        })
+        a4n_db::config::create_image_config_record(
+            self.database.connection(),
+            image_record_input(params),
+        )
         .await
     }
 
@@ -247,7 +212,7 @@ impl ConfigApplication {
         config_id: i64,
         params: UpdateImageConfigParams,
     ) -> Result<image_gen_config::Model, AppError> {
-        let existing = self.image_config_record_by_id(config_id).await?;
+        let existing = self.image_config_by_id(config_id).await?;
         let api_key_encrypted = params
             .api_key_encrypted
             .clone()
@@ -262,25 +227,17 @@ impl ConfigApplication {
             default_width: params.default_width,
             default_height: params.default_height,
         })?;
-        self.update_image_config_record(
+        a4n_db::config::update_image_config_record(
+            self.database.connection(),
             existing,
-            ImageConfigUpdateRecordInput {
-                name: params.name,
-                backend: params.backend,
-                base_url: params.base_url,
-                api_key_encrypted: params.api_key_encrypted,
-                model: params.model,
-                max_concurrent: params.max_concurrent,
-                default_width: params.default_width,
-                default_height: params.default_height,
-            },
+            image_record_input(params),
         )
         .await
     }
 
     /// 校验模型可用后设为默认图片配置。
     async fn set_default_image_config_validated(&self, config_id: i64) -> Result<(), AppError> {
-        let target = self.image_config_record_by_id(config_id).await?;
+        let target = self.image_config_by_id(config_id).await?;
         validate_image_config_model(&target)?;
         self.set_default_provider_config(ProviderConfigKind::Image, config_id)
             .await
@@ -288,9 +245,9 @@ impl ConfigApplication {
 
     /// 非默认门禁通过后删除图片配置。
     async fn delete_image_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
-        let target = self.image_config_record_by_id(config_id).await?;
+        let target = self.image_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed("图片配置", target.is_default)?;
-        self.delete_image_config_record(config_id).await
+        a4n_db::config::delete_image_config_record(self.database.connection(), config_id).await
     }
 
     async fn resolve_image_config(
@@ -300,39 +257,15 @@ impl ConfigApplication {
         a4n_db::config::resolve_image_config(self.database.connection(), config_id).await
     }
 
-    async fn video_config(&self, config_id: i64) -> Result<video_gen_config::Model, AppError> {
+    async fn video_config_by_id(
+        &self,
+        config_id: i64,
+    ) -> Result<video_gen_config::Model, AppError> {
         a4n_db::config::video_config_by_id(self.database.connection(), config_id).await
     }
 
     async fn list_video_config_records(&self) -> Result<Vec<video_gen_config::Model>, AppError> {
         a4n_db::config::list_video_config_records(self.database.connection()).await
-    }
-
-    async fn video_config_record_by_id(
-        &self,
-        config_id: i64,
-    ) -> Result<video_gen_config::Model, AppError> {
-        a4n_db::config::video_config_record_by_id(self.database.connection(), config_id).await
-    }
-
-    async fn create_video_config_record(
-        &self,
-        input: VideoConfigCreateRecordInput,
-    ) -> Result<video_gen_config::Model, AppError> {
-        a4n_db::config::create_video_config_record(self.database.connection(), input).await
-    }
-
-    async fn update_video_config_record(
-        &self,
-        existing: video_gen_config::Model,
-        input: VideoConfigUpdateRecordInput,
-    ) -> Result<video_gen_config::Model, AppError> {
-        a4n_db::config::update_video_config_record(self.database.connection(), existing, input)
-            .await
-    }
-
-    async fn delete_video_config_record(&self, config_id: i64) -> Result<(), AppError> {
-        a4n_db::config::delete_video_config_record(self.database.connection(), config_id).await
     }
 
     async fn default_video_config(&self) -> Result<video_gen_config::Model, AppError> {
@@ -353,22 +286,10 @@ impl ConfigApplication {
         params: VideoConfigParams,
     ) -> Result<video_gen_config::Model, AppError> {
         let params = validate_video_config_params(params).map_err(AppError::InvalidArgument)?;
-        self.create_video_config_record(VideoConfigCreateRecordInput {
-            name: params.name,
-            backend: params.backend,
-            base_url: params.base_url,
-            api_key_encrypted: params.api_key_encrypted,
-            model: params.model,
-            max_concurrent: params.max_concurrent,
-            default_width: params.default_width,
-            default_height: params.default_height,
-            default_duration_secs: params.default_duration_secs,
-            min_duration_secs: params.min_duration_secs,
-            max_duration_secs: params.max_duration_secs,
-            duration_mode: params.duration_mode,
-            supported_durations_json: params.supported_durations_json,
-            default_fps: params.default_fps,
-        })
+        a4n_db::config::create_video_config_record(
+            self.database.connection(),
+            video_record_input(params),
+        )
         .await
     }
 
@@ -378,7 +299,7 @@ impl ConfigApplication {
         config_id: i64,
         params: UpdateVideoConfigParams,
     ) -> Result<video_gen_config::Model, AppError> {
-        let existing = self.video_config_record_by_id(config_id).await?;
+        let existing = self.video_config_by_id(config_id).await?;
         let api_key_encrypted = params
             .api_key_encrypted
             .clone()
@@ -400,31 +321,17 @@ impl ConfigApplication {
             default_fps: params.default_fps,
         })
         .map_err(AppError::InvalidArgument)?;
-        self.update_video_config_record(
+        a4n_db::config::update_video_config_record(
+            self.database.connection(),
             existing,
-            VideoConfigUpdateRecordInput {
-                name: params.name,
-                backend: params.backend,
-                base_url: params.base_url,
-                api_key_encrypted: params.api_key_encrypted,
-                model: params.model,
-                max_concurrent: params.max_concurrent,
-                default_width: params.default_width,
-                default_height: params.default_height,
-                default_duration_secs: params.default_duration_secs,
-                min_duration_secs: params.min_duration_secs,
-                max_duration_secs: params.max_duration_secs,
-                duration_mode: params.duration_mode,
-                supported_durations_json: params.supported_durations_json,
-                default_fps: params.default_fps,
-            },
+            video_record_input(params),
         )
         .await
     }
 
     /// 校验模型可用后设为默认视频配置。
     async fn set_default_video_config_validated(&self, config_id: i64) -> Result<(), AppError> {
-        let target = self.video_config_record_by_id(config_id).await?;
+        let target = self.video_config_by_id(config_id).await?;
         validate_video_config_model(&target).map_err(AppError::InvalidArgument)?;
         self.set_default_provider_config(ProviderConfigKind::Video, config_id)
             .await
@@ -432,7 +339,7 @@ impl ConfigApplication {
 
     /// 非默认且无进行中任务时删除视频配置。
     async fn delete_video_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
-        let target = self.video_config_record_by_id(config_id).await?;
+        let target = self.video_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed("视频配置", target.is_default)?;
         let active_video_ids = self
             .active_generated_video_ids_for_config(config_id)
@@ -443,7 +350,7 @@ impl ConfigApplication {
                 active_video_ids.len()
             )));
         }
-        self.delete_video_config_record(config_id).await
+        a4n_db::config::delete_video_config_record(self.database.connection(), config_id).await
     }
 
     pub(super) async fn default_embedding_config_optional(
@@ -469,86 +376,44 @@ impl ConfigApplication {
         a4n_db::config::embedding_config_by_id(self.database.connection(), config_id).await
     }
 
-    async fn create_embedding_config_record(
-        &self,
-        input: EmbeddingConfigCreateRecordInput,
-    ) -> Result<embedding_config::Model, AppError> {
-        a4n_db::config::create_embedding_config_record(self.database.connection(), input).await
-    }
-
-    async fn update_embedding_config_record(
-        &self,
-        existing: embedding_config::Model,
-        input: EmbeddingConfigUpdateRecordInput,
-    ) -> Result<embedding_config::Model, AppError> {
-        a4n_db::config::update_embedding_config_record(self.database.connection(), existing, input)
-            .await
-    }
-
-    async fn delete_embedding_config_record(&self, config_id: i64) -> Result<(), AppError> {
-        a4n_db::config::delete_embedding_config_record(self.database.connection(), config_id).await
-    }
-
     /// 校验嵌入配置参数后创建。
     async fn create_embedding_config_validated(
         &self,
         params: CreateEmbeddingConfigParams,
     ) -> Result<embedding_config::Model, AppError> {
         let params = validate_embedding_config_params(params)?;
-        self.create_embedding_config_record(EmbeddingConfigCreateRecordInput {
-            name: params.name,
-            backend: params.backend,
-            base_url: params.base_url,
-            api_key_encrypted: params.api_key_encrypted,
-            model: params.model,
-            dimension: params.dimension,
-            batch_size: params.batch_size,
-            local_model_path: params.local_model_path,
-        })
+        a4n_db::config::create_embedding_config_record(
+            self.database.connection(),
+            embedding_record_input(params),
+        )
         .await
     }
 
-    /// 读库、合并补丁、校验后更新嵌入配置。
+    /// 读库、保留未提交的 API Key、校验后更新嵌入配置。
     async fn update_embedding_config_validated(
         &self,
         config_id: i64,
-        patch: UpdateEmbeddingConfigParams,
+        input: UpdateEmbeddingConfigParams,
     ) -> Result<embedding_config::Model, AppError> {
         let existing = self.embedding_config_by_id(config_id).await?;
-        // UpdateEmbeddingConfigParams 为完整替换字段（非 partial Option 补丁）。
-        let requested_api_key = match &patch.api_key_encrypted {
+        let requested_api_key = match &input.api_key_encrypted {
             Some(inner) => inner.clone(),
             None => existing.api_key_encrypted.clone(),
         };
         let params = validate_embedding_config_params(CreateEmbeddingConfigParams {
-            name: patch.name,
-            backend: patch.backend,
-            base_url: patch.base_url.or_else(|| existing.base_url.clone()),
+            name: input.name,
+            backend: input.backend,
+            base_url: input.base_url,
             api_key_encrypted: requested_api_key,
-            model: patch.model,
-            dimension: patch.dimension,
-            batch_size: patch.batch_size,
-            local_model_path: patch
-                .local_model_path
-                .or_else(|| existing.local_model_path.clone()),
+            model: input.model,
+            dimension: input.dimension,
+            batch_size: input.batch_size,
+            local_model_path: input.local_model_path,
         })?;
-        let api_key_encrypted = if params.backend == "api" {
-            params.api_key_encrypted
-        } else {
-            None
-        };
-        self.update_embedding_config_record(
+        a4n_db::config::update_embedding_config_record(
+            self.database.connection(),
             existing,
-            EmbeddingConfigUpdateRecordInput {
-                name: params.name,
-                backend: params.backend,
-                base_url: params.base_url,
-                api_key_encrypted,
-                model: params.model,
-                dimension: params.dimension,
-                batch_size: params.batch_size,
-                local_model_path: params.local_model_path,
-            },
+            embedding_record_input(params),
         )
         .await
     }
@@ -565,7 +430,7 @@ impl ConfigApplication {
     async fn delete_embedding_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
         let target = self.embedding_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed(" Embedding 配置", target.is_default)?;
-        self.delete_embedding_config_record(config_id).await
+        a4n_db::config::delete_embedding_config_record(self.database.connection(), config_id).await
     }
 
     async fn llm_configs_exist(&self) -> Result<bool, AppError> {
@@ -735,11 +600,8 @@ impl OrchestratorContext {
         self.settings.list_llm_config_records().await
     }
 
-    pub async fn llm_config_record_by_id(
-        &self,
-        config_id: i64,
-    ) -> Result<llm_config::Model, AppError> {
-        self.settings.llm_config_record_by_id(config_id).await
+    pub async fn llm_config_by_id(&self, config_id: i64) -> Result<llm_config::Model, AppError> {
+        self.settings.llm_config_by_id(config_id).await
     }
 
     /// 创建 LLM 配置：规范化后落库。
@@ -786,11 +648,11 @@ impl OrchestratorContext {
         self.settings.list_image_config_records().await
     }
 
-    pub async fn image_config_record_by_id(
+    pub async fn image_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<image_gen_config::Model, AppError> {
-        self.settings.image_config_record_by_id(config_id).await
+        self.settings.image_config_by_id(config_id).await
     }
 
     /// 创建图片配置：校验参数后落库。
@@ -833,21 +695,17 @@ impl OrchestratorContext {
         self.settings.resolve_image_config(config_id).await
     }
 
-    pub async fn video_config(&self, config_id: i64) -> Result<video_gen_config::Model, AppError> {
-        self.settings.video_config(config_id).await
+    pub async fn video_config_by_id(
+        &self,
+        config_id: i64,
+    ) -> Result<video_gen_config::Model, AppError> {
+        self.settings.video_config_by_id(config_id).await
     }
 
     pub async fn list_video_config_records(
         &self,
     ) -> Result<Vec<video_gen_config::Model>, AppError> {
         self.settings.list_video_config_records().await
-    }
-
-    pub async fn video_config_record_by_id(
-        &self,
-        config_id: i64,
-    ) -> Result<video_gen_config::Model, AppError> {
-        self.settings.video_config_record_by_id(config_id).await
     }
 
     /// 创建视频配置：校验参数后落库。
@@ -927,14 +785,14 @@ impl OrchestratorContext {
             .await
     }
 
-    /// 更新嵌入配置：合并补丁并校验后落库。
+    /// 更新嵌入配置：完整替换字段并保留未提交的 API Key。
     pub async fn update_embedding_config_validated(
         &self,
         config_id: i64,
-        patch: UpdateEmbeddingConfigParams,
+        input: UpdateEmbeddingConfigParams,
     ) -> Result<embedding_config::Model, AppError> {
         self.settings
-            .update_embedding_config_validated(config_id, patch)
+            .update_embedding_config_validated(config_id, input)
             .await
     }
 
@@ -1042,8 +900,8 @@ fn positive_model_output_cap(value: i32) -> Result<usize, AppError> {
         .ok_or_else(|| AppError::InvalidArgument("模型最大输出必须大于 0".into()))
 }
 
-fn llm_create_record_input(normalized: NormalizedLlmConfig) -> LlmConfigCreateRecordInput {
-    LlmConfigCreateRecordInput {
+fn llm_record_input(normalized: NormalizedLlmConfig) -> LlmConfigRecordInput {
+    LlmConfigRecordInput {
         name: normalized.name,
         provider: normalized.provider,
         base_url: normalized.base_url,
@@ -1057,17 +915,47 @@ fn llm_create_record_input(normalized: NormalizedLlmConfig) -> LlmConfigCreateRe
     }
 }
 
-fn llm_update_record_input(normalized: NormalizedLlmConfig) -> LlmConfigUpdateRecordInput {
-    LlmConfigUpdateRecordInput {
-        name: normalized.name,
-        provider: normalized.provider,
-        base_url: normalized.base_url,
-        api_key_encrypted: normalized.api_key_encrypted,
-        model: normalized.model,
-        max_concurrent: normalized.max_concurrent,
-        timeout_secs: normalized.timeout_secs,
-        max_context_tokens: normalized.max_context_tokens,
-        max_output_tokens: normalized.max_output_tokens,
-        extra_body_json: normalized.extra_body_json,
+fn image_record_input(params: CreateImageConfigParams) -> ImageConfigRecordInput {
+    ImageConfigRecordInput {
+        name: params.name,
+        backend: params.backend,
+        base_url: params.base_url,
+        api_key_encrypted: params.api_key_encrypted,
+        model: params.model,
+        max_concurrent: params.max_concurrent,
+        default_width: params.default_width,
+        default_height: params.default_height,
+    }
+}
+
+fn video_record_input(params: VideoConfigParams) -> VideoConfigRecordInput {
+    VideoConfigRecordInput {
+        name: params.name,
+        backend: params.backend,
+        base_url: params.base_url,
+        api_key_encrypted: params.api_key_encrypted,
+        model: params.model,
+        max_concurrent: params.max_concurrent,
+        default_width: params.default_width,
+        default_height: params.default_height,
+        default_duration_secs: params.default_duration_secs,
+        min_duration_secs: params.min_duration_secs,
+        max_duration_secs: params.max_duration_secs,
+        duration_mode: params.duration_mode,
+        supported_durations_json: params.supported_durations_json,
+        default_fps: params.default_fps,
+    }
+}
+
+fn embedding_record_input(params: CreateEmbeddingConfigParams) -> EmbeddingConfigRecordInput {
+    EmbeddingConfigRecordInput {
+        name: params.name,
+        backend: params.backend,
+        base_url: params.base_url,
+        api_key_encrypted: params.api_key_encrypted,
+        model: params.model,
+        dimension: params.dimension,
+        batch_size: params.batch_size,
+        local_model_path: params.local_model_path,
     }
 }

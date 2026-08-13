@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use a4n_core::config::app_config::{self, AppConfig};
+use a4n_core::config::{
+    app_config::{self, AppConfig},
+    embedding_provider_capabilities,
+};
 use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::EmbeddingModelIdentity;
@@ -16,7 +19,7 @@ pub fn effective_fastembed_cache_dir(default_cache_dir: PathBuf) -> PathBuf {
 pub fn model_identity_from_config(
     model: &embedding_config::Model,
 ) -> Result<EmbeddingModelIdentity, AppError> {
-    let backend = SupportedEmbeddingBackend::parse(&model.backend).ok_or_else(|| {
+    let backend = embedding_provider_capabilities(&model.backend).ok_or_else(|| {
         AppError::ConfigError(format!(
             "嵌入配置 {} 使用不支持的后端: {}",
             model.name, model.backend
@@ -25,7 +28,7 @@ pub fn model_identity_from_config(
     let dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
     let model_name = required_text(&model.model, "模型名", &model.name)?;
     Ok(EmbeddingModelIdentity {
-        backend: backend.identity_backend_name().to_string(),
+        backend: backend.kind.identity_backend_name().to_string(),
         model: model_name,
         dimension,
     })
@@ -77,29 +80,4 @@ pub(super) struct ResolvedEmbeddingConfig {
     pub(super) dimension: usize,
     pub(super) batch_size: usize,
     pub(super) fastembed_cache_dir: PathBuf,
-}
-
-pub(super) enum SupportedEmbeddingBackend {
-    Api,
-    LocalHash,
-    FastEmbed,
-}
-
-impl SupportedEmbeddingBackend {
-    pub(super) fn parse(value: &str) -> Option<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "api" => Some(Self::Api),
-            "local_hash" => Some(Self::LocalHash),
-            "fastembed" => Some(Self::FastEmbed),
-            _ => None,
-        }
-    }
-
-    fn identity_backend_name(&self) -> &'static str {
-        match self {
-            Self::Api => "Api",
-            Self::LocalHash => "LocalHash",
-            Self::FastEmbed => "FastEmbed",
-        }
-    }
 }

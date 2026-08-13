@@ -1,9 +1,8 @@
 use serde_json::Value;
 
 use super::shared::{
-    config_web_caller_id_unit_command, config_web_id_unit_command, config_web_input_command,
-    config_web_model_discovery_command, config_web_no_arg_command, config_web_update_command,
-    i64_arg_or_system_default,
+    config_web_id_unit_command, config_web_input_command, config_web_model_discovery_command,
+    config_web_no_arg_command, config_web_update_command, i64_arg_or_system_default,
 };
 use crate::routes::commands::{ApiError, ServerState, config_records_actions, to_value};
 
@@ -18,7 +17,7 @@ config_web_update_command!(
     config_records_actions::UpdateLlmInput,
     config_records_actions::update_llm_config,
 );
-config_web_caller_id_unit_command!(
+config_web_id_unit_command!(
     set_default_llm_config,
     config_records_actions::set_default_llm_config,
 );
@@ -38,6 +37,11 @@ pub(in crate::routes::commands) async fn test_llm_config(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    crate::routes::commands::reject_unknown_command_args(
+        args,
+        "test_llm_config",
+        &["configId", "runtime_config_snapshot"],
+    )?;
     let config_id = i64_arg_or_system_default(args, "configId")?;
     to_value(
         config_records_actions::test_llm_config(state.runtime(), user_id, config_id)
@@ -51,6 +55,11 @@ pub(in crate::routes::commands) async fn preview_test_llm_config_request(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    crate::routes::commands::reject_unknown_command_args(
+        args,
+        "preview_test_llm_config_request",
+        &["configId", "runtime_config_snapshot"],
+    )?;
     let config_id = i64_arg_or_system_default(args, "configId")?;
     to_value(
         config_records_actions::preview_test_llm_config_request(

@@ -14,18 +14,18 @@ pub struct CreateLlmConfigInput<'a> {
     pub extra_body_json: Option<Value>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct UpdateLlmConfigInput<'a> {
-    pub name: Option<&'a str>,
-    pub provider: Option<&'a str>,
-    pub base_url: Option<&'a str>,
+    pub name: &'a str,
+    pub provider: &'a str,
+    pub base_url: &'a str,
     pub api_key_encrypted: Option<Option<&'a str>>,
-    pub model: Option<&'a str>,
-    pub max_concurrent: Option<i32>,
-    pub timeout_secs: Option<i32>,
-    pub max_context_tokens: Option<i32>,
-    pub max_output_tokens: Option<i32>,
-    pub extra_body_json: Option<Option<Value>>,
+    pub model: &'a str,
+    pub max_concurrent: i32,
+    pub timeout_secs: i32,
+    pub max_context_tokens: i32,
+    pub max_output_tokens: i32,
+    pub extra_body_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,5 +1,9 @@
-use crate::{AppState, actions::app_error_message};
+use crate::{
+    AppState,
+    actions::{app_error_message, config_records::shared::require_config_admin},
+};
 pub use a4n_core::config::app_config::LlmMaxTokensConfig;
+use a4n_core::error::AppError;
 
 pub async fn get_llm_max_tokens_config(state: &AppState) -> Result<LlmMaxTokensConfig, String> {
     state
@@ -11,13 +15,14 @@ pub async fn get_llm_max_tokens_config(state: &AppState) -> Result<LlmMaxTokensC
 
 pub async fn update_llm_max_tokens_config(
     state: &AppState,
+    caller_user_id: i64,
     input: LlmMaxTokensConfig,
-) -> Result<LlmMaxTokensConfig, String> {
+) -> Result<LlmMaxTokensConfig, AppError> {
+    require_config_admin(state, caller_user_id).await?;
     state
         .orchestrator()
         .save_llm_max_tokens_config_validated(input.clone())
-        .await
-        .map_err(app_error_message)?;
+        .await?;
 
     Ok(input)
 }
