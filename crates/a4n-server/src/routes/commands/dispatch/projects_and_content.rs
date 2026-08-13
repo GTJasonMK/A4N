@@ -77,7 +77,6 @@ pub(super) async fn try_dispatch(
         }
         "forward_project_status" => forward_project_status(state, user_id, args).await?,
         "duplicate_project" => duplicate_project(state, user_id, args).await?,
-        "branch_project" => branch_project(state, user_id, args).await?,
         "rollback_project_status" => rollback_project_status(state, user_id, args).await?,
         "get_project_status_machine" => get_project_status_machine(state, user_id, args).await?,
         "preview_rollback" => preview_rollback(state, user_id, args).await?,

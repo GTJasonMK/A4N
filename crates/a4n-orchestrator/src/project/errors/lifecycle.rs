@@ -82,7 +82,6 @@ pub(crate) fn project_duplicate_error_to_app_error(error: ProjectDuplicateError)
             AppError::Internal(anyhow::anyhow!("媒体文件复制失败：{error}"))
         }
         ProjectDuplicateError::Database(error) => AppError::Database(error),
-        ProjectDuplicateError::Serialization(error) => AppError::Serialization(error),
     }
 }
 

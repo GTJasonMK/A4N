@@ -43,7 +43,6 @@ where
             current_chapter: original.current_chapter,
             total_chapters: original.total_chapters,
             raw_blueprint: original.raw_blueprint.clone(),
-            import_analysis_progress: original.import_analysis_progress.clone(),
         },
         now,
     )

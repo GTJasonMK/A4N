@@ -1,13 +1,10 @@
 use a4n_core::{error::AppError, models::project::novel_project};
 use a4n_db::DbHandle;
-use chrono::Utc;
-use sea_orm::TransactionTrait;
 
 use super::OrchestratorContext;
 use crate::project::{
-    BranchProjectApplicationInput, DuplicateProjectApplicationInput, ProjectDuplicatePath,
-    ProjectDuplicationHostPort, ProjectMediaFileCopier, ensure_text_project_for_copy,
-    project_duplicate_error_to_app_error, required_project_status, required_text,
+    DuplicateProjectApplicationInput, ProjectDuplicatePath, ProjectDuplicationHostPort,
+    ProjectMediaFileCopier, project_duplicate_error_to_app_error, required_text,
     resolve_project_duplicate_path,
 };
 
@@ -32,22 +29,6 @@ impl ProjectDuplicationApplication {
             original,
             user_id,
             new_title,
-        )
-        .await
-        .map_err(project_duplicate_error_to_app_error)
-    }
-
-    async fn branch_text(
-        &self,
-        original: &novel_project::Model,
-        branch_title: &str,
-        branch_status: &str,
-    ) -> Result<novel_project::Model, AppError> {
-        a4n_db::project::branch_text_project_record(
-            self.database.connection(),
-            original,
-            branch_title,
-            branch_status,
         )
         .await
         .map_err(project_duplicate_error_to_app_error)
@@ -84,25 +65,15 @@ impl ProjectDuplicationApplication {
     where
         Copier: ProjectMediaFileCopier,
     {
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
-        let now = Utc::now().naive_utc();
-        let project = a4n_db::project::duplicate_freeform_project_record(
-            &tx,
+        a4n_db::project::duplicate_freeform_project_record(
+            self.database.connection(),
             original,
             user_id,
             new_title,
-            now,
             media_file_copier,
         )
         .await
-        .map_err(project_duplicate_error_to_app_error)?;
-        tx.commit().await.map_err(AppError::Database)?;
-        Ok(project)
+        .map_err(project_duplicate_error_to_app_error)
     }
 }
 
@@ -145,36 +116,13 @@ impl OrchestratorContext {
         }
     }
 
-    pub async fn branch_project_validated<Host>(
-        &self,
-        input: BranchProjectApplicationInput,
-        host_port: &Host,
-    ) -> Result<novel_project::Model, AppError>
-    where
-        Host: ProjectDuplicationHostPort,
-    {
-        let branch_title =
-            required_text(&input.branch_title, "分支标题").map_err(AppError::InvalidArgument)?;
-        let branch_status = required_project_status(&input.at_status, "分支状态")
-            .map_err(AppError::InvalidArgument)?;
-        let original = self.project_for_duplication(input.project_id).await?;
-        host_port
-            .verify_project_editor(input.user_id, original.id)
-            .await?;
-        ensure_text_project_for_copy(&original, "创建项目分支")
-            .map_err(AppError::InvalidArgument)?;
-        self.project_duplication
-            .branch_text(&original, branch_title, &branch_status)
-            .await
-    }
-
     async fn project_for_duplication(
         &self,
         project_id: i64,
     ) -> Result<novel_project::Model, AppError> {
         self.project_by_id(project_id)
             .await?
-            .ok_or_else(|| AppError::InvalidArgument(format!("项目不存在: {project_id}")))
+            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
     }
 }
 

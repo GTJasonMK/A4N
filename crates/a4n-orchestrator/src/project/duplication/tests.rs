@@ -26,9 +26,7 @@ use serde_json::json;
 
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
-use super::{
-    BranchProjectApplicationInput, DuplicateProjectApplicationInput, ProjectDuplicationHostPort,
-};
+use super::{DuplicateProjectApplicationInput, ProjectDuplicationHostPort};
 
 #[derive(Default)]
 struct TestProjectDuplicationHost {
@@ -112,11 +110,40 @@ async fn duplicate_text_application_owns_lookup_permission_validation_and_dispat
 }
 
 #[tokio::test]
+async fn duplicate_missing_project_is_not_found_before_permission_check() {
+    let (context, _) = setup().await;
+    let mut host = TestProjectDuplicationHost::default();
+
+    let error = context
+        .duplicate_project_validated(
+            DuplicateProjectApplicationInput {
+                user_id: 19,
+                project_id: i64::MAX,
+                new_title: "不存在的副本".to_string(),
+            },
+            &mut host,
+        )
+        .await
+        .expect_err("不存在的项目必须返回 NotFound");
+
+    assert!(matches!(
+        error,
+        AppError::NotFound(message) if message.contains(&i64::MAX.to_string())
+    ));
+    assert_eq!(host.permission_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn duplicate_freeform_application_rolls_back_host_files_on_copy_failure() {
     let (context, database) = setup().await;
     let source = insert_freeform_project(database.as_ref(), 8).await;
     insert_media_asset(database.as_ref(), source.id).await;
     let mut host = TestProjectDuplicationHost::failing_copy();
+    let before = novel_project::Entity::find()
+        .all(database.as_ref())
+        .await
+        .unwrap()
+        .len();
 
     let error = context
         .duplicate_project_validated(
@@ -129,8 +156,14 @@ async fn duplicate_freeform_application_rolls_back_host_files_on_copy_failure() 
         )
         .await
         .expect_err("媒体复制失败必须使 freeform 复制失败");
+    let after = novel_project::Entity::find()
+        .all(database.as_ref())
+        .await
+        .unwrap()
+        .len();
 
     assert!(error.to_string().contains("test copy failure"));
+    assert_eq!(after, before);
     assert_eq!(host.permission_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.copy_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 1);
@@ -302,30 +335,6 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
         Some(copied_spec.source_version_hash),
         generation_spec::freeform_source_version_hash(&copied_spec.params_json)
     );
-    assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 0);
-}
-
-#[tokio::test]
-async fn branch_application_rejects_non_text_after_permission_gate() {
-    let (context, database) = setup().await;
-    let video = insert_freeform_project(database.as_ref(), 9).await;
-    let host = TestProjectDuplicationHost::default();
-
-    let error = context
-        .branch_project_validated(
-            BranchProjectApplicationInput {
-                user_id: 29,
-                project_id: video.id,
-                branch_title: "视频分支".to_string(),
-                at_status: "draft".to_string(),
-            },
-            &host,
-        )
-        .await
-        .expect_err("非文本项目不得创建文本分支");
-
-    assert!(error.to_string().contains("仅支持文本项目"));
-    assert_eq!(host.permission_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 0);
 }
 

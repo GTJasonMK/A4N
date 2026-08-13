@@ -101,8 +101,7 @@ where
         now,
     )
     .await?;
-    let _clip_id_map =
-        copy_derived_assembly_clips(db, &timeline_id_map, &asset_id_map, &segment_id_map).await?;
+    copy_derived_assembly_clips(db, &timeline_id_map, &asset_id_map, &segment_id_map).await?;
     copy_derived_generation_spec_media_refs(
         db,
         &copied_specs.spec_ids,

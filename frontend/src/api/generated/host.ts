@@ -19,7 +19,6 @@ export const HOST_API_COMMANDS = [
   "batch_accept_reviews",
   "bind_galgame_media",
   "bind_manga_reference_image",
-  "branch_project",
   "cancel_admin_task",
   "cancel_embedding_model_download",
   "cancel_galgame_pipeline",

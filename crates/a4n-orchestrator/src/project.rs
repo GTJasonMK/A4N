@@ -155,9 +155,7 @@ mod package_rules;
 mod video_studio_package;
 mod video_studio_transfer;
 
-pub use duplication::{
-    BranchProjectApplicationInput, DuplicateProjectApplicationInput, ProjectDuplicationHostPort,
-};
+pub use duplication::{DuplicateProjectApplicationInput, ProjectDuplicationHostPort};
 pub use generation_params_rules::{
     generation_spec_params_object, optional_params_i64, required_generation_spec_target_id,
     required_params_i64, required_params_i64_array, required_params_object, required_params_string,
@@ -166,9 +164,8 @@ pub use generation_params_rules::{
     validate_snapshot_character_profile_id,
 };
 pub use input_rules::{
-    ProjectDuplicatePath, ensure_text_project_for_copy,
-    is_freeform_video_generated_data_reset_project, optional_text, project_list_offset,
-    required_optional_text, required_project_status, required_text, resolve_project_duplicate_path,
+    ProjectDuplicatePath, is_freeform_video_generated_data_reset_project, optional_text,
+    project_list_offset, required_optional_text, required_text, resolve_project_duplicate_path,
 };
 pub use json_field_rules::{
     required_json_i32_field, required_json_i64_field, required_json_string_field,

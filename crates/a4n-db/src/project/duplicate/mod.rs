@@ -41,11 +41,9 @@ pub enum ProjectDuplicateError {
     MediaCopy(#[from] ProjectMediaCopyError),
     #[error(transparent)]
     Database(#[from] DbErr),
-    #[error(transparent)]
-    Serialization(#[from] serde_json::Error),
 }
 
 pub use derived::duplicate_derived_project_record;
 pub use freeform::duplicate_freeform_project_record;
 pub use shared::ProjectMediaFileCopier;
-pub use text::{branch_text_project_record, duplicate_text_project_record};
+pub use text::duplicate_text_project_record;

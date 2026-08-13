@@ -10,14 +10,6 @@ pub struct DuplicateProjectApplicationInput {
     pub new_title: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BranchProjectApplicationInput {
-    pub user_id: i64,
-    pub project_id: i64,
-    pub branch_title: String,
-    pub at_status: String,
-}
-
 #[async_trait]
 pub trait ProjectDuplicationHostPort: ProjectMediaFileCopier + Send {
     async fn verify_project_editor(&self, user_id: i64, project_id: i64) -> Result<(), AppError>;

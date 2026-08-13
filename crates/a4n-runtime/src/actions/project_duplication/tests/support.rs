@@ -10,11 +10,10 @@ use a4n_core::models::{
     },
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_domain::project::ProjectStatus;
 use a4n_db::project::{
-    ProjectDuplicateError, branch_text_project_record, duplicate_derived_project_record,
-    duplicate_text_project_record,
+    ProjectDuplicateError, duplicate_derived_project_record, duplicate_text_project_record,
 };
+use a4n_domain::project::ProjectStatus;
 use chrono::NaiveDate;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde_json::json;

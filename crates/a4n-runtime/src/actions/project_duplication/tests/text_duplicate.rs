@@ -8,6 +8,7 @@ async fn duplicate_text_project_record_preserves_status_outlines_chapters_and_li
     source.current_chapter = 1;
     let mut active: novel_project::ActiveModel = source.clone().into();
     active.current_chapter = Set(1);
+    active.import_analysis_progress = Set(Some("{\"phase\":\"completed\"}".to_string()));
     source = active.update(&db).await.unwrap();
 
     let duplicated = duplicate_text_project_record(&db, &source, 1, "源项目 副本")
@@ -39,6 +40,7 @@ async fn duplicate_text_project_record_preserves_status_outlines_chapters_and_li
     assert_eq!(duplicated.title, "源项目 副本");
     assert_eq!(duplicated.status, ProjectStatus::Writing.as_str());
     assert_eq!(duplicated.current_chapter, 1);
+    assert_eq!(duplicated.import_analysis_progress, None);
     assert_eq!(copied_versions.len(), 1);
     assert_eq!(copied_parts.len(), 1);
     assert_eq!(copied_parts[0].part_number, source_part.part_number);
@@ -64,6 +66,30 @@ async fn duplicate_text_project_record_preserves_status_outlines_chapters_and_li
         Some(json!({"foreshadowing": {"planted": ["邮戳"]}}))
     );
 }
+
+#[tokio::test]
+async fn duplicate_text_project_rejects_blueprint_graph_without_raw_blueprint() {
+    let db = setup_db().await;
+    let source = insert_project(&db, ProjectStatus::BlueprintReady.as_str()).await;
+    insert_blueprint_graph(&db, source.id).await;
+    let mut active: novel_project::ActiveModel = source.into();
+    active.raw_blueprint = Set(None);
+    let source = active.update(&db).await.unwrap();
+    let before = novel_project::Entity::find().all(&db).await.unwrap().len();
+
+    let error = duplicate_text_project_record(&db, &source, 1, "不一致副本")
+        .await
+        .expect_err("蓝图双事实源不一致时不得临时重建 raw_blueprint");
+    let after = novel_project::Entity::find().all(&db).await.unwrap().len();
+
+    assert!(matches!(
+        error,
+        ProjectDuplicateError::InvalidState { ref current, .. }
+            if current.contains("存在性不一致")
+    ));
+    assert_eq!(after, before);
+}
+
 #[tokio::test]
 async fn duplicate_text_project_record_rolls_back_when_chapter_outline_link_is_invalid() {
     let db = setup_db().await;

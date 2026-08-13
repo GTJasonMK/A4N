@@ -3,7 +3,7 @@ use super::media::RuntimeProjectDuplicationHostPort;
 use crate::AppState;
 use crate::actions::app_error_message;
 use a4n_core::models::project::novel_project;
-use a4n_orchestrator::project::{BranchProjectApplicationInput, DuplicateProjectApplicationInput};
+use a4n_orchestrator::project::DuplicateProjectApplicationInput;
 
 pub async fn duplicate_project(
     state: &AppState,
@@ -20,29 +20,6 @@ pub async fn duplicate_project(
                 new_title: input.new_title,
             },
             &mut host_port,
-        )
-        .await
-        .map_err(app_error_message)
-}
-
-pub async fn branch_project(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    branch_title: String,
-    at_status: String,
-) -> Result<novel_project::Model, String> {
-    let host_port = RuntimeProjectDuplicationHostPort::new(state);
-    state
-        .orchestrator()
-        .branch_project_validated(
-            BranchProjectApplicationInput {
-                user_id,
-                project_id,
-                branch_title,
-                at_status,
-            },
-            &host_port,
         )
         .await
         .map_err(app_error_message)

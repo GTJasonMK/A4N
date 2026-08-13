@@ -1,7 +1,6 @@
 //! 项目 Host 输入与复制/重置路径的纯校验规则（无 DB、无运行时依赖）。
 
 use a4n_core::models::project::novel_project;
-use a4n_core::state::validator::parse_project_status;
 
 use super::{PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM};
 
@@ -44,25 +43,6 @@ pub fn required_optional_text<'a>(value: Option<&'a str>, field: &str) -> Result
 /// 可选文本：None 或空白视为空串。
 pub fn optional_text(value: Option<&str>) -> String {
     value.map(str::trim).unwrap_or_default().to_string()
-}
-
-/// 解析并规范化项目状态字符串（用于分支创建等）。
-pub fn required_project_status(value: &str, field: &str) -> Result<String, String> {
-    let value = required_text(value, field)?;
-    let status = parse_project_status(value).map_err(|e| e.to_string())?;
-    Ok(status.as_str().to_string())
-}
-
-/// 复制/分支操作仅允许文本项目。
-pub fn ensure_text_project_for_copy(
-    project: &novel_project::Model,
-    operation: &str,
-) -> Result<(), String> {
-    if project.project_kind != PROJECT_KIND_TEXT {
-        Err(format!("{operation}仅支持文本项目"))
-    } else {
-        Ok(())
-    }
 }
 
 /// 按 source_mode / project_kind 选择 duplicate 落库路径。
@@ -142,16 +122,6 @@ mod tests {
         assert!(required_optional_text(None, "项目类型").is_err());
         assert_eq!(optional_text(None), "");
         assert_eq!(optional_text(Some(" 简介 ")), "简介");
-    }
-
-    #[test]
-    fn ensure_text_project_for_copy_rejects_non_text() {
-        assert!(ensure_text_project_for_copy(&project("text", "root"), "创建项目分支").is_ok());
-        assert!(
-            ensure_text_project_for_copy(&project("video", "root"), "创建项目分支")
-                .unwrap_err()
-                .contains("仅支持文本项目")
-        );
     }
 
     #[test]

@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 3;
+pub const COMMAND_MANIFEST_VERSION: u32 = 4;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -298,7 +298,6 @@ command_specs! {
     "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
     "bind_manga_reference_image" => args_bind_manga_reference_image, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
-    "branch_project" => args_opaque, result_opaque, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "cancel_admin_task" => args_task_id, result_unit, "task", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_embedding_model_download" => args_cancel_embedding_model_download, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "cancel_galgame_pipeline" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
@@ -360,7 +359,7 @@ command_specs! {
     "disable_user" => args_user_id, result_unit, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "discover_character_profiles" => args_opaque, result_opaque, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "download_embedding_model" => args_download_embedding_model, result_download_embedding_model, "rag", execution("task"), capabilities(CAPABILITIES_EMBEDDING);
-    "duplicate_project" => args_duplicate_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
+    "duplicate_project" => args_duplicate_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "edit_chapter_shooting_script" => args_edit_chapter_shooting_script, result_edit_chapter_shooting_script, "chapter", references(REFERENCES_PROJECT_IDS);
     "execute_attribute_deletion" => args_execute_attribute_deletion, result_unit, "profile", effect(DESTRUCTIVE_EFFECT);
     "export_all_configs_json" => args_export_all_configs_json, result_export_all_configs_json, "export", identity(ADMIN_IDENTITY), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS);
@@ -3250,19 +3249,17 @@ mod tests {
                 .args_schema
         );
         assert!(command_descriptor("import_project_full_upload").is_none());
+        assert!(command_descriptor("branch_project").is_none());
 
-        for command in ["update_project", "branch_project"] {
-            let descriptor = command_descriptor(command).unwrap();
-            assert_eq!(
-                descriptor.args_schema["x-a4n-context-fields"],
-                serde_json::json!(["projectId"]),
-                "{command}"
-            );
-            assert!(
-                descriptor.args_schema["properties"].get("userId").is_none(),
-                "{command}"
-            );
-        }
+        let duplicate = command_descriptor("duplicate_project").unwrap();
+        assert_eq!(duplicate.result_schema["x-a4n-schema-quality"], "typed");
+
+        let update = command_descriptor("update_project").unwrap();
+        assert_eq!(
+            update.args_schema["x-a4n-context-fields"],
+            serde_json::json!(["projectId"])
+        );
+        assert!(update.args_schema["properties"].get("userId").is_none());
 
         for command in [
             "get_project",

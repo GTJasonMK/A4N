@@ -366,19 +366,6 @@ export async function duplicateProject(id: Id, new_title: string): Promise<Novel
   });
 }
 
-/** 后端 branch_project(project_id, branch_title, at_status) */
-export async function branchProject(
-  id: Id,
-  branch_title: string,
-  at_status: ProjectStatus,
-): Promise<NovelProject> {
-  return apiInvoke<NovelProject>("branch_project", {
-    projectId: idNum(id),
-    branchTitle: branch_title,
-    atStatus: at_status,
-  });
-}
-
 export async function exportProjectFamilyData(
   input: ExportProjectFamilyDataInput,
 ): Promise<ExportProjectPackageData> {

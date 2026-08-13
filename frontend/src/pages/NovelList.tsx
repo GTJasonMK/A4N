@@ -15,7 +15,6 @@ import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { cancelWorkflowTask } from "../api/streaming";
 import {
   acceptProjectInvite,
-  branchProject,
   createDerivedProject,
   createFreeformVideoProject,
   createProject,
@@ -386,41 +385,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
   };
 
-  const handleBranch = async (project: NovelProject) => {
-    const actionKey = `branch-${project.id}`;
-    if (!beginProjectAction(actionKey)) return;
-    const title = await promptDialog({
-      title: "创建项目分支",
-      message: `从「${project.title}」当前状态创建分支，请输入分支标题。`,
-      defaultValue: `${project.title} 分支`,
-      placeholder: "分支标题",
-      required: true,
-      confirmText: "创建分支",
-    });
-    if (!title || !title.trim()) {
-      finishProjectAction(actionKey);
-      return;
-    }
-    if (!mountedRef.current) {
-      finishProjectAction(actionKey);
-      return;
-    }
-    try {
-      const np = await branchProject(project.id, title.trim(), project.status);
-      if (!mountedRef.current) return;
-      addToast(`已创建分支：${np.title}`, "success");
-      await refresh(activeTabRef.current);
-      if (!mountedRef.current) return;
-      await syncCreatedProjectMaterials(np);
-    } catch (err) {
-      if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "分支失败"), "error");
-      }
-    } finally {
-      finishProjectAction(actionKey);
-    }
-  };
-
   const handleCreateDerivedProject = async (
     project: NovelProject,
     kind: DerivedProjectKind,
@@ -721,7 +685,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
       onOpenDetails: (item) => navigate(`/novel/${item.id}`),
       onOpenInspiration: (item) => navigate(`/inspiration/${item.id}`),
       onDuplicate: (item) => void handleDuplicate(item),
-      onBranch: (item) => void handleBranch(item),
       onCreateDerivedProject: (item, kind) => void handleCreateDerivedProject(item, kind),
       onExport: (item) => void handleExport(item),
       onImportText: (item) => setImportTextProjectId(item.id),

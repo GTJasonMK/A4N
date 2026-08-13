@@ -40,12 +40,7 @@ where
         now,
         media_file_copier,
     )
-    .await;
-    match project {
-        Ok(project) => {
-            txn.commit().await?;
-            Ok(project)
-        }
-        Err(err) => Err(err),
-    }
+    .await?;
+    txn.commit().await?;
+    Ok(project)
 }

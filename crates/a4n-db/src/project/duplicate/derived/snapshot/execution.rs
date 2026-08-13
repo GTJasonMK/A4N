@@ -80,7 +80,6 @@ where
             current_chapter: original.current_chapter,
             total_chapters: original.total_chapters,
             raw_blueprint: None,
-            import_analysis_progress: None,
         },
         now,
     )

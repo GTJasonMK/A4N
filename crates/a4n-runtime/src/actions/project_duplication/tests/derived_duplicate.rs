@@ -157,27 +157,19 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     .insert(&db)
     .await
     .unwrap();
-    let media_dir =
-        std::path::Path::new("/tmp").join(format!("a4n_duplication_media_{}", std::process::id()));
+    let test_data_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-data");
+    std::fs::create_dir_all(&test_data_root).unwrap();
+    let data_dir = tempfile::Builder::new()
+        .prefix("a4n_duplication_media_")
+        .tempdir_in(test_data_root)
+        .unwrap();
+    let media_dir = data_dir.path().join("source");
     std::fs::create_dir_all(&media_dir).unwrap();
-    let segment_relative = format!(
-        "{}/segment.mp4",
-        media_dir.file_name().unwrap().to_string_lossy()
-    );
-    let preview_relative = format!(
-        "{}/preview.mp4",
-        media_dir.file_name().unwrap().to_string_lossy()
-    );
-    std::fs::write(
-        std::path::Path::new("/tmp").join(&segment_relative),
-        b"segment",
-    )
-    .unwrap();
-    std::fs::write(
-        std::path::Path::new("/tmp").join(&preview_relative),
-        b"preview",
-    )
-    .unwrap();
+    let segment_relative = "source/segment.mp4".to_string();
+    let preview_relative = "source/preview.mp4".to_string();
+    std::fs::write(data_dir.path().join(&segment_relative), b"segment").unwrap();
+    std::fs::write(data_dir.path().join(&preview_relative), b"preview").unwrap();
     let asset = media_asset::ActiveModel {
         project_id: Set(derived.id),
         root_project_id: Set(root.id),
@@ -316,7 +308,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
 
     let mut copied_media_files = Vec::new();
     let mut media_file_copier = RuntimeProjectMediaFileCopier {
-        data_dir: std::path::Path::new("/tmp"),
+        data_dir: data_dir.path(),
         copied_media_files: &mut copied_media_files,
     };
     let duplicated =

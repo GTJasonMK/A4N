@@ -4,7 +4,6 @@ import {
   Download,
   Film,
   Gamepad2,
-  GitBranch,
   PanelsTopLeft,
   Sparkles,
   Trash2,
@@ -23,7 +22,6 @@ interface ProjectActionHandlers {
   onOpenDetails: (project: NovelProject) => void;
   onOpenInspiration: (project: NovelProject) => void;
   onDuplicate: (project: NovelProject) => void;
-  onBranch: (project: NovelProject) => void;
   onCreateDerivedProject: (project: NovelProject, kind: DerivedProjectKind) => void;
   onExport: (project: NovelProject) => void;
   onImportText: (project: NovelProject) => void;
@@ -71,11 +69,6 @@ export const createProjectActions = (
                   label: "复制为新项目",
                   icon: <Copy size={14} />,
                   onClick: () => handlers.onDuplicate(project),
-                },
-                {
-                  label: "创建分支",
-                  icon: <GitBranch size={14} />,
-                  onClick: () => handlers.onBranch(project),
                 },
                 {
                   label: "导入文本到此项目",

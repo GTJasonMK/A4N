@@ -26,7 +26,6 @@ pub(super) struct ProjectCopyInsert {
     pub(super) current_chapter: i32,
     pub(super) total_chapters: Option<i32>,
     pub(super) raw_blueprint: Option<String>,
-    pub(super) import_analysis_progress: Option<String>,
 }
 
 pub(super) async fn insert_project_copy_record<C>(
@@ -58,7 +57,7 @@ where
         avatar_svg: Set(original.avatar_svg.clone()),
         avatar_animal: Set(original.avatar_animal.clone()),
         raw_blueprint: Set(values.raw_blueprint),
-        import_analysis_progress: Set(values.import_analysis_progress),
+        import_analysis_progress: Set(None),
         export_config: Set(original.export_config.clone()),
         created_at: Set(now),
         updated_at: Set(now),
