@@ -101,7 +101,7 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
     assert_eq!(outlines[1].part_id, Some(second_part_id));
 }
 #[tokio::test]
-async fn sync_part_outlines_rejects_out_of_range_existing_chapter_outline() {
+async fn sync_part_outlines_keep_out_of_range_existing_chapter_outline_unbound() {
     let db = setup_db().await;
     let project_id = 7402;
     insert_project(&db, project_id).await;
@@ -148,8 +148,15 @@ async fn sync_part_outlines_rejects_out_of_range_existing_chapter_outline() {
     )
     .await
     .unwrap();
-    let err = sync_chapter_outline_part_assignments(&db, project_id, &parts, now)
+    sync_chapter_outline_part_assignments(&db, project_id, &parts, now)
         .await
-        .expect_err("out-of-range outline must fail instead of being unbound");
-    assert!(err.to_string().contains("第 25 章章纲不在任何分部范围内"));
+        .unwrap();
+    let outline = chapter_outline::Entity::find()
+        .filter(chapter_outline::Column::ProjectId.eq(project_id))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(outline.part_id, None);
+    assert_eq!(outline.updated_at, old_time);
 }

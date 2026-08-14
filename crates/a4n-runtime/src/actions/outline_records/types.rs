@@ -1,17 +1,13 @@
 mod summaries;
-mod update;
 
 pub use a4n_api_contract::outline::{
-    DeleteLatestOutlineRecordsInput, OutlineMutationResult, SaveChapterOutlineInput,
-    SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
-    UpdateChapterOutlineResult,
-};
-pub use a4n_orchestrator::outline::{
-    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
+    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlinePacing,
+    ContinuePartOutlinesInput, DeleteLatestOutlineRecordsInput,
     GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
-    RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
-    RegeneratePartsInput,
+    OutlineGenerationProgressSummary, OutlineMutationResult, RegenerateChapterOutlineInput,
+    RegenerateLastPartInput, RegeneratePartOutlineInput, RegeneratePartsInput,
+    SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
+    UpdateChapterOutlineInput, UpdateChapterOutlineResult,
 };
-pub use summaries::{ChapterOutlineSummary, GenerationProgressSummary, PartOutlineSummary};
+pub use summaries::{ChapterOutlineSummary, PartOutlineSummary};
 pub(super) use summaries::{chapter_outline_summary, part_outline_summary};
-pub use update::UpdateChapterOutlineInput;

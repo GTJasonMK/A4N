@@ -172,6 +172,6 @@ fn build_chapter_outlines_pacing_accepts_finite_scores() {
     ])
     .expect("finite pacing scores should be accepted");
 
-    assert_eq!(pacing["pacing_score"], json!(0.6));
-    assert_eq!(pacing["summary"], json!("节奏适中"));
+    assert_eq!(pacing.pacing_score, 0.6);
+    assert_eq!(pacing.summary.as_deref(), Some("节奏适中"));
 }

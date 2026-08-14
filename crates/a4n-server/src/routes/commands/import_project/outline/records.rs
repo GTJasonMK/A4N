@@ -109,7 +109,7 @@ pub(in crate::routes::commands) async fn get_chapter_outlines_pacing(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let project_id = i64_arg(args, "projectId")?;
-    Ok(
+    to_value(
         outline_records_actions::get_chapter_outlines_pacing(state.runtime(), user_id, project_id)
             .await?,
     )

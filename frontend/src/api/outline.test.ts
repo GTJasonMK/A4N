@@ -7,7 +7,6 @@ vi.mock("./index", () => ({
   extractErrorMessage: (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback,
 }));
-vi.mock("./authStorage", () => ({ requireCurrentUserId: () => 42 }));
 vi.mock("./generationTasks", () => ({ generationClient: { start: vi.fn() } }));
 
 import {
@@ -48,7 +47,6 @@ describe("outline deletion", () => {
     ]);
 
     expect(mocks.apiInvoke).toHaveBeenCalledWith("delete_latest_parts", {
-      userId: 42,
       input: {
         project_id: 7,
         targets: [
@@ -82,7 +80,6 @@ describe("outline replacement", () => {
     });
 
     expect(mocks.apiInvoke).toHaveBeenCalledWith("preview_regenerate_parts_request", {
-      userId: 42,
       input: {
         project_id: 7,
         expected_parts: [

@@ -32,10 +32,10 @@ pub use parts::{
     preview_regenerate_parts_request, save_part_outline,
 };
 pub use types::{
-    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlineSummary,
-    ContinuePartOutlinesInput, DeleteLatestOutlineRecordsInput,
+    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlinePacing,
+    ChapterOutlineSummary, ContinuePartOutlinesInput, DeleteLatestOutlineRecordsInput,
     GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
-    GenerationProgressSummary, OutlineMutationResult, PartOutlineSummary,
+    OutlineGenerationProgressSummary, OutlineMutationResult, PartOutlineSummary,
     RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
     RegeneratePartsInput, SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput,
     SavePartOutlineResult, UpdateChapterOutlineInput, UpdateChapterOutlineResult,

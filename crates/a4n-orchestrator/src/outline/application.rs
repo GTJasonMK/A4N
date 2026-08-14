@@ -1,6 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_api_contract::outline::OutlineDeleteTarget;
+use a4n_api_contract::outline::{
+    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
+    GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
+    OutlineGenerationProgressSummary, RegenerateChapterOutlineInput, RegenerateLastPartInput,
+    RegeneratePartOutlineInput, RegeneratePartsInput,
+};
 use a4n_core::{
     error::AppError,
     models::chapter::{chapter_outline, part_outline},
@@ -8,8 +13,7 @@ use a4n_core::{
 use a4n_domain::project::ProjectStatus;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::json;
 
 use crate::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
@@ -21,105 +25,6 @@ use super::{
     batch_parts_progress_total, order_parts_for_batch_generation, part_chapter_count,
     progress_total,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GeneratePartsInput {
-    pub project_id: i64,
-    pub part_count: Option<i32>,
-    pub chapters_per_part: Option<i32>,
-    pub task_id: Option<String>,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RegeneratePartsInput {
-    pub project_id: i64,
-    pub expected_parts: Vec<OutlineDeleteTarget>,
-    pub chapters_per_part: Option<i32>,
-    pub task_id: Option<String>,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RegenerateLastPartInput {
-    pub project_id: i64,
-    pub task_id: Option<String>,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ContinuePartOutlinesInput {
-    pub project_id: i64,
-    pub part_number: i32,
-    pub start_chapter: i32,
-    pub end_chapter: i32,
-    pub task_id: Option<String>,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RegenerateChapterOutlineInput {
-    pub project_id: i64,
-    pub outline_id: i64,
-    pub task_id: Option<String>,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RegeneratePartOutlineInput {
-    pub project_id: i64,
-    pub part_id: i64,
-    pub task_id: Option<String>,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GeneratePartChapterOutlinesInput {
-    pub project_id: i64,
-    pub part_id: i64,
-    pub task_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BatchGeneratePartOutlinesInput {
-    pub project_id: i64,
-    pub part_ids: Vec<i64>,
-    pub task_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ApplyBeatMappingInput {
-    pub project_id: i64,
-    pub part_id: i64,
-    pub beat_sheet: String,
-    pub task_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateChapterOutlinesByCountInput {
-    pub project_id: i64,
-    pub start_chapter: i32,
-    pub count: i32,
-    pub task_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OutlineGenerationProgressSummary {
-    pub total_parts: u64,
-    pub completed_parts: u64,
-    pub total_chapter_outlines: u64,
-    pub completed_chapter_outlines: u64,
-}
 
 impl OrchestratorContext {
     pub async fn outline_generation_progress_for_user_validated(

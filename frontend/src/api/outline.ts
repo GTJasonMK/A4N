@@ -1,5 +1,4 @@
 import { apiInvoke, extractErrorMessage } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import { generationClient } from "./generationTasks";
@@ -8,17 +7,32 @@ import type {
   StartOutlineGenerationInput,
 } from "./generated/generationContracts";
 import type {
+  ApplyBeatMappingInput,
+  BatchGeneratePartOutlinesInput,
+  ChapterOutlinePacing,
   ChapterOutlineSummary,
+  ContinuePartOutlinesInput,
   DeleteLatestOutlineRecordsInput,
+  GenerateChapterOutlinesByCountInput,
+  GeneratePartChapterOutlinesInput,
+  GeneratePartsInput,
   OutlineDeleteTarget,
+  OutlineGenerationProgressSummary,
   OutlineMutationResult,
   PartOutlineSummary,
+  RegenerateChapterOutlineInput,
+  RegenerateLastPartInput,
+  RegeneratePartOutlineInput,
+  RegeneratePartsInput,
   SaveChapterOutlineInput,
   SaveChapterOutlineResult,
   SavePartOutlineInput,
   SavePartOutlineResult,
+  UpdateChapterOutlineInput,
   UpdateChapterOutlineResult,
 } from "./generated/host";
+
+export type { ChapterOutlinePacing, OutlineGenerationProgressSummary };
 
 /**
  * Outline API wrapper —— 对齐 crates/a4n-tauri/src/commands/outline.rs
@@ -48,34 +62,12 @@ export const chapterOutlineSourceLabel = (
   return "章节大纲";
 };
 
-export interface GenerationProgress {
-  total_parts: number;
-  completed_parts: number;
-  total_chapter_outlines: number;
-  completed_chapter_outlines: number;
-}
-
-export interface ChapterOutlinePacing {
-  pacing_score: number;
-  chapter_count: number;
-  summary?: string;
-  analysis: Array<{
-    chapter_number: number;
-    title: string | null;
-    pacing_score: number;
-    word_count_target: number | null;
-    has_beats: boolean;
-    has_key_scenes: boolean;
-  }>;
-}
-
 // ============================================================================
 // 分部大纲
 // ============================================================================
 
 export async function listParts(projectId: Id): Promise<PartOutline[]> {
   return apiInvoke<PartOutline[]>("list_parts", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
   });
 }
@@ -84,7 +76,6 @@ export async function savePartOutline(
   input: SavePartOutlineInput,
 ): Promise<SavePartOutlineResult> {
   return apiInvoke<SavePartOutlineResult>("save_part_outline", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -110,66 +101,47 @@ export async function startOutlineGeneration(
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) =>
     apiInvoke<GenerationTaskHandle>("start_outline_generation", {
-      userId: currentUserId(),
       input: { ...input, meta, project_id: idNum(input.project_id) },
     }),
   );
 }
 
-export async function previewGeneratePartsRequest(input: {
-  project_id: number;
-  part_count?: number | null;
-  chapters_per_part?: number | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<ModelRequestPreview> {
+export async function previewGeneratePartsRequest(
+  input: GeneratePartsInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_parts_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function previewContinuePartOutlinesRequest(input: {
-  project_id: number;
-  part_number: number;
-  start_chapter: number;
-  end_chapter: number;
-  variables?: Record<string, unknown> | null;
-}): Promise<ModelRequestPreview> {
+export async function previewContinuePartOutlinesRequest(
+  input: ContinuePartOutlinesInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_continue_part_outlines_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function previewRegeneratePartsRequest(input: {
-  project_id: number;
-  expected_parts: OutlineDeleteTarget[];
-  chapters_per_part?: number | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<ModelRequestPreview> {
+export async function previewRegeneratePartsRequest(
+  input: RegeneratePartsInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_parts_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function previewRegenerateLastPartRequest(input: {
-  project_id: number;
-  variables?: Record<string, unknown> | null;
-}): Promise<ModelRequestPreview> {
+export async function previewRegenerateLastPartRequest(
+  input: RegenerateLastPartInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_last_part_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function previewRegeneratePartOutlineRequest(input: {
-  project_id: number;
-  part_id: number;
-  variables?: Record<string, unknown> | null;
-}): Promise<ModelRequestPreview> {
+export async function previewRegeneratePartOutlineRequest(
+  input: RegeneratePartOutlineInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_part_outline_request", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -179,45 +151,38 @@ export async function deleteLatestParts(
   parts: ReadonlyArray<Pick<PartOutline, "id" | "updated_at">>,
 ): Promise<OutlineMutationResult> {
   return apiInvoke<OutlineMutationResult>("delete_latest_parts", {
-    userId: currentUserId(),
     input: outlineDeleteInput(projectId, parts),
   });
 }
 
-export async function previewGeneratePartChapterOutlinesRequest(input: {
-  project_id: number;
-  part_id: number;
-}): Promise<ModelRequestPreview> {
+export async function previewGeneratePartChapterOutlinesRequest(
+  input: GeneratePartChapterOutlinesInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_part_chapter_outlines_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function previewBatchGeneratePartOutlinesRequest(input: {
-  project_id: number;
-  part_ids: number[];
-}): Promise<ModelRequestPreview> {
+export async function previewBatchGeneratePartOutlinesRequest(
+  input: BatchGeneratePartOutlinesInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_batch_generate_part_outlines_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function getGenerationProgress(projectId: Id): Promise<GenerationProgress> {
-  return apiInvoke<GenerationProgress>("get_generation_progress", {
-    userId: currentUserId(),
+export async function getGenerationProgress(
+  projectId: Id,
+): Promise<OutlineGenerationProgressSummary> {
+  return apiInvoke<OutlineGenerationProgressSummary>("get_generation_progress", {
     projectId: idNum(projectId),
   });
 }
 
-export async function previewApplyBeatMappingRequest(input: {
-  project_id: number;
-  part_id: number;
-  beat_sheet: string;
-}): Promise<ModelRequestPreview> {
+export async function previewApplyBeatMappingRequest(
+  input: ApplyBeatMappingInput,
+): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_apply_beat_mapping_request", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -228,7 +193,6 @@ export async function previewApplyBeatMappingRequest(input: {
 
 export async function listChapterOutlines(projectId: Id): Promise<ChapterOutline[]> {
   return apiInvoke<ChapterOutline[]>("list_chapter_outlines", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
   });
 }
@@ -237,48 +201,30 @@ export async function saveChapterOutline(
   input: SaveChapterOutlineInput,
 ): Promise<SaveChapterOutlineResult> {
   return apiInvoke<SaveChapterOutlineResult>("save_chapter_outline", {
-    userId: currentUserId(),
     input,
   });
 }
 
 export async function previewGenerateChapterOutlinesByCountRequest(
-  input: {
-    project_id: number;
-    start_chapter: number;
-    count: number;
-  },
+  input: GenerateChapterOutlinesByCountInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_chapter_outlines_by_count_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
 export async function previewRegenerateChapterOutlineRequest(
-  input: {
-    project_id: number;
-    outline_id: number;
-    variables?: Record<string, unknown> | null;
-  },
+  input: RegenerateChapterOutlineInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_chapter_outline_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
-export async function updateChapterOutline(input: {
-  project_id: number;
-  outline_id: number;
-  expected_updated_at: string;
-  title?: string;
-  summary?: string;
-  beats?: unknown[];
-  key_scenes?: unknown[];
-}): Promise<UpdateChapterOutlineResult> {
+export async function updateChapterOutline(
+  input: UpdateChapterOutlineInput,
+): Promise<UpdateChapterOutlineResult> {
   return apiInvoke<UpdateChapterOutlineResult>("update_chapter_outline", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -288,7 +234,6 @@ export async function deleteLatestChapterOutlines(
   outlines: ReadonlyArray<Pick<ChapterOutline, "id" | "updated_at">>,
 ): Promise<OutlineMutationResult> {
   return apiInvoke<OutlineMutationResult>("delete_latest_chapter_outlines", {
-    userId: currentUserId(),
     input: outlineDeleteInput(projectId, outlines),
   });
 }
@@ -317,7 +262,6 @@ export function outlineRecordTargets(
 
 export async function getChapterOutlinesPacing(projectId: Id): Promise<ChapterOutlinePacing> {
   return apiInvoke<ChapterOutlinePacing>("get_chapter_outlines_pacing", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
   });
 }

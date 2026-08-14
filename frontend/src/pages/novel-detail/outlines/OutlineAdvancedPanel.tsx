@@ -18,7 +18,7 @@ import {
   previewRegeneratePartOutlineRequest,
   previewRegeneratePartsRequest,
   type ChapterOutlinePacing,
-  type GenerationProgress,
+  type OutlineGenerationProgressSummary,
   type PartOutline,
 } from "../../../api/outline";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
@@ -181,7 +181,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     );
   };
 
-  const [progress, setProgress] = useState<GenerationProgress | null>(null);
+  const [progress, setProgress] = useState<OutlineGenerationProgressSummary | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
   const [autoPoll, setAutoPoll] = useState(false);
 

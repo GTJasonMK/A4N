@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::Value;
 
 use super::generation_tasks::GenerationStartRequestMeta;
@@ -107,6 +107,170 @@ pub struct DeleteLatestOutlineRecordsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratePartsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub part_count: Option<i32>,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub chapters_per_part: Option<i32>,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    #[schemars(with = "Option<BTreeMap<String, Value>>")]
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RegeneratePartsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1, max = 1024))]
+    pub expected_parts: Vec<OutlineDeleteTarget>,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub chapters_per_part: Option<i32>,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    #[schemars(with = "Option<BTreeMap<String, Value>>")]
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RegenerateLastPartInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    #[schemars(with = "Option<BTreeMap<String, Value>>")]
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuePartOutlinesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub part_number: i32,
+    #[schemars(range(min = 1))]
+    pub start_chapter: i32,
+    #[schemars(range(min = 1))]
+    pub end_chapter: i32,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    #[schemars(with = "Option<BTreeMap<String, Value>>")]
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RegenerateChapterOutlineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub outline_id: i64,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    #[schemars(with = "Option<BTreeMap<String, Value>>")]
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RegeneratePartOutlineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub part_id: i64,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    #[schemars(with = "Option<BTreeMap<String, Value>>")]
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratePartChapterOutlinesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub part_id: i64,
+    #[serde(default)]
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BatchGeneratePartOutlinesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1, max = 1024))]
+    pub part_ids: Vec<i64>,
+    #[serde(default)]
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ApplyBeatMappingInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub part_id: i64,
+    #[schemars(length(min = 1, max = 262144))]
+    pub beat_sheet: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateChapterOutlinesByCountInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub start_chapter: i32,
+    #[schemars(range(min = 1))]
+    pub count: i32,
+    #[serde(default)]
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateChapterOutlineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub outline_id: i64,
+    #[schemars(length(min = 1, max = 64))]
+    pub expected_updated_at: String,
+    #[serde(default, deserialize_with = "deserialize_optional_outline_title")]
+    #[schemars(with = "String", length(min = 1))]
+    pub title: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_outline_summary")]
+    #[schemars(with = "String", length(min = 1))]
+    pub summary: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_outline_beats")]
+    #[schemars(with = "Vec<Value>")]
+    pub beats: Option<Value>,
+    #[serde(default, deserialize_with = "deserialize_optional_outline_key_scenes")]
+    #[schemars(with = "Vec<Value>")]
+    pub key_scenes: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct SaveChapterOutlineResult {
     pub outline: ChapterOutlineSummary,
     #[serde(default)]
@@ -131,6 +295,32 @@ pub struct UpdateChapterOutlineResult {
 pub struct OutlineMutationResult {
     #[serde(default)]
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct OutlineGenerationProgressSummary {
+    pub total_parts: u64,
+    pub completed_parts: u64,
+    pub total_chapter_outlines: u64,
+    pub completed_chapter_outlines: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterOutlinePacingAnalysis {
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub pacing_score: f64,
+    pub word_count_target: Option<i32>,
+    pub has_beats: bool,
+    pub has_key_scenes: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterOutlinePacing {
+    pub pacing_score: f64,
+    pub chapter_count: usize,
+    pub summary: Option<String>,
+    pub analysis: Vec<ChapterOutlinePacingAnalysis>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -201,4 +391,78 @@ pub enum OutlineGenerationOperation {
         #[schemars(length(min = 1, max = 262144))]
         beat_sheet: String,
     },
+}
+
+fn deserialize_optional_outline_title<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserialize_optional_outline_text(deserializer, "title")
+}
+
+fn deserialize_optional_outline_summary<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserialize_optional_outline_text(deserializer, "summary")
+}
+
+fn deserialize_optional_outline_text<'de, D>(
+    deserializer: D,
+    field: &str,
+) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                return Err(de::Error::custom(format!("章节大纲字段 {field} 不能为空")));
+            }
+            Ok(Some(trimmed.to_string()))
+        }
+        Value::Null => Err(de::Error::custom(format!(
+            "章节大纲字段 {field} 不能为 null"
+        ))),
+        _ => Err(de::Error::custom(format!(
+            "章节大纲字段 {field} 必须是字符串"
+        ))),
+    }
+}
+
+fn deserialize_optional_outline_beats<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserialize_optional_outline_array(deserializer, "beats")
+}
+
+fn deserialize_optional_outline_key_scenes<'de, D>(
+    deserializer: D,
+) -> Result<Option<Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserialize_optional_outline_array(deserializer, "key_scenes")
+}
+
+fn deserialize_optional_outline_array<'de, D>(
+    deserializer: D,
+    field: &str,
+) -> Result<Option<Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Array(_) => Ok(Some(value)),
+        Value::Null => Err(de::Error::custom(format!(
+            "章节大纲字段 {field} 不能为 null"
+        ))),
+        _ => Err(de::Error::custom(format!(
+            "章节大纲字段 {field} 必须是数组"
+        ))),
+    }
 }

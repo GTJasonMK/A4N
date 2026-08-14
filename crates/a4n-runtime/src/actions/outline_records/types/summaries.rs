@@ -1,6 +1,5 @@
 pub use a4n_api_contract::outline::{ChapterOutlineSummary, PartOutlineSummary};
 use a4n_core::models::chapter::{chapter_outline, part_outline};
-pub use a4n_orchestrator::outline::OutlineGenerationProgressSummary as GenerationProgressSummary;
 
 pub(in crate::actions::outline_records) fn part_outline_summary(
     part: &part_outline::Model,

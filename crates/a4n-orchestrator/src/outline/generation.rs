@@ -2,7 +2,13 @@ use std::collections::HashSet;
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
-    outline::{OutlineDeleteTarget, OutlineGenerationOperation, StartOutlineGenerationInput},
+    outline::{
+        ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
+        GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
+        OutlineDeleteTarget, OutlineGenerationOperation, RegenerateChapterOutlineInput,
+        RegenerateLastPartInput, RegeneratePartOutlineInput, RegeneratePartsInput,
+        StartOutlineGenerationInput,
+    },
 };
 use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
@@ -23,13 +29,7 @@ use crate::{
     },
 };
 
-use super::{
-    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
-    GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
-    OutlineLlmStreamContext, ProgressReporter, RegenerateChapterOutlineInput,
-    RegenerateLastPartInput, RegeneratePartOutlineInput, RegeneratePartsInput,
-    with_outline_llm_stream,
-};
+use super::{OutlineLlmStreamContext, ProgressReporter, with_outline_llm_stream};
 
 impl OrchestratorContext {
     pub(crate) async fn validate_outline_generation_start(

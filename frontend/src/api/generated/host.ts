@@ -2496,6 +2496,87 @@ export interface DeleteLatestOutlineRecordsInput {
   targets: OutlineDeleteTarget[];
 }
 
+export interface GeneratePartsInput {
+  chapters_per_part?: number | null;
+  part_count?: number | null;
+  project_id: number;
+  task_id?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface RegeneratePartsInput {
+  chapters_per_part?: number | null;
+  expected_parts: OutlineDeleteTarget[];
+  project_id: number;
+  task_id?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface RegenerateLastPartInput {
+  project_id: number;
+  task_id?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface ContinuePartOutlinesInput {
+  end_chapter: number;
+  part_number: number;
+  project_id: number;
+  start_chapter: number;
+  task_id?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface RegenerateChapterOutlineInput {
+  outline_id: number;
+  project_id: number;
+  task_id?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface RegeneratePartOutlineInput {
+  part_id: number;
+  project_id: number;
+  task_id?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface GeneratePartChapterOutlinesInput {
+  part_id: number;
+  project_id: number;
+  task_id?: string | null;
+}
+
+export interface BatchGeneratePartOutlinesInput {
+  part_ids: number[];
+  project_id: number;
+  task_id?: string | null;
+}
+
+export interface ApplyBeatMappingInput {
+  beat_sheet: string;
+  part_id: number;
+  project_id: number;
+  task_id?: string | null;
+}
+
+export interface GenerateChapterOutlinesByCountInput {
+  count: number;
+  project_id: number;
+  start_chapter: number;
+  task_id?: string | null;
+}
+
+export interface UpdateChapterOutlineInput {
+  beats?: unknown[];
+  expected_updated_at: string;
+  key_scenes?: unknown[];
+  outline_id: number;
+  project_id: number;
+  summary?: string;
+  title?: string;
+}
+
 export interface UpdateChapterOutlineResult {
   outline: ChapterOutlineSummary;
   warnings: string[];
@@ -2503,6 +2584,29 @@ export interface UpdateChapterOutlineResult {
 
 export interface OutlineMutationResult {
   warnings: string[];
+}
+
+export interface OutlineGenerationProgressSummary {
+  completed_chapter_outlines: number;
+  completed_parts: number;
+  total_chapter_outlines: number;
+  total_parts: number;
+}
+
+export interface ChapterOutlinePacingAnalysis {
+  chapter_number: number;
+  has_beats: boolean;
+  has_key_scenes: boolean;
+  pacing_score: number;
+  title: string | null;
+  word_count_target: number | null;
+}
+
+export interface ChapterOutlinePacing {
+  analysis: ChapterOutlinePacingAnalysis[];
+  chapter_count: number;
+  pacing_score: number;
+  summary: string | null;
 }
 
 export type ProjectAccessRole = "owner" | "manager" | "editor" | "viewer";

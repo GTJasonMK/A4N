@@ -1,7 +1,7 @@
 use crate::AppState;
 use crate::actions::access as project_access;
 use crate::actions::outline_records::types::{
-    DeleteLatestOutlineRecordsInput, GenerationProgressSummary, OutlineMutationResult,
+    DeleteLatestOutlineRecordsInput, OutlineGenerationProgressSummary, OutlineMutationResult,
     PartOutlineSummary, SavePartOutlineInput, SavePartOutlineResult, part_outline_summary,
 };
 use crate::actions::outline_records::{
@@ -70,7 +70,7 @@ pub async fn get_generation_progress(
     state: &AppState,
     user_id: i64,
     project_id: i64,
-) -> Result<GenerationProgressSummary, AppError> {
+) -> Result<OutlineGenerationProgressSummary, AppError> {
     state
         .orchestrator()
         .outline_generation_progress_for_user_validated(user_id, project_id)
