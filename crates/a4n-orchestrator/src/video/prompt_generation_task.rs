@@ -12,9 +12,10 @@ use a4n_core::{
     prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language},
     video_execution::{resolve_video_segment_number, video_segment_recipe_from_metadata},
 };
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
-    MAX_TEXT_DELTA_BYTES, ProgressEvent, ProgressPhaseKind, StreamTextHash,
+    MAX_TEXT_DELTA_BYTES, ProgressEvent, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};
@@ -573,7 +574,7 @@ fn coalesce_prompt_text_event(
 
 fn is_committed_update(update: &VideoPromptProgressUpdate) -> bool {
     update.stage_code == "video_prompt_item_committed"
-        && update.phase_kind == ProgressPhaseKind::Persist
+        && update.phase_kind == ProgressPhaseKind::Save
         && update.item_key.is_some()
 }
 

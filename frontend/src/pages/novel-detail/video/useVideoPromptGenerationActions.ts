@@ -129,7 +129,7 @@ export const runVideoPromptGenerationTask = async (
         const progress = task?.progress;
         if (
           progress?.stage_code !== "video_prompt_item_committed"
-          || progress.phase_kind !== "persist"
+          || progress.phase_kind !== "save"
           || progress.item_key == null
         ) {
           return;

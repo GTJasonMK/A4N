@@ -1,12 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
 use a4n_core::error::AppError;
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_llm::provider::{
     ChatMessage, ChatRequest, ChatResponse, LlmProvider, UsageInfo, is_truncated_finish_reason,
 };
 use a4n_service_protocol::{
     GenerationError, GenerationErrorCode, GenerationFinishReason, GenerationUsage,
-    JS_SAFE_INTEGER_U64, MAX_TEXT_DELTA_BYTES, ProgressEvent, ProgressPhaseKind, UsageEvent,
+    JS_SAFE_INTEGER_U64, MAX_TEXT_DELTA_BYTES, ProgressEvent, UsageEvent,
 };
 use async_trait::async_trait;
 use futures::{StreamExt, future::pending};
@@ -186,7 +187,7 @@ pub async fn execute_llm_generation(
     publish_progress(
         publisher,
         "provider_connect",
-        ProgressPhaseKind::Provider,
+        ProgressPhaseKind::ModelConnect,
         "正在连接模型",
     )
     .await?;
@@ -213,7 +214,7 @@ pub async fn execute_llm_generation(
     publish_progress(
         publisher,
         "provider_wait",
-        ProgressPhaseKind::Provider,
+        ProgressPhaseKind::ModelWait,
         "模型已连接，正在等待输出",
     )
     .await?;
@@ -310,7 +311,7 @@ pub async fn execute_llm_generation(
                         publish_progress(
                             publisher,
                             "provider_stream",
-                            ProgressPhaseKind::Stream,
+                            ProgressPhaseKind::ModelStream,
                             "模型已开始输出",
                         )
                         .await?;

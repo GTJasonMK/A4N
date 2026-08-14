@@ -1957,15 +1957,18 @@
     },
     "ProgressPhaseKind": {
       "enum": [
-        "queue",
         "prepare",
         "context",
-        "provider",
-        "stream",
+        "model_connect",
+        "model_wait",
+        "model_stream",
+        "structured_output",
         "parse",
         "validate",
-        "persist",
+        "save",
+        "asset_generation",
         "transfer",
+        "queue",
         "cleanup",
         "complete"
       ],

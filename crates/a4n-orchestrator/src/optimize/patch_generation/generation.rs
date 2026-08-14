@@ -3,10 +3,10 @@ use a4n_api_contract::{
 };
 use a4n_core::error::AppError;
 use a4n_db::optimize::{OptimizationPatchCreateInput, OptimizationPatchSetCreateInput};
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
-    GenerationFinishReason, GenerationResultRef, GenerationTaskStatus, ProgressPhaseKind,
-    StreamTextHash,
+    GenerationFinishReason, GenerationResultRef, GenerationTaskStatus, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};

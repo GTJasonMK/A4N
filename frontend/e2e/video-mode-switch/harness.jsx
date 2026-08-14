@@ -692,7 +692,7 @@ const startedData = (task) => ({
 
 const progressData = (shotIndex) => ({
   stage_code: "chapter_video_segment_plan",
-  phase_kind: "persist",
+  phase_kind: "save",
   message: `正在生成镜头 ${shotIndex}`,
   severity: "success",
   estimated: false,

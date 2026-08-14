@@ -49,7 +49,7 @@ export function progressDisplayModel({
   const computedPercent = Number.isFinite(percent ?? NaN)
     ? normalizePercent(Number(percent))
     : Math.round((boundedCurrent / boundedTotal) * 100);
-  const normalizedMeta = normalizeMeta(meta);
+  const normalizedMeta = meta ?? null;
   const fallback = progressDisplayText({
     message,
     streamText,
@@ -57,10 +57,12 @@ export function progressDisplayModel({
     fallbackStage,
   });
   const stage = normalizedMeta?.stageLabel?.trim() || fallback.stage;
-  const detail =
+  const detailCandidate =
     normalizedMeta?.detail?.trim() ||
     fallback.detail ||
     progressStatusDetail(status);
+  const detail =
+    detailCandidate && detailCandidate.trim() !== stage.trim() ? detailCandidate : null;
   const phaseKind = normalizedMeta?.phaseKind ?? null;
   const countLabel = progressCountLabel(boundedCurrent, boundedTotal, normalizedMeta);
   const etaMode =
@@ -97,10 +99,6 @@ export function compactProgressEvents<T extends ProgressSnapshot & { id: string 
     }
   }
   return compacted.slice(-Math.max(1, limit));
-}
-
-function normalizeMeta(meta?: ProgressMeta | null): ProgressMeta | null {
-  return meta && typeof meta === "object" ? meta : null;
 }
 
 function normalizePercent(value: number): number {
@@ -142,7 +140,6 @@ function progressStatusDetail(status: ProgressStatus): string | null {
     case "idle":
       return "等待开始";
     case "running":
-    default:
       return null;
   }
 }

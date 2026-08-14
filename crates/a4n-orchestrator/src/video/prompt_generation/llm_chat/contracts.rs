@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(update.item_total, Some(4));
         assert_eq!(
             update.phase_kind,
-            a4n_service_protocol::ProgressPhaseKind::Persist
+            a4n_domain::progress::ProgressPhaseKind::Save
         );
 
         let single =

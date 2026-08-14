@@ -8,6 +8,14 @@ import {
 import { runGenerationProgressTaskThen, pickDisplayStreamText } from "./runGenerationProgressTask";
 import type { RunProgressTask } from "./useProgressTask";
 
+const startedFor = (
+  handle: GenerationTaskHandle,
+): NonNullable<GenerationTaskViewState["started"]> => ({
+  delivery_mode: "stream",
+  root_task_id: handle.task_id,
+  task_kind: "test_generation",
+});
+
 describe("runGenerationProgressTaskThen", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -28,12 +36,13 @@ describe("runGenerationProgressTaskThen", () => {
     };
     const state: GenerationTaskViewState = {
       ...createGenerationTaskViewState(handle),
+      started: startedFor(handle),
       progress: {
         current: 30,
         total: 100,
         message: "模型正在输出",
         stage_code: "provider_stream",
-        phase_kind: "stream",
+        phase_kind: "model_stream",
         severity: "info",
         estimated: false,
       },
@@ -64,10 +73,10 @@ describe("runGenerationProgressTaskThen", () => {
       30,
       100,
       expect.objectContaining({
+        taskKind: "test_generation",
         stageCode: "provider_stream",
-        // 传输层 phase_kind "stream" 映射为展示层 model_stream。
         phaseKind: "model_stream",
-        stageLabel: "模型输出中",
+        stageLabel: "模型正在输出",
         severity: "info",
       }),
     );
@@ -86,7 +95,10 @@ describe("runGenerationProgressTaskThen", () => {
       attempt: 1,
       status: "running",
     };
-    const state = createGenerationTaskViewState(handle);
+    const state = {
+      ...createGenerationTaskViewState(handle),
+      started: startedFor(handle),
+    };
     vi.spyOn(generationClient, "waitForTerminal").mockImplementation(
       async (_handle, onUpdate) => {
         for (const current of [10, 45, 89]) {
@@ -97,7 +109,7 @@ describe("runGenerationProgressTaskThen", () => {
               total: 100,
               message: `进度 ${current}`,
               stage_code: "segment_plan",
-              phase_kind: "stream",
+              phase_kind: "model_stream",
               severity: "info",
               estimated: false,
             },
@@ -145,7 +157,7 @@ describe("runGenerationProgressTaskThen", () => {
     expect(pickDisplayStreamText({})).toBeNull();
   });
 
-  it("maps provider stage codes to display phases the ETA logic understands", async () => {
+  it("uses the authoritative transport phase without a stage-code mapping", async () => {
     const setProgress = vi.fn();
     const runProgressTask: RunProgressTask = async (_options, task) =>
       task({ setProgress, setStreamText: vi.fn() });
@@ -155,19 +167,24 @@ describe("runGenerationProgressTaskThen", () => {
       attempt: 1,
       status: "running",
     };
-    const state = createGenerationTaskViewState(handle);
+    const state = {
+      ...createGenerationTaskViewState(handle),
+      started: startedFor(handle),
+    };
     vi.spyOn(generationClient, "waitForTerminal").mockImplementation(
       async (_handle, onUpdate) => {
-        // 传输层用粗粒度 provider 覆盖连接/等待两态，区分信息在 stage_code。
-        for (const stage of ["provider_connect", "provider_wait"]) {
+        for (const [stage, phase, message] of [
+          ["provider_connect", "model_connect", "正在连接模型"],
+          ["provider_wait", "model_wait", "正在等待模型响应"],
+        ] as const) {
           onUpdate?.({
             ...state,
             progress: {
               current: 0,
               total: 100,
-              message: stage,
+              message,
               stage_code: stage,
-              phase_kind: "provider",
+              phase_kind: phase,
               severity: "info",
               estimated: false,
             },
@@ -194,8 +211,8 @@ describe("runGenerationProgressTaskThen", () => {
       "model_wait",
     ]);
     expect(setProgress.mock.calls.map((call) => call[3]?.stageLabel)).toEqual([
-      "连接模型",
-      "等待模型响应",
+      "正在连接模型",
+      "正在等待模型响应",
     ]);
   });
 });

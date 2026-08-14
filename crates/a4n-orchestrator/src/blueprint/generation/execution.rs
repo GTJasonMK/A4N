@@ -9,9 +9,9 @@ use a4n_core::blueprint::{
     build_blueprint_generation_payload,
 };
 use a4n_core::error::AppError;
+use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::{
-    GenerationError, GenerationFinishReason, GenerationResultRef, ProgressEvent, ProgressPhaseKind,
-    ProgressSeverity, StreamTextHash,
+    GenerationError, GenerationFinishReason, GenerationResultRef, ProgressEvent, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use serde_json::Value;

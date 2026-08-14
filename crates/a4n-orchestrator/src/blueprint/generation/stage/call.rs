@@ -1,5 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
+use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use serde_json::{Value, json};
 
 use crate::blueprint::OrchestratorContext;
@@ -54,7 +55,7 @@ pub(super) async fn execute_blueprint_stage_call(
             .publisher
             .progress(a4n_service_protocol::ProgressEvent {
                 stage_code: prepared.spec.key.to_string(),
-                phase_kind: a4n_service_protocol::ProgressPhaseKind::Parse,
+                phase_kind: ProgressPhaseKind::Parse,
                 message: prepared.spec.restored_message.to_string(),
                 current: Some(prepared.spec.progress_current as u64),
                 total: Some(a4n_core::blueprint::BLUEPRINT_GENERATE_PROGRESS_TOTAL as u64),
@@ -62,7 +63,7 @@ pub(super) async fn execute_blueprint_stage_call(
                 item_key: None,
                 item_index: None,
                 item_total: None,
-                severity: a4n_service_protocol::ProgressSeverity::Info,
+                severity: ProgressSeverity::Info,
                 estimated: false,
             })
             .await

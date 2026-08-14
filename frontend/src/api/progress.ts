@@ -9,9 +9,8 @@ import type {
 /**
  * 展示层进度阶段。
  *
- * 注意：与 `generated/generationContracts.ts` 的 `ProgressPhaseKind`（传输层，
- * 粗粒度）不是同一层概念，故不同名。传输层事件经
- * `utils/generationProgressMeta.ts` 按 stage_code 映射到本类型。
+ * Host 与 generation 传输合同均由 `a4n-domain::progress::ProgressPhaseKind`
+ * 生成，前端不再维护第二套阶段语义。
  */
 export type ProgressDisplayPhase = HostProgressMeta["phaseKind"];
 

@@ -11,9 +11,8 @@ use a4n_api_contract::{
     blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
 };
 use a4n_core::error::AppError;
-use a4n_service_protocol::{
-    GenerationError, GenerationResultRef, ProgressPhaseKind, StreamTextHash,
-};
+use a4n_domain::progress::ProgressPhaseKind;
+use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
 
 use crate::OrchestratorContext;
@@ -95,7 +94,7 @@ impl OrchestratorContext {
         if let Err(error) = publish_refinement_progress(
             &publisher,
             "blueprint_refine_stream",
-            ProgressPhaseKind::Stream,
+            ProgressPhaseKind::ModelStream,
             "正在流式生成蓝图优化结果",
         )
         .await

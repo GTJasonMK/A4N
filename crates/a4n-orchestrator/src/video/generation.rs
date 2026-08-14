@@ -8,6 +8,7 @@ use a4n_api_contract::{
     video::{StartVideoGenerationInput, VideoGenerationOperation},
 };
 use a4n_core::{error::AppError, models::ai::generated_video};
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError,
     GenerationFinishReason, GenerationResultRef,
@@ -90,6 +91,7 @@ impl OrchestratorContext {
             session.clone(),
             operation_key,
             operation_key,
+            ProgressPhaseKind::AssetGeneration,
             1,
         ));
         let mut reporter = move |current: u32, total: u32, message: &str| {

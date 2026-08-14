@@ -8,6 +8,7 @@ use a4n_api_contract::{
     image_generation::{ImageGenerationOperation, StartImageGenerationInput},
 };
 use a4n_core::error::AppError;
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError, GenerationResultRef,
 };
@@ -159,6 +160,7 @@ impl OrchestratorContext {
             session.clone(),
             operation_key,
             operation_key,
+            ProgressPhaseKind::AssetGeneration,
             0,
         ));
         let reporter = move |current: u32, total: u32, message: &str| {

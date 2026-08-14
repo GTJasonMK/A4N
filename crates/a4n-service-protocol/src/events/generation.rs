@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use sha2::{Digest, Sha256};
@@ -243,31 +244,6 @@ pub struct TextDeltaEvent {
     pub delta: String,
     #[schemars(range(max = JS_SAFE_INTEGER_U64))]
     pub chunk_index: u64,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ProgressPhaseKind {
-    Queue,
-    Prepare,
-    Context,
-    Provider,
-    Stream,
-    Parse,
-    Validate,
-    Persist,
-    Transfer,
-    Cleanup,
-    Complete,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ProgressSeverity {
-    Info,
-    Success,
-    Warning,
-    Error,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -821,14 +797,6 @@ fn validate_progress_event(progress: &ProgressEvent) -> Result<(), GenerationCon
         }
         _ => return Err(invalid("progress.item_index/item_total 必须成对出现")),
     }
-    if let Some(expected) = public_progress_phase(&progress.stage_code)
-        && progress.phase_kind != expected
-    {
-        return Err(invalid(format!(
-            "公共 stage {} 必须映射为 {:?}",
-            progress.stage_code, expected
-        )));
-    }
     Ok(())
 }
 
@@ -1185,23 +1153,6 @@ fn validate_completed_against_snapshot(
     Ok(())
 }
 
-fn public_progress_phase(stage_code: &str) -> Option<ProgressPhaseKind> {
-    match stage_code {
-        "reserved" | "provider_queue" => Some(ProgressPhaseKind::Queue),
-        "prepare" => Some(ProgressPhaseKind::Prepare),
-        "context" => Some(ProgressPhaseKind::Context),
-        "provider_connect" | "provider_wait" | "provider_run" => Some(ProgressPhaseKind::Provider),
-        "provider_stream" => Some(ProgressPhaseKind::Stream),
-        "repair" | "parse" => Some(ProgressPhaseKind::Parse),
-        "validate" | "media_validate" => Some(ProgressPhaseKind::Validate),
-        "save" => Some(ProgressPhaseKind::Persist),
-        "transfer" => Some(ProgressPhaseKind::Transfer),
-        "cleanup" => Some(ProgressPhaseKind::Cleanup),
-        "complete" => Some(ProgressPhaseKind::Complete),
-        _ => None,
-    }
-}
-
 fn require_after_started(sequence: u64) -> Result<(), GenerationContractError> {
     if sequence <= 1 {
         Err(invalid("started 之外的事件 sequence 必须大于 1"))
@@ -1363,22 +1314,6 @@ mod tests {
         }
     }
 
-    fn progress(stage_code: &str, phase_kind: ProgressPhaseKind) -> ProgressEvent {
-        ProgressEvent {
-            stage_code: stage_code.to_string(),
-            phase_kind,
-            message: "working".to_string(),
-            current: None,
-            total: None,
-            unit_label: None,
-            item_key: None,
-            item_index: None,
-            item_total: None,
-            severity: ProgressSeverity::Info,
-            estimated: false,
-        }
-    }
-
     fn artifact(temporary: bool) -> GenerationArtifactRef {
         GenerationArtifactRef {
             artifact_id: "artifact-1".to_string(),
@@ -1403,19 +1338,13 @@ mod tests {
     }
 
     #[test]
-    fn event_validator_rejects_invalid_identity_sequence_and_phase() {
+    fn event_validator_rejects_invalid_identity_and_sequence() {
         let mut invalid_uuid = envelope(1, GenerationEvent::Started(started(TASK_ID)));
         invalid_uuid.task_id = "00000000-0000-1000-8000-000000000000".to_string();
         assert!(invalid_uuid.validate().is_err());
 
         let invalid_sequence = envelope(0, GenerationEvent::Started(started(TASK_ID)));
         assert!(invalid_sequence.validate().is_err());
-
-        let invalid_phase = envelope(
-            2,
-            GenerationEvent::Progress(progress("provider_stream", ProgressPhaseKind::Provider)),
-        );
-        assert!(invalid_phase.validate().is_err());
     }
 
     #[test]

@@ -2,10 +2,11 @@ use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizeChatGenerationInput,
 };
 use a4n_core::error::AppError;
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
-    ProgressPhaseKind, StreamTextHash,
+    StreamTextHash,
 };
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};

@@ -70,13 +70,14 @@ function applyGenerationProgress(
 ): void {
   const progress = task?.progress;
   if (progress) {
+    if (!task.started) {
+      throw new Error("生成进度缺少 started.task_kind");
+    }
     setProgress(
       progress.message,
       progress.current ?? undefined,
       progress.total ?? undefined,
-      // 传输层 ProgressEvent 的 12 个字段映射为展示层 meta，
-      // 供 progressPresentation 判定阶段名、计数标签、ETA 与语气。
-      generationProgressMeta(progress),
+      generationProgressMeta(progress, task.started.task_kind),
     );
   }
   const stream = task ? pickDisplayStreamText(task.streams) : null;

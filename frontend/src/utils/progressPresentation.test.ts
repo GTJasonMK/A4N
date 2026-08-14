@@ -42,6 +42,20 @@ describe("progress presentation", () => {
     });
   });
 
+  it("uses the explicit stage instead of guessing one from message text", () => {
+    expect(
+      progressDisplayModel({
+        current: 1,
+        total: 2,
+        message: "正在保存生成结果",
+        fallbackStage: "后台任务",
+      }),
+    ).toMatchObject({
+      stage: "后台任务",
+      detail: "正在保存生成结果",
+    });
+  });
+
   it("keeps distinct backend stages while compacting duplicate snapshots", () => {
     const event = (id: string, detail: string): ProgressTimelineItem => ({
       id,

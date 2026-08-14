@@ -5,6 +5,7 @@ use a4n_api_contract::{
     outline::{OutlineDeleteTarget, OutlineGenerationOperation, StartOutlineGenerationInput},
 };
 use a4n_core::error::AppError;
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, StreamTextHash, TextStreamSnapshot,
 };
@@ -162,6 +163,7 @@ impl OrchestratorContext {
             progress_session,
             operation_key,
             "outline_checkpoint",
+            ProgressPhaseKind::ModelWait,
             0,
         ));
         let reporter_cancel = cancel_token.clone();

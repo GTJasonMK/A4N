@@ -4,10 +4,12 @@ use a4n_core::{
     models::chapter::chapter, prompt_language::PromptOutputLanguage,
     video_execution::VideoSegmentExecutionRecipeV1,
 };
+use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_prompt::rendering::PromptRenderer;
-use a4n_service_protocol::{ProgressPhaseKind, ProgressSeverity};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
+
+use crate::generation::step_progress_state;
 
 use super::duration::VideoDurationCapability;
 
@@ -39,18 +41,8 @@ pub struct VideoPromptProgressUpdate {
 
 impl VideoPromptProgressUpdate {
     pub fn progress(current: u32, total: u32, message: impl Into<String>) -> Self {
-        let phase_kind = if current == 0 {
-            ProgressPhaseKind::Prepare
-        } else if current >= total {
-            ProgressPhaseKind::Complete
-        } else {
-            ProgressPhaseKind::Provider
-        };
-        let severity = if current >= total {
-            ProgressSeverity::Success
-        } else {
-            ProgressSeverity::Info
-        };
+        let (phase_kind, severity) =
+            step_progress_state(current, total, ProgressPhaseKind::ModelWait);
         Self {
             stage_code: "video_prompt_generation".to_string(),
             phase_kind,
@@ -77,7 +69,7 @@ impl VideoPromptProgressUpdate {
     ) -> Self {
         Self {
             stage_code: "video_prompt_item_committed".to_string(),
-            phase_kind: ProgressPhaseKind::Persist,
+            phase_kind: ProgressPhaseKind::Save,
             current,
             total,
             message: message.into(),
@@ -102,7 +94,7 @@ impl VideoPromptProgressUpdate {
     ) -> Self {
         Self {
             stage_code: VIDEO_PROMPT_CHECKPOINT_STAGE_CODE.to_string(),
-            phase_kind: ProgressPhaseKind::Persist,
+            phase_kind: ProgressPhaseKind::Save,
             current,
             total,
             message: message.into(),

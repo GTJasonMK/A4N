@@ -2254,7 +2254,7 @@ mod tests {
     fn progress() -> ProgressEvent {
         ProgressEvent {
             stage_code: "prepare".to_string(),
-            phase_kind: a4n_service_protocol::ProgressPhaseKind::Prepare,
+            phase_kind: a4n_domain::progress::ProgressPhaseKind::Prepare,
             message: "x".to_string(),
             current: None,
             total: None,
@@ -2262,7 +2262,7 @@ mod tests {
             item_key: None,
             item_index: None,
             item_total: None,
-            severity: a4n_service_protocol::ProgressSeverity::Info,
+            severity: a4n_domain::progress::ProgressSeverity::Info,
             estimated: false,
         }
     }

@@ -30,7 +30,7 @@ const progress = (taskId: string, current: number): GenerationTaskReducerAction 
         message: `step ${current}`,
         unit_label: null,
         stage_code: "stream",
-        phase_kind: "stream",
+        phase_kind: "model_stream",
         severity: "info",
         estimated: false,
         item_index: null,
@@ -116,7 +116,7 @@ describe("generation task store", () => {
     action.event.event.data = {
       ...action.event.event.data,
       stage_code: "video_prompt_item_committed",
-      phase_kind: "persist",
+      phase_kind: "save",
       item_key: "video_prompt:1",
       item_index: 1,
       item_total: 2,

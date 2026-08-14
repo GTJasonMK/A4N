@@ -9,11 +9,12 @@ use a4n_api_contract::{
 };
 use a4n_core::{error::AppError, models::chapter::chapter_outline};
 use a4n_db::workflow;
+use a4n_domain::progress::ProgressPhaseKind;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
-    GenerationError, GenerationResultRef, GenerationTaskStatus, ProgressPhaseKind, StreamTextHash,
+    GenerationError, GenerationResultRef, GenerationTaskStatus, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -363,7 +364,7 @@ impl OrchestratorContext {
         if let Err(error) = publisher
             .progress(chapter_progress(
                 "chapter_stream",
-                ProgressPhaseKind::Stream,
+                ProgressPhaseKind::ModelStream,
                 "正在流式生成正文",
             ))
             .await

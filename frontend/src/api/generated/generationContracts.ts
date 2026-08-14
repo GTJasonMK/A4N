@@ -54,15 +54,18 @@ export type GenerationDeliveryMode = "stream" | "stage_only";
 export type GenerationTaskStatus =
   "reserved" | "running" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
 export type ProgressPhaseKind =
-  | "queue"
   | "prepare"
   | "context"
-  | "provider"
-  | "stream"
+  | "model_connect"
+  | "model_wait"
+  | "model_stream"
+  | "structured_output"
   | "parse"
   | "validate"
-  | "persist"
+  | "save"
+  | "asset_generation"
   | "transfer"
+  | "queue"
   | "cleanup"
   | "complete";
 export type ProgressSeverity = "info" | "success" | "warning" | "error";
