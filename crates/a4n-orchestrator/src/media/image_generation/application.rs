@@ -43,11 +43,11 @@ use super::{
         },
     },
     contracts::{
-        BatchImageGenerationInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
-        ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-        ImageGenerationProgress, ImageGenerationWorkflowBinding, ObjectProfileImageInput,
-        ObjectProfileImagePromptOutput, PageImageGenerationInput, PreparedImageGenerationRequest,
-        SceneImageGenerationInput, SceneProfileImageInput, SceneProfileImagePromptOutput,
+        GenerateBatchImagesInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
+        GeneratePageImageInput, GenerateSceneImageInput, ImageGenerationExecutionInput,
+        ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
+        ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
+        PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
     },
 };
 
@@ -127,7 +127,7 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: SceneImageGenerationInput,
+        input: GenerateSceneImageInput,
     ) -> Result<PreparedImageGenerationRequest, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
@@ -144,7 +144,7 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: SceneImageGenerationInput,
+        input: GenerateSceneImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::GeneratedImageSummary, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
@@ -259,7 +259,7 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: PageImageGenerationInput,
+        input: GeneratePageImageInput,
     ) -> Result<PreparedImageGenerationRequest, AppError> {
         self.prepare_page_image(host, user_id, input)
             .await
@@ -270,7 +270,7 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: PageImageGenerationInput,
+        input: GeneratePageImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::GeneratedImageSummary, AppError> {
         progress.progress(0, 4, "正在读取整页漫画提示词");
@@ -322,16 +322,12 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: BatchImageGenerationInput,
+        input: GenerateBatchImagesInput,
     ) -> Result<Vec<PreparedImageGenerationRequest>, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
-        let requests = input
-            .requests_json
-            .as_array()
-            .ok_or_else(|| AppError::InvalidArgument("requests_json 必须是数组".to_string()))?;
         let jobs = self
-            .build_batch_image_jobs(host, input.project_id, requests, false)
+            .build_batch_image_jobs(host, input.project_id, &input.requests, false)
             .await?;
         Ok(jobs
             .into_iter()
@@ -351,26 +347,25 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: BatchImageGenerationInput,
+        input: GenerateBatchImagesInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::super::BatchImageGenerationOutcome, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
-        let requests = input
-            .requests_json
-            .as_array()
-            .ok_or_else(|| AppError::InvalidArgument("requests_json 必须是数组".to_string()))?;
-        if requests.is_empty() {
+        if input.requests.is_empty() {
             return Err(AppError::InvalidArgument(
                 "批量图片请求不能为空".to_string(),
             ));
         }
-        let total = u32::try_from(requests.len()).map_err(|_| {
-            AppError::InvalidArgument(format!("图片生成请求数量超过 u32 上限：{}", requests.len()))
+        let total = u32::try_from(input.requests.len()).map_err(|_| {
+            AppError::InvalidArgument(format!(
+                "图片生成请求数量超过 u32 上限：{}",
+                input.requests.len()
+            ))
         })?;
         progress.progress(0, total.max(1), "正在准备批量图片请求");
         let items = self
-            .build_batch_image_jobs(host, input.project_id, requests, true)
+            .build_batch_image_jobs(host, input.project_id, &input.requests, true)
             .await?
             .into_iter()
             .map(|job| job.execution)
@@ -379,7 +374,7 @@ impl OrchestratorContext {
             host,
             BatchImageGenerationApplicationInput {
                 project_id: input.project_id,
-                requests_json: input.requests_json,
+                requests: input.requests,
                 items,
                 runtime_config_snapshot: host.runtime_config_snapshot(),
             },
@@ -534,7 +529,7 @@ impl OrchestratorContext {
         &self,
         host: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: PageImageGenerationInput,
+        input: GeneratePageImageInput,
     ) -> Result<PreparedPageImage, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
@@ -973,7 +968,7 @@ pub fn normalize_image_metadata(metadata_json: Option<Value>) -> Option<Value> {
     }
 }
 
-fn scene_image_plan(input: SceneImageGenerationInput) -> DirectImagePlan {
+fn scene_image_plan(input: GenerateSceneImageInput) -> DirectImagePlan {
     DirectImagePlan {
         project_id: input.project_id,
         prompt: input.prompt,

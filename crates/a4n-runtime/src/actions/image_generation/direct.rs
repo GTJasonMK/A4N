@@ -1,34 +1,23 @@
 use a4n_orchestrator::media::{
-    GenerateCanvasImageInput, GenerateGalgameImageInput, SceneImageGenerationInput,
+    GenerateCanvasImageInput, GenerateGalgameImageInput, GenerateSceneImageInput,
+    ImageGenerationProgress,
 };
 
 use super::{
-    AppState, DEFAULT_IMAGE_GENERATION_PROGRESS, GeneratedImageSummary, ImageGenerationProgress,
-    ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
-    preview::prepared_image_generation_preview_step,
+    AppState, GeneratedImageSummary, ModelRequestPreview, RuntimeImageGenerationHostPort,
+    model_request_preview, preview::prepared_image_generation_preview_step,
 };
 
 pub async fn preview_scene_image_request(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    prompt: String,
-    config_id: Option<i64>,
-    chapter_id: Option<i64>,
+    input: GenerateSceneImageInput,
 ) -> Result<ModelRequestPreview, String> {
+    let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
         .orchestrator()
-        .prepare_scene_image_request_validated(
-            &host,
-            user_id,
-            SceneImageGenerationInput {
-                project_id,
-                prompt,
-                config_id,
-                chapter_id,
-            },
-        )
+        .prepare_scene_image_request_validated(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     Ok(model_request_preview(
@@ -81,13 +70,12 @@ pub(crate) async fn generate_galgame_image(
     state: &AppState,
     user_id: i64,
     input: GenerateGalgameImageInput,
-    progress: Option<&ImageGenerationProgress<'_>>,
 ) -> Result<GeneratedImageSummary, String> {
-    let progress = progress.unwrap_or(&DEFAULT_IMAGE_GENERATION_PROGRESS);
+    let progress = ImageGenerationProgress::none();
     let host = RuntimeImageGenerationHostPort::new(state);
     state
         .orchestrator()
-        .generate_galgame_image_validated(&host, user_id, input, progress.inner())
+        .generate_galgame_image_validated(&host, user_id, input, &progress)
         .await
         .map_err(|error| error.to_string())
 }

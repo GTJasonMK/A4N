@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import { idNum, type ApiId as Id } from "../shared";
 import { getLocalImageConfig } from "../localRuntimeSettings";
@@ -15,6 +14,11 @@ import type {
   ImageGenerationOperation,
   StartImageGenerationInput,
 } from "../generated/generationContracts";
+import type {
+  GenerateBatchImagesInput,
+  GeneratePageImageInput,
+  GenerateSceneImageInput,
+} from "../generated/host";
 import { listImagesByProject } from "./queries";
 import type { GeneratedImage } from "./types";
 
@@ -25,7 +29,6 @@ export async function startImageGeneration(
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) =>
     apiInvoke<GenerationTaskHandle>("start_image_generation", {
-      userId: currentUserId(),
       input: {
         ...input,
         meta,
@@ -92,12 +95,14 @@ export async function previewSceneImageRequest(
   chapterId?: Id | null,
 ): Promise<ModelRequestPreview> {
   const normalizedConfigId = normalizeImageConfigId(configId);
-  return apiInvoke<ModelRequestPreview>("preview_scene_image_request", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
+  const input: GenerateSceneImageInput = {
+    project_id: idNum(projectId, "项目 ID"),
     prompt,
-    configId: normalizedConfigId,
-    chapterId: chapterId == null ? null : idNum(chapterId, "章节 ID"),
+    config_id: normalizedConfigId,
+    chapter_id: chapterId == null ? null : idNum(chapterId, "章节 ID"),
+  };
+  return apiInvoke<ModelRequestPreview>("preview_scene_image_request", {
+    input,
     ...(usesLocalRuntimeSettings() && normalizedConfigId != null
       ? {
           runtime_config_snapshot: buildRuntimeConfigSnapshot({
@@ -113,22 +118,26 @@ export async function previewPageImageRequest(
   chapterNumber: number,
   pageNumber: number,
 ): Promise<ModelRequestPreview> {
+  const input: GeneratePageImageInput = {
+    project_id: idNum(projectId, "项目 ID"),
+    chapter_number: chapterNumber,
+    page_number: pageNumber,
+  };
   return apiInvoke<ModelRequestPreview>("preview_page_image_request", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterNumber,
-    pageNumber,
+    input,
   });
 }
 
 export async function previewBatchImagesRequest(
   projectId: Id,
-  requestsJson: unknown,
+  requests: unknown[],
 ): Promise<ModelRequestPreview> {
+  const input: GenerateBatchImagesInput = {
+    project_id: idNum(projectId, "项目 ID"),
+    requests,
+  };
   return apiInvoke<ModelRequestPreview>("preview_batch_images_request", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    requestsJson,
+    input,
   });
 }
 

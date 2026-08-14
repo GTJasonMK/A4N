@@ -1,5 +1,4 @@
-use a4n_orchestrator::media::BatchImageGenerationInput;
-use serde_json::Value;
+use a4n_orchestrator::media::GenerateBatchImagesInput;
 
 use super::{
     AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
@@ -9,20 +8,13 @@ use super::{
 pub async fn preview_batch_images_request(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    requests_json: Value,
+    input: GenerateBatchImagesInput,
 ) -> Result<ModelRequestPreview, String> {
+    let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let requests = state
         .orchestrator()
-        .prepare_batch_images_request_validated(
-            &host,
-            user_id,
-            BatchImageGenerationInput {
-                project_id,
-                requests_json,
-            },
-        )
+        .prepare_batch_images_request_validated(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     let total = requests.len();

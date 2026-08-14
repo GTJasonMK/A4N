@@ -176,15 +176,6 @@ impl VideoApplication {
             .map_err(AppError::Database)
     }
 
-    pub(super) async fn toggle_generated_image_favorite_record(
-        &self,
-        image_id: i64,
-    ) -> Result<generated_image::Model, AppError> {
-        a4n_db::video::toggle_generated_image_favorite_record(self.connection(), image_id)
-            .await
-            .map_err(video_db_error)
-    }
-
     pub(super) async fn update_generated_image_record(
         &self,
         image_id: i64,
@@ -1039,15 +1030,6 @@ impl OrchestratorContext {
         image_id: i64,
     ) -> Result<Option<generated_image::Model>, AppError> {
         self.video.generated_image_by_id(image_id).await
-    }
-
-    pub async fn toggle_generated_image_favorite(
-        &self,
-        image_id: i64,
-    ) -> Result<generated_image::Model, AppError> {
-        self.video
-            .toggle_generated_image_favorite_record(image_id)
-            .await
     }
 
     pub async fn update_generated_image_record(

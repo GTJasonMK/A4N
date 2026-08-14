@@ -12,9 +12,12 @@ use super::UpdateGeneratedImageInput;
 pub async fn update_image(
     state: &AppState,
     user_id: i64,
-    image_id: i64,
     input: UpdateGeneratedImageInput,
 ) -> Result<GeneratedImageSummary, String> {
+    if input.is_empty() {
+        return Err("图片更新至少需要一个字段".to_string());
+    }
+    let image_id = input.image_id;
     let clear_chapter_id = input.chapter_id.as_ref().is_some_and(Option::is_none);
     let clear_panel_id = input.panel_id.as_ref().is_some_and(Option::is_none);
     let clear_ai_score = input.ai_score.as_ref().is_some_and(Option::is_none);
@@ -33,40 +36,6 @@ pub async fn update_image(
                 ai_score: input.ai_score.flatten(),
                 clear_ai_score,
                 is_favorite: input.is_favorite,
-            },
-        )
-        .await
-        .map_err(app_error_message)?;
-    Ok(to_summary(&row))
-}
-
-pub async fn toggle_image_favorite(
-    state: &AppState,
-    user_id: i64,
-    image_id: i64,
-) -> Result<GeneratedImageSummary, String> {
-    let row = state
-        .orchestrator()
-        .toggle_generated_image_favorite_for_user_validated(user_id, image_id)
-        .await
-        .map_err(app_error_message)?;
-    Ok(to_summary(&row))
-}
-
-pub async fn score_image(
-    state: &AppState,
-    user_id: i64,
-    image_id: i64,
-    score: f32,
-) -> Result<GeneratedImageSummary, String> {
-    let row = state
-        .orchestrator()
-        .update_generated_image_for_user_validated(
-            user_id,
-            image_id,
-            UpdateImageRecord {
-                ai_score: Some(score),
-                ..Default::default()
             },
         )
         .await

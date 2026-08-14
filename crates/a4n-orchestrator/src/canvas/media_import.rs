@@ -1,3 +1,4 @@
+use a4n_api_contract::image::UploadImageInput;
 use a4n_core::{
     error::AppError,
     files::paths::ProjectPaths,
@@ -8,14 +9,14 @@ use a4n_core::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use serde_json::json;
+use serde_json::{Map, json};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::{
     OrchestratorContext,
     canvas::{CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput},
-    media::{ImportedImageUploadInput, MEDIA_ORIGIN_IMPORTED},
+    media::MEDIA_ORIGIN_IMPORTED,
     project::PROJECT_KIND_VIDEO,
 };
 
@@ -79,8 +80,8 @@ impl OrchestratorContext {
         let prepared = self
             .prepare_imported_image_upload_for_user_validated(
                 user_id,
-                project_id,
-                ImportedImageUploadInput {
+                UploadImageInput {
+                    project_id,
                     file_name: input.file_name,
                     mime_type: input.mime_type,
                     data_base64: input.data_base64,
@@ -88,10 +89,10 @@ impl OrchestratorContext {
                     prompt: input.prompt,
                     chapter_id: None,
                     panel_id: None,
-                    metadata_json: Some(json!({
-                        "canvas_import": true,
-                        "source": "video_canvas"
-                    })),
+                    metadata_json: Some(Map::from_iter([
+                        ("canvas_import".to_string(), json!(true)),
+                        ("source".to_string(), json!("video_canvas")),
+                    ])),
                 },
             )
             .await?;

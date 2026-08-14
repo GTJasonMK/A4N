@@ -34,24 +34,22 @@ pub fn resolve_video_reference_image_project_ids(
     requested_project_ids: Vec<i64>,
     allowed_project_ids: &[i64],
 ) -> Result<Vec<i64>, String> {
+    if requested_project_ids.is_empty() {
+        return Err("image_project_ids 不能为空".to_string());
+    }
     let allowed = allowed_project_ids.iter().copied().collect::<HashSet<_>>();
-    let mut project_ids = if requested_project_ids.is_empty() {
-        allowed_project_ids.to_vec()
-    } else {
-        let mut resolved = Vec::with_capacity(requested_project_ids.len());
-        for (index, project_id) in requested_project_ids.into_iter().enumerate() {
-            if project_id <= 0 {
-                return Err(format!("image_project_ids[{index}] 必须为正整数"));
-            }
-            if !allowed.contains(&project_id) {
-                return Err(format!(
-                    "image_project_ids[{index}] 不属于当前视频项目允许的素材项目：{project_id}"
-                ));
-            }
-            resolved.push(project_id);
+    let mut project_ids = Vec::with_capacity(requested_project_ids.len());
+    for (index, project_id) in requested_project_ids.into_iter().enumerate() {
+        if project_id <= 0 {
+            return Err(format!("image_project_ids[{index}] 必须为正整数"));
         }
-        resolved
-    };
+        if !allowed.contains(&project_id) {
+            return Err(format!(
+                "image_project_ids[{index}] 不属于当前视频项目允许的素材项目：{project_id}"
+            ));
+        }
+        project_ids.push(project_id);
+    }
     project_ids.sort_unstable();
     project_ids.dedup();
     Ok(project_ids)

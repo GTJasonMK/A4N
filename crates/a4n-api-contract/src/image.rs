@@ -31,23 +31,36 @@ pub struct GeneratedImageSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ListImagesByChapterInput {
+pub struct ListImagesByProjectInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ListImagesByChapterInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub chapter_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ListVideoReferenceImagesInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub chapter_id: i64,
-    #[serde(default)]
+    #[schemars(length(min = 1))]
     pub image_project_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateGeneratedImageInput {
+    #[schemars(range(min = 1))]
+    pub image_id: i64,
     #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
     #[schemars(with = "String")]
     pub prompt: Option<String>,
@@ -81,28 +94,38 @@ impl UpdateGeneratedImageInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct DeleteImageInput {
+    #[schemars(range(min = 1))]
+    pub image_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct UploadImageInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
     pub file_name: String,
     pub mime_type: String,
     pub data_base64: String,
     pub image_type: String,
     pub prompt: String,
-    #[serde(default)]
     pub chapter_id: Option<i64>,
-    #[serde(default)]
     pub panel_id: Option<String>,
-    #[serde(default)]
     pub metadata_json: Option<Map<String, Value>>,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{GeneratedImageSummary, UpdateGeneratedImageInput, UploadImageInput};
+    use super::{
+        GeneratedImageSummary, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
+        UploadImageInput,
+    };
     use serde_json::json;
 
     #[test]
     fn generated_image_update_has_one_strict_patch_contract() {
         let input: UpdateGeneratedImageInput = serde_json::from_value(json!({
+            "image_id": 1,
             "chapter_id": null,
             "panel_id": "panel-2",
             "ai_score": 0.8,
@@ -116,22 +139,24 @@ mod tests {
         assert!(!input.is_empty());
 
         for value in [
-            json!({"prompt": null}),
-            json!({"image_type": null}),
-            json!({"is_favorite": null}),
-            json!({"clear_chapter_id": true}),
-            json!({"clear_panel_id": true}),
-            json!({"clear_ai_score": true}),
+            json!({"image_id": 1, "prompt": null}),
+            json!({"image_id": 1, "image_type": null}),
+            json!({"image_id": 1, "is_favorite": null}),
+            json!({"image_id": 1, "clear_chapter_id": true}),
+            json!({"image_id": 1, "clear_panel_id": true}),
+            json!({"image_id": 1, "clear_ai_score": true}),
         ] {
             assert!(serde_json::from_value::<UpdateGeneratedImageInput>(value).is_err());
         }
-        let empty: UpdateGeneratedImageInput = serde_json::from_value(json!({})).unwrap();
+        let empty: UpdateGeneratedImageInput =
+            serde_json::from_value(json!({"image_id": 1})).unwrap();
         assert!(empty.is_empty());
     }
 
     #[test]
     fn uploaded_image_metadata_must_be_an_object_and_model_is_not_caller_controlled() {
         let input: UploadImageInput = serde_json::from_value(json!({
+            "project_id": 1,
             "file_name": "reference.png",
             "mime_type": "image/png",
             "data_base64": "AA==",
@@ -143,6 +168,7 @@ mod tests {
         assert_eq!(input.metadata_json.unwrap()["manual_upload"], true);
         assert!(
             serde_json::from_value::<UploadImageInput>(json!({
+                "project_id": 1,
                 "file_name": "reference.png",
                 "mime_type": "image/png",
                 "data_base64": "AA==",
@@ -154,12 +180,24 @@ mod tests {
         );
         assert!(
             serde_json::from_value::<UploadImageInput>(json!({
+                "project_id": 1,
                 "file_name": "reference.png",
                 "mime_type": "image/png",
                 "data_base64": "AA==",
                 "image_type": "project_reference",
                 "prompt": "reference",
                 "model": "spoofed"
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn video_reference_project_ids_are_required() {
+        assert!(
+            serde_json::from_value::<ListVideoReferenceImagesInput>(json!({
+                "project_id": 1,
+                "chapter_id": 2
             }))
             .is_err()
         );

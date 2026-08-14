@@ -1,4 +1,4 @@
-use a4n_orchestrator::media::PageImageGenerationInput;
+use a4n_orchestrator::media::GeneratePageImageInput;
 
 use super::{
     AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
@@ -8,22 +8,15 @@ use super::{
 pub async fn preview_page_image_request(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
-    page_number: i32,
+    input: GeneratePageImageInput,
 ) -> Result<ModelRequestPreview, String> {
+    let project_id = input.project_id;
+    let chapter_number = input.chapter_number;
+    let page_number = input.page_number;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
         .orchestrator()
-        .prepare_page_image_request_validated(
-            &host,
-            user_id,
-            PageImageGenerationInput {
-                project_id,
-                chapter_number,
-                page_number,
-            },
-        )
+        .prepare_page_image_request_validated(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     Ok(model_request_preview(

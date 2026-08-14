@@ -567,8 +567,8 @@ async fn server_process_recovers_uploaded_image_after_record_and_cleanup_intent_
         .post(format!("http://{first_addr}/api/commands/upload_image"))
         .bearer_auth(access_token)
         .json(&serde_json::json!({
-            "projectId": project.id,
             "input": {
+                "project_id": project.id,
                 "file_name": "fault.png",
                 "mime_type": "image/png",
                 "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
@@ -748,8 +748,8 @@ async fn server_process_recovers_uploaded_image_killed_before_database_commit() 
                 .post(format!("http://{first_addr}/api/commands/upload_image"))
                 .bearer_auth(access_token)
                 .json(&serde_json::json!({
-                    "projectId": project_id,
                     "input": {
+                        "project_id": project_id,
                         "file_name": "kill-window.png",
                         "mime_type": "image/png",
                         "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",

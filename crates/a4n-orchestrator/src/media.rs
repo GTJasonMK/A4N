@@ -15,19 +15,17 @@ pub use batch_image_application::{
 };
 pub use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
-    BatchImageGenerationInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
-    GeneratedImageArtifactFile, GeneratedImageSummary, ImageGenerationExecutionInput,
-    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    PageImageGenerationInput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    PreparedImageGenerationRequest, SceneImageGenerationInput, SceneProfileImageInput,
+    GenerateBatchImagesInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
+    GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageArtifactFile,
+    GeneratedImageSummary, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
+    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
+    ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
+    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
+    PersistedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,
     SceneProfileImagePromptOutput, generated_image_summary, image_generation_request_trace_json,
     normalize_image_metadata,
 };
-pub use image_record_lifecycle::{
-    IMPORTED_IMAGE_MODEL, ImportedImageUploadInput, PreparedImportedImageUpload,
-};
+pub use image_record_lifecycle::{IMPORTED_IMAGE_MODEL, PreparedImportedImageUpload};
 pub use image_workflow_rules::{
     batch_image_item_step_key, batch_image_workflow_business_key, batch_image_workflow_fingerprint,
     batch_image_workflow_run_input, image_generation_step_key,

@@ -1075,6 +1075,10 @@ export interface GenerationCallAnalytics {
   since_at: string;
 }
 
+export interface ListImagesByProjectInput {
+  project_id: number;
+}
+
 export interface ListImagesByChapterInput {
   chapter_id: number;
   project_id: number;
@@ -1082,7 +1086,7 @@ export interface ListImagesByChapterInput {
 
 export interface ListVideoReferenceImagesInput {
   chapter_id: number;
-  image_project_ids?: number[];
+  image_project_ids: number[];
   project_id: number;
 }
 
@@ -1105,15 +1109,18 @@ export interface GeneratedImage {
   width: number;
 }
 
-export type GeneratedImageSummary = GeneratedImage;
-
 export interface UpdateGeneratedImageInput {
   ai_score?: number | null;
   chapter_id?: number | null;
+  image_id: number;
   image_type?: string;
   is_favorite?: boolean;
   panel_id?: string | null;
   prompt?: string;
+}
+
+export interface DeleteImageInput {
+  image_id: number;
 }
 
 export interface UploadImageInput {
@@ -1124,7 +1131,26 @@ export interface UploadImageInput {
   metadata_json?: Record<string, unknown> | null;
   mime_type: string;
   panel_id?: string | null;
+  project_id: number;
   prompt: string;
+}
+
+export interface GenerateSceneImageInput {
+  chapter_id?: number | null;
+  config_id?: number | null;
+  project_id: number;
+  prompt: string;
+}
+
+export interface GeneratePageImageInput {
+  chapter_number: number;
+  page_number: number;
+  project_id: number;
+}
+
+export interface GenerateBatchImagesInput {
+  project_id: number;
+  requests: unknown[];
 }
 
 export type PortraitType = "full_body" | "half_body" | "face" | "chibi";
@@ -3543,7 +3569,7 @@ export interface ProfileMaterialProfileSummary {
 }
 
 export interface ProfileMaterialImageSummary {
-  image: GeneratedImageSummary;
+  image: GeneratedImage;
   is_primary: boolean;
   staleness: ProfileMaterialImageStaleness;
   style_template_id: string | null;

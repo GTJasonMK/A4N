@@ -18,7 +18,6 @@ use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 
 pub(crate) use a4n_orchestrator::media::generated_image_summary as to_summary;
-use contracts::DEFAULT_IMAGE_GENERATION_PROGRESS;
 pub(crate) use generation_io::{
     run_queued_request_with_cancel, run_queued_request_with_cancel_and_workflow,
 };
@@ -37,9 +36,7 @@ pub use self::{
         preview_object_profile_image_request,
     },
 };
-pub(crate) use contracts::{
-    GenerateCanvasImageInput, GenerateGalgameImageInput, ImageGenerationProgress,
-};
+pub(crate) use contracts::{GenerateCanvasImageInput, GenerateGalgameImageInput};
 pub(crate) use direct::generate_galgame_image;
 pub use generation_task::start_image_generation_typed;
 

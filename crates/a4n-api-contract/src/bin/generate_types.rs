@@ -89,10 +89,12 @@ use a4n_api_contract::{
         UpdateGalgameSceneInput,
     },
     image::{
-        GeneratedImageSummary, ListImagesByChapterInput, ListVideoReferenceImagesInput,
-        UpdateGeneratedImageInput, UploadImageInput,
+        DeleteImageInput, GeneratedImageSummary, ListImagesByChapterInput,
+        ListImagesByProjectInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
+        UploadImageInput,
     },
     image_generation::{
+        GenerateBatchImagesInput, GeneratePageImageInput, GenerateSceneImageInput,
         ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
         SceneProfileImagePromptOutput,
     },
@@ -386,12 +388,16 @@ fn main() {
         &typescript_interface::<RecentLlmCall>("RecentLlmCall"),
         &typescript_interface::<RecentMediaCall>("RecentMediaCall"),
         &typescript_interface::<GenerationCallAnalytics>("GenerationCallAnalytics"),
+        &typescript_interface::<ListImagesByProjectInput>("ListImagesByProjectInput"),
         &typescript_interface::<ListImagesByChapterInput>("ListImagesByChapterInput"),
         &typescript_interface::<ListVideoReferenceImagesInput>("ListVideoReferenceImagesInput"),
         &typescript_interface::<GeneratedImageSummary>("GeneratedImage"),
-        "export type GeneratedImageSummary = GeneratedImage;\n\n",
         &typescript_interface::<UpdateGeneratedImageInput>("UpdateGeneratedImageInput"),
+        &typescript_interface::<DeleteImageInput>("DeleteImageInput"),
         &typescript_interface::<UploadImageInput>("UploadImageInput"),
+        &typescript_interface::<GenerateSceneImageInput>("GenerateSceneImageInput"),
+        &typescript_interface::<GeneratePageImageInput>("GeneratePageImageInput"),
+        &typescript_interface::<GenerateBatchImagesInput>("GenerateBatchImagesInput"),
         &typescript_enum::<PortraitType>("PortraitType"),
         &typescript_interface::<PortraitSummary>("PortraitSummary"),
         &typescript_interface::<ListPortraitsByProjectInput>("ListPortraitsByProjectInput"),
@@ -1064,6 +1070,11 @@ fn ts_type(schema: &Value, root: &Value) -> String {
     if let Some(reference) = schema.get("$ref").and_then(Value::as_str)
         && let Some(name) = reference.strip_prefix("#/$defs/")
     {
+        let name = if name == "GeneratedImageSummary" {
+            "GeneratedImage"
+        } else {
+            name
+        };
         return if schema.get("properties").is_some() {
             format!("{name} & {}", ts_object_type(schema, root))
         } else {
@@ -1206,6 +1217,7 @@ mod tests {
     use a4n_api_contract::canvas::GetCanvasNodeContractsInput;
     use a4n_api_contract::chapter::ReorderChapterScenesInput;
     use a4n_api_contract::character::SyncCharacterProfileResult;
+    use a4n_api_contract::profile::ProfileMaterialImageSummary;
     use a4n_api_contract::rag::EnhancedSearchInput;
 
     use super::{typescript_interface, typescript_type};
@@ -1241,5 +1253,14 @@ mod tests {
                 && output.contains("CharacterProfileSkippedResult & { status: \"skipped\" }"),
             "{output}"
         );
+    }
+
+    #[test]
+    fn generated_image_references_use_the_frontend_canonical_name() {
+        let output =
+            typescript_interface::<ProfileMaterialImageSummary>("ProfileMaterialImageSummary");
+
+        assert!(output.contains("image: GeneratedImage;"), "{output}");
+        assert!(!output.contains("GeneratedImageSummary"), "{output}");
     }
 }

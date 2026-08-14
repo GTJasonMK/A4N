@@ -4,6 +4,39 @@ use serde_json::Value;
 
 use super::generation_tasks::GenerationStartRequestMeta;
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateSceneImageInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1, max = 100_000))]
+    pub prompt: String,
+    #[schemars(range(min = 1))]
+    pub config_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub chapter_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratePageImageInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_number: i32,
+    #[schemars(range(min = 1))]
+    pub page_number: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateBatchImagesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1))]
+    pub requests: Vec<Value>,
+}
+
 /// 图片生产生成的唯一启动合同。
 ///
 /// 图片查询、上传和 provider 请求预览继续使用各自合同；只有生产生成

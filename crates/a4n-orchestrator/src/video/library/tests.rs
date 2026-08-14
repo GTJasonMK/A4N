@@ -122,9 +122,10 @@ fn video_reference_candidate_keeps_original_scope_rules() {
 
 #[test]
 fn video_reference_project_scope_is_validated_and_deduplicated() {
-    assert_eq!(
-        resolve_video_reference_image_project_ids(Vec::new(), &[20, 10]).unwrap(),
-        vec![10, 20]
+    assert!(
+        resolve_video_reference_image_project_ids(Vec::new(), &[20, 10])
+            .unwrap_err()
+            .contains("image_project_ids 不能为空")
     );
     assert_eq!(
         resolve_video_reference_image_project_ids(vec![20, 10, 20], &[20, 10]).unwrap(),

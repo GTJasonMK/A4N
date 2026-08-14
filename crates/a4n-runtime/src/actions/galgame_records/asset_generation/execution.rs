@@ -82,7 +82,6 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
                 target_entity_id: input.target_entity_id,
                 workflow_run_id: None,
             },
-            None,
         )
         .await
         .map_err(generation_host_error)

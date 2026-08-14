@@ -1,34 +1,39 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type {
+  DeleteImageInput,
   GeneratedImage,
   UpdateGeneratedImageInput,
   UploadImageInput,
 } from "../generated/host";
 import { idNum, type ApiId as Id } from "../shared";
 
-export type UpdateImageInput = UpdateGeneratedImageInput;
+export type UpdateImageInput = Omit<UpdateGeneratedImageInput, "image_id">;
 export type { UploadImageInput };
 
 export async function updateImage(imageId: Id, input: UpdateImageInput): Promise<GeneratedImage> {
   return apiInvoke<GeneratedImage>("update_image", {
-    userId: currentUserId(),
-    imageId: idNum(imageId),
-    input,
+    input: {
+      ...input,
+      image_id: idNum(imageId),
+    },
   });
 }
 
-export async function uploadImage(projectId: Id, input: UploadImageInput): Promise<GeneratedImage> {
+export async function uploadImage(
+  projectId: Id,
+  input: Omit<UploadImageInput, "project_id">,
+): Promise<GeneratedImage> {
   return apiInvoke<GeneratedImage>("upload_image", {
-    projectId: idNum(projectId),
-    input,
+    input: {
+      ...input,
+      project_id: idNum(projectId),
+    },
   });
 }
 
-/** 后端 delete_image(image_id) */
 export async function deleteImage(imageId: Id): Promise<void> {
+  const input: DeleteImageInput = { image_id: idNum(imageId) };
   return apiInvoke<void>("delete_image", {
-    userId: currentUserId(),
-    imageId: idNum(imageId),
+    input,
   });
 }

@@ -6,13 +6,13 @@ mod trace;
 
 pub use application::normalize_image_metadata;
 pub use contracts::{
-    BatchImageGenerationInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
-    GeneratedImageArtifactFile, GeneratedImageSummary, ImageGenerationExecutionInput,
-    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    PageImageGenerationInput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    PreparedImageGenerationRequest, SceneImageGenerationInput, SceneProfileImageInput,
+    GenerateBatchImagesInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
+    GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageArtifactFile,
+    GeneratedImageSummary, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
+    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
+    ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
+    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
+    PersistedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,
     SceneProfileImagePromptOutput,
 };
 pub use execution::generated_image_summary;

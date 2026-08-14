@@ -37,9 +37,15 @@ impl VideoPromptDownstreamCleanupPort for RuntimeVideoPromptCleanup<'_> {
                 .map_err(internal_error)?;
         }
         for image_id in image_ids {
-            image_records::delete_image(self.state, self.user_id, *image_id)
-                .await
-                .map_err(internal_error)?;
+            image_records::delete_image(
+                self.state,
+                self.user_id,
+                image_records::DeleteImageInput {
+                    image_id: *image_id,
+                },
+            )
+            .await
+            .map_err(internal_error)?;
         }
         Ok(())
     }

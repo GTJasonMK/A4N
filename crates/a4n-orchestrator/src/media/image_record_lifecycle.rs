@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_api_contract::image::UploadImageInput;
 use a4n_core::{error::AppError, models::ai::generated_image};
 use a4n_db::video::{CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput};
 use chrono::Utc;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use super::{DecodedUploadedImage, decode_uploaded_image_data};
 use crate::{
@@ -19,17 +20,6 @@ use crate::{
 pub const IMPORTED_IMAGE_MODEL: &str = "external-import";
 const MAX_IMPORT_IMAGE_BYTES: usize = 50 * 1024 * 1024;
 
-pub struct ImportedImageUploadInput {
-    pub file_name: String,
-    pub mime_type: String,
-    pub data_base64: String,
-    pub image_type: String,
-    pub prompt: String,
-    pub chapter_id: Option<i64>,
-    pub panel_id: Option<String>,
-    pub metadata_json: Option<Value>,
-}
-
 pub struct PreparedImportedImageUpload {
     pub project_id: i64,
     pub image_type: String,
@@ -37,7 +27,7 @@ pub struct PreparedImportedImageUpload {
     pub model: String,
     pub chapter_id: Option<i64>,
     pub panel_id: Option<String>,
-    pub metadata_json: Option<Value>,
+    pub metadata_json: Option<Map<String, Value>>,
     pub decoded: DecodedUploadedImage,
 }
 
@@ -101,9 +91,9 @@ impl OrchestratorContext {
     pub async fn prepare_imported_image_upload_for_user_validated(
         &self,
         user_id: i64,
-        project_id: i64,
-        input: ImportedImageUploadInput,
+        input: UploadImageInput,
     ) -> Result<PreparedImportedImageUpload, AppError> {
+        let project_id = input.project_id;
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let image_type = required_text(&input.image_type, "图片类型")
@@ -184,16 +174,6 @@ impl OrchestratorContext {
         self.update_generated_image_record(image_id, input).await
     }
 
-    pub async fn toggle_generated_image_favorite_for_user_validated(
-        &self,
-        user_id: i64,
-        image_id: i64,
-    ) -> Result<generated_image::Model, AppError> {
-        self.generated_image_for_user_validated(user_id, image_id)
-            .await?;
-        self.toggle_generated_image_favorite(image_id).await
-    }
-
     pub async fn delete_generated_image_for_user_validated(
         &self,
         user_id: i64,
@@ -254,29 +234,23 @@ fn sort_video_reference_images(
 }
 
 fn imported_image_metadata(
-    metadata_json: Option<Value>,
+    metadata_json: Option<Map<String, Value>>,
     source_file_name: String,
     source_extension: &'static str,
     mime_type: &'static str,
 ) -> Option<Value> {
-    let mut metadata = match metadata_json {
-        Some(Value::Object(map)) => Value::Object(map),
-        Some(value) => json!({"metadata": value}),
-        None => json!({}),
-    };
-    if let Some(map) = metadata.as_object_mut() {
-        map.insert(
-            "import".to_string(),
-            json!({
-                "external": true,
-                "source_file_name": source_file_name,
-                "source_extension": source_extension,
-                "mime_type": mime_type,
-                "imported_at": Utc::now().to_rfc3339(),
-            }),
-        );
-    }
-    super::image_generation::normalize_image_metadata(Some(metadata))
+    let mut metadata = metadata_json.unwrap_or_default();
+    metadata.insert(
+        "import".to_string(),
+        json!({
+            "external": true,
+            "source_file_name": source_file_name,
+            "source_extension": source_extension,
+            "mime_type": mime_type,
+            "imported_at": Utc::now().to_rfc3339(),
+        }),
+    );
+    super::image_generation::normalize_image_metadata(Some(Value::Object(metadata)))
 }
 
 #[cfg(test)]

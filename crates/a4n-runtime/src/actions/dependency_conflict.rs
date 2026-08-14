@@ -29,7 +29,8 @@ pub(crate) async fn delete_downstream_images_if_requested(
     image_ids: impl IntoIterator<Item = i64>,
 ) -> Result<(), String> {
     for image_id in image_ids {
-        image_records::delete_image(state, user_id, image_id).await?;
+        image_records::delete_image(state, user_id, image_records::DeleteImageInput { image_id })
+            .await?;
     }
     Ok(())
 }

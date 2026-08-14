@@ -28,10 +28,11 @@ pub async fn preview_object_profile_image_request(
         .await
         .map_err(|error| error.to_string())?;
     let project_id = prepared.project_id;
-    let title = format!(
-        "{} 素材图请求预览",
-        prepared.subject_name.as_deref().unwrap_or("物体")
-    );
+    let subject_name = prepared
+        .subject_name
+        .as_deref()
+        .ok_or_else(|| "物体素材图请求缺少物体名称".to_string())?;
+    let title = format!("{subject_name} 素材图请求预览");
     Ok(model_request_preview(
         "object_profile_image_generation",
         title,

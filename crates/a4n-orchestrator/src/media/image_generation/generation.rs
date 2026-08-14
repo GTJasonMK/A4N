@@ -24,9 +24,9 @@ use crate::{
         generation_public_error, publish_step_progress,
     },
     media::{
-        BatchImageGenerationInput, BatchImageGenerationItem, BatchImageGenerationOutcome,
-        GeneratedImageSummary, ImageGenerationHostPort, ImageGenerationProgress,
-        ObjectProfileImageInput, PageImageGenerationInput, SceneImageGenerationInput,
+        BatchImageGenerationItem, BatchImageGenerationOutcome, GenerateBatchImagesInput,
+        GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageSummary,
+        ImageGenerationHostPort, ImageGenerationProgress, ObjectProfileImageInput,
         SceneProfileImageInput,
     },
 };
@@ -253,7 +253,7 @@ impl OrchestratorContext {
                     .generate_scene_image_validated(
                         host_port,
                         user_id,
-                        SceneImageGenerationInput {
+                        GenerateSceneImageInput {
                             project_id,
                             prompt,
                             config_id,
@@ -272,7 +272,7 @@ impl OrchestratorContext {
                     .generate_page_image_validated(
                         host_port,
                         user_id,
-                        PageImageGenerationInput {
+                        GeneratePageImageInput {
                             project_id,
                             chapter_number,
                             page_number,
@@ -287,9 +287,9 @@ impl OrchestratorContext {
                     .generate_batch_images_validated(
                         host_port,
                         user_id,
-                        BatchImageGenerationInput {
+                        GenerateBatchImagesInput {
                             project_id,
-                            requests_json: serde_json::Value::Array(requests),
+                            requests,
                         },
                         progress,
                     )
@@ -394,22 +394,30 @@ fn batch_image_result(
         .collect::<Result<Vec<_>, _>>()?;
     let result_ref = batch_result_ref(project_id, &outcome.items)?;
     let failure = if outcome.interrupted {
+        let message = outcome
+            .first_error
+            .as_deref()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "image_batch_interrupted_without_error".to_string(),
+                operation: "批量图片中断必须记录首个错误".to_string(),
+            })?;
         Some(generation_public_error(
             "generation_interrupted",
             "image_batch",
-            outcome
-                .first_error
-                .as_deref()
-                .unwrap_or("批量图片生成已停止"),
+            message,
         ))
     } else if outcome.succeeded() == 0 {
+        let message = outcome
+            .first_error
+            .as_deref()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "image_batch_failed_without_error".to_string(),
+                operation: "批量图片全部失败时必须记录首个错误".to_string(),
+            })?;
         Some(generation_public_error(
             "provider_job_failed",
             "image_batch",
-            outcome
-                .first_error
-                .as_deref()
-                .unwrap_or("批量图片全部生成失败"),
+            message,
         ))
     } else {
         None

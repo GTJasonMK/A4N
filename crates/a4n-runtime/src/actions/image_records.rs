@@ -4,8 +4,8 @@ mod records;
 mod upload;
 
 pub use a4n_api_contract::image::{
-    ListImagesByChapterInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
-    UploadImageInput,
+    DeleteImageInput, ListImagesByChapterInput, ListImagesByProjectInput,
+    ListVideoReferenceImagesInput, UpdateGeneratedImageInput, UploadImageInput,
 };
 pub(crate) use a4n_orchestrator::media::IMPORTED_IMAGE_MODEL;
 pub use deletion::delete_image;

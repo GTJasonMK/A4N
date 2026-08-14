@@ -514,7 +514,7 @@ async fn batch_image_generation_keeps_successes_after_item_failure() {
             &host,
             BatchImageGenerationApplicationInput {
                 project_id,
-                requests_json: json!([{"prompt": "first"}, {"prompt": "second"}]),
+                requests: vec![json!({"prompt": "first"}), json!({"prompt": "second"})],
                 items,
                 runtime_config_snapshot: None,
             },
@@ -527,6 +527,42 @@ async fn batch_image_generation_keeps_successes_after_item_failure() {
     assert_eq!(outcome.succeeded(), 1);
     assert_eq!(outcome.failed_item_keys, ["image-request-1"]);
     assert_eq!(outcome.items[0].item_key, "image-request-2");
+}
+
+#[tokio::test]
+async fn batch_cancellation_records_the_real_first_error() {
+    let (database, context) = setup_context().await;
+    let project_id = insert_project(database.as_ref()).await;
+    let host = TestImageGenerationHost::default();
+    let cancel_token = CancellationToken::new();
+    cancel_token.cancel();
+
+    let outcome = context
+        .run_batch_image_generation_validated(
+            &host,
+            BatchImageGenerationApplicationInput {
+                project_id,
+                requests: vec![json!({"prompt": "cancelled"})],
+                items: vec![BatchImageExecutionItem {
+                    index: 0,
+                    request: image_request(),
+                    image_type: "scene".to_string(),
+                    chapter_id: None,
+                    panel_id: None,
+                    metadata_json: None,
+                    config: image_config(),
+                }],
+                runtime_config_snapshot: None,
+            },
+            &ImageGenerationProgress::new(None, Some(&cancel_token)),
+        )
+        .await
+        .expect("批量取消应返回可审计结果");
+
+    assert!(outcome.interrupted);
+    assert_eq!(outcome.skipped, 1);
+    assert_eq!(outcome.first_error.as_deref(), Some("图片生成已停止"));
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
@@ -763,7 +799,7 @@ async fn cancellation_before_provider_marks_owned_workflow_cancelled() {
         .await
         .expect_err("provider 前取消必须显式失败");
 
-    assert!(error.to_string().contains("图片生成已停止"));
+    assert!(matches!(error, AppError::Cancelled));
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 0);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 0);
     let workflow = workflow_run::Entity::find()

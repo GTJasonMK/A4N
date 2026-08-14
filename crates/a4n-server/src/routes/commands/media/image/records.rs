@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, command_input, i64_arg, image_records_actions, to_value,
+    ApiError, ServerState, image_records_actions, strict_command_input, to_value,
 };
 
 pub(in crate::routes::commands) async fn list_images_by_project(
@@ -9,11 +9,11 @@ pub(in crate::routes::commands) async fn list_images_by_project(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let images =
-        image_records_actions::list_images_by_project(state.runtime(), user_id, project_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    let input: image_records_actions::ListImagesByProjectInput =
+        strict_command_input(args, "list_images_by_project")?;
+    let images = image_records_actions::list_images_by_project(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     to_value(images)
 }
 
@@ -23,15 +23,10 @@ pub(in crate::routes::commands) async fn list_images_by_chapter(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: image_records_actions::ListImagesByChapterInput =
-        command_input(args, "list_images_by_chapter")?;
-    let images = image_records_actions::list_images_by_chapter(
-        state.runtime(),
-        user_id,
-        input.project_id,
-        input.chapter_id,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+        strict_command_input(args, "list_images_by_chapter")?;
+    let images = image_records_actions::list_images_by_chapter(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     to_value(images)
 }
 
@@ -41,7 +36,7 @@ pub(in crate::routes::commands) async fn list_video_reference_images(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: image_records_actions::ListVideoReferenceImagesInput =
-        command_input(args, "list_video_reference_images")?;
+        strict_command_input(args, "list_video_reference_images")?;
     let images =
         image_records_actions::list_video_reference_images(state.runtime(), user_id, input)
             .await
@@ -54,10 +49,9 @@ pub(in crate::routes::commands) async fn update_image(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let image_id = i64_arg(args, "imageId")?;
     let input: image_records_actions::UpdateGeneratedImageInput =
-        command_input(args, "update_image")?;
-    let updated = image_records_actions::update_image(state.runtime(), user_id, image_id, input)
+        strict_command_input(args, "update_image")?;
+    let updated = image_records_actions::update_image(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
     to_value(updated)
@@ -68,9 +62,9 @@ pub(in crate::routes::commands) async fn upload_image(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let input: image_records_actions::UploadImageInput = command_input(args, "upload_image")?;
-    let image = image_records_actions::upload_image(state.runtime(), user_id, project_id, input)
+    let input: image_records_actions::UploadImageInput =
+        strict_command_input(args, "upload_image")?;
+    let image = image_records_actions::upload_image(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
     to_value(image)
@@ -81,8 +75,9 @@ pub(in crate::routes::commands) async fn delete_image(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let image_id = i64_arg(args, "imageId")?;
-    image_records_actions::delete_image(state.runtime(), user_id, image_id)
+    let input: image_records_actions::DeleteImageInput =
+        strict_command_input(args, "delete_image")?;
+    image_records_actions::delete_image(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Value::Null)

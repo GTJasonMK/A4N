@@ -23,9 +23,7 @@ pub(super) fn create_imported_image_output(
         None => ProjectPaths::new(data_dir, project_id).images_dir(),
     };
     std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建导入图片目录：{err}"))?;
-    let stamp = Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| Utc::now().timestamp_micros() * 1000);
+    let stamp = Utc::now().timestamp_micros();
     for attempt in 0..20 {
         let suffix = if attempt == 0 {
             String::new()

@@ -46,9 +46,7 @@ fn create_image_output(
 ) -> Result<(PathBuf, std::fs::File), String> {
     let dir = image_output_dir(data_dir, project_id, chapter_id)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建图片目录 {dir:?}：{e}"))?;
-    let timestamp = chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros() * 1000);
+    let timestamp = chrono::Utc::now().timestamp_micros();
     for attempt in 0..20 {
         let collision_suffix = if attempt == 0 {
             String::new()

@@ -12,22 +12,6 @@ use super::{
 use a4n_core::models::ai::generated_image;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
-pub async fn toggle_generated_image_favorite_record<C>(
-    db: &C,
-    image_id: i64,
-) -> Result<generated_image::Model, VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    let image = generated_image::Entity::find_by_id(image_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()))?;
-    let mut active: generated_image::ActiveModel = image.clone().into();
-    active.is_favorite = Set(!image.is_favorite);
-    active.update(db).await.map_err(VideoDbError::Database)
-}
-
 pub async fn update_generated_image_record<C>(
     db: &C,
     image_id: i64,

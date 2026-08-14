@@ -9,13 +9,13 @@ use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 /// 批量图片 exclusive workflow business key。
 pub fn batch_image_workflow_business_key(
     project_id: i64,
-    requests_json: &Value,
+    requests: &[Value],
 ) -> Result<String, String> {
     if project_id <= 0 {
         return Err("项目 ID 必须大于 0".to_string());
     }
-    let serialized = serde_json::to_string(requests_json)
-        .map_err(|err| format!("批量图片请求序列化失败: {err}"))?;
+    let serialized =
+        serde_json::to_string(requests).map_err(|err| format!("批量图片请求序列化失败: {err}"))?;
     Ok(format!(
         "image_batch:{project_id}:{}",
         source_content_sha256(&serialized)
@@ -23,11 +23,11 @@ pub fn batch_image_workflow_business_key(
 }
 
 /// 批量图片工作流输入指纹。
-pub fn batch_image_workflow_fingerprint(project_id: i64, requests_json: &Value) -> Value {
+pub fn batch_image_workflow_fingerprint(project_id: i64, requests: &[Value]) -> Value {
     json!({
         "workflow": "image_batch",
         "project_id": project_id,
-        "requests": requests_json,
+        "requests": requests,
     })
 }
 
@@ -85,10 +85,10 @@ pub fn image_generation_workflow_business_key(
 /// 构造批量图片 begin 输入（status=RUNNING）。
 pub fn batch_image_workflow_run_input(
     project_id: i64,
-    requests_json: &Value,
+    requests: &[Value],
 ) -> Result<UpsertWorkflowRunInput, String> {
     Ok(UpsertWorkflowRunInput {
-        business_key: batch_image_workflow_business_key(project_id, requests_json)?,
+        business_key: batch_image_workflow_business_key(project_id, requests)?,
         workflow_kind: "image_batch".to_string(),
         project_id: Some(project_id),
         root_project_id: None,
@@ -97,7 +97,7 @@ pub fn batch_image_workflow_run_input(
         scope_id: Some(project_id),
         chapter_id: None,
         mode: Some("batch".to_string()),
-        input_fingerprint_json: Some(batch_image_workflow_fingerprint(project_id, requests_json)),
+        input_fingerprint_json: Some(batch_image_workflow_fingerprint(project_id, requests)),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some("image_batch.prepare".to_string()),
         active_task_id: None,
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn batch_business_key_stable_for_same_requests() {
-        let requests = json!([{"a": 1}]);
+        let requests = vec![json!({"a": 1})];
         let key = batch_image_workflow_business_key(7, &requests).expect("key");
         assert!(key.starts_with("image_batch:7:"));
         assert_eq!(
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn rejects_non_positive_project() {
-        assert!(batch_image_workflow_business_key(0, &json!([])).is_err());
+        assert!(batch_image_workflow_business_key(0, &[]).is_err());
         assert!(
             image_generation_workflow_run_input(0, None, "c", "t", None, &json!({}), None).is_err()
         );

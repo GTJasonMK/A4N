@@ -1,6 +1,7 @@
 pub use a4n_api_contract::{
     image::GeneratedImageSummary,
     image_generation::{
+        GenerateBatchImagesInput, GeneratePageImageInput, GenerateSceneImageInput,
         ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
         SceneProfileImagePromptOutput,
     },
@@ -13,27 +14,6 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";
-
-#[derive(Debug, Clone)]
-pub struct SceneImageGenerationInput {
-    pub project_id: i64,
-    pub prompt: String,
-    pub config_id: Option<i64>,
-    pub chapter_id: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PageImageGenerationInput {
-    pub project_id: i64,
-    pub chapter_number: i32,
-    pub page_number: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct BatchImageGenerationInput {
-    pub project_id: i64,
-    pub requests_json: Value,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -30,7 +30,7 @@ pub struct BatchImageExecutionItem {
 #[derive(Debug)]
 pub struct BatchImageGenerationApplicationInput {
     pub project_id: i64,
-    pub requests_json: Value,
+    pub requests: Vec<Value>,
     pub items: Vec<BatchImageExecutionItem>,
     pub runtime_config_snapshot: Option<Value>,
 }
@@ -66,8 +66,8 @@ impl BatchImageGenerationOutcome {
 enum BatchItemResult {
     Succeeded(BatchImageGenerationItem),
     Failed { item_key: String, error: String },
-    Cancelled,
-    Skipped,
+    Cancelled { error: String },
+    Skipped { error: String },
 }
 
 impl OrchestratorContext {
@@ -80,7 +80,7 @@ impl OrchestratorContext {
         validate_batch_input(&input)?;
         let workflow_run = self
             .begin_workflow_run_validated(
-                batch_image_workflow_run_input(input.project_id, &input.requests_json)
+                batch_image_workflow_run_input(input.project_id, &input.requests)
                     .map_err(AppError::InvalidArgument)?,
             )
             .await?;
@@ -104,10 +104,12 @@ impl OrchestratorContext {
                 .finalize_workflow_run_validated(workflow_run_id, true, None)
                 .await
                 .map(|_| ()),
-            Err(AppError::Cancelled) => self
-                .cancel_workflow_run_status_validated(workflow_run_id, Some("操作已取消"))
-                .await
-                .map(|_| ()),
+            Err(error @ AppError::Cancelled) => {
+                let message = error.to_string();
+                self.cancel_workflow_run_status_validated(workflow_run_id, Some(&message))
+                    .await
+                    .map(|_| ())
+            }
             Err(error) => self
                 .finalize_workflow_run_validated(workflow_run_id, false, Some(&error.to_string()))
                 .await
@@ -141,7 +143,7 @@ impl OrchestratorContext {
     ) -> Result<BatchImageGenerationOutcome, AppError> {
         let BatchImageGenerationApplicationInput {
             project_id,
-            requests_json: _,
+            requests: _,
             items,
             runtime_config_snapshot,
         } = input;
@@ -166,8 +168,8 @@ impl OrchestratorContext {
                     let item_index = item.index;
                     let display_index = item_index + 1;
                     let item_key = format!("image-request-{display_index}");
-                    if progress.check_cancelled().is_err() {
-                        return (item_index, BatchItemResult::Skipped);
+                    if let Err(error) = progress.check_cancelled() {
+                        return (item_index, BatchItemResult::Skipped { error });
                     }
                     progress.progress(
                         completed.load(Ordering::Relaxed),
@@ -235,12 +237,16 @@ impl OrchestratorContext {
                             })
                         }
                         Err(error) if image_generation_cancelled(progress, &error) => {
+                            let error = match progress.check_cancelled() {
+                                Err(error) => error,
+                                Ok(()) => error.to_string(),
+                            };
                             progress.progress(
                                 next_current,
                                 total,
                                 &format!("图片 {display_index}/{item_count} 已取消"),
                             );
-                            BatchItemResult::Cancelled
+                            BatchItemResult::Cancelled { error }
                         }
                         Err(error) => {
                             progress.progress(
@@ -279,8 +285,14 @@ impl OrchestratorContext {
                     outcome.failed_item_keys.push(item_key);
                     outcome.first_error.get_or_insert(error);
                 }
-                BatchItemResult::Cancelled => outcome.cancelled += 1,
-                BatchItemResult::Skipped => outcome.skipped += 1,
+                BatchItemResult::Cancelled { error } => {
+                    outcome.cancelled += 1;
+                    outcome.first_error.get_or_insert(error);
+                }
+                BatchItemResult::Skipped { error } => {
+                    outcome.skipped += 1;
+                    outcome.first_error.get_or_insert(error);
+                }
             }
         }
         outcome.interrupted = outcome.cancelled > 0 || outcome.skipped > 0;
@@ -298,19 +310,15 @@ fn validate_batch_input(input: &BatchImageGenerationApplicationInput) -> Result<
     if input.project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
     }
-    let requests = input
-        .requests_json
-        .as_array()
-        .ok_or_else(|| AppError::InvalidArgument("requests_json 必须是数组".to_string()))?;
     if input.items.is_empty() {
         return Err(AppError::InvalidArgument(
             "批量图片请求不能为空".to_string(),
         ));
     }
-    if requests.len() != input.items.len() {
+    if input.requests.len() != input.items.len() {
         return Err(AppError::InvalidArgument(format!(
             "批量图片请求与执行项数量不一致：{} != {}",
-            requests.len(),
+            input.requests.len(),
             input.items.len()
         )));
     }
