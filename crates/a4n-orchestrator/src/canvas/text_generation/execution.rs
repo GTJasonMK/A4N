@@ -32,17 +32,6 @@ struct ValidatedCanvasLlmText {
 }
 
 impl OrchestratorContext {
-    pub async fn prepare_canvas_llm_text_input_validated(
-        &self,
-        workflow_run_id: Option<i64>,
-        node: &a4n_core::models::canvas::canvas_node::Model,
-        document: &a4n_db::canvas::CanvasGraphRecordDocument,
-    ) -> Result<CanvasLlmTextInput, AppError> {
-        let checkpoints = self.canvas_text_source_checkpoints(workflow_run_id).await?;
-        build_canvas_llm_text_input(node, document, checkpoints.as_deref())
-            .map_err(AppError::InvalidArgument)
-    }
-
     pub async fn run_canvas_render_text_node_validated(
         &self,
         input: CanvasTextNodeExecutionInput<'_>,
@@ -284,7 +273,7 @@ impl OrchestratorContext {
         llm_port: &dyn CanvasTextGenerationLlmPort,
     ) -> Result<ValidatedCanvasLlmText, AppError> {
         let mut request =
-            build_canvas_llm_text_request(input, llm_input, workflow_run_id, step_key)
+            build_canvas_llm_text_request(input, llm_input, Some(workflow_run_id), step_key)
                 .map_err(AppError::InvalidArgument)?;
         let call_key = format!("{step_key}:llm_transform");
         let call_order = i32::try_from(input.node.id).map_err(|_| {

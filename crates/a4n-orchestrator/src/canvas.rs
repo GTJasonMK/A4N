@@ -58,10 +58,8 @@ pub use probe_nodes::CanvasProbeNodeExecutionInput;
 pub(crate) use source_checkpoint::source_operation_checkpoint_output;
 pub(crate) use source_text::{source_canvas_text_asset_id, source_text_value};
 pub use text_generation::{
-    CanvasLlmTextInput, CanvasRenderedPrompt, CanvasTextGenerationLlmCall,
-    CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput, CanvasTextNodeRunHandle,
-    CanvasTextNodeRunSummary, build_canvas_llm_text_input_for_preview,
-    build_canvas_rendered_prompt_for_preview,
+    CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
+    CanvasTextNodeRunHandle, CanvasTextNodeRunSummary, build_canvas_llm_text_request_for_preview,
 };
 pub use video_generation::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoImageInput,

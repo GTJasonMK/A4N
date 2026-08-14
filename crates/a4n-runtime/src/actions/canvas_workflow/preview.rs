@@ -1,21 +1,19 @@
 mod context;
-mod contracts;
-mod fallback;
 mod image;
 mod llm;
 mod video;
 
-pub use contracts::{CanvasNodeRequestPreview, PreviewCanvasNodeRequestInput};
+pub use crate::actions::request_preview::ModelRequestPreview;
+pub use a4n_api_contract::canvas::PreviewCanvasNodeRequestInput;
 
 use crate::{AppState, actions::access};
 use context::load_canvas_preview_document;
-use fallback::generic_canvas_node_request_preview;
 
 pub async fn preview_canvas_node_request(
     state: &AppState,
     user_id: i64,
     input: PreviewCanvasNodeRequestInput,
-) -> Result<CanvasNodeRequestPreview, String> {
+) -> Result<ModelRequestPreview, String> {
     access::verify_project_access_string(state, user_id, input.project_id).await?;
     let canvas = state.orchestrator();
     let document = load_canvas_preview_document(&canvas, input.project_id, input.graph_id).await?;
@@ -31,9 +29,7 @@ pub async fn preview_canvas_node_request(
         "GenerateImageNode" => {
             image::preview_canvas_image_node(state, user_id, &input, node, &document).await
         }
-        "LlmTextNode" => {
-            llm::preview_canvas_llm_node(state.orchestrator(), &input, node, &document).await
-        }
-        _ => Ok(generic_canvas_node_request_preview(&input, node)),
+        "LlmTextNode" => llm::preview_canvas_llm_node(state, &input, node, &document).await,
+        _ => Err(format!("画布节点不支持模型请求预览: {}", node.node_kind)),
     }
 }

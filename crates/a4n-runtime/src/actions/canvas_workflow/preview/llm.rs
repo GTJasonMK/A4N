@@ -1,46 +1,43 @@
-use super::contracts::{CanvasNodeRequestPreview, PreviewCanvasNodeRequestInput};
-use super::fallback::blocked_canvas_node_request_preview;
+use super::{ModelRequestPreview, PreviewCanvasNodeRequestInput};
+use crate::{
+    AppState,
+    actions::request_preview::{
+        ChatRequestStepInput, chat_request_step_for_state, model_request_preview,
+    },
+};
 use a4n_core::models::canvas::canvas_node;
-use a4n_orchestrator::canvas::CanvasGraphRecordDocument as CanvasGraphDocument;
-use serde_json::json;
+use a4n_orchestrator::canvas::{
+    CanvasGraphRecordDocument as CanvasGraphDocument, build_canvas_llm_text_request_for_preview,
+};
 
 pub(super) async fn preview_canvas_llm_node(
-    canvas: &a4n_orchestrator::OrchestratorContext,
+    state: &AppState,
     input: &PreviewCanvasNodeRequestInput,
     node: &canvas_node::Model,
     document: &CanvasGraphDocument,
-) -> Result<CanvasNodeRequestPreview, String> {
-    let llm_input = match canvas
-        .prepare_canvas_llm_text_input_validated(None, node, document)
-        .await
-    {
-        Ok(llm_input) => llm_input,
-        Err(reason) => {
-            return Ok(blocked_canvas_node_request_preview(
-                input,
-                node,
-                document,
-                reason.to_string(),
-            ));
-        }
-    };
-    Ok(CanvasNodeRequestPreview {
-        project_id: input.project_id,
-        graph_id: input.graph_id,
-        node_id: input.node_id,
-        node_kind: node.node_kind.clone(),
-        note: "已构造 LlmTextNode 的 LLM 请求预览；预览不会调用外部模型。".to_string(),
-        request: json!({
-            "config_id": llm_input.config_id,
-            "output_kind": llm_input.output_kind,
-            "temperature": llm_input.temperature,
-            "max_tokens": llm_input.max_tokens,
-            "messages": [
-                { "role": "system", "content": llm_input.system_prompt },
-                { "role": "user", "content": llm_input.user_prompt }
-            ],
-            "source_node_ids": llm_input.source_node_ids,
-            "canvas_text_asset_id": llm_input.canvas_text_asset_id
-        }),
-    })
+) -> Result<ModelRequestPreview, String> {
+    let request = build_canvas_llm_text_request_for_preview(
+        input.project_id,
+        input.graph_id,
+        node,
+        document,
+    )?;
+    Ok(model_request_preview(
+        "canvas_llm_text_generation",
+        "画布 LLM 文本模型请求预览",
+        vec![
+            chat_request_step_for_state(
+                state,
+                ChatRequestStepInput {
+                    key: "canvas_llm_text".to_string(),
+                    title: "画布 LLM provider 请求".to_string(),
+                    prompt_name: None,
+                    state: "ready".to_string(),
+                    note: None,
+                    request,
+                },
+            )
+            .await?,
+        ],
+    ))
 }

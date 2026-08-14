@@ -24,8 +24,9 @@ use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
 use super::{
     CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
-    build_canvas_llm_text_input_for_preview, build_canvas_rendered_prompt_for_preview,
+    build_canvas_llm_text_request_for_preview,
     execution::{map_canvas_llm_error, validate_restored_checkpoint_for_test},
+    input::{build_canvas_llm_text_input, build_canvas_rendered_prompt},
 };
 
 struct TestLlmPort {
@@ -221,15 +222,20 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         text_assets: Vec::new(),
     };
 
-    let llm_input =
-        build_canvas_llm_text_input_for_preview(&llm, &document).expect("LLM 输入应构造成功");
-    let rendered = build_canvas_rendered_prompt_for_preview(&render, &document)
-        .expect("Render 输入应构造成功");
+    let llm_input = build_canvas_llm_text_input(&llm, &document, None).expect("LLM 输入应构造成功");
+    let request = build_canvas_llm_text_request_for_preview(2, 1, &llm, &document)
+        .expect("LLM 请求预览应复用执行请求构造器");
+    let rendered =
+        build_canvas_rendered_prompt(&render, &document, None).expect("Render 输入应构造成功");
 
     assert_eq!(llm_input.config_id, Some(12));
     assert_eq!(llm_input.output_kind, "shot_script");
     assert_eq!(llm_input.max_tokens, Some(800));
     assert!(llm_input.user_prompt.contains("雨夜追逐"));
+    assert_eq!(request.max_tokens, Some(800));
+    let trace = request.trace_context.expect("预览请求应携带 trace 上下文");
+    assert_eq!(trace.workflow_run_id, None);
+    assert_eq!(trace.step_key, "canvas_node:11");
     assert_eq!(rendered.prompt_kind, "video_prompt");
     assert_eq!(rendered.prompt_text, "模板 雨夜追逐");
 }

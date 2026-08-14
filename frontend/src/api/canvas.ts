@@ -1,11 +1,11 @@
 import { apiInvoke } from "./index";
 import type { GeneratedImage } from "./image/types";
+import type { ModelRequestPreview } from "./requestPreview";
 import type { GeneratedVideo } from "./video/types";
 import type {
   CanvasGraphDocument,
   CanvasGraphInput,
   CanvasNodeContract,
-  CanvasNodeRequestPreview,
   CanvasPortContract,
   CanvasRunSummary,
   CanvasTextAssetInput,
@@ -25,7 +25,6 @@ export type {
   CanvasGraphDocument,
   CanvasGraphInput,
   CanvasNodeContract,
-  CanvasNodeRequestPreview,
   CanvasPortContract,
   CanvasRunSummary,
 };
@@ -115,7 +114,7 @@ export async function previewCanvasNodeRequest(
   graphId: number,
   nodeId: number,
 ) {
-  return apiInvoke<CanvasNodeRequestPreview>("preview_canvas_node_request", {
+  return apiInvoke<ModelRequestPreview>("preview_canvas_node_request", {
     input: {
       project_id: projectId,
       graph_id: graphId,

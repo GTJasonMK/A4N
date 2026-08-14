@@ -1,5 +1,4 @@
-use super::contracts::{CanvasNodeRequestPreview, PreviewCanvasNodeRequestInput};
-use super::fallback::blocked_canvas_node_request_preview;
+use super::{ModelRequestPreview, PreviewCanvasNodeRequestInput};
 use crate::AppState;
 use crate::actions::image_generation::{GenerateCanvasImageInput, preview_canvas_image_request};
 use a4n_core::models::canvas::canvas_node;
@@ -13,38 +12,16 @@ pub(super) async fn preview_canvas_image_node(
     input: &PreviewCanvasNodeRequestInput,
     node: &canvas_node::Model,
     document: &CanvasGraphDocument,
-) -> Result<CanvasNodeRequestPreview, String> {
-    let image_input = match build_canvas_image_node_input_for_preview(node, document) {
-        Ok(image_input) => GenerateCanvasImageInput {
-            project_id: input.project_id,
-            graph_id: input.graph_id,
-            node_id: node.id,
-            workflow_run_id: None,
-            prompt: image_input.prompt,
-            config_id: image_input.config_id,
-            source_node_ids: image_input.source_node_ids,
-        },
-        Err(reason) => {
-            return Ok(blocked_canvas_node_request_preview(
-                input, node, document, reason,
-            ));
-        }
-    };
-    let preview = match preview_canvas_image_request(state, user_id, image_input).await {
-        Ok(preview) => preview,
-        Err(reason) => {
-            return Ok(blocked_canvas_node_request_preview(
-                input, node, document, reason,
-            ));
-        }
-    };
-    Ok(CanvasNodeRequestPreview {
+) -> Result<ModelRequestPreview, String> {
+    let image_input = build_canvas_image_node_input_for_preview(node, document)?;
+    let image_input = GenerateCanvasImageInput {
         project_id: input.project_id,
         graph_id: input.graph_id,
-        node_id: input.node_id,
-        node_kind: node.node_kind.clone(),
-        note: "已构造 GenerateImageNode 的图片 provider 请求预览；预览不会调用外部模型。"
-            .to_string(),
-        request: serde_json::to_value(preview).map_err(|err| err.to_string())?,
-    })
+        node_id: node.id,
+        workflow_run_id: None,
+        prompt: image_input.prompt,
+        config_id: image_input.config_id,
+        source_node_ids: image_input.source_node_ids,
+    };
+    preview_canvas_image_request(state, user_id, image_input).await
 }

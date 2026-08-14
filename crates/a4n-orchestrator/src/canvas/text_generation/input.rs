@@ -8,20 +8,6 @@ use crate::canvas::{
 
 use super::contracts::{CanvasLlmTextInput, CanvasRenderedPrompt};
 
-pub fn build_canvas_llm_text_input_for_preview(
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-) -> Result<CanvasLlmTextInput, String> {
-    build_canvas_llm_text_input(node, document, None)
-}
-
-pub fn build_canvas_rendered_prompt_for_preview(
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-) -> Result<CanvasRenderedPrompt, String> {
-    build_canvas_rendered_prompt(node, document, None)
-}
-
 pub(super) fn build_canvas_llm_text_input(
     node: &canvas_node::Model,
     document: &CanvasGraphRecordDocument,

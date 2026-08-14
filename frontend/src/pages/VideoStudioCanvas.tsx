@@ -32,6 +32,7 @@ import { Eye,
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../api";
 import { listLlmConfig } from "../api/config/llm";
+import type { ModelRequestPreview } from "../api/requestPreview";
 import {
   getCanvasGraph,
   getCanvasNodeContracts,
@@ -42,7 +43,6 @@ import {
   runCanvasNode,
   saveCanvasGraph,
   type CanvasGraphDocument,
-  type CanvasNodeRequestPreview,
 } from "../api/canvas";
 import { listImageConfigs } from "../api/image";
 import { getProject, type NovelProject } from "../api/project";
@@ -58,6 +58,7 @@ import {
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
+import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
@@ -75,7 +76,6 @@ import {
   EdgeInspector,
   NodeInspector,
 } from "./video-studio/CanvasNodeInspector";
-import { CanvasNodePreviewDialog } from "./video-studio/CanvasNodePreviewDialog";
 import { CanvasWorkflowPanel } from "./video-studio/CanvasWorkflowPanel";
 import {
   STUDIO_NODE_TYPES,
@@ -188,7 +188,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] =
-    useState<CanvasNodeRequestPreview | null>(null);
+    useState<ModelRequestPreview | null>(null);
   const [contentPreviewNode, setContentPreviewNode] =
     useState<StudioNode | null>(null);
   const [mobileNodeLibraryOpen, setMobileNodeLibraryOpen] = useState(false);
@@ -1771,12 +1771,11 @@ export const VideoStudioCanvas: React.FC = () => {
             </Modal>
           </>
         ) : null}
-        <CanvasNodePreviewDialog
+        <RequestPreviewModal
           open={previewDialogOpen}
           loading={previewLoading}
-          preview={previewData}
+          data={previewData}
           onClose={() => setPreviewDialogOpen(false)}
-          onCopyError={(message) => addToast(message, "error")}
         />
         <CanvasNodeContentPreviewDialog
           node={contentPreviewNode}

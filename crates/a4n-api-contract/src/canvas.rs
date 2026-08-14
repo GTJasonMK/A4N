@@ -215,13 +215,3 @@ pub struct CanvasRunSummary {
     pub status: String,
     pub error_message: Option<String>,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct CanvasNodeRequestPreview {
-    pub project_id: i64,
-    pub graph_id: i64,
-    pub node_id: i64,
-    pub node_kind: String,
-    pub note: String,
-    pub request: Value,
-}

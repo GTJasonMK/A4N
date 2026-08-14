@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use crate::canvas::{CanvasNodeRunHandle, CanvasNodeRunSummary};
 
 #[derive(Debug, Clone)]
-pub struct CanvasRenderedPrompt {
+pub(super) struct CanvasRenderedPrompt {
     pub prompt_kind: String,
     pub prompt_text: String,
     pub canvas_text_asset_id: Option<i64>,
@@ -14,7 +14,7 @@ pub struct CanvasRenderedPrompt {
 }
 
 #[derive(Debug, Clone)]
-pub struct CanvasLlmTextInput {
+pub(super) struct CanvasLlmTextInput {
     pub system_prompt: String,
     pub user_prompt: String,
     pub instruction: String,

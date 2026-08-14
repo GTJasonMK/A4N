@@ -2073,15 +2073,6 @@ export interface CanvasRunSummary {
   workflow_run_id: number;
 }
 
-export interface CanvasNodeRequestPreview {
-  graph_id: number;
-  node_id: number;
-  node_kind: string;
-  note: string;
-  project_id: number;
-  request: unknown;
-}
-
 export interface OptimizationAgentPermissions {
   automatic_writeback: boolean;
   read_blueprint: boolean;

@@ -21,7 +21,7 @@ pub use host_contracts::{
 };
 pub use media_import::import_canvas_media;
 pub use preview::{
-    CanvasNodeRequestPreview, PreviewCanvasNodeRequestInput, preview_canvas_node_request,
+    ModelRequestPreview, PreviewCanvasNodeRequestInput, preview_canvas_node_request,
 };
 pub use records_api::{
     get_canvas_graph, get_canvas_node_contracts, save_canvas_graph, save_canvas_text_asset,

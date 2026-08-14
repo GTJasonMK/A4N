@@ -1,4 +1,7 @@
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_core::{
+    models::canvas::canvas_node, source_spans::source_text_hash as source_content_sha256,
+};
+use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_llm::{
     context::{
         COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
@@ -8,14 +11,38 @@ use a4n_llm::{
 };
 use serde_json::json;
 
-use crate::canvas::WORKFLOW_KIND_VIDEO_CANVAS_GRAPH;
+use crate::canvas::{WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_node_step_key};
 
 use super::contracts::{CanvasLlmTextInput, CanvasTextNodeExecutionInput};
+use super::input::build_canvas_llm_text_input;
+
+pub fn build_canvas_llm_text_request_for_preview(
+    project_id: i64,
+    graph_id: i64,
+    node: &canvas_node::Model,
+    document: &CanvasGraphRecordDocument,
+) -> Result<ChatRequest, String> {
+    let llm_input = build_canvas_llm_text_input(node, document, None)?;
+    let step_key = canvas_node_step_key(node.id)?;
+    build_canvas_llm_text_request(
+        &CanvasTextNodeExecutionInput {
+            project_id,
+            graph_id,
+            node,
+            document,
+            shared_run: None,
+            mode: "single_node",
+        },
+        &llm_input,
+        None,
+        &step_key,
+    )
+}
 
 pub(super) fn build_canvas_llm_text_request(
     input: &CanvasTextNodeExecutionInput<'_>,
     llm_input: &CanvasLlmTextInput,
-    workflow_run_id: i64,
+    workflow_run_id: Option<i64>,
     step_key: &str,
 ) -> Result<ChatRequest, String> {
     let node_config_hash = source_content_sha256(
@@ -115,7 +142,7 @@ pub(super) fn build_canvas_llm_text_request(
         workflow: WORKFLOW_KIND_VIDEO_CANVAS_GRAPH.to_string(),
         step_key: step_key.to_string(),
         generation_run_id: None,
-        workflow_run_id: Some(workflow_run_id),
+        workflow_run_id,
         call_key: Some(step_key.to_string()),
         input_fingerprint_sha256: Some(fingerprint),
         context_plan_json: Some(json!({
