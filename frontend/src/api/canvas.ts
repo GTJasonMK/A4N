@@ -1,5 +1,4 @@
 import { apiInvoke } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { GeneratedImage } from "./image/types";
 import type { GeneratedVideo } from "./video/types";
 import type {
@@ -77,7 +76,6 @@ export async function getCanvasGraph(
   graphId?: number | null,
 ) {
   return apiInvoke<CanvasGraphDocument>("get_canvas_graph", {
-    userId: currentUserId(),
     input: {
       project_id: projectId,
       graph_id: graphId ?? null,
@@ -87,7 +85,6 @@ export async function getCanvasGraph(
 
 export async function getCanvasNodeContracts() {
   return apiInvoke<CanvasNodeContract[]>("get_canvas_node_contracts", {
-    userId: currentUserId(),
     input: {} satisfies GetCanvasNodeContractsInput,
   });
 }
@@ -97,7 +94,6 @@ export async function saveCanvasGraph(
   graph: CanvasGraphInput,
 ) {
   return apiInvoke<CanvasGraphDocument>("save_canvas_graph", {
-    userId: currentUserId(),
     input: { project_id: projectId, graph } satisfies SaveCanvasGraphInput,
   });
 }
@@ -107,7 +103,6 @@ export async function saveCanvasTextAsset(
   textAsset: CanvasTextAssetInput,
 ) {
   return apiInvoke<CanvasTextAssetSummary>("save_canvas_text_asset", {
-    userId: currentUserId(),
     input: {
       project_id: projectId,
       text_asset: textAsset,
@@ -121,7 +116,6 @@ export async function previewCanvasNodeRequest(
   nodeId: number,
 ) {
   return apiInvoke<CanvasNodeRequestPreview>("preview_canvas_node_request", {
-    userId: currentUserId(),
     input: {
       project_id: projectId,
       graph_id: graphId,
@@ -132,7 +126,6 @@ export async function previewCanvasNodeRequest(
 
 export async function runCanvasGraph(projectId: number, graphId: number) {
   return apiInvoke<CanvasRunSummary>("run_canvas_graph", {
-    userId: currentUserId(),
     input: {
       project_id: projectId,
       graph_id: graphId,
@@ -147,7 +140,6 @@ export async function runCanvasGraphToNode(
   nodeId: number,
 ) {
   return apiInvoke<CanvasRunSummary>("run_canvas_graph", {
-    userId: currentUserId(),
     input: {
       project_id: projectId,
       graph_id: graphId,
@@ -162,7 +154,6 @@ export async function runCanvasNode(
   nodeId: number,
 ) {
   return apiInvoke<CanvasRunSummary>("run_canvas_node", {
-    userId: currentUserId(),
     input: {
       project_id: projectId,
       graph_id: graphId,
@@ -173,7 +164,6 @@ export async function runCanvasNode(
 
 export async function importCanvasMedia(input: ImportCanvasMediaInput) {
   return apiInvoke<ImportedCanvasMedia>("import_canvas_media", {
-    userId: currentUserId(),
     input,
   });
 }

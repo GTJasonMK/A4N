@@ -1186,11 +1186,11 @@ fn args_generate_scene_profile_image_prompt() -> Value {
 }
 
 fn args_get_canvas_graph() -> Value {
-    typed_input_schema::<crate::canvas::GetCanvasGraphInput>()
+    strict_typed_input_schema::<crate::canvas::GetCanvasGraphInput>()
 }
 
 fn args_get_canvas_node_contracts() -> Value {
-    typed_input_schema::<crate::canvas::GetCanvasNodeContractsInput>()
+    strict_typed_input_schema::<crate::canvas::GetCanvasNodeContractsInput>()
 }
 
 fn args_get_chapter_shooting_script() -> Value {
@@ -1267,7 +1267,7 @@ fn args_get_workflow_run_detail() -> Value {
 }
 
 fn args_import_canvas_media() -> Value {
-    typed_input_schema::<crate::canvas::ImportCanvasMediaInput>()
+    strict_typed_input_schema::<crate::canvas::ImportCanvasMediaInput>()
 }
 
 fn args_import_chapter() -> Value {
@@ -1421,7 +1421,7 @@ fn args_optimize_manga_prompt() -> Value {
 }
 
 fn args_preview_canvas_node_request() -> Value {
-    typed_input_schema::<crate::canvas::PreviewCanvasNodeRequestInput>()
+    strict_typed_input_schema::<crate::canvas::PreviewCanvasNodeRequestInput>()
 }
 
 fn args_preview_chapter_video_request() -> Value {
@@ -1594,11 +1594,11 @@ fn args_resume_workflow_run() -> Value {
 }
 
 fn args_run_canvas_graph() -> Value {
-    typed_input_schema::<crate::canvas::RunCanvasGraphInput>()
+    strict_typed_input_schema::<crate::canvas::RunCanvasGraphInput>()
 }
 
 fn args_run_canvas_node() -> Value {
-    typed_input_schema::<crate::canvas::RunCanvasNodeInput>()
+    strict_typed_input_schema::<crate::canvas::RunCanvasNodeInput>()
 }
 
 fn args_run_galgame_asset_generation() -> Value {
@@ -1610,11 +1610,11 @@ fn args_save_blueprint() -> Value {
 }
 
 fn args_save_canvas_graph() -> Value {
-    typed_input_schema::<crate::canvas::SaveCanvasGraphInput>()
+    strict_typed_input_schema::<crate::canvas::SaveCanvasGraphInput>()
 }
 
 fn args_save_canvas_text_asset() -> Value {
-    typed_input_schema::<crate::canvas::SaveCanvasTextAssetInput>()
+    strict_typed_input_schema::<crate::canvas::SaveCanvasTextAssetInput>()
 }
 
 fn args_save_chapter_outline() -> Value {
@@ -3276,6 +3276,20 @@ mod tests {
             "preview_resume_manga_pipeline_request",
             "get_manga_pipeline_status",
             "cancel_manga_pipeline",
+        ]);
+    }
+
+    #[test]
+    fn canvas_commands_use_one_authenticated_identity() {
+        assert_commands_use_authenticated_host_identity(&[
+            "get_canvas_graph",
+            "get_canvas_node_contracts",
+            "save_canvas_graph",
+            "save_canvas_text_asset",
+            "preview_canvas_node_request",
+            "run_canvas_graph",
+            "run_canvas_node",
+            "import_canvas_media",
         ]);
     }
 
