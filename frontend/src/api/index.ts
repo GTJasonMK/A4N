@@ -233,7 +233,7 @@ export async function authenticatedWebFetch(
 function throwWebUnauthorized(message: string): never {
   const error = new ApiUnauthorizedError(message);
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT, { detail: error.message }));
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
   }
   throw error;
 }
