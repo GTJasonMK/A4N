@@ -25,6 +25,26 @@ fn typed_request<T: DeserializeOwned>(
         .expect("typed test request context should be valid")
 }
 
+fn project_request_context(
+    request_id: &str,
+    trace_id: &str,
+    payload: serde_json::Value,
+) -> a4n_test_support::process::JsonRequest {
+    let mut context = a4n_service_protocol::ServiceRequestContext::deny_all(
+        request_id,
+        a4n_service_protocol::TraceContext {
+            trace_id: trace_id.to_string(),
+            parent_span_id: None,
+        },
+    );
+    context.user_id = Some(7);
+    context.project_id = Some(42);
+    context.root_project_id = Some(42);
+    context
+        .with_payload(PROMPT_RENDER_CAPABILITY_VERSION, payload)
+        .expect("project prompt request context should be valid")
+}
+
 fn run_prompt_git_command(command: &str, git_dir: &std::path::Path, backup_dir: &std::path::Path) {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_a4n-prompt-service"))
         .arg(command)
@@ -114,8 +134,7 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "chapter_word_count_range": "10-20 字",
                 "chapter_word_count_min": 10,
                 "chapter_word_count_max": 20
-            },
-            "project_id": null
+            }
         }),
     );
     assert_route_rejects_unknown_payload_field(
@@ -190,8 +209,7 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({
                 "template_name": "writing",
-                "variables": {"chapter_title": "恢复哨兵"},
-                "project_id": null
+                "variables": {"chapter_title": "恢复哨兵"}
             }),
         )))
         .await
@@ -217,8 +235,7 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                     "chapter_word_count_range": "10-20 字",
                     "chapter_word_count_min": 10,
                     "chapter_word_count_max": 20
-                },
-                "project_id": null
+                }
             }),
         )))
         .await
@@ -226,10 +243,10 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     assert_eq!(render_ab.status, ServiceStatus::Ok);
     let render_ab_payload = render_ab.payload.expect("render_ab payload");
     assert_eq!(
-        render_ab_payload.version_a,
+        render_ab_payload.current,
         "Prompt Git backup sentinel A/B 哨兵"
     );
-    assert_ne!(render_ab_payload.version_a, render_ab_payload.version_b);
+    assert_ne!(render_ab_payload.current, render_ab_payload.original);
 
     let history = client
         .version_history(typed_request(request_context(
@@ -266,12 +283,10 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     assert!(!diff.payload.expect("version diff payload").diff.is_empty());
 
     let override_set = client
-        .set_project_override(typed_request(request_context(
+        .set_project_override(typed_request(project_request_context(
             "prompt-process-override-set",
             "prompt-process-override-set-trace",
-            PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({
-                "project_id": 42,
                 "name": "writing",
                 "content": "Override {{ chapter_title }}"
             }),
@@ -281,13 +296,11 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     assert_eq!(override_set.status, ServiceStatus::Ok);
     override_set.payload.expect("override set acknowledgement");
     let overridden = client
-        .render(typed_request(request_context(
+        .render(typed_request(project_request_context(
             "prompt-process-override-render",
             "prompt-process-override-render-trace",
-            PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({
                 "template_name": "writing",
-                "project_id": 42,
                 "variables": {"chapter_title": "覆盖哨兵"}
             }),
         )))
@@ -302,11 +315,10 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
         "Override 覆盖哨兵"
     );
     let override_removed = client
-        .remove_project_override(typed_request(request_context(
+        .remove_project_override(typed_request(project_request_context(
             "prompt-process-override-remove",
             "prompt-process-override-remove-trace",
-            PROMPT_RENDER_CAPABILITY_VERSION,
-            serde_json::json!({"project_id": 42, "name": "writing"}),
+            serde_json::json!({"name": "writing"}),
         )))
         .await
         .expect("prompt project override removal should cross the process");

@@ -25,9 +25,8 @@ fn test_project_override() {
         TeraPromptEngine::with_defaults(vec![make_entry("greeting", "你好，{{ name }}！")])
             .unwrap();
 
-    tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(engine.set_project_override(42, "greeting", "欢迎回来，{{ name }}！".into()))
+    engine
+        .set_project_override(42, "greeting", "欢迎回来，{{ name }}！".into())
         .unwrap();
 
     let mut vars = HashMap::new();
@@ -45,10 +44,8 @@ fn project_override_trims_name_for_set_and_remove() {
     let engine =
         TeraPromptEngine::with_defaults(vec![make_entry("greeting", "你好，{{ name }}！")])
             .unwrap();
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    runtime
-        .block_on(engine.set_project_override(42, " greeting ", "欢迎回来，{{ name }}！".into()))
+    engine
+        .set_project_override(42, " greeting ", "欢迎回来，{{ name }}！".into())
         .unwrap();
 
     let mut vars = HashMap::new();
@@ -58,9 +55,7 @@ fn project_override_trims_name_for_set_and_remove() {
         "欢迎回来，小明！"
     );
 
-    runtime
-        .block_on(engine.remove_project_override(42, " greeting "))
-        .unwrap();
+    engine.remove_project_override(42, " greeting ").unwrap();
 
     assert_eq!(
         engine.render("greeting", &vars, Some(42)).unwrap(),
@@ -73,19 +68,17 @@ fn project_override_rejects_invalid_identity_content_and_unknown_prompt() {
     let engine =
         TeraPromptEngine::with_defaults(vec![make_entry("greeting", "你好，{{ name }}！")])
             .unwrap();
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let bad_project = runtime
-        .block_on(engine.set_project_override(0, "greeting", "覆盖".into()))
+    let bad_project = engine
+        .set_project_override(0, "greeting", "覆盖".into())
         .expect_err("zero project id should fail");
-    let blank_name = runtime
-        .block_on(engine.set_project_override(42, " ", "覆盖".into()))
+    let blank_name = engine
+        .set_project_override(42, " ", "覆盖".into())
         .expect_err("blank name should fail");
-    let blank_content = runtime
-        .block_on(engine.set_project_override(42, "greeting", " \n ".into()))
+    let blank_content = engine
+        .set_project_override(42, "greeting", " \n ".into())
         .expect_err("blank content should fail");
-    let unknown = runtime
-        .block_on(engine.set_project_override(42, "missing", "覆盖".into()))
+    let unknown = engine
+        .set_project_override(42, "missing", "覆盖".into())
         .expect_err("unknown prompt should fail");
 
     assert!(bad_project.to_string().contains("项目 ID 必须大于 0"));
@@ -100,12 +93,11 @@ fn project_override_rejects_invalid_template_without_mutating_runtime_override()
     let engine =
         TeraPromptEngine::with_defaults(vec![make_entry("greeting", "你好，{{ name }}！")])
             .unwrap();
-    let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut vars = HashMap::new();
     vars.insert("name".into(), serde_json::json!("小明"));
 
-    let err = runtime
-        .block_on(engine.set_project_override(42, "greeting", "坏模板 {{ name".into()))
+    let err = engine
+        .set_project_override(42, "greeting", "坏模板 {{ name".into())
         .expect_err("invalid override template should fail before insert");
 
     assert!(err.to_string().contains("模板编译失败"));
@@ -121,7 +113,7 @@ fn hydrate_project_overrides_applies_batch_after_full_validation() {
         TeraPromptEngine::with_defaults(vec![make_entry("greeting", "你好，{{ name }}！")])
             .unwrap();
 
-    let loaded = engine
+    engine
         .hydrate_project_overrides(vec![
             (42, "greeting".to_string(), "项目42 {{ name }}".to_string()),
             (7, "greeting".to_string(), "项目7 {{ name }}".to_string()),
@@ -130,7 +122,6 @@ fn hydrate_project_overrides_applies_batch_after_full_validation() {
 
     let mut vars = HashMap::new();
     vars.insert("name".into(), serde_json::json!("小明"));
-    assert_eq!(loaded, 2);
     assert_eq!(
         engine.render("greeting", &vars, Some(42)).unwrap(),
         "项目42 小明"
@@ -196,10 +187,10 @@ fn render_ab_compares_current_prompt_with_original_prompt() {
     let mut vars = HashMap::new();
     vars.insert("name".into(), serde_json::json!("小明"));
 
-    let (version_a, version_b) = engine.render_ab("greeting", &vars, None).unwrap();
+    let (current, original) = engine.render_ab("greeting", &vars, None).unwrap();
 
-    assert_eq!(version_a, "新版 小明");
-    assert_eq!(version_b, "原版 小明");
+    assert_eq!(current, "新版 小明");
+    assert_eq!(original, "原版 小明");
 }
 
 #[test]

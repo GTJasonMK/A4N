@@ -1,12 +1,5 @@
 ---
 name: chapter_video_storyboard_video_prompt
-title: 章节分镜视频 Prompt
-category: video
-description: 基于视频片段规划和当前片段多格分镜板生成单段视频提示词
-tags: [video, storyboard, prompt]
-dependencies:
-  - chapter_video_segment_plan
-  - chapter_video_storyboard_prompts
 ---
 
 你是视频生成模型提示词工程师，负责把章节原文、片段规划和当前片段多格分镜板整理为可直接提交给视频生成模型的最终 prompt。

@@ -1,8 +1,5 @@
 ---
 name: scene_profile_candidates
-title: 场景档案候选
-description: 从当前章节识别或匹配可复用场景档案，只输出场景档案候选
-tags: scene, location, discovery
 ---
 
 # 场景档案候选

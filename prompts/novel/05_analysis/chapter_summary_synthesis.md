@@ -1,8 +1,5 @@
 ---
 name: chapter_summary_synthesis
-title: 章节摘要综合
-description: 基于事实候选和章节正文压缩信息生成摘要、标签、基调和时间标记
-tags: analysis, summary, synthesis
 ---
 
 # 章节摘要综合

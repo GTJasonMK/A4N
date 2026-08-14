@@ -10,16 +10,11 @@ use a4n_core::error::AppError;
 
 use crate::engine::{PromptEntry, PromptVersion};
 
-#[derive(Debug, Clone)]
-pub(super) struct ProjectOverride {
-    pub(super) content: String,
-}
-
 /// 从 Markdown 文件加载默认提示词，支持模板渲染、项目覆盖和版本管理。
 pub struct TeraPromptEngine {
     pub(super) entries: Arc<RwLock<HashMap<String, PromptEntry>>>,
     pub(super) original_contents: Arc<RwLock<HashMap<String, String>>>,
-    pub(super) overrides: Arc<RwLock<HashMap<(i64, String), ProjectOverride>>>,
+    pub(super) overrides: Arc<RwLock<HashMap<(i64, String), String>>>,
     pub(super) version_log: Arc<RwLock<HashMap<String, Vec<PromptVersion>>>>,
     pub(super) update_lock: Arc<Mutex<()>>,
     pub(super) git_store: Option<Arc<dyn crate::version_store::PromptVersionStore>>,

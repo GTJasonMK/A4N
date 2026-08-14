@@ -1,8 +1,5 @@
 ---
 name: galgame_branch_design
-title: Galgame 分支设计
-description: 为视觉小说设计珍珠串结构选择支和回收点
-tags: galgame, branch, choice
 ---
 
 # Galgame 分支设计

@@ -1,11 +1,5 @@
 ---
 name: chapter_video_inserted_segment
-title: 章节视频插入片段草稿
-category: video
-description: 根据时间线前后片段、可用视觉锚点和用户要求生成一个可直接进入视频生成的插入片段描述
-tags: [video, segment, inserted]
-dependencies:
-  - chapter_video_builder_rules
 ---
 
 你是影视连续性导演。根据用户提供的时间线邻接上下文，生成一个可直接用于视频生成的插入片段草稿。

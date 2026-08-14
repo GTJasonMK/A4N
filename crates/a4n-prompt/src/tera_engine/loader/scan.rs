@@ -103,9 +103,7 @@ impl TeraPromptEngine {
                 context.root,
                 &path,
             )?;
-            let entry_path = entry.path.clone().ok_or_else(|| {
-                AppError::Internal(anyhow::anyhow!("提示词缺少路径：{}", entry.name))
-            })?;
+            let entry_path = entry.path.clone();
 
             tracing::info!(
                 "加载提示词: {} ({}) [{}]",
@@ -156,7 +154,7 @@ impl TeraPromptEngine {
             name: name.to_string(),
             title: meta.title.clone(),
             content,
-            description: Some(meta.description.clone()),
+            description: meta.description.clone(),
             tags: meta.tags.clone(),
             category: meta.category.clone(),
             dependencies: meta.dependencies.clone(),
@@ -164,7 +162,7 @@ impl TeraPromptEngine {
             version: meta.version.clone(),
             modified_at: chrono::Utc::now().naive_utc(),
             used_by: meta.used_by.clone(),
-            path: Some(meta.path.clone()),
+            path: meta.path.clone(),
         })
     }
 }

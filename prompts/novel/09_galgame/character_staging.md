@@ -1,8 +1,5 @@
 ---
 name: galgame_character_staging
-title: Galgame 角色演出标注
-description: 将剧本行草稿绑定到冻结人物档案，并输出逐行完整演出状态
-tags: galgame, character, staging
 ---
 
 # Galgame 角色演出标注

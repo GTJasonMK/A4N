@@ -65,11 +65,7 @@ fn validate_variables_uses_for_loop_container_not_loop_local() {
 fn test_load_real_prompts_dir() {
     // 仓库根目录的 prompts/，相对于 crates/a4n-prompt
     let prompts_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts");
-    if !prompts_dir.is_dir() {
-        // 在某些构建环境（孤立沙箱）下可能没有 prompts/，跳过而非失败
-        eprintln!("跳过：prompts 目录不存在 ({prompts_dir:?})");
-        return;
-    }
+    assert!(prompts_dir.is_dir(), "prompts 目录不存在：{prompts_dir:?}");
 
     let engine = TeraPromptEngine::from_directory(&prompts_dir)
         .expect("from_directory 应能加载真实 prompts/");
@@ -107,13 +103,6 @@ fn test_load_real_prompts_dir() {
             "缺少必需的 prompt: {required}（实际：{:?}）",
             names
         );
-    }
-
-    // registry 应已加载并通过完整性校验
-    {
-        let reg = engine.registry.read();
-        let errors = reg.validate(&prompts_dir);
-        assert!(errors.is_empty(), "registry 校验失败：{errors:?}");
     }
 
     // 至少一个 prompt 应有 used_by（registry 元数据）

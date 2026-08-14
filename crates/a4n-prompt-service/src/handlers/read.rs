@@ -19,8 +19,7 @@ pub(crate) async fn list_prompts(
     if let Err(error) = validate_service_request(&request) {
         return Json(request.error_response(error));
     }
-    let mut prompts = state.engine.list_all();
-    prompts.sort_by(|left, right| left.name.cmp(&right.name));
+    let prompts = state.engine.list_all();
     Json(request.ok_response(PromptListOutput { prompts }))
 }
 
@@ -50,7 +49,7 @@ pub(crate) async fn render_prompt(
         .render(
             &payload.template_name,
             &payload.variables,
-            payload.project_id,
+            request.project_id,
         )
         .map(|rendered| PromptRenderOutput { rendered });
     Json(result_response(&request, result))
@@ -84,12 +83,9 @@ pub(crate) async fn render_prompt_ab(
         .render_ab(
             &payload.template_name,
             &payload.variables,
-            payload.project_id,
+            request.project_id,
         )
-        .map(|(version_a, version_b)| PromptRenderAbOutput {
-            version_a,
-            version_b,
-        });
+        .map(|(current, original)| PromptRenderAbOutput { current, original });
     Json(result_response(&request, result))
 }
 
@@ -103,7 +99,9 @@ pub(crate) async fn version_history(
     let result = state
         .engine
         .version_history(&request.payload.name)
-        .map(|versions| PromptVersionHistoryOutput { versions });
+        .map(|versions| PromptVersionHistoryOutput {
+            versions: versions.into_iter().map(Into::into).collect(),
+        });
     Json(result_response(&request, result))
 }
 

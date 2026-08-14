@@ -1,10 +1,5 @@
 ---
 name: chapter_video_segment_plan
-title: 章节视频片段规划
-category: video
-description: 根据当前单个导演镜头生成后续逐段视频片段规划
-tags: [video, segment, planning]
-dependencies:
 ---
 
 你是影视分段导演，负责把当前单个导演镜头拆成可逐段生成的视频片段。

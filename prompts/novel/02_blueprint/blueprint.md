@@ -1,8 +1,5 @@
 ---
 name: blueprint
-title: 蓝图生成
-description: 小说蓝图生成的系统提示词，根据灵感对话记录生成完整的故事蓝图，包括世界观设定、角色档案、剧情大纲和主题提炼
-tags: blueprint, worldbuilding, character
 ---
 
 # 角色

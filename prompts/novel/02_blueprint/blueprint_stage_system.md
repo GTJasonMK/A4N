@@ -1,11 +1,5 @@
 ---
 name: blueprint_stage_system
-title: 蓝图分阶段生成 System 约束
-category: blueprint
-description: 在完整蓝图提示词上叠加当前分阶段生成约束，确保模型只完成一个蓝图子阶段
-tags: [blueprint, staged-generation, system]
-dependencies:
-  - blueprint
 ---
 
 {{ base_prompt | safe }}

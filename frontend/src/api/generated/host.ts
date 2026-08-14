@@ -561,7 +561,6 @@ export interface StoragePathsSummary {
   frontend_state_file: string;
   log_dir: string;
   projects_dir: string;
-  prompts_dir: string;
   prompts_git_dir: string;
   qdrant_collection: string;
   qdrant_url: string;
@@ -808,10 +807,10 @@ export interface PromptEntrySummary {
   category: string;
   content: string;
   dependencies: string[];
-  description: string | null;
+  description: string;
   is_modified: boolean;
   name: string;
-  path: string | null;
+  path: string;
   tags: string[];
   title: string;
   used_by: string[];
@@ -826,18 +825,17 @@ export interface PromptVersionSummary {
 }
 
 export interface AbRenderResult {
-  version_a: string;
-  version_b: string;
+  current: string;
+  original: string;
 }
 
 export interface RenderInput {
-  project_id?: number | null;
+  project_id: number | null;
   template_name: string;
-  variables?: Record<string, unknown> | null;
+  variables: Record<string, unknown>;
 }
 
 export interface UpdatePromptInput {
-  author: string;
   content: string;
   name: string;
 }
@@ -865,9 +863,9 @@ export interface ValidateVarsInput {
 }
 
 export interface CategoryInfo {
-  description: string | null;
+  description: string;
   key: string;
-  label: string | null;
+  label: string;
   order: number;
 }
 

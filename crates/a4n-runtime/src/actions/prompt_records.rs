@@ -34,12 +34,13 @@ pub async fn prompt_load_defaults(state: &AppState) -> Result<usize, String> {
 
 pub async fn prompt_update(
     state: &AppState,
+    user_id: i64,
     input: UpdatePromptInput,
 ) -> Result<PromptEntrySummary, String> {
     let context = prompt_context(state);
     state
         .orchestrator()
-        .update_prompt_record_validated(&context, input)
+        .update_prompt_record_validated(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }

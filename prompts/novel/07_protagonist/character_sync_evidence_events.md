@@ -1,8 +1,5 @@
 ---
 name: character_sync_evidence_events
-title: 角色同步证据事件抽取
-description: 从同步章节中抽取指定角色相关的证据事件，不生成档案变更
-tags: protagonist, sync, staged
 ---
 
 你是小说角色档案同步流水线的证据事件抽取器。

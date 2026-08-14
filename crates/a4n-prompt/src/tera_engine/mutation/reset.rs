@@ -22,12 +22,10 @@ impl TeraPromptEngine {
         }
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("提示词缺少原始内容：{name}")))?;
 
-        {
-            let mut staged_tera = self.tera.read().clone();
-            staged_tera
-                .add_raw_template(name, &orig_content)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
-        }
+        let mut staged_tera = self.tera.read().clone();
+        staged_tera
+            .add_raw_template(name, &orig_content)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
         if current.content == orig_content && !current.is_modified {
             return Ok(());
         }
@@ -55,12 +53,8 @@ impl TeraPromptEngine {
                 timestamp: entry.modified_at,
                 author: "system".into(),
                 message: format!("重置前版本: {}", entry.version),
-                content_snapshot: Some(entry.content.clone()),
+                content_snapshot: entry.content.clone(),
             };
-            self.tera
-                .write()
-                .add_raw_template(name, &orig_content)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
             self.version_log
                 .write()
                 .entry(name.to_string())
@@ -71,6 +65,7 @@ impl TeraPromptEngine {
             entry.is_modified = false;
             entry.modified_at = chrono::Utc::now().naive_utc();
         }
+        *self.tera.write() = staged_tera;
         Ok(())
     }
 }

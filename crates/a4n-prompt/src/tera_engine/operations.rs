@@ -44,7 +44,9 @@ impl TeraPromptEngine {
     }
 
     pub fn list_all(&self) -> Vec<PromptEntry> {
-        self.entries.read().values().cloned().collect()
+        let mut entries = self.entries.read().values().cloned().collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.name.cmp(&right.name));
+        entries
     }
 
     pub fn version_history(&self, name: &str) -> Result<Vec<PromptVersion>, AppError> {
@@ -67,7 +69,7 @@ impl TeraPromptEngine {
             } else {
                 "原始版本".into()
             },
-            content_snapshot: Some(entry.content.clone()),
+            content_snapshot: entry.content.clone(),
         });
         Ok(history)
     }
@@ -85,7 +87,7 @@ impl TeraPromptEngine {
                     .read()
                     .get(name)
                     .and_then(|history| history.iter().find(|item| item.version == version))
-                    .and_then(|item| item.content_snapshot.clone())
+                    .map(|item| item.content_snapshot.clone())
                     .ok_or_else(|| AppError::NotFound(format!("版本 {version} 不存在")))
             }
         };
@@ -120,9 +122,7 @@ impl TeraPromptEngine {
             categories.push(PromptCategory {
                 key: key.clone(),
                 label: value.label.clone(),
-                order: value
-                    .order
-                    .ok_or_else(|| AppError::ConfigError(format!("提示词分类 {key} 缺少 order")))?,
+                order: value.order,
                 description: value.description.clone(),
             });
         }

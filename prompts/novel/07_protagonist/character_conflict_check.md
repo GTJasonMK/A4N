@@ -1,8 +1,5 @@
 ---
 name: character_conflict_check
-title: 角色一致性冲突检查
-description: 检查角色档案、状态时间线、属性事件与章节上下文之间的事实和状态矛盾
-tags: protagonist, consistency, conflict
 ---
 
 你是故事一致性检查专家。检查角色档案、状态时间线、属性事件与章节上下文是否存在矛盾。

@@ -1,12 +1,5 @@
 ---
 name: chapter_video_prompt
-title: 章节视频生成 Prompt
-category: video
-description: 将视频片段规划与边界关键帧编排为视频生成模型可直接使用的提示词
-tags: [video, prompt]
-dependencies:
-  - chapter_video_segment_plan
-  - chapter_video_frame_prompts
 ---
 
 你是视频生成模型提示词工程师，负责把章节原文、片段规划和实际存在的边界帧参考图整理为稳定、具体、可直接复制给外部视频生成模型使用的最终 prompt。

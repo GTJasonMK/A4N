@@ -11,8 +11,6 @@ pub struct AppPaths {
     pub temp_dir: PathBuf,
     /// 日志目录
     pub log_dir: PathBuf,
-    /// 提示词模板目录
-    pub prompts_dir: PathBuf,
     /// 配置文件路径
     pub config_file: PathBuf,
 }
@@ -21,7 +19,6 @@ impl AppPaths {
     /// 从 AppConfig 构建
     pub fn new(data_dir: PathBuf, cache_dir: PathBuf, temp_dir: PathBuf, log_dir: PathBuf) -> Self {
         Self {
-            prompts_dir: data_dir.join("prompts"),
             config_file: data_dir.join("config.toml"),
             data_dir,
             cache_dir,
@@ -67,7 +64,6 @@ impl AppPaths {
             &self.cache_dir,
             &self.temp_dir,
             &self.log_dir,
-            &self.prompts_dir,
             &self.exports_dir(),
             &self.backups_dir(),
             &self.webview_dir(),

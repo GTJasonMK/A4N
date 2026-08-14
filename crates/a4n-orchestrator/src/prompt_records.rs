@@ -13,11 +13,10 @@ use a4n_core::error::AppError;
 use a4n_prompt::{
     contracts::{
         CountOutput, PromptBatchUpdate, PromptEmptyPayload, PromptHydrateOverride,
-        PromptHydrateOverridesPayload, PromptListOutput, PromptNamePayload,
-        PromptRemoveProjectOverridePayload, PromptRenderAbOutput, PromptRenderOutput,
-        PromptRenderPayload, PromptSetProjectOverridePayload, PromptUpdateManyPayload,
-        PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
-        PromptVersionDiffPayload, PromptVersionHistoryOutput,
+        PromptHydrateOverridesPayload, PromptListOutput, PromptNamePayload, PromptRenderAbOutput,
+        PromptRenderOutput, PromptRenderPayload, PromptSetProjectOverridePayload,
+        PromptUpdateManyPayload, PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload,
+        PromptVersionDiffOutput, PromptVersionDiffPayload, PromptVersionHistoryOutput,
     },
     engine::{PromptCategory, PromptEntry, PromptVersion},
 };
@@ -29,13 +28,9 @@ use a4n_service_protocol::{
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    OrchestratorContext,
-    collaboration::ProjectAccessRole,
-    prompt_override::{
-        ProjectOverrideIdentity, normalize_project_override_identity,
-        validate_project_override_content,
-    },
+use crate::{OrchestratorContext, collaboration::ProjectAccessRole};
+use a4n_db::prompt_override::{
+    ProjectOverrideIdentity, normalize_project_override_identity, validate_project_override_content,
 };
 
 #[derive(Debug, Clone)]
@@ -152,13 +147,11 @@ impl OrchestratorContext {
     pub async fn update_prompt_record_validated(
         &self,
         context: &PromptExecutionContext,
+        user_id: i64,
         input: UpdatePromptInput,
     ) -> Result<PromptEntrySummary, AppError> {
-        let UpdatePromptInput {
-            name,
-            content,
-            author,
-        } = input;
+        let UpdatePromptInput { name, content } = input;
+        let author = self.auth_user_by_id(user_id).await?.username;
         let entry = if let Some(client) = self.prompt_client_for_execution(context)? {
             let response = client
                 .update(prompt_service_request(
@@ -207,7 +200,7 @@ impl OrchestratorContext {
         context: &PromptExecutionContext,
         name: &str,
     ) -> Result<Vec<PromptVersionSummary>, AppError> {
-        let versions = if let Some(client) = self.prompt_client_for_execution(context)? {
+        if let Some(client) = self.prompt_client_for_execution(context)? {
             let response = client
                 .version_history(prompt_service_request(
                     context,
@@ -219,11 +212,24 @@ impl OrchestratorContext {
                 )?)
                 .await
                 .map_err(prompt_sidecar_error)?;
-            prompt_response_payload::<PromptVersionHistoryOutput>(response)?.versions
-        } else {
-            self.prompt_version_history(name)?
-        };
-        Ok(versions.iter().map(prompt_version_summary).collect())
+            return Ok(
+                prompt_response_payload::<PromptVersionHistoryOutput>(response)?
+                    .versions
+                    .into_iter()
+                    .map(|version| PromptVersionSummary {
+                        version: version.version,
+                        timestamp: version.timestamp.to_string(),
+                        author: version.author,
+                        message: version.message,
+                    })
+                    .collect(),
+            );
+        }
+        Ok(self
+            .prompt_version_history(name)?
+            .iter()
+            .map(prompt_version_summary)
+            .collect())
     }
 
     pub async fn render_prompt_record_validated(
@@ -241,13 +247,8 @@ impl OrchestratorContext {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        self.render_prompt_record_template_validated(
-            context,
-            &template_name,
-            variables.unwrap_or_default(),
-            project_id,
-        )
-        .await
+        self.render_prompt_record_template_validated(context, &template_name, variables, project_id)
+            .await
     }
 
     pub async fn render_prompt_record_template_validated(
@@ -271,7 +272,6 @@ impl OrchestratorContext {
                 PromptRenderPayload {
                     template_name: template_name.to_string(),
                     variables,
-                    project_id,
                 },
             )?)
             .await
@@ -294,7 +294,6 @@ impl OrchestratorContext {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        let variables = variables.unwrap_or_default();
         if let Some(client) = self.prompt_client_for_execution(context)? {
             let root_project_id = self
                 .hydrate_prompt_project_overrides(context, client.clone(), project_id)
@@ -307,23 +306,18 @@ impl OrchestratorContext {
                     PromptRenderPayload {
                         template_name,
                         variables,
-                        project_id,
                     },
                 )?)
                 .await
                 .map_err(prompt_sidecar_error)?;
             let output: PromptRenderAbOutput = prompt_response_payload(response)?;
             return Ok(AbRenderResult {
-                version_a: output.version_a,
-                version_b: output.version_b,
+                current: output.current,
+                original: output.original,
             });
         }
-        let (version_a, version_b) =
-            self.prompt_render_ab(&template_name, &variables, project_id)?;
-        Ok(AbRenderResult {
-            version_a,
-            version_b,
-        })
+        let (current, original) = self.prompt_render_ab(&template_name, &variables, project_id)?;
+        Ok(AbRenderResult { current, original })
     }
 
     pub async fn set_prompt_project_override_validated(
@@ -575,24 +569,11 @@ impl OrchestratorContext {
             .project_override_summaries(project_id, &active_names)
             .await?
             .into_iter()
-            .map(|item| {
-                let content = item
-                    .content
-                    .as_str()
-                    .ok_or_else(|| AppError::InvalidState {
-                        current: "prompt_override_record".to_string(),
-                        operation: format!(
-                            "提示词覆盖 value 必须是字符串：project_id={}, prompt={}",
-                            item.project_id, item.prompt_name
-                        ),
-                    })?;
-                Ok(PromptHydrateOverride {
-                    project_id: item.project_id,
-                    name: item.prompt_name,
-                    content: content.to_string(),
-                })
+            .map(|item| PromptHydrateOverride {
+                name: item.prompt_name,
+                content: item.content,
             })
-            .collect::<Result<Vec<_>, AppError>>()?;
+            .collect();
         let response = client
             .hydrate_project_overrides(prompt_service_request(
                 context,
@@ -613,9 +594,7 @@ impl OrchestratorContext {
         content: String,
     ) -> Result<(), AppError> {
         let Some(client) = self.prompt_client_for_execution(context)? else {
-            return self
-                .prompt_set_project_override(identity.project_id, &identity.name, content)
-                .await;
+            return self.prompt_set_project_override(identity.project_id, &identity.name, content);
         };
         let root_project_id = self
             .collaboration_root_project(identity.project_id)
@@ -627,7 +606,6 @@ impl OrchestratorContext {
                 Some(identity.project_id),
                 Some(root_project_id),
                 PromptSetProjectOverridePayload {
-                    project_id: identity.project_id,
                     name: identity.name.clone(),
                     content,
                 },
@@ -643,9 +621,7 @@ impl OrchestratorContext {
         identity: &ProjectOverrideIdentity,
     ) -> Result<(), AppError> {
         let Some(client) = self.prompt_client_for_execution(context)? else {
-            return self
-                .prompt_remove_project_override(identity.project_id, &identity.name)
-                .await;
+            return self.prompt_remove_project_override(identity.project_id, &identity.name);
         };
         let root_project_id = self
             .collaboration_root_project(identity.project_id)
@@ -656,8 +632,7 @@ impl OrchestratorContext {
                 context,
                 Some(identity.project_id),
                 Some(root_project_id),
-                PromptRemoveProjectOverridePayload {
-                    project_id: identity.project_id,
+                PromptNamePayload {
                     name: identity.name.clone(),
                 },
             )?)
@@ -814,7 +789,6 @@ mod tests {
             Some(42),
             Some(3),
             PromptSetProjectOverridePayload {
-                project_id: 42,
                 name: "writing".to_string(),
                 content: "content".to_string(),
             },

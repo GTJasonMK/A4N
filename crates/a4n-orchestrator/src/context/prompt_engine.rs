@@ -97,23 +97,21 @@ impl OrchestratorContext {
         self.engine.validate_variables(template_name, variables)
     }
 
-    pub(crate) async fn prompt_set_project_override(
+    pub(crate) fn prompt_set_project_override(
         &self,
         project_id: i64,
         name: &str,
         content: String,
     ) -> Result<(), AppError> {
-        self.engine
-            .set_project_override(project_id, name, content)
-            .await
+        self.engine.set_project_override(project_id, name, content)
     }
 
-    pub(crate) async fn prompt_remove_project_override(
+    pub(crate) fn prompt_remove_project_override(
         &self,
         project_id: i64,
         name: &str,
     ) -> Result<(), AppError> {
-        self.engine.remove_project_override(project_id, name).await
+        self.engine.remove_project_override(project_id, name)
     }
 
     pub(crate) fn prompt_categories(&self) -> Result<Vec<PromptCategory>, AppError> {

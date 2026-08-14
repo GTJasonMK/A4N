@@ -1,8 +1,5 @@
 ---
 name: galgame_background_image_prompt
-title: Galgame 背景图提示词
-description: 将背景规划和项目美术约束渲染为图像生成提示词
-tags: galgame, background, image-prompt
 ---
 
 视觉小说 Galgame 背景图，16:9 横构图，可直接作为对话场景背景使用，空镜或弱人物背景，无清晰主角立绘，无 UI、无文字、无水印、无字幕、无对白框。

@@ -126,7 +126,7 @@ prompt_web_no_input_command!(
     prompt_load_defaults,
     prompt_records_actions::prompt_load_defaults,
 );
-prompt_web_input_command!(
+prompt_web_user_input_command!(
     prompt_update,
     prompt_records_actions::UpdatePromptInput,
     prompt_records_actions::prompt_update,

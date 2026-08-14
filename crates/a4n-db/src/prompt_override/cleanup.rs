@@ -5,7 +5,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::PromptOverrideDbError;
 use super::identity::parse_project_override_key;
-use super::storage::all_system_settings;
+use super::storage::all_prompt_override_settings;
 use super::types::database;
 
 pub async fn delete_project_overrides_for_prompt_names(
@@ -16,7 +16,7 @@ pub async fn delete_project_overrides_for_prompt_names(
         return Ok(0);
     }
 
-    let records = all_system_settings(db).await?;
+    let records = all_prompt_override_settings(db).await?;
     let ids = retired_project_override_record_ids(&records, prompt_names)?;
     if ids.is_empty() {
         return Ok(0);
@@ -33,7 +33,7 @@ pub async fn delete_project_overrides_for_prompt_names(
 pub async fn preflight_project_override_keys_for_retired_cleanup(
     db: &DatabaseConnection,
 ) -> Result<(), PromptOverrideDbError> {
-    let records = all_system_settings(db).await?;
+    let records = all_prompt_override_settings(db).await?;
     validate_project_override_record_keys(&records)
 }
 
@@ -52,9 +52,7 @@ pub(super) fn retired_project_override_record_ids(
 ) -> Result<Vec<i64>, PromptOverrideDbError> {
     let mut ids = Vec::new();
     for record in records {
-        let Some(identity) = parse_project_override_key(&record.key)? else {
-            continue;
-        };
+        let identity = parse_project_override_key(&record.key)?;
         if prompt_names.contains(&identity.name) {
             ids.push(record.id);
         }

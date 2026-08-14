@@ -1,8 +1,5 @@
 ---
 name: manga_visual_anchor_extraction
-title: 漫画视觉锚点抽取
-description: 基于事件窗口提取漫画分页需要的场景、地点氛围和视觉环境锚点
-tags: manga, visual, scene
 ---
 
 # 漫画视觉锚点抽取

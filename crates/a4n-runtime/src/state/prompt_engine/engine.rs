@@ -5,13 +5,11 @@ use a4n_core::config::app_config::AppConfig;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::DatabaseConnection;
 
-use super::portable::ensure_portable_prompts_dir;
-
 pub(in crate::state) async fn create_prompt_engine(
     db: &DatabaseConnection,
     config: &AppConfig,
 ) -> Result<TeraPromptEngine, a4n_core::error::AppError> {
-    let prompts_dir = ensure_portable_prompts_dir(&config.data_dir)
+    let prompts_dir = crate::prompt_resources::bundled_prompts_dir(&config.data_dir)
         .map_err(a4n_core::error::AppError::ConfigError)?;
     let base = TeraPromptEngine::from_directory(&prompts_dir)?;
     #[cfg(feature = "embedded-prompt-git")]
@@ -29,7 +27,7 @@ pub(in crate::state) async fn create_prompt_engine(
 async fn hydrate_project_overrides_from_settings(
     db: &DatabaseConnection,
     engine: &TeraPromptEngine,
-) -> Result<usize, String> {
+) -> Result<(), String> {
     let plan = a4n_db::prompt_override::project_override_hydration_plan(db)
         .await
         .map_err(|error| error.to_string())?;

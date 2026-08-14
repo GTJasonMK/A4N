@@ -8,7 +8,7 @@ use super::support::{MemoryPromptVersionStore, make_entry, write_test_registry};
 #[test]
 fn test_reset_to_original() {
     let tmp = tempfile::tempdir().unwrap();
-    let md = "---\nname: test\ntitle: 测试\ncategory: writing\n---\n原始内容";
+    let md = "---\nname: test\n---\n原始内容";
     fs::write(tmp.path().join("test.md"), md).unwrap();
     write_test_registry(
         tmp.path(),
@@ -109,7 +109,7 @@ fn update_with_git_failure_does_not_mutate_runtime_prompt() {
     let history = engine.version_history("greeting").unwrap();
     assert_eq!(history.len(), 1);
     assert_eq!(history[0].message, "原始版本");
-    assert_eq!(history[0].content_snapshot.as_deref(), Some("旧内容"));
+    assert_eq!(history[0].content_snapshot, "旧内容");
 }
 
 #[test]
@@ -145,12 +145,9 @@ fn with_git_store_rehydrates_latest_committed_prompt_content() {
     let history = restarted.version_history("greeting").unwrap();
     assert_eq!(history.len(), 2);
     assert_eq!(history[0].version, "1.0");
-    assert_eq!(history[0].content_snapshot.as_deref(), Some("旧内容"));
+    assert_eq!(history[0].content_snapshot, "旧内容");
     assert_eq!(history[1].version, "1.0.1");
-    assert_eq!(
-        history[1].content_snapshot.as_deref(),
-        Some("新内容 {{ name }}")
-    );
+    assert_eq!(history[1].content_snapshot, "新内容 {{ name }}");
 }
 
 #[test]
@@ -188,12 +185,9 @@ fn reset_with_git_store_survives_restart() {
 
     let history = restarted.version_history("greeting").unwrap();
     assert_eq!(history.len(), 3);
-    assert_eq!(history[0].content_snapshot.as_deref(), Some("旧内容"));
-    assert_eq!(
-        history[1].content_snapshot.as_deref(),
-        Some("新内容 {{ name }}")
-    );
-    assert_eq!(history[2].content_snapshot.as_deref(), Some("旧内容"));
+    assert_eq!(history[0].content_snapshot, "旧内容");
+    assert_eq!(history[1].content_snapshot, "新内容 {{ name }}");
+    assert_eq!(history[2].content_snapshot, "旧内容");
 }
 
 #[test]

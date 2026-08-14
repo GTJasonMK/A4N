@@ -1,8 +1,5 @@
 ---
 name: manga_chapter_comic_synthesis
-title: 漫画章节综合
-description: 基于事件、对白、视觉锚点和物品生成漫画分页所需的章节摘要、情绪轨迹和建议页数
-tags: manga, synthesis, planning
 ---
 
 # 漫画章节综合

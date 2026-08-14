@@ -3,10 +3,10 @@ use super::transport::{HttpClientFactory, HttpSidecarTransport};
 use a4n_prompt::{
     contracts::{
         CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptListOutput,
-        PromptNamePayload, PromptRemoveProjectOverridePayload, PromptRenderAbOutput,
-        PromptRenderOutput, PromptRenderPayload, PromptSetProjectOverridePayload,
-        PromptUpdateManyPayload, PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload,
-        PromptVersionDiffOutput, PromptVersionDiffPayload, PromptVersionHistoryOutput,
+        PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload,
+        PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
+        PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
+        PromptVersionDiffPayload, PromptVersionHistoryOutput,
     },
     engine::{PromptCategory, PromptEntry},
 };
@@ -105,7 +105,7 @@ impl PromptClient for HttpPromptClient {
 
     async fn remove_project_override(
         &self,
-        request: ServiceRequest<PromptRemoveProjectOverridePayload>,
+        request: ServiceRequest<PromptNamePayload>,
     ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
             .post_typed("/prompt/override/remove", request)

@@ -8,8 +8,8 @@ mod loading;
 mod state;
 mod validation;
 
-pub use contracts::*;
-pub use state::PromptRegistry;
+pub(crate) use contracts::*;
+pub(crate) use state::PromptRegistry;
 
 #[cfg(test)]
 mod tests;

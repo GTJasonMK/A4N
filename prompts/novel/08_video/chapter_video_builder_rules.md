@@ -1,18 +1,5 @@
 ---
 name: chapter_video_builder_rules
-title: 章节视频 Builder 约束规则
-category: video
-description: 视频提示词 builder 注入到 JSON payload 的可编辑业务规则集合
-tags: [video, builder, rules]
-dependencies:
-  - chapter_video_segment_plan
-  - chapter_video_frame_prompts
-  - chapter_video_first_frame_prompts
-  - chapter_video_prompt
-  - chapter_video_first_frame_video_prompt
-  - chapter_video_storyboard_prompts
-  - chapter_video_storyboard_video_prompt
-  - chapter_video_chat_prompt
 ---
 
 {

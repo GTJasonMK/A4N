@@ -10,8 +10,8 @@ use super::support::{make_entry, write_test_registry};
 fn test_from_directory() {
     let tmp = tempfile::tempdir().unwrap();
 
-    let md1 = "---\nname: greeting\ntitle: 问候\ncategory: writing\n---\n你好，{{ name }}！";
-    let md2 = "---\nname: outline_prompt\ntitle: 大纲生成\ncategory: outline\n---\n为{{ title }}生成大纲。";
+    let md1 = "---\nname: greeting\n---\n你好，{{ name }}！";
+    let md2 = "---\nname: outline_prompt\n---\n为{{ title }}生成大纲。";
 
     fs::write(tmp.path().join("greeting.md"), md1).unwrap();
     fs::write(tmp.path().join("outline.md"), md2).unwrap();
@@ -47,7 +47,7 @@ fn registry_category_is_not_limited_to_hard_coded_engine_enum() {
     .unwrap();
     fs::write(
         tmp.path().join("_registry.yaml"),
-        "version: \"1.0\"\nprompts:\n  experimental_prompt:\n    path: \"experimental.md\"\n    title: \"实验模板\"\n    category: \"experimental\"\n    tags: [\"test\", \"experimental\"]\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\n    description: \"实验分类模板\"\ncategories:\n  experimental:\n    label: \"实验\"\n    order: 90\n",
+        "prompts:\n  experimental_prompt:\n    path: \"experimental.md\"\n    title: \"实验模板\"\n    category: \"experimental\"\n    tags: [\"test\", \"experimental\"]\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\n    description: \"实验分类模板\"\ncategories:\n  experimental:\n    label: \"实验\"\n    order: 90\n    description: \"实验模板\"\n",
     )
     .unwrap();
 
@@ -132,11 +132,11 @@ fn load_defaults_refreshes_existing_registry_metadata_without_overwriting_conten
 
     let entry = engine.get("greeting").unwrap();
     assert_eq!(entry.title, "新标题");
-    assert_eq!(entry.description.as_deref(), Some("新描述"));
+    assert_eq!(entry.description, "新描述");
     assert_eq!(entry.category, "outline");
     assert_eq!(entry.tags, vec!["new".to_string(), "registry".to_string()]);
     assert_eq!(entry.used_by, vec!["NewCaller".to_string()]);
-    assert_eq!(entry.path.as_deref(), Some("greeting.md"));
+    assert_eq!(entry.path, "greeting.md");
     assert_eq!(entry.content, "用户修改 {{ name }}");
     assert_eq!(entry.version, "1.0.1");
     assert!(entry.is_modified);
@@ -159,7 +159,8 @@ fn load_defaults_removes_retired_prompt_runtime_state_when_registry_and_file_are
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(engine.update("old", "用户旧模板".to_string(), "tester"))
         .unwrap();
-    rt.block_on(engine.set_project_override(42, "old", "旧覆盖".to_string()))
+    engine
+        .set_project_override(42, "old", "旧覆盖".to_string())
         .unwrap();
 
     fs::remove_file(tmp.path().join("old.md")).unwrap();

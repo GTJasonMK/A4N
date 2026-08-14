@@ -1,8 +1,5 @@
 ---
 name: content_optimization_patch
-title: 内容优化局部文章补丁 Agent
-description: 基于内容优化 issues 生成可审阅的局部文章补丁
-tags: optimization, patch, agent, editing
 ---
 
 # 角色

@@ -5,16 +5,15 @@ use sea_orm::DatabaseConnection;
 
 use super::identity::{parse_project_override_key, validate_project_override_project_id};
 use super::storage::{
-    MissingProjectMessage, all_system_settings, ensure_project_exists,
-    project_override_record_content,
+    MissingProjectMessage, all_prompt_override_settings, ensure_project_exists,
+    project_override_record_content, project_prompt_override_settings,
 };
-use super::types::invalid_argument;
 use super::{ProjectOverrideHydration, ProjectPromptOverrideSummary, PromptOverrideDbError};
 
 pub async fn project_override_hydration_plan(
     db: &DatabaseConnection,
 ) -> Result<Vec<ProjectOverrideHydration>, PromptOverrideDbError> {
-    let records = all_system_settings(db).await?;
+    let records = all_prompt_override_settings(db).await?;
     let plan = project_override_hydration_candidates_from_records(&records)?;
 
     for item in &plan {
@@ -31,7 +30,7 @@ pub async fn project_override_summaries(
 ) -> Result<Vec<ProjectPromptOverrideSummary>, PromptOverrideDbError> {
     let project_id = validate_project_override_project_id(project_id)?;
     ensure_project_exists(db, project_id, MissingProjectMessage::Command).await?;
-    let records = all_system_settings(db).await?;
+    let records = project_prompt_override_settings(db, project_id).await?;
 
     project_override_summaries_from_records(project_id, records, active_prompt_names)
 }
@@ -42,9 +41,7 @@ pub(super) fn project_override_hydration_candidates_from_records(
     let mut plan = Vec::new();
 
     for record in records {
-        let Some(identity) = parse_project_override_key(&record.key)? else {
-            continue;
-        };
+        let identity = parse_project_override_key(&record.key)?;
         let content = project_override_record_content(record)?;
         plan.push(ProjectOverrideHydration { identity, content });
     }
@@ -59,23 +56,18 @@ pub(super) fn project_override_summaries_from_records(
 ) -> Result<Vec<ProjectPromptOverrideSummary>, PromptOverrideDbError> {
     let mut overrides = Vec::new();
     for record in records {
-        let Some(identity) = parse_project_override_key(&record.key)? else {
-            continue;
-        };
+        let identity = parse_project_override_key(&record.key)?;
         if identity.project_id != project_id {
             continue;
         }
-        let content = record.value.as_str().ok_or_else(|| {
-            invalid_argument(format!("提示词覆盖记录 value 必须是字符串: {}", record.key))
-        })?;
-        super::identity::validate_project_override_content(content)?;
+        let content = project_override_record_content(&record)?;
         if !active_prompt_names.contains(&identity.name) {
             continue;
         }
         overrides.push(ProjectPromptOverrideSummary {
             project_id,
             prompt_name: identity.name,
-            content: record.value,
+            content,
             updated_at: record.updated_at.to_string(),
         });
     }

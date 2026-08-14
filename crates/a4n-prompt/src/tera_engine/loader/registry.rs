@@ -1,23 +1,7 @@
-use std::collections::HashMap;
-use std::path::Path;
-
-use a4n_core::error::AppError;
-
 use super::contracts::{PromptLoadPlan, RuntimeCommitPlan};
 use crate::engine::PromptEntry;
 use crate::registry::{PromptRegistry, PromptRegistryEntry};
-
-pub(super) fn load_validated_registry(dir: &Path) -> Result<PromptRegistry, AppError> {
-    let registry = PromptRegistry::load_from_dir(dir)?;
-    let registry_errors = registry.validate(dir);
-    if !registry_errors.is_empty() {
-        return Err(AppError::ConfigError(format!(
-            "提示词注册表校验失败：{}",
-            registry_errors.join("；")
-        )));
-    }
-    Ok(registry)
-}
+use std::collections::HashMap;
 
 pub(super) fn runtime_commit_plan_for_registry(
     registry: &PromptRegistry,
@@ -55,12 +39,12 @@ fn refresh_entry_registry_metadata(entry: &mut PromptEntry, meta: &PromptRegistr
     let mut changed = false;
 
     changed |= replace_if_changed(&mut entry.title, meta.title.clone());
-    changed |= replace_if_changed(&mut entry.description, Some(meta.description.clone()));
+    changed |= replace_if_changed(&mut entry.description, meta.description.clone());
     changed |= replace_if_changed(&mut entry.tags, meta.tags.clone());
     changed |= replace_if_changed(&mut entry.category, meta.category.clone());
     changed |= replace_if_changed(&mut entry.dependencies, meta.dependencies.clone());
     changed |= replace_if_changed(&mut entry.used_by, meta.used_by.clone());
-    changed |= replace_if_changed(&mut entry.path, Some(meta.path.clone()));
+    changed |= replace_if_changed(&mut entry.path, meta.path.clone());
 
     changed
 }

@@ -1,11 +1,5 @@
 ---
 name: chapter_video_prompt_optimization_user
-title: 视频提示词优化 User 请求
-category: video
-description: 将用户优化要求和当前视频提示词上下文整理为严格 JSON 优化请求
-tags: [video, prompt, optimization, user-request]
-dependencies:
-  - chapter_video_prompt_optimization
 ---
 
 请根据以下 JSON 输入优化一个现有视频文字资产。只返回 output_contract 要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段。所有字符串值必须是合法 JSON 字符串；如果字符串内部需要换行，必须写成 \n 转义，不得在字符串内部直接换行。

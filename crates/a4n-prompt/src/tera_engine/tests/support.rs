@@ -104,7 +104,7 @@ pub(super) fn write_test_registry(dir: &Path, entries: &str) {
     fs::write(
         dir.join("_registry.yaml"),
         format!(
-            "version: \"1.0\"\nprompts:\n{entries}categories:\n  writing:\n    label: \"写作\"\n    order: 1\n  outline:\n    label: \"大纲\"\n    order: 2"
+            "prompts:\n{entries}categories:\n  writing:\n    label: \"写作\"\n    order: 1\n    description: \"写作模板\"\n  outline:\n    label: \"大纲\"\n    order: 2\n    description: \"大纲模板\""
         ),
     )
     .unwrap();
@@ -115,7 +115,7 @@ pub(super) fn make_entry(name: &str, content: &str) -> PromptEntry {
         name: name.to_string(),
         title: name.to_string(),
         content: content.to_string(),
-        description: None,
+        description: "test prompt".to_string(),
         tags: vec![],
         category: "writing".to_string(),
         dependencies: vec![],
@@ -123,6 +123,6 @@ pub(super) fn make_entry(name: &str, content: &str) -> PromptEntry {
         version: "1.0".to_string(),
         modified_at: Utc::now().naive_utc(),
         used_by: Vec::new(),
-        path: None,
+        path: format!("{name}.md"),
     }
 }

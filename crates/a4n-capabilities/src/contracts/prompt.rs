@@ -1,10 +1,10 @@
 use a4n_prompt::{
     contracts::{
         CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptListOutput,
-        PromptNamePayload, PromptRemoveProjectOverridePayload, PromptRenderAbOutput,
-        PromptRenderOutput, PromptRenderPayload, PromptSetProjectOverridePayload,
-        PromptUpdateManyPayload, PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload,
-        PromptVersionDiffOutput, PromptVersionDiffPayload, PromptVersionHistoryOutput,
+        PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload,
+        PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
+        PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
+        PromptVersionDiffPayload, PromptVersionHistoryOutput,
     },
     engine::{PromptCategory, PromptEntry},
 };
@@ -45,7 +45,7 @@ pub trait PromptClient: CapabilityClient {
     ) -> CapabilityResult<ServiceResponse<()>>;
     async fn remove_project_override(
         &self,
-        request: ServiceRequest<PromptRemoveProjectOverridePayload>,
+        request: ServiceRequest<PromptNamePayload>,
     ) -> CapabilityResult<ServiceResponse<()>>;
     async fn load_defaults(
         &self,

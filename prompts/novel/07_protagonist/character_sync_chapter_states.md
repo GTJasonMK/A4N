@@ -1,8 +1,5 @@
 ---
 name: character_sync_chapter_states
-title: 角色同步章节状态生成
-description: 为同步范围内每章生成角色章节结束状态
-tags: protagonist, sync, staged
 ---
 
 你是小说角色档案同步流水线的章节状态生成器。

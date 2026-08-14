@@ -15,10 +15,16 @@ fn load_missing_file_returns_error() {
 #[test]
 fn load_parse_and_lookup() {
     let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("novel/02_blueprint")).unwrap();
+    fs::write(
+        tmp.path().join("novel/02_blueprint/blueprint.md"),
+        "---\nname: blueprint\n---\nBlueprint",
+    )
+    .unwrap();
     let mut file = fs::File::create(tmp.path().join("_registry.yaml")).unwrap();
     writeln!(
         file,
-        "version: \"1.0\"\nprompts:\n  blueprint:\n    path: \"novel/02_blueprint/blueprint.md\"\n    title: \"蓝图\"\n    category: \"blueprint\"\n    description: \"蓝图生成\"\n    tags: [\"blueprint\"]\n    version: \"1.0\"\n    used_by:\n      - \"BlueprintPipeline.execute\"\n    dependencies:\n      - \"inspiration\"\ncategories:\n  blueprint:\n    label: \"蓝图\"\n    order: 2"
+        "prompts:\n  blueprint:\n    path: \"novel/02_blueprint/blueprint.md\"\n    title: \"蓝图\"\n    category: \"blueprint\"\n    description: \"蓝图生成\"\n    tags: [\"blueprint\"]\n    version: \"1.0\"\n    used_by:\n      - \"BlueprintPipeline.execute\"\n    dependencies: []\ncategories:\n  blueprint:\n    label: \"蓝图\"\n    order: 2\n    description: \"蓝图模板\""
     )
     .unwrap();
 
@@ -34,7 +40,7 @@ fn load_registry_requires_tags() {
     let mut file = fs::File::create(tmp.path().join("_registry.yaml")).unwrap();
     writeln!(
         file,
-        "version: \"1.0\"\nprompts:\n  inspiration:\n    path: \"novel/01_inspiration/inspiration.md\"\n    title: \"灵感对话\"\n    category: \"inspiration\"\n    description: \"缺少 tags 应失败\"\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\ncategories:\n  inspiration:\n    label: \"构思\""
+        "prompts:\n  inspiration:\n    path: \"novel/01_inspiration/inspiration.md\"\n    title: \"灵感对话\"\n    category: \"inspiration\"\n    description: \"缺少 tags 应失败\"\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\ncategories:\n  inspiration:\n    label: \"构思\"\n    order: 1\n    description: \"构思模板\""
     )
     .unwrap();
 
@@ -48,33 +54,28 @@ fn validate_catches_missing_dep_and_file() {
     let mut file = fs::File::create(tmp.path().join("_registry.yaml")).unwrap();
     writeln!(
         file,
-        "prompts:\n  a:\n    path: \"missing.md\"\n    title: \"A\"\n    category: \"x\"\n    tags: [\"test\"]\n    version: \"1.0\"\n    dependencies:\n      - \"nope\"\n    description: \"A prompt\"\ncategories: {{}}"
+        "prompts:\n  a:\n    path: \"missing.md\"\n    title: \"A\"\n    category: \"x\"\n    tags: [\"test\"]\n    version: \"1.0\"\n    used_by: []\n    dependencies:\n      - \"nope\"\n    description: \"A prompt\"\ncategories: {{}}"
     )
     .unwrap();
 
-    let registry = PromptRegistry::load_from_dir(tmp.path()).unwrap();
-    let errors = registry.validate(tmp.path());
-    assert!(errors.iter().any(|error| error.contains("文件不存在")));
-    assert!(errors.iter().any(|error| error.contains("依赖不存在")));
-    assert!(errors.iter().any(|error| error.contains("分类未定义")));
+    let error = PromptRegistry::load_from_dir(tmp.path()).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("文件不存在"));
+    assert!(message.contains("依赖不存在"));
+    assert!(message.contains("分类未定义"));
 }
 
 #[test]
-fn validate_requires_category_order() {
+fn load_requires_complete_category_metadata() {
     let tmp = TempDir::new().unwrap();
     fs::write(tmp.path().join("test.md"), "---\nname: test\n---\nHello").unwrap();
     let mut file = fs::File::create(tmp.path().join("_registry.yaml")).unwrap();
     writeln!(
         file,
-        "prompts:\n  test:\n    path: \"test.md\"\n    title: \"测试\"\n    category: \"writing\"\n    tags: [\"test\"]\n    version: \"1.0\"\n    dependencies: []\n    description: \"测试模板\"\ncategories:\n  writing:\n    label: \"写作\""
+        "prompts:\n  test:\n    path: \"test.md\"\n    title: \"测试\"\n    category: \"writing\"\n    tags: [\"test\"]\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\n    description: \"测试模板\"\ncategories:\n  writing:\n    label: \"写作\"\n    description: \"写作模板\""
     )
     .unwrap();
 
-    let registry = PromptRegistry::load_from_dir(tmp.path()).unwrap();
-    let errors = registry.validate(tmp.path());
-    assert!(
-        errors
-            .iter()
-            .any(|error| error == "分类缺少 order：writing")
-    );
+    let error = PromptRegistry::load_from_dir(tmp.path()).unwrap_err();
+    assert!(error.to_string().contains("missing field `order`"));
 }

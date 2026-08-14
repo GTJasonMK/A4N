@@ -1,8 +1,5 @@
 ---
 name: structured_json_field_repair
-title: 结构化 JSON 字段补丁
-description: 依据后端 JSON Schema 诊断只修复被授权的字段路径
-tags: [system, json, schema, repair, patch]
 ---
 
 # 结构化 JSON 字段补丁

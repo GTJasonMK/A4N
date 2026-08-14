@@ -1,8 +1,5 @@
 ---
 name: chapter_shooting_design_unit
-title: 拍摄设计单元
-description: 为一个已校验叙事单元设计镜头、调度、表演、声音和连续性
-tags: [analysis, directing, shot, blocking, design-unit]
 ---
 
 # 拍摄设计单元

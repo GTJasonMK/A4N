@@ -14,6 +14,7 @@ pub mod file_utils;
 pub(crate) mod jwt;
 pub mod media_file;
 pub(crate) mod oauth_provider;
+mod prompt_resources;
 pub mod rag_ingest;
 pub mod runtime_config;
 pub(crate) mod sidecar_clients;

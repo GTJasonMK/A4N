@@ -9,7 +9,7 @@ use std::path::Path;
 use a4n_core::error::AppError;
 
 use self::commit::staged_tera_for_entries;
-use self::registry::{load_validated_registry, runtime_commit_plan_for_registry};
+use self::registry::runtime_commit_plan_for_registry;
 use super::TeraPromptEngine;
 
 impl TeraPromptEngine {
@@ -21,7 +21,7 @@ impl TeraPromptEngine {
     pub fn from_directory(dir: &Path) -> Result<Self, AppError> {
         let engine = Self::new();
         *engine.defaults_dir.write() = Some(dir.to_path_buf());
-        let reg = load_validated_registry(dir)?;
+        let reg = crate::registry::PromptRegistry::load_from_dir(dir)?;
         let existing_names = HashSet::new();
         let plan =
             engine.plan_scan_dir(dir, /* incremental = */ false, &reg, &existing_names)?;
@@ -40,7 +40,7 @@ impl TeraPromptEngine {
         let dir = self.defaults_dir.read().clone().ok_or_else(|| {
             AppError::ConfigError("未设置 prompts 目录，无法载入默认提示词".to_string())
         })?;
-        let reg = load_validated_registry(&dir)?;
+        let reg = crate::registry::PromptRegistry::load_from_dir(&dir)?;
         let current_entries = self.entries.read().clone();
         let existing_names = current_entries.keys().cloned().collect::<HashSet<_>>();
         let plan =

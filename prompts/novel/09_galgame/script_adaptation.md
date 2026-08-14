@@ -1,8 +1,5 @@
 ---
 name: galgame_script_adaptation
-title: Galgame 剧本行改编
-description: 将结构化拍摄剧本场景与节拍改编为视觉小说行草稿，输出对白、旁白、独白和演出提示
-tags: galgame, script, adaptation
 ---
 
 # Galgame 剧本行改编

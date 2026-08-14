@@ -32,7 +32,6 @@ pub mod outline;
 pub mod portrait;
 pub mod profile_material;
 pub mod project;
-pub mod prompt_override;
 pub mod prompt_records;
 pub mod rag;
 pub mod scene_profile;

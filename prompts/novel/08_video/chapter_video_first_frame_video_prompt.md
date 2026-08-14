@@ -1,12 +1,5 @@
 ---
 name: chapter_video_first_frame_video_prompt
-title: 首帧链视频生成 Prompt
-category: video
-description: 基于视频分段规划和起始画面约束生成单段视频提示词
-tags: [video, prompt, first-frame]
-dependencies:
-  - chapter_video_segment_plan
-  - chapter_video_first_frame_prompts
 ---
 
 你是视频生成模型提示词工程师，负责把章节原文、片段规划和实际存在的起始画面约束整理为可直接复制给外部视频生成模型的最终 prompt。

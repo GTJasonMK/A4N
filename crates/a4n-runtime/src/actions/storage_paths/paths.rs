@@ -41,7 +41,6 @@ pub async fn get_storage_paths(
         log_dir: path_to_string(&paths.log_dir),
         webview_dir: path_to_string(paths.webview_dir()),
         frontend_state_file: path_to_string(paths.frontend_state_file()),
-        prompts_dir: path_to_string(&paths.prompts_dir),
         prompts_git_dir: path_to_string(paths.data_dir.join("prompts.git")),
         qdrant_url: std::env::var("A4N_QDRANT_URL").unwrap_or_else(|_| String::new()),
         qdrant_collection: std::env::var("A4N_QDRANT_COLLECTION")

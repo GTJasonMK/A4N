@@ -1,8 +1,5 @@
 ---
 name: chapter_character_state
-title: 章节角色状态
-description: 基于章节正文和事实候选生成本章出场角色在章节结束时的状态快照
-tags: analysis, character, state
 ---
 
 # 章节角色状态

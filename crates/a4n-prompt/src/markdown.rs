@@ -4,6 +4,13 @@ use std::fs;
 use std::path::Path;
 
 use a4n_core::error::AppError;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PromptFrontmatter {
+    name: String,
+}
 
 /// Markdown file parsing result.
 pub(super) struct ParsedPrompt {
@@ -27,7 +34,6 @@ pub(super) fn parse_markdown_file(path: &Path) -> Result<ParsedPrompt, AppError>
 
 /// Split frontmatter and template content.
 fn split_frontmatter(content: &str) -> Result<(String, String), AppError> {
-    let content = content.trim_start();
     if !content.starts_with("---") {
         return Err(AppError::Internal(anyhow::anyhow!(
             "缺少 frontmatter 分隔符"
@@ -52,28 +58,17 @@ fn split_frontmatter(content: &str) -> Result<(String, String), AppError> {
 
 /// Parse frontmatter fields owned by the Markdown file.
 fn parse_frontmatter(raw: &str) -> Result<String, AppError> {
-    extract_field(raw, "name").ok_or_else(|| AppError::Internal(anyhow::anyhow!("缺少 name 字段")))
-}
-
-/// Extract a scalar frontmatter field.
-fn extract_field(raw: &str, key: &str) -> Option<String> {
-    let prefix = format!("{key}:");
-    for line in raw.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with(&prefix) {
-            let value = trimmed[prefix.len()..].trim();
-            if value.is_empty() {
-                return None;
-            }
-            let value = match value.split_once("//") {
-                Some((head, _)) => head.trim(),
-                None => value.trim(),
-            };
-            let value = value.trim_matches('"').trim_matches('\'');
-            return Some(value.to_string());
-        }
+    let frontmatter: PromptFrontmatter = serde_yaml::from_str(raw)
+        .map_err(|error| AppError::ConfigError(format!("提示词 frontmatter 无效：{error}")))?;
+    if frontmatter.name.is_empty()
+        || frontmatter.name.trim() != frontmatter.name
+        || frontmatter.name.chars().any(char::is_control)
+    {
+        return Err(AppError::ConfigError(
+            "提示词 frontmatter name 必须是无首尾空白的非空文本".to_string(),
+        ));
     }
-    None
+    Ok(frontmatter.name)
 }
 
 #[cfg(test)]
@@ -81,19 +76,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_scalar_and_list_frontmatter_fields() {
-        let raw = "name: test\ncategory: outline\ndependencies:\n  - dep1\n  - dep2";
-
-        assert_eq!(extract_field(raw, "name").as_deref(), Some("test"));
-        assert_eq!(extract_field(raw, "category").as_deref(), Some("outline"));
+    fn frontmatter_accepts_only_the_local_name() {
+        assert_eq!(parse_frontmatter("name: test").unwrap(), "test");
+        assert!(parse_frontmatter("name: test\ntitle: legacy").is_err());
     }
 
     #[test]
     fn splits_frontmatter_from_template() {
-        let md = "---\nname: test\ntitle: 测试\n---\n你好，{{ name }}！";
+        let md = "---\nname: test\n---\n你好，{{ name }}！";
         let (frontmatter, template) = split_frontmatter(md).expect("frontmatter");
 
-        assert!(frontmatter.contains("name: test"));
+        assert_eq!(frontmatter, "name: test");
         assert_eq!(template, "你好，{{ name }}！");
     }
 
@@ -101,7 +94,7 @@ mod tests {
     fn parses_markdown_prompt_name_and_content() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("test.md");
-        let md = "---\nname: greeting\ntitle: 问候\ncategory: writing\ndescription: 一个问候模板\nversion: \"1.2\"\ndependencies:\n  - base\n---\n你好，{{ name }}！欢迎。";
+        let md = "---\nname: greeting\n---\n你好，{{ name }}！欢迎。";
         fs::write(&path, md).unwrap();
 
         let parsed = parse_markdown_file(&path).expect("parsed prompt");

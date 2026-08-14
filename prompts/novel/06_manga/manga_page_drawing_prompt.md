@@ -1,9 +1,5 @@
 ---
 name: manga_page_drawing_prompt
-title: 漫画整页绘图提示词 v2
-category: manga
-version: 2.0.0
-description: 将已验证的单页 PagePlan/PanelPlan 编排为完整漫画页图像提示词
 ---
 
 # 漫画整页绘图提示词 v2

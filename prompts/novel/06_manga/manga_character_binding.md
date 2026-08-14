@@ -1,8 +1,5 @@
 ---
 name: manga_character_binding
-title: 漫画角色绑定
-description: 基于事件卡片和参考立绘绑定本章出场角色身份、外观和漫画绘制所需摘要
-tags: manga, character, binding
 ---
 
 # 漫画角色绑定

@@ -1,8 +1,5 @@
 ---
 name: manga_page_planning
-title: 漫画页面与画格计划 v2
-description: 把共享拍摄剧本投影成整章严格 PagePlan、PanelPlan、气泡与文字层合同
-tags: [manga, planning, panel, text-layer, directing]
 ---
 
 # 漫画页面与画格计划 v2

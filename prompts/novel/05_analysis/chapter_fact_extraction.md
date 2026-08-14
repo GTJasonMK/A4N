@@ -1,8 +1,5 @@
 ---
 name: chapter_fact_extraction
-title: 章节事实抽取
-description: 从章节正文中抽取后续分析需要的客观事实候选，只做事实和来源选择，不生成摘要或最终分析结构
-tags: analysis, extraction, facts
 ---
 
 # 章节事实抽取

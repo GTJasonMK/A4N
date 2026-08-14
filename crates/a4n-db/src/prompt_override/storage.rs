@@ -115,13 +115,30 @@ pub(super) async fn ensure_project_exists(
     }
 }
 
-pub(super) async fn all_system_settings(
+pub(super) async fn all_prompt_override_settings(
     db: &DatabaseConnection,
 ) -> Result<Vec<system_settings::Model>, PromptOverrideDbError> {
     system_settings::Entity::find()
+        .filter(
+            system_settings::Column::Key.starts_with(system_settings::PROMPT_OVERRIDE_KEY_PREFIX),
+        )
         .all(db)
         .await
         .map_err(|source| database("读取系统设置中的项目提示词覆盖失败", source))
+}
+
+pub(super) async fn project_prompt_override_settings(
+    db: &DatabaseConnection,
+    project_id: i64,
+) -> Result<Vec<system_settings::Model>, PromptOverrideDbError> {
+    system_settings::Entity::find()
+        .filter(
+            system_settings::Column::Key
+                .starts_with(system_settings::prompt_override_key_prefix(project_id)),
+        )
+        .all(db)
+        .await
+        .map_err(|source| database("读取项目提示词覆盖失败", source))
 }
 
 pub(super) fn project_override_record_content(

@@ -47,20 +47,8 @@ async fn delete_project_prompt_override_settings(
     project_id: i64,
 ) -> Result<(), ProjectDeleteDbError> {
     let key_prefix = system_settings::prompt_override_key_prefix(project_id);
-    let override_setting_ids = system_settings::Entity::find()
-        .all(db)
-        .await?
-        .into_iter()
-        .filter(|record| record.key.starts_with(&key_prefix))
-        .map(|record| record.id)
-        .collect::<Vec<_>>();
-
-    if override_setting_ids.is_empty() {
-        return Ok(());
-    }
-
     system_settings::Entity::delete_many()
-        .filter(system_settings::Column::Id.is_in(override_setting_ids))
+        .filter(system_settings::Column::Key.starts_with(key_prefix))
         .exec(db)
         .await?;
     Ok(())

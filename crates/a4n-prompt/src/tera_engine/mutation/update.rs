@@ -30,12 +30,10 @@ impl TeraPromptEngine {
         let author = normalize_prompt_update_author(author)?;
         let planned_version = bump_version(&current.version);
 
-        {
-            let mut staged_tera = self.tera.read().clone();
-            staged_tera
-                .add_raw_template(name, &content)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
-        }
+        let mut staged_tera = self.tera.read().clone();
+        staged_tera
+            .add_raw_template(name, &content)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
 
         // 持久化成功后才提交运行时状态，避免 Err 后内存已变。
         if let Some(store) = &self.git_store {
@@ -61,12 +59,8 @@ impl TeraPromptEngine {
                 timestamp: entry.modified_at,
                 author: author.clone(),
                 message: format!("更新前版本: {}", entry.version),
-                content_snapshot: Some(entry.content.clone()),
+                content_snapshot: entry.content.clone(),
             };
-            self.tera
-                .write()
-                .add_raw_template(name, &content)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
             self.version_log
                 .write()
                 .entry(name.to_string())
@@ -78,6 +72,7 @@ impl TeraPromptEngine {
             entry.modified_at = chrono::Utc::now().naive_utc();
             entry.clone()
         };
+        *self.tera.write() = staged_tera;
 
         Ok(result)
     }

@@ -1,8 +1,5 @@
 ---
 name: reverse_part_outline
-title: "分部大纲反推"
-description: "将长篇小说的章节大纲划分为多个部分并生成分部大纲"
-tags: "导入分析,大纲,长篇"
 ---
 
 # 分部大纲反推

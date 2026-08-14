@@ -1,11 +1,5 @@
 ---
 name: chapter_video_first_frame_prompts
-title: 章节视频首帧 Prompt
-category: video
-description: 根据视频片段规划生成当前目标视频使用的首帧图像提示词
-tags: [video, first-frame, prompt]
-dependencies:
-  - chapter_video_segment_plan
 ---
 
 你是视频首帧提示词工程师，负责把章节原文和视频片段规划整理成当前目标视频开头使用的静态图像 prompt。

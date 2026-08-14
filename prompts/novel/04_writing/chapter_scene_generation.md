@@ -1,8 +1,5 @@
 ---
 name: chapter_scene_generation
-title: 章节场景生成
-description: 根据章节摘要、上下文和场景引导生成单个章节场景正文
-tags: writing, chapter, scene
 ---
 
 你是一位专业的小说场景写手。你正在为第 {{ chapter_number }} 章《{{ chapter_title }}》撰写第 {{ scene_number }} 个场景。

@@ -1,9 +1,5 @@
 ---
 name: character_portrait_generation
-title: 角色三视图与拆解设定图生成
-category: protagonist
-description: 根据角色设定生成高质量的人物三视图与服饰配饰拆解设定图提示词（适用于 SD、MJ、DALL·E 等图像生成模型）
-version: "1.0"
 ---
 
 你是一位专业的概念艺术设计师，负责把角色档案转化为稳定、具体、可直接使用的人物三视图与人物拆解设定图 prompt。

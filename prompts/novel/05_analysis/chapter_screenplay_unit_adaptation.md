@@ -1,8 +1,5 @@
 ---
 name: chapter_screenplay_unit_adaptation
-title: 叙事单元剧本改编
-description: 只为一个已经确定的叙事单元提取可观察、可表演的事实
-tags: [analysis, screenplay, adaptation, design-unit]
 ---
 
 # 叙事单元剧本改编

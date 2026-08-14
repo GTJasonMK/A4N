@@ -1,11 +1,5 @@
 ---
 name: chapter_video_chat_prompt
-title: 章节 Chat 视频 Prompt
-category: video
-description: 生成可复制到外部 Chat 视频模型的单段视频提示词
-tags: [video, prompt, chat]
-dependencies:
-  - chapter_video_segment_plan
 ---
 
 你是电影导演和视频生成提示词工程师，负责把小说片段整理成用户可以直接复制到外部 Chat 视频模型里的提示词。

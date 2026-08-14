@@ -1,8 +1,5 @@
 ---
 name: outline
-title: 章节大纲生成
-description: 章节大纲生成的系统提示词，根据小说蓝图、分部大纲和可选节拍表生成严格 JSON 章节大纲
-tags: outline, planning, chapter
 ---
 
 # 章节大纲规划师

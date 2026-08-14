@@ -1,8 +1,4 @@
-use std::{
-    future::Future,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-};
+use std::{future::Future, io::ErrorKind, path::Path};
 
 pub async fn remove_created_file_on_error<T, F>(
     path: &Path,
@@ -44,34 +40,5 @@ fn remove_created_file(path: &Path, label: &str) -> Result<(), String> {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
         Err(error) => Err(format!("同时删除{label}失败：{error}")),
-    }
-}
-
-pub(crate) fn error_with_rollback_file_cleanup(
-    primary: String,
-    paths: &[PathBuf],
-    label: &str,
-) -> String {
-    match rollback_file_cleanup(paths, label) {
-        Ok(()) => primary,
-        Err(cleanup_error) => format!("{primary}；{cleanup_error}"),
-    }
-}
-
-pub(crate) fn rollback_file_cleanup(paths: &[PathBuf], label: &str) -> Result<(), String> {
-    let mut cleanup_errors = Vec::new();
-    for path in paths.iter().rev() {
-        match std::fs::remove_file(path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => {
-                cleanup_errors.push(format!("删除{label}失败：{}：{error}", path.display()))
-            }
-        }
-    }
-    if cleanup_errors.is_empty() {
-        Ok(())
-    } else {
-        Err(cleanup_errors.join("；"))
     }
 }

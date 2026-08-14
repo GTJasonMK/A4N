@@ -1,8 +1,5 @@
 ---
 name: content_optimization_chat
-title: 正文优化对话 Agent Loop
-description: 内容优化会话中的多轮显式 Agent Loop 对话提示词
-tags: optimization, chat, agent, editing
 ---
 
 # 角色

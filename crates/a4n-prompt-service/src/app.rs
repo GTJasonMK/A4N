@@ -90,19 +90,18 @@ fn init_tracing() -> anyhow::Result<()> {
 }
 
 fn prompts_dir() -> anyhow::Result<PathBuf> {
-    Ok(
-        optional_non_empty_env_path("A4N_PROMPT_SERVICE_PROMPTS_DIR")?
-            .unwrap_or_else(|| PathBuf::from("prompts")),
-    )
+    optional_non_empty_env_path("A4N_PROMPT_SERVICE_PROMPTS_DIR")?.ok_or_else(|| {
+        anyhow::anyhow!("缺少 A4N_PROMPT_SERVICE_PROMPTS_DIR，无法定位随包 prompts 目录")
+    })
 }
 
 fn git_dir() -> anyhow::Result<PathBuf> {
     if let Some(path) = optional_non_empty_env_path("A4N_PROMPT_SERVICE_GIT_DIR")? {
         return Ok(path);
     }
-    Ok(optional_non_empty_env_path("A4N_DATA_DIR")?
-        .map(|dir| dir.join("prompts.git"))
-        .unwrap_or_else(|| PathBuf::from("data/prompts.git")))
+    let data_dir = optional_non_empty_env_path("A4N_DATA_DIR")?
+        .ok_or_else(|| anyhow::anyhow!("缺少 A4N_DATA_DIR，无法定位 prompts.git"))?;
+    Ok(data_dir.join("prompts.git"))
 }
 
 fn ensure_prompt_git_manifest(path: &std::path::Path) -> anyhow::Result<()> {

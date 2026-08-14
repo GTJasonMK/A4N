@@ -1,6 +1,5 @@
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectOverrideIdentity {
@@ -18,7 +17,7 @@ pub struct ProjectOverrideHydration {
 pub struct ProjectPromptOverrideSummary {
     pub project_id: i64,
     pub prompt_name: String,
-    pub content: Value,
+    pub content: String,
     pub updated_at: String,
 }
 

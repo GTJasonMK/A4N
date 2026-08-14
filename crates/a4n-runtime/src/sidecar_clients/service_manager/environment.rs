@@ -39,7 +39,9 @@ pub(super) fn apply_common_sidecar_env(
     );
     env.insert(
         "A4N_PROMPT_SERVICE_PROMPTS_DIR".to_string(),
-        path_string(prompt_service_prompts_dir(config)?),
+        path_string(crate::prompt_resources::bundled_prompts_dir(
+            &config.data_dir,
+        )?),
     );
     for key in [
         "PATH",
@@ -69,26 +71,6 @@ fn configured_path(key: &str, fallback: PathBuf) -> Result<PathBuf, String> {
     optional_non_empty_env_path(key)
         .map(|path| path.unwrap_or(fallback))
         .map_err(|error| error.to_string())
-}
-
-fn prompt_service_prompts_dir(config: &AppConfig) -> Result<PathBuf, String> {
-    if let Some(path) = optional_non_empty_env_path("A4N_PROMPT_SERVICE_PROMPTS_DIR")
-        .map_err(|error| error.to_string())?
-    {
-        return Ok(path);
-    }
-    if let Some(home) =
-        optional_non_empty_env_path("A4N_PORTABLE_HOME").map_err(|error| error.to_string())?
-    {
-        return Ok(home.join("prompts"));
-    }
-    if let Ok(current) = std::env::current_dir() {
-        let prompts = current.join("prompts");
-        if prompts.exists() {
-            return Ok(prompts);
-        }
-    }
-    Ok(config.data_dir.join("prompts"))
 }
 
 fn path_string(path: PathBuf) -> String {

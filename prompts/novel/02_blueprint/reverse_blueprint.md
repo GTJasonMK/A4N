@@ -1,8 +1,5 @@
 ---
 name: reverse_blueprint
-title: "蓝图反推生成"
-description: "从已有小说内容中提炼完整的项目蓝图信息，包括类型、风格、角色等"
-tags: "导入分析,蓝图"
 ---
 
 # 蓝图反推生成

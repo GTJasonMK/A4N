@@ -207,7 +207,6 @@ const USER_CONTEXT: &[&str] = &["userId"];
 const PROJECT_CONTEXT: &[&str] = &["projectId"];
 const CHAPTER_CONTEXT: &[&str] = &["chapterId"];
 const PROJECT_CHAPTER_CONTEXT: &[&str] = &["projectId", "chapterId"];
-const USER_PROJECT_CONTEXT: &[&str] = &["userId", "projectId"];
 const USER_CHAPTER_CONTEXT: &[&str] = &["userId", "chapterId"];
 
 const PUBLIC_IDENTITY: Identity = Identity {
@@ -544,19 +543,19 @@ command_specs! {
     "preview_test_image_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_test_llm_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_video_provider_request_by_video_id" => args_preview_video_provider_request_by_video_id, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
-    "prompt_list" => args_prompt_list, result_prompt_list, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_list_categories" => args_prompt_list, result_prompt_list_categories, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_list_project_overrides" => args_prompt_list_project_overrides, result_prompt_list_project_overrides, "prompt", context(USER_PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_load_defaults" => args_prompt_list, result_prompt_load_defaults, "prompt", capabilities(CAPABILITIES_PROMPT);
-    "prompt_remove_project_override" => args_prompt_remove_project_override, result_prompt_remove_project_override, "prompt", context(USER_PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_render" => args_prompt_render, result_string, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_render_ab" => args_prompt_render, result_prompt_render_ab, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_reset" => args_prompt_name, result_prompt_remove_project_override, "prompt", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_set_project_override" => args_prompt_set_project_override, result_prompt_remove_project_override, "prompt", context(USER_PROJECT_CONTEXT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_update" => args_prompt_update, result_prompt_update, "prompt", capabilities(CAPABILITIES_PROMPT);
-    "prompt_validate_variables" => args_prompt_validate_variables, result_prompt_validate_variables, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_version_diff" => args_prompt_version_diff, result_string, "prompt", capabilities(CAPABILITIES_PROMPT);
-    "prompt_version_history" => args_prompt_name, result_prompt_version_history, "prompt", capabilities(CAPABILITIES_PROMPT);
+    "prompt_list" => empty_args_schema, result_prompt_list, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_list_categories" => empty_args_schema, result_prompt_list_categories, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_list_project_overrides" => args_project_id, result_prompt_list_project_overrides, "prompt", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_load_defaults" => empty_args_schema, result_prompt_load_defaults, "prompt", context(NO_CONTEXT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_remove_project_override" => args_prompt_remove_project_override, result_unit, "prompt", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_render" => args_prompt_render, result_string, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_render_ab" => args_prompt_render, result_prompt_render_ab, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_reset" => args_prompt_name, result_unit, "prompt", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_set_project_override" => args_prompt_set_project_override, result_unit, "prompt", context(NO_CONTEXT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_update" => args_prompt_update, result_prompt_update, "prompt", context(NO_CONTEXT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_validate_variables" => args_prompt_validate_variables, result_prompt_validate_variables, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_version_diff" => args_prompt_version_diff, result_string, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_version_history" => args_prompt_name, result_prompt_version_history, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "push_assembled_chapter_video" => args_push_assembled_chapter_video, result_assembly_push, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "rag_enhanced_search" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_enhanced_search_with_vectors" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
@@ -1683,36 +1682,28 @@ fn args_prompt_name() -> Value {
     typed_schema::<crate::prompt::PromptNameArgs>()
 }
 
-fn args_prompt_list() -> Value {
-    typed_schema::<crate::prompt::PromptEmptyArgs>()
-}
-
-fn args_prompt_list_project_overrides() -> Value {
-    typed_schema::<crate::prompt::PromptProjectArgs>()
-}
-
 fn args_prompt_remove_project_override() -> Value {
-    typed_input_schema::<crate::prompt::RemoveOverrideInput>()
+    strict_typed_input_schema::<crate::prompt::RemoveOverrideInput>()
 }
 
 fn args_prompt_render() -> Value {
-    typed_input_schema::<crate::prompt::RenderInput>()
+    strict_typed_input_schema::<crate::prompt::RenderInput>()
 }
 
 fn args_prompt_set_project_override() -> Value {
-    typed_input_schema::<crate::prompt::SetOverrideInput>()
+    strict_typed_input_schema::<crate::prompt::SetOverrideInput>()
 }
 
 fn args_prompt_update() -> Value {
-    typed_input_schema::<crate::prompt::UpdatePromptInput>()
+    strict_typed_input_schema::<crate::prompt::UpdatePromptInput>()
 }
 
 fn args_prompt_validate_variables() -> Value {
-    typed_input_schema::<crate::prompt::ValidateVarsInput>()
+    strict_typed_input_schema::<crate::prompt::ValidateVarsInput>()
 }
 
 fn args_prompt_version_diff() -> Value {
-    typed_input_schema::<crate::prompt::VersionDiffInput>()
+    strict_typed_input_schema::<crate::prompt::VersionDiffInput>()
 }
 
 fn args_push_assembled_chapter_video() -> Value {
@@ -2632,10 +2623,6 @@ fn result_prompt_list_project_overrides() -> Value {
 
 fn result_prompt_load_defaults() -> Value {
     typed_schema::<usize>()
-}
-
-fn result_prompt_remove_project_override() -> Value {
-    typed_schema::<()>()
 }
 
 fn result_prompt_render_ab() -> Value {
@@ -3688,6 +3675,58 @@ mod tests {
             "import_galgame_audio",
             "export_galgame_webgal",
         ]);
+    }
+
+    #[test]
+    fn prompt_commands_use_authenticated_identity_and_strict_contracts() {
+        let commands = [
+            "prompt_list",
+            "prompt_list_categories",
+            "prompt_list_project_overrides",
+            "prompt_load_defaults",
+            "prompt_remove_project_override",
+            "prompt_render",
+            "prompt_render_ab",
+            "prompt_reset",
+            "prompt_set_project_override",
+            "prompt_update",
+            "prompt_validate_variables",
+            "prompt_version_diff",
+            "prompt_version_history",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+
+        for command in [
+            "prompt_remove_project_override",
+            "prompt_render",
+            "prompt_render_ab",
+            "prompt_set_project_override",
+            "prompt_update",
+            "prompt_validate_variables",
+            "prompt_version_diff",
+        ] {
+            assert_eq!(
+                command_descriptor(command).unwrap().args_schema["properties"]["input"]["additionalProperties"],
+                false,
+                "{command}"
+            );
+        }
+
+        let render = command_descriptor("prompt_render").unwrap();
+        let required = render.args_schema["properties"]["input"]["required"]
+            .as_array()
+            .unwrap();
+        assert_eq!(required.len(), 3);
+        for field in ["project_id", "template_name", "variables"] {
+            assert!(required.contains(&serde_json::json!(field)), "{field}");
+        }
+
+        let update = command_descriptor("prompt_update").unwrap();
+        assert!(
+            update.args_schema["properties"]["input"]["properties"]
+                .get("author")
+                .is_none()
+        );
     }
 
     #[test]

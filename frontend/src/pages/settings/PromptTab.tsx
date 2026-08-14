@@ -17,7 +17,6 @@ import {
   type CategoryInfo,
   type PromptEntry,
 } from "../../api/prompt";
-import { useAuthStore } from "../../store/auth";
 import { PromptEditorPanel } from "./prompt/PromptEditorPanel";
 import { PromptList } from "./prompt/PromptList";
 import { PromptCategoryTabs } from "./prompt/PromptNavigation";
@@ -26,7 +25,6 @@ import { filterPrompts } from "./prompt/promptTabUtils";
 
 export const PromptTab: React.FC = () => {
   const { addToast } = useToast();
-  const { user } = useAuthStore();
   const [items, setItems] = useState<PromptEntry[]>([]);
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -213,10 +211,6 @@ export const PromptTab: React.FC = () => {
       return;
     }
     if (!selected) return;
-    if (!user) {
-      addToast("请先登录后再编辑提示词", "error");
-      return;
-    }
     if (!dirty) return;
     const requestSeq = saveSeqRef.current + 1;
     const requestEditVersion = editVersionRef.current;
@@ -230,7 +224,6 @@ export const PromptTab: React.FC = () => {
       await promptUpdate({
         name: requestName,
         content: requestDraft,
-        author: user.username,
       });
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       if (editVersionRef.current !== requestEditVersion) {

@@ -7,7 +7,7 @@ pub mod contracts;
 pub mod engine;
 pub mod includes;
 mod markdown;
-pub mod registry;
+mod registry;
 pub mod rendering;
 pub mod request;
 pub mod tera_engine;

@@ -1,8 +1,5 @@
 ---
 name: reverse_outline
-title: "章节大纲标准化"
-description: "将章节摘要转换为标准格式的章节大纲"
-tags: "导入分析,大纲"
 ---
 
 # 章节大纲标准化

@@ -1,8 +1,5 @@
 ---
 name: character_sync_deletion_candidates
-title: 角色同步删除候选判断
-description: 判断已有角色属性是否出现明确失效或删除保护候选
-tags: protagonist, sync, staged
 ---
 
 你是小说角色档案同步流水线的删除候选判断器。

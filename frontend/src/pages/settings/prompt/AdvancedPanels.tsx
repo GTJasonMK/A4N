@@ -392,11 +392,11 @@ export const PromptAdvancedPanels: React.FC<{
             <div>
               <div className="text-book-text-muted">当前模板</div>
               <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
-                {abResult.version_a || "（空）"}
+                {abResult.current || "（空）"}
               </pre>
               <div className="text-book-text-muted mt-1.5">原始模板</div>
               <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
-                {abResult.version_b || "（空）"}
+                {abResult.original || "（空）"}
               </pre>
             </div>
           )}

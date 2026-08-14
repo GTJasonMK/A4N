@@ -1,9 +1,5 @@
 ---
 name: character_analysis
-title: 角色分析
-category: protagonist
-description: 分析角色性格、动机、行为模式，提取隐式属性
-version: "1.0"
 ---
 
 你是一位专业的角色分析专家。请对以下角色进行深度分析。

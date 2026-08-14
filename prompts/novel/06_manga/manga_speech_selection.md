@@ -1,8 +1,5 @@
 ---
 name: manga_speech_selection
-title: 漫画对白旁白选择
-description: 基于事件窗口选择漫画页需要保留的对白、内心独白和旁白
-tags: manga, speech, extraction
 ---
 
 # 漫画对白旁白选择

@@ -3,18 +3,8 @@ use std::path::Path;
 use super::PromptRegistry;
 
 impl PromptRegistry {
-    /// 校验注册表完整性，返回所有错误；空列表表示通过。
-    pub fn validate(&self, prompts_dir: &Path) -> Vec<String> {
-        if !self.loaded {
-            return vec!["注册表未加载".into()];
-        }
+    pub(super) fn validation_errors(&self, prompts_dir: &Path) -> Vec<String> {
         let mut errors = Vec::new();
-
-        for (key, category) in &self.file.categories {
-            if category.order.is_none() {
-                errors.push(format!("分类缺少 order：{key}"));
-            }
-        }
 
         for (name, entry) in &self.file.prompts {
             if entry.path.trim().is_empty() {

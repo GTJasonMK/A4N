@@ -1,8 +1,5 @@
 ---
 name: scene_occurrence_extraction
-title: 场景出场抽取
-description: 基于已确认场景候选抽取当前章节中的场景出场顺序和场内概要
-tags: scene, occurrence, extraction
 ---
 
 # 场景出场抽取

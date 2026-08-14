@@ -49,17 +49,16 @@ fn setting_record(id: i64, key: &str, value: Value) -> system_settings::Model {
 
 #[test]
 fn parse_project_override_key_accepts_prompt_names_with_underscores() {
-    let identity = parse_project_override_key("prompt_override_42_foo_bar")
-        .unwrap()
-        .unwrap();
+    let identity = parse_project_override_key("prompt_override_42_foo_bar").unwrap();
 
     assert_eq!(identity.project_id, 42);
     assert_eq!(identity.name, "foo_bar");
 }
 
 #[test]
-fn parse_project_override_key_ignores_unrelated_settings() {
-    assert_eq!(parse_project_override_key("llm_config").unwrap(), None);
+fn parse_project_override_key_rejects_unrelated_settings() {
+    let error = parse_project_override_key("llm_config").unwrap_err();
+    assert!(error.to_string().contains("不是提示词覆盖 key"));
 }
 
 #[test]
@@ -106,16 +105,15 @@ fn normalize_project_override_identity_trims_user_input_name() {
 }
 
 #[test]
-fn hydrate_project_overrides_plan_accepts_valid_overrides_and_unrelated_settings() {
+fn hydrate_project_overrides_plan_accepts_valid_overrides() {
     let records = vec![
-        setting_record(1, "llm_config", serde_json::json!({"provider": "local"})),
         setting_record(
-            2,
+            1,
             "prompt_override_42_writing_prompt",
             serde_json::json!("Override"),
         ),
         setting_record(
-            3,
+            2,
             "prompt_override_7_prompt_with_underscores",
             serde_json::json!("Another override"),
         ),
@@ -209,7 +207,7 @@ fn project_override_list_filters_records_for_retired_prompt_names() {
 
     assert_eq!(overrides.len(), 1);
     assert_eq!(overrides[0].prompt_name, "active_prompt");
-    assert_eq!(overrides[0].content, serde_json::json!("active override"));
+    assert_eq!(overrides[0].content, "active override");
 }
 
 #[test]
@@ -262,7 +260,6 @@ fn retired_project_override_cleanup_matches_parsed_prompt_name() {
             &system_settings::prompt_override_key(42, "foo_bar"),
             serde_json::json!("still active"),
         ),
-        setting_record(3, "unrelated_key", serde_json::json!("ignored")),
     ];
 
     let ids = retired_project_override_record_ids(&records, &retired_prompt_names).unwrap();
@@ -287,15 +284,12 @@ fn retired_project_override_cleanup_rejects_invalid_override_key() {
 }
 
 #[test]
-fn project_override_key_preflight_accepts_valid_override_and_unrelated_settings() {
-    let records = vec![
-        setting_record(
-            1,
-            &system_settings::prompt_override_key(42, "active_prompt"),
-            serde_json::json!("override"),
-        ),
-        setting_record(2, "llm_config", serde_json::json!({"model": "x"})),
-    ];
+fn project_override_key_preflight_accepts_valid_override() {
+    let records = vec![setting_record(
+        1,
+        &system_settings::prompt_override_key(42, "active_prompt"),
+        serde_json::json!("override"),
+    )];
 
     validate_project_override_record_keys(&records).unwrap();
 }

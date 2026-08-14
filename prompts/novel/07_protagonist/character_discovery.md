@@ -1,8 +1,5 @@
 ---
 name: character_discovery
-title: 角色档案发现
-description: 从章节内容中识别出现角色并生成初始角色档案
-tags: protagonist, character, discovery
 ---
 
 # 角色档案发现

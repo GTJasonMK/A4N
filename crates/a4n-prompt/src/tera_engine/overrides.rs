@@ -2,7 +2,7 @@ use tera::Tera;
 
 use a4n_core::error::AppError;
 
-use super::state::{ProjectOverride, TeraPromptEngine};
+use super::state::TeraPromptEngine;
 
 impl TeraPromptEngine {
     pub(super) fn resolve_content(
@@ -19,7 +19,7 @@ impl TeraPromptEngine {
         if let Some(project_id) = project_id {
             Self::validate_override_project_id(project_id)?;
             if let Some(override_) = self.overrides.read().get(&(project_id, name.to_string())) {
-                return Ok((override_.content.clone(), true));
+                return Ok((override_.clone(), true));
             }
         }
         Ok((entry_content, false))
@@ -72,22 +72,56 @@ impl TeraPromptEngine {
     pub fn hydrate_project_overrides(
         &self,
         overrides: Vec<(i64, String, String)>,
-    ) -> Result<usize, AppError> {
-        let loaded = overrides.len();
+    ) -> Result<(), AppError> {
         let prepared = overrides
             .into_iter()
             .map(|(project_id, name, content)| {
                 self.prepare_project_override(project_id, &name, content)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let mut identities = std::collections::HashSet::new();
+        for (project_id, name, _) in &prepared {
+            if !identities.insert((*project_id, name.as_str())) {
+                return Err(AppError::InvalidArgument(format!(
+                    "提示词覆盖 hydration 包含重复 identity：project_id={project_id}, name={name}"
+                )));
+            }
+        }
         let mut runtime_overrides = self.overrides.write();
         for (project_id, name, content) in prepared {
-            runtime_overrides.insert((project_id, name), ProjectOverride { content });
+            runtime_overrides.insert((project_id, name), content);
         }
-        Ok(loaded)
+        Ok(())
     }
 
-    pub async fn set_project_override(
+    pub fn replace_project_overrides(
+        &self,
+        project_id: i64,
+        overrides: Vec<(String, String)>,
+    ) -> Result<(), AppError> {
+        let project_id = Self::validate_override_project_id(project_id)?;
+        let prepared = overrides
+            .into_iter()
+            .map(|(name, content)| self.prepare_project_override(project_id, &name, content))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut names = std::collections::HashSet::new();
+        for (_, name, _) in &prepared {
+            if !names.insert(name.as_str()) {
+                return Err(AppError::InvalidArgument(format!(
+                    "提示词覆盖 hydration 包含重复 name：{name}"
+                )));
+            }
+        }
+
+        let mut runtime_overrides = self.overrides.write();
+        runtime_overrides.retain(|(stored_project_id, _), _| *stored_project_id != project_id);
+        for (_, name, content) in prepared {
+            runtime_overrides.insert((project_id, name), content);
+        }
+        Ok(())
+    }
+
+    pub fn set_project_override(
         &self,
         project_id: i64,
         name: &str,
@@ -95,17 +129,11 @@ impl TeraPromptEngine {
     ) -> Result<(), AppError> {
         let (project_id, name, content) =
             self.prepare_project_override(project_id, name, content)?;
-        self.overrides
-            .write()
-            .insert((project_id, name), ProjectOverride { content });
+        self.overrides.write().insert((project_id, name), content);
         Ok(())
     }
 
-    pub async fn remove_project_override(
-        &self,
-        project_id: i64,
-        name: &str,
-    ) -> Result<(), AppError> {
+    pub fn remove_project_override(&self, project_id: i64, name: &str) -> Result<(), AppError> {
         let (project_id, name) = Self::normalize_override_identity(project_id, name)?;
         self.overrides.write().remove(&(project_id, name));
         Ok(())

@@ -106,5 +106,11 @@ pub(super) fn read_head_prompt_file(
     let blob = repo
         .find_blob(entry.id())
         .map_err(|err| AppError::Internal(anyhow::anyhow!("git blob 读取失败: {err}")))?;
-    Ok(Some(String::from_utf8_lossy(blob.content()).to_string()))
+    let content = std::str::from_utf8(blob.content()).map_err(|error| {
+        AppError::Internal(anyhow::anyhow!(
+            "git HEAD 提示词不是 UTF-8（{}）：{error}",
+            index_path.display()
+        ))
+    })?;
+    Ok(Some(content.to_string()))
 }

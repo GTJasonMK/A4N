@@ -1,8 +1,5 @@
 ---
 name: chapter_screenplay_layout_unit
-title: 叙事单元布局细化
-description: 在固定全章骨架下细化一个叙事单元
-tags: [analysis, screenplay, unit, editing]
 ---
 
 # 叙事单元布局细化

@@ -1,8 +1,5 @@
 ---
 name: implicit_classification
-title: 隐性属性行为分类
-description: 根据行为判断是否符合已有的隐性属性
-tags: protagonist, implicit, classification
 ---
 
 # 隐性属性行为分类

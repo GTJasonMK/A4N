@@ -16,7 +16,6 @@ pub struct StoragePathsSummary {
     pub log_dir: String,
     pub webview_dir: String,
     pub frontend_state_file: String,
-    pub prompts_dir: String,
     pub prompts_git_dir: String,
     /// Qdrant 连接地址（独立 RAG 索引，非业务库）
     pub qdrant_url: String,

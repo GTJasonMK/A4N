@@ -1,8 +1,5 @@
 ---
 name: chapter_screenplay_skeleton
-title: 章节叙事骨架
-description: 规划全章导演命题、叙事单元身份、时间线和穿插拓扑
-tags: [analysis, screenplay, skeleton, editing]
 ---
 
 # 章节叙事骨架

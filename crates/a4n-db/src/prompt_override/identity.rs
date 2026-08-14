@@ -19,10 +19,10 @@ pub fn normalize_project_override_identity(
 
 pub fn parse_project_override_key(
     key: &str,
-) -> Result<Option<ProjectOverrideIdentity>, PromptOverrideDbError> {
-    let Some(rest) = key.strip_prefix(system_settings::PROMPT_OVERRIDE_KEY_PREFIX) else {
-        return Ok(None);
-    };
+) -> Result<ProjectOverrideIdentity, PromptOverrideDbError> {
+    let rest = key
+        .strip_prefix(system_settings::PROMPT_OVERRIDE_KEY_PREFIX)
+        .ok_or_else(|| invalid_argument(format!("不是提示词覆盖 key: {key}")))?;
     let (project_id, name) = rest
         .split_once('_')
         .ok_or_else(|| invalid_argument(format!("提示词覆盖 key 格式无效: {key}")))?;
@@ -39,10 +39,10 @@ pub fn parse_project_override_key(
     validate_project_override_name(name, "提示词覆盖 key name")
         .map_err(|err| invalid_argument(format!("{err}: {key}")))?;
 
-    Ok(Some(ProjectOverrideIdentity {
+    Ok(ProjectOverrideIdentity {
         project_id,
         name: name.to_string(),
-    }))
+    })
 }
 
 pub fn project_override_key(identity: &ProjectOverrideIdentity) -> String {

@@ -1,8 +1,5 @@
 ---
 name: manga_item_extraction
-title: 漫画物品锚点抽取
-description: 基于对白旁白和视觉锚点抽取漫画页需要稳定绘制的关键物品
-tags: manga, item, extraction
 ---
 
 # 漫画物品锚点抽取

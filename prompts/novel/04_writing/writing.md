@@ -1,8 +1,5 @@
 ---
 name: writing
-title: 章节写作
-description: 章节正文生成的系统提示词，根据当前任务、前章结尾和RAG上下文续写章节内容，确保角色名一致、世界观规则不违背、剧情自然承接
-tags: writing, chapter, generation
 ---
 
 # 角色

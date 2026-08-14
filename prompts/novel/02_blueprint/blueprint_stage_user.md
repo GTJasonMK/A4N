@@ -1,11 +1,5 @@
 ---
 name: blueprint_stage_user
-title: 蓝图分阶段生成 User 请求
-category: blueprint
-description: 将蓝图阶段输入、上游阶段上下文和当前输出 schema 渲染为严格 JSON 用户请求
-tags: [blueprint, staged-generation, user-request]
-dependencies:
-  - blueprint_stage_system
 ---
 
 请根据以下 JSON 输入执行当前蓝图生成阶段。只返回 current_stage.output_schema 对应的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段。

@@ -79,7 +79,7 @@ impl TeraPromptEngine {
                 timestamp: entry.modified_at,
                 author: author.clone(),
                 message: format!("更新前版本: {}", entry.version),
-                content_snapshot: Some(entry.content.clone()),
+                content_snapshot: entry.content.clone(),
             };
             next_version_log
                 .entry(name.clone())

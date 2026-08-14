@@ -1,8 +1,5 @@
 ---
 name: character_sync_attribute_changes
-title: 角色同步属性变化判断
-description: 基于证据事件判断角色属性新增或修改
-tags: protagonist, sync, staged
 ---
 
 你是小说角色档案同步流水线的属性变化判断器。

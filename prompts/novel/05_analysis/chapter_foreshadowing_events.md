@@ -1,8 +1,5 @@
 ---
 name: chapter_foreshadowing_events
-title: 章节伏笔与关键事件
-description: 基于事实候选生成最终关键事件和伏笔追踪结构
-tags: analysis, foreshadowing, events
 ---
 
 # 章节伏笔与关键事件

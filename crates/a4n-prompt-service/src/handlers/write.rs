@@ -3,8 +3,7 @@ use crate::protocol::{result_response, validate_service_request};
 use a4n_prompt::{
     contracts::{
         CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptNamePayload,
-        PromptRemoveProjectOverridePayload, PromptSetProjectOverridePayload,
-        PromptUpdateManyPayload, PromptUpdatePayload,
+        PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
     },
     engine::PromptEntry,
 };
@@ -22,12 +21,14 @@ pub(crate) async fn hydrate_overrides(
         .payload
         .overrides
         .iter()
-        .map(|item| (item.project_id, item.name.clone(), item.content.clone()))
+        .map(|item| (item.name.clone(), item.content.clone()))
         .collect::<Vec<_>>();
-    let result = state
-        .engine
-        .hydrate_project_overrides(overrides)
-        .map(|_| ());
+    let result =
+        required_project_id(&request, "prompt override hydration").and_then(|project_id| {
+            state
+                .engine
+                .replace_project_overrides(project_id, overrides)
+        });
     Json(result_response(&request, result))
 }
 
@@ -39,28 +40,37 @@ pub(crate) async fn set_project_override(
         return Json(request.error_response(error));
     }
     let payload = &request.payload;
-    let result = state
-        .engine
-        .set_project_override(payload.project_id, &payload.name, payload.content.clone())
-        .await
-        .map(|_| ());
+    let result = required_project_id(&request, "prompt override set").and_then(|project_id| {
+        state
+            .engine
+            .set_project_override(project_id, &payload.name, payload.content.clone())
+    });
     Json(result_response(&request, result))
 }
 
 pub(crate) async fn remove_project_override(
     State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<PromptRemoveProjectOverridePayload>>,
+    Json(request): Json<ServiceRequest<PromptNamePayload>>,
 ) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(request.error_response(error));
     }
     let payload = &request.payload;
-    let result = state
-        .engine
-        .remove_project_override(payload.project_id, &payload.name)
-        .await
-        .map(|_| ());
+    let result = required_project_id(&request, "prompt override remove").and_then(|project_id| {
+        state
+            .engine
+            .remove_project_override(project_id, &payload.name)
+    });
     Json(result_response(&request, result))
+}
+
+fn required_project_id<T>(
+    request: &ServiceRequest<T>,
+    operation: &str,
+) -> Result<i64, a4n_core::error::AppError> {
+    request.project_id.ok_or_else(|| {
+        a4n_core::error::AppError::InvalidArgument(format!("{operation} 缺少 project_id"))
+    })
 }
 
 pub(crate) async fn load_defaults(

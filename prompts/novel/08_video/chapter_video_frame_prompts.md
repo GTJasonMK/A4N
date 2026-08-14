@@ -1,11 +1,5 @@
 ---
 name: chapter_video_frame_prompts
-title: 章节视频首尾帧 Prompt
-category: video
-description: 根据视频片段规划生成片段边界关键帧图像描述提示词
-tags: [video, frame, prompt]
-dependencies:
-  - chapter_video_segment_plan
 ---
 
 你是视频首尾帧提示词工程师，负责把视频片段规划转化为可生成、可复用的片段边界关键帧提示词。

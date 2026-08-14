@@ -1,8 +1,5 @@
 ---
 name: galgame_pipeline_session
-title: Galgame 管线会话
-description: 为同一次 Galgame 管线的结构化生成阶段提供稳定公共 System 前缀
-tags: galgame, pipeline, session, cache
 ---
 
 # Galgame 管线会话

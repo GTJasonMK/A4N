@@ -126,7 +126,13 @@ impl GitPromptStore {
         let blob = repo
             .find_blob(entry.id())
             .map_err(|err| AppError::Internal(anyhow::anyhow!("find_blob: {err}")))?;
-        Ok(String::from_utf8_lossy(blob.content()).to_string())
+        std::str::from_utf8(blob.content())
+            .map(str::to_string)
+            .map_err(|error| {
+                AppError::Internal(anyhow::anyhow!(
+                    "commit {sha} 内提示词 {target} 不是 UTF-8：{error}"
+                ))
+            })
     }
 
     /// 当前 HEAD 处提示词内容

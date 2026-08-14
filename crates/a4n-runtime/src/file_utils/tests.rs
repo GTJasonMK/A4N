@@ -1,8 +1,8 @@
 use super::{
     CanonicalDataPathError, canonicalize_data_file_path, canonicalize_path_in_data_dir,
-    deletable_data_dir_path, error_with_rollback_file_cleanup, persist_created_media_file,
-    probe_created_audio_duration, remove_created_file_on_error, remove_created_file_on_error_sync,
-    remove_data_dir_in_data_dir, remove_data_file_in_data_dir, write_new_data_file,
+    deletable_data_dir_path, persist_created_media_file, probe_created_audio_duration,
+    remove_created_file_on_error, remove_created_file_on_error_sync, remove_data_dir_in_data_dir,
+    remove_data_file_in_data_dir, write_new_data_file,
 };
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -116,26 +116,6 @@ fn sync_created_file_cleanup_failure_is_appended_to_primary_error() {
 
     assert!(error.starts_with("缩略图路径规范化失败；同时删除已写出的缩略图失败："));
     assert!(directory_at_file_path.is_dir());
-    let _ = std::fs::remove_dir_all(&data_dir);
-}
-
-#[test]
-fn rollback_file_cleanup_attempts_all_paths_and_keeps_cleanup_failures() {
-    let data_dir = unique_temp_dir("a4n_file_utils_multi_cleanup");
-    let removable_file = data_dir.join("created.bin");
-    let directory_at_file_path = data_dir.join("not-a-file.bin");
-    std::fs::create_dir_all(&directory_at_file_path).expect("create cleanup failure fixture");
-    std::fs::write(&removable_file, b"created").expect("write removable file");
-
-    let error = error_with_rollback_file_cleanup(
-        "数据库写入失败".to_string(),
-        &[directory_at_file_path.clone(), removable_file.clone()],
-        "已创建文件",
-    );
-
-    assert!(!removable_file.exists(), "其他路径仍必须继续清理");
-    assert!(error.starts_with("数据库写入失败；删除已创建文件失败："));
-    assert!(error.contains(&directory_at_file_path.display().to_string()));
     let _ = std::fs::remove_dir_all(&data_dir);
 }
 

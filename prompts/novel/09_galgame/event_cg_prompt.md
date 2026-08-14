@@ -1,8 +1,5 @@
 ---
 name: galgame_event_cg_prompt
-title: Galgame 事件 CG 提示词
-description: 将事件 CG 规划、角色和场景约束渲染为图像生成提示词
-tags: galgame, cg, image-prompt
 ---
 
 视觉小说 Galgame 事件 CG，16:9 横构图，表现关键剧情瞬间，画面可作为游戏内事件插图使用，无 UI、无文字、无水印、无字幕、无对白框。

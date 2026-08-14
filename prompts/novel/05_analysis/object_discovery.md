@@ -1,8 +1,5 @@
 ---
 name: object_discovery
-title: 物体档案发现
-description: 从章节内容中识别可复用的关键物体、道具、装备、载具、服装和标志性环境物件，生成物体档案
-tags: asset, object, discovery
 ---
 
 # 物体档案发现

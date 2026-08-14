@@ -1,8 +1,5 @@
 ---
 name: scene_entity_state_extraction
-title: 场景实体状态抽取
-description: 基于场景和出场链抽取角色、物体或事件在场景中的状态变化
-tags: scene, entity-state, extraction
 ---
 
 # 场景实体状态抽取

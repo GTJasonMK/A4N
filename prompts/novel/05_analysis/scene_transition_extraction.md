@@ -1,8 +1,5 @@
 ---
 name: scene_transition_extraction
-title: 场景转场抽取
-description: 基于场景和出场链抽取当前章节中的场景间移动和视角切换
-tags: scene, transition, extraction
 ---
 
 # 场景转场抽取

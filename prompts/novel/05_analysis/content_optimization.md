@@ -1,8 +1,5 @@
 ---
 name: content_optimization
-title: 正文优化 Agent Loop
-description: 正文优化显式 Agent Loop 提示词，每次返回一个可执行决策
-tags: optimization, agent, editing
 ---
 
 # 角色

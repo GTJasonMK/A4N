@@ -68,7 +68,6 @@ mod tests {
             &paths.cache_dir,
             &paths.temp_dir,
             &paths.log_dir,
-            &paths.prompts_dir,
             &paths.exports_dir(),
             &paths.backups_dir(),
             &paths.webview_dir(),

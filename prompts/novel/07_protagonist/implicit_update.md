@@ -1,8 +1,5 @@
 ---
 name: implicit_update
-title: 隐性属性更新决策
-description: 当某个隐性属性在最近复审窗口内累计多次"不符合"时，决定是否需要修改该属性
-tags: protagonist, implicit, update
 ---
 
 # 隐性属性更新决策

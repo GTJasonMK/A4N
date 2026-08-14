@@ -40,20 +40,6 @@ fn configure_bundled_sidecar_resources(app: &AppHandle) -> Result<(), AppError> 
         return Ok(());
     }
 
-    if std::env::var_os("A4N_PROMPT_SERVICE_PROMPTS_DIR").is_none() {
-        let prompts_dir = resource_dir.join("prompts");
-        if !prompts_dir.join("_registry.yaml").is_file() {
-            return Err(AppError::ConfigError(format!(
-                "Tauri bundle 缺少提示词注册表：{}",
-                prompts_dir.join("_registry.yaml").display()
-            )));
-        }
-        // SAFETY: Tauri setup runs before AppState starts managed sidecar processes.
-        unsafe {
-            std::env::set_var("A4N_PROMPT_SERVICE_PROMPTS_DIR", prompts_dir);
-        }
-    }
-
     let mut paths = vec![resource_dir];
     if let Some(current) = std::env::var_os("DYLD_LIBRARY_PATH") {
         paths.extend(std::env::split_paths(&current));

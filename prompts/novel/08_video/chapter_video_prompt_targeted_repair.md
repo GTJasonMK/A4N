@@ -1,11 +1,5 @@
 ---
 name: chapter_video_prompt_targeted_repair
-title: 视频提示词失败字段局部修复
-category: video
-description: 只修复最终视频提示词中未通过校验的字段
-tags: [video, prompt, repair, targeted]
-dependencies:
-  - chapter_video_builder_rules
 ---
 
 你负责局部修复最终视频提示词的结构或语义错误。

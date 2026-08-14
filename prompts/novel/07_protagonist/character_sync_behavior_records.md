@@ -1,8 +1,5 @@
 ---
 name: character_sync_behavior_records
-title: 角色同步关键行为记录
-description: 基于证据事件抽取角色关键行为记录
-tags: protagonist, sync, staged
 ---
 
 你是小说角色档案同步流水线的关键行为记录器。

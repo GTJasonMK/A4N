@@ -1,8 +1,5 @@
 ---
 name: galgame_visual_planning
-title: Galgame 视觉资产规划
-description: 根据场景和剧本行规划背景需求与事件 CG 候选
-tags: galgame, visual, planning
 ---
 
 # Galgame 视觉资产规划

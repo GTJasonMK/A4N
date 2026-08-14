@@ -16,11 +16,6 @@ impl TeraPromptEngine {
         Ok(self)
     }
 
-    /// 取得 Git 仓库句柄（供命令层暴露 history）
-    pub fn git_store(&self) -> Option<Arc<dyn PromptVersionStore>> {
-        self.git_store.clone()
-    }
-
     fn hydrate_from_git_store(&self, store: &dyn PromptVersionStore) -> Result<(), AppError> {
         let names: Vec<String> = self.entries.read().keys().cloned().collect();
 
@@ -64,6 +59,7 @@ impl TeraPromptEngine {
             let current_modified_at = history
                 .first()
                 .map(|commit| unix_timestamp_to_naive(commit.timestamp))
+                .transpose()?
                 .unwrap_or(base_modified_at);
 
             let version_log = hydrated_version_log(
@@ -115,7 +111,7 @@ fn hydrated_version_log(
         timestamp: base_modified_at,
         author: "registry".into(),
         message: "原始版本".into(),
-        content_snapshot: Some(original_content.to_string()),
+        content_snapshot: original_content.to_string(),
     }];
 
     let chronological: Vec<&CommitInfo> = history.iter().rev().collect();
@@ -126,10 +122,10 @@ fn hydrated_version_log(
     {
         version_log.push(PromptVersion {
             version: bump_version_by(base_version, index + 1),
-            timestamp: unix_timestamp_to_naive(commit.timestamp),
+            timestamp: unix_timestamp_to_naive(commit.timestamp)?,
             author: commit.author.clone(),
             message: commit.message.clone(),
-            content_snapshot: Some(store.get_at(name, &commit.sha)?),
+            content_snapshot: store.get_at(name, &commit.sha)?,
         });
     }
 
@@ -144,8 +140,20 @@ fn bump_version_by(version: &str, count: usize) -> String {
     next
 }
 
-fn unix_timestamp_to_naive(timestamp: i64) -> chrono::NaiveDateTime {
+fn unix_timestamp_to_naive(timestamp: i64) -> Result<chrono::NaiveDateTime, AppError> {
     chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
         .map(|dt| dt.naive_utc())
-        .unwrap_or_else(|| chrono::Utc::now().naive_utc())
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!("Prompt Git commit 时间戳无效：{timestamp}"))
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unix_timestamp_to_naive;
+
+    #[test]
+    fn invalid_git_timestamp_is_rejected() {
+        assert!(unix_timestamp_to_naive(i64::MAX).is_err());
+    }
 }

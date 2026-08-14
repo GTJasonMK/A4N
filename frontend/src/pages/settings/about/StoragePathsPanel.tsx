@@ -215,7 +215,6 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         ["缓存", paths.cache_dir],
         ["嵌入模型", paths.embedding_models_dir],
         ["临时文件", paths.temp_dir],
-        ["提示词", paths.prompts_dir],
         ["提示词历史", paths.prompts_git_dir],
         ["RAG 索引 (Qdrant URL)", paths.qdrant_url || "（未配置 A4N_QDRANT_URL）"],
         ["RAG collection", paths.qdrant_collection],
