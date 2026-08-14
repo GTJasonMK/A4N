@@ -77,6 +77,41 @@ fn split_generation_start_body(
     Ok((body, runtime_config_snapshot))
 }
 
+fn split_generation_start_command_args(
+    args: &Value,
+    command: &str,
+) -> Result<
+    (
+        Value,
+        Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
+    ),
+    GenerationApiError,
+> {
+    let fields = args.as_object().ok_or_else(|| {
+        GenerationApiError::bad_request(
+            "generation_request_invalid",
+            format!("{command} 参数必须是 JSON object"),
+        )
+    })?;
+    if let Some(field) = fields
+        .keys()
+        .find(|field| !matches!(field.as_str(), "input" | "runtime_config_snapshot"))
+    {
+        return Err(GenerationApiError::bad_request(
+            "generation_request_invalid",
+            format!("{command} 不接受参数: {field}"),
+        ));
+    }
+    let input = fields.get("input").cloned().ok_or_else(|| {
+        GenerationApiError::bad_request("generation_request_invalid", "generation 请求缺少 input")
+    })?;
+    let runtime_config_snapshot =
+        a4n_runtime::runtime_config::snapshot_from_args(args).map_err(|message| {
+            GenerationApiError::bad_request("generation_request_invalid", message)
+        })?;
+    Ok((input, runtime_config_snapshot))
+}
+
 fn decode_generation_start_input<T>(input: Value) -> Result<T, GenerationApiError>
 where
     T: DeserializeOwned,
@@ -183,22 +218,10 @@ pub async fn dispatch_generation_start(
     command: &str,
 ) -> Option<Result<GenerationTaskHandle, HostErrorResponse>> {
     generation_start_path(command)?;
-    let runtime_config_snapshot = match a4n_runtime::runtime_config::snapshot_from_args(&args) {
-        Ok(snapshot) => snapshot,
-        Err(message) => {
-            return Some(Err(GenerationApiError::bad_request(
-                "generation_request_invalid",
-                message,
-            )
-            .into_body()));
-        }
-    };
-    let Some(input) = args.get("input").cloned() else {
-        return Some(Err(GenerationApiError::bad_request(
-            "generation_request_invalid",
-            "generation 请求缺少 input",
-        )
-        .into_body()));
+    let (input, runtime_config_snapshot) = match split_generation_start_command_args(args, command)
+    {
+        Ok(parts) => parts,
+        Err(error) => return Some(Err(error.into_body())),
     };
     start_generation(runtime, user_id, input, runtime_config_snapshot, command)
         .await
@@ -703,6 +726,38 @@ mod tests {
             "request image config"
         );
         assert!(!serde_json::to_string(&input).unwrap().contains(secret));
+    }
+
+    #[test]
+    fn generation_start_command_args_reject_unknown_envelope_fields() {
+        let error = split_generation_start_command_args(
+            &serde_json::json!({ "userId": 7, "input": {} }),
+            "start_chapter_generation",
+        )
+        .unwrap_err()
+        .into_body();
+
+        assert_eq!(error.code.as_str(), "generation_request_invalid");
+        assert_eq!(error.message, "start_chapter_generation 不接受参数: userId");
+    }
+
+    #[test]
+    fn generation_start_web_body_rejects_forwarded_envelope_fields() {
+        let (input, _) = split_generation_start_body(serde_json::json!({
+            "meta": {
+                "start_request_id": "00000000-0000-4000-8000-000000000001",
+                "retry_of_task_id": null
+            },
+            "project_id": 5,
+            "message": "继续完善设定",
+            "userId": 7
+        }))
+        .unwrap();
+        let error = decode_generation_start_input::<StartInspirationGenerationInput>(input)
+            .unwrap_err()
+            .into_body();
+
+        assert!(error.message.contains("unknown field `userId`"));
     }
 
     #[test]

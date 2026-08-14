@@ -43,7 +43,6 @@ export async function startOptimizeAnalysisGeneration(
   input: StartOptimizeAnalysisGenerationInput,
 ): Promise<GenerationTaskHandle> {
   return apiInvoke<GenerationTaskHandle>("start_optimize_analysis_generation", {
-    userId: currentUserId(),
     input,
   });
 }

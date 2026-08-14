@@ -58,7 +58,6 @@ export async function startOptimizeChatGeneration(
   input: StartOptimizeChatGenerationInput,
 ): Promise<GenerationTaskHandle> {
   return apiInvoke<GenerationTaskHandle>("start_optimize_chat_generation", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -67,7 +66,6 @@ export async function startOptimizePatchGeneration(
   input: StartOptimizePatchGenerationInput,
 ): Promise<GenerationTaskHandle> {
   return apiInvoke<GenerationTaskHandle>("start_optimize_patch_generation", {
-    userId: currentUserId(),
     input,
   });
 }

@@ -26,7 +26,6 @@ export async function startVideoGeneration(
   return generationClient.start(
     (meta) =>
       apiInvoke<GenerationTaskHandle>("start_video_generation", {
-        userId: currentUserId(),
         input: {
           ...input,
           meta,

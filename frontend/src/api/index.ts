@@ -125,12 +125,18 @@ type WebAuthTokenPair = {
 let webAuthRefreshPromise: Promise<boolean> | null = null;
 
 function generationRequestBody(
+  cmd: string,
   args?: Record<string, unknown>,
 ): Record<string, unknown> {
-  const input = (args?.input ?? {}) as Record<string, unknown>;
-  return args?.runtime_config_snapshot == null
+  const envelope = args ?? {};
+  const unknownField = Object.keys(envelope).find(
+    (field) => field !== "input" && field !== "runtime_config_snapshot",
+  );
+  if (unknownField) throw new Error(`${cmd} 不接受参数: ${unknownField}`);
+  const input = (envelope.input ?? {}) as Record<string, unknown>;
+  return envelope.runtime_config_snapshot == null
     ? input
-    : { ...input, runtime_config_snapshot: args.runtime_config_snapshot };
+    : { ...input, runtime_config_snapshot: envelope.runtime_config_snapshot };
 }
 
 async function webInvoke<T>(
@@ -141,7 +147,7 @@ async function webInvoke<T>(
   if (generationPath) {
     return webRequest<T>(generationPath, {
       method: "POST",
-      body: generationRequestBody(args),
+      body: generationRequestBody(cmd, args),
       auth: true,
     });
   }

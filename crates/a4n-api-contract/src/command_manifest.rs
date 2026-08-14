@@ -613,9 +613,9 @@ command_specs! {
     "start_image_generation" => args_start_image_generation, result_generation_task_handle, "asset", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_inspiration_generation" => args_start_inspiration_generation, result_generation_task_handle, "inspiration", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_manga_pipeline" => args_preview_start_manga_pipeline_request, result_string, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
-    "start_optimize_analysis_generation" => args_opaque, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
-    "start_optimize_chat_generation" => args_opaque, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
-    "start_optimize_patch_generation" => args_opaque, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
+    "start_optimize_analysis_generation" => args_start_optimize_analysis_generation, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
+    "start_optimize_chat_generation" => args_start_optimize_chat_generation, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
+    "start_optimize_patch_generation" => args_start_optimize_patch_generation, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_outline_generation" => args_start_outline_generation, result_generation_task_handle, "outline", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_portrait_generation" => args_start_portrait_generation, result_generation_task_handle, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_video_generation" => args_start_video_generation, result_generation_task_handle, "video", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
@@ -1838,15 +1838,15 @@ fn args_set_profile_primary_material() -> Value {
 }
 
 fn args_start_blueprint_generation() -> Value {
-    typed_input_schema::<crate::blueprint::StartBlueprintGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::StartBlueprintGenerationInput>()
 }
 
 fn args_start_blueprint_refinement() -> Value {
-    typed_input_schema::<crate::blueprint::StartBlueprintRefinementInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::StartBlueprintRefinementInput>()
 }
 
 fn args_start_chapter_generation() -> Value {
-    typed_input_schema::<crate::chapter::StartChapterGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::chapter::StartChapterGenerationInput>()
 }
 
 fn args_start_galgame_pipeline() -> Value {
@@ -1861,16 +1861,28 @@ fn args_start_inspiration_generation() -> Value {
     strict_runtime_typed_input_schema::<crate::inspiration::StartInspirationGenerationInput>()
 }
 
+fn args_start_optimize_analysis_generation() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::StartOptimizeAnalysisGenerationInput>()
+}
+
+fn args_start_optimize_chat_generation() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::StartOptimizeChatGenerationInput>()
+}
+
+fn args_start_optimize_patch_generation() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::StartOptimizePatchGenerationInput>()
+}
+
 fn args_start_outline_generation() -> Value {
-    strict_typed_input_schema::<crate::outline::StartOutlineGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::outline::StartOutlineGenerationInput>()
 }
 
 fn args_start_portrait_generation() -> Value {
-    strict_typed_input_schema::<crate::portrait::StartPortraitGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::portrait::StartPortraitGenerationInput>()
 }
 
 fn args_start_video_generation() -> Value {
-    typed_input_schema::<crate::video::StartVideoGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::video::StartVideoGenerationInput>()
 }
 
 fn args_sync_all_character_profiles() -> Value {
@@ -2977,6 +2989,39 @@ mod tests {
         assert!(is_destructive("delete_project"));
         assert!(!is_destructive("get_project"));
         assert!(is_destructive("delete_future_resource"));
+    }
+
+    #[test]
+    fn generation_start_commands_share_one_strict_runtime_envelope() {
+        let commands = GENERATION_START_ROUTES
+            .iter()
+            .map(|(command, _)| *command)
+            .collect::<Vec<_>>();
+        assert_commands_use_authenticated_host_identity(&commands);
+
+        for command in commands {
+            let descriptor = command_descriptor(command).unwrap();
+            let properties = descriptor.args_schema["properties"].as_object().unwrap();
+            assert_eq!(properties.len(), 2, "{command}");
+            assert!(properties.contains_key("input"), "{command}");
+            assert!(
+                properties.contains_key("runtime_config_snapshot"),
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.args_schema["required"],
+                serde_json::json!(["input"])
+            );
+            assert_eq!(
+                descriptor.args_schema["x-a4n-schema-quality"], "typed-input",
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.runtime_config_policy,
+                RuntimeConfigPolicy::Full,
+                "{command}"
+            );
+        }
     }
 
     #[test]

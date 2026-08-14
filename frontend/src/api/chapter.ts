@@ -163,7 +163,6 @@ export async function startChapterGeneration(
     }
   }
   return apiInvoke<GenerationTaskHandle>("start_chapter_generation", {
-    userId: currentUserId(),
     input: {
       ...input,
       project_id: projectId,

@@ -16,7 +16,7 @@ pub(crate) fn command_request(command: &str, args: Value) -> Result<JsonRequest>
         return Ok(JsonRequest {
             method: Method::POST,
             path: path.to_string(),
-            body: Some(generation_input(&args)?),
+            body: Some(generation_input(command, &args)?),
             authenticated: true,
         });
     }
@@ -29,7 +29,13 @@ pub(crate) fn command_request(command: &str, args: Value) -> Result<JsonRequest>
     })
 }
 
-fn generation_input(args: &Map<String, Value>) -> Result<Value> {
+fn generation_input(command: &str, args: &Map<String, Value>) -> Result<Value> {
+    if let Some(field) = args
+        .keys()
+        .find(|field| !matches!(field.as_str(), "input" | "runtime_config_snapshot"))
+    {
+        bail!("{command} 不接受参数: {field}");
+    }
     let Some(Value::Object(mut input)) = args.get("input").cloned() else {
         bail!("generation input 必须是 JSON object");
     };
@@ -157,6 +163,10 @@ mod tests {
             assert_eq!(request.method, Method::POST, "{command}");
             assert_eq!(request.path, path, "{command}");
             assert!(request.authenticated, "{command}");
+            assert!(
+                command_request(command, json!({ "userId": 7, "input": {} })).is_err(),
+                "{command} must reject retired envelope fields"
+            );
         }
     }
 }

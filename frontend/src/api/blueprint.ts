@@ -102,7 +102,6 @@ export async function generateBlueprint(
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) =>
     apiInvoke<GenerationTaskHandle>("start_blueprint_generation", {
-      userId: currentUserId(),
       input: { ...input, meta, project_id: idNum(input.project_id) },
     }),
   );
@@ -122,7 +121,6 @@ export async function refineBlueprint(
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) =>
     apiInvoke<GenerationTaskHandle>("start_blueprint_refinement", {
-      userId: currentUserId(),
       input: { ...input, meta, project_id: idNum(input.project_id) },
     }),
   );
