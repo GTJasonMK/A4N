@@ -81,6 +81,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::import_review_contract_cleanup::Migration),
             Box::new(crate::migrations::foreshadowing_index_integrity_contract::Migration),
             Box::new(crate::migrations::chapter_video_timeline_contract::Migration),
+            Box::new(crate::migrations::chapter_video_timeline_state_cleanup::Migration),
             Box::new(crate::migrations::blueprint_version_snapshot_contract::Migration),
         ]
     }
@@ -131,7 +132,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(25)
+                .take(26)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -160,6 +161,7 @@ mod tests {
                 "import_review_contract_cleanup",
                 "foreshadowing_index_integrity_contract",
                 "chapter_video_timeline_contract",
+                "chapter_video_timeline_state_cleanup",
                 "blueprint_version_snapshot_contract",
             ],
             "deployed migration history must remain registered in execution order"
