@@ -69,6 +69,8 @@ describe("profileFormBaseAttributes", () => {
           social_attributes: {},
         },
         last_synced_chapter: 0,
+        timeline_started: false,
+        initial_profile_editable: true,
         current_state: {
           explicit_attributes: { gender: "女", age: "25", background: "记者" },
           implicit_attributes: { personality: "克制" },

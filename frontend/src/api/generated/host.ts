@@ -3039,10 +3039,12 @@ export interface CharacterProfileSummary {
   current_state: unknown;
   gender: string | null;
   id: number;
+  initial_profile_editable: boolean;
   last_synced_chapter: number;
   name: string;
   personality: string | null;
   project_id: number;
+  timeline_started: boolean;
   updated_at: string | null;
   voice_fingerprint: unknown;
 }

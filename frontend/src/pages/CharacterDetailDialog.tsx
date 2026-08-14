@@ -642,7 +642,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   }
 
   const tabActionItems: DropdownItem[] = [];
-  if (onEditInitial && character.last_synced_chapter === 0) {
+  if (onEditInitial && character.initial_profile_editable) {
     tabActionItems.push({
       label: "编辑初始档案",
       onClick: () => onEditInitial(character),

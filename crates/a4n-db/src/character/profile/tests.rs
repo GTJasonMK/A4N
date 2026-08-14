@@ -11,6 +11,14 @@ use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::json;
 
 #[test]
+fn initial_profile_editability_has_one_complete_rule() {
+    assert!(initial_profile_editable(0, true, false));
+    assert!(!initial_profile_editable(0, false, false));
+    assert!(!initial_profile_editable(0, true, true));
+    assert!(!initial_profile_editable(1, true, false));
+}
+
+#[test]
 fn apply_current_state_refreshes_profile_summary_fields() {
     let state = json!({
         "explicit_attributes": {

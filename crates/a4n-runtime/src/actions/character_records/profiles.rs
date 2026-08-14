@@ -44,7 +44,7 @@ pub async fn update_character_profile(
         .await
         .map_err(app_error_message)?;
     Ok(CharacterProfileMutationResult {
-        profile: profile_summary(&profile)?,
+        profile: profile_summary(&profile, false, true)?,
         warnings: profile_rag_sync_warnings(state, project_id).await,
     })
 }
@@ -57,10 +57,15 @@ pub async fn list_profiles(
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let profiles = state
         .orchestrator()
-        .profiles_by_project(input.project_id)
+        .profiles_with_timeline_state(input.project_id)
         .await
         .map_err(app_error_message)?;
-    profiles.iter().map(profile_summary).collect()
+    profiles
+        .iter()
+        .map(|(profile, timeline_started, editable)| {
+            profile_summary(profile, *timeline_started, *editable)
+        })
+        .collect()
 }
 
 pub async fn delete_profile(

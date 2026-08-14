@@ -946,7 +946,7 @@ fn args_check_import_dedup() -> Value {
 }
 
 fn args_check_implicit_update() -> Value {
-    strict_typed_input_schema::<crate::character::CheckImplicitUpdateInput>()
+    strict_runtime_typed_input_schema::<crate::character::CheckImplicitUpdateInput>()
 }
 
 fn args_check_profile_sync_conflict() -> Value {
@@ -978,7 +978,7 @@ fn args_create_llm_config() -> Value {
 }
 
 fn args_create_profile() -> Value {
-    typed_input_schema::<crate::character::CreateProfileInput>()
+    strict_runtime_typed_input_schema::<crate::character::CreateProfileInput>()
 }
 
 fn args_create_object_profile() -> Value {
@@ -1524,7 +1524,7 @@ fn args_list_scene_profiles() -> Value {
 }
 
 fn args_list_profiles() -> Value {
-    typed_input_schema::<crate::character::ListProfilesInput>()
+    strict_typed_input_schema::<crate::character::ListProfilesInput>()
 }
 
 fn args_list_portraits_by_project() -> Value {
@@ -1943,7 +1943,7 @@ fn args_update_chapter_video_prompt() -> Value {
 }
 
 fn args_update_character_profile() -> Value {
-    typed_input_schema::<crate::character::UpdateCharacterProfileInput>()
+    strict_runtime_typed_input_schema::<crate::character::UpdateCharacterProfileInput>()
 }
 
 fn args_update_chapter_content() -> Value {
@@ -3245,6 +3245,9 @@ mod tests {
     #[test]
     fn character_history_commands_expose_one_strict_contract() {
         for command in [
+            "create_profile",
+            "list_profiles",
+            "update_character_profile",
             "add_profile_attribute",
             "modify_profile_attribute",
             "attribute_history",
@@ -3276,6 +3279,19 @@ mod tests {
             assert_ne!(
                 descriptor.result_schema["x-a4n-schema-quality"], "opaque",
                 "{command}"
+            );
+        }
+        for command in [
+            "create_profile",
+            "update_character_profile",
+            "check_implicit_update",
+            "preview_check_implicit_update_request",
+        ] {
+            assert!(
+                command_descriptor(command).unwrap().args_schema["properties"]
+                    .get("runtime_config_snapshot")
+                    .is_some(),
+                "{command}",
             );
         }
     }

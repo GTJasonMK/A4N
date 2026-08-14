@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type {
   SyncCharacterProfileInput,
   SyncCharacterProfileResult,
@@ -29,7 +28,6 @@ export async function getCharacterArcStatus(
   name: string,
 ): Promise<unknown | null> {
   return apiInvoke<unknown>("get_character_arc_status", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     name,
   });
@@ -40,7 +38,6 @@ export async function getCharacterVoiceFingerprint(
   name: string,
 ): Promise<unknown | null> {
   return apiInvoke<unknown>("get_character_voice_fingerprint", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     name,
   });
@@ -53,7 +50,6 @@ export async function checkCharacterConflict(
   scope: CharacterConflictScope = {},
 ): Promise<unknown[]> {
   return apiInvoke<unknown[]>("check_character_conflict", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     name,
     startChapter: scope.startChapter ?? null,
@@ -68,7 +64,6 @@ export async function previewCheckCharacterConflictRequest(
   scope: CharacterConflictScope = {},
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_check_character_conflict_request", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     name,
     startChapter: scope.startChapter ?? null,
@@ -96,7 +91,6 @@ export async function previewSyncCharacterFromChaptersRequest(
 ): Promise<ModelRequestPreview> {
   const input = characterProfileSyncInput(projectId, name, chapterNumber);
   return apiInvoke<ModelRequestPreview>("preview_sync_character_from_chapters_request", {
-    userId: currentUserId(),
     input,
   });
 }

@@ -8,11 +8,13 @@ use a4n_core::models::character::{
     attribute_event, character_state_index, protagonist_behavior_record, protagonist_deletion_mark,
     protagonist_profile, snapshot_reference,
 };
+use a4n_core::models::project::novel_project;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
 use serde_json::Value;
+use std::collections::HashSet;
 
 pub use creation::{
     create_profile, create_profile_record, create_profile_with_generation_run,
@@ -32,6 +34,49 @@ pub use types::{
     CharacterProfileCurrentStateUpdate, CharacterProfileDeleteError,
     CharacterProfileDeletionSummary,
 };
+
+pub fn initial_profile_editable(
+    last_synced_chapter: i32,
+    project_active: bool,
+    has_timeline_records: bool,
+) -> bool {
+    project_active && last_synced_chapter <= 0 && !has_timeline_records
+}
+
+pub async fn profiles_with_timeline_state<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<(protagonist_profile::Model, bool, bool)>, crate::character::CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    let project = novel_project::Entity::find_by_id(project_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            crate::character::CharacterDbError::NotFound(format!("项目不存在: {project_id}"))
+        })?;
+    let profiles = profiles_by_project(db, project_id).await?;
+    let profile_ids = profiles
+        .iter()
+        .map(|profile| profile.id)
+        .collect::<Vec<_>>();
+    let timeline_profile_ids = timeline_profile_ids(db, &profile_ids).await?;
+    let project_active = project.lifecycle_gate == crate::generation::PROJECT_GATE_ACTIVE;
+    Ok(profiles
+        .into_iter()
+        .map(|profile| {
+            let timeline_started =
+                profile.last_synced_chapter > 0 || timeline_profile_ids.contains(&profile.id);
+            let editable = initial_profile_editable(
+                profile.last_synced_chapter,
+                project_active,
+                timeline_profile_ids.contains(&profile.id),
+            );
+            (profile, timeline_started, editable)
+        })
+        .collect())
+}
 
 /// 直接修改尚未进入章节时间线的正式初始档案。
 pub async fn update_initial_profile<C>(
@@ -65,7 +110,11 @@ where
             format!("角色档案不属于当前项目: profile_id={profile_id}, project_id={project_id}"),
         ));
     }
-    if profile.last_synced_chapter > 0 || profile_has_timeline_records(&tx, profile_id).await? {
+    if !initial_profile_editable(
+        profile.last_synced_chapter,
+        true,
+        profile_has_timeline_records(&tx, profile_id).await?,
+    ) {
         return Err(crate::character::CharacterDbError::InvalidState {
             current: "character_profile_timeline_started".to_string(),
             operation: "直接修改初始角色档案；请在角色详情中记录章节后的变化".to_string(),
@@ -97,58 +146,73 @@ async fn profile_has_timeline_records<C>(
 where
     C: ConnectionTrait,
 {
-    if attribute_event::Entity::find()
-        .select_only()
-        .column(attribute_event::Column::Id)
-        .filter(attribute_event::Column::ProfileId.eq(profile_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some()
-    {
-        return Ok(true);
+    Ok(!timeline_profile_ids(db, &[profile_id]).await?.is_empty())
+}
+
+async fn timeline_profile_ids<C>(
+    db: &C,
+    profile_ids: &[i64],
+) -> Result<HashSet<i64>, crate::character::CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    if profile_ids.is_empty() {
+        return Ok(HashSet::new());
     }
-    if protagonist_behavior_record::Entity::find()
-        .select_only()
-        .column(protagonist_behavior_record::Column::Id)
-        .filter(protagonist_behavior_record::Column::ProfileId.eq(profile_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some()
-    {
-        return Ok(true);
-    }
-    if protagonist_deletion_mark::Entity::find()
-        .select_only()
-        .column(protagonist_deletion_mark::Column::Id)
-        .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some()
-    {
-        return Ok(true);
-    }
-    if snapshot_reference::Entity::find()
-        .select_only()
-        .column(snapshot_reference::Column::Id)
-        .filter(snapshot_reference::Column::ProfileId.eq(profile_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some()
-    {
-        return Ok(true);
-    }
-    Ok(character_state_index::Entity::find()
-        .select_only()
-        .column(character_state_index::Column::Id)
-        .filter(character_state_index::Column::ProfileId.eq(profile_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some())
+    let mut timeline_profile_ids = HashSet::new();
+    timeline_profile_ids.extend(
+        attribute_event::Entity::find()
+            .select_only()
+            .column(attribute_event::Column::ProfileId)
+            .filter(attribute_event::Column::ProfileId.is_in(profile_ids.iter().copied()))
+            .distinct()
+            .into_tuple::<i64>()
+            .all(db)
+            .await?,
+    );
+    timeline_profile_ids.extend(
+        protagonist_behavior_record::Entity::find()
+            .select_only()
+            .column(protagonist_behavior_record::Column::ProfileId)
+            .filter(
+                protagonist_behavior_record::Column::ProfileId.is_in(profile_ids.iter().copied()),
+            )
+            .distinct()
+            .into_tuple::<i64>()
+            .all(db)
+            .await?,
+    );
+    timeline_profile_ids.extend(
+        protagonist_deletion_mark::Entity::find()
+            .select_only()
+            .column(protagonist_deletion_mark::Column::ProfileId)
+            .filter(protagonist_deletion_mark::Column::ProfileId.is_in(profile_ids.iter().copied()))
+            .distinct()
+            .into_tuple::<i64>()
+            .all(db)
+            .await?,
+    );
+    timeline_profile_ids.extend(
+        snapshot_reference::Entity::find()
+            .select_only()
+            .column(snapshot_reference::Column::ProfileId)
+            .filter(snapshot_reference::Column::ProfileId.is_in(profile_ids.iter().copied()))
+            .distinct()
+            .into_tuple::<i64>()
+            .all(db)
+            .await?,
+    );
+    timeline_profile_ids.extend(
+        character_state_index::Entity::find()
+            .select_only()
+            .column(character_state_index::Column::ProfileId)
+            .filter(character_state_index::Column::ProfileId.is_in(profile_ids.iter().copied()))
+            .distinct()
+            .into_tuple::<i64>()
+            .all(db)
+            .await?,
+    );
+    Ok(timeline_profile_ids)
 }
 
 #[cfg(test)]

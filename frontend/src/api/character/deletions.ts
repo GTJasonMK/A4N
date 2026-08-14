@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type {
   CharacterAttributeCategory,
   DeletionMarkStatus,
@@ -17,7 +16,6 @@ export async function listDeletionMarks(
   },
 ): Promise<DeletionMark[]> {
   return apiInvoke<DeletionMark[]>("list_deletion_marks", {
-    userId: currentUserId(),
     input: {
       profile_id: idNum(profileId),
       category: (filters?.category || null) as CharacterAttributeCategory | null,
@@ -32,7 +30,6 @@ export async function resetDeletionMarks(
   key: string,
 ): Promise<number> {
   return apiInvoke<number>("reset_deletion_marks", {
-    userId: currentUserId(),
     input: { profile_id: idNum(profileId), category, key },
   });
 }
@@ -41,7 +38,6 @@ export async function requestAttributeDeletion(
   input: RequestAttributeDeletionInput,
 ): Promise<DeletionMark> {
   return apiInvoke<DeletionMark>("request_attribute_deletion", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -50,7 +46,6 @@ export async function executeAttributeDeletion(
   input: ExecuteAttributeDeletionInput,
 ): Promise<void> {
   return apiInvoke<void>("execute_attribute_deletion", {
-    userId: currentUserId(),
     input,
   });
 }

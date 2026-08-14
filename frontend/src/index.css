@@ -1361,6 +1361,69 @@ body {
 }
 
 /* ============================================================================
+   关系图
+   ============================================================================ */
+
+.a4n-relationship-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.a4n-relationship-flow .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.a4n-relationship-flow .react-flow__node-default.a4n-relationship-node {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 999px;
+  background: rgb(var(--color-bg-secondary));
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.14);
+  font-family: inherit;
+  overflow: hidden;
+}
+
+.a4n-relationship-flow
+  .react-flow__node-default.a4n-relationship-node.selected {
+  border-color: rgb(var(--color-primary));
+  box-shadow:
+    0 0 0 3px rgb(var(--color-primary) / 0.18),
+    0 10px 24px rgb(0 0 0 / 0.18);
+}
+
+.a4n-relationship-flow .a4n-relationship-node .react-flow__handle {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.a4n-relationship-edge .react-flow__edge-path {
+  stroke: rgb(var(--color-text-secondary) / 0.58);
+  stroke-width: 1.5;
+}
+
+.a4n-relationship-flow
+  .react-flow__edge.a4n-relationship-edge.selected
+  .react-flow__edge-path,
+.a4n-relationship-flow
+  .react-flow__edge.a4n-relationship-edge:focus
+  .react-flow__edge-path {
+  stroke: rgb(var(--color-primary));
+  stroke-width: 2.2;
+}
+
+.a4n-relationship-flow .react-flow__edge-textbg {
+  fill: rgb(var(--color-bg-secondary) / 0.96);
+  stroke: rgb(var(--color-border));
+}
+
+.a4n-relationship-flow .react-flow__edge-text {
+  fill: rgb(var(--color-text-secondary));
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ============================================================================
    视频画布工作台
    ============================================================================ */
 
@@ -1604,7 +1667,7 @@ body {
   font-weight: 600;
 }
 
-.a4n-studio-controls {
+.a4n-flow-controls {
   bottom: 2.75rem;
   overflow: hidden;
   border: 1px solid rgb(var(--color-border));
@@ -1613,7 +1676,7 @@ body {
   box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
 }
 
-.a4n-studio-controls button {
+.a4n-flow-controls button {
   width: 30px;
   height: 30px;
   border-bottom: 1px solid rgb(var(--color-border));
@@ -1622,7 +1685,7 @@ body {
   fill: rgb(var(--color-text-secondary));
 }
 
-.a4n-studio-controls button:hover {
+.a4n-flow-controls button:hover {
   background: rgb(var(--color-primary) / 0.12);
   color: rgb(var(--color-primary));
   fill: rgb(var(--color-primary));

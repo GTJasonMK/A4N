@@ -1717,7 +1717,7 @@ export const VideoStudioCanvas: React.FC = () => {
                       }}
                     />
                   ) : null}
-                  <Controls className="a4n-studio-controls" />
+                  <Controls className="a4n-flow-controls" />
                   <Background
                     color="rgb(var(--color-text-tertiary) / 0.24)"
                     gap={32}

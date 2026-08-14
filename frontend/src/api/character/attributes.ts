@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type {
   AddProfileAttributeInput,
   CharacterAttributeCategory,
@@ -31,7 +30,6 @@ export async function attributeHistory(
     limit: filters.limit ?? null,
   } satisfies AttributeHistoryInput;
   return apiInvoke<AttributeEvent[]>("attribute_history", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -40,7 +38,6 @@ export async function addProfileAttribute(
   input: AddProfileAttributeInput,
 ): Promise<void> {
   return apiInvoke<void>("add_profile_attribute", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -49,7 +46,6 @@ export async function modifyProfileAttribute(
   input: ModifyProfileAttributeInput,
 ): Promise<void> {
   return apiInvoke<void>("modify_profile_attribute", {
-    userId: currentUserId(),
     input,
   });
 }

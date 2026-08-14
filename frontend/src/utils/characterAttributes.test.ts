@@ -24,6 +24,8 @@ const profile: CharacterProfile = {
   background: null,
   personality: null,
   last_synced_chapter: 3,
+  timeline_started: true,
+  initial_profile_editable: false,
   attribute_counts: { explicit: 1, implicit: 1, social: 0 },
   created_at: null,
   updated_at: null,

@@ -76,6 +76,8 @@ pub struct CharacterProfileSummary {
     pub background: Option<String>,
     pub personality: Option<String>,
     pub last_synced_chapter: i32,
+    pub timeline_started: bool,
+    pub initial_profile_editable: bool,
     pub attribute_counts: AttributeCountsSummary,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,

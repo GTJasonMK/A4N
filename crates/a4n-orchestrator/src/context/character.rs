@@ -56,6 +56,15 @@ impl CharacterApplication {
             .map_err(AppError::Database)
     }
 
+    async fn profiles_with_timeline_state(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<(protagonist_profile::Model, bool, bool)>, AppError> {
+        a4n_db::character::profiles_with_timeline_state(self.database.connection(), project_id)
+            .await
+            .map_err(character_db_error)
+    }
+
     async fn profile_by_id(
         &self,
         profile_id: i64,
@@ -483,6 +492,15 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<Vec<protagonist_profile::Model>, AppError> {
         self.character.profiles_by_project(project_id).await
+    }
+
+    pub async fn profiles_with_timeline_state(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<(protagonist_profile::Model, bool, bool)>, AppError> {
+        self.character
+            .profiles_with_timeline_state(project_id)
+            .await
     }
 
     pub async fn profile_by_id(

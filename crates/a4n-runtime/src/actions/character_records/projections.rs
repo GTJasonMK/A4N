@@ -22,6 +22,8 @@ pub(super) fn attribute_counts(value: &Value) -> Result<AttributeCountsSummary, 
 
 pub(super) fn profile_summary(
     p: &protagonist_profile::Model,
+    timeline_started: bool,
+    initial_profile_editable: bool,
 ) -> Result<CharacterProfileSummary, String> {
     Ok(CharacterProfileSummary {
         id: p.id,
@@ -37,6 +39,8 @@ pub(super) fn profile_summary(
         background: p.background.clone(),
         personality: p.personality.clone(),
         last_synced_chapter: p.last_synced_chapter,
+        timeline_started,
+        initial_profile_editable,
         attribute_counts: attribute_counts(&p.current_state)?,
         created_at: Some(p.created_at.to_string()),
         updated_at: Some(p.updated_at.to_string()),
