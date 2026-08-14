@@ -1,5 +1,4 @@
 import { apiInvoke } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
 import type * as Host from "./generated/host";
 import type { ModelRequestPreview } from "./requestPreview";
@@ -58,7 +57,6 @@ export type {
 
 export async function getGalgameScript(projectId: Id): Promise<Host.GalgameScriptDetail> {
   return apiInvoke<Host.GalgameScriptDetail>("get_galgame_script", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) },
   });
 }
@@ -67,7 +65,6 @@ export async function startGalgamePipeline(
   input: Host.StartGalgamePipelineInput,
 ): Promise<Host.GalgameScriptDetail> {
   return apiInvoke<Host.GalgameScriptDetail>("start_galgame_pipeline", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -76,7 +73,6 @@ export async function cancelGalgamePipeline(
   projectId: Id,
 ): Promise<Host.GalgamePipelineStatusSummary> {
   return apiInvoke<Host.GalgamePipelineStatusSummary>("cancel_galgame_pipeline", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) },
   });
 }
@@ -85,7 +81,6 @@ export async function previewGalgamePipelineRequest(
   input: Host.PreviewGalgamePipelineInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_galgame_pipeline_request", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -94,7 +89,6 @@ export async function getGalgamePipelineStatus(
   projectId: Id,
 ): Promise<Host.GalgamePipelineStatusSummary> {
   return apiInvoke<Host.GalgamePipelineStatusSummary>("get_galgame_pipeline_status", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) },
   });
 }
@@ -104,7 +98,6 @@ export async function updateGalgameLine(
   input: Host.UpdateGalgameLineInput,
 ): Promise<Host.GalgameLine> {
   return apiInvoke<Host.GalgameLine>("update_galgame_line", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });
@@ -115,7 +108,6 @@ export async function insertGalgameLine(
   input: Host.InsertGalgameLineInput,
 ): Promise<Host.GalgameLine> {
   return apiInvoke<Host.GalgameLine>("insert_galgame_line", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });
@@ -126,7 +118,6 @@ export async function updateGalgameScene(
   input: Host.UpdateGalgameSceneInput,
 ): Promise<Host.GalgameScene> {
   return apiInvoke<Host.GalgameScene>("update_galgame_scene", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });
@@ -137,7 +128,6 @@ export async function deleteGalgameLine(
   input: Host.DeleteGalgameLineInput,
 ): Promise<void> {
   return apiInvoke<void>("delete_galgame_line", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });
@@ -148,7 +138,6 @@ export async function reorderGalgameLines(
   input: Host.ReorderGalgameLinesInput,
 ): Promise<Host.GalgameLine[]> {
   return apiInvoke<Host.GalgameLine[]>("reorder_galgame_lines", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });
@@ -159,7 +148,6 @@ export async function updateGalgameChoices(
   input: Host.UpdateGalgameChoicesInput,
 ): Promise<Host.GalgameChoice[]> {
   return apiInvoke<Host.GalgameChoice[]>("update_galgame_choices", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input,
   });
@@ -167,7 +155,6 @@ export async function updateGalgameChoices(
 
 export async function planGalgameAssets(projectId: Id): Promise<Host.GalgameAssetPlan> {
   return apiInvoke<Host.GalgameAssetPlan>("plan_galgame_assets", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) },
   });
 }
@@ -176,7 +163,6 @@ export async function runGalgameAssetGeneration(
   input: Host.RunGalgameAssetGenerationInput,
 ): Promise<Host.GalgameAssetGenerationSummary> {
   return apiInvoke<Host.GalgameAssetGenerationSummary>("run_galgame_asset_generation", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -185,7 +171,6 @@ export async function bindGalgameMedia(
   input: Host.BindGalgameMediaInput,
 ): Promise<Host.GalgameMediaBindingSummary> {
   return apiInvoke<Host.GalgameMediaBindingSummary>("bind_galgame_media", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -194,7 +179,6 @@ export async function unbindGalgameMedia(
   input: Host.UnbindGalgameMediaInput,
 ): Promise<number> {
   return apiInvoke<number>("unbind_galgame_media", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -203,14 +187,12 @@ export async function importGalgameAudio(
   input: Host.ImportGalgameAudioInput,
 ): Promise<Host.GalgameMediaBindingSummary> {
   return apiInvoke<Host.GalgameMediaBindingSummary>("import_galgame_audio", {
-    userId: currentUserId(),
     input,
   });
 }
 
 export async function exportGalgameWebgal(projectId: Id): Promise<Host.ExportFileData> {
   return apiInvoke<Host.ExportFileData>("export_galgame_webgal", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) },
   });
 }

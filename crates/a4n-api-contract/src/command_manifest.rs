@@ -879,7 +879,7 @@ fn args_attribute_history() -> Value {
 }
 
 fn args_bind_galgame_media() -> Value {
-    typed_input_schema::<crate::galgame::BindGalgameMediaInput>()
+    strict_typed_input_schema::<crate::galgame::BindGalgameMediaInput>()
 }
 
 fn args_bind_manga_reference_image() -> Value {
@@ -899,7 +899,7 @@ fn args_cancel_generation_task() -> Value {
 }
 
 fn args_cancel_galgame_pipeline() -> Value {
-    typed_input_schema::<crate::galgame::GalgameProjectInput>()
+    strict_typed_input_schema::<crate::galgame::GalgameProjectInput>()
 }
 
 fn args_cancel_manga_pipeline() -> Value {
@@ -1279,7 +1279,7 @@ fn args_import_all_configs() -> Value {
 }
 
 fn args_import_galgame_audio() -> Value {
-    typed_input_schema::<crate::galgame::ImportGalgameAudioInput>()
+    strict_typed_input_schema::<crate::galgame::ImportGalgameAudioInput>()
 }
 
 fn args_import_project_family_upload() -> Value {
@@ -1445,7 +1445,7 @@ fn args_preview_chapter_scene_request() -> Value {
 }
 
 fn args_preview_galgame_pipeline_request() -> Value {
-    typed_input_schema::<crate::galgame::PreviewGalgamePipelineInput>()
+    strict_typed_input_schema::<crate::galgame::PreviewGalgamePipelineInput>()
 }
 
 fn args_preview_object_profile_image_request() -> Value {
@@ -1602,7 +1602,7 @@ fn args_run_canvas_node() -> Value {
 }
 
 fn args_run_galgame_asset_generation() -> Value {
-    typed_input_schema::<crate::galgame::RunGalgameAssetGenerationInput>()
+    strict_typed_input_schema::<crate::galgame::RunGalgameAssetGenerationInput>()
 }
 
 fn args_save_blueprint() -> Value {
@@ -1661,7 +1661,7 @@ fn args_start_chapter_generation() -> Value {
 }
 
 fn args_start_galgame_pipeline() -> Value {
-    typed_input_schema::<crate::galgame::StartGalgamePipelineInput>()
+    strict_typed_input_schema::<crate::galgame::StartGalgamePipelineInput>()
 }
 
 fn args_start_image_generation() -> Value {
@@ -1697,7 +1697,7 @@ fn args_sync_character_from_chapters() -> Value {
 }
 
 fn args_unbind_galgame_media() -> Value {
-    typed_input_schema::<crate::galgame::UnbindGalgameMediaInput>()
+    strict_typed_input_schema::<crate::galgame::UnbindGalgameMediaInput>()
 }
 
 fn args_update_chapter_video_prompt() -> Value {
@@ -2589,7 +2589,7 @@ fn project_typed_input_schema<T: JsonSchema>() -> Value {
             "input": raw_schema::<T>(),
         },
         "required": ["projectId", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -3209,6 +3209,44 @@ mod tests {
             assert_eq!(
                 descriptor.args_schema["x-a4n-context-fields"],
                 serde_json::json!([]),
+                "{command} must use the authenticated Host identity"
+            );
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command} must reject retired identity args"
+            );
+            assert!(descriptor.args_schema["properties"].get("userId").is_none());
+        }
+    }
+
+    #[test]
+    fn galgame_commands_use_one_authenticated_identity() {
+        for command in [
+            "get_galgame_script",
+            "start_galgame_pipeline",
+            "cancel_galgame_pipeline",
+            "preview_galgame_pipeline_request",
+            "get_galgame_pipeline_status",
+            "update_galgame_line",
+            "insert_galgame_line",
+            "update_galgame_scene",
+            "delete_galgame_line",
+            "reorder_galgame_lines",
+            "update_galgame_choices",
+            "plan_galgame_assets",
+            "run_galgame_asset_generation",
+            "bind_galgame_media",
+            "unbind_galgame_media",
+            "import_galgame_audio",
+            "export_galgame_webgal",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert!(
+                descriptor.args_schema["x-a4n-context-fields"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|field| field.as_str() != Some("userId")),
                 "{command} must use the authenticated Host identity"
             );
             assert_eq!(
