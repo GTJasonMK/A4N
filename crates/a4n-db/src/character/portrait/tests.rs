@@ -136,7 +136,6 @@ async fn create_portrait_rejects_profile_from_another_project_without_insert() {
             prompt: "portrait prompt".to_string(),
             expression: None,
             pose: None,
-            is_primary: false,
         },
     )
     .await
@@ -173,7 +172,6 @@ async fn first_portrait_is_primary_and_later_portraits_are_not() {
             prompt: "portrait one".to_string(),
             expression: None,
             pose: None,
-            is_primary: false,
         },
     )
     .await
@@ -188,7 +186,6 @@ async fn first_portrait_is_primary_and_later_portraits_are_not() {
             prompt: "portrait two".to_string(),
             expression: None,
             pose: None,
-            is_primary: true,
         },
     )
     .await
@@ -213,7 +210,6 @@ async fn set_primary_portrait_leaves_exactly_one_primary() {
             prompt: "portrait one".to_string(),
             expression: None,
             pose: None,
-            is_primary: false,
         },
     )
     .await
@@ -228,7 +224,6 @@ async fn set_primary_portrait_leaves_exactly_one_primary() {
             prompt: "portrait two".to_string(),
             expression: None,
             pose: None,
-            is_primary: false,
         },
     )
     .await
@@ -280,7 +275,6 @@ async fn portrait_rollback_is_transactional_and_project_scoped() {
             prompt: "portrait".to_string(),
             expression: None,
             pose: None,
-            is_primary: true,
         },
     )
     .await

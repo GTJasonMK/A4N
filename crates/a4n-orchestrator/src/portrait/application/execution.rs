@@ -19,13 +19,13 @@ use super::{
     contracts::{
         GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
         GeneratePortraitPromptInput, PortraitBatchItem, PortraitBatchOutcome,
-        PortraitGenerationHostPort, PortraitProgress, PortraitSummary, RegeneratePortraitInput,
-        UploadPortraitInput,
+        PortraitGenerationHostPort, PortraitProgress, PortraitSummary, PortraitType,
+        RegeneratePortraitInput, UploadPortraitInput,
     },
     image::{
         PersistGeneratedPortraitInput, generate_portrait_image, persist_generated_portrait,
-        portrait_summary, record_initial_prompt_generation, required_portrait,
-        required_portrait_profile, upload_portrait,
+        portrait_summary, portrait_type_from_record, record_initial_prompt_generation,
+        required_portrait, required_portrait_profile, upload_portrait,
     },
     request::{prepare_named_portrait_request, prepare_profile_portrait_request},
     workflow::{
@@ -86,7 +86,7 @@ impl OrchestratorContext {
         let workflow_fingerprint = portrait_prompt_workflow_fingerprint(
             input.project_id,
             &prepared.profile,
-            &input.portrait_type,
+            input.portrait_type.as_str(),
             input.variables.as_ref(),
             &prepared.profile_context,
             prepared.project_context.as_ref(),
@@ -97,7 +97,7 @@ impl OrchestratorContext {
             .begin_portrait_prompt_workflow_validated(
                 input.project_id,
                 input.profile_id,
-                &input.portrait_type,
+                input.portrait_type,
                 &workflow_fingerprint,
             )
             .await?;
@@ -114,7 +114,7 @@ impl OrchestratorContext {
                     background: profile.background.as_deref(),
                     profile_context: Some(&prepared.profile_context),
                     project_context: prepared.project_context.as_ref(),
-                    portrait_type: &input.portrait_type,
+                    portrait_type: input.portrait_type,
                     art_style: None,
                     expression: None,
                     existing_portrait_count: None,
@@ -204,11 +204,10 @@ impl OrchestratorContext {
                     workflow_run_id: Some(workflow_run_id),
                     profile_id: prepared.profile.id,
                     project_id: input.project_id,
-                    portrait_type: "full_body",
+                    portrait_type: PortraitType::FullBody,
                     prompt: &prompt.image_prompt,
                     expression: Some(&prepared.expression),
                     pose: input.pose.as_deref(),
-                    is_primary: prepared.existing_count == 0,
                     character_name: &prepared.profile.name,
                     variant_kind: None,
                     auto_generated: false,
@@ -230,7 +229,7 @@ impl OrchestratorContext {
             )
             .await?;
             report_progress(&mut progress, 6, 6, "人物三视图拆解生成完成")?;
-            Ok(portrait_summary(&portrait))
+            portrait_summary(&portrait)
         }
         .await;
         finalize_portrait_application(self, workflow_run_id, &result, "人物三视图拆解生成完成")
@@ -340,11 +339,10 @@ impl OrchestratorContext {
                             workflow_run_id: Some(workflow_run_id),
                             profile_id: profile.id,
                             project_id: input.project_id,
-                            portrait_type: "half_body",
+                            portrait_type: PortraitType::HalfBody,
                             prompt: &prompt,
                             expression: None,
                             pose: None,
-                            is_primary: true,
                             character_name: &profile.name,
                             variant_kind: None,
                             auto_generated: true,
@@ -353,7 +351,7 @@ impl OrchestratorContext {
                         },
                     )
                     .await?;
-                    let summary = portrait_summary(&portrait);
+                    let summary = portrait_summary(&portrait)?;
                     save_completed_portrait_checkpoint(
                         self,
                         workflow_run_id,
@@ -389,6 +387,9 @@ impl OrchestratorContext {
                         outcome.cancelled = 1;
                         outcome.skipped = total.saturating_sub(next_current);
                         outcome.interrupted = true;
+                        outcome
+                            .first_error
+                            .get_or_insert_with(|| AppError::Cancelled.to_string());
                         break;
                     }
                     Err(error) => {
@@ -407,6 +408,9 @@ impl OrchestratorContext {
                             if matches!(progress_error, AppError::Cancelled) {
                                 outcome.skipped = total.saturating_sub(next_current);
                                 outcome.interrupted = true;
+                                outcome
+                                    .first_error
+                                    .get_or_insert_with(|| progress_error.to_string());
                                 break;
                             }
                             return Err(progress_error);
@@ -556,6 +560,7 @@ impl OrchestratorContext {
             reference_image_ids,
             fingerprint,
         } = run;
+        let portrait_type = portrait_type_from_record(existing)?;
         let workflow_run = self
             .begin_portrait_image_workflow_validated(
                 workflow_kind,
@@ -602,11 +607,10 @@ impl OrchestratorContext {
                     workflow_run_id: Some(workflow_run.id),
                     profile_id: existing.profile_id,
                     project_id: existing.project_id,
-                    portrait_type: &existing.portrait_type,
+                    portrait_type,
                     prompt,
                     expression: existing.expression.as_deref(),
                     pose: existing.pose.as_deref(),
-                    is_primary: false,
                     character_name,
                     variant_kind: Some(variant_kind),
                     auto_generated: false,
@@ -615,7 +619,7 @@ impl OrchestratorContext {
                 },
             )
             .await?;
-            let summary = portrait_summary(&portrait);
+            let summary = portrait_summary(&portrait)?;
             save_completed_portrait_checkpoint(
                 self,
                 workflow_run.id,

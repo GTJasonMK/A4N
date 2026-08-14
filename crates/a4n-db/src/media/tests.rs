@@ -141,7 +141,7 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
     .await
     .unwrap();
     let portrait_path = format!("projects/{}/portraits/ref.png", project.id);
-    let portrait = crate::character::create_character_portrait_record(
+    let portrait = crate::character::create_character_portrait_for_profile(
         &db,
         crate::character::CharacterPortraitCreateInput {
             profile_id: profile.id,
@@ -151,7 +151,6 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
             prompt: "path reference".to_string(),
             expression: None,
             pose: None,
-            is_primary: true,
         },
     )
     .await

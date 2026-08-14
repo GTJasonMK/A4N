@@ -215,7 +215,9 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
     try {
-      const preview = await previewGenerateMissingPortraitsRequest(requestProjectId);
+      const preview = await previewGenerateMissingPortraitsRequest({
+        project_id: requestProjectId,
+      });
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }
@@ -287,7 +289,10 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
     try {
-      const preview = await previewRegeneratePortraitRequest(portrait.id);
+      const preview = await previewRegeneratePortraitRequest({
+        portrait_id: portrait.id,
+        reference_image_ids: [],
+      });
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }

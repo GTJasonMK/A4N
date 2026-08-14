@@ -1,12 +1,164 @@
+use std::fmt;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::generation_tasks::GenerationStartRequestMeta;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PortraitType {
+    FullBody,
+    HalfBody,
+    Face,
+    Chibi,
+}
+
+impl PortraitType {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FullBody => "full_body",
+            Self::HalfBody => "half_body",
+            Self::Face => "face",
+            Self::Chibi => "chibi",
+        }
+    }
+}
+
+impl TryFrom<&str> for PortraitType {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "full_body" => Ok(Self::FullBody),
+            "half_body" => Ok(Self::HalfBody),
+            "face" => Ok(Self::Face),
+            "chibi" => Ok(Self::Chibi),
+            other => Err(format!("不支持的立绘类型: {other}")),
+        }
+    }
+}
+
+impl fmt::Display for PortraitType {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PortraitSummary {
+    #[schemars(range(min = 1))]
+    pub id: i64,
+    #[schemars(range(min = 1))]
+    pub profile_id: i64,
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    pub portrait_type: PortraitType,
+    pub image_path: String,
+    pub prompt: String,
+    pub expression: Option<String>,
+    pub pose: Option<String>,
+    pub is_primary: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ListPortraitsByProjectInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GetPrimaryPortraitInput {
+    #[schemars(range(min = 1))]
+    pub profile_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SetPrimaryPortraitInput {
+    #[schemars(range(min = 1))]
+    pub portrait_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratePortraitPromptInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub profile_id: i64,
+    pub portrait_type: PortraitType,
+    pub variables: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratePortraitInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1, max = 512))]
+    pub character_name: String,
+    #[schemars(length(max = 512))]
+    pub style: Option<String>,
+    #[schemars(length(max = 512))]
+    pub expression: Option<String>,
+    #[schemars(length(max = 512))]
+    pub pose: Option<String>,
+    pub reference_image_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RegeneratePortraitInput {
+    #[schemars(range(min = 1))]
+    pub portrait_id: i64,
+    pub reference_image_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateAgeVariantInput {
+    #[schemars(range(min = 1))]
+    pub portrait_id: i64,
+    #[schemars(length(min = 1, max = 128))]
+    pub age: String,
+    pub reference_image_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateMissingPortraitsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct UploadPortraitInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub profile_id: i64,
+    #[schemars(length(min = 1, max = 512))]
+    pub file_name: String,
+    #[schemars(length(min = 1, max = 255))]
+    pub mime_type: String,
+    #[schemars(length(min = 1))]
+    pub data_base64: String,
+    pub portrait_type: PortraitType,
+    #[schemars(length(min = 1))]
+    pub prompt: String,
+    pub expression: Option<String>,
+    pub pose: Option<String>,
+    pub set_primary: bool,
+}
+
 /// 人物图片生成的唯一启动合同。
-///
-/// 查询、上传和请求预览仍使用各自的旧合同；只有四个生产生成入口共用这里的
-/// 一个 start/worker 路径。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct StartPortraitGenerationInput {
@@ -24,19 +176,15 @@ pub enum PortraitGenerationOperation {
         character_name: String,
         #[schemars(length(max = 512))]
         style: Option<String>,
-        #[schemars(length(max = 32))]
-        expressions: Option<Vec<String>>,
+        #[schemars(length(max = 512))]
+        expression: Option<String>,
         #[schemars(length(max = 512))]
         pose: Option<String>,
-        #[schemars(length(max = 4))]
-        #[serde(default)]
         reference_image_ids: Vec<i64>,
     },
     Regenerate {
         #[schemars(range(min = 1))]
         portrait_id: i64,
-        #[schemars(length(max = 4))]
-        #[serde(default)]
         reference_image_ids: Vec<i64>,
     },
     GenerateAgeVariant {
@@ -44,9 +192,17 @@ pub enum PortraitGenerationOperation {
         portrait_id: i64,
         #[schemars(length(min = 1, max = 128))]
         age: String,
-        #[schemars(length(max = 4))]
-        #[serde(default)]
         reference_image_ids: Vec<i64>,
     },
     GenerateMissing,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PortraitType;
+
+    #[test]
+    fn portrait_type_rejects_unknown_values() {
+        assert!(serde_json::from_str::<PortraitType>(r#""headshot""#).is_err());
+    }
 }

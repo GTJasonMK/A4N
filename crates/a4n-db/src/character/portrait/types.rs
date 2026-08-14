@@ -29,7 +29,6 @@ pub struct CharacterPortraitCreateInput {
     pub prompt: String,
     pub expression: Option<String>,
     pub pose: Option<String>,
-    pub is_primary: bool,
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,7 +1,9 @@
 use crate::state::ServerState;
 use serde_json::{Value, json};
 
-use super::super::super::{ApiError, command_input, portrait_generation_actions, to_value};
+use super::super::super::{
+    ApiError, portrait_generation_actions, strict_runtime_command_input, to_value,
+};
 
 pub(in crate::routes::commands) async fn generate_portrait_prompt(
     state: &ServerState,
@@ -9,7 +11,7 @@ pub(in crate::routes::commands) async fn generate_portrait_prompt(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: portrait_generation_actions::GeneratePortraitPromptInput =
-        command_input(args, "generate_portrait_prompt")?;
+        strict_runtime_command_input(args, "generate_portrait_prompt")?;
     let prompt =
         portrait_generation_actions::generate_portrait_prompt(state.runtime(), user_id, input)
             .await
@@ -23,7 +25,7 @@ pub(in crate::routes::commands) async fn preview_generate_portrait_prompt_reques
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: portrait_generation_actions::GeneratePortraitPromptInput =
-        command_input(args, "preview_generate_portrait_prompt_request")?;
+        strict_runtime_command_input(args, "preview_generate_portrait_prompt_request")?;
     let preview = portrait_generation_actions::preview_generate_portrait_prompt_request(
         state.runtime(),
         user_id,

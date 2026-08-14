@@ -1,9 +1,11 @@
 use crate::state::ServerState;
+use a4n_api_contract::portrait::{
+    GetPrimaryPortraitInput, ListPortraitsByProjectInput, SetPrimaryPortraitInput,
+};
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, command_input, i64_arg, portrait_generation_actions, portrait_records_actions,
-    to_value,
+    ApiError, portrait_generation_actions, portrait_records_actions, strict_command_input, to_value,
 };
 
 pub(in crate::routes::commands) async fn list_portraits_by_project(
@@ -11,9 +13,10 @@ pub(in crate::routes::commands) async fn list_portraits_by_project(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
+    let input: ListPortraitsByProjectInput =
+        strict_command_input(args, "list_portraits_by_project")?;
     let portraits =
-        portrait_records_actions::list_portraits_by_project(state.runtime(), user_id, project_id)
+        portrait_records_actions::list_portraits_by_project(state.runtime(), user_id, input)
             .await
             .map_err(ApiError::bad_request)?;
     to_value(portraits)
@@ -24,11 +27,10 @@ pub(in crate::routes::commands) async fn get_primary_portrait(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let profile_id = i64_arg(args, "profileId")?;
-    let portrait =
-        portrait_records_actions::get_primary_portrait(state.runtime(), user_id, profile_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    let input: GetPrimaryPortraitInput = strict_command_input(args, "get_primary_portrait")?;
+    let portrait = portrait_records_actions::get_primary_portrait(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     to_value(portrait)
 }
 
@@ -37,8 +39,8 @@ pub(in crate::routes::commands) async fn set_primary_portrait(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let portrait_id = i64_arg(args, "portraitId")?;
-    portrait_records_actions::set_primary_portrait(state.runtime(), user_id, portrait_id)
+    let input: SetPrimaryPortraitInput = strict_command_input(args, "set_primary_portrait")?;
+    portrait_records_actions::set_primary_portrait(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
@@ -50,7 +52,7 @@ pub(in crate::routes::commands) async fn upload_portrait(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: portrait_generation_actions::UploadPortraitInput =
-        command_input(args, "upload_portrait")?;
+        strict_command_input(args, "upload_portrait")?;
     let portrait = portrait_generation_actions::upload_portrait(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;

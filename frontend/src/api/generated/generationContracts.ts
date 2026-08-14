@@ -202,37 +202,22 @@ export type OutlineGenerationOperation =
 export type PortraitGenerationOperation =
   | {
       character_name: string;
-      /**
-       * @maxItems 32
-       */
-      expressions?: string[] | null;
+      expression?: string | null;
       kind: "generate";
       pose?: string | null;
-      /**
-       * @maxItems 4
-       */
-      reference_image_ids?:
-        [] | [number] | [number, number] | [number, number, number] | [number, number, number, number];
+      reference_image_ids: number[];
       style?: string | null;
     }
   | {
       kind: "regenerate";
       portrait_id: number;
-      /**
-       * @maxItems 4
-       */
-      reference_image_ids?:
-        [] | [number] | [number, number] | [number, number, number] | [number, number, number, number];
+      reference_image_ids: number[];
     }
   | {
       age: string;
       kind: "generate_age_variant";
       portrait_id: number;
-      /**
-       * @maxItems 4
-       */
-      reference_image_ids?:
-        [] | [number] | [number, number] | [number, number, number] | [number, number, number, number];
+      reference_image_ids: number[];
     }
   | {
       kind: "generate_missing";
@@ -644,9 +629,6 @@ export interface OutlineDeleteTarget {
 }
 /**
  * 人物图片生成的唯一启动合同。
- *
- * 查询、上传和请求预览仍使用各自的旧合同；只有四个生产生成入口共用这里的
- * 一个 start/worker 路径。
  */
 export interface StartPortraitGenerationInput {
   meta: GenerationStartRequestMeta;

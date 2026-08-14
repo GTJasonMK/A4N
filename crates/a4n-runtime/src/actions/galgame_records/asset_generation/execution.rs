@@ -100,7 +100,7 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
                 project_id: input.project_id,
                 character_name: input.character_name,
                 style: Some(input.style),
-                expressions: Some(vec![input.expression]),
+                expression: Some(input.expression),
                 pose: Some(input.pose),
                 reference_image_ids: input.reference_image_ids,
             },

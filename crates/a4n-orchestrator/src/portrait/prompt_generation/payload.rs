@@ -23,7 +23,7 @@ pub(in crate::portrait) fn portrait_prompt_request(
 ) -> Result<String, AppError> {
     let payload = portrait_prompt_payload_value(PortraitPromptPayloadInput {
         spec,
-        portrait_type_text: spec.portrait_type,
+        portrait_type_text: super::request::portrait_type_description(spec.portrait_type),
     })?;
     let mut variables = HashMap::new();
     variables.insert(

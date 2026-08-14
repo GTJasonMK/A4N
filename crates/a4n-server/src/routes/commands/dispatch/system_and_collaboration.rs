@@ -96,9 +96,6 @@ pub(super) async fn try_dispatch(
         "export_epub_data" => export_epub_data(state, user_id, args).await?,
         "export_pdf_data" => export_pdf_data(state, user_id, args).await?,
         "export_batch_data" => export_batch_data(state, user_id, args).await?,
-        "preview_generate_age_variant_request" => {
-            preview_generate_age_variant_request(state, user_id, args).await?
-        }
         "list_snapshots" => list_snapshots(state, user_id, args).await?,
         "get_snapshot" => get_snapshot(state, user_id, args).await?,
         "check_profile_sync_conflict" => check_profile_sync_conflict(state, user_id, args).await?,

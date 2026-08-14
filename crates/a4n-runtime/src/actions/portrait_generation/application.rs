@@ -41,7 +41,7 @@ pub(crate) async fn generate_portrait_inline(
         operation: PortraitGenerationOperation::Generate {
             character_name: input.character_name,
             style: input.style,
-            expressions: input.expressions,
+            expression: input.expression,
             pose: input.pose,
             reference_image_ids: input.reference_image_ids,
         },
@@ -87,7 +87,7 @@ pub(crate) async fn generate_portrait_inline(
         .map_err(|error| error.to_string())?
         .filter(|portrait| portrait.project_id == project_id)
         .ok_or_else(|| format!("项目 #{project_id} 不存在生成的立绘 #{portrait_id}"))?;
-    Ok(super::to_summary(&portrait))
+    super::to_summary(&portrait).map_err(|error| error.to_string())
 }
 
 pub async fn upload_portrait(

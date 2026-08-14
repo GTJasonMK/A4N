@@ -3,7 +3,7 @@ import { Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
-import { uploadPortrait } from "../../../api/portrait";
+import { uploadPortrait, type PortraitType } from "../../../api/portrait";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
@@ -22,12 +22,12 @@ interface UploadPortraitDialogProps {
   onUploaded: () => void;
 }
 
-const PORTRAIT_TYPE_OPTIONS = [
+const PORTRAIT_TYPE_OPTIONS: ReadonlyArray<{ value: PortraitType; label: string }> = [
   { value: "full_body", label: "全身三视图拆解" },
   { value: "half_body", label: "半身三视图拆解" },
   { value: "face", label: "面部/发型拆解" },
   { value: "chibi", label: "Q版三视图拆解" },
-] as const;
+];
 
 export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
   projectId,
@@ -37,7 +37,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
 }) => {
   const addToast = useToast((state) => state.addToast);
   const [profileId, setProfileId] = useState(profiles[0]?.id ?? 0);
-  const [portraitType, setPortraitType] = useState("full_body");
+  const [portraitType, setPortraitType] = useState<PortraitType>("full_body");
   const [prompt, setPrompt] = useState("");
   const [expression, setExpression] = useState("");
   const [pose, setPose] = useState("");
@@ -121,13 +121,6 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     const requestProjectId = projectId;
     const requestProfile = selectedProfile;
     const requestFile = file;
-    const requestPayload = {
-      portraitType,
-      prompt: prompt.trim(),
-      expression: expression.trim() || null,
-      pose: pose.trim() || null,
-      setPrimary,
-    };
     submitBusyRef.current = true;
     setBusy(true);
     try {
@@ -139,11 +132,11 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         file_name: requestFile.name,
         mime_type: requestFile.type,
         data_base64: dataBase64,
-        portrait_type: requestPayload.portraitType,
-        prompt: requestPayload.prompt,
-        expression: requestPayload.expression,
-        pose: requestPayload.pose,
-        set_primary: requestPayload.setPrimary,
+        portrait_type: portraitType,
+        prompt: prompt.trim(),
+        expression: expression.trim() || null,
+        pose: pose.trim() || null,
+        set_primary: setPrimary,
       });
       if (!isCurrentProject(requestProjectId)) return;
       addToast("已上传角色立绘", "success");
@@ -216,7 +209,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           <label className="mb-1 block text-xs text-book-text-muted">立绘类型</label>
           <select
             value={portraitType}
-            onChange={(event) => setPortraitType(event.target.value)}
+            onChange={(event) => setPortraitType(event.target.value as PortraitType)}
             className="pyqt-input w-full"
             disabled={busy}
           >

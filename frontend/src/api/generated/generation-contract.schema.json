@@ -1752,13 +1752,10 @@
               "minLength": 1,
               "type": "string"
             },
-            "expressions": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 32,
+            "expression": {
+              "maxLength": 512,
               "type": [
-                "array",
+                "string",
                 "null"
               ]
             },
@@ -1774,12 +1771,10 @@
               ]
             },
             "reference_image_ids": {
-              "default": [],
               "items": {
                 "format": "int64",
                 "type": "integer"
               },
-              "maxItems": 4,
               "type": "array"
             },
             "style": {
@@ -1792,7 +1787,8 @@
           },
           "required": [
             "kind",
-            "character_name"
+            "character_name",
+            "reference_image_ids"
           ],
           "type": "object"
         },
@@ -1809,18 +1805,17 @@
               "type": "integer"
             },
             "reference_image_ids": {
-              "default": [],
               "items": {
                 "format": "int64",
                 "type": "integer"
               },
-              "maxItems": 4,
               "type": "array"
             }
           },
           "required": [
             "kind",
-            "portrait_id"
+            "portrait_id",
+            "reference_image_ids"
           ],
           "type": "object"
         },
@@ -1842,19 +1837,18 @@
               "type": "integer"
             },
             "reference_image_ids": {
-              "default": [],
               "items": {
                 "format": "int64",
                 "type": "integer"
               },
-              "maxItems": 4,
               "type": "array"
             }
           },
           "required": [
             "kind",
             "portrait_id",
-            "age"
+            "age",
+            "reference_image_ids"
           ],
           "type": "object"
         },
@@ -2439,7 +2433,7 @@
     },
     "StartPortraitGenerationInput": {
       "additionalProperties": false,
-      "description": "人物图片生成的唯一启动合同。\n\n查询、上传和请求预览仍使用各自的旧合同；只有四个生产生成入口共用这里的\n一个 start/worker 路径。",
+      "description": "人物图片生成的唯一启动合同。",
       "properties": {
         "meta": {
           "$ref": "#/$defs/GenerationStartRequestMeta"

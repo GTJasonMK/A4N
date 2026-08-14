@@ -1,7 +1,5 @@
 use super::prompt_generation::portrait_prompt_request;
-use super::types::portrait_type_description;
 use super::*;
-use a4n_core::error::AppError;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use serde_json::json;
 use std::path::PathBuf;
@@ -14,7 +12,7 @@ fn prompt_engine() -> TeraPromptEngine {
     TeraPromptEngine::from_directory(&prompts_dir()).expect("prompts should load")
 }
 
-fn prompt_spec<'a>(profile_name: &'a str, portrait_type: &'a str) -> PortraitPromptSpec<'a> {
+fn prompt_spec(profile_name: &str, portrait_type: PortraitType) -> PortraitPromptSpec<'_> {
     PortraitPromptSpec {
         profile_name,
         appearance: None,
@@ -40,10 +38,7 @@ fn portrait_prompt_request_requires_chinese_prompt() {
             appearance: Some("短发"),
             gender: Some("女"),
             age: Some("二十岁"),
-            ..prompt_spec(
-                "林岚",
-                "人物三视图与拆解设定图（正面、侧面、背面，全身，含服饰配饰拆解）",
-            )
+            ..prompt_spec("林岚", PortraitType::FullBody)
         },
         &engine,
     )
@@ -82,23 +77,10 @@ fn normalize_portrait_prompt_response_rejects_structured_or_fenced_output() {
 }
 
 #[test]
-fn portrait_type_description_rejects_unknown_type() {
-    let err = portrait_type_description("headshot").expect_err("unknown type must fail");
-    assert!(matches!(err, AppError::InvalidArgument(_)));
-}
-
-#[test]
 fn portrait_prompt_request_omits_missing_appearance() {
     let engine = prompt_engine();
-    let prompt = portrait_prompt_request(
-        1,
-        prompt_spec(
-            "林烬",
-            "人物三视图与拆解设定图（正面、侧面、背面，全身，含服饰配饰拆解）",
-        ),
-        &engine,
-    )
-    .expect("prompt should serialize");
+    let prompt = portrait_prompt_request(1, prompt_spec("林烬", PortraitType::FullBody), &engine)
+        .expect("prompt should serialize");
 
     assert!(prompt.contains(r#""character_name": "林烬""#));
     assert!(prompt.contains(
@@ -117,10 +99,7 @@ fn portrait_prompt_request_omits_blank_appearance() {
         PortraitPromptSpec {
             appearance: Some(" \n\t "),
             gender: Some(" \n\t "),
-            ..prompt_spec(
-                "林烬",
-                "人物三视图与拆解设定图（正面、侧面、背面，全身，含服饰配饰拆解）",
-            )
+            ..prompt_spec("林烬", PortraitType::FullBody)
         },
         &engine,
     )
@@ -149,10 +128,7 @@ fn portrait_prompt_request_includes_explicit_appearance() {
             art_style: Some(" 水彩风格 "),
             expression: Some(" calm "),
             existing_portrait_count: Some(2),
-            ..prompt_spec(
-                "林烬",
-                "人物三视图与拆解设定图（正面、侧面、背面，重点拆解服饰层级与配饰细节）",
-            )
+            ..prompt_spec("林烬", PortraitType::HalfBody)
         },
         &engine,
     )

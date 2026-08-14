@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::{
     OrchestratorContext,
     portrait::{
-        PortraitPromptRequestInput, PortraitPromptSpec, first_expression_or_default,
+        PortraitPromptRequestInput, PortraitPromptSpec, PortraitType, expression_or_default,
         portrait_profile_context, portrait_style_with_pose,
     },
 };
@@ -17,7 +17,6 @@ use super::contracts::{GeneratePortraitInput, GeneratePortraitPromptInput};
 
 pub(super) struct PreparedNamedPortraitRequest {
     pub(super) profile: protagonist_profile::Model,
-    pub(super) existing_count: u64,
     pub(super) expression: String,
     pub(super) request: ChatRequest,
 }
@@ -40,7 +39,7 @@ pub(super) async fn prepare_named_portrait_request(
     let profile = rows.profile;
     let existing_count = rows.existing_portrait_count;
     let profile_context = portrait_profile_context(&profile);
-    let expression = first_expression_or_default(input.expressions.as_deref());
+    let expression = expression_or_default(input.expression.as_deref());
     let style_with_pose = portrait_style_with_pose(input.style.as_deref(), input.pose.as_deref());
     let variables = HashMap::new();
     let request = context
@@ -55,7 +54,7 @@ pub(super) async fn prepare_named_portrait_request(
                 background: profile.background.as_deref(),
                 profile_context: Some(&profile_context),
                 project_context: rows.project_context.as_ref(),
-                portrait_type: "full_body",
+                portrait_type: PortraitType::FullBody,
                 art_style: style_with_pose.as_deref(),
                 expression: Some(&expression),
                 existing_portrait_count: Some(existing_count),
@@ -66,7 +65,6 @@ pub(super) async fn prepare_named_portrait_request(
         .await?;
     Ok(PreparedNamedPortraitRequest {
         profile,
-        existing_count,
         expression,
         request,
     })
@@ -96,7 +94,7 @@ pub(super) async fn prepare_profile_portrait_request(
                 background: profile.background.as_deref(),
                 profile_context: Some(&profile_context),
                 project_context: project_context.as_ref(),
-                portrait_type: &input.portrait_type,
+                portrait_type: input.portrait_type,
                 art_style: None,
                 expression: None,
                 existing_portrait_count: None,

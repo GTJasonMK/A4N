@@ -143,7 +143,6 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
             prompt: "portrait A".to_string(),
             expression: None,
             pose: None,
-            is_primary: true,
         },
     )
     .await
@@ -158,7 +157,6 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
             prompt: "portrait B".to_string(),
             expression: None,
             pose: None,
-            is_primary: true,
         },
     )
     .await

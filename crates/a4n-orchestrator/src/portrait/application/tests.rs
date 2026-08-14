@@ -29,7 +29,7 @@ use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 use super::{
     DecodedPortraitImage, GenerateMissingPortraitsInput, GeneratePortraitInput,
     GeneratedPortraitImage, PersistPortraitFileInput, PersistedPortraitFile, PortraitArtifactFile,
-    PortraitGenerationHostPort, PortraitImageProviderInput, UploadPortraitInput,
+    PortraitGenerationHostPort, PortraitImageProviderInput, PortraitType, UploadPortraitInput,
     image::generate_portrait_image,
 };
 
@@ -190,7 +190,7 @@ async fn portrait_application_rejects_cancellation_before_provider() {
                 project_id: 1,
                 character_name: "不会被查询".to_string(),
                 style: None,
-                expressions: None,
+                expression: None,
                 pose: None,
                 reference_image_ids: Vec::new(),
             },
@@ -242,7 +242,7 @@ async fn portrait_application_rejects_blank_upload_prompt_before_host_io() {
                 file_name: "portrait.png".to_string(),
                 mime_type: "image/png".to_string(),
                 data_base64: "ignored".to_string(),
-                portrait_type: "full_body".to_string(),
+                portrait_type: PortraitType::FullBody,
                 prompt: "  \n\t ".to_string(),
                 expression: None,
                 pose: None,
@@ -281,7 +281,10 @@ async fn portrait_application_persists_complete_missing_portrait_trace() {
     assert_eq!(portraits.items.len(), 1);
     assert_eq!(portraits.items[0].summary.profile_id, profile.id);
     assert_eq!(portraits.items[0].summary.project_id, project.id);
-    assert_eq!(portraits.items[0].summary.portrait_type, "half_body");
+    assert_eq!(
+        portraits.items[0].summary.portrait_type,
+        PortraitType::HalfBody
+    );
     assert!(portraits.items[0].summary.is_primary);
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);

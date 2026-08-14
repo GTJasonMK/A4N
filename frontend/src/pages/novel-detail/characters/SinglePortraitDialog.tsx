@@ -8,7 +8,6 @@ import {
   previewGeneratePortraitRequest,
   startPortraitGeneration,
   verifyPortraitGenerationResult,
-  type PortraitGenerationOperation,
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
@@ -52,7 +51,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
   const { runProgressTask } = useProgressTask();
   const [name, setName] = useState(firstProfileName(profiles));
   const [style, setStyle] = useState(DEFAULT_IMAGE_STYLE);
-  const [expressionsInput, setExpressionsInput] = useState("");
+  const [expressionInput, setExpressionInput] = useState("");
   const [referenceImages, setReferenceImages] = useState<GeneratedImage[]>([]);
   const [selectedReferenceImageIds, setSelectedReferenceImageIds] = useState<number[]>([]);
   const [referenceLoading, setReferenceLoading] = useState(false);
@@ -86,12 +85,6 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
   const isCurrentProject = useCallback((requestProjectId: number) => {
     return mountedRef.current && activeProjectIdRef.current === requestProjectId;
   }, []);
-
-  const parsedExpressions = () =>
-    expressionsInput
-      .split(/[,，]/)
-      .map((value) => value.trim())
-      .filter(Boolean);
 
   useEffect(() => {
     const requestProjectId = projectId;
@@ -208,7 +201,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     const requestProjectId = projectId;
     const requestName = name.trim();
     const requestStyle = nonEmptyText(style);
-    const requestExpressions = parsedExpressions();
+    const requestExpression = nonEmptyText(expressionInput);
     const requestReferenceImageIds = selectedReferenceImageIds;
     submitBusyRef.current = true;
     setBusy(true);
@@ -219,10 +212,10 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           kind: "generate",
           character_name: requestName,
           style: requestStyle,
-          expressions: requestExpressions.length > 0 ? requestExpressions : null,
+          expression: requestExpression,
           pose: null,
           reference_image_ids: requestReferenceImageIds,
-        } as PortraitGenerationOperation,
+        },
       });
       await runGenerationProgressTaskThen(
         runProgressTask,
@@ -265,20 +258,21 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     requestPreviewSeqRef.current = requestSeq;
     const requestName = name.trim();
     const requestStyle = nonEmptyText(style);
-    const requestExpressions = parsedExpressions();
+    const requestExpression = nonEmptyText(expressionInput);
     const requestReferenceImageIds = selectedReferenceImageIds;
     previewBusyRef.current = true;
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
     try {
-      const preview = await previewGeneratePortraitRequest(
-        requestProjectId,
-        requestName,
-        requestStyle,
-        requestExpressions.length > 0 ? requestExpressions : null,
-        requestReferenceImageIds,
-      );
+      const preview = await previewGeneratePortraitRequest({
+        project_id: requestProjectId,
+        character_name: requestName,
+        style: requestStyle,
+        expression: requestExpression,
+        pose: null,
+        reference_image_ids: requestReferenceImageIds,
+      });
       if (
         !isCurrentProject(requestProjectId) ||
         requestPreviewSeqRef.current !== requestSeq
@@ -382,12 +376,12 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           </div>
           <div>
             <label className="mb-1 block text-xs text-book-text-muted">
-              表情变化（可选）
+              表情（可选）
             </label>
             <BookInput
-              value={expressionsInput}
-              onChange={(event) => setExpressionsInput(event.target.value)}
-              placeholder="如：微笑、严肃、惊讶"
+              value={expressionInput}
+              onChange={(event) => setExpressionInput(event.target.value)}
+              placeholder="如：微笑"
             />
           </div>
           <section className="border-t border-book-border/45 pt-4">

@@ -90,6 +90,9 @@ pub(super) async fn try_dispatch(
         "preview_regenerate_portrait_request" => {
             preview_regenerate_portrait_request(state, user_id, args).await?
         }
+        "preview_generate_age_variant_request" => {
+            preview_generate_age_variant_request(state, user_id, args).await?
+        }
         "preview_generate_missing_portraits_request" => {
             preview_generate_missing_portraits_request(state, user_id, args).await?
         }

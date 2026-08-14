@@ -17,29 +17,6 @@ where
         .await
 }
 
-pub async fn create_character_portrait_record<C>(
-    db: &C,
-    input: CharacterPortraitCreateInput,
-) -> Result<character_portrait::Model, sea_orm::DbErr>
-where
-    C: ConnectionTrait,
-{
-    character_portrait::ActiveModel {
-        profile_id: Set(input.profile_id),
-        project_id: Set(input.project_id),
-        portrait_type: Set(input.portrait_type),
-        image_path: Set(input.image_path),
-        prompt: Set(input.prompt),
-        expression: Set(input.expression),
-        pose: Set(input.pose),
-        is_primary: Set(input.is_primary),
-        created_at: Set(chrono::Utc::now().naive_utc()),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-}
-
 pub async fn character_portrait_records_by_project<C>(
     db: &C,
     project_id: i64,

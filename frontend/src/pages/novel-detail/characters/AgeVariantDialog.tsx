@@ -138,7 +138,11 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
     try {
-      const preview = await previewGenerateAgeVariantRequest(requestPortraitId, trimmedAge);
+      const preview = await previewGenerateAgeVariantRequest({
+        portrait_id: requestPortraitId,
+        age: trimmedAge,
+        reference_image_ids: [],
+      });
       if (!isCurrentPortrait(requestScope) || requestPreviewSeqRef.current !== requestSeq) return;
       setRequestPreviewData(preview);
     } catch (err) {

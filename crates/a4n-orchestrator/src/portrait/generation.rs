@@ -52,7 +52,7 @@ impl OrchestratorContext {
         match &input.operation {
             PortraitGenerationOperation::Generate {
                 character_name,
-                expressions,
+                expression,
                 reference_image_ids,
                 ..
             } => {
@@ -63,12 +63,12 @@ impl OrchestratorContext {
                 }
                 validate_reference_image_ids(reference_image_ids)
                     .map_err(AppError::InvalidArgument)?;
-                if expressions
+                if expression
                     .as_ref()
-                    .is_some_and(|values| values.iter().any(|value| value.trim().is_empty()))
+                    .is_some_and(|value| value.trim().is_empty())
                 {
                     return Err(AppError::InvalidArgument(
-                        "expressions 不能包含空字符串".to_string(),
+                        "expression 不能为空字符串".to_string(),
                     ));
                 }
             }
@@ -256,7 +256,7 @@ impl OrchestratorContext {
             PortraitGenerationOperation::Generate {
                 character_name,
                 style,
-                expressions,
+                expression,
                 pose,
                 reference_image_ids,
             } => {
@@ -266,7 +266,7 @@ impl OrchestratorContext {
                             project_id,
                             character_name,
                             style,
-                            expressions,
+                            expression,
                             pose,
                             reference_image_ids,
                         },
@@ -365,27 +365,27 @@ impl OrchestratorContext {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let result_ref = portrait_batch_result_ref(project_id, &outcome.items)?;
-                let failure = if outcome.interrupted {
-                    Some(generation_public_error(
-                        "generation_interrupted",
-                        "portrait_generate_missing",
-                        outcome
-                            .first_error
-                            .as_deref()
-                            .unwrap_or("缺失立绘生成已停止"),
-                    ))
+                let failure_kind = if outcome.interrupted {
+                    Some("generation_interrupted")
                 } else if outcome.succeeded() == 0 {
-                    Some(generation_public_error(
-                        "provider_job_failed",
-                        "portrait_generate_missing",
-                        outcome
-                            .first_error
-                            .as_deref()
-                            .unwrap_or("缺失立绘全部生成失败"),
-                    ))
+                    Some("provider_job_failed")
                 } else {
                     None
                 };
+                let failure = failure_kind
+                    .map(|code| {
+                        outcome
+                            .first_error
+                            .as_deref()
+                            .map(|message| {
+                                generation_public_error(code, "portrait_generate_missing", message)
+                            })
+                            .ok_or_else(|| AppError::InvalidState {
+                                current: "portrait_batch_failed_without_error".to_string(),
+                                operation: "汇总缺失立绘批量生成结果".to_string(),
+                            })
+                    })
+                    .transpose()?;
                 Ok(PortraitGenerationResult {
                     summary: format!(
                         "缺失立绘生成完成，成功 {} 张，失败 {} 张",
@@ -527,7 +527,7 @@ mod tests {
             PortraitGenerationOperation::Generate {
                 character_name: "A".to_string(),
                 style: None,
-                expressions: None,
+                expression: None,
                 pose: None,
                 reference_image_ids: Vec::new(),
             },

@@ -5,6 +5,7 @@ import { extractErrorMessage } from "../../../api";
 import {
   generatePortraitPrompt,
   previewGeneratePortraitPromptRequest,
+  type GeneratePortraitPromptInput,
   type Portrait,
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
@@ -35,6 +36,12 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
   const requestPreviewSeqRef = useRef(0);
   const renderBusyRef = useRef(false);
   const requestPreviewBusyRef = useRef(false);
+  const requestInput = {
+    project_id: portrait.project_id,
+    profile_id: portrait.profile_id,
+    portrait_type: portrait.portrait_type,
+    variables: null,
+  } satisfies GeneratePortraitPromptInput;
 
   activePortraitScopeRef.current = `${portrait.project_id}:${portrait.id}`;
 
@@ -69,20 +76,9 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
   }, []);
 
   const handleRender = async () => {
-    const portraitType = portrait.portrait_type?.trim();
-    if (!portraitType) {
-      addToast("人物三视图拆解类型缺失，不能渲染提示词", "error");
-      return;
-    }
     if (renderBusyRef.current) return;
     renderBusyRef.current = true;
     const requestScope = `${portrait.project_id}:${portrait.id}`;
-    const requestInput = {
-      project_id: portrait.project_id,
-      profile_id: portrait.profile_id,
-      portrait_type: portraitType,
-      variables: null,
-    };
     setBusy(true);
     try {
       const result = await generatePortraitPrompt(requestInput);
@@ -98,22 +94,11 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
   };
 
   const handlePreview = async () => {
-    const portraitType = portrait.portrait_type?.trim();
-    if (!portraitType) {
-      addToast("人物三视图拆解类型缺失，不能预览提示词请求", "error");
-      return;
-    }
     if (requestPreviewBusyRef.current) return;
     requestPreviewBusyRef.current = true;
     const requestScope = `${portrait.project_id}:${portrait.id}`;
     const requestSeq = requestPreviewSeqRef.current + 1;
     requestPreviewSeqRef.current = requestSeq;
-    const requestInput = {
-      project_id: portrait.project_id,
-      profile_id: portrait.profile_id,
-      portrait_type: portraitType,
-      variables: null,
-    };
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);

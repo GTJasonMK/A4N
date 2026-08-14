@@ -1,45 +1,56 @@
 use crate::AppState;
 use crate::actions::portrait_generation::{PortraitSummary, to_summary};
 use crate::actions::{access, app_error_message};
+use a4n_api_contract::portrait::{
+    GetPrimaryPortraitInput, ListPortraitsByProjectInput, SetPrimaryPortraitInput,
+};
 
 pub async fn list_portraits_by_project(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
+    input: ListPortraitsByProjectInput,
 ) -> Result<Vec<PortraitSummary>, String> {
-    access::verify_project_access_string(state, user_id, project_id).await?;
+    access::verify_project_access_string(state, user_id, input.project_id).await?;
     let portraits = state
         .orchestrator()
-        .character_portrait_records_by_project(project_id)
+        .character_portrait_records_by_project(input.project_id)
         .await
         .map_err(app_error_message)?;
-    Ok(portraits.iter().map(to_summary).collect())
+    portraits
+        .iter()
+        .map(to_summary)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(app_error_message)
 }
 
 pub async fn get_primary_portrait(
     state: &AppState,
     user_id: i64,
-    profile_id: i64,
+    input: GetPrimaryPortraitInput,
 ) -> Result<Option<PortraitSummary>, String> {
-    let project_id = profile_project_id(state, profile_id).await?;
+    let project_id = profile_project_id(state, input.profile_id).await?;
     access::verify_project_access_string(state, user_id, project_id).await?;
     let portrait = state
         .orchestrator()
-        .primary_character_portrait_record(profile_id)
+        .primary_character_portrait_record(input.profile_id)
         .await
         .map_err(app_error_message)?;
-    Ok(portrait.as_ref().map(to_summary))
+    portrait
+        .as_ref()
+        .map(to_summary)
+        .transpose()
+        .map_err(app_error_message)
 }
 
 pub async fn set_primary_portrait(
     state: &AppState,
     user_id: i64,
-    portrait_id: i64,
+    input: SetPrimaryPortraitInput,
 ) -> Result<(), String> {
-    portrait_project_id_for_user(state, user_id, portrait_id).await?;
+    portrait_project_id_for_user(state, user_id, input.portrait_id).await?;
     state
         .orchestrator()
-        .set_primary_character_portrait_record(portrait_id)
+        .set_primary_character_portrait_record(input.portrait_id)
         .await
         .map_err(app_error_message)
 }

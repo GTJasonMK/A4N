@@ -55,13 +55,11 @@ pub fn optional_profile_text(value: Option<&str>) -> Option<String> {
         .map(str::to_string)
 }
 
-/// 取第一个有效表情，否则默认 neutral。
-pub fn first_expression_or_default(expressions: Option<&[String]>) -> String {
-    expressions
-        .unwrap_or_default()
-        .iter()
-        .map(|value| value.trim())
-        .find(|value| !value.is_empty())
+/// 规范化单一表情；未指定时使用业务默认值 neutral。
+pub fn expression_or_default(expression: Option<&str>) -> String {
+    expression
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
         .unwrap_or(DEFAULT_PORTRAIT_EXPRESSION)
         .to_string()
 }
@@ -126,16 +124,10 @@ mod tests {
     }
 
     #[test]
-    fn first_expression_defaults_to_neutral() {
-        assert_eq!(first_expression_or_default(None), "neutral");
-        assert_eq!(
-            first_expression_or_default(Some(&[String::new(), "  ".into()])),
-            "neutral"
-        );
-        assert_eq!(
-            first_expression_or_default(Some(&["  smile ".into()])),
-            "smile"
-        );
+    fn expression_defaults_to_neutral_and_trims_explicit_value() {
+        assert_eq!(expression_or_default(None), "neutral");
+        assert_eq!(expression_or_default(Some("  ")), "neutral");
+        assert_eq!(expression_or_default(Some("  smile ")), "smile");
     }
 
     #[test]

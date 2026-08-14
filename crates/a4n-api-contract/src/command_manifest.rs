@@ -235,6 +235,7 @@ const CAPABILITIES_LLM: &[&str] = &["llm"];
 const CAPABILITIES_PROMPT: &[&str] = &["prompt"];
 const CAPABILITIES_PROMPT_IMAGE: &[&str] = &["prompt", "image"];
 const CAPABILITIES_PROMPT_LLM: &[&str] = &["prompt", "llm"];
+const CAPABILITIES_PROMPT_LLM_IMAGE: &[&str] = &["prompt", "llm", "image"];
 const CAPABILITIES_RAG: &[&str] = &["rag"];
 const CAPABILITIES_VIDEO: &[&str] = &["video"];
 const CAPABILITIES_VIDEO_EXPORT: &[&str] = &["video", "export"];
@@ -362,7 +363,7 @@ command_specs! {
     "duplicate_project" => args_duplicate_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "edit_chapter_shooting_script" => args_edit_chapter_shooting_script, result_edit_chapter_shooting_script, "chapter", references(REFERENCES_PROJECT_IDS);
     "execute_attribute_deletion" => args_execute_attribute_deletion, result_unit, "profile", effect(DESTRUCTIVE_EFFECT);
-    "export_all_configs_json" => args_export_all_configs_json, result_export_all_configs_json, "export", identity(ADMIN_IDENTITY), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS);
+    "export_all_configs_json" => args_export_all_configs_json, result_string, "export", identity(ADMIN_IDENTITY), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS);
     "export_batch_data" => args_export_batch_data, result_export_batch_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_characters_json_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_derived_project_data" => args_export_derived_project_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_EXPORT);
@@ -372,7 +373,7 @@ command_specs! {
     "export_outline_json_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_pdf_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_project_family_data" => args_export_project_family_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_EXPORT);
-    "export_theme" => args_activate_theme, result_export_theme, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), capabilities(CAPABILITIES_EXPORT);
+    "export_theme" => args_activate_theme, result_string, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), capabilities(CAPABILITIES_EXPORT);
     "export_txt_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_video_studio_project_data" => args_export_video_studio_project_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_VIDEO_EXPORT);
     "forward_project_status" => args_forward_project_status, result_create_project, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
@@ -381,7 +382,7 @@ command_specs! {
     "generate_chapter_shooting_script" => args_generate_chapter_shooting_script, result_generate_chapter_shooting_script, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "generate_next_chapter_shooting_script_unit" => args_generate_chapter_shooting_script, result_generate_next_chapter_shooting_script_unit, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "generate_object_profile_image_prompt" => args_generate_object_profile_image_prompt, result_object_profile_image_prompt, "profile", effect(READ_EFFECT);
-    "generate_portrait_prompt" => args_opaque, result_opaque, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
+    "generate_portrait_prompt" => args_generate_portrait_prompt, result_string, "prompt", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_scene_profile_image_prompt" => args_generate_scene_profile_image_prompt, result_scene_profile_image_prompt, "profile", effect(READ_EFFECT);
     "get_admin_overview" => empty_args_schema, result_get_admin_overview, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_blueprint" => args_opaque, result_get_blueprint, "blueprint", effect(READ_EFFECT);
@@ -402,10 +403,10 @@ command_specs! {
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
     "get_inspiration_history" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT);
     "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
-    "get_log_dir" => empty_args_schema, result_export_theme, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "get_optimize_session" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
-    "get_primary_portrait" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
+    "get_primary_portrait" => args_get_primary_portrait, result_get_primary_portrait, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "get_profile_state_at_chapter" => args_get_profile_state_at_chapter, result_get_profile_state_at_chapter, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_project" => args_project_id, result_create_project, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "get_project_asset_dependency_graph" => args_project_id, result_get_project_asset_dependency_graph, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
@@ -462,7 +463,7 @@ command_specs! {
     "list_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_parts" => args_project_id, result_part_outlines, "outline", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "list_pending_tasks" => empty_args_schema, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
-    "list_portraits_by_project" => args_opaque, result_opaque, "profile", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
+    "list_portraits_by_project" => args_list_portraits_by_project, result_list_portraits, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_profile_materials" => args_list_profile_materials, result_list_profile_materials, "profile", effect(READ_EFFECT);
     "list_profiles" => args_list_profiles, result_list_profiles, "profile", effect(READ_EFFECT);
     "list_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
@@ -506,14 +507,14 @@ command_specs! {
     "preview_create_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_discover_character_profiles_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_galgame_pipeline_request" => args_preview_galgame_pipeline_request, result_model_request_preview, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_generate_age_variant_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_generate_age_variant_request" => args_preview_generate_age_variant_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_blueprint_request" => args_preview_generate_blueprint_request, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_chapter_outlines_by_count_request" => args_generate_chapter_outlines_by_count, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_generate_missing_portraits_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_generate_missing_portraits_request" => args_preview_generate_missing_portraits_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_part_chapter_outlines_request" => args_generate_part_chapter_outlines, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_parts_request" => args_generate_parts, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_generate_portrait_prompt_request" => args_opaque, result_opaque, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_generate_portrait_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_generate_portrait_prompt_request" => args_preview_generate_portrait_prompt_request, result_model_request_preview, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_generate_portrait_request" => args_preview_generate_portrait_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_import_project_analysis_request" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_inspiration_request" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_object_profile_image_request" => args_preview_object_profile_image_request, result_model_request_preview, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -526,7 +527,7 @@ command_specs! {
     "preview_regenerate_last_part_request" => args_regenerate_last_part, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_part_outline_request" => args_regenerate_part_outline, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_parts_request" => args_regenerate_parts, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_regenerate_portrait_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_regenerate_portrait_request" => args_preview_regenerate_portrait_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_resume_chapter_analysis_sync_request" => args_chapter_analysis, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_resume_manga_pipeline_request" => args_preview_resume_manga_pipeline_request, result_model_request_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_reverse_engineer_blueprint_request" => args_opaque, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -548,13 +549,13 @@ command_specs! {
     "prompt_list_project_overrides" => args_prompt_list_project_overrides, result_prompt_list_project_overrides, "prompt", context(USER_PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_load_defaults" => args_prompt_list, result_prompt_load_defaults, "prompt", capabilities(CAPABILITIES_PROMPT);
     "prompt_remove_project_override" => args_prompt_remove_project_override, result_prompt_remove_project_override, "prompt", context(USER_PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_render" => args_prompt_render, result_export_theme, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_render" => args_prompt_render, result_string, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_render_ab" => args_prompt_render, result_prompt_render_ab, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_reset" => args_prompt_name, result_prompt_remove_project_override, "prompt", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_set_project_override" => args_prompt_set_project_override, result_prompt_remove_project_override, "prompt", context(USER_PROJECT_CONTEXT), capabilities(CAPABILITIES_PROMPT);
     "prompt_update" => args_prompt_update, result_prompt_update, "prompt", capabilities(CAPABILITIES_PROMPT);
     "prompt_validate_variables" => args_prompt_validate_variables, result_prompt_validate_variables, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "prompt_version_diff" => args_prompt_version_diff, result_export_theme, "prompt", capabilities(CAPABILITIES_PROMPT);
+    "prompt_version_diff" => args_prompt_version_diff, result_string, "prompt", capabilities(CAPABILITIES_PROMPT);
     "prompt_version_history" => args_prompt_name, result_prompt_version_history, "prompt", capabilities(CAPABILITIES_PROMPT);
     "push_assembled_chapter_video" => args_push_assembled_chapter_video, result_assembly_push, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "rag_enhanced_search" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
@@ -579,7 +580,7 @@ command_specs! {
     "reset_project_generated_data" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "restore_blueprint_version" => args_restore_blueprint_version, result_restore_blueprint_version, "blueprint", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "resume_chapter_analysis_sync" => args_chapter_analysis_task, result_chapter_summary, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
-    "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_export_theme, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
+    "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_string, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_workflow_run" => args_resume_workflow_run, result_workflow_run, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "reverse_engineer_blueprint" => args_opaque, result_opaque, "blueprint", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "reverse_engineer_outline" => args_opaque, result_opaque, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -603,7 +604,7 @@ command_specs! {
     "set_default_llm_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_LLM);
     "set_default_video_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_VIDEO);
     "set_log_level" => args_set_log_level, result_unit, "system", identity(ADMIN_IDENTITY);
-    "set_primary_portrait" => args_opaque, result_opaque, "profile", capabilities(CAPABILITIES_IMAGE);
+    "set_primary_portrait" => args_set_primary_portrait, result_unit, "profile", context(NO_CONTEXT), capabilities(CAPABILITIES_IMAGE);
     "set_profile_primary_material" => args_set_profile_primary_material, result_profile_material_group, "profile";
     "start_blueprint_generation" => args_start_blueprint_generation, result_generation_task_handle, "blueprint", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_blueprint_refinement" => args_start_blueprint_refinement, result_generation_task_handle, "blueprint", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
@@ -611,12 +612,12 @@ command_specs! {
     "start_galgame_pipeline" => args_start_galgame_pipeline, result_get_galgame_script, "galgame", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_GALGAME_SCRIPT_IDS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "start_image_generation" => args_start_image_generation, result_generation_task_handle, "asset", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_inspiration_generation" => args_start_inspiration_generation, result_generation_task_handle, "inspiration", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
-    "start_manga_pipeline" => args_preview_start_manga_pipeline_request, result_export_theme, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
+    "start_manga_pipeline" => args_preview_start_manga_pipeline_request, result_string, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "start_optimize_analysis_generation" => args_opaque, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_optimize_chat_generation" => args_opaque, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_optimize_patch_generation" => args_opaque, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_outline_generation" => args_start_outline_generation, result_generation_task_handle, "outline", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
-    "start_portrait_generation" => args_start_portrait_generation, result_generation_task_handle, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
+    "start_portrait_generation" => args_start_portrait_generation, result_generation_task_handle, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_video_generation" => args_start_video_generation, result_generation_task_handle, "video", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "sync_all_character_profiles" => args_sync_all_character_profiles, result_sync_all_character_profiles, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "sync_blueprint_materials" => args_project_id, result_restore_blueprint_version, "blueprint", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
@@ -659,7 +660,7 @@ command_specs! {
     "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_chapter_video" => args_upload_chapter_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_image" => args_upload_image, result_update_image, "asset", context(PROJECT_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
-    "upload_portrait" => args_opaque, result_opaque, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
+    "upload_portrait" => args_upload_portrait, result_portrait_summary, "profile", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
     "upload_profile_material_image" => args_upload_profile_material_image, result_profile_material_group, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
     "upload_reference_media_video" => args_upload_reference_media_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
 }
@@ -1248,6 +1249,10 @@ fn args_generate_object_profile_image_prompt() -> Value {
     strict_typed_input_schema::<crate::image_generation::ObjectProfileImageInput>()
 }
 
+fn args_generate_portrait_prompt() -> Value {
+    strict_runtime_typed_input_schema::<crate::portrait::GeneratePortraitPromptInput>()
+}
+
 fn args_generate_scene_profile_image_prompt() -> Value {
     strict_typed_input_schema::<crate::image_generation::SceneProfileImageInput>()
 }
@@ -1270,6 +1275,10 @@ fn args_get_generation_call_analytics() -> Value {
 
 fn args_get_implicit_review() -> Value {
     strict_typed_input_schema::<crate::character::GetImplicitReviewInput>()
+}
+
+fn args_get_primary_portrait() -> Value {
+    strict_typed_input_schema::<crate::portrait::GetPrimaryPortraitInput>()
 }
 
 fn args_get_profile_state_at_chapter() -> Value {
@@ -1480,6 +1489,10 @@ fn args_list_profiles() -> Value {
     typed_input_schema::<crate::character::ListProfilesInput>()
 }
 
+fn args_list_portraits_by_project() -> Value {
+    strict_typed_input_schema::<crate::portrait::ListPortraitsByProjectInput>()
+}
+
 fn args_list_snapshots() -> Value {
     strict_typed_input_schema::<crate::character::ListSnapshotsInput>()
 }
@@ -1573,6 +1586,26 @@ fn args_preview_galgame_pipeline_request() -> Value {
 
 fn args_preview_object_profile_image_request() -> Value {
     strict_runtime_typed_input_schema::<crate::image_generation::ObjectProfileImageInput>()
+}
+
+fn args_preview_generate_age_variant_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::portrait::GenerateAgeVariantInput>()
+}
+
+fn args_preview_generate_missing_portraits_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::portrait::GenerateMissingPortraitsInput>()
+}
+
+fn args_preview_generate_portrait_prompt_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::portrait::GeneratePortraitPromptInput>()
+}
+
+fn args_preview_generate_portrait_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::portrait::GeneratePortraitInput>()
+}
+
+fn args_preview_regenerate_portrait_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::portrait::RegeneratePortraitInput>()
 }
 
 fn args_preview_generate_blueprint_request() -> Value {
@@ -1778,6 +1811,10 @@ fn args_set_log_level() -> Value {
     typed_input_schema::<crate::logging::SetLogLevelInput>()
 }
 
+fn args_set_primary_portrait() -> Value {
+    strict_typed_input_schema::<crate::portrait::SetPrimaryPortraitInput>()
+}
+
 fn args_set_profile_primary_material() -> Value {
     strict_typed_input_schema::<crate::profile::SetProfilePrimaryMaterialInput>()
 }
@@ -1811,7 +1848,7 @@ fn args_start_outline_generation() -> Value {
 }
 
 fn args_start_portrait_generation() -> Value {
-    typed_input_schema::<crate::portrait::StartPortraitGenerationInput>()
+    strict_typed_input_schema::<crate::portrait::StartPortraitGenerationInput>()
 }
 
 fn args_start_video_generation() -> Value {
@@ -2063,6 +2100,10 @@ fn args_upload_image() -> Value {
     })
 }
 
+fn args_upload_portrait() -> Value {
+    strict_typed_input_schema::<crate::portrait::UploadPortraitInput>()
+}
+
 fn args_upload_profile_material_image() -> Value {
     strict_typed_input_schema::<crate::profile::UploadProfileMaterialImageInput>()
 }
@@ -2245,11 +2286,7 @@ fn result_export_characters_json_data() -> Value {
     typed_schema::<crate::export::ExportFileData>()
 }
 
-fn result_export_theme() -> Value {
-    typed_schema::<String>()
-}
-
-fn result_export_all_configs_json() -> Value {
+fn result_string() -> Value {
     typed_schema::<String>()
 }
 
@@ -2323,6 +2360,10 @@ fn result_get_llm_max_tokens_config() -> Value {
 
 fn result_get_manga_pipeline_status() -> Value {
     typed_schema::<crate::manga::MangaPipelineStatusSummary>()
+}
+
+fn result_get_primary_portrait() -> Value {
+    typed_schema::<Option<crate::portrait::PortraitSummary>>()
 }
 
 fn result_get_project_asset_dependency_graph() -> Value {
@@ -2469,6 +2510,10 @@ fn result_list_pending_tasks() -> Value {
     typed_schema::<Vec<crate::admin::TaskQueueSummary>>()
 }
 
+fn result_list_portraits() -> Value {
+    typed_schema::<Vec<crate::portrait::PortraitSummary>>()
+}
+
 fn result_list_profiles() -> Value {
     typed_schema::<Vec<crate::character::CharacterProfileSummary>>()
 }
@@ -2595,6 +2640,10 @@ fn result_read_recent_logs() -> Value {
 
 fn result_profile_material_group() -> Value {
     typed_schema::<crate::profile::ProfileMaterialGroup>()
+}
+
+fn result_portrait_summary() -> Value {
+    typed_schema::<crate::portrait::PortraitSummary>()
 }
 
 fn result_request_attribute_deletion() -> Value {
@@ -3514,6 +3563,39 @@ mod tests {
             "delete_latest_chapter_outlines",
             "get_chapter_outlines_pacing",
         ]);
+    }
+
+    #[test]
+    fn portrait_commands_use_one_typed_authenticated_contract() {
+        let commands = [
+            "generate_portrait_prompt",
+            "get_primary_portrait",
+            "list_portraits_by_project",
+            "preview_generate_age_variant_request",
+            "preview_generate_missing_portraits_request",
+            "preview_generate_portrait_prompt_request",
+            "preview_generate_portrait_request",
+            "preview_regenerate_portrait_request",
+            "set_primary_portrait",
+            "start_portrait_generation",
+            "upload_portrait",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+        for command in commands {
+            assert_eq!(
+                command_descriptor(command).unwrap().result_schema["x-a4n-schema-quality"],
+                "typed",
+                "{command} must expose its real result contract"
+            );
+        }
+
+        let prompt = command_descriptor("generate_portrait_prompt").unwrap();
+        assert_eq!(prompt.domain, "prompt");
+        assert_eq!(prompt.execution, "immediate");
+        assert_eq!(prompt.required_capabilities, ["prompt", "llm"]);
+
+        let generation = command_descriptor("start_portrait_generation").unwrap();
+        assert_eq!(generation.required_capabilities, ["prompt", "llm", "image"]);
     }
 
     #[test]

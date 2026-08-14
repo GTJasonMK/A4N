@@ -1127,6 +1127,77 @@ export interface UploadImageInput {
   prompt: string;
 }
 
+export type PortraitType = "full_body" | "half_body" | "face" | "chibi";
+
+export interface PortraitSummary {
+  created_at: string;
+  expression: string | null;
+  id: number;
+  image_path: string;
+  is_primary: boolean;
+  portrait_type: PortraitType;
+  pose: string | null;
+  profile_id: number;
+  project_id: number;
+  prompt: string;
+}
+
+export interface ListPortraitsByProjectInput {
+  project_id: number;
+}
+
+export interface GetPrimaryPortraitInput {
+  profile_id: number;
+}
+
+export interface SetPrimaryPortraitInput {
+  portrait_id: number;
+}
+
+export interface GeneratePortraitPromptInput {
+  portrait_type: PortraitType;
+  profile_id: number;
+  project_id: number;
+  variables?: unknown;
+}
+
+export interface GeneratePortraitInput {
+  character_name: string;
+  expression?: string | null;
+  pose?: string | null;
+  project_id: number;
+  reference_image_ids: number[];
+  style?: string | null;
+}
+
+export interface RegeneratePortraitInput {
+  portrait_id: number;
+  reference_image_ids: number[];
+}
+
+export interface GenerateAgeVariantInput {
+  age: string;
+  portrait_id: number;
+  reference_image_ids: number[];
+}
+
+export interface GenerateMissingPortraitsInput {
+  project_id: number;
+}
+
+export interface UploadPortraitInput {
+  data_base64: string;
+  expression?: string | null;
+  file_name: string;
+  mime_type: string;
+  portrait_type: PortraitType;
+  pose?: string | null;
+  profile_id: number;
+  project_id: number;
+  prompt: string;
+  set_primary: boolean;
+}
+
 export interface ExportProjectInput {
   project_id: number;
 }

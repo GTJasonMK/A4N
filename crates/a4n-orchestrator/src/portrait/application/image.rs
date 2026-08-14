@@ -20,7 +20,7 @@ use crate::{
 use super::{
     contracts::{
         GeneratedPortraitImage, PersistPortraitFileInput, PortraitGenerationHostPort,
-        PortraitImageProviderInput, PortraitReferenceImageSource, PortraitSummary,
+        PortraitImageProviderInput, PortraitReferenceImageSource, PortraitSummary, PortraitType,
         UploadPortraitInput,
     },
     workflow::InitialPortraitPrompt,
@@ -30,11 +30,10 @@ pub(super) struct PersistGeneratedPortraitInput<'a> {
     pub(super) workflow_run_id: Option<i64>,
     pub(super) profile_id: i64,
     pub(super) project_id: i64,
-    pub(super) portrait_type: &'a str,
+    pub(super) portrait_type: PortraitType,
     pub(super) prompt: &'a str,
     pub(super) expression: Option<&'a str>,
     pub(super) pose: Option<&'a str>,
-    pub(super) is_primary: bool,
     pub(super) character_name: &'a str,
     pub(super) variant_kind: Option<&'a str>,
     pub(super) auto_generated: bool,
@@ -118,7 +117,7 @@ pub(super) async fn persist_generated_portrait(
         path_context: input.path_context,
     })?;
     let portrait = match context
-        .create_character_portrait_record(CharacterPortraitCreateInput {
+        .create_character_portrait_for_profile(CharacterPortraitCreateInput {
             profile_id: input.profile_id,
             project_id: input.project_id,
             portrait_type: input.portrait_type.to_string(),
@@ -126,7 +125,6 @@ pub(super) async fn persist_generated_portrait(
             prompt: input.prompt.to_string(),
             expression: input.expression.map(str::to_string),
             pose: input.pose.map(str::to_string),
-            is_primary: input.is_primary,
         })
         .await
     {
@@ -149,7 +147,7 @@ pub(super) async fn persist_generated_portrait(
             profile_id: input.profile_id,
             portrait_id: portrait.id,
             character_name: input.character_name,
-            portrait_type: input.portrait_type,
+            portrait_type: input.portrait_type.as_str(),
             image_path: &persisted.relative_path,
             prompt: input.prompt,
             model: &generated.model,
@@ -205,12 +203,11 @@ pub(super) async fn upload_portrait(
         .create_character_portrait_for_profile(CharacterPortraitCreateInput {
             profile_id: input.profile_id,
             project_id: input.project_id,
-            portrait_type: input.portrait_type,
+            portrait_type: input.portrait_type.to_string(),
             image_path: persisted.relative_path.clone(),
             prompt: prompt.clone(),
             expression: input.expression,
             pose: input.pose,
-            is_primary: false,
         })
         .await
     {
@@ -268,9 +265,9 @@ pub(super) async fn upload_portrait(
                 operation: format!("设置主图失败: {error}"),
             })?;
         let updated = required_portrait(context, portrait.id).await?;
-        return Ok(portrait_summary(&updated));
+        return portrait_summary(&updated);
     }
-    Ok(portrait_summary(&portrait))
+    portrait_summary(&portrait)
 }
 
 pub(super) async fn record_initial_prompt_generation(
@@ -384,13 +381,14 @@ pub(super) async fn record_initial_prompt_generation(
         )
         .await);
     }
+    let summary = portrait_summary(portrait)?;
     super::workflow::save_completed_portrait_checkpoint(
         context,
         workflow_run_id,
         "portrait_generation.final".to_string(),
         2,
         workflow_fingerprint,
-        &portrait_summary(portrait),
+        &summary,
     )
     .await
 }
@@ -415,19 +413,30 @@ pub(super) async fn required_portrait_profile(
     })
 }
 
-pub fn portrait_summary(portrait: &character_portrait::Model) -> PortraitSummary {
-    PortraitSummary {
+pub fn portrait_summary(portrait: &character_portrait::Model) -> Result<PortraitSummary, AppError> {
+    Ok(PortraitSummary {
         id: portrait.id,
         profile_id: portrait.profile_id,
         project_id: portrait.project_id,
-        portrait_type: portrait.portrait_type.clone(),
+        portrait_type: portrait_type_from_record(portrait)?,
         image_path: portrait.image_path.clone(),
         prompt: portrait.prompt.clone(),
         expression: portrait.expression.clone(),
         pose: portrait.pose.clone(),
         is_primary: portrait.is_primary,
-        created_at: Some(portrait.created_at.to_string()),
-    }
+        created_at: portrait.created_at.to_string(),
+    })
+}
+
+pub(super) fn portrait_type_from_record(
+    portrait: &character_portrait::Model,
+) -> Result<PortraitType, AppError> {
+    PortraitType::try_from(portrait.portrait_type.as_str()).map_err(|error| {
+        AppError::InvalidState {
+            current: portrait.portrait_type.clone(),
+            operation: format!("读取立绘 #{}：{error}", portrait.id),
+        }
+    })
 }
 
 async fn mirror_portrait(

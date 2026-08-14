@@ -235,7 +235,7 @@ pub(super) async fn load_completed_portrait_checkpoint(
         });
     }
     host_port.validate_portrait_file(&portrait.image_path, "断点立绘图片")?;
-    Ok(Some(portrait_summary(&portrait)))
+    portrait_summary(&portrait).map(Some)
 }
 
 pub(super) async fn save_completed_portrait_checkpoint(

@@ -147,15 +147,6 @@ impl CharacterApplication {
             .map_err(AppError::Database)
     }
 
-    async fn create_character_portrait_record(
-        &self,
-        input: CharacterPortraitCreateInput,
-    ) -> Result<character_portrait::Model, AppError> {
-        a4n_db::character::create_character_portrait_record(self.database.connection(), input)
-            .await
-            .map_err(AppError::Database)
-    }
-
     async fn character_portrait_records_by_project(
         &self,
         project_id: i64,
@@ -564,13 +555,6 @@ impl OrchestratorContext {
         portrait_id: i64,
     ) -> Result<Option<character_portrait::Model>, AppError> {
         self.character.character_portrait_by_id(portrait_id).await
-    }
-
-    pub async fn create_character_portrait_record(
-        &self,
-        input: CharacterPortraitCreateInput,
-    ) -> Result<character_portrait::Model, AppError> {
-        self.character.create_character_portrait_record(input).await
     }
 
     pub async fn character_portrait_records_by_project(

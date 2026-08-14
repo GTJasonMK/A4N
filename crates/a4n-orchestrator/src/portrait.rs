@@ -16,7 +16,6 @@ mod llm_stream;
 mod prompt_generation;
 mod prompt_rules;
 mod reference_id_rules;
-mod types;
 mod workflow_rules;
 
 pub use application::{
@@ -24,15 +23,15 @@ pub use application::{
     GeneratePortraitInput, GeneratePortraitPromptInput, GeneratedPortraitImage,
     PersistPortraitFileInput, PersistedPortraitFile, PortraitArtifactFile, PortraitBatchItem,
     PortraitBatchOutcome, PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
-    PortraitReferenceImageSource, PortraitSummary, RegeneratePortraitInput, UploadPortraitInput,
-    portrait_summary,
+    PortraitReferenceImageSource, PortraitSummary, PortraitType, RegeneratePortraitInput,
+    UploadPortraitInput, portrait_summary,
 };
 pub use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,
     build_generate_prompt_request, normalize_portrait_prompt_response,
 };
 pub use prompt_rules::{
-    DEFAULT_PORTRAIT_EXPRESSION, first_expression_or_default, optional_profile_text,
+    DEFAULT_PORTRAIT_EXPRESSION, expression_or_default, optional_profile_text,
     portrait_profile_context, portrait_style_with_pose, profile_portrait_seed_prompt,
 };
 pub use reference_id_rules::validate_reference_image_ids;
@@ -93,7 +92,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         profile_id: i64,
-        portrait_type: &str,
+        portrait_type: PortraitType,
         fingerprint: &Value,
     ) -> Result<workflow_run::Model, AppError> {
         if project_id <= 0 {
@@ -102,11 +101,6 @@ impl OrchestratorContext {
         if profile_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "角色档案 ID 必须大于 0".to_string(),
-            ));
-        }
-        if portrait_type.trim().is_empty() {
-            return Err(AppError::InvalidArgument(
-                "portrait_type 不能为空".to_string(),
             ));
         }
         let business_key =
@@ -309,7 +303,7 @@ impl OrchestratorContext {
 fn portrait_prompt_call_fingerprint_json(
     project_id: i64,
     profile_name: &str,
-    portrait_type: &str,
+    portrait_type: PortraitType,
     request: &ChatRequest,
 ) -> Result<Value, AppError> {
     Ok(json!({

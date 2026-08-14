@@ -70,7 +70,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
                 {profile?.name ?? "未关联角色"}
               </div>
               <div className="mt-1 flex min-w-0 items-center gap-2 text-caption text-book-text-muted">
-                {portrait.portrait_type ? <span className="truncate">{portrait.portrait_type}</span> : null}
+                <span className="truncate">{portrait.portrait_type}</span>
                 {portrait.expression ? <span className="truncate">{portrait.expression}</span> : null}
               </div>
             </div>

@@ -12,6 +12,7 @@ pub use contracts::{
     GeneratePortraitInput, GeneratePortraitPromptInput, GeneratedPortraitImage,
     PersistPortraitFileInput, PersistedPortraitFile, PortraitArtifactFile, PortraitBatchItem,
     PortraitBatchOutcome, PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
-    PortraitReferenceImageSource, PortraitSummary, RegeneratePortraitInput, UploadPortraitInput,
+    PortraitReferenceImageSource, PortraitSummary, PortraitType, RegeneratePortraitInput,
+    UploadPortraitInput,
 };
 pub use image::portrait_summary;

@@ -103,47 +103,6 @@ pub(in crate::routes::commands) fn optional_i32_field(
     }
 }
 
-pub(in crate::routes::commands) fn optional_string_vec_field(
-    input: &Value,
-    key: &str,
-) -> Result<Option<Vec<String>>, ApiError> {
-    match input.get(key) {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::Array(items)) => items
-            .iter()
-            .map(|item| {
-                item.as_str()
-                    .map(str::to_string)
-                    .ok_or_else(|| ApiError::bad_request(format!("{key} 必须是字符串数组或 null")))
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(Some),
-        Some(_) => Err(ApiError::bad_request(format!(
-            "{key} 必须是字符串数组或 null"
-        ))),
-    }
-}
-
-pub(in crate::routes::commands) fn optional_json_i64_vec(
-    input: &Value,
-    key: &str,
-    label: &str,
-) -> Result<Vec<i64>, ApiError> {
-    match input.get(key) {
-        None | Some(Value::Null) => Ok(Vec::new()),
-        Some(Value::Array(items)) => items
-            .iter()
-            .map(|item| {
-                item.as_i64()
-                    .ok_or_else(|| ApiError::bad_request(format!("{label}.{key} 必须是整数数组")))
-            })
-            .collect(),
-        Some(_) => Err(ApiError::bad_request(format!(
-            "{label}.{key} 必须是整数数组或 null"
-        ))),
-    }
-}
-
 pub(in crate::routes::commands) fn to_value<T: serde::Serialize>(
     value: T,
 ) -> Result<Value, ApiError> {

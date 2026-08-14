@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
+use a4n_api_contract::portrait::PortraitType;
 use a4n_prompt::rendering::PromptRenderer;
 
 #[derive(Clone, Copy)]
@@ -14,7 +15,7 @@ pub struct PortraitPromptSpec<'a> {
     pub background: Option<&'a str>,
     pub profile_context: Option<&'a Value>,
     pub project_context: Option<&'a Value>,
-    pub portrait_type: &'a str,
+    pub portrait_type: PortraitType,
     pub art_style: Option<&'a str>,
     pub expression: Option<&'a str>,
     pub existing_portrait_count: Option<u64>,

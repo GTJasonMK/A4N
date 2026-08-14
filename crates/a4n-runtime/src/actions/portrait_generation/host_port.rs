@@ -289,9 +289,7 @@ fn create_portrait_output(
 ) -> Result<(std::path::PathBuf, std::fs::File), AppError> {
     let directory = ProjectPaths::new(data_dir, project_id).portraits_dir();
     std::fs::create_dir_all(&directory)?;
-    let timestamp = chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros() * 1000);
+    let timestamp = chrono::Utc::now().timestamp_micros();
     for attempt in 0..20 {
         let suffix = if attempt == 0 {
             String::new()

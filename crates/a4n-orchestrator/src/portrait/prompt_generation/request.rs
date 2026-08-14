@@ -11,7 +11,8 @@ use a4n_llm::context::{
     LlmContextLedgerPackDraft, LlmContextLedgerPackInput, context_aware_system_user_request,
 };
 
-use super::super::types::portrait_type_description;
+use a4n_api_contract::portrait::PortraitType;
+
 use super::contracts::PortraitPromptRequestInput;
 use super::payload::{
     PortraitPromptPayloadInput, optional_prompt_text, portrait_prompt_payload_value,
@@ -30,7 +31,7 @@ pub async fn build_generate_prompt_request(
         .render_prompt("character_portrait_generation", variables, Some(project_id))
         .await?;
 
-    let type_desc = portrait_type_description(spec.portrait_type)?;
+    let type_desc = portrait_type_description(spec.portrait_type);
     let dynamic_payload = portrait_prompt_payload_value(PortraitPromptPayloadInput {
         spec,
         portrait_type_text: type_desc,
@@ -112,4 +113,17 @@ pub async fn build_generate_prompt_request(
         context_plan_json: None,
         context_pack_refs_json: None,
     }))
+}
+
+pub(super) fn portrait_type_description(portrait_type: PortraitType) -> &'static str {
+    match portrait_type {
+        PortraitType::FullBody => {
+            "人物三视图与拆解设定图（正面、侧面、背面，全身，含服饰配饰拆解）"
+        }
+        PortraitType::HalfBody => {
+            "人物三视图与拆解设定图（正面、侧面、背面，重点拆解服饰层级与配饰细节）"
+        }
+        PortraitType::Face => "人物三视图与拆解设定图（含面部与发型拆解参考）",
+        PortraitType::Chibi => "Q版人物三视图与拆解设定图",
+    }
 }

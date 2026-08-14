@@ -1,7 +1,7 @@
 use a4n_core::models::character::protagonist_profile;
 use a4n_orchestrator::portrait::{
-    DEFAULT_PORTRAIT_EXPRESSION, PersistPortraitFileInput, first_expression_or_default,
-    optional_profile_text, portrait_profile_context, profile_portrait_seed_prompt,
+    PersistPortraitFileInput, optional_profile_text, portrait_profile_context,
+    profile_portrait_seed_prompt,
 };
 use chrono::NaiveDate;
 use serde_json::json;
@@ -48,39 +48,6 @@ fn optional_profile_text_trims_blank_to_none() {
     );
     assert_eq!(optional_profile_text(Some(" \n\t ")), None);
     assert_eq!(optional_profile_text(None), None);
-}
-
-#[test]
-fn first_expression_or_default_uses_neutral_for_missing_or_blank_values() {
-    let empty: Vec<String> = Vec::new();
-    let blank = vec!["  ".to_string()];
-
-    for value in [None, Some(empty.as_slice()), Some(blank.as_slice())] {
-        assert_eq!(
-            first_expression_or_default(value),
-            DEFAULT_PORTRAIT_EXPRESSION
-        );
-    }
-}
-
-#[test]
-fn first_expression_or_default_uses_first_meaningful_value() {
-    let expressions = vec!["  ".to_string(), " happy ".to_string()];
-
-    assert_eq!(
-        first_expression_or_default(Some(expressions.as_slice())),
-        "happy".to_string()
-    );
-}
-
-#[test]
-fn first_expression_or_default_trims_first_value() {
-    let expressions = vec![" happy ".to_string()];
-
-    assert_eq!(
-        first_expression_or_default(Some(expressions.as_slice())),
-        "happy".to_string()
-    );
 }
 
 #[test]
