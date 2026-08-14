@@ -2311,7 +2311,11 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
             },
             "project_id": project.id,
             "message": "请帮我梳理主角动机",
-            "variables": {}
+            "runtime_config_snapshot": {
+                "schema_version": 1,
+                "llm_default_source": "system",
+                "system_llm_api_key_encrypted": "process-test-key"
+            }
         }))
         .send()
         .await
@@ -2733,8 +2737,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
             "retry_of_task_id": null
         },
         "project_id": project.id,
-        "message": "请帮我梳理主角动机",
-        "variables": {}
+        "message": "请帮我梳理主角动机"
     });
     let response = client
         .post(format!("http://{addr}/api/generation-tasks/inspiration"))

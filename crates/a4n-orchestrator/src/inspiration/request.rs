@@ -20,13 +20,13 @@ pub async fn build_inspiration_request_from_context(
     project_id: i64,
     user_input: &str,
     prompt_renderer: &dyn PromptRenderer,
-    variables: &HashMap<String, Value>,
     history: &[message::Model],
     project_context_rows: InspirationProjectContextRows,
 ) -> Result<ChatRequest, AppError> {
     let user_input = required_message_content(user_input)?;
+    let variables = HashMap::new();
     let system_content = prompt_renderer
-        .render_prompt("inspiration", variables, Some(project_id))
+        .render_prompt("inspiration", &variables, Some(project_id))
         .await?;
     let project_context = inspiration_project_context(project_context_rows);
     let mut context_variables = HashMap::new();

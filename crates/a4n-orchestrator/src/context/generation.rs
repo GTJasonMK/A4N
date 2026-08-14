@@ -2261,7 +2261,7 @@ fn inspiration_generation_input_fingerprint(input: &StartInspirationGenerationIn
         "task_kind": "inspiration_generation",
         "project_id": input.project_id,
         "message": input.message,
-        "variables": input.variables,
+        "variables": null,
     })
 }
 

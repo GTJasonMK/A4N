@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, inspiration::StartInspirationGenerationInput,
 };
@@ -12,7 +10,6 @@ use a4n_service_protocol::{
     StreamTextHash,
 };
 use futures::future::BoxFuture;
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -36,31 +33,19 @@ use super::{
     build_inspiration_request_from_context, validation::validate_inspiration_response_json,
 };
 
-pub struct InspirationGenerationApplicationContext<'a> {
-    pub prompt_renderer: &'a dyn PromptRenderer,
-}
-
-pub struct InspirationPreviewInput<'a> {
-    pub project_id: i64,
-    pub user_input: &'a str,
-    pub variables: &'a HashMap<String, Value>,
-    pub prompt_renderer: &'a dyn PromptRenderer,
-}
-
 impl OrchestratorContext {
     pub async fn prepare_inspiration_request_validated(
         &self,
-        input: InspirationPreviewInput<'_>,
+        project_id: i64,
+        user_input: &str,
+        prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError> {
-        let history = self.inspiration_messages(input.project_id, 20).await?;
-        let project_context_rows = self
-            .inspiration_project_context_rows(input.project_id)
-            .await?;
+        let history = self.inspiration_messages(project_id, 20).await?;
+        let project_context_rows = self.inspiration_project_context_rows(project_id).await?;
         build_inspiration_request_from_context(
-            input.project_id,
-            input.user_input,
-            input.prompt_renderer,
-            input.variables,
+            project_id,
+            user_input,
+            prompt_renderer,
             &history,
             project_context_rows,
         )
@@ -69,7 +54,7 @@ impl OrchestratorContext {
 
     pub async fn run_inspiration_generation_task(
         &self,
-        context: InspirationGenerationApplicationContext<'_>,
+        prompt_renderer: &dyn PromptRenderer,
         input: StartInspirationGenerationInput,
         handle: GenerationTaskHandle,
     ) -> Result<(), String> {
@@ -80,24 +65,24 @@ impl OrchestratorContext {
         else {
             return Ok(());
         };
+        let project_id = input.project_id;
+        let user_input = input.message;
+        if let Err(error) = self.ensure_inspiration_conversation(project_id).await {
+            return fail_inspiration_generation_execution(
+                self,
+                execution,
+                None,
+                generation_public_error(
+                    "generation_persist_failed",
+                    "inspiration_conversation",
+                    error,
+                ),
+            )
+            .await;
+        }
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
         let publisher = execution.publisher.clone();
-        let project_id = input.project_id;
-        let user_input = input.message;
-        let workflow_variables = input.variables.as_ref().map(|variables| {
-            Value::Object(
-                variables
-                    .iter()
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect(),
-            )
-        });
-        let variables = input
-            .variables
-            .unwrap_or_default()
-            .into_iter()
-            .collect::<HashMap<_, _>>();
 
         if let Err(error) = publisher
             .progress(inspiration_progress(
@@ -117,12 +102,7 @@ impl OrchestratorContext {
         }
 
         let request = match self
-            .prepare_inspiration_request_validated(InspirationPreviewInput {
-                project_id,
-                user_input: &user_input,
-                variables: &variables,
-                prompt_renderer: context.prompt_renderer,
-            })
+            .prepare_inspiration_request_validated(project_id, &user_input, prompt_renderer)
             .await
         {
             Ok(request) => request,
@@ -144,7 +124,6 @@ impl OrchestratorContext {
             .begin_inspiration_workflow_validated(
                 project_id,
                 "stream",
-                workflow_variables.as_ref(),
                 &request,
                 Some(handle.task_id.clone()),
             )

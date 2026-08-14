@@ -2,6 +2,7 @@ use super::*;
 use a4n_core::models::user::{conversation, message};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -23,19 +24,12 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
 }
 
 #[tokio::test]
-async fn insert_exchange_requires_existing_project_without_creating_conversation() {
+async fn history_requires_existing_project_without_creating_conversation() {
     let db = setup_db().await;
 
-    let error = insert_inspiration_exchange(
-        &db,
-        InspirationExchangeInsertInput {
-            project_id: 999_999,
-            user_input: "不存在的项目".to_string(),
-            assistant_output: "不应写入".to_string(),
-        },
-    )
-    .await
-    .expect_err("missing project must be rejected");
+    let error = inspiration_messages(&db, 999_999, 80)
+        .await
+        .expect_err("missing project history must be rejected");
 
     assert!(matches!(
         error,
@@ -46,12 +40,30 @@ async fn insert_exchange_requires_existing_project_without_creating_conversation
 }
 
 #[tokio::test]
+async fn empty_history_does_not_create_conversation() {
+    let db = setup_db().await;
+    let project = text_project(&db, "空灵感历史").await;
+
+    assert!(
+        inspiration_messages(&db, project.id, 80)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(conversation::Entity::find().count(&db).await.unwrap(), 0);
+}
+
+#[tokio::test]
 async fn insert_exchange_persists_user_then_assistant_and_updates_count() {
     let db = setup_db().await;
     let project = text_project(&db, "灵感双消息").await;
 
-    insert_inspiration_exchange(
-        &db,
+    ensure_inspiration_conversation(&db, project.id)
+        .await
+        .unwrap();
+    let tx = db.begin().await.unwrap();
+    insert_inspiration_exchange_in_transaction(
+        &tx,
         InspirationExchangeInsertInput {
             project_id: project.id,
             user_input: "继续深化主角".to_string(),
@@ -60,6 +72,7 @@ async fn insert_exchange_persists_user_then_assistant_and_updates_count() {
     )
     .await
     .unwrap();
+    tx.commit().await.unwrap();
 
     let conversation = conversation::Entity::find()
         .filter(conversation::Column::ProjectId.eq(project.id))

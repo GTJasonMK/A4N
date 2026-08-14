@@ -196,7 +196,7 @@ export const useInspirationChatController = () => {
         }
         setProject(p);
 
-        const history = await getInspirationHistory(projectId, 80);
+        const history = await getInspirationHistory(projectId);
         if (cancelled) return;
         const restored = history.map(normalizeHistoryMessage);
         if (restored.length > 0) {
@@ -306,7 +306,7 @@ export const useInspirationChatController = () => {
         const canResolveResult = resultRef?.kind === "inspiration_message"
           && Number.isSafeInteger(resultId);
         const history = canResolveResult
-          ? await getInspirationHistory(requestProjectId, 80)
+          ? await getInspirationHistory(requestProjectId)
           : [];
         const persisted = canResolveResult
           ? history.find((message) => message.id === resultId && message.role === "assistant") ?? null
@@ -463,7 +463,6 @@ export const useInspirationChatController = () => {
           meta,
           project_id: requestProjectId,
           message: value,
-          variables: null,
         }),
       );
       if (!isCurrentSend(requestProjectId, requestSeq)) return;
@@ -506,8 +505,7 @@ export const useInspirationChatController = () => {
     try {
       const preview = await previewInspirationRequest({
         project_id: requestProjectId,
-        user_input: value,
-        variables: null,
+        message: value,
       });
       if (
         !isCurrentProject(requestProjectId) ||

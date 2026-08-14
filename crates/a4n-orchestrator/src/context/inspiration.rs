@@ -8,7 +8,7 @@ use a4n_core::models::user::message;
 use a4n_db::DbHandle;
 use a4n_db::inspiration::{
     InspirationDbError, InspirationExchangeInsertInput, InspirationProjectContextRows,
-    insert_inspiration_exchange_in_transaction,
+    ensure_inspiration_conversation, insert_inspiration_exchange_in_transaction,
 };
 use sea_orm::DatabaseTransaction;
 
@@ -34,6 +34,12 @@ impl InspirationApplication {
         limit: u64,
     ) -> Result<Vec<message::Model>, AppError> {
         a4n_db::inspiration::inspiration_messages(self.connection(), project_id, limit)
+            .await
+            .map_err(inspiration_db_error_to_app)
+    }
+
+    async fn ensure_inspiration_conversation(&self, project_id: i64) -> Result<(), AppError> {
+        ensure_inspiration_conversation(self.connection(), project_id)
             .await
             .map_err(inspiration_db_error_to_app)
     }
@@ -76,6 +82,15 @@ fn inspiration_db_error_to_app(error: InspirationDbError) -> AppError {
 }
 
 impl OrchestratorContext {
+    pub(crate) async fn ensure_inspiration_conversation(
+        &self,
+        project_id: i64,
+    ) -> Result<(), AppError> {
+        self.inspiration
+            .ensure_inspiration_conversation(project_id)
+            .await
+    }
+
     pub async fn inspiration_messages(
         &self,
         project_id: i64,
@@ -121,14 +136,12 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         mode: &str,
-        variables: Option<&serde_json::Value>,
         request: &a4n_llm::provider::ChatRequest,
         active_task_id: Option<String>,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let input = crate::inspiration::inspiration_workflow_run_input(
             project_id,
             mode,
-            variables,
             request,
             active_task_id,
         )?;

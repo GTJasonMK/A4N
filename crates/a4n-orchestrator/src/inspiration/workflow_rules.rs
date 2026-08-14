@@ -12,7 +12,6 @@ use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 pub fn inspiration_workflow_fingerprint(
     project_id: i64,
     mode: &str,
-    variables: Option<&Value>,
     request: &ChatRequest,
 ) -> Result<Value, AppError> {
     if project_id <= 0 {
@@ -28,7 +27,7 @@ pub fn inspiration_workflow_fingerprint(
         "schema_version": "inspiration_conversation_workflow_v1",
         "project_id": project_id,
         "mode": mode,
-        "variables": variables.cloned().unwrap_or_else(|| json!({})),
+        "variables": {},
         "request": context_aware_chat_request_trace_json(request)?,
     }))
 }
@@ -45,11 +44,10 @@ pub fn inspiration_business_key(fingerprint: &Value) -> Result<String, AppError>
 pub fn inspiration_workflow_run_input(
     project_id: i64,
     mode: &str,
-    variables: Option<&Value>,
     request: &ChatRequest,
     active_task_id: Option<String>,
 ) -> Result<UpsertWorkflowRunInput, AppError> {
-    let fingerprint = inspiration_workflow_fingerprint(project_id, mode, variables, request)?;
+    let fingerprint = inspiration_workflow_fingerprint(project_id, mode, request)?;
     Ok(UpsertWorkflowRunInput {
         business_key: inspiration_business_key(&fingerprint)?,
         workflow_kind: "inspiration_conversation".to_string(),
@@ -83,13 +81,12 @@ mod tests {
 
     #[test]
     fn rejects_empty_mode() {
-        assert!(inspiration_workflow_fingerprint(1, "  ", None, &sample_request()).is_err());
+        assert!(inspiration_workflow_fingerprint(1, "  ", &sample_request()).is_err());
     }
 
     #[test]
     fn builds_running_input() {
-        let input =
-            inspiration_workflow_run_input(2, "chat", None, &sample_request(), None).unwrap();
+        let input = inspiration_workflow_run_input(2, "chat", &sample_request(), None).unwrap();
         assert_eq!(input.workflow_kind, "inspiration_conversation");
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
         assert!(input.business_key.starts_with("inspiration_conversation:"));

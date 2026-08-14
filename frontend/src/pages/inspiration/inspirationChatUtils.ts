@@ -1,5 +1,5 @@
 import type { ProgressDialogStatus } from "../../components/feedback/ProgressDialog";
-import type { InspirationMessage } from "../../api/inspiration";
+import type { InspirationMessageSummary } from "../../api/generated/host";
 import { parseInspirationResponse } from "./responseParser";
 import type { Message } from "./shared";
 
@@ -46,7 +46,7 @@ const parseHistoryTime = (value: string, messageId: number): number => {
 };
 
 export const normalizeHistoryMessage = (
-  record: InspirationMessage,
+  record: InspirationMessageSummary,
 ): Message => {
   const role =
     record.role === "user" ||

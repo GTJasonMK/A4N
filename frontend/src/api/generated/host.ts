@@ -788,6 +788,22 @@ export interface LocalEmbedTextsOutput {
   identity: EmbeddingModelIdentity;
 }
 
+export interface InspirationHistoryInput {
+  project_id: number;
+}
+
+export interface PreviewInspirationRequestInput {
+  message: string;
+  project_id: number;
+}
+
+export interface InspirationMessageSummary {
+  content: string;
+  created_at: string;
+  id: number;
+  role: string;
+}
+
 export interface PromptEntrySummary {
   category: string;
   content: string;

@@ -4,7 +4,7 @@ use a4n_core::models::user::{conversation, message};
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
 const INSPIRATION_CONVERSATION_TYPE: &str = "inspiration";
@@ -45,15 +45,18 @@ async fn create_inspiration_conversation(
     .map_err(InspirationDbError::Database)
 }
 
-pub async fn get_or_create_inspiration_conversation(
+pub async fn ensure_inspiration_conversation(
     db: &DatabaseConnection,
     project_id: i64,
-) -> Result<conversation::Model, InspirationDbError> {
+) -> Result<(), InspirationDbError> {
     ensure_inspiration_project_exists(db, project_id).await?;
-    if let Some(conversation) = active_inspiration_conversation(db, project_id).await? {
-        return Ok(conversation);
+    if active_inspiration_conversation(db, project_id)
+        .await?
+        .is_none()
+    {
+        create_inspiration_conversation(db, project_id).await?;
     }
-    create_inspiration_conversation(db, project_id).await
+    Ok(())
 }
 
 pub async fn inspiration_messages(
@@ -61,7 +64,10 @@ pub async fn inspiration_messages(
     project_id: i64,
     limit: u64,
 ) -> Result<Vec<message::Model>, InspirationDbError> {
-    let conversation = get_or_create_inspiration_conversation(db, project_id).await?;
+    ensure_inspiration_project_exists(db, project_id).await?;
+    let Some(conversation) = active_inspiration_conversation(db, project_id).await? else {
+        return Ok(Vec::new());
+    };
     let mut rows = message::Entity::find()
         .filter(message::Column::ConversationId.eq(conversation.id))
         .order_by_desc(message::Column::CreatedAt)
@@ -71,16 +77,6 @@ pub async fn inspiration_messages(
         .map_err(InspirationDbError::Database)?;
     rows.reverse();
     Ok(rows)
-}
-
-pub async fn insert_inspiration_exchange(
-    db: &DatabaseConnection,
-    input: InspirationExchangeInsertInput,
-) -> Result<(), InspirationDbError> {
-    get_or_create_inspiration_conversation(db, input.project_id).await?;
-    let tx = db.begin().await.map_err(InspirationDbError::Database)?;
-    insert_inspiration_exchange_in_transaction(&tx, input).await?;
-    tx.commit().await.map_err(InspirationDbError::Database)
 }
 
 pub async fn insert_inspiration_exchange_in_transaction(

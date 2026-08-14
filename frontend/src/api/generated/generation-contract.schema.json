@@ -2340,13 +2340,6 @@
           "format": "int64",
           "minimum": 1,
           "type": "integer"
-        },
-        "variables": {
-          "additionalProperties": true,
-          "type": [
-            "object",
-            "null"
-          ]
         }
       },
       "required": [

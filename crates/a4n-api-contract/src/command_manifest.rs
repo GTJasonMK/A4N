@@ -401,7 +401,7 @@ command_specs! {
     "get_generation_call_analytics" => args_get_generation_call_analytics, result_get_generation_call_analytics, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_generation_progress" => args_project_id, result_outline_generation_progress, "task", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
-    "get_inspiration_history" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT);
+    "get_inspiration_history" => args_get_inspiration_history, result_inspiration_history, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
@@ -516,7 +516,7 @@ command_specs! {
     "preview_generate_portrait_prompt_request" => args_preview_generate_portrait_prompt_request, result_model_request_preview, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_portrait_request" => args_preview_generate_portrait_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_import_project_analysis_request" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_inspiration_request" => args_opaque, result_opaque, "inspiration", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_inspiration_request" => args_preview_inspiration_request, result_model_request_preview, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_object_profile_image_request" => args_preview_object_profile_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_page_image_request" => args_preview_page_image_request, result_model_request_preview, "asset", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_prepare_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -1271,6 +1271,10 @@ fn args_get_implicit_review() -> Value {
     strict_typed_input_schema::<crate::character::GetImplicitReviewInput>()
 }
 
+fn args_get_inspiration_history() -> Value {
+    strict_typed_input_schema::<crate::inspiration::InspirationHistoryInput>()
+}
+
 fn args_get_primary_portrait() -> Value {
     strict_typed_input_schema::<crate::portrait::GetPrimaryPortraitInput>()
 }
@@ -1582,6 +1586,10 @@ fn args_preview_galgame_pipeline_request() -> Value {
     strict_typed_input_schema::<crate::galgame::PreviewGalgamePipelineInput>()
 }
 
+fn args_preview_inspiration_request() -> Value {
+    strict_runtime_typed_input_schema::<crate::inspiration::PreviewInspirationRequestInput>()
+}
+
 fn args_preview_object_profile_image_request() -> Value {
     strict_runtime_typed_input_schema::<crate::image_generation::ObjectProfileImageInput>()
 }
@@ -1850,7 +1858,7 @@ fn args_start_image_generation() -> Value {
 }
 
 fn args_start_inspiration_generation() -> Value {
-    typed_input_schema::<crate::inspiration::StartInspirationGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::inspiration::StartInspirationGenerationInput>()
 }
 
 fn args_start_outline_generation() -> Value {
@@ -2456,6 +2464,10 @@ fn result_list_deletion_marks() -> Value {
 
 fn result_list_image_configs() -> Value {
     typed_schema::<Vec<crate::config::ImageConfigSummary>>()
+}
+
+fn result_inspiration_history() -> Value {
+    typed_schema::<Vec<crate::inspiration::InspirationMessageSummary>>()
 }
 
 fn result_list_images_by_chapter() -> Value {
@@ -3474,6 +3486,46 @@ mod tests {
             );
             assert!(descriptor.args_schema["properties"].get("userId").is_none());
         }
+    }
+
+    #[test]
+    fn inspiration_commands_use_one_strict_contract() {
+        let commands = [
+            "get_inspiration_history",
+            "preview_inspiration_request",
+            "start_inspiration_generation",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+        for command in commands {
+            assert_eq!(
+                command_descriptor(command).unwrap().result_schema["x-a4n-schema-quality"],
+                "typed"
+            );
+        }
+
+        let history = command_descriptor("get_inspiration_history").unwrap();
+        assert!(
+            history.args_schema["properties"]["input"]["properties"]
+                .get("limit")
+                .is_none()
+        );
+        let preview = command_descriptor("preview_inspiration_request").unwrap();
+        assert!(
+            preview.args_schema["properties"]["input"]["properties"]
+                .get("user_input")
+                .is_none()
+        );
+        assert!(
+            preview.args_schema["properties"]["input"]["properties"]
+                .get("variables")
+                .is_none()
+        );
+        let start = command_descriptor("start_inspiration_generation").unwrap();
+        assert!(
+            start.args_schema["properties"]["input"]["properties"]
+                .get("variables")
+                .is_none()
+        );
     }
 
     #[test]

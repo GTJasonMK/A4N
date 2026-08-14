@@ -574,9 +574,6 @@ export interface StartInspirationGenerationInput {
   message: string;
   meta: GenerationStartRequestMeta;
   project_id: number;
-  variables?: {
-    [k: string]: unknown;
-  } | null;
 }
 /**
  * Start one prepared Optimize analysis through the canonical generation task path.

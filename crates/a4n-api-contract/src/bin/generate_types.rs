@@ -104,6 +104,9 @@ use a4n_api_contract::{
         AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
         ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
     },
+    inspiration::{
+        InspirationHistoryInput, InspirationMessageSummary, PreviewInspirationRequestInput,
+    },
     logging::{LogReadResult, ReadLogsInput, SetLogLevelInput},
     manga::{
         BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaBoundReferenceAsset,
@@ -358,6 +361,9 @@ fn main() {
         &typescript_interface::<LocalEmbeddingConfigInput>("LocalEmbeddingConfigInput"),
         &typescript_interface::<LocalEmbedTextsInput>("LocalEmbedTextsInput"),
         &typescript_interface::<LocalEmbedTextsOutput>("LocalEmbedTextsOutput"),
+        &typescript_interface::<InspirationHistoryInput>("InspirationHistoryInput"),
+        &typescript_interface::<PreviewInspirationRequestInput>("PreviewInspirationRequestInput"),
+        &typescript_interface::<InspirationMessageSummary>("InspirationMessageSummary"),
         &typescript_interface::<PromptEntrySummary>("PromptEntrySummary"),
         &typescript_interface::<PromptVersionSummary>("PromptVersionSummary"),
         &typescript_interface::<AbRenderResult>("AbRenderResult"),
