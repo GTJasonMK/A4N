@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type * as Host from "../generated/host";
 import { idNum, type ApiId as Id } from "../shared";
 
@@ -9,7 +8,6 @@ export async function listMangaPagePrompts(
   chapterId: Id,
 ): Promise<Host.MangaPagePromptSummary[]> {
   return apiInvoke<Host.MangaPagePromptSummary[]>("list_manga_page_prompts", {
-    userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_id: idNum(chapterId),
@@ -22,7 +20,6 @@ export async function bindMangaReferenceImage(
   input: Host.BindMangaReferenceImageInput,
 ): Promise<Host.MangaPagePromptSummary> {
   return apiInvoke<Host.MangaPagePromptSummary>("bind_manga_reference_image", {
-    userId: currentUserId(),
     input: {
       ...input,
       prompt_id: idNum(input.prompt_id),
@@ -36,7 +33,6 @@ export async function updateMangaPrompt(
   input: Host.UpdateMangaPromptInput,
 ): Promise<Host.MangaPagePromptSummary> {
   return apiInvoke<Host.MangaPagePromptSummary>("update_manga_prompt", {
-    userId: currentUserId(),
     input: {
       ...input,
       prompt_id: idNum(input.prompt_id),
@@ -48,7 +44,6 @@ export async function optimizeMangaPrompt(
   input: Host.OptimizeMangaPromptInput,
 ): Promise<Host.MangaPagePromptSummary> {
   return apiInvoke<Host.MangaPagePromptSummary>("optimize_manga_prompt", {
-    userId: currentUserId(),
     input: {
       ...input,
       prompt_id: idNum(input.prompt_id),
@@ -61,7 +56,6 @@ export async function deleteMangaPrompt(
   downstreamStrategy: Host.DownstreamConflictStrategy,
 ): Promise<void> {
   return apiInvoke<void>("delete_manga_prompt", {
-    userId: currentUserId(),
     input: {
       prompt_id: idNum(promptId),
       downstream_strategy: downstreamStrategy,
@@ -72,7 +66,6 @@ export async function deleteMangaPrompt(
 /** 后端 delete_manga_by_chapter(project_id, chapter_id) */
 export async function deleteMangaByChapter(projectId: Id, chapterId: Id): Promise<void> {
   return apiInvoke<void>("delete_manga_by_chapter", {
-    userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_id: idNum(chapterId),

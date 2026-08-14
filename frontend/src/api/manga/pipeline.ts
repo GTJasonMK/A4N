@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type * as Host from "../generated/host";
 import type { ModelRequestPreview } from "../requestPreview";
 import { idNum, type ApiId as Id } from "../shared";
@@ -10,7 +9,6 @@ export async function startMangaPipeline(
   chapterNumber: number,
 ): Promise<string> {
   return apiInvoke<string>("start_manga_pipeline", {
-    userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
@@ -23,7 +21,6 @@ export async function previewStartMangaPipelineRequest(
   chapterNumber: number,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_start_manga_pipeline_request", {
-    userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
@@ -37,7 +34,6 @@ export async function resumeMangaPipeline(
   chapterNumber: number,
 ): Promise<string> {
   return apiInvoke<string>("resume_manga_pipeline", {
-    userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
@@ -50,7 +46,6 @@ export async function previewResumeMangaPipelineRequest(
   chapterNumber: number,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_resume_manga_pipeline_request", {
-    userId: currentUserId(),
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,

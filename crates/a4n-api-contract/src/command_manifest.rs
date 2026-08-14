@@ -883,7 +883,7 @@ fn args_bind_galgame_media() -> Value {
 }
 
 fn args_bind_manga_reference_image() -> Value {
-    typed_input_schema::<crate::manga::BindMangaReferenceImageInput>()
+    strict_typed_input_schema::<crate::manga::BindMangaReferenceImageInput>()
 }
 
 fn args_batch_accept_reviews() -> Value {
@@ -903,7 +903,7 @@ fn args_cancel_galgame_pipeline() -> Value {
 }
 
 fn args_cancel_manga_pipeline() -> Value {
-    typed_input_schema::<crate::manga::MangaChapterInput>()
+    strict_typed_input_schema::<crate::manga::MangaChapterInput>()
 }
 
 fn args_cancel_task() -> Value {
@@ -1043,7 +1043,7 @@ fn args_delete_local_embedding_model() -> Value {
 }
 
 fn args_delete_manga_prompt() -> Value {
-    typed_input_schema::<crate::manga::DeleteMangaPromptInput>()
+    strict_typed_input_schema::<crate::manga::DeleteMangaPromptInput>()
 }
 
 fn args_delete_profile() -> Value {
@@ -1417,7 +1417,7 @@ fn args_optimize_chapter_video_prompt() -> Value {
 }
 
 fn args_optimize_manga_prompt() -> Value {
-    typed_input_schema::<crate::manga::OptimizeMangaPromptInput>()
+    strict_typed_input_schema::<crate::manga::OptimizeMangaPromptInput>()
 }
 
 fn args_preview_canvas_node_request() -> Value {
@@ -1461,11 +1461,11 @@ fn args_preview_refine_blueprint_request() -> Value {
 }
 
 fn args_preview_resume_manga_pipeline_request() -> Value {
-    typed_input_schema::<crate::manga::MangaPipelineResumeInput>()
+    strict_typed_input_schema::<crate::manga::MangaPipelineResumeInput>()
 }
 
 fn args_preview_start_manga_pipeline_request() -> Value {
-    typed_input_schema::<crate::manga::MangaPipelineStartInput>()
+    strict_typed_input_schema::<crate::manga::MangaPipelineStartInput>()
 }
 
 fn args_preview_sync_all_character_profiles_request() -> Value {
@@ -1767,7 +1767,7 @@ fn args_update_llm_max_tokens_config() -> Value {
 }
 
 fn args_update_manga_prompt() -> Value {
-    typed_input_schema::<crate::manga::UpdateMangaPromptInput>()
+    strict_typed_input_schema::<crate::manga::UpdateMangaPromptInput>()
 }
 
 fn args_update_project() -> Value {
@@ -2647,6 +2647,25 @@ mod tests {
         command_runtime_config_policy, is_destructive,
     };
 
+    fn assert_commands_use_authenticated_host_identity(commands: &[&str]) {
+        for &command in commands {
+            let descriptor = command_descriptor(command).unwrap();
+            assert!(
+                descriptor.args_schema["x-a4n-context-fields"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|field| field.as_str() != Some("userId")),
+                "{command} must use the authenticated Host identity"
+            );
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command} must reject retired identity args"
+            );
+            assert!(descriptor.args_schema["properties"].get("userId").is_none());
+        }
+    }
+
     #[test]
     fn command_specs_are_the_complete_sorted_source() {
         assert_eq!(API_COMMANDS.len(), COMMAND_SPECS.len());
@@ -3221,7 +3240,7 @@ mod tests {
 
     #[test]
     fn galgame_commands_use_one_authenticated_identity() {
-        for command in [
+        assert_commands_use_authenticated_host_identity(&[
             "get_galgame_script",
             "start_galgame_pipeline",
             "cancel_galgame_pipeline",
@@ -3239,22 +3258,25 @@ mod tests {
             "unbind_galgame_media",
             "import_galgame_audio",
             "export_galgame_webgal",
-        ] {
-            let descriptor = command_descriptor(command).unwrap();
-            assert!(
-                descriptor.args_schema["x-a4n-context-fields"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .all(|field| field.as_str() != Some("userId")),
-                "{command} must use the authenticated Host identity"
-            );
-            assert_eq!(
-                descriptor.args_schema["additionalProperties"], false,
-                "{command} must reject retired identity args"
-            );
-            assert!(descriptor.args_schema["properties"].get("userId").is_none());
-        }
+        ]);
+    }
+
+    #[test]
+    fn manga_commands_use_one_authenticated_identity() {
+        assert_commands_use_authenticated_host_identity(&[
+            "list_manga_page_prompts",
+            "bind_manga_reference_image",
+            "update_manga_prompt",
+            "optimize_manga_prompt",
+            "delete_manga_prompt",
+            "delete_manga_by_chapter",
+            "start_manga_pipeline",
+            "preview_start_manga_pipeline_request",
+            "resume_manga_pipeline",
+            "preview_resume_manga_pipeline_request",
+            "get_manga_pipeline_status",
+            "cancel_manga_pipeline",
+        ]);
     }
 
     #[test]
