@@ -7,9 +7,10 @@ pub(crate) mod rag_context;
 #[path = "chapter_generation/service/mod.rs"]
 pub mod service;
 
+pub use a4n_api_contract::chapter::PreparedGenerationRagEmbeddingRequest;
 pub use application::{
     ChapterGenerationApplicationContext, ChapterGenerationRequestPreview,
-    PreparedGenerationRagEmbeddingRequest, PreviewChapterGenerationInput,
+    PreviewChapterGenerationInput,
 };
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;
 pub use preparation::{

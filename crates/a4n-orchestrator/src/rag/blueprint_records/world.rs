@@ -44,10 +44,6 @@ pub fn blueprint_world_setting_rag_records(
         .collect())
 }
 
-pub fn blueprint_world_setting_rag_record_label(field: &str) -> String {
-    format!("世界观：{field}")
-}
-
 fn world_setting_sections(value: &Value) -> Vec<(String, String)> {
     let Some(object) = value.as_object() else {
         let text = format_json_for_rag(value);

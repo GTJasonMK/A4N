@@ -2,13 +2,11 @@ use a4n_orchestrator::rag::RagRecordSyncOutcome;
 
 #[derive(Default)]
 pub struct ExpectedSyncStats {
-    pub item_count: u32,
     pub chunk_count: u32,
     pub added_count: u32,
     pub updated_count: u32,
     pub skipped_count: u32,
     pub deleted_count: u32,
-    pub errors: Vec<String>,
 }
 
 impl ExpectedSyncStats {
@@ -33,30 +31,19 @@ impl ExpectedSyncStats {
         Ok(())
     }
 
-    pub(crate) fn add_item_count(&mut self, count: u32) -> Result<(), String> {
-        self.item_count = checked_rag_count_add(self.item_count, count, "RAG 业务记录数")?;
+    pub(crate) fn add_deleted(&mut self, count: u32) -> Result<(), String> {
+        self.deleted_count = checked_rag_count_add(self.deleted_count, count, "删除记录数")?;
         Ok(())
     }
 
-    pub fn merge(&mut self, other: ExpectedSyncStats) -> Result<(), String> {
-        let item_count =
-            checked_rag_count_add(self.item_count, other.item_count, "RAG 业务记录数")?;
-        let chunk_count = checked_rag_count_add(self.chunk_count, other.chunk_count, "RAG 分块数")?;
-        let added_count = checked_rag_count_add(self.added_count, other.added_count, "新增记录数")?;
-        let updated_count =
-            checked_rag_count_add(self.updated_count, other.updated_count, "更新记录数")?;
-        let skipped_count =
-            checked_rag_count_add(self.skipped_count, other.skipped_count, "跳过记录数")?;
-        let deleted_count =
-            checked_rag_count_add(self.deleted_count, other.deleted_count, "删除记录数")?;
-        self.item_count = item_count;
-        self.chunk_count = chunk_count;
-        self.added_count = added_count;
-        self.updated_count = updated_count;
-        self.skipped_count = skipped_count;
-        self.deleted_count = deleted_count;
-        self.errors.extend(other.errors);
-        Ok(())
+    pub(crate) fn into_result(self) -> a4n_api_contract::rag::RagIngestResult {
+        a4n_api_contract::rag::RagIngestResult {
+            chunk_count: self.chunk_count,
+            added_count: self.added_count,
+            updated_count: self.updated_count,
+            skipped_count: self.skipped_count,
+            deleted_count: self.deleted_count,
+        }
     }
 }
 

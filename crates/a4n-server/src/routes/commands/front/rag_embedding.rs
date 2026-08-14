@@ -2,8 +2,9 @@ use serde_json::{Value, json};
 
 use super::super::{
     ApiError, ServerState, TaskKind, command_input, embedding_model_actions, finish_web_task,
-    i64_arg, optional_bool_field, optional_string_field, rag_search_actions, register_web_task,
-    sanitize_optional_task_id, task_records_actions, web_fire_and_forget_progress_reporter,
+    i64_arg, optional_string_field, rag_search_actions, register_web_task,
+    reject_unknown_command_args, sanitize_optional_task_id, task_records_actions,
+    web_fire_and_forget_progress_reporter,
 };
 
 pub(in crate::routes::commands) async fn rag_enhanced_search(
@@ -11,6 +12,11 @@ pub(in crate::routes::commands) async fn rag_enhanced_search(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    reject_unknown_command_args(
+        args,
+        "rag_enhanced_search",
+        &["projectId", "input", "runtime_config_snapshot"],
+    )?;
     let project_id = i64_arg(args, "projectId")?;
     let input: rag_search_actions::EnhancedSearchInput =
         command_input(args, "rag_enhanced_search")?;
@@ -25,6 +31,11 @@ pub(in crate::routes::commands) async fn rag_prepare_enhanced_search(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    reject_unknown_command_args(
+        args,
+        "rag_prepare_enhanced_search",
+        &["projectId", "input", "runtime_config_snapshot"],
+    )?;
     let project_id = i64_arg(args, "projectId")?;
     let input: rag_search_actions::EnhancedSearchInput =
         command_input(args, "rag_prepare_enhanced_search")?;
@@ -44,6 +55,11 @@ pub(in crate::routes::commands) async fn rag_enhanced_search_with_vectors(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    reject_unknown_command_args(
+        args,
+        "rag_enhanced_search_with_vectors",
+        &["projectId", "input", "runtime_config_snapshot"],
+    )?;
     let project_id = i64_arg(args, "projectId")?;
     let input: rag_search_actions::RagEnhancedSearchWithVectorsInput =
         command_input(args, "rag_enhanced_search_with_vectors")?;
@@ -63,9 +79,14 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    reject_unknown_command_args(
+        args,
+        "rag_ingest_all",
+        &["projectId", "input", "taskId", "runtime_config_snapshot"],
+    )?;
     let project_id = i64_arg(args, "projectId")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
-    let rebuild = optional_bool_field(args, "rebuild")?;
+    let input: a4n_runtime::rag_ingest::RagIngestOptions = command_input(args, "rag_ingest_all")?;
     let scope =
         a4n_runtime::rag_ingest::rag_ingest_task_scope(state.runtime(), user_id, project_id)
             .await
@@ -92,9 +113,9 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
     let result = a4n_runtime::rag_ingest::rag_ingest_all(
         state.runtime(),
         user_id,
-        project_id,
+        scope,
         task_id.as_deref(),
-        rebuild,
+        input.rebuild,
         Some(&mut progress),
     )
     .await
@@ -106,7 +127,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
         }
     });
     let value = finish_web_task(state, task_id, result)?;
-    Ok(value)
+    Ok(json!(value))
 }
 
 pub(in crate::routes::commands) async fn rag_prepare_ingest_all(
@@ -114,14 +135,20 @@ pub(in crate::routes::commands) async fn rag_prepare_ingest_all(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    reject_unknown_command_args(
+        args,
+        "rag_prepare_ingest_all",
+        &["projectId", "input", "runtime_config_snapshot"],
+    )?;
     let project_id = i64_arg(args, "projectId")?;
-    let rebuild = optional_bool_field(args, "rebuild")?;
+    let input: a4n_runtime::rag_ingest::RagIngestOptions =
+        command_input(args, "rag_prepare_ingest_all")?;
     Ok(json!(
         a4n_runtime::rag_ingest::rag_prepare_ingest_all(
             state.runtime(),
             user_id,
             project_id,
-            rebuild,
+            input.rebuild,
         )
         .await
         .map_err(ApiError::bad_request)?
@@ -133,6 +160,11 @@ pub(in crate::routes::commands) async fn rag_upload_ingest_embeddings(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    reject_unknown_command_args(
+        args,
+        "rag_upload_ingest_embeddings",
+        &["projectId", "input", "runtime_config_snapshot"],
+    )?;
     let project_id = i64_arg(args, "projectId")?;
     let input: a4n_runtime::rag_ingest::ClientRagIngestUploadInput =
         command_input(args, "rag_upload_ingest_embeddings")?;

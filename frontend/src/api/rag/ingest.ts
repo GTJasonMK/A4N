@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import { activeLocalEmbeddingConfig } from "../localRuntimeSettings";
 import { embedTextsLocally } from "../config/embedding";
 import {
@@ -10,6 +9,7 @@ import { canUseLocalDesktopEmbedding } from "../../utils/runtimeMode";
 import type {
   ClientRagIngestPrepareOutput,
   RagIngestResult,
+  UploadedRagEmbedding,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
 
@@ -25,9 +25,8 @@ export async function ragIngestAll(
     return ragIngestAllWithLocalDesktopEmbedding(projectId, rebuild);
   }
   return apiInvoke<RagIngestResult>("rag_ingest_all", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
-    rebuild,
+    input: { rebuild },
     taskId: taskId ?? null,
   });
 }
@@ -40,16 +39,11 @@ async function ragIngestAllWithLocalDesktopEmbedding(
   const embeddingConfig = activeLocalEmbeddingConfig();
 
   const prepared = await apiInvoke<ClientRagIngestPrepareOutput>("rag_prepare_ingest_all", {
-    userId: currentUserId(),
     projectId: projectIdNum,
-    rebuild,
+    input: { rebuild },
   });
 
-  const uploaded: Array<{
-    chunk_id: string;
-    content_hash: string;
-    embedding: number[];
-  }> = [];
+  const uploaded: UploadedRagEmbedding[] = [];
   const batchSize = embeddingConfig.batch_size;
   for (let start = 0; start < prepared.records.length; start += batchSize) {
     const batch = prepared.records.slice(start, start + batchSize);
@@ -69,7 +63,6 @@ async function ragIngestAllWithLocalDesktopEmbedding(
   }
 
   return apiInvoke<RagIngestResult>("rag_upload_ingest_embeddings", {
-    userId: currentUserId(),
     projectId: projectIdNum,
     input: {
       operation_trace_id: prepared.operation_trace_id,

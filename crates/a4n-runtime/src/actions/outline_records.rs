@@ -68,24 +68,14 @@ pub(crate) async fn outline_material_sync_warnings(
     state: &AppState,
     project_id: i64,
 ) -> Vec<String> {
-    let mut errors = Vec::new();
-    for result in [
-        crate::rag_ingest::ingest_outlines_inner(state, project_id, None).await,
-        crate::rag_ingest::ingest_part_outlines_inner(state, project_id, None).await,
-    ] {
-        match result {
-            Ok(stats) => errors.extend(stats.errors),
-            Err(error) => errors.push(error),
-        }
-    }
-    if errors.is_empty() {
-        Vec::new()
-    } else {
-        vec![format!(
-            "大纲检索索引未完全更新：{}。正式资料未受影响，可稍后在项目操作中重新同步",
-            errors.into_iter().take(8).collect::<Vec<_>>().join("；")
-        )]
-    }
+    crate::rag_ingest::sync_outline_rag_records(state, project_id)
+        .await
+        .err()
+        .map(|error| {
+            format!("大纲检索索引未完全更新：{error}。正式资料未受影响，可稍后在项目操作中重新同步")
+        })
+        .into_iter()
+        .collect()
 }
 
 pub(in crate::actions::outline_records) fn project_outline_delete_input(

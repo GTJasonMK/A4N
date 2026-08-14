@@ -75,17 +75,6 @@ pub(in crate::routes::commands) fn optional_string_field(
     }
 }
 
-pub(in crate::routes::commands) fn optional_bool_field(
-    input: &Value,
-    key: &str,
-) -> Result<bool, ApiError> {
-    match input.get(key) {
-        None | Some(Value::Null) => Ok(false),
-        Some(Value::Bool(value)) => Ok(*value),
-        Some(_) => Err(ApiError::bad_request(format!("{key} 必须是布尔值或 null"))),
-    }
-}
-
 pub(in crate::routes::commands) fn optional_i32_field(
     input: &Value,
     key: &str,

@@ -50,8 +50,7 @@ pub fn validate_query_vectors(
     Ok(())
 }
 
-pub fn required_top_k(value: Option<usize>, command: &str) -> Result<usize, AppError> {
-    let top_k = value.ok_or_else(|| AppError::InvalidArgument(format!("{command} 缺少 top_k")))?;
+pub fn required_top_k(top_k: usize, command: &str) -> Result<usize, AppError> {
     if top_k == 0 {
         return Err(AppError::InvalidArgument(format!(
             "{command} top_k 必须大于 0"
@@ -79,24 +78,38 @@ pub fn normalize_search_data_types(
     let Some(values) = value else {
         return Ok(None);
     };
+    if values.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "RAG data_types 不能为空数组".to_string(),
+        ));
+    }
     let mut normalized = Vec::new();
     for value in values {
-        let value = value.trim();
-        if value.is_empty() {
-            continue;
+        if value.is_empty() || value != value.trim() {
+            return Err(AppError::InvalidArgument(format!(
+                "RAG 数据类型必须使用无空白的 canonical 名称，实际为: {value:?}"
+            )));
         }
-        let data_type = RagDataType::parse(value).ok_or_else(|| {
+        let data_type = RagDataType::parse(&value).ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "不支持的 RAG 数据类型: {value}，支持的类型: {}",
                 RagDataType::ingest_hint()
             ))
         })?;
         let text = data_type.as_str().to_string();
-        if !normalized.contains(&text) {
-            normalized.push(text);
+        if text != value {
+            return Err(AppError::InvalidArgument(format!(
+                "RAG 数据类型必须使用 canonical 名称 {text}，实际为 {value}"
+            )));
         }
+        if normalized.contains(&text) {
+            return Err(AppError::InvalidArgument(format!(
+                "RAG data_types 包含重复类型: {text}"
+            )));
+        }
+        normalized.push(text);
     }
-    Ok((!normalized.is_empty()).then_some(normalized))
+    Ok(Some(normalized))
 }
 
 pub fn enhanced_rag_pull_k(top_k: usize) -> usize {

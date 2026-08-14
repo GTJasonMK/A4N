@@ -90,10 +90,11 @@ pub async fn delete_profile(
 }
 
 async fn profile_rag_sync_warnings(state: &AppState, project_id: i64) -> Vec<String> {
-    match crate::rag_ingest::ingest_protagonists_inner(state, project_id, None).await {
-        Ok(stats) => profile_rag_warnings(stats.errors),
-        Err(error) => profile_rag_warnings(vec![error]),
-    }
+    crate::rag_ingest::sync_protagonist_rag_records(state, project_id)
+        .await
+        .err()
+        .map(|error| profile_rag_warnings(vec![error]))
+        .unwrap_or_default()
 }
 
 fn profile_rag_warnings(errors: Vec<String>) -> Vec<String> {

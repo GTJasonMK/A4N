@@ -3,9 +3,8 @@ use a4n_core::{
     rag::RagDataType,
 };
 use a4n_orchestrator::rag::{
-    blueprint_metadata_rag_record, blueprint_metadata_rag_record_label, blueprint_rag_record,
-    blueprint_rag_record_label, blueprint_world_setting_rag_record_label,
-    blueprint_world_setting_rag_records, relationship_rag_record, relationship_rag_record_label,
+    blueprint_metadata_rag_record, blueprint_rag_record, blueprint_world_setting_rag_records,
+    relationship_rag_record,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -73,7 +72,6 @@ fn blueprint_record_requires_synopsis_and_preserves_canonical_contract() {
         record.metadata["data_type"],
         RagDataType::Blueprint.as_str()
     );
-    assert_eq!(blueprint_rag_record_label(), "蓝图正文");
 }
 
 #[test]
@@ -92,7 +90,6 @@ fn blueprint_metadata_record_requires_title_and_omits_blank_optional_labels() {
     assert!(record.text.contains("体裁类型: 科幻"));
     assert!(!record.text.contains("写作风格:"));
     assert!(!record.text.contains("情感基调:"));
-    assert_eq!(blueprint_metadata_rag_record_label(), "蓝图元数据");
 }
 
 #[test]
@@ -106,7 +103,7 @@ fn world_setting_records_reject_missing_or_empty_content() {
 }
 
 #[test]
-fn world_setting_records_preserve_sections_ids_metadata_and_labels() {
+fn world_setting_records_preserve_sections_ids_and_metadata() {
     let mut blueprint = sample_blueprint();
     blueprint.world_setting = Some(json!({
         "premise": "星门网络崩塌",
@@ -125,10 +122,6 @@ fn world_setting_records_preserve_sections_ids_metadata_and_labels() {
     assert_eq!(
         premise.metadata["data_type"],
         RagDataType::WorldSetting.as_str()
-    );
-    assert_eq!(
-        blueprint_world_setting_rag_record_label("premise"),
-        "世界观：premise"
     );
 }
 
@@ -151,9 +144,5 @@ fn relationship_record_requires_description_and_preserves_contract() {
     assert_eq!(
         record.metadata["data_type"],
         RagDataType::Relationship.as_str()
-    );
-    assert_eq!(
-        relationship_rag_record_label(&relationship),
-        "角色关系：林舟 - 沈砚"
     );
 }

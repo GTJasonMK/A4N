@@ -48,7 +48,3 @@ pub fn part_outline_rag_record(
         }),
     })
 }
-
-pub fn part_outline_rag_record_label(part: &part_outline::Model) -> String {
-    format!("第{}部分部大纲", part.part_number)
-}

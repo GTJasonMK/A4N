@@ -3,8 +3,7 @@ use a4n_core::{
     rag::RagDataType,
 };
 use a4n_orchestrator::rag::{
-    scene_occurrence_rag_record, scene_occurrence_rag_record_label, scene_profile_rag_record,
-    scene_profile_rag_record_label, scene_transition_rag_record, scene_transition_rag_record_label,
+    scene_occurrence_rag_record, scene_profile_rag_record, scene_transition_rag_record,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -90,7 +89,7 @@ fn sample_transition() -> scene_transition::Model {
 }
 
 #[test]
-fn scene_profile_record_preserves_canonical_text_metadata_and_label() {
+fn scene_profile_record_preserves_canonical_text_and_metadata() {
     let profile = sample_profile();
     let record = scene_profile_rag_record(9, &profile).expect("scene profile record");
 
@@ -102,7 +101,6 @@ fn scene_profile_record_preserves_canonical_text_metadata_and_label() {
         RagDataType::SceneProfile.as_str()
     );
     assert_eq!(record.metadata["scene_profile_id"], 11);
-    assert_eq!(scene_profile_rag_record_label(&profile), "场景档案：北城门");
 }
 
 #[test]
@@ -111,7 +109,7 @@ fn scene_occurrence_record_rejects_blank_scene_name() {
 }
 
 #[test]
-fn scene_occurrence_record_preserves_order_metadata_and_label() {
+fn scene_occurrence_record_preserves_order_and_metadata() {
     let occurrence = sample_occurrence();
     let record =
         scene_occurrence_rag_record(9, &occurrence, "北城门").expect("scene occurrence record");
@@ -120,14 +118,10 @@ fn scene_occurrence_record_preserves_order_metadata_and_label() {
     assert!(record.text.contains("章节: 第3章"));
     assert_eq!(record.metadata["scene_name"], "北城门");
     assert_eq!(record.metadata["occurrence_order"], 2);
-    assert_eq!(
-        scene_occurrence_rag_record_label(&occurrence, "北城门"),
-        "场景出场：北城门 第3章"
-    );
 }
 
 #[test]
-fn scene_transition_record_preserves_default_source_target_metadata_and_label() {
+fn scene_transition_record_preserves_default_source_target_and_metadata() {
     let transition = sample_transition();
     let record = scene_transition_rag_record(9, &transition, None, "北城门")
         .expect("scene transition record");
@@ -140,8 +134,4 @@ fn scene_transition_record_preserves_default_source_target_metadata_and_label() 
         RagDataType::SceneTransition.as_str()
     );
     assert_eq!(record.metadata["to_scene_profile_id"], 11);
-    assert_eq!(
-        scene_transition_rag_record_label(&transition, "北城门"),
-        "场景位移：第3章 -> 北城门"
-    );
 }

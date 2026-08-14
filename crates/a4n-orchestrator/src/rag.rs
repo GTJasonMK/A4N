@@ -11,27 +11,19 @@ mod sync;
 mod write;
 
 pub use blueprint_records::{
-    blueprint_metadata_rag_record, blueprint_metadata_rag_record_label, blueprint_rag_record,
-    blueprint_rag_record_label, blueprint_world_setting_rag_record_label,
-    blueprint_world_setting_rag_records, relationship_rag_record, relationship_rag_record_label,
+    blueprint_metadata_rag_record, blueprint_rag_record, blueprint_world_setting_rag_records,
+    relationship_rag_record,
 };
-pub use chapter_records::{ChapterRagChunkingMode, chapter_rag_record_label};
-pub use character_profile_records::{
-    blueprint_character_rag_record_label, blueprint_character_rag_records,
-    protagonist_rag_record_label, protagonist_rag_records,
-};
+pub use chapter_records::ChapterRagChunkingMode;
+pub use character_profile_records::{blueprint_character_rag_records, protagonist_rag_records};
 pub use continuity_records::{
     CharacterProfileRagDeletionSummary, CharacterSyncRagInput, CharacterSyncRagSummary,
     CharacterTimelineRagDeletionSummary, character_attribute_event_rag_record,
     character_state_rag_record, foreshadowing_rag_record,
 };
-pub use outline_records::{
-    outline_rag_record, outline_rag_record_label, part_outline_rag_record,
-    part_outline_rag_record_label,
-};
+pub use outline_records::{outline_rag_record, part_outline_rag_record};
 pub use scene_records::{
-    scene_occurrence_rag_record, scene_occurrence_rag_record_label, scene_profile_rag_record,
-    scene_profile_rag_record_label, scene_transition_rag_record, scene_transition_rag_record_label,
+    scene_occurrence_rag_record, scene_profile_rag_record, scene_transition_rag_record,
 };
 pub use search::*;
 pub(crate) use search::{

@@ -137,10 +137,3 @@ pub fn blueprint_character_rag_records(
         })
         .collect())
 }
-
-pub fn blueprint_character_rag_record_label(
-    character: &blueprint_character::Model,
-    dimension: &str,
-) -> String {
-    format!("角色设定：{} / {dimension}", character.name)
-}

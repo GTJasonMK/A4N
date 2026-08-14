@@ -58,7 +58,3 @@ pub fn scene_profile_rag_record(
         }),
     })
 }
-
-pub fn scene_profile_rag_record_label(profile: &scene_profile::Model) -> String {
-    format!("场景档案：{}", profile.name)
-}

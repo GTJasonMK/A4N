@@ -490,7 +490,7 @@ command_specs! {
     "optimize_manga_prompt" => args_optimize_manga_prompt, result_bind_manga_reference_image, "manga", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "plan_galgame_assets" => args_cancel_galgame_pipeline, result_plan_galgame_assets, "galgame", context(NO_CONTEXT), references(REFERENCES_GENERATION_SPEC_IDS), idempotency("safe");
     "poll_video_job" => args_opaque, result_opaque, "video", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full);
-    "prepare_chapter_generation_rag_embedding" => args_opaque, result_opaque, "rag", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
+    "prepare_chapter_generation_rag_embedding" => args_prepare_chapter_generation_rag_embedding, result_prepare_chapter_generation_rag_embedding, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
     "prepare_optimization_analysis_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "preview_apply_beat_mapping_request" => args_apply_beat_mapping, result_model_request_preview, "system", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_batch_generate_part_outlines_request" => args_batch_generate_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -557,12 +557,12 @@ command_specs! {
     "prompt_version_diff" => args_prompt_version_diff, result_string, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_version_history" => args_prompt_name, result_prompt_version_history, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "push_assembled_chapter_video" => args_push_assembled_chapter_video, result_assembly_push, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
-    "rag_enhanced_search" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
-    "rag_enhanced_search_with_vectors" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
-    "rag_ingest_all" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
-    "rag_prepare_enhanced_search" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
-    "rag_prepare_ingest_all" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
-    "rag_upload_ingest_embeddings" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
+    "rag_enhanced_search" => args_rag_enhanced_search, result_rag_enhanced_search, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
+    "rag_enhanced_search_with_vectors" => args_rag_enhanced_search_with_vectors, result_rag_enhanced_search, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
+    "rag_ingest_all" => args_rag_ingest_all, result_rag_ingest, "rag", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
+    "rag_prepare_enhanced_search" => args_rag_enhanced_search, result_rag_prepare_enhanced_search, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
+    "rag_prepare_ingest_all" => args_rag_prepare_ingest_all, result_rag_prepare_ingest_all, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
+    "rag_upload_ingest_embeddings" => args_rag_upload_ingest_embeddings, result_rag_ingest, "rag", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
     "read_recent_logs" => args_read_recent_logs, result_read_recent_logs, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "record_optimize_agent_event" => args_opaque, result_opaque, "system";
     "refresh_token" => args_refresh_token, result_refresh_token, "auth", identity(PUBLIC_IDENTITY), secrets(REFRESH_TOKEN_SECRET_POINTERS);
@@ -1125,6 +1125,43 @@ fn args_project_id() -> Value {
         "additionalProperties": false,
         "x-a4n-schema-quality": "typed",
     })
+}
+
+fn args_prepare_chapter_generation_rag_embedding() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "chapterNumber": { "type": "integer", "minimum": 1 },
+            "writingNotes": { "type": ["string", "null"] },
+            "minWordCount": { "type": ["integer", "null"] },
+            "maxWordCount": { "type": ["integer", "null"] },
+            "runtime_config_snapshot": { "type": ["object", "null"] },
+        },
+        "required": ["projectId", "chapterNumber"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
+fn args_rag_enhanced_search() -> Value {
+    project_runtime_typed_input_schema::<crate::rag::EnhancedSearchInput>()
+}
+
+fn args_rag_enhanced_search_with_vectors() -> Value {
+    project_runtime_typed_input_schema::<crate::rag::RagEnhancedSearchWithVectorsInput>()
+}
+
+fn args_rag_ingest_all() -> Value {
+    project_optional_task_runtime_typed_input_schema::<crate::rag::RagIngestOptions>()
+}
+
+fn args_rag_prepare_ingest_all() -> Value {
+    project_runtime_typed_input_schema::<crate::rag::RagIngestOptions>()
+}
+
+fn args_rag_upload_ingest_embeddings() -> Value {
+    project_runtime_typed_input_schema::<crate::rag::ClientRagIngestUploadInput>()
 }
 
 fn args_video_id() -> Value {
@@ -2129,6 +2166,26 @@ fn result_opaque() -> Value {
     json!({ "x-a4n-schema-quality": "opaque" })
 }
 
+fn result_rag_enhanced_search() -> Value {
+    typed_schema::<crate::rag::RagEnhancedSearchOutput>()
+}
+
+fn result_rag_prepare_enhanced_search() -> Value {
+    typed_schema::<crate::rag::RagPreparedEnhancedSearchOutput>()
+}
+
+fn result_rag_ingest() -> Value {
+    typed_schema::<crate::rag::RagIngestResult>()
+}
+
+fn result_rag_prepare_ingest_all() -> Value {
+    typed_schema::<crate::rag::ClientRagIngestPrepareOutput>()
+}
+
+fn result_prepare_chapter_generation_rag_embedding() -> Value {
+    typed_schema::<crate::chapter::PreparedGenerationRagEmbeddingRequest>()
+}
+
 fn result_unit() -> Value {
     typed_schema::<()>()
 }
@@ -2841,6 +2898,37 @@ fn project_typed_input_schema<T: JsonSchema>() -> Value {
         "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
+}
+
+fn project_runtime_typed_input_schema<T: JsonSchema>() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<T>(),
+            "runtime_config_snapshot": { "type": ["object", "null"] },
+        },
+        "required": ["projectId", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
+fn project_optional_task_runtime_typed_input_schema<T: JsonSchema>() -> Value {
+    let mut schema = project_runtime_typed_input_schema::<T>();
+    schema["properties"]
+        .as_object_mut()
+        .expect("project runtime input properties must be an object")
+        .insert(
+            "taskId".into(),
+            json!({
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+            }),
+        );
+    schema
 }
 
 fn empty_args_schema() -> Value {
@@ -3726,6 +3814,61 @@ mod tests {
             update.args_schema["properties"]["input"]["properties"]
                 .get("author")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn rag_commands_use_authenticated_identity_and_typed_contracts() {
+        let commands = [
+            "prepare_chapter_generation_rag_embedding",
+            "rag_enhanced_search",
+            "rag_enhanced_search_with_vectors",
+            "rag_ingest_all",
+            "rag_prepare_enhanced_search",
+            "rag_prepare_ingest_all",
+            "rag_upload_ingest_embeddings",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+
+        for command in commands {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_ne!(
+                descriptor.args_schema["x-a4n-schema-quality"], "opaque",
+                "{command} args"
+            );
+            assert_ne!(
+                descriptor.result_schema["x-a4n-schema-quality"], "opaque",
+                "{command} result"
+            );
+        }
+
+        let search = command_descriptor("rag_enhanced_search").unwrap();
+        let search_input = &search.args_schema["properties"]["input"];
+        assert!(
+            search_input["required"]
+                .as_array()
+                .unwrap()
+                .contains(&serde_json::json!("top_k"))
+        );
+        assert_eq!(search_input["properties"]["top_k"]["minimum"], 1);
+        assert_eq!(search.effect, "read");
+
+        let prepare = command_descriptor("rag_prepare_ingest_all").unwrap();
+        assert_eq!(prepare.effect, "read");
+        let prepare_result = &prepare.result_schema["properties"];
+        for retired in ["project_id", "expected_count", "skipped_count"] {
+            assert!(prepare_result.get(retired).is_none(), "{retired}");
+        }
+        assert!(prepare_result.get("rebuild").is_some());
+
+        let upload = command_descriptor("rag_upload_ingest_embeddings").unwrap();
+        assert!(upload.file_inputs.is_empty());
+        let upload_input = &upload.args_schema["properties"]["input"];
+        assert!(
+            upload_input["required"]
+                .as_array()
+                .unwrap()
+                .contains(&serde_json::json!("rebuild"))
         );
     }
 

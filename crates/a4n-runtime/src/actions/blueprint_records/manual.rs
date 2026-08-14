@@ -34,48 +34,12 @@ pub(crate) async fn blueprint_material_sync_warnings(
     state: &AppState,
     project_id: i64,
 ) -> Vec<String> {
-    let mut errors = Vec::new();
-    collect_sync_errors(
-        &mut errors,
-        crate::rag_ingest::ingest_blueprints_inner(state, project_id, None).await,
-    );
-    collect_sync_errors(
-        &mut errors,
-        crate::rag_ingest::ingest_blueprint_metadata_inner(state, project_id, None).await,
-    );
-    collect_sync_errors(
-        &mut errors,
-        crate::rag_ingest::ingest_world_setting_inner(state, project_id, None).await,
-    );
-    collect_sync_errors(
-        &mut errors,
-        crate::rag_ingest::ingest_character_records_inner(state, project_id, None).await,
-    );
-    collect_sync_errors(
-        &mut errors,
-        crate::rag_ingest::ingest_protagonists_inner(state, project_id, None).await,
-    );
-    collect_sync_errors(
-        &mut errors,
-        crate::rag_ingest::ingest_relationships_inner(state, project_id, None).await,
-    );
-
-    if errors.is_empty() {
-        Vec::new()
-    } else {
-        vec![format!(
-            "资料检索索引未完全更新：{}。正式资料未受影响，可稍后在项目操作中重新同步",
-            errors.into_iter().take(8).collect::<Vec<_>>().join("；")
-        )]
-    }
-}
-
-fn collect_sync_errors(
-    errors: &mut Vec<String>,
-    result: Result<crate::rag_ingest::IngestStats, String>,
-) {
-    match result {
-        Ok(stats) => errors.extend(stats.errors),
-        Err(error) => errors.push(error),
-    }
+    crate::rag_ingest::sync_blueprint_material_rag_records(state, project_id)
+        .await
+        .err()
+        .map(|error| {
+            format!("资料检索索引未完全更新：{error}。正式资料未受影响，可稍后在项目操作中重新同步")
+        })
+        .into_iter()
+        .collect()
 }

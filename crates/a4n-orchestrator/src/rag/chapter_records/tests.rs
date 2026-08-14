@@ -4,11 +4,9 @@ use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use async_trait::async_trait;
 
 use super::{
-    chunks::chapter_rag_chunks_with_provider,
-    contracts::ChapterRagChunkingMode,
-    records::{chapter_rag_record_label, chapter_rag_records_with_provider},
+    chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode,
+    records::chapter_rag_records_with_provider,
 };
-use crate::rag::RagRecord;
 
 struct TopicEmbeddingProvider;
 
@@ -211,42 +209,4 @@ async fn chapter_rag_records_include_analysis_outputs() {
     assert!(ids.contains(&"chapter:1:1:metadata".to_string()));
     assert!(ids.contains(&"chapter:1:1:event1".to_string()));
     assert!(ids.contains(&"chapter:1:1:foreshadow1".to_string()));
-}
-
-#[test]
-fn chapter_rag_record_label_rejects_incomplete_paragraph_metadata() {
-    let chapter = chapter_for_sync("completed", "正文");
-    let valid = RagRecord {
-        chunk_id: "chapter:1:1:p1".to_string(),
-        text: "正文".to_string(),
-        metadata: serde_json::json!({
-            "content_kind": "paragraph",
-            "chunk_index": 1,
-            "chunk_count": 2,
-        }),
-    };
-    assert_eq!(
-        chapter_rag_record_label(&chapter, &valid).expect("valid paragraph label"),
-        "第1章正文分块 1/2"
-    );
-
-    for metadata in [
-        serde_json::json!({}),
-        serde_json::json!({
-            "content_kind": "paragraph",
-            "chunk_index": 0,
-            "chunk_count": 2,
-        }),
-        serde_json::json!({
-            "content_kind": "paragraph",
-            "chunk_index": 1,
-        }),
-    ] {
-        let record = RagRecord {
-            metadata,
-            ..valid.clone()
-        };
-        chapter_rag_record_label(&chapter, &record)
-            .expect_err("incomplete paragraph label metadata must fail");
-    }
 }

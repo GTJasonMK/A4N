@@ -8,6 +8,14 @@ pub const CHAPTER_SCENE_PROGRESS_TOTAL: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct PreparedGenerationRagEmbeddingRequest {
+    pub query_texts: Vec<String>,
+    pub embedding_identity: EmbeddingModelIdentity,
+    pub query_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ImportChapterInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,

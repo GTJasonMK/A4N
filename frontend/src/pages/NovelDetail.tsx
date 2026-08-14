@@ -346,10 +346,8 @@ export const NovelDetail: React.FC = () => {
       );
       if (!isCurrentAction(requestProjectId, ragSeqRef, activeRequestSeq)) return;
       addToast(
-        result.success === false
-          ? `资料索引同步完成，但有 ${result.errors.length} 个问题：${formatRagIngestResultSummary(result)}`
-          : `资料索引同步完成：${formatRagIngestResultSummary(result)}`,
-        result.success === false ? "error" : "success",
+        `资料索引同步完成：${formatRagIngestResultSummary(result)}`,
+        "success",
       );
     } catch (err) {
       if (requestSeq == null) {

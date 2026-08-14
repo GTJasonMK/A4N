@@ -1,10 +1,9 @@
 use super::output::project_enhanced_rag_search_output;
 use a4n_core::error::AppError;
 
-use super::super::contract_identity_to_provider;
 use super::super::{
     RagEnhancedSearchOutput, RagEnhancedSearchWithVectorsInput,
-    preparation::{prepare_enhanced_rag_search, prepare_enhanced_rag_search_parts},
+    preparation::prepare_enhanced_rag_search,
 };
 
 pub(super) async fn execute_enhanced_rag_search_with_vectors(
@@ -17,7 +16,7 @@ pub(super) async fn execute_enhanced_rag_search_with_vectors(
         .execute_prepared_enhanced_rag_search_with_vectors(
             project_id,
             &prepared,
-            &contract_identity_to_provider(&input.embedding_identity),
+            &crate::dynamic_embedding::contract_identity_to_provider(&input.embedding_identity),
             input.query_vectors,
         )
         .await?;
@@ -27,20 +26,9 @@ pub(super) async fn execute_enhanced_rag_search_with_vectors(
 pub(super) async fn execute_enhanced_rag_search(
     rag: &a4n_orchestrator::OrchestratorContext,
     project_id: i64,
-    base_query: &str,
-    top_k: usize,
-    chapter_number: Option<i32>,
-    data_types: Option<Vec<String>>,
+    input: super::super::EnhancedSearchInput,
 ) -> Result<RagEnhancedSearchOutput, AppError> {
-    let prepared = prepare_enhanced_rag_search_parts(
-        rag,
-        project_id,
-        base_query,
-        top_k,
-        chapter_number,
-        data_types,
-    )
-    .await?;
+    let prepared = prepare_enhanced_rag_search(rag, project_id, input).await?;
     let result = rag
         .execute_prepared_enhanced_rag_search(project_id, &prepared)
         .await?;

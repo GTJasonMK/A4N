@@ -34,6 +34,26 @@ pub fn model_identity_from_config(
     })
 }
 
+pub(crate) fn provider_identity_to_contract(
+    identity: EmbeddingModelIdentity,
+) -> a4n_api_contract::embedding::EmbeddingModelIdentity {
+    a4n_api_contract::embedding::EmbeddingModelIdentity {
+        backend: identity.backend,
+        model: identity.model,
+        dimension: identity.dimension,
+    }
+}
+
+pub(crate) fn contract_identity_to_provider(
+    identity: &a4n_api_contract::embedding::EmbeddingModelIdentity,
+) -> EmbeddingModelIdentity {
+    EmbeddingModelIdentity {
+        backend: identity.backend.clone(),
+        model: identity.model.clone(),
+        dimension: identity.dimension,
+    }
+}
+
 pub(crate) fn resolve_fastembed_cache_dir(
     value: Option<&str>,
     default_cache_dir: PathBuf,

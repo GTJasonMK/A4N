@@ -63,10 +63,3 @@ pub fn scene_occurrence_rag_record(
         }),
     })
 }
-
-pub fn scene_occurrence_rag_record_label(
-    occurrence: &scene_occurrence::Model,
-    scene_name: &str,
-) -> String {
-    format!("场景出场：{} 第{}章", scene_name, occurrence.chapter_number)
-}

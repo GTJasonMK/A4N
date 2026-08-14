@@ -17,10 +17,12 @@ use crate::runtime_config;
 
 #[cfg(feature = "local-embedding")]
 pub(crate) use contracts::resolve_fastembed_cache_dir;
+pub(crate) use contracts::{
+    contract_identity_to_provider, positive_usize, provider_identity_to_contract, required_text,
+};
 pub use contracts::{
     default_fastembed_cache_dir, effective_fastembed_cache_dir, model_identity_from_config,
 };
-pub(crate) use contracts::{positive_usize, required_text};
 use factory::make_provider_from_default_model;
 pub use factory::make_provider_from_model;
 

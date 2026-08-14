@@ -2,10 +2,7 @@ use a4n_core::{
     models::chapter::{chapter_outline, part_outline},
     rag::RagDataType,
 };
-use a4n_orchestrator::rag::{
-    outline_rag_record, outline_rag_record_label, part_outline_rag_record,
-    part_outline_rag_record_label,
-};
+use a4n_orchestrator::rag::{outline_rag_record, part_outline_rag_record};
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
 
@@ -66,7 +63,7 @@ fn outline_record_rejects_missing_required_text() {
 }
 
 #[test]
-fn outline_record_preserves_text_metadata_and_label() {
+fn outline_record_preserves_text_and_metadata() {
     let outline = sample_outline();
     let record = outline_rag_record(9, &outline).expect("outline record");
 
@@ -77,7 +74,6 @@ fn outline_record_preserves_text_metadata_and_label() {
     assert_eq!(record.metadata["data_type"], RagDataType::Outline.as_str());
     assert_eq!(record.metadata["outline_id"], 10);
     assert_eq!(record.metadata["chapter_number"], 3);
-    assert_eq!(outline_rag_record_label(&outline), "第3章大纲");
 }
 
 #[test]
@@ -92,7 +88,7 @@ fn part_outline_record_rejects_missing_required_text() {
 }
 
 #[test]
-fn part_outline_record_preserves_range_optional_fields_metadata_and_label() {
+fn part_outline_record_preserves_range_optional_fields_and_metadata() {
     let part = sample_part();
     let record = part_outline_rag_record(9, &part).expect("part outline record");
 
@@ -107,5 +103,4 @@ fn part_outline_record_preserves_range_optional_fields_metadata_and_label() {
     assert_eq!(record.metadata["part_number"], 1);
     assert_eq!(record.metadata["start_chapter"], 1);
     assert_eq!(record.metadata["end_chapter"], 8);
-    assert_eq!(part_outline_rag_record_label(&part), "第1部分部大纲");
 }

@@ -36,7 +36,3 @@ pub fn outline_rag_record(
         }),
     })
 }
-
-pub fn outline_rag_record_label(outline: &chapter_outline::Model) -> String {
-    format!("第{}章大纲", outline.chapter_number)
-}

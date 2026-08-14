@@ -102,35 +102,3 @@ pub async fn chapter_rag_records_with_provider(
 
     Ok(records)
 }
-
-pub fn chapter_rag_record_label(
-    chapter: &chapter::Model,
-    record: &RagRecord,
-) -> Result<String, String> {
-    let content_kind = record
-        .metadata
-        .get("content_kind")
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| format!("章节 RAG 记录 {} 缺少 content_kind", record.chunk_id))?;
-    match content_kind {
-        "paragraph" => {
-            let required_positive_u64 = |key: &str| {
-                record
-                    .metadata
-                    .get(key)
-                    .and_then(serde_json::Value::as_u64)
-                    .filter(|value| *value > 0)
-                    .ok_or_else(|| format!("章节 RAG 记录 {} 缺少正整数 {key}", record.chunk_id))
-            };
-            let index = required_positive_u64("chunk_index")?;
-            let count = required_positive_u64("chunk_count")?;
-            Ok(format!(
-                "第{}章正文分块 {index}/{count}",
-                chapter.chapter_number
-            ))
-        }
-        "summary" => Ok(format!("第{}章摘要", chapter.chapter_number)),
-        kind => Ok(format!("第{}章分析：{kind}", chapter.chapter_number)),
-    }
-}

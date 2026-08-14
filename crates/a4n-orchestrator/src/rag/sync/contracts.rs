@@ -58,6 +58,10 @@ impl PreparedRagRecordSync {
         self.outcome
     }
 
+    pub fn chunk_id(&self) -> &str {
+        &self.record.chunk_id
+    }
+
     pub(super) fn embedding_input(&self) -> RagEmbeddingInput {
         RagEmbeddingInput {
             chunk_id: self.record.chunk_id.clone(),

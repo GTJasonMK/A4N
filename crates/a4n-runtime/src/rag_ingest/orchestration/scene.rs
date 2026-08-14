@@ -1,10 +1,14 @@
 use super::super::contracts::SceneRagSyncTraceSource;
-use super::super::scenes::{
-    ingest_scene_occurrences_inner, ingest_scene_profiles_inner, ingest_scene_transitions_inner,
-};
-use super::super::sync::ExpectedSyncStats as IngestStats;
-use super::errors::scene_rag_sync_error_message;
+use super::super::expected_records::expected_scene_rag_records;
+use super::super::sync::sync_data_type_records;
 use crate::state::AppState;
+use a4n_core::rag::RagDataType;
+
+const SCENE_RAG_DATA_TYPES: &[RagDataType] = &[
+    RagDataType::SceneProfile,
+    RagDataType::SceneOccurrence,
+    RagDataType::SceneTransition,
+];
 
 pub async fn sync_scene_rag_records(
     state: &AppState,
@@ -21,17 +25,8 @@ pub async fn sync_scene_rag_records(
 }
 
 async fn sync_scene_rag_records_inner(state: &AppState, project_id: i64) -> Result<(), String> {
-    let mut total_stats = IngestStats::default();
-
-    total_stats.merge(ingest_scene_profiles_inner(state, project_id, None).await?)?;
-
-    total_stats.merge(ingest_scene_occurrences_inner(state, project_id, None).await?)?;
-
-    total_stats.merge(ingest_scene_transitions_inner(state, project_id, None).await?)?;
-
-    if !total_stats.errors.is_empty() {
-        return Err(scene_rag_sync_error_message(&total_stats.errors));
-    }
-
-    Ok(())
+    let expected = expected_scene_rag_records(state, project_id).await?;
+    sync_data_type_records(state, project_id, SCENE_RAG_DATA_TYPES, expected.records)
+        .await
+        .map(|_| ())
 }

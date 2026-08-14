@@ -274,9 +274,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
         },
         async ({ setProgress }) => {
           const result = await ragIngestAll(projectId, taskId);
-          if (!result.success) {
-            throw new Error(result.errors.join("；") || "资料索引同步未完成");
-          }
           setProgress(`资料索引同步完成：${formatRagIngestResultSummary(result)}`, 1, 1);
         },
       );

@@ -118,10 +118,3 @@ pub fn protagonist_rag_records(
         })
         .collect())
 }
-
-pub fn protagonist_rag_record_label(
-    profile: &protagonist_profile::Model,
-    dimension: &str,
-) -> String {
-    format!("主角档案：{} / {dimension}", profile.name)
-}

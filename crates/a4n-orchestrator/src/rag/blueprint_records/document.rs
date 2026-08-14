@@ -44,10 +44,6 @@ pub fn blueprint_rag_record(
     })
 }
 
-pub fn blueprint_rag_record_label() -> &'static str {
-    "蓝图正文"
-}
-
 fn blueprint_metadata_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, String> {
     let title = required_rag_text(
         Some(&blueprint.title),
@@ -85,8 +81,4 @@ pub fn blueprint_metadata_rag_record(
             "blueprint_id": blueprint.id,
         }),
     })
-}
-
-pub fn blueprint_metadata_rag_record_label() -> &'static str {
-    "蓝图元数据"
 }

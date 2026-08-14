@@ -56,13 +56,3 @@ pub fn scene_transition_rag_record(
         }),
     })
 }
-
-pub fn scene_transition_rag_record_label(
-    transition: &scene_transition::Model,
-    to_scene_name: &str,
-) -> String {
-    format!(
-        "场景位移：第{}章 -> {}",
-        transition.chapter_number, to_scene_name
-    )
-}

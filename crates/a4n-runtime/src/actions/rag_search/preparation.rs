@@ -15,27 +15,16 @@ pub(super) async fn prepare_enhanced_rag_search(
     let query = required_nonblank(&input.query, "rag_enhanced_search query")?;
     let top_k = required_top_k(input.top_k, "rag_enhanced_search")?;
     let data_types = normalize_search_data_types(input.data_types)?;
-    prepare_enhanced_rag_search_parts(
-        rag,
-        project_id,
-        &query,
-        top_k,
-        input.chapter_number,
-        data_types,
-    )
-    .await
-}
-
-pub(super) async fn prepare_enhanced_rag_search_parts(
-    rag: &a4n_orchestrator::OrchestratorContext,
-    project_id: i64,
-    base_query: &str,
-    top_k: usize,
-    chapter_number: Option<i32>,
-    data_types: Option<Vec<String>>,
-) -> Result<PreparedEnhancedRagSearch, AppError> {
+    let chapter_number = match input.chapter_number {
+        Some(value) if value <= 0 => {
+            return Err(AppError::InvalidArgument(
+                "rag_enhanced_search chapter_number 必须大于 0".to_string(),
+            ));
+        }
+        value => value,
+    };
     let queries = rag
-        .prepare_enhanced_rag_queries(project_id, base_query, chapter_number)
+        .prepare_enhanced_rag_queries(project_id, &query, chapter_number)
         .await?;
     let embedding_identity = current_embedding_identity(rag).await?;
     let filter = rag

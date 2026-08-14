@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import { activeLocalEmbeddingConfig } from "../localRuntimeSettings";
 import { embedTextsLocally } from "../config/embedding";
 import {
@@ -8,6 +7,7 @@ import {
 } from "../embeddingIdentity";
 import { canUseLocalDesktopEmbedding } from "../../utils/runtimeMode";
 import type {
+  EnhancedSearchInput,
   RagEnhancedSearchOutput,
   RagPreparedEnhancedSearchOutput,
 } from "./types";
@@ -15,12 +15,7 @@ import { type ApiId as Id, idNum } from "../shared";
 
 export async function ragEnhancedSearch(
   projectId: Id,
-  input: {
-    query: string;
-    top_k: number;
-    chapter_number?: number | null;
-    data_types?: string[] | null;
-  },
+  input: EnhancedSearchInput,
 ): Promise<RagEnhancedSearchOutput> {
   const normalizedInput = {
     query: input.query,
@@ -33,7 +28,6 @@ export async function ragEnhancedSearch(
     const prepared = await apiInvoke<RagPreparedEnhancedSearchOutput>(
       "rag_prepare_enhanced_search",
       {
-        userId: currentUserId(),
         projectId: idNum(projectId),
         input: normalizedInput,
       },
@@ -42,7 +36,6 @@ export async function ragEnhancedSearch(
     ensureEmbeddingIdentityMatches(embedded.identity, prepared.embedding_identity);
     ensureEmbeddingVectorCount(embedded.embeddings, prepared.query_texts.length);
     return apiInvoke<RagEnhancedSearchOutput>("rag_enhanced_search_with_vectors", {
-      userId: currentUserId(),
       projectId: idNum(projectId),
       input: {
         search: normalizedInput,
@@ -52,7 +45,6 @@ export async function ragEnhancedSearch(
     });
   }
   return apiInvoke<RagEnhancedSearchOutput>("rag_enhanced_search", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
     input: normalizedInput,
   });

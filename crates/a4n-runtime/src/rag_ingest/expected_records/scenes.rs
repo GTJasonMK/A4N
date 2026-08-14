@@ -22,7 +22,6 @@ pub(super) async fn append_scene_records(
         .collect::<HashMap<_, _>>();
     for profile in &scene_profiles {
         let record = scene_profile_rag_record(project_id, profile)?;
-        expected.counts.scene_profiles += 1;
         expected.add_rag_record(record)?;
     }
 
@@ -41,7 +40,6 @@ pub(super) async fn append_scene_records(
                 )
             })?;
         let record = scene_occurrence_rag_record(project_id, occurrence, scene_name)?;
-        expected.counts.scene_occurrences += 1;
         expected.add_rag_record(record)?;
     }
 
@@ -75,7 +73,6 @@ pub(super) async fn append_scene_records(
         };
         let record =
             scene_transition_rag_record(project_id, transition, from_scene_name, to_scene_name)?;
-        expected.counts.scene_transitions += 1;
         expected.add_rag_record(record)?;
     }
     Ok(())

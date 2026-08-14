@@ -2,10 +2,7 @@ use a4n_core::{
     models::{character::protagonist_profile, project::blueprint_character},
     rag::RagDataType,
 };
-use a4n_orchestrator::rag::{
-    blueprint_character_rag_record_label, blueprint_character_rag_records,
-    protagonist_rag_record_label, protagonist_rag_records,
-};
+use a4n_orchestrator::rag::{blueprint_character_rag_records, protagonist_rag_records};
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
 
@@ -68,7 +65,7 @@ fn blueprint_character_records_reject_missing_identity_contract() {
 }
 
 #[test]
-fn blueprint_character_records_preserve_dimensions_ids_metadata_and_label() {
+fn blueprint_character_records_preserve_dimensions_ids_and_metadata() {
     let character = sample_blueprint_character();
     let records = blueprint_character_rag_records(9, &character).expect("character records");
     assert_eq!(records.len(), 7);
@@ -86,10 +83,6 @@ fn blueprint_character_records_preserve_dimensions_ids_metadata_and_label() {
     );
     assert_eq!(motivation.metadata["source"], "blueprint_character");
     assert_eq!(motivation.metadata["title"], "沈砚 角色设定: 动机");
-    assert_eq!(
-        blueprint_character_rag_record_label(&character, "motivation"),
-        "角色设定：沈砚 / motivation"
-    );
 }
 
 #[test]
@@ -122,7 +115,7 @@ fn protagonist_records_reject_blank_name() {
 }
 
 #[test]
-fn protagonist_records_preserve_dimensions_ids_metadata_and_label() {
+fn protagonist_records_preserve_dimensions_ids_and_metadata() {
     let profile = sample_profile();
     let records = protagonist_rag_records(9, &profile).expect("protagonist records");
     assert_eq!(records.len(), 8);
@@ -139,10 +132,6 @@ fn protagonist_records_preserve_dimensions_ids_metadata_and_label() {
         RagDataType::Protagonist.as_str()
     );
     assert_eq!(current_state.metadata["title"], "林舟 主角档案: 当前状态");
-    assert_eq!(
-        protagonist_rag_record_label(&profile, "current_state"),
-        "主角档案：林舟 / current_state"
-    );
 }
 
 #[test]

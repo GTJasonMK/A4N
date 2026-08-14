@@ -33,7 +33,8 @@ use a4n_api_contract::{
         ChapterAnalysisMutationResult, ChapterMaterialSyncState, ChapterMaterialSyncStatus,
         ChapterMaterialUpdate, ChapterMaterialUpdateAction, ChapterMaterialUpdateKind,
         ChapterSceneSummary, ChapterSummary, GenerateChapterSceneInput, ImportChapterInput,
-        ReorderChapterScenesInput, UpdateChapterContentInput, UpdateChapterSceneInput,
+        PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
+        UpdateChapterContentInput, UpdateChapterSceneInput,
     },
     character::{
         AddProfileAttributeInput, ApplyImplicitUpdateDecisionInput,
@@ -182,8 +183,10 @@ use a4n_api_contract::{
         ModelProviderCatalog, VideoProviderDescriptor,
     },
     rag::{
-        EnhancedSearchInput, RagEnhancedQuerySummary, RagEnhancedSearchOutput,
-        RagEnhancedSearchWithVectorsInput, RagPreparedEnhancedSearchOutput, RagSearchResult,
+        ClientRagIngestPrepareOutput, ClientRagIngestUploadInput, EnhancedSearchInput,
+        PreparedClientRagIngestRecord, RagEnhancedQuerySummary, RagEnhancedSearchOutput,
+        RagEnhancedSearchWithVectorsInput, RagIngestOptions, RagIngestResult,
+        RagPreparedEnhancedSearchOutput, RagSearchResult, UploadedRagEmbedding,
     },
     request_preview::{ModelRequestPreview, ModelRequestPreviewStep},
     shooting_script::{
@@ -329,6 +332,9 @@ fn main() {
         &typescript_interface::<ImportProjectTextUploadInput>("ImportProjectTextUploadInput"),
         &typescript_chapter_constants(),
         &typescript_interface::<ChapterAnalysisInput>("ChapterAnalysisInput"),
+        &typescript_interface::<PreparedGenerationRagEmbeddingRequest>(
+            "PreparedGenerationRagEmbeddingRequest",
+        ),
         &typescript_interface::<GenerateChapterSceneInput>("GenerateChapterSceneInput"),
         &typescript_interface::<UpdateChapterSceneInput>("UpdateChapterSceneInput"),
         &typescript_interface::<ReorderChapterScenesInput>("ReorderChapterScenesInput"),
@@ -517,6 +523,12 @@ fn main() {
         &typescript_interface::<RagEnhancedSearchWithVectorsInput>(
             "RagEnhancedSearchWithVectorsInput",
         ),
+        &typescript_interface::<RagIngestOptions>("RagIngestOptions"),
+        &typescript_interface::<PreparedClientRagIngestRecord>("PreparedClientRagIngestRecord"),
+        &typescript_interface::<ClientRagIngestPrepareOutput>("ClientRagIngestPrepareOutput"),
+        &typescript_interface::<UploadedRagEmbedding>("UploadedRagEmbedding"),
+        &typescript_interface::<ClientRagIngestUploadInput>("ClientRagIngestUploadInput"),
+        &typescript_interface::<RagIngestResult>("RagIngestResult"),
         &typescript_interface::<ExportProjectFamilyDataInput>("ExportProjectFamilyDataInput"),
         &typescript_interface::<ExportDerivedProjectDataInput>("ExportDerivedProjectDataInput"),
         &typescript_interface::<ExportVideoStudioProjectDataInput>(

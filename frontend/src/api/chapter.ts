@@ -12,6 +12,7 @@ import type {
   ChapterSummary,
   GenerateChapterSceneInput,
   ImportChapterInput,
+  PreparedGenerationRagEmbeddingRequest,
   ReorderChapterScenesInput,
   UpdateChapterContentInput,
   UpdateChapterSceneInput,
@@ -59,16 +60,6 @@ export const chapterContentCommitToastType = (
   derivedSyncStatus: string | null | undefined,
 ): "success" | "info" =>
   derivedSyncStatus === "failed" || derivedSyncStatus === "running" ? "info" : "success";
-
-interface PreparedGenerationRagEmbeddingRequest {
-  query_texts: string[];
-  embedding_identity: {
-    backend: string;
-    model: string;
-    dimension: number;
-  };
-  query_fingerprint: string;
-}
 
 type ClientGenerationRagQueryVectors = NonNullable<
   StartChapterGenerationInput["client_rag_query_vectors"]
@@ -187,7 +178,6 @@ async function prepareClientGenerationRagQuery(
   const prepared = await apiInvoke<PreparedGenerationRagEmbeddingRequest>(
     "prepare_chapter_generation_rag_embedding",
     {
-      userId: currentUserId(),
       projectId,
       chapterNumber,
       writingNotes: writingNotes ?? null,

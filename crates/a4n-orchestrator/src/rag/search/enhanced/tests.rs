@@ -90,10 +90,9 @@ fn search_result(id: &str, chapter_number: i32, score: f32) -> SearchResult {
 
 #[test]
 fn enhanced_rag_top_k_contract_preserves_limits() {
-    assert!(required_top_k(None, "rag_search").is_err());
-    assert!(required_top_k(Some(0), "rag_search").is_err());
-    assert!(required_top_k(Some(MAX_RAG_TOP_K + 1), "rag_search").is_err());
-    assert_eq!(required_top_k(Some(10), "rag_search").unwrap(), 10);
+    assert!(required_top_k(0, "rag_search").is_err());
+    assert!(required_top_k(MAX_RAG_TOP_K + 1, "rag_search").is_err());
+    assert_eq!(required_top_k(10, "rag_search").unwrap(), 10);
 }
 
 #[test]
@@ -103,18 +102,20 @@ fn enhanced_rag_query_text_is_trimmed_and_required() {
 }
 
 #[test]
-fn enhanced_rag_data_types_are_normalized_and_validated() {
+fn enhanced_rag_data_types_require_unique_canonical_names() {
     assert_eq!(
-        normalize_search_data_types(Some(vec![
-            " chapter ".into(),
-            "character".into(),
-            "chapter".into(),
-            "".into(),
-        ]))
-        .unwrap(),
+        normalize_search_data_types(Some(vec!["chapter".into(), "character".into()])).unwrap(),
         Some(vec!["chapter".to_string(), "character".to_string()])
     );
-    assert!(normalize_search_data_types(Some(vec!["unknown".into()])).is_err());
+    for invalid in [
+        vec![],
+        vec![" chapter ".into()],
+        vec!["CHAPTER".into()],
+        vec!["chapter".into(), "chapter".into()],
+        vec!["unknown".into()],
+    ] {
+        assert!(normalize_search_data_types(Some(invalid)).is_err());
+    }
 }
 
 #[test]

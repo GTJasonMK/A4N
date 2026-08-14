@@ -1,8 +1,4 @@
-use super::super::sync::{
-    ExpectedSyncStats, RagIngestProgress, RagRecord, RagRecordSyncOutcome,
-    required_record_dimension,
-};
-use serde_json::json;
+use super::super::sync::{ExpectedSyncStats, RagIngestProgress, RagRecordSyncOutcome};
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
@@ -77,54 +73,16 @@ fn rag_sync_stats_reject_outcome_count_overflow_without_partial_update() {
 }
 
 #[test]
-fn rag_sync_stats_reject_merge_count_overflow_without_partial_update() {
+fn rag_sync_stats_reject_deleted_count_overflow_without_partial_update() {
     let mut stats = ExpectedSyncStats {
-        item_count: u32::MAX,
-        chunk_count: 3,
-        ..Default::default()
-    };
-    let other = ExpectedSyncStats {
-        item_count: 1,
-        chunk_count: 5,
+        deleted_count: u32::MAX,
         ..Default::default()
     };
 
     let err = stats
-        .merge(other)
-        .expect_err("merge overflow must be visible");
+        .add_deleted(1)
+        .expect_err("deleted count overflow must be visible");
 
-    assert!(err.contains("RAG 业务记录数超过 u32 上限"));
-    assert_eq!(stats.item_count, u32::MAX);
-    assert_eq!(stats.chunk_count, 3);
-}
-
-#[test]
-fn required_record_dimension_rejects_missing_or_blank_metadata() {
-    let valid = RagRecord {
-        chunk_id: "chunk:valid".to_string(),
-        text: "正文".to_string(),
-        metadata: json!({ "dimension": " 背景 " }),
-    };
-    assert_eq!(
-        required_record_dimension(&valid, "有效记录").expect("dimension should trim"),
-        "背景"
-    );
-
-    let missing = RagRecord {
-        chunk_id: "chunk:missing".to_string(),
-        text: "正文".to_string(),
-        metadata: json!({}),
-    };
-    let err = required_record_dimension(&missing, "缺失记录")
-        .expect_err("missing dimension should reject");
-    assert!(err.contains("缺失记录 缺少 dimension 元数据"));
-
-    let blank = RagRecord {
-        chunk_id: "chunk:blank".to_string(),
-        text: "正文".to_string(),
-        metadata: json!({ "dimension": "  " }),
-    };
-    let err =
-        required_record_dimension(&blank, "空维度记录").expect_err("blank dimension should reject");
-    assert!(err.contains("空维度记录 缺少 dimension 元数据"));
+    assert!(err.contains("删除记录数超过 u32 上限"));
+    assert_eq!(stats.deleted_count, u32::MAX);
 }

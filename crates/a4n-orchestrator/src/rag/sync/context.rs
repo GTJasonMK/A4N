@@ -21,6 +21,24 @@ pub struct RagSyncContext {
 }
 
 impl RagSyncContext {
+    pub async fn for_project(
+        context: &OrchestratorContext,
+        project_id: i64,
+    ) -> Result<Self, RagSyncError> {
+        Self::for_filter(
+            context,
+            project_id,
+            DeleteFilter {
+                project_id,
+                data_type: None,
+                chapter_number: None,
+                ids: Vec::new(),
+                id_prefixes: Vec::new(),
+            },
+        )
+        .await
+    }
+
     pub async fn for_ids(
         context: &OrchestratorContext,
         project_id: i64,
@@ -60,17 +78,22 @@ impl RagSyncContext {
         .await
     }
 
-    pub async fn for_data_type(
+    pub async fn for_data_types(
         context: &OrchestratorContext,
         project_id: i64,
-        data_type: RagDataType,
+        data_types: &[RagDataType],
     ) -> Result<Self, RagSyncError> {
-        Self::for_id_prefixes(
-            context,
-            project_id,
-            vec![rag_id_prefix(project_id, data_type)?],
-        )
-        .await
+        if data_types.is_empty() {
+            return Err(RagSyncError::InvalidRecord {
+                message: "RAG 同步 data_types 不能为空".to_string(),
+            });
+        }
+        let prefixes = data_types
+            .iter()
+            .copied()
+            .map(|data_type| rag_id_prefix(project_id, data_type))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::for_id_prefixes(context, project_id, prefixes).await
     }
 
     async fn for_filter(

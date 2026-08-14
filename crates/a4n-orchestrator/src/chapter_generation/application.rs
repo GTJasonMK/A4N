@@ -5,7 +5,8 @@ use std::sync::{
 };
 
 use a4n_api_contract::{
-    chapter::StartChapterGenerationInput, generation_tasks::GenerationTaskHandle,
+    chapter::{PreparedGenerationRagEmbeddingRequest, StartChapterGenerationInput},
+    generation_tasks::GenerationTaskHandle,
 };
 use a4n_core::{error::AppError, models::chapter::chapter_outline};
 use a4n_db::workflow;
@@ -17,7 +18,7 @@ use a4n_service_protocol::{
     GenerationError, GenerationResultRef, GenerationTaskStatus, StreamTextHash,
 };
 use futures::future::BoxFuture;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
@@ -62,13 +63,6 @@ pub struct PreviewChapterGenerationInput {
     pub writing_notes: Option<String>,
     pub min_word_count: Option<i32>,
     pub max_word_count: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct PreparedGenerationRagEmbeddingRequest {
-    pub query_texts: Vec<String>,
-    pub embedding_identity: EmbeddingModelIdentity,
-    pub query_fingerprint: String,
 }
 
 pub struct ChapterGenerationApplicationContext<'a> {
@@ -714,7 +708,11 @@ impl OrchestratorContext {
             )?;
             return Ok(PreparedGenerationRagEmbeddingRequest {
                 query_texts: Vec::new(),
-                embedding_identity,
+                embedding_identity: a4n_api_contract::embedding::EmbeddingModelIdentity {
+                    backend: embedding_identity.backend,
+                    model: embedding_identity.model,
+                    dimension: embedding_identity.dimension,
+                },
                 query_fingerprint,
             });
         }
@@ -748,7 +746,11 @@ impl OrchestratorContext {
                 .into_iter()
                 .map(|query| query.text.to_string())
                 .collect(),
-            embedding_identity,
+            embedding_identity: a4n_api_contract::embedding::EmbeddingModelIdentity {
+                backend: embedding_identity.backend,
+                model: embedding_identity.model,
+                dimension: embedding_identity.dimension,
+            },
         })
     }
 

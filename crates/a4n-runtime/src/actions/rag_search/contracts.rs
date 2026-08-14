@@ -2,7 +2,6 @@ pub use a4n_api_contract::rag::{
     EnhancedSearchInput, RagEnhancedQuerySummary, RagEnhancedSearchOutput,
     RagEnhancedSearchWithVectorsInput, RagPreparedEnhancedSearchOutput, RagSearchResult,
 };
-use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_orchestrator::rag::EnhancedRagQuery;
 use a4n_rag_core::vector_store::SearchResult;
 
@@ -22,25 +21,5 @@ pub(super) fn rag_enhanced_query_summary(query: &EnhancedRagQuery) -> RagEnhance
         kind: query.kind.to_string(),
         query: query.query.clone(),
         weight: query.weight,
-    }
-}
-
-pub(super) fn provider_identity_to_contract(
-    identity: EmbeddingModelIdentity,
-) -> a4n_api_contract::embedding::EmbeddingModelIdentity {
-    a4n_api_contract::embedding::EmbeddingModelIdentity {
-        backend: identity.backend,
-        model: identity.model,
-        dimension: identity.dimension,
-    }
-}
-
-pub(super) fn contract_identity_to_provider(
-    identity: &a4n_api_contract::embedding::EmbeddingModelIdentity,
-) -> EmbeddingModelIdentity {
-    EmbeddingModelIdentity {
-        backend: identity.backend.clone(),
-        model: identity.model.clone(),
-        dimension: identity.dimension,
     }
 }

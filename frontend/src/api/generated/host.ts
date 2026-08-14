@@ -593,6 +593,12 @@ export interface ChapterAnalysisInput {
   chapter_id: number;
 }
 
+export interface PreparedGenerationRagEmbeddingRequest {
+  embedding_identity: EmbeddingModelIdentity;
+  query_fingerprint: string;
+  query_texts: string[];
+}
+
 export interface GenerateChapterSceneInput {
   chapter_id: number;
   scene_number: number;
@@ -1782,7 +1788,7 @@ export interface EnhancedSearchInput {
   chapter_number?: number | null;
   data_types?: string[] | null;
   query: string;
-  top_k?: number | null;
+  top_k: number;
 }
 
 export interface RagEnhancedQuerySummary {
@@ -1809,6 +1815,44 @@ export interface RagEnhancedSearchWithVectorsInput {
   embedding_identity: EmbeddingModelIdentity;
   query_vectors: number[][];
   search: EnhancedSearchInput;
+}
+
+export interface RagIngestOptions {
+  rebuild: boolean;
+}
+
+export interface PreparedClientRagIngestRecord {
+  chunk_id: string;
+  content_hash: string;
+  text: string;
+}
+
+export interface ClientRagIngestPrepareOutput {
+  embedding_identity: EmbeddingModelIdentity;
+  operation_trace_id: string;
+  rebuild: boolean;
+  records: PreparedClientRagIngestRecord[];
+}
+
+export interface UploadedRagEmbedding {
+  chunk_id: string;
+  content_hash: string;
+  embedding: number[];
+}
+
+export interface ClientRagIngestUploadInput {
+  embedding_identity: EmbeddingModelIdentity;
+  embeddings: UploadedRagEmbedding[];
+  operation_trace_id: string;
+  rebuild: boolean;
+}
+
+export interface RagIngestResult {
+  added_count: number;
+  chunk_count: number;
+  deleted_count: number;
+  skipped_count: number;
+  updated_count: number;
 }
 
 export interface ExportProjectFamilyDataInput {

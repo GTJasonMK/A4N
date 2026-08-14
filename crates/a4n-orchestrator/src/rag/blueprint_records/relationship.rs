@@ -48,10 +48,3 @@ pub fn relationship_rag_record(
         }),
     })
 }
-
-pub fn relationship_rag_record_label(relationship: &blueprint_relationship::Model) -> String {
-    format!(
-        "角色关系：{} - {}",
-        relationship.character_a, relationship.character_b
-    )
-}
