@@ -359,7 +359,7 @@ async fn server_startup_restores_rejected_project_delete_gate() {
 }
 
 #[tokio::test]
-async fn server_process_recovers_cleanup_after_restart() {
+async fn server_process_recovers_only_registered_or_expired_cleanup() {
     let (db, database_url) = isolated_test_database().await;
 
     let user = a4n_db::auth::create_user(
@@ -390,7 +390,7 @@ async fn server_process_recovers_cleanup_after_restart() {
     std::fs::write(frontend_dir.join("index.html"), "test").unwrap();
 
     let project_id = project.id;
-    let managed_orphan_paths = [
+    let unregistered_media_paths = [
         "images/orphan.png",
         "videos/orphan.mp4",
         "portraits/orphan.png",
@@ -399,16 +399,16 @@ async fn server_process_recovers_cleanup_after_restart() {
         "assets/orphan.bin",
     ]
     .map(|path| format!("projects/{project_id}/{path}"));
-    let non_media_orphan_path = format!("projects/{}/chapters/orphan.md", project_id + 1);
+    let unregistered_project_path = format!("projects/{}/chapters/orphan.md", project_id + 1);
     let restart_path = format!("projects/{project_id}/custom/restart.bin");
     let failed_path = format!("projects/{project_id}/custom/not-a-file.bin");
     let expired_cache_output =
         format!("projects/{project_id}/videos/chapter_1/assembled_expired.mp4");
     let expired_cache_manifest = format!("{expired_cache_output}.cache.json");
     let expired_upload = data_dir.join("tmp/video_uploads/video_upload_expired.mp4");
-    for path in managed_orphan_paths
+    for path in unregistered_media_paths
         .iter()
-        .chain([&non_media_orphan_path, &restart_path])
+        .chain([&unregistered_project_path, &restart_path])
     {
         let absolute = data_dir.join(path);
         std::fs::create_dir_all(absolute.parent().unwrap()).unwrap();
@@ -482,10 +482,10 @@ async fn server_process_recovers_cleanup_after_restart() {
     );
     assert_eq!(pending.attempt_count, 1);
     assert!(pending.last_error.as_deref().unwrap().contains("不是文件"));
-    for path in &managed_orphan_paths {
-        assert!(!data_dir.join(path).exists(), "未恢复受管媒体: {path}");
+    for path in &unregistered_media_paths {
+        assert!(data_dir.join(path).exists(), "启动不应推断删除媒体: {path}");
     }
-    assert!(!data_dir.join(&non_media_orphan_path).exists());
+    assert!(data_dir.join(&unregistered_project_path).exists());
     assert!(!data_dir.join(&restart_path).exists());
     assert!(!data_dir.join(&expired_cache_output).exists());
     assert!(!data_dir.join(&expired_cache_manifest).exists());
@@ -516,7 +516,7 @@ async fn server_process_recovers_cleanup_after_restart() {
 }
 
 #[tokio::test]
-async fn server_process_recovers_uploaded_image_after_record_and_cleanup_intent_failures() {
+async fn server_process_reports_image_record_and_cleanup_intent_failures() {
     let (db, database_url) = isolated_test_database().await;
     let temp = tempfile::tempdir().unwrap();
     let data_dir = temp.path().join("data");
@@ -607,11 +607,6 @@ async fn server_process_recovers_uploaded_image_after_record_and_cleanup_intent_
         .collect::<Vec<_>>();
     assert_eq!(orphan_files.len(), 1);
     let orphan_path = orphan_files.pop().unwrap();
-    let orphan_relative_path = format!(
-        "projects/{}/images/{}",
-        project.id,
-        orphan_path.file_name().unwrap().to_string_lossy()
-    );
     assert!(orphan_path.is_file());
     assert!(
         generated_image::Entity::find()
@@ -635,46 +630,10 @@ async fn server_process_recovers_uploaded_image_after_record_and_cleanup_intent_
     );
 
     remove_upload_failure_triggers(&db).await;
-    let second_addr = unused_local_addr();
-    let mut second = spawn_server(&database_url, &data_dir, &frontend_dir, second_addr);
-    wait_for_listener(&mut second, second_addr).await;
-    stop_server(second);
-
-    assert!(!orphan_path.exists());
-    assert!(
-        generated_image::Entity::find()
-            .filter(generated_image::Column::ProjectId.eq(project.id))
-            .one(&db)
-            .await
-            .unwrap()
-            .is_none()
-    );
-    let cleanup = cleanup_outbox::Entity::find()
-        .filter(cleanup_outbox::Column::ProjectId.eq(project.id))
-        .filter(
-            cleanup_outbox::Column::CleanupKind
-                .eq(a4n_db::cleanup_outbox::FILE_ARTIFACT_CLEANUP_KIND),
-        )
-        .one(&db)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        cleanup.status,
-        a4n_db::cleanup_outbox::CLEANUP_STATUS_COMPLETED
-    );
-    assert_eq!(cleanup.attempt_count, 1);
-    assert!(cleanup.completed_at.is_some());
-    assert!(
-        cleanup
-            .dedupe_key
-            .starts_with("file-artifact:startup-orphan-media:")
-    );
-    assert_eq!(cleanup.payload_json["paths"][0], orphan_relative_path);
 }
 
 #[tokio::test]
-async fn server_process_recovers_uploaded_image_killed_before_database_commit() {
+async fn server_process_kill_before_image_record_commit_leaves_no_database_state() {
     const INSERT_LOCK_KEY: i64 = 4_205_150_915;
 
     let (db, database_url) = isolated_test_database().await;
@@ -799,28 +758,6 @@ async fn server_process_recovers_uploaded_image_killed_before_database_commit() 
             .unwrap()
             .is_none()
     );
-
-    let second_addr = unused_local_addr();
-    let mut second = spawn_server(&database_url, &data_dir, &frontend_dir, second_addr);
-    wait_for_listener(&mut second, second_addr).await;
-    stop_server(second);
-
-    assert!(!orphan_path.exists());
-    let cleanup = cleanup_outbox::Entity::find()
-        .filter(cleanup_outbox::Column::ProjectId.eq(project_id))
-        .filter(
-            cleanup_outbox::Column::CleanupKind
-                .eq(a4n_db::cleanup_outbox::FILE_ARTIFACT_CLEANUP_KIND),
-        )
-        .one(&db)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        cleanup.status,
-        a4n_db::cleanup_outbox::CLEANUP_STATUS_COMPLETED
-    );
-    assert_eq!(cleanup.attempt_count, 1);
 }
 
 #[tokio::test]

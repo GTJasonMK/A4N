@@ -5,67 +5,9 @@ use crate::{
         admin_records::{AdminPermission, require_admin_permission},
         app_error_message,
     },
-    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::remove_data_dir_in_data_dir,
 };
 use std::{collections::HashSet, path::PathBuf};
-
-pub(crate) async fn recover_unreferenced_managed_media_files(state: &AppState) {
-    let files = match scanning::managed_media_files(state.data_dir()) {
-        Ok(files) => files,
-        Err(error) => {
-            tracing::warn!(%error, "扫描强杀遗留媒体文件失败");
-            return;
-        }
-    };
-    if files.is_empty() {
-        return;
-    }
-    let paths = files
-        .iter()
-        .map(|file| file.relative_path.clone())
-        .collect::<Vec<_>>();
-    let unreferenced = match state.orchestrator().unreferenced_media_paths(&paths).await {
-        Ok(paths) => paths,
-        Err(error) => {
-            tracing::warn!(error = %app_error_message(error), "复核强杀遗留媒体文件引用失败");
-            return;
-        }
-    };
-    for path in unreferenced {
-        let Ok(index) = files.binary_search_by(|file| file.relative_path.cmp(&path)) else {
-            tracing::error!(media_path = %path, "DB 返回了扫描候选之外的未引用媒体路径");
-            continue;
-        };
-        let file = &files[index];
-        if let Err(error) = enqueue_file_artifact_cleanup_by_project(
-            state,
-            &format!("startup-orphan-media:{}", file.version),
-            std::slice::from_ref(&path),
-        )
-        .await
-        {
-            tracing::warn!(
-                %error,
-                project_id = file.project_id,
-                media_path = %path,
-                "写入强杀遗留媒体 cleanup intent 失败"
-            );
-        }
-    }
-}
-
-pub(crate) async fn recover_orphan_project_data_dirs(state: &AppState) {
-    match remove_unowned_project_data_dirs(state).await {
-        Ok(summary) if summary.total_count > 0 => tracing::info!(
-            total_count = summary.total_count,
-            total_size_bytes = summary.total_size_bytes,
-            "启动恢复孤儿项目数据目录完成"
-        ),
-        Ok(_) => {}
-        Err(error) => tracing::warn!(%error, "启动恢复孤儿项目数据目录失败"),
-    }
-}
 
 pub async fn list_orphan_project_data_dirs(
     state: &AppState,

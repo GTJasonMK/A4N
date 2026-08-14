@@ -350,9 +350,7 @@ impl AppState {
             })?;
         crate::actions::video_records::recover_expired_uploaded_video_sources(state.temp_dir());
         crate::actions::video_records::recover_expired_assembly_caches(&state).await;
-        crate::actions::storage_paths::recover_unreferenced_managed_media_files(&state).await;
         crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
-        crate::actions::storage_paths::recover_orphan_project_data_dirs(&state).await;
         crate::cleanup_outbox::spawn_cleanup_worker(state.clone());
         Ok(state)
     }
