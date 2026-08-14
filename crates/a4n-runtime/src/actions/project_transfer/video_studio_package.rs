@@ -1,4 +1,4 @@
-//! 视频画布项目包 Host Port：sidecar zip 与物理媒体文件 IO。
+//! 视频画布项目包 ZIP、manifest 与媒体 payload 适配。
 
 pub(super) type ImportMediaPayload = a4n_orchestrator::project::ImportMediaPayload;
 #[cfg(test)]
@@ -16,7 +16,6 @@ pub(super) const PACKAGE_MODE: &str = a4n_orchestrator::project::PACKAGE_MODE;
 pub(super) const VIDEO_STUDIO_PACKAGE_VERSION: &str =
     a4n_orchestrator::project::VIDEO_STUDIO_PACKAGE_VERSION;
 
-mod host_port;
 mod package_io;
 
-pub(super) use host_port::RuntimeVideoStudioProjectTransferHostPort;
+pub(super) use package_io::{package_zip_bytes, read_video_studio_package_bytes};

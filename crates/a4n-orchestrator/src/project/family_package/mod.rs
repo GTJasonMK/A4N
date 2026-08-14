@@ -66,8 +66,7 @@ pub use export_assembly::{
     validate_export_snapshot_coverage,
 };
 pub use validation::{
-    snapshot_profile_key, validate_media_bytes, validate_media_manifest,
-    validate_package_entry_path, validate_package_manifest,
+    snapshot_profile_key, validate_media_bytes, validate_media_manifest, validate_package_manifest,
 };
 
 use a4n_db::project_family_import::ProjectFamilyImportPackage;

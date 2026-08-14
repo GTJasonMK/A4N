@@ -1,4 +1,4 @@
-//! 项目族包 Host 适配：sidecar ZIP、媒体物理 IO 与 application Host Port。
+//! 项目族包 ZIP、manifest 与媒体 payload 适配。
 
 #[cfg(test)]
 use a4n_core::models::{
@@ -17,10 +17,10 @@ use a4n_orchestrator::source_sync::CONFLICT_STATUS_PENDING;
 use std::collections::HashMap;
 
 mod archive;
-mod host_port;
 mod package_io;
 
-pub(in crate::actions::project_transfer) use host_port::RuntimeProjectFamilyTransferHostPort;
+pub(in crate::actions::project_transfer) use archive::read_project_family_package_bytes;
+pub(in crate::actions::project_transfer) use package_io::package_zip_bytes;
 
 #[cfg(test)]
 mod tests;

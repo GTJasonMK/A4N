@@ -34,10 +34,6 @@ pub(super) fn validate_unique_ids(
     Ok(())
 }
 
-pub fn validate_package_entry_path(path: &str) -> Result<(), String> {
-    a4n_import_core::validate_zip_entry_path(path).map_err(|err| err.to_string())
-}
-
 pub fn validate_media_bytes(asset: &media_asset::Model, bytes: &[u8]) -> Result<(), String> {
     let expected_size = asset
         .file_size

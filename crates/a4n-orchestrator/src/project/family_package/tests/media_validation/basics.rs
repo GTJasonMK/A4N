@@ -1,12 +1,6 @@
 use super::*;
 
 #[test]
-fn validate_package_entry_path_rejects_traversal() {
-    let err = validate_package_entry_path("media/10/../file.mp4").unwrap_err();
-    assert!(err.contains("不能越界"));
-}
-
-#[test]
 fn validate_media_bytes_rejects_checksum_mismatch() {
     let asset = media_asset_with_checksum(b"expected bytes");
     let err = validate_media_bytes(&asset, b"actual bytes").unwrap_err();

@@ -1,13 +1,12 @@
-use std::{collections::HashSet, path::Path};
+use std::collections::HashSet;
 
-use a4n_core::{error::AppError, models::project::novel_project};
 use a4n_db::canvas::VideoStudioProjectExportRows;
 use async_trait::async_trait;
 
 use super::{
     ImportMediaPayload, MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_IMAGE,
-    MEDIA_OWNER_MEDIA_ASSET, MEDIA_OWNER_VIDEO, VideoStudioMediaFileEntry,
-    VideoStudioProjectPackage,
+    MEDIA_OWNER_MEDIA_ASSET, MEDIA_OWNER_VIDEO, ProjectPackageFileHostPort,
+    VideoStudioMediaFileEntry, VideoStudioProjectPackage, required_path_extension,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,39 +16,13 @@ pub struct ExportVideoStudioProjectApplicationInput {
 }
 
 #[derive(Debug)]
-pub struct ExportedVideoStudioProject {
-    pub project: novel_project::Model,
-    pub package_bytes: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct ImportVideoStudioProjectApplicationInput {
-    pub user_id: i64,
-    pub package_bytes: Vec<u8>,
-}
-
-#[derive(Debug)]
 pub struct ReadVideoStudioProjectPackage {
     pub package: VideoStudioProjectPackage,
     pub media_payload: ImportMediaPayload,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum VideoStudioProjectTransferError {
-    #[error("{0}")]
-    Application(#[from] AppError),
-    #[error("{0}")]
-    Message(String),
-}
-
-impl From<String> for VideoStudioProjectTransferError {
-    fn from(message: String) -> Self {
-        Self::Message(message)
-    }
-}
-
 #[async_trait]
-pub trait VideoStudioProjectTransferHostPort: Send + Sync {
+pub trait VideoStudioProjectTransferHostPort: ProjectPackageFileHostPort {
     async fn render_export_package(
         &self,
         package: &VideoStudioProjectPackage,
@@ -59,15 +32,6 @@ pub trait VideoStudioProjectTransferHostPort: Send + Sync {
         &self,
         package_bytes: Vec<u8>,
     ) -> Result<ReadVideoStudioProjectPackage, String>;
-
-    fn write_imported_media_file(
-        &mut self,
-        relative_path: &str,
-        bytes: &[u8],
-        label: &str,
-    ) -> Result<(), String>;
-
-    async fn rollback_imported_media_files(&mut self, label: &str) -> Result<(), String>;
 }
 
 pub(crate) fn video_studio_export_media_files(
@@ -166,12 +130,7 @@ fn media_package_path(
     field: &str,
     original_path: &str,
 ) -> Result<String, String> {
-    let extension = Path::new(original_path)
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("媒体文件缺少扩展名: {original_path}"))?;
+    let extension = required_path_extension(original_path, "媒体文件")?;
     Ok(format!("media/{owner_kind}/{owner_id}/{field}.{extension}"))
 }
 

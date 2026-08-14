@@ -2,7 +2,7 @@ use super::super::super::{PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage};
 use crate::project::{
     PROJECT_KIND_TEXT, SOURCE_SYNC_CURRENT, is_valid_derived_project_status,
     is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
-    normalize_project_type,
+    normalize_project_type, required_text,
 };
 use a4n_core::state::validator::parse_project_status;
 use std::collections::HashSet;
@@ -33,6 +33,7 @@ pub(super) fn validate_package_projects(package: &ProjectFamilyPackage) -> Resul
         if !project_ids.insert(project.id) {
             return Err(format!("项目族导入包项目 ID 重复: {}", project.id));
         }
+        required_text(&project.title, "项目族导入包项目标题")?;
         normalize_project_type(&project.project_type).map_err(|err| err.to_string())?;
         normalize_project_kind(&project.project_kind).map_err(|err| err.to_string())?;
         parse_project_status(&project.status).map_err(|err| err.to_string())?;

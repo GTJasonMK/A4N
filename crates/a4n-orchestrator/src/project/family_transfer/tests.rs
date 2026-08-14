@@ -12,14 +12,16 @@ use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
 
-use crate::project::{PROJECT_FAMILY_PACKAGE_VERSION, TextCorePackage};
+use crate::project::{
+    ImportProjectPackageApplicationInput, PROJECT_FAMILY_PACKAGE_VERSION,
+    ProjectPackageFileHostPort, TextCorePackage,
+};
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
 use super::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    FamilyImportMediaPayload, ImportProjectFamilyPackageApplicationInput, MediaFileEntry,
-    ProjectFamilyExportRows, ProjectFamilyPackage, ProjectFamilyTransferHostPort,
-    ReadProjectFamilyPackage, imported_project_family_media_path,
+    FamilyImportMediaPayload, MediaFileEntry, ProjectFamilyExportRows, ProjectFamilyPackage,
+    ProjectFamilyTransferHostPort, ReadProjectFamilyPackage, imported_project_family_media_path,
     project_family_export_media_files,
 };
 
@@ -68,7 +70,10 @@ impl ProjectFamilyTransferHostPort for TestProjectFamilyTransferHost {
             .take()
             .ok_or_else(|| "missing test package".to_string())
     }
+}
 
+#[async_trait]
+impl ProjectPackageFileHostPort for TestProjectFamilyTransferHost {
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,
@@ -79,7 +84,7 @@ impl ProjectFamilyTransferHostPort for TestProjectFamilyTransferHost {
         Ok(())
     }
 
-    async fn rollback_imported_media_files(&mut self, _label: &str) -> Result<(), String> {
+    async fn rollback_imported_media_files(&mut self) -> Result<(), String> {
         self.rollback_calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -184,7 +189,7 @@ async fn import_application_owns_validation_database_import_and_user_projection(
 
     let imported = context
         .import_project_family_package_validated(
-            ImportProjectFamilyPackageApplicationInput {
+            ImportProjectPackageApplicationInput {
                 user_id: 29,
                 package_bytes: vec![9],
             },
@@ -200,7 +205,7 @@ async fn import_application_owns_validation_database_import_and_user_projection(
 }
 
 #[tokio::test]
-async fn import_application_rolls_back_host_files_when_package_validation_fails() {
+async fn import_application_rejects_invalid_package_before_file_rollback() {
     let (context, _) = setup().await;
     let mut package = empty_package(project_model(201, 9, "text", None));
     package.version = "invalid-version".to_string();
@@ -211,7 +216,7 @@ async fn import_application_rolls_back_host_files_when_package_validation_fails(
 
     let error = context
         .import_project_family_package_validated(
-            ImportProjectFamilyPackageApplicationInput {
+            ImportProjectPackageApplicationInput {
                 user_id: 31,
                 package_bytes: vec![8],
             },
@@ -221,7 +226,7 @@ async fn import_application_rolls_back_host_files_when_package_validation_fails(
         .expect_err("非法项目族包必须失败");
 
     assert!(error.to_string().contains("版本"));
-    assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]

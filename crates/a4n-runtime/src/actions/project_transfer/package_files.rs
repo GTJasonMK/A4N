@@ -1,21 +1,56 @@
-use super::ExportProjectPackageData;
 #[cfg(test)]
 use super::PROJECT_FAMILY_PACKAGE_SUFFIX;
+use super::{ExportProjectPackageData, ImportProjectPackageUploadInput};
 use a4n_core::models::project::novel_project;
+use a4n_orchestrator::project::ImportProjectPackageApplicationInput;
 use base64::Engine as _;
+use std::path::Path;
 
 pub(super) fn export_package_data(
     project: &novel_project::Model,
     bytes: Vec<u8>,
     file_suffix: &str,
-) -> ExportProjectPackageData {
-    ExportProjectPackageData {
-        file_name: project_package_file_name(project, file_suffix),
+) -> Result<ExportProjectPackageData, String> {
+    Ok(ExportProjectPackageData {
+        file_name: project_package_file_name(&project.title, file_suffix)?,
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
-    }
+    })
 }
 
-pub(super) fn validate_uploaded_project_file_name(
+pub(super) fn project_package_import_input(
+    user_id: i64,
+    input: ImportProjectPackageUploadInput,
+    expected_suffix: &str,
+    label: &str,
+) -> Result<ImportProjectPackageApplicationInput, String> {
+    validate_uploaded_project_file_name(&input.file_name, expected_suffix, label)?;
+    Ok(ImportProjectPackageApplicationInput {
+        user_id,
+        package_bytes: decode_uploaded_project_file(&input.data_base64, label)?,
+    })
+}
+
+pub(super) fn project_package_media_zip_entries<'a>(
+    data_dir: &Path,
+    media_files: impl IntoIterator<Item = (&'a str, &'a str)>,
+    source_label: &str,
+) -> Result<Vec<a4n_export_core::ExportZipEntryBytes>, String> {
+    let mut entries = Vec::new();
+    for (original_path, package_path) in media_files {
+        let source =
+            crate::file_utils::canonicalize_data_file_path(data_dir, original_path, source_label)?;
+        let bytes = std::fs::read(&source)
+            .map_err(|err| format!("读取媒体文件失败: {}: {err}", source.display()))?;
+        entries.push(a4n_export_core::ExportZipEntryBytes {
+            path: package_path.to_string(),
+            bytes,
+            label: format!("媒体文件 {package_path}"),
+        });
+    }
+    Ok(entries)
+}
+
+fn validate_uploaded_project_file_name(
     file_name: &str,
     expected_suffix: &str,
     label: &str,
@@ -33,35 +68,22 @@ pub(super) fn validate_uploaded_project_file_name(
     Ok(())
 }
 
-pub(super) fn decode_uploaded_project_file(
-    data_base64: &str,
-    label: &str,
-) -> Result<Vec<u8>, String> {
-    let raw = data_base64
-        .split_once(";base64,")
-        .map(|(_, body)| body)
-        .unwrap_or(data_base64)
-        .trim();
+fn decode_uploaded_project_file(data_base64: &str, label: &str) -> Result<Vec<u8>, String> {
+    let raw = data_base64.trim();
     if raw.is_empty() {
         return Err(format!("{label}内容不能为空"));
     }
-    let bytes = base64::engine::general_purpose::STANDARD
+    base64::engine::general_purpose::STANDARD
         .decode(raw)
-        .map_err(|err| format!("{label} base64 解码失败：{err}"))?;
-    if bytes.is_empty() {
-        return Err(format!("{label}内容不能为空"));
-    }
-    Ok(bytes)
+        .map_err(|err| format!("{label} base64 解码失败：{err}"))
 }
 
-fn project_package_file_name(project: &novel_project::Model, file_suffix: &str) -> String {
-    let stem = sanitize_file_name_component(&project.title);
-    let stem = if stem.is_empty() {
-        format!("project-{}", project.id)
-    } else {
-        stem
-    };
-    format!("{stem}{file_suffix}")
+fn project_package_file_name(title: &str, file_suffix: &str) -> Result<String, String> {
+    let stem = sanitize_file_name_component(title);
+    if stem.is_empty() {
+        return Err("项目标题无法生成导出文件名".to_string());
+    }
+    Ok(format!("{stem}{file_suffix}"))
 }
 
 fn sanitize_file_name_component(value: &str) -> String {
@@ -117,5 +139,22 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn upload_content_requires_raw_base64() {
+        assert_eq!(
+            decode_uploaded_project_file("aGVsbG8=", "项目族包").expect("原始 Base64 应通过"),
+            b"hello"
+        );
+        assert!(
+            decode_uploaded_project_file("data:application/zip;base64,aGVsbG8=", "项目族包")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn export_file_name_rejects_empty_sanitized_title() {
+        assert!(project_package_file_name("...", PROJECT_FAMILY_PACKAGE_SUFFIX).is_err());
     }
 }

@@ -25,7 +25,9 @@ use crate::media::{
 use crate::project::PROJECT_KIND_VIDEO;
 #[cfg(test)]
 use crate::project::sha256_bytes;
-use crate::project::{SOURCE_MODE_FREEFORM, SOURCE_SYNC_CURRENT, normalize_project_type};
+use crate::project::{
+    SOURCE_MODE_FREEFORM, SOURCE_SYNC_CURRENT, normalize_project_type, required_text,
+};
 use crate::project::{parse_canvas_cache_key, validate_unique_ids};
 
 use super::{

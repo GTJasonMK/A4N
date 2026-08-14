@@ -152,6 +152,7 @@ mod generation_params_rules;
 mod input_rules;
 mod json_field_rules;
 mod package_rules;
+mod package_transfer;
 mod video_studio_package;
 mod video_studio_transfer;
 
@@ -175,8 +176,14 @@ pub use package_rules::{
     MEDIA_FILE_FIELD_FILE, MEDIA_FILE_FIELD_THUMBNAIL, hash_json, hash_text,
     is_valid_snapshot_outline_kind, is_valid_snapshot_profile_kind, media_asset_path,
     media_file_key, parse_canvas_cache_key, parse_chapter_scope_json, required_package_extension,
-    sha256_bytes, validate_freeform_video_project, validate_import_unique_ids,
-    validate_import_unique_key_strings, validate_snapshot_payload_identity, validate_unique_ids,
+    required_path_extension, sha256_bytes, validate_freeform_video_project,
+    validate_import_unique_ids, validate_import_unique_key_strings,
+    validate_snapshot_payload_identity, validate_unique_ids,
+};
+pub(crate) use package_transfer::import_result_with_file_rollback;
+pub use package_transfer::{
+    ExportedProjectPackage, ImportProjectPackageApplicationInput, ProjectPackageFileHostPort,
+    ProjectPackageTransferError,
 };
 
 pub use family_package::{
@@ -186,13 +193,11 @@ pub use family_package::{
     snapshot_profile_key as family_snapshot_profile_key, validate_export_same_user,
     validate_export_snapshot_coverage, validate_media_bytes as validate_family_media_bytes,
     validate_media_manifest as validate_family_media_manifest,
-    validate_package_entry_path as validate_family_package_entry_path,
     validate_package_manifest as validate_family_package_manifest,
 };
 pub use family_transfer::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ExportedProjectFamilyPackage, ImportProjectFamilyPackageApplicationInput,
-    ProjectFamilyTransferError, ProjectFamilyTransferHostPort, ReadProjectFamilyPackage,
+    ProjectFamilyTransferHostPort, ReadProjectFamilyPackage,
 };
 pub(crate) use family_transfer::{
     imported_project_family_media_path, project_family_export_media_files,
@@ -207,9 +212,8 @@ pub use video_studio_package::{
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 pub use video_studio_transfer::{
-    ExportVideoStudioProjectApplicationInput, ExportedVideoStudioProject,
-    ImportVideoStudioProjectApplicationInput, ReadVideoStudioProjectPackage,
-    VideoStudioProjectTransferError, VideoStudioProjectTransferHostPort,
+    ExportVideoStudioProjectApplicationInput, ReadVideoStudioProjectPackage,
+    VideoStudioProjectTransferHostPort,
 };
 
 pub(crate) use chapter_scene_rules::chapter_scene_update_record_input;

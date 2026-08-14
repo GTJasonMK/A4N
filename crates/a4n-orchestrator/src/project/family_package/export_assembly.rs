@@ -7,6 +7,7 @@ use a4n_db::project::ProjectFamilyExportRows;
 use chrono::Utc;
 
 use super::{MediaFileEntry, PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage};
+use crate::project::required_path_extension;
 
 /// 校验根项目与派生项目归属同一用户且挂在正确 root 下。
 pub fn validate_export_same_user(
@@ -101,12 +102,7 @@ pub fn family_media_package_path(
     field: &str,
     original_path: &str,
 ) -> Result<String, String> {
-    let extension = std::path::Path::new(original_path)
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("媒体文件缺少扩展名: {original_path}"))?;
+    let extension = required_path_extension(original_path, "媒体文件")?;
     Ok(format!("media/{media_asset_id}/{field}.{extension}"))
 }
 

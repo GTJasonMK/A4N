@@ -1,12 +1,12 @@
-use std::{collections::HashSet, path::Path};
+use std::collections::HashSet;
 
-use a4n_core::{error::AppError, models::project::novel_project};
 use a4n_db::project::ProjectFamilyExportRows;
 use async_trait::async_trait;
 
 use super::{
     FamilyImportMediaPayload, MEDIA_FILE_FIELDS, MediaFileEntry, ProjectFamilyPackage,
-    family_media_package_path, media_asset_path,
+    ProjectPackageFileHostPort, family_media_package_path, media_asset_path,
+    required_path_extension,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,39 +22,13 @@ pub struct ExportDerivedProjectPackageApplicationInput {
     pub derived_project_id: i64,
 }
 
-#[derive(Debug)]
-pub struct ExportedProjectFamilyPackage {
-    pub project: novel_project::Model,
-    pub package_bytes: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct ImportProjectFamilyPackageApplicationInput {
-    pub user_id: i64,
-    pub package_bytes: Vec<u8>,
-}
-
 pub struct ReadProjectFamilyPackage {
     pub package: ProjectFamilyPackage,
     pub media_payload: FamilyImportMediaPayload,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ProjectFamilyTransferError {
-    #[error("{0}")]
-    Application(#[from] AppError),
-    #[error("{0}")]
-    Message(String),
-}
-
-impl From<String> for ProjectFamilyTransferError {
-    fn from(message: String) -> Self {
-        Self::Message(message)
-    }
-}
-
 #[async_trait]
-pub trait ProjectFamilyTransferHostPort: Send + Sync {
+pub trait ProjectFamilyTransferHostPort: ProjectPackageFileHostPort {
     async fn render_export_package(
         &self,
         package: &ProjectFamilyPackage,
@@ -64,15 +38,6 @@ pub trait ProjectFamilyTransferHostPort: Send + Sync {
         &self,
         package_bytes: Vec<u8>,
     ) -> Result<ReadProjectFamilyPackage, String>;
-
-    fn write_imported_media_file(
-        &mut self,
-        relative_path: &str,
-        bytes: &[u8],
-        label: &str,
-    ) -> Result<(), String>;
-
-    async fn rollback_imported_media_files(&mut self, label: &str) -> Result<(), String>;
 }
 
 pub(crate) fn project_family_export_media_files(
@@ -107,12 +72,7 @@ pub(crate) fn imported_project_family_media_path(
     field: &str,
     package_path: &str,
 ) -> Result<String, String> {
-    let extension = Path::new(package_path)
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("媒体文件缺少扩展名: {package_path}"))?;
+    let extension = required_path_extension(package_path, "媒体文件")?;
     let suffix = if field == super::MEDIA_FILE_FIELD_THUMBNAIL {
         "_thumbnail"
     } else {

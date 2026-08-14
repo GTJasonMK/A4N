@@ -203,13 +203,17 @@ pub fn media_asset_path<'a>(
 
 /// 媒体包路径必填扩展名（小写）。
 pub fn required_package_extension(path: &str) -> Result<String, String> {
+    Ok(required_path_extension(path, "媒体包路径")?.to_ascii_lowercase())
+}
+
+/// 路径必填扩展名。
+pub fn required_path_extension<'a>(path: &'a str, label: &str) -> Result<&'a str, String> {
     Path::new(path)
         .extension()
         .and_then(|value| value.to_str())
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|value| value.to_ascii_lowercase())
-        .ok_or_else(|| format!("媒体包路径缺少扩展名: {path}"))
+        .ok_or_else(|| format!("{label}缺少扩展名: {path}"))
 }
 
 /// 项目族包内媒体文件索引键。

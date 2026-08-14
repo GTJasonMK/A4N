@@ -21,7 +21,7 @@ use chrono::NaiveDateTime;
 
 use super::OrchestratorContext;
 use crate::canvas::errors::{canvas_db_error, video_studio_project_import_error};
-use crate::project::{ImportMediaPayload, VideoStudioProjectPackage, validate_package_manifest};
+use crate::project::VideoStudioProjectPackage;
 
 /// Canvas 领域 application owner。
 #[derive(Clone)]
@@ -171,19 +171,17 @@ impl CanvasApplication {
             .map_err(canvas_db_error)
     }
 
-    /// 校验视频画布包 manifest 后落库（媒体文件写入由 Host writer 完成）。
-    pub(super) async fn import_video_studio_package_validated<Writer>(
+    /// 落库已校验的视频画布包（媒体文件写入由 Host writer 完成）。
+    pub(super) async fn import_video_studio_package<Writer>(
         &self,
         user_id: i64,
         package: VideoStudioProjectPackage,
-        media_payload: &ImportMediaPayload,
         now: NaiveDateTime,
         media_file_writer: &mut Writer,
     ) -> Result<novel_project::Model, AppError>
     where
         Writer: VideoStudioProjectImportMediaFileWriter,
     {
-        validate_package_manifest(&package, media_payload).map_err(AppError::InvalidArgument)?;
         let rows = package.into_import_rows();
         a4n_db::canvas::import_video_studio_project_record(
             self.connection(),

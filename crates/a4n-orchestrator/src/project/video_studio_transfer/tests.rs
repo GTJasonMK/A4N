@@ -12,15 +12,16 @@ use async_trait::async_trait;
 use sea_orm::ActiveModelTrait;
 
 use crate::project::{
-    ImportMediaPayload, MEDIA_FIELD_FILE, MEDIA_OWNER_MEDIA_ASSET, PACKAGE_MODE,
+    ImportMediaPayload, ImportProjectPackageApplicationInput, MEDIA_FIELD_FILE,
+    MEDIA_OWNER_MEDIA_ASSET, PACKAGE_MODE, ProjectPackageFileHostPort,
     VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry, VideoStudioProjectPackage,
     video_studio_media_file_key,
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
 use super::{
-    ExportVideoStudioProjectApplicationInput, ImportVideoStudioProjectApplicationInput,
-    ReadVideoStudioProjectPackage, VideoStudioProjectTransferHostPort, media_package_path,
+    ExportVideoStudioProjectApplicationInput, ReadVideoStudioProjectPackage,
+    VideoStudioProjectTransferHostPort, media_package_path,
 };
 
 #[derive(Default)]
@@ -65,7 +66,10 @@ impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
             .take()
             .ok_or_else(|| "测试导入包缺失".to_string())
     }
+}
 
+#[async_trait]
+impl ProjectPackageFileHostPort for TestVideoStudioTransferHost {
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,
@@ -80,7 +84,7 @@ impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
         Ok(())
     }
 
-    async fn rollback_imported_media_files(&mut self, _label: &str) -> Result<(), String> {
+    async fn rollback_imported_media_files(&mut self) -> Result<(), String> {
         self.rollback_calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -142,7 +146,7 @@ async fn import_application_owns_archive_validation_database_import_and_user_pro
 
     let imported = context
         .import_video_studio_project_validated(
-            ImportVideoStudioProjectApplicationInput {
+            ImportProjectPackageApplicationInput {
                 user_id: 81,
                 package_bytes: vec![9],
             },
@@ -210,7 +214,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
 
     let imported = context
         .import_video_studio_project_validated(
-            ImportVideoStudioProjectApplicationInput {
+            ImportProjectPackageApplicationInput {
                 user_id: 101,
                 package_bytes: vec![9],
             },
@@ -234,7 +238,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
 }
 
 #[tokio::test]
-async fn import_application_rolls_back_host_files_when_package_validation_fails() {
+async fn import_application_rejects_invalid_package_before_file_rollback() {
     let (context, database) = setup().await;
     let source = insert_freeform_project(database.as_ref(), 9).await;
     let mut package = empty_package(source);
@@ -249,7 +253,7 @@ async fn import_application_rolls_back_host_files_when_package_validation_fails(
 
     let error = context
         .import_video_studio_project_validated(
-            ImportVideoStudioProjectApplicationInput {
+            ImportProjectPackageApplicationInput {
                 user_id: 91,
                 package_bytes: vec![9],
             },
@@ -260,7 +264,7 @@ async fn import_application_rolls_back_host_files_when_package_validation_fails(
 
     assert!(error.to_string().contains("版本无效"));
     assert_eq!(host.read_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]

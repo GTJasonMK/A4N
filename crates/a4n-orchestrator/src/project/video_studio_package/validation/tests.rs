@@ -100,6 +100,16 @@ fn empty_payload() -> ImportMediaPayload {
     }
 }
 
+#[test]
+fn validate_video_studio_manifest_rejects_blank_project_title() {
+    let mut package = package();
+    package.project.title = " ".to_string();
+
+    let error =
+        validate_package_manifest(&package, &empty_payload()).expect_err("空项目标题必须失败");
+    assert!(error.contains("项目标题"));
+}
+
 fn graph() -> canvas_graph::Model {
     canvas_graph::Model {
         id: 20,

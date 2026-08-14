@@ -1,16 +1,13 @@
 use super::{
     ExportDerivedProjectDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
     ImportProjectPackageUploadInput, PROJECT_FAMILY_PACKAGE_SUFFIX,
-    family_package::RuntimeProjectFamilyTransferHostPort,
-    package_files::{
-        decode_uploaded_project_file, export_package_data, validate_uploaded_project_file_name,
-    },
+    host_port::RuntimeProjectPackageTransferHostPort,
+    package_files::{export_package_data, project_package_import_input},
 };
 use crate::state::AppState;
 use a4n_core::models::project::novel_project;
 use a4n_orchestrator::project::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ImportProjectFamilyPackageApplicationInput,
 };
 
 pub async fn export_project_family_data(
@@ -18,7 +15,7 @@ pub async fn export_project_family_data(
     user_id: i64,
     input: ExportProjectFamilyDataInput,
 ) -> Result<ExportProjectPackageData, String> {
-    let host_port = RuntimeProjectFamilyTransferHostPort::new(state);
+    let host_port = RuntimeProjectPackageTransferHostPort::new(state);
     let exported = state
         .orchestrator()
         .export_project_family_package_validated(
@@ -31,11 +28,11 @@ pub async fn export_project_family_data(
         )
         .await
         .map_err(|error| error.to_string())?;
-    Ok(export_package_data(
+    export_package_data(
         &exported.project,
         exported.package_bytes,
         PROJECT_FAMILY_PACKAGE_SUFFIX,
-    ))
+    )
 }
 
 pub async fn export_derived_project_data(
@@ -43,7 +40,7 @@ pub async fn export_derived_project_data(
     user_id: i64,
     input: ExportDerivedProjectDataInput,
 ) -> Result<ExportProjectPackageData, String> {
-    let host_port = RuntimeProjectFamilyTransferHostPort::new(state);
+    let host_port = RuntimeProjectPackageTransferHostPort::new(state);
     let exported = state
         .orchestrator()
         .export_derived_project_package_validated(
@@ -55,11 +52,11 @@ pub async fn export_derived_project_data(
         )
         .await
         .map_err(|error| error.to_string())?;
-    Ok(export_package_data(
+    export_package_data(
         &exported.project,
         exported.package_bytes,
         PROJECT_FAMILY_PACKAGE_SUFFIX,
-    ))
+    )
 }
 
 pub async fn import_project_family_upload(
@@ -67,22 +64,12 @@ pub async fn import_project_family_upload(
     user_id: i64,
     input: ImportProjectPackageUploadInput,
 ) -> Result<Vec<novel_project::Model>, String> {
-    validate_uploaded_project_file_name(
-        &input.file_name,
-        PROJECT_FAMILY_PACKAGE_SUFFIX,
-        "项目族包",
-    )?;
-    let bytes = decode_uploaded_project_file(&input.data_base64, "项目族包")?;
-    let mut host_port = RuntimeProjectFamilyTransferHostPort::new(state);
+    let input =
+        project_package_import_input(user_id, input, PROJECT_FAMILY_PACKAGE_SUFFIX, "项目族包")?;
+    let mut host_port = RuntimeProjectPackageTransferHostPort::new(state);
     state
         .orchestrator()
-        .import_project_family_package_validated(
-            ImportProjectFamilyPackageApplicationInput {
-                user_id,
-                package_bytes: bytes,
-            },
-            &mut host_port,
-        )
+        .import_project_family_package_validated(input, &mut host_port)
         .await
         .map_err(|error| error.to_string())
 }

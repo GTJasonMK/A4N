@@ -1,9 +1,6 @@
 //! 项目族包纯校验单测（无 Host/DB）。
 
-use super::validation::{
-    validate_media_bytes, validate_media_manifest, validate_package_entry_path,
-    validate_package_manifest,
-};
+use super::validation::{validate_media_bytes, validate_media_manifest, validate_package_manifest};
 use super::*;
 use crate::generation::{
     GENERATION_ENTITY_ROLES, GENERATION_MEDIA_REF_ROLES, GENERATION_PROMPT_KINDS,
@@ -53,6 +50,15 @@ fn dt() -> chrono::NaiveDateTime {
 }
 
 const PROJECT_KIND_GALGAME_TEST: &str = "galgame";
+
+#[test]
+fn validate_package_manifest_rejects_blank_project_title() {
+    let mut package = package_with_derived_project();
+    package.projects[0].title = " ".to_string();
+
+    let error = validate_package_manifest(&package).expect_err("空项目标题必须失败");
+    assert!(error.contains("项目标题"));
+}
 
 mod core_validation;
 mod media_validation;

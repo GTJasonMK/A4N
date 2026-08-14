@@ -1,9 +1,7 @@
-use serde_json::Value;
-
 use super::super::{FamilyImportMediaPayload, MANIFEST_PATH, ProjectFamilyPackage};
 use super::payload::read_media_payloads_from_entries;
 
-pub(in crate::actions::project_transfer::family_package) async fn read_project_family_package_bytes(
+pub(in crate::actions::project_transfer) async fn read_project_family_package_bytes(
     runtime_profile: crate::state::RuntimeProfile,
     capabilities: &a4n_capabilities::A4nCapabilities,
     bytes: Vec<u8>,
@@ -17,7 +15,8 @@ pub(in crate::actions::project_transfer::family_package) async fn read_project_f
         "项目族清单",
     )
     .await?;
-    let package = parse_project_family_manifest(manifest)?;
+    let package = a4n_import_core::parse_json_manifest_value(manifest, "项目族清单")
+        .map_err(|err| err.to_string())?;
     let media_payload = read_media_payloads_from_entries(&package, media_bytes)?;
     Ok((package, media_payload))
 }
@@ -33,12 +32,8 @@ pub(super) fn read_project_family_package_reader<R: std::io::Read + std::io::See
         "项目族清单",
     )
     .map_err(|err| err.to_string())?;
-    let package = parse_project_family_manifest(manifest)?;
+    let package = a4n_import_core::parse_json_manifest_value(manifest, "项目族清单")
+        .map_err(|err| err.to_string())?;
     let media_payload = read_media_payloads_from_entries(&package, media_bytes)?;
     Ok((package, media_payload))
-}
-
-fn parse_project_family_manifest(manifest: Value) -> Result<ProjectFamilyPackage, String> {
-    a4n_import_core::parse_json_manifest_value(manifest, "项目族清单")
-        .map_err(|err| err.to_string())
 }

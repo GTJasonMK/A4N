@@ -20,6 +20,6 @@ mod source_snapshots;
 mod source_sync;
 mod text_core;
 
-pub use common::{snapshot_profile_key, validate_media_bytes, validate_package_entry_path};
+pub use common::{snapshot_profile_key, validate_media_bytes};
 pub use media::validate_media_manifest;
 pub use package::validate_package_manifest;

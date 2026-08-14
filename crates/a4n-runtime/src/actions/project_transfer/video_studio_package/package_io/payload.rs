@@ -11,7 +11,6 @@ pub(super) fn read_media_payloads_from_entries(
 ) -> Result<ImportMediaPayload, String> {
     let mut entries = HashMap::new();
     for entry in &package.media_files {
-        validate_package_entry_path(&entry.package_path)?;
         validate_media_entry_owner(package, entry)?;
         let key = video_studio_media_file_key(&entry.owner_kind, entry.owner_id, &entry.field);
         if entries.insert(key, entry.clone()).is_some() {
@@ -32,8 +31,4 @@ pub(super) fn read_media_payloads_from_entries(
         validate_media_entry_bytes(package, entry, file_bytes)?;
     }
     Ok(ImportMediaPayload { entries, bytes })
-}
-
-fn validate_package_entry_path(path: &str) -> Result<(), String> {
-    a4n_import_core::validate_zip_entry_path(path).map_err(|err| err.to_string())
 }

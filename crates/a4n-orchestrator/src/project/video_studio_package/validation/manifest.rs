@@ -24,6 +24,7 @@ pub(super) fn validate_package_manifest(
     if package.mode != PACKAGE_MODE {
         return Err(format!("视频画布项目包模式无效: {}", package.mode));
     }
+    required_text(&package.project.title, "视频画布项目包项目标题")?;
     crate::project::validate_freeform_video_project(&package.project, "视频画布项目包")?;
     normalize_project_type(&package.project.project_type).map_err(|err| err.to_string())?;
     parse_project_status(&package.project.status).map_err(|err| err.to_string())?;

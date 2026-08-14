@@ -7,10 +7,10 @@ use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ExportedProjectFamilyPackage, FamilyImportMediaPayload,
-    ImportProjectFamilyPackageApplicationInput, ProjectFamilyExportSelection, ProjectFamilyPackage,
-    ProjectFamilyTransferError, ProjectFamilyTransferHostPort,
-    assemble_project_family_export_package, imported_project_family_media_path, media_asset_path,
+    ExportedProjectPackage, FamilyImportMediaPayload, ImportProjectPackageApplicationInput,
+    ProjectFamilyExportSelection, ProjectFamilyPackage, ProjectFamilyTransferHostPort,
+    ProjectPackageTransferError, assemble_project_family_export_package,
+    import_result_with_file_rollback, imported_project_family_media_path, media_asset_path,
     media_file_key, project_family_export_media_files, validate_family_media_manifest,
     validate_family_package_manifest,
 };
@@ -20,7 +20,7 @@ impl OrchestratorContext {
         &self,
         input: ExportProjectFamilyPackageApplicationInput,
         host_port: &Host,
-    ) -> Result<ExportedProjectFamilyPackage, ProjectFamilyTransferError>
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
         Host: ProjectFamilyTransferHostPort,
     {
@@ -41,8 +41,8 @@ impl OrchestratorContext {
         let package_bytes = host_port
             .render_export_package(&package)
             .await
-            .map_err(ProjectFamilyTransferError::Message)?;
-        Ok(ExportedProjectFamilyPackage {
+            .map_err(ProjectPackageTransferError::Message)?;
+        Ok(ExportedProjectPackage {
             project,
             package_bytes,
         })
@@ -52,7 +52,7 @@ impl OrchestratorContext {
         &self,
         input: ExportDerivedProjectPackageApplicationInput,
         host_port: &Host,
-    ) -> Result<ExportedProjectFamilyPackage, ProjectFamilyTransferError>
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
         Host: ProjectFamilyTransferHostPort,
     {
@@ -67,7 +67,7 @@ impl OrchestratorContext {
             .derived_export_selection(input.derived_project_id)
             .await?;
         let project = selection.derived_projects.first().cloned().ok_or_else(|| {
-            ProjectFamilyTransferError::Message("派生项目导出选择为空".to_string())
+            ProjectPackageTransferError::Message("派生项目导出选择为空".to_string())
         })?;
         let package = self
             .assemble_project_family_transfer_package(selection, "derived_project")
@@ -75,8 +75,8 @@ impl OrchestratorContext {
         let package_bytes = host_port
             .render_export_package(&package)
             .await
-            .map_err(ProjectFamilyTransferError::Message)?;
-        Ok(ExportedProjectFamilyPackage {
+            .map_err(ProjectPackageTransferError::Message)?;
+        Ok(ExportedProjectPackage {
             project,
             package_bytes,
         })
@@ -84,38 +84,35 @@ impl OrchestratorContext {
 
     pub async fn import_project_family_package_validated<Host>(
         &self,
-        input: ImportProjectFamilyPackageApplicationInput,
+        input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
-    ) -> Result<Vec<novel_project::Model>, ProjectFamilyTransferError>
+    ) -> Result<Vec<novel_project::Model>, ProjectPackageTransferError>
     where
         Host: ProjectFamilyTransferHostPort,
     {
         if input.package_bytes.is_empty() {
-            return Err(ProjectFamilyTransferError::Message(
+            return Err(ProjectPackageTransferError::Message(
                 "项目族导入包不能为空".to_string(),
             ));
         }
         let read_package = host_port
             .read_import_package(input.package_bytes)
             .await
-            .map_err(ProjectFamilyTransferError::Message)?;
-        let validation = validate_family_package_manifest(&read_package.package)
+            .map_err(ProjectPackageTransferError::Message)?;
+        validate_family_package_manifest(&read_package.package)
             .and_then(|_| {
                 validate_family_media_manifest(&read_package.package, &read_package.media_payload)
             })
-            .map_err(AppError::InvalidArgument);
-        let import_result = match validation {
-            Err(error) => Err(error),
-            Ok(()) => {
-                let import_package = read_package.package.into_import_package();
-                let mut importer = ProjectFamilyImportMediaWriter {
-                    host_port,
-                    media_payload: &read_package.media_payload,
-                };
-                self.project_family
-                    .import_package_rows(input.user_id, &import_package, &mut importer)
-                    .await
-            }
+            .map_err(AppError::InvalidArgument)?;
+        let import_package = read_package.package.into_import_package();
+        let import_result = {
+            let mut importer = ProjectFamilyImportMediaWriter {
+                host_port,
+                media_payload: &read_package.media_payload,
+            };
+            self.project_family
+                .import_package_rows(input.user_id, &import_package, &mut importer)
+                .await
         };
         import_result_with_file_rollback(import_result, host_port).await
     }
@@ -124,7 +121,7 @@ impl OrchestratorContext {
         &self,
         selection: ProjectFamilyExportSelection,
         mode: &str,
-    ) -> Result<ProjectFamilyPackage, ProjectFamilyTransferError> {
+    ) -> Result<ProjectFamilyPackage, ProjectPackageTransferError> {
         let derived_project_ids = selection
             .derived_projects
             .iter()
@@ -151,7 +148,7 @@ impl OrchestratorContext {
             export_rows,
             media_files,
         )
-        .map_err(ProjectFamilyTransferError::Message)
+        .map_err(ProjectPackageTransferError::Message)
     }
 }
 
@@ -207,23 +204,5 @@ where
             .write_imported_media_file(&relative_path, bytes, "项目族包媒体文件")
             .map_err(ProjectFamilyMediaImportError::Write)?;
         Ok(Some(relative_path))
-    }
-}
-
-async fn import_result_with_file_rollback<T>(
-    result: Result<T, AppError>,
-    host_port: &mut impl ProjectFamilyTransferHostPort,
-) -> Result<T, ProjectFamilyTransferError> {
-    match result {
-        Ok(value) => Ok(value),
-        Err(primary) => match host_port
-            .rollback_imported_media_files("已导入的项目族媒体文件")
-            .await
-        {
-            Ok(()) => Err(ProjectFamilyTransferError::Application(primary)),
-            Err(cleanup_error) => Err(ProjectFamilyTransferError::Message(format!(
-                "{primary}；{cleanup_error}"
-            ))),
-        },
     }
 }

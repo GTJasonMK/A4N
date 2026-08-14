@@ -1,10 +1,9 @@
-use std::{fs, path::Path};
-
-use crate::file_utils::canonicalize_data_file_path;
+use std::path::Path;
 
 use super::super::{MANIFEST_PATH, VideoStudioProjectPackage};
+use crate::actions::project_transfer::package_files::project_package_media_zip_entries;
 
-pub(in super::super) async fn package_zip_bytes(
+pub(in crate::actions::project_transfer) async fn package_zip_bytes(
     runtime_profile: crate::state::RuntimeProfile,
     capabilities: &a4n_capabilities::A4nCapabilities,
     data_dir: &Path,
@@ -21,7 +20,14 @@ pub(in super::super) async fn package_zip_bytes(
         root_project_id,
     )
     .await?;
-    let entries = package_media_zip_entries(data_dir, package)?;
+    let entries = project_package_media_zip_entries(
+        data_dir,
+        package
+            .media_files
+            .iter()
+            .map(|media| (media.original_path.as_str(), media.package_path.as_str())),
+        "视频画布项目媒体文件",
+    )?;
     crate::sidecar_clients::render_export_zip_package(
         runtime_profile,
         capabilities,
@@ -36,23 +42,4 @@ pub(in super::super) async fn package_zip_bytes(
         root_project_id,
     )
     .await
-}
-
-fn package_media_zip_entries(
-    data_dir: &Path,
-    package: &VideoStudioProjectPackage,
-) -> Result<Vec<a4n_export_core::ExportZipEntryBytes>, String> {
-    let mut entries = Vec::with_capacity(package.media_files.len());
-    for media in &package.media_files {
-        let source =
-            canonicalize_data_file_path(data_dir, &media.original_path, "视频画布项目媒体文件")?;
-        let bytes = fs::read(&source)
-            .map_err(|err| format!("读取媒体文件失败: {}: {err}", source.display()))?;
-        entries.push(a4n_export_core::ExportZipEntryBytes {
-            path: media.package_path.clone(),
-            bytes,
-            label: format!("媒体文件 {}", media.package_path),
-        });
-    }
-    Ok(entries)
 }

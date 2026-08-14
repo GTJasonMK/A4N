@@ -5,10 +5,11 @@ use chrono::Utc;
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 use crate::project::{
-    ExportVideoStudioProjectApplicationInput, ExportedVideoStudioProject, ImportMediaPayload,
-    ImportVideoStudioProjectApplicationInput, VideoStudioProjectTransferError,
+    ExportVideoStudioProjectApplicationInput, ExportedProjectPackage, ImportMediaPayload,
+    ImportProjectPackageApplicationInput, ProjectPackageTransferError,
     VideoStudioProjectTransferHostPort, assemble_video_studio_export_package,
-    required_package_extension, video_studio_export_media_files, video_studio_media_file_key,
+    import_result_with_file_rollback, required_package_extension, validate_package_manifest,
+    video_studio_export_media_files, video_studio_media_file_key,
 };
 
 impl OrchestratorContext {
@@ -16,7 +17,7 @@ impl OrchestratorContext {
         &self,
         input: ExportVideoStudioProjectApplicationInput,
         host_port: &Host,
-    ) -> Result<ExportedVideoStudioProject, VideoStudioProjectTransferError>
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
         Host: VideoStudioProjectTransferHostPort,
     {
@@ -27,10 +28,7 @@ impl OrchestratorContext {
             .by_id(input.project_id)
             .await?
             .ok_or_else(|| {
-                VideoStudioProjectTransferError::Message(format!(
-                    "项目不存在: {}",
-                    input.project_id
-                ))
+                ProjectPackageTransferError::Message(format!("项目不存在: {}", input.project_id))
             })?;
         let rows = self
             .canvas
@@ -41,8 +39,8 @@ impl OrchestratorContext {
         let package_bytes = host_port
             .render_export_package(&package)
             .await
-            .map_err(VideoStudioProjectTransferError::Message)?;
-        Ok(ExportedVideoStudioProject {
+            .map_err(ProjectPackageTransferError::Message)?;
+        Ok(ExportedProjectPackage {
             project,
             package_bytes,
         })
@@ -50,31 +48,32 @@ impl OrchestratorContext {
 
     pub async fn import_video_studio_project_validated<Host>(
         &self,
-        input: ImportVideoStudioProjectApplicationInput,
+        input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
-    ) -> Result<novel_project::Model, VideoStudioProjectTransferError>
+    ) -> Result<novel_project::Model, ProjectPackageTransferError>
     where
         Host: VideoStudioProjectTransferHostPort,
     {
         if input.package_bytes.is_empty() {
-            return Err(VideoStudioProjectTransferError::Message(
+            return Err(ProjectPackageTransferError::Message(
                 "视频画布项目包不能为空".to_string(),
             ));
         }
         let read_package = host_port
             .read_import_package(input.package_bytes)
             .await
-            .map_err(VideoStudioProjectTransferError::Message)?;
+            .map_err(ProjectPackageTransferError::Message)?;
+        validate_package_manifest(&read_package.package, &read_package.media_payload)
+            .map_err(AppError::InvalidArgument)?;
         let import_result = {
             let mut writer = VideoStudioImportMediaWriter {
                 host_port,
                 media_payload: &read_package.media_payload,
             };
             self.canvas
-                .import_video_studio_package_validated(
+                .import_video_studio_package(
                     input.user_id,
                     read_package.package,
-                    &read_package.media_payload,
                     Utc::now().naive_utc(),
                     &mut writer,
                 )
@@ -123,23 +122,5 @@ where
             .write_imported_media_file(&relative_path, bytes, "视频画布项目包媒体文件")
             .map_err(VideoStudioProjectImportMediaError::Write)?;
         Ok(Some(relative_path))
-    }
-}
-
-async fn import_result_with_file_rollback<T>(
-    result: Result<T, AppError>,
-    host_port: &mut impl VideoStudioProjectTransferHostPort,
-) -> Result<T, VideoStudioProjectTransferError> {
-    match result {
-        Ok(value) => Ok(value),
-        Err(primary) => match host_port
-            .rollback_imported_media_files("已写入的视频工作室项目包媒体文件")
-            .await
-        {
-            Ok(()) => Err(VideoStudioProjectTransferError::Application(primary)),
-            Err(cleanup_error) => Err(VideoStudioProjectTransferError::Message(format!(
-                "{primary}；{cleanup_error}"
-            ))),
-        },
     }
 }

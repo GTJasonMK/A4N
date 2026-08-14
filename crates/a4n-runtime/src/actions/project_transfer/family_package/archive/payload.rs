@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use super::super::{FamilyImportMediaPayload, ProjectFamilyPackage};
 use a4n_orchestrator::project::{
     media_asset_path, media_file_key, validate_family_media_bytes as validate_media_bytes,
-    validate_family_package_entry_path as validate_package_entry_path,
 };
 
 pub(super) fn read_media_payloads_from_entries(
@@ -17,7 +16,6 @@ pub(super) fn read_media_payloads_from_entries(
         .collect::<HashMap<_, _>>();
     let mut entries = HashMap::new();
     for entry in &package.media_files {
-        validate_package_entry_path(&entry.package_path)?;
         let asset = media_assets.get(&entry.media_asset_id).ok_or_else(|| {
             format!(
                 "媒体文件清单引用了不存在的 media_asset_id: {}",
