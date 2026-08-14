@@ -289,11 +289,11 @@ command_specs! {
     "add_image_config" => args_add_image_config, result_add_image_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
     "add_profile_attribute" => args_add_profile_attribute, result_unit, "profile";
     "add_video_config" => args_add_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
-    "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
+    "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "apply_implicit_update_decision" => args_apply_implicit_update_decision, result_apply_implicit_update_decision, "profile";
     "apply_optimization_patches" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "apply_source_sync_decisions" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "assemble_chapter_videos" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
+    "assemble_chapter_videos" => args_assemble_chapter_videos, result_assembled_chapter_video_preview, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "attribute_history" => args_attribute_history, result_attribute_history, "profile", effect(READ_EFFECT);
     "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
@@ -349,7 +349,7 @@ command_specs! {
     "delete_project" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "delete_scene_profile" => args_delete_scene_profile, result_scene_profile_delete, "profile", context(USER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "delete_theme" => args_activate_theme, result_unit, "settings", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "delete_video" => args_delete_video, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
+    "delete_video" => args_video_id, result_unit, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "detach_derived_project" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "detect_image_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
     "detect_llm_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS);
@@ -475,11 +475,11 @@ command_specs! {
     "list_themes" => args_get_llm_max_tokens_config, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_video_configs" => args_get_llm_max_tokens_config, result_list_video_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "list_video_reference_images" => args_list_video_reference_images, result_list_images_by_chapter, "asset", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
-    "list_videos_by_chapter" => args_list_chapter_video_prompts, result_list_videos_by_chapter, "video", context(CHAPTER_CONTEXT), effect(READ_EFFECT);
+    "list_videos_by_chapter" => args_list_videos_by_chapter, result_list_videos_by_chapter, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_workflow_runs" => args_list_workflow_runs, result_list_workflow_runs, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
-    "load_cached_assembled_chapter_video_preview" => args_opaque, result_opaque, "video", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
-    "load_video_playback_data" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
-    "load_video_scrub_playback_data" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
+    "load_cached_assembled_chapter_video_preview" => args_assemble_chapter_videos, result_optional_assembled_chapter_video_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
+    "load_video_playback_data" => args_video_id, result_video_playback_data, "video", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
+    "load_video_scrub_playback_data" => args_load_video_scrub_playback_data, result_video_playback_data, "video", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "load_video_segment_plan_draft" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "login_user" => args_login_user, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "modify_profile_attribute" => args_modify_profile_attribute, result_unit, "profile";
@@ -499,7 +499,7 @@ command_specs! {
     "preview_chapter_analysis_request" => args_chapter_analysis, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_chapter_prompt" => args_opaque, result_opaque, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_PROMPT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_chapter_scene_request" => args_preview_chapter_scene_request, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_chapter_video_request" => args_preview_chapter_video_request, result_opaque, "video", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_chapter_video_request" => args_preview_chapter_video_request, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_character_conflict_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_implicit_update_request" => args_check_implicit_update, result_model_request_preview, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_continue_part_outlines_request" => args_continue_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -520,7 +520,7 @@ command_specs! {
     "preview_page_image_request" => args_opaque, result_opaque, "asset", effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_prepare_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_propose_optimization_patches_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_reference_media_video_request" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_reference_media_video_request" => args_preview_reference_media_video_request, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_refine_blueprint_request" => args_preview_refine_blueprint_request, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_chapter_outline_request" => args_regenerate_chapter_outline, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_last_part_request" => args_regenerate_last_part, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -542,7 +542,7 @@ command_specs! {
     "preview_test_embedding_config_request" => args_preview_test_embedding_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_test_image_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_test_llm_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_video_provider_request_by_video_id" => args_opaque, result_opaque, "video", effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_video_provider_request_by_video_id" => args_preview_video_provider_request_by_video_id, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "prompt_list" => args_prompt_list, result_prompt_list, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_categories" => args_prompt_list, result_prompt_list_categories, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_project_overrides" => args_prompt_list_project_overrides, result_prompt_list_project_overrides, "prompt", context(USER_PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
@@ -556,7 +556,7 @@ command_specs! {
     "prompt_validate_variables" => args_prompt_validate_variables, result_prompt_validate_variables, "prompt", effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_version_diff" => args_prompt_version_diff, result_export_theme, "prompt", capabilities(CAPABILITIES_PROMPT);
     "prompt_version_history" => args_prompt_name, result_prompt_version_history, "prompt", capabilities(CAPABILITIES_PROMPT);
-    "push_assembled_chapter_video" => args_push_assembled_chapter_video, result_opaque, "video", context(USER_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
+    "push_assembled_chapter_video" => args_push_assembled_chapter_video, result_assembly_push, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "rag_enhanced_search" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_enhanced_search_with_vectors" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_ingest_all" => args_opaque, result_opaque, "rag", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
@@ -597,7 +597,7 @@ command_specs! {
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
     "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_part_outline" => args_save_part_outline, result_save_part_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "select_segment_video" => args_select_segment_video, result_select_segment_video, "video", effect(DESTRUCTIVE_EFFECT);
+    "select_segment_video" => args_select_segment_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "set_default_embedding_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_EMBEDDING);
     "set_default_image_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_IMAGE);
     "set_default_llm_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_LLM);
@@ -626,9 +626,9 @@ command_specs! {
     "test_embedding_config" => args_preview_test_embedding_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING), runtime(RuntimeConfigPolicy::Full);
     "test_image_config" => args_preview_test_image_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full);
     "test_llm_config" => args_preview_test_image_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "trim_video" => args_opaque, result_opaque, "video", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
+    "trim_video" => args_trim_video, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "unbind_galgame_media" => args_unbind_galgame_media, result_unbind_galgame_media, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "update_assembly_push_status" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
+    "update_assembly_push_status" => args_update_assembly_push_status, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "update_chapter_content" => args_update_chapter_content, result_chapter_summary, "chapter", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
     "update_chapter_outline" => args_update_chapter_outline, result_update_chapter_outline, "chapter", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
     "update_chapter_scene" => args_update_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
@@ -652,16 +652,16 @@ command_specs! {
     "update_theme" => args_update_theme, result_activate_theme, "settings", context(NO_CONTEXT);
     "update_user_profile" => args_update_user_profile, result_get_current_user, "auth", context(NO_CONTEXT);
     "update_user_role" => args_update_user_role, result_opaque, "auth", identity(ADMIN_IDENTITY);
-    "update_video" => args_update_video, result_select_segment_video, "video";
+    "update_video" => args_update_video, result_generated_video, "video", context(NO_CONTEXT);
     "update_video_config" => args_update_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "update_video_segment_plan_draft_recipe" => args_opaque, result_opaque, "video", capabilities(CAPABILITIES_VIDEO);
     "update_world_setting" => args_update_world_setting, result_restore_blueprint_version, "system", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_select_segment_video, "video", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
-    "upload_chapter_video" => args_upload_chapter_video, result_select_segment_video, "video", context(USER_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
+    "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
+    "upload_chapter_video" => args_upload_chapter_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_image" => args_upload_image, result_update_image, "asset", context(PROJECT_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_portrait" => args_opaque, result_opaque, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
     "upload_profile_material_image" => args_upload_profile_material_image, result_profile_material_group, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
-    "upload_reference_media_video" => args_upload_reference_media_video, result_select_segment_video, "video", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
+    "upload_reference_media_video" => args_upload_reference_media_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
 }
 
 pub fn list(filter: Option<&str>) -> Value {
@@ -867,7 +867,30 @@ fn args_add_video_config() -> Value {
 }
 
 fn args_apply_assembly_postprocess_edit() -> Value {
-    typed_input_schema::<crate::video::ApplyAssemblyPostprocessEditInput>()
+    json!({
+        "type": "object",
+        "properties": {
+            "pushVideoId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<crate::video::ApplyAssemblyPostprocessEditInput>(),
+        },
+        "required": ["pushVideoId", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
+fn args_assemble_chapter_videos() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "chapterId": { "type": "integer", "minimum": 1 },
+            "workflowMode": { "type": "string", "minLength": 1 },
+        },
+        "required": ["projectId", "chapterId", "workflowMode"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
 }
 
 fn args_apply_implicit_update_decision() -> Value {
@@ -1110,12 +1133,12 @@ fn args_project_id() -> Value {
     })
 }
 
-fn args_delete_video() -> Value {
+fn args_video_id() -> Value {
     json!({
         "type": "object",
         "properties": { "videoId": { "type": "integer", "minimum": 1 } },
         "required": ["videoId"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed",
     })
 }
@@ -1395,6 +1418,32 @@ fn args_list_chapter_video_prompts() -> Value {
     })
 }
 
+fn args_list_videos_by_chapter() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "chapterId": { "type": "integer", "minimum": 1 },
+        },
+        "required": ["projectId", "chapterId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
+fn args_load_video_scrub_playback_data() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "videoId": { "type": "integer", "minimum": 1 },
+            "includeAudio": { "type": "boolean" },
+        },
+        "required": ["videoId", "includeAudio"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
 fn args_get_video_timeline() -> Value {
     typed_input_schema::<crate::video::GetVideoTimelineInput>()
 }
@@ -1477,10 +1526,40 @@ fn args_preview_chapter_video_request() -> Value {
             "promptId": { "type": "integer", "minimum": 1 },
             "configId": { "type": ["integer", "null"], "minimum": 1 },
             "promptOverride": raw_schema::<crate::video::PreviewChapterVideoPromptOverrideInput>(),
+            "runtime_config_snapshot": { "type": ["object", "null"] },
         },
         "required": ["projectId", "chapterId", "promptId"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
+    })
+}
+
+fn args_preview_reference_media_video_request() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "chapterId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<crate::video::ReferenceMediaVideoInput>(),
+            "runtime_config_snapshot": { "type": ["object", "null"] },
+        },
+        "required": ["projectId", "chapterId", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
+fn args_preview_video_provider_request_by_video_id() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "chapterId": { "type": "integer", "minimum": 1 },
+            "videoId": { "type": "integer", "minimum": 1 },
+        },
+        "required": ["projectId", "chapterId", "videoId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
     })
 }
 
@@ -1586,7 +1665,18 @@ fn args_prompt_version_diff() -> Value {
 }
 
 fn args_push_assembled_chapter_video() -> Value {
-    typed_input_schema::<crate::video::PushAssembledChapterVideoInput>()
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "chapterId": { "type": "integer", "minimum": 1 },
+            "workflowMode": { "type": "string", "minLength": 1 },
+            "input": raw_schema::<crate::video::PushAssembledChapterVideoInput>(),
+        },
+        "required": ["projectId", "chapterId", "workflowMode", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
 }
 
 fn args_reorder_chapter_scenes() -> Value {
@@ -1679,7 +1769,7 @@ fn args_select_segment_video() -> Value {
             "input": raw_schema::<crate::video::SelectSegmentVideoInput>(),
         },
         "required": ["projectId", "chapterId", "videoId", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -1883,6 +1973,33 @@ fn args_update_user_role() -> Value {
     })
 }
 
+fn args_trim_video() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "videoId": { "type": "integer", "minimum": 1 },
+            "startSecs": { "type": "number" },
+            "endSecs": { "type": "number" },
+        },
+        "required": ["videoId", "startSecs", "endSecs"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
+
+fn args_update_assembly_push_status() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "videoId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<crate::video::UpdateAssemblyPushStatusInput>(),
+        },
+        "required": ["videoId", "input"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
 fn args_update_video() -> Value {
     json!({
         "type": "object",
@@ -1891,7 +2008,7 @@ fn args_update_video() -> Value {
             "input": raw_schema::<crate::video::UpdateGeneratedVideoInput>(),
         },
         "required": ["videoId", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -1914,7 +2031,7 @@ fn args_upload_assembly_insert_video() -> Value {
             "input": raw_schema::<crate::video::UploadAssemblyInsertVideoInput>(),
         },
         "required": ["projectId", "chapterId", "workflowMode", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -1928,7 +2045,7 @@ fn args_upload_chapter_video() -> Value {
             "input": raw_schema::<crate::video::UploadChapterVideoInput>(),
         },
         "required": ["projectId", "chapterId", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -1959,7 +2076,7 @@ fn args_upload_reference_media_video() -> Value {
             "input": raw_schema::<crate::video::UploadReferenceMediaVideoInput>(),
         },
         "required": ["projectId", "chapterId", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -1982,6 +2099,14 @@ fn result_add_image_config() -> Value {
 
 fn result_add_video_config() -> Value {
     typed_schema::<crate::config::VideoConfigSummary>()
+}
+
+fn result_assembled_chapter_video_preview() -> Value {
+    typed_schema::<crate::video::AssembledChapterVideoPreview>()
+}
+
+fn result_assembly_push() -> Value {
+    typed_schema::<crate::video::AssemblyPushResult>()
 }
 
 fn result_apply_implicit_update_decision() -> Value {
@@ -2400,6 +2525,10 @@ fn result_model_request_preview() -> Value {
     typed_schema::<crate::request_preview::ModelRequestPreview>()
 }
 
+fn result_optional_assembled_chapter_video_preview() -> Value {
+    typed_schema::<Option<crate::video::AssembledChapterVideoPreview>>()
+}
+
 fn result_outline_generation_progress() -> Value {
     typed_schema::<crate::outline::OutlineGenerationProgressSummary>()
 }
@@ -2512,8 +2641,12 @@ fn result_save_part_outline() -> Value {
     typed_schema::<crate::outline::SavePartOutlineResult>()
 }
 
-fn result_select_segment_video() -> Value {
+fn result_generated_video() -> Value {
     typed_schema::<crate::video::GeneratedVideoSummary>()
+}
+
+fn result_video_playback_data() -> Value {
+    typed_schema::<crate::video::VideoPlaybackData>()
 }
 
 fn result_generation_task_handle() -> Value {
@@ -3381,6 +3514,42 @@ mod tests {
             "delete_latest_chapter_outlines",
             "get_chapter_outlines_pacing",
         ]);
+    }
+
+    #[test]
+    fn video_record_commands_use_one_authenticated_identity() {
+        let commands = [
+            "list_videos_by_chapter",
+            "update_video",
+            "select_segment_video",
+            "load_video_playback_data",
+            "load_video_scrub_playback_data",
+            "assemble_chapter_videos",
+            "load_cached_assembled_chapter_video_preview",
+            "push_assembled_chapter_video",
+            "update_assembly_push_status",
+            "apply_assembly_postprocess_edit",
+            "delete_video",
+            "upload_chapter_video",
+            "upload_reference_media_video",
+            "upload_assembly_insert_video",
+            "trim_video",
+            "preview_chapter_video_request",
+            "preview_video_provider_request_by_video_id",
+            "preview_reference_media_video_request",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+        for command in commands {
+            assert_eq!(
+                command_descriptor(command).unwrap().result_schema["x-a4n-schema-quality"],
+                "typed",
+                "{command} must expose its real result contract"
+            );
+        }
+        assert_eq!(
+            command_runtime_config_policy("preview_video_provider_request_by_video_id"),
+            RuntimeConfigPolicy::None
+        );
     }
 
     #[test]

@@ -22,7 +22,7 @@ pub async fn apply_assembly_postprocess_edit(
 ) -> Result<GeneratedVideoSummary, String> {
     let plan = state
         .orchestrator()
-        .prepare_assembly_postprocess_edit_validated(push_video_id, &input.operation)
+        .prepare_assembly_postprocess_edit_validated(push_video_id, input.operation.as_str())
         .await
         .map_err(app_error_message)?;
     access::verify_project_editor_string(state, user_id, plan.push.project_id).await?;

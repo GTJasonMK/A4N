@@ -484,7 +484,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_test_embedding_config_request": "without_secrets",
   "preview_test_image_config_request": "without_secrets",
   "preview_test_llm_config_request": "without_secrets",
-  "preview_video_provider_request_by_video_id": "without_secrets",
   "rag_enhanced_search": "full",
   "rag_enhanced_search_with_vectors": "full",
   "rag_ingest_all": "full",
@@ -3977,10 +3976,18 @@ export interface PushAssembledChapterVideoInput {
   end_video_id?: number | null;
 }
 
+export type AssemblyPushAction = "accept" | "reject" | "undo";
+
+export interface UpdateAssemblyPushStatusInput {
+  action: AssemblyPushAction;
+}
+
+export type AssemblyPostprocessOperation = "insert" | "delete" | "replace";
+
 export interface ApplyAssemblyPostprocessEditInput {
   at_secs?: number | null;
   end_secs?: number | null;
-  operation: string;
+  operation: AssemblyPostprocessOperation;
   source_data_base64?: string | null;
   source_file_name?: string | null;
   source_mime_type?: string | null;

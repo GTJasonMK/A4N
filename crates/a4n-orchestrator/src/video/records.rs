@@ -10,8 +10,11 @@ use a4n_core::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use serde::Deserialize;
 use serde_json::Value;
+
+pub use a4n_api_contract::video::{
+    AssemblyPushAction, UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput,
+};
 
 use super::{
     ASSEMBLY_INSERT_VIDEO_TYPE, ASSEMBLY_POSTPROCESS_EDIT_VIDEO_TYPE,
@@ -28,32 +31,6 @@ use super::{
     validate_postprocess_operation, validate_reference_media_import_options,
     validate_video_trim_range, video_shot_number, video_source_content_hash,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateGeneratedVideoInput {
-    #[serde(default)]
-    pub prompt: Option<String>,
-    #[serde(default)]
-    pub negative_prompt: Option<String>,
-    #[serde(default)]
-    pub clear_negative_prompt: bool,
-    #[serde(default)]
-    pub metadata_json: Option<Value>,
-    #[serde(default)]
-    pub clear_metadata_json: bool,
-    #[serde(default)]
-    pub is_favorite: Option<bool>,
-    #[serde(default)]
-    pub insert_after_video_id: Option<i64>,
-    #[serde(default)]
-    pub move_assembly_insert_to_start: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UpdateAssemblyPushStatusInput {
-    pub action: String,
-}
 
 #[async_trait]
 pub trait VideoRecordLifecycleHostPort: Send + Sync {
@@ -250,14 +227,6 @@ impl crate::OrchestratorContext {
             .await
     }
 
-    pub async fn toggle_video_record_favorite_validated(
-        &self,
-        video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
-        self.required_video_record(video_id).await?;
-        self.toggle_generated_video_favorite(video_id).await
-    }
-
     pub async fn select_segment_video_validated(
         &self,
         project_id: i64,
@@ -328,52 +297,33 @@ impl crate::OrchestratorContext {
         video_id: i64,
         input: UpdateGeneratedVideoInput,
     ) -> Result<generated_video::Model, AppError> {
+        if input.is_empty() {
+            return Err(AppError::InvalidArgument(
+                "视频更新内容不能为空".to_string(),
+            ));
+        }
         let existing = self.required_video_record(video_id).await?;
-        let modifies_pushed_source = input.prompt.is_some()
-            || input.negative_prompt.is_some()
-            || input.clear_negative_prompt
-            || input.metadata_json.is_some()
-            || input.clear_metadata_json
-            || input.insert_after_video_id.is_some()
-            || input.move_assembly_insert_to_start;
+        let modifies_pushed_source = input.prompt.is_some() || input.negative_prompt.is_some();
         if modifies_pushed_source && self.video_record_is_pushed_source(&existing).await? {
             return Err(AppError::InvalidArgument(
                 "该视频片段已推送到成片后处理，不能修改".to_string(),
             ));
         }
 
-        let mut metadata_json = input.metadata_json;
-        let mut clear_metadata_json = input.clear_metadata_json;
-        if input.move_assembly_insert_to_start || input.insert_after_video_id.is_some() {
-            if clear_metadata_json {
-                return Err(AppError::InvalidArgument(
-                    "调整插入片段位置时不能同时清空视频 metadata".to_string(),
-                ));
-            }
-            let target_after_video_id = if input.move_assembly_insert_to_start {
-                None
-            } else {
-                input.insert_after_video_id
-            };
-            metadata_json = Some(
-                self.resolve_assembly_insert_position_metadata(
-                    &existing,
-                    metadata_json.or_else(|| existing.metadata_json.clone()),
-                    target_after_video_id,
-                )
-                .await?,
-            );
-            clear_metadata_json = false;
-        }
+        let (negative_prompt, clear_negative_prompt) = match input.negative_prompt {
+            Some(Some(value)) => (Some(value), false),
+            Some(None) => (None, true),
+            None => (None, false),
+        };
 
         self.update_generated_video_record(
             video_id,
             a4n_db::video::UpdateGeneratedVideoRecordInput {
                 prompt: input.prompt,
-                negative_prompt: input.negative_prompt,
-                clear_negative_prompt: input.clear_negative_prompt,
-                metadata_json,
-                clear_metadata_json,
+                negative_prompt,
+                clear_negative_prompt,
+                metadata_json: None,
+                clear_metadata_json: false,
                 is_favorite: input.is_favorite,
             },
         )
@@ -439,7 +389,7 @@ impl crate::OrchestratorContext {
             ));
         }
         let next_status =
-            next_assembly_push_status(input.action.trim(), pushes[latest_index].status.as_str())?;
+            next_assembly_push_status(input.action, pushes[latest_index].status.as_str())?;
         self.update_generated_video_record(
             existing.id,
             a4n_db::video::UpdateGeneratedVideoRecordInput {
@@ -1552,46 +1502,6 @@ impl crate::OrchestratorContext {
         .into_iter()
         .collect())
     }
-
-    async fn resolve_assembly_insert_position_metadata(
-        &self,
-        video: &generated_video::Model,
-        base_metadata: Option<Value>,
-        insert_after_video_id: Option<i64>,
-    ) -> Result<Value, AppError> {
-        if video.video_type != ASSEMBLY_INSERT_VIDEO_TYPE {
-            return Err(AppError::InvalidArgument(format!(
-                "视频 #{} 不是成片插入片段，不能调整插入位置",
-                video.id
-            )));
-        }
-        if insert_after_video_id == Some(video.id) {
-            return Err(AppError::InvalidArgument(
-                "插入片段不能插入到自己之后".to_string(),
-            ));
-        }
-        let chapter_id = video.chapter_id.ok_or_else(|| {
-            AppError::InvalidArgument(format!("插入片段 #{} 缺少章节绑定", video.id))
-        })?;
-        let workflow_mode = required_workflow_mode(video, "插入片段")?;
-        let rows = self
-            .generated_videos_for_chapter(video.project_id, chapter_id)
-            .await?;
-        let (adopted_video_ids, timeline_order) = self
-            .assembly_selection_for_workflow(video.project_id, chapter_id, workflow_mode, &rows)
-            .await?;
-        assembly_insert_position_metadata_from_rows(
-            &rows,
-            video.project_id,
-            chapter_id,
-            workflow_mode,
-            Some(video.id),
-            adopted_video_ids.as_ref(),
-            timeline_order.as_ref(),
-            base_metadata,
-            insert_after_video_id,
-        )
-    }
 }
 
 fn assembly_insert_position_metadata_from_rows(
@@ -1747,23 +1657,29 @@ fn assembly_clip_records_from_rows(
     Ok(clips)
 }
 
-fn next_assembly_push_status(action: &str, status: &str) -> Result<&'static str, AppError> {
+fn next_assembly_push_status(
+    action: AssemblyPushAction,
+    status: &str,
+) -> Result<&'static str, AppError> {
     match (action, status) {
-        ("accept", ASSEMBLY_PUSH_STATUS_PENDING) => Ok(ASSEMBLY_PUSH_STATUS_ACCEPTED),
-        ("reject", ASSEMBLY_PUSH_STATUS_PENDING) => Ok(ASSEMBLY_PUSH_STATUS_REJECTED),
-        ("undo", ASSEMBLY_PUSH_STATUS_ACCEPTED) => Ok(ASSEMBLY_PUSH_STATUS_PENDING),
-        ("accept", _) => Err(AppError::InvalidArgument(
+        (AssemblyPushAction::Accept, ASSEMBLY_PUSH_STATUS_PENDING) => {
+            Ok(ASSEMBLY_PUSH_STATUS_ACCEPTED)
+        }
+        (AssemblyPushAction::Reject, ASSEMBLY_PUSH_STATUS_PENDING) => {
+            Ok(ASSEMBLY_PUSH_STATUS_REJECTED)
+        }
+        (AssemblyPushAction::Undo, ASSEMBLY_PUSH_STATUS_ACCEPTED) => {
+            Ok(ASSEMBLY_PUSH_STATUS_PENDING)
+        }
+        (AssemblyPushAction::Accept, _) => Err(AppError::InvalidArgument(
             "只有待处理推送可以同意".to_string(),
         )),
-        ("reject", _) => Err(AppError::InvalidArgument(
+        (AssemblyPushAction::Reject, _) => Err(AppError::InvalidArgument(
             "只有待处理推送可以拒绝".to_string(),
         )),
-        ("undo", _) => Err(AppError::InvalidArgument(
+        (AssemblyPushAction::Undo, _) => Err(AppError::InvalidArgument(
             "只有已同意的最新推送可以撤销".to_string(),
         )),
-        _ => Err(AppError::InvalidArgument(format!(
-            "未知推送管理操作：{action}"
-        ))),
     }
 }
 

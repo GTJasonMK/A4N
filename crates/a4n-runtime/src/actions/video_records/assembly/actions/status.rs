@@ -2,7 +2,7 @@ use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
-use a4n_orchestrator::video::UpdateAssemblyPushStatusInput;
+use a4n_api_contract::video::UpdateAssemblyPushStatusInput;
 
 pub async fn update_assembly_push_status(
     state: &AppState,

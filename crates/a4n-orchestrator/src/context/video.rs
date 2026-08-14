@@ -325,15 +325,6 @@ impl VideoApplication {
         .map_err(AppError::Database)
     }
 
-    pub(super) async fn toggle_generated_video_favorite_record(
-        &self,
-        video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
-        a4n_db::video::toggle_generated_video_favorite_record(self.connection(), video_id)
-            .await
-            .map_err(video_db_error)
-    }
-
     pub(super) async fn update_generated_video_record(
         &self,
         video_id: i64,
@@ -1244,15 +1235,6 @@ impl OrchestratorContext {
             });
         }
         Ok(config)
-    }
-
-    pub async fn toggle_generated_video_favorite(
-        &self,
-        video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
-        self.video
-            .toggle_generated_video_favorite_record(video_id)
-            .await
     }
 
     pub async fn update_generated_video_record(

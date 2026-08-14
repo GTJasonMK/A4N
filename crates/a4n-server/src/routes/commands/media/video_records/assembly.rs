@@ -52,12 +52,8 @@ pub(in crate::routes::commands) async fn push_assembled_chapter_video(
     let project_id = i64_arg(args, "projectId")?;
     let chapter_id = i64_arg(args, "chapterId")?;
     let workflow_mode = string_arg(args, "workflowMode")?;
-    let input: video_records_actions::PushAssembledChapterVideoInput = match args.get("input") {
-        Some(value) => serde_json::from_value(value.clone()).map_err(|e| {
-            ApiError::bad_request(format!("push_assembled_chapter_video.input 无效: {e}"))
-        })?,
-        None => video_records_actions::PushAssembledChapterVideoInput::default(),
-    };
+    let input: video_records_actions::PushAssembledChapterVideoInput =
+        command_input(args, "push_assembled_chapter_video")?;
     let result = video_records_actions::push_assembled_chapter_video(
         state.runtime(),
         user_id,

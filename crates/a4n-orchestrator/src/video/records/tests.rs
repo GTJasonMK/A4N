@@ -252,15 +252,18 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
 #[test]
 fn assembly_push_status_transition_has_one_owner() {
     assert_eq!(
-        next_assembly_push_status("accept", ASSEMBLY_PUSH_STATUS_PENDING).unwrap(),
+        next_assembly_push_status(AssemblyPushAction::Accept, ASSEMBLY_PUSH_STATUS_PENDING)
+            .unwrap(),
         ASSEMBLY_PUSH_STATUS_ACCEPTED
     );
     assert_eq!(
-        next_assembly_push_status("undo", ASSEMBLY_PUSH_STATUS_ACCEPTED).unwrap(),
+        next_assembly_push_status(AssemblyPushAction::Undo, ASSEMBLY_PUSH_STATUS_ACCEPTED).unwrap(),
         ASSEMBLY_PUSH_STATUS_PENDING
     );
-    assert!(next_assembly_push_status("reject", ASSEMBLY_PUSH_STATUS_ACCEPTED).is_err());
-    assert!(next_assembly_push_status("unknown", ASSEMBLY_PUSH_STATUS_PENDING).is_err());
+    assert!(
+        next_assembly_push_status(AssemblyPushAction::Reject, ASSEMBLY_PUSH_STATUS_ACCEPTED)
+            .is_err()
+    );
 }
 
 #[test]

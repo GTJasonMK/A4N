@@ -8,23 +8,6 @@ use crate::video::{
     required_video_record_text,
 };
 
-pub async fn toggle_generated_video_favorite_record<C>(
-    db: &C,
-    video_id: i64,
-) -> Result<generated_video::Model, VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    let video = generated_video::Entity::find_by_id(video_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    let mut active: generated_video::ActiveModel = video.clone().into();
-    active.is_favorite = Set(!video.is_favorite);
-    active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(VideoDbError::Database)
-}
-
 pub async fn update_generated_video_record<C>(
     db: &C,
     video_id: i64,

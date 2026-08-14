@@ -15,6 +15,57 @@ async fn list_videos_by_missing_chapter_returns_not_found() {
 }
 
 #[tokio::test]
+async fn video_update_uses_the_public_nullable_patch_contract() {
+    let db = Arc::new(setup_db().await);
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let service = crate::video::test_video_orchestrator(db.clone()).await;
+    let mut record = video_record_input(project.id);
+    record.negative_prompt = Some("avoid blur".to_string());
+    let video = service.create_video_record(record).await.unwrap();
+    a4n_db::video::mark_generated_video_completed_and_link_prompt_record(
+        db.as_ref(),
+        video.id,
+        "projects/1/videos/video.mp4",
+        None,
+        1024,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let updated = service
+        .update_video_record_validated(
+            video.id,
+            UpdateGeneratedVideoInput {
+                prompt: None,
+                negative_prompt: Some(None),
+                is_favorite: Some(true),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated.negative_prompt, None);
+    assert!(updated.is_favorite);
+
+    let error = service
+        .update_video_record_validated(
+            video.id,
+            UpdateGeneratedVideoInput {
+                prompt: None,
+                negative_prompt: None,
+                is_favorite: None,
+            },
+        )
+        .await
+        .expect_err("empty patches must not update timestamps");
+    assert!(matches!(
+        error,
+        AppError::InvalidArgument(message) if message == "视频更新内容不能为空"
+    ));
+}
+
+#[tokio::test]
 async fn failed_video_records_remain_listed_and_deletable_assets() {
     let db = Arc::new(setup_db().await);
     let project = insert_video_project(db.as_ref(), "视频项目").await;

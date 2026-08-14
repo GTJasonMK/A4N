@@ -250,11 +250,11 @@ pub use self::prompt_records::VideoPromptUpdateInput;
 pub(crate) use errors::{video_db_error, video_llm_step_error};
 pub use records::{
     AssemblyClipRecord, AssemblyPostprocessEditRecordInput, AssemblyPostprocessPlan,
-    AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoRecords, CanvasAssemblyPlan,
-    CanvasFramePlan, ImportedVideoProperties, PreparedAssemblyPostprocessEditRecord,
-    PreparedAssemblyPushRecord, PreparedImportedChapterVideoRecord, UpdateAssemblyPushStatusInput,
-    UpdateGeneratedVideoInput, VideoGenerationRecordInput, VideoRecordLifecycleHostPort,
-    VideoTrimPlan,
+    AssemblyPostprocessSourcePlan, AssemblyPushAction, AssemblyPushClipInput, AssemblyVideoRecords,
+    CanvasAssemblyPlan, CanvasFramePlan, ImportedVideoProperties,
+    PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
+    PreparedImportedChapterVideoRecord, UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput,
+    VideoGenerationRecordInput, VideoRecordLifecycleHostPort, VideoTrimPlan,
 };
 
 #[cfg(test)]

@@ -4,8 +4,8 @@ mod imports;
 mod playback;
 mod records;
 
+pub use a4n_api_contract::video::UpdateGeneratedVideoInput;
 pub use a4n_api_contract::video::VideoPlaybackData;
-pub use a4n_orchestrator::video::UpdateGeneratedVideoInput;
 pub(crate) use assembly::recover_expired_assembly_caches;
 pub(crate) use imports::recover_expired_uploaded_video_sources;
 

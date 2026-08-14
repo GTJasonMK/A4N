@@ -12,9 +12,11 @@ export type VideoWorkflowMode =
   | "canvas_trim"
   | "canvas_assembly";
 export type {
+  AssemblyPushAction,
   ChapterVideoPrompt,
   DownstreamConflictStrategy,
   PreviewChapterVideoPromptOverrideInput,
+  VideoSegmentTarget,
 } from "../generated/host";
 
 type VideoGenConfigBase = Omit<
@@ -59,9 +61,8 @@ export type PushAssembledChapterVideoInput = Omit<
 };
 export type ApplyAssemblyPostprocessEditInput = Omit<
   ApiApplyAssemblyPostprocessEditInput,
-  "operation" | "source_video_id"
+  "source_video_id"
 > & {
-  operation: "insert" | "delete" | "replace";
   source_video_id?: number | string | null;
 };
 

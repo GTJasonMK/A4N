@@ -2,9 +2,8 @@ use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
-use a4n_api_contract::video::SelectSegmentVideoInput;
+use a4n_api_contract::video::{SelectSegmentVideoInput, UpdateGeneratedVideoInput};
 use a4n_core::models::ai::generated_video;
-use a4n_orchestrator::video::UpdateGeneratedVideoInput;
 
 pub async fn list_videos_by_chapter(
     state: &AppState,
@@ -19,21 +18,6 @@ pub async fn list_videos_by_chapter(
         .await
         .map_err(app_error_message)?;
     Ok(rows.iter().map(video_to_summary).collect())
-}
-
-pub async fn toggle_video_favorite(
-    state: &AppState,
-    user_id: i64,
-    video_id: i64,
-) -> Result<GeneratedVideoSummary, String> {
-    let video = required_generated_video(state.orchestrator(), video_id).await?;
-    access::verify_project_editor_string(state, user_id, video.project_id).await?;
-    let row = state
-        .orchestrator()
-        .toggle_video_record_favorite_validated(video_id)
-        .await
-        .map_err(app_error_message)?;
-    Ok(video_to_summary(&row))
 }
 
 pub async fn update_video(

@@ -12,7 +12,7 @@ mod push;
 
 pub(crate) use cache::recover_expired_assembly_caches;
 
-pub use a4n_orchestrator::video::UpdateAssemblyPushStatusInput;
+pub use a4n_api_contract::video::UpdateAssemblyPushStatusInput;
 #[cfg(test)]
 pub(in crate::actions::video_records) use actions::persist_assembly_preview_cache;
 pub use actions::{

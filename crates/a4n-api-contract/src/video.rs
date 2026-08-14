@@ -513,15 +513,49 @@ pub struct AssemblyPushResult {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct PushAssembledChapterVideoInput {
     #[serde(default)]
     pub end_video_id: Option<i64>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AssemblyPushAction {
+    Accept,
+    Reject,
+    Undo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateAssemblyPushStatusInput {
+    pub action: AssemblyPushAction,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AssemblyPostprocessOperation {
+    Insert,
+    Delete,
+    Replace,
+}
+
+impl AssemblyPostprocessOperation {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Insert => "insert",
+            Self::Delete => "delete",
+            Self::Replace => "replace",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ApplyAssemblyPostprocessEditInput {
-    pub operation: String,
+    pub operation: AssemblyPostprocessOperation,
     #[serde(default)]
     pub at_secs: Option<f32>,
     #[serde(default)]
@@ -586,9 +620,10 @@ pub struct ImportCanvasVideoInput {
 #[cfg(test)]
 mod tests {
     use super::{
-        DeleteChapterVideoPromptInput, DownstreamConflictStrategy, OptimizeChapterVideoPromptInput,
-        PreviewChapterVideoPromptOverrideInput, UpdateChapterVideoPromptInput,
-        UpdateGeneratedVideoInput,
+        AssemblyPostprocessOperation, AssemblyPushAction, DeleteChapterVideoPromptInput,
+        DownstreamConflictStrategy, OptimizeChapterVideoPromptInput,
+        PreviewChapterVideoPromptOverrideInput, UpdateAssemblyPushStatusInput,
+        UpdateChapterVideoPromptInput, UpdateGeneratedVideoInput,
     };
     use serde_json::json;
 
@@ -619,6 +654,22 @@ mod tests {
 
         let empty: UpdateGeneratedVideoInput = serde_json::from_value(json!({})).unwrap();
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn assembly_mutations_have_one_strict_action_contract() {
+        let status: UpdateAssemblyPushStatusInput =
+            serde_json::from_value(json!({"action": "accept"})).unwrap();
+        assert_eq!(status.action, AssemblyPushAction::Accept);
+        assert!(
+            serde_json::from_value::<UpdateAssemblyPushStatusInput>(json!({"action": "unknown"}))
+                .is_err()
+        );
+
+        let operation: AssemblyPostprocessOperation =
+            serde_json::from_value(json!("replace")).unwrap();
+        assert_eq!(operation.as_str(), "replace");
+        assert!(serde_json::from_value::<AssemblyPostprocessOperation>(json!("crop")).is_err());
     }
 
     #[test]
