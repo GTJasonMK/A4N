@@ -48,6 +48,8 @@ pub async fn restore_blueprint_version_record(
     let now = Utc::now().naive_utc();
     let data = &version.blueprint_data;
     let fields = RestoredBlueprintFields::from_snapshot(data, &version.version)?;
+    crate::blueprint::validate_blueprint_chapter_plan(&locked_sources, fields.total_chapters())
+        .map_err(|error| BlueprintRestoreError::invalid_snapshot(error.to_string()))?;
     let existing = locked_sources.blueprint;
 
     let restored = if let Some(blueprint) = existing {

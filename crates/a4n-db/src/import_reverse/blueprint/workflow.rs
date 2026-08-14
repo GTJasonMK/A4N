@@ -1,7 +1,6 @@
 use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{DatabaseTransaction, TransactionTrait};
-use serde_json::json;
 
 use super::{apply_reverse_blueprint_record, resolve_reverse_blueprint_apply_record};
 use crate::import_reverse::{
@@ -26,21 +25,16 @@ pub async fn apply_reverse_blueprint_records(
     )
     .await?;
     let apply_plan = ReverseBlueprintApplyPlanRecord {
-        project_total_chapters: locked_sources
-            .project
-            .total_chapters
-            .filter(|total| *total > 0),
+        project_total_chapters: locked_sources.project.total_chapters,
         existing_blueprint_total_chapters: locked_sources
             .blueprint
             .as_ref()
-            .and_then(|blueprint| blueprint.total_chapters.filter(|total| *total > 0)),
+            .and_then(|blueprint| blueprint.total_chapters),
         next_version,
     };
     let now = Utc::now().naive_utc();
     let record = resolve_reverse_blueprint_apply_record(&draft, &apply_plan, now)?;
-    if let Some(total_chapters) = record.total_chapters {
-        crate::blueprint::validate_blueprint_chapter_plan(&locked_sources, total_chapters)?;
-    }
+    crate::blueprint::validate_blueprint_chapter_plan(&locked_sources, record.total_chapters)?;
     let blueprint = apply_reverse_blueprint_record(db, project_id, &record).await?;
 
     crate::project::merge_blueprint_characters(db, project_id, draft.characters, now).await?;
@@ -57,23 +51,8 @@ pub async fn apply_reverse_blueprint_records(
         })?;
     let characters = crate::project::blueprint_characters_for_project(db, project_id).await?;
     let relationships = crate::project::blueprint_relationships_for_project(db, project_id).await?;
-    let snapshot = json!({
-        "title": blueprint.title,
-        "genre": blueprint.genre,
-        "style": blueprint.style,
-        "tone": blueprint.tone,
-        "target_audience": blueprint.target_audience,
-        "one_sentence_summary": blueprint.one_sentence_summary,
-        "full_synopsis": blueprint.full_synopsis,
-        "world_setting": blueprint.world_setting,
-        "needs_part_outlines": blueprint.needs_part_outlines,
-        "total_chapters": blueprint.total_chapters,
-        "chapters_per_part": blueprint.chapters_per_part,
-        "avatar_svg": blueprint.avatar_svg,
-        "avatar_animal": blueprint.avatar_animal,
-        "characters": characters,
-        "relationships": relationships,
-    });
+    let snapshot =
+        crate::blueprint::blueprint_version_snapshot(&blueprint, &characters, &relationships);
     crate::blueprint::insert_blueprint_version_record(
         db,
         crate::blueprint::InsertBlueprintVersionInput {
@@ -92,22 +71,15 @@ pub async fn apply_reverse_blueprint_records(
             locked_sources.project.status
         ))
     })?;
-    let total_chapters = record
-        .total_chapters
-        .or(locked_sources.project.total_chapters);
     crate::blueprint::sync_project_after_blueprint_record(
         db,
         crate::blueprint::SyncProjectAfterBlueprintInput {
             project_id,
             title: blueprint.title.clone(),
             status: project_status,
-            target_chapters: total_chapters.unwrap_or(locked_sources.project.target_chapters),
-            total_chapters,
-            chapters_per_part: if record.total_chapters.is_some() {
-                record.chapters_per_part
-            } else {
-                locked_sources.project.chapters_per_part
-            },
+            target_chapters: record.total_chapters,
+            total_chapters: Some(record.total_chapters),
+            chapters_per_part: record.chapters_per_part,
             raw_blueprint: serde_json::to_string_pretty(&snapshot).map_err(|error| {
                 ImportReverseDbError::InvalidArgument(format!("序列化蓝图快照失败: {error}"))
             })?,

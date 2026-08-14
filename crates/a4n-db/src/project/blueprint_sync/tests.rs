@@ -1,4 +1,3 @@
-use super::contracts::{PART_OUTLINE_THRESHOLD, needs_part_outlines_for_chapters};
 use super::identity::{blueprint_relationship_identity_from_keys, normalized_blueprint_identity};
 
 #[test]
@@ -20,10 +19,4 @@ fn relationship_identity_preserves_endpoint_order() {
         blueprint_relationship_identity_from_keys("friend", "alice", "bob"),
         blueprint_relationship_identity_from_keys("friend", "bob", "alice")
     );
-}
-
-#[test]
-fn part_outline_threshold_is_strictly_greater_than_limit() {
-    assert!(!needs_part_outlines_for_chapters(PART_OUTLINE_THRESHOLD));
-    assert!(needs_part_outlines_for_chapters(PART_OUTLINE_THRESHOLD + 1));
 }

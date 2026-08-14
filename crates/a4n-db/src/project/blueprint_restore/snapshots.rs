@@ -1,8 +1,24 @@
 use super::fields::{
-    optional_blueprint_snapshot_json, optional_blueprint_snapshot_strength,
-    optional_blueprint_snapshot_string, required_blueprint_snapshot_string,
+    RestoredBlueprintFields, optional_blueprint_snapshot_json,
+    optional_blueprint_snapshot_strength, optional_blueprint_snapshot_string,
+    reject_unknown_blueprint_snapshot_fields, required_blueprint_snapshot_string,
 };
 use super::*;
+
+pub(super) fn validate_blueprint_version_snapshot(
+    data: &Value,
+) -> Result<(), BlueprintRestoreError> {
+    RestoredBlueprintFields::from_snapshot(data, "snapshot-validation")?;
+    parse_blueprint_character_drafts(required_snapshot_section(
+        data.get("characters"),
+        "characters",
+    )?)?;
+    parse_blueprint_relationship_drafts(required_snapshot_section(
+        data.get("relationships"),
+        "relationships",
+    )?)?;
+    Ok(())
+}
 
 pub(super) async fn restore_blueprint_character_snapshot_record<C>(
     db: &C,
@@ -13,12 +29,7 @@ pub(super) async fn restore_blueprint_character_snapshot_record<C>(
 where
     C: ConnectionTrait,
 {
-    let Some(snapshot) = snapshot else {
-        return Ok(());
-    };
-    if snapshot.is_null() {
-        return Ok(());
-    }
+    let snapshot = required_snapshot_section(snapshot, "characters")?;
     let drafts = parse_blueprint_character_drafts(snapshot)?;
     sync_blueprint_characters(db, project_id, drafts, now)
         .await
@@ -35,12 +46,7 @@ pub(super) async fn restore_blueprint_relationship_snapshot_record<C>(
 where
     C: ConnectionTrait,
 {
-    let Some(snapshot) = snapshot else {
-        return Ok(());
-    };
-    if snapshot.is_null() {
-        return Ok(());
-    }
+    let snapshot = required_snapshot_section(snapshot, "relationships")?;
     let drafts = parse_blueprint_relationship_drafts(snapshot)?;
     sync_blueprint_relationships(db, project_id, drafts, now)
         .await
@@ -48,7 +54,7 @@ where
     Ok(())
 }
 
-fn parse_blueprint_character_drafts(
+pub(super) fn parse_blueprint_character_drafts(
     value: &Value,
 ) -> Result<Vec<BlueprintCharacterDraft>, BlueprintRestoreError> {
     let array = value
@@ -59,6 +65,23 @@ fn parse_blueprint_character_drafts(
         .enumerate()
         .map(|(index, item)| {
             let label = format!("蓝图版本 characters[{index}]");
+            reject_unknown_blueprint_snapshot_fields(
+                item,
+                &[
+                    "name",
+                    "character_type",
+                    "gender",
+                    "age",
+                    "appearance",
+                    "personality",
+                    "background",
+                    "motivation",
+                    "arc_summary",
+                    "relationship_to_protagonist",
+                    "arc_stages",
+                ],
+                &label,
+            )?;
             Ok(BlueprintCharacterDraft {
                 name: required_blueprint_snapshot_string(item, "name", &label)?,
                 character_type: required_blueprint_snapshot_string(item, "character_type", &label)?,
@@ -80,6 +103,15 @@ fn parse_blueprint_character_drafts(
         .collect()
 }
 
+fn required_snapshot_section<'a>(
+    snapshot: Option<&'a Value>,
+    field: &str,
+) -> Result<&'a Value, BlueprintRestoreError> {
+    snapshot.ok_or_else(|| {
+        BlueprintRestoreError::invalid_snapshot(format!("蓝图版本缺少 {field} 数组"))
+    })
+}
+
 pub(super) fn parse_blueprint_relationship_drafts(
     value: &Value,
 ) -> Result<Vec<BlueprintRelationshipDraft>, BlueprintRestoreError> {
@@ -91,6 +123,18 @@ pub(super) fn parse_blueprint_relationship_drafts(
         .enumerate()
         .map(|(index, item)| {
             let label = format!("蓝图版本 relationships[{index}]");
+            reject_unknown_blueprint_snapshot_fields(
+                item,
+                &[
+                    "relationship_type",
+                    "character_a",
+                    "character_b",
+                    "description",
+                    "strength",
+                    "evolution",
+                ],
+                &label,
+            )?;
             Ok(BlueprintRelationshipDraft {
                 relationship_type: required_blueprint_snapshot_string(
                     item,

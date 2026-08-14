@@ -5,6 +5,7 @@ use a4n_core::models::{
         novel_project,
     },
 };
+use a4n_domain::project::CHAPTERS_PER_PART;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     Set,
@@ -16,7 +17,7 @@ use crate::import_reverse::{
     apply_reverse_blueprint_records_transaction, apply_reverse_outline_records_transaction,
     apply_reverse_part_outline_records_transaction,
 };
-use crate::project::{CHAPTERS_PER_PART, PROJECT_KIND_TEXT, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT};
+use crate::project::{PROJECT_KIND_TEXT, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT};
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await

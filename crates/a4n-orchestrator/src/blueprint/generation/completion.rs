@@ -3,16 +3,17 @@ use a4n_core::error::AppError;
 use a4n_core::models::project::novel_blueprint;
 use a4n_core::state::validator::parse_project_status;
 use a4n_db::blueprint::{
-    NovelBlueprintUpsertInput, SyncProjectAfterBlueprintInput, next_blueprint_version_record,
-    sync_project_after_blueprint_record, upsert_novel_blueprint_record,
-    validate_blueprint_chapter_plan,
+    NovelBlueprintUpsertInput, SyncProjectAfterBlueprintInput, blueprint_version_snapshot,
+    next_blueprint_version_record, sync_project_after_blueprint_record,
+    upsert_novel_blueprint_record, validate_blueprint_chapter_plan,
 };
 use a4n_db::generation::{
     GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
     record_completed_generation_run_in_transaction,
 };
 use a4n_db::project::{
-    ProjectStatusHistoryInput, insert_project_status_history, merge_blueprint_characters,
+    ProjectStatusHistoryInput, blueprint_characters_for_project,
+    blueprint_relationships_for_project, insert_project_status_history, merge_blueprint_characters,
     merge_blueprint_relationships, project_by_id_record,
 };
 use a4n_domain::project::ProjectStatus;
@@ -122,24 +123,6 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     .await
     .map_err(blueprint_db_error)?;
 
-    a4n_db::blueprint::insert_blueprint_version_record(
-        tx,
-        a4n_db::blueprint::InsertBlueprintVersionInput {
-            project_id,
-            version: next_version.clone(),
-            change_description: if next_version == "1.0" {
-                "自动生成首版蓝图".to_string()
-            } else {
-                "重新生成蓝图".to_string()
-            },
-            blueprint_data: parsed.raw.clone(),
-            now,
-            created_by: "system".to_string(),
-        },
-    )
-    .await
-    .map_err(blueprint_db_error)?;
-
     merge_blueprint_characters(
         tx,
         project_id,
@@ -159,6 +142,26 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     a4n_db::character::sync_character_profiles_from_blueprint(tx, project_id, now)
         .await
         .map_err(character_profile_seed_error)?;
+    let characters = blueprint_characters_for_project(tx, project_id).await?;
+    let relationships = blueprint_relationships_for_project(tx, project_id).await?;
+    let snapshot = blueprint_version_snapshot(&blueprint, &characters, &relationships);
+    a4n_db::blueprint::insert_blueprint_version_record(
+        tx,
+        a4n_db::blueprint::InsertBlueprintVersionInput {
+            project_id,
+            version: next_version.clone(),
+            change_description: if next_version == "1.0" {
+                "自动生成首版蓝图".to_string()
+            } else {
+                "重新生成蓝图".to_string()
+            },
+            blueprint_data: snapshot.clone(),
+            now,
+            created_by: "system".to_string(),
+        },
+    )
+    .await
+    .map_err(blueprint_db_error)?;
 
     let project = project_by_id_record(tx, project_id)
         .await
@@ -177,7 +180,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
             })?,
             total_chapters: blueprint.total_chapters,
             chapters_per_part: blueprint.chapters_per_part,
-            raw_blueprint: serde_json::to_string_pretty(&parsed.raw)?,
+            raw_blueprint: serde_json::to_string_pretty(&snapshot)?,
             now,
         },
     )

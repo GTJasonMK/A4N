@@ -1,12 +1,9 @@
 use a4n_core::blueprint::validate_blueprint_chapter_count;
 use a4n_core::error::AppError;
-use a4n_db::project::needs_part_outlines_for_chapters;
+use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
 use serde_json::Value;
 
-use super::super::super::{
-    CHAPTERS_PER_PART,
-    fields::{required_array, required_bool, required_i32},
-};
+use super::super::super::fields::{required_array, required_bool, required_i32};
 
 pub(super) fn parse_blueprint_derived_fields(
     raw: &Value,

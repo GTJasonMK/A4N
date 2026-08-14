@@ -1,9 +1,28 @@
+use a4n_domain::project::{
+    BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_TOTAL_CHAPTERS, is_valid_blueprint_total_chapters,
+};
 use serde_json::Value;
 
 use crate::project::blueprint_restore::BlueprintRestoreError;
 
-const MIN_BLUEPRINT_TOTAL_CHAPTERS: i32 = 5;
-const MAX_BLUEPRINT_TOTAL_CHAPTERS: i32 = 10_000;
+pub(in crate::project::blueprint_restore) fn reject_unknown_blueprint_snapshot_fields(
+    value: &Value,
+    allowed: &[&str],
+    label: &str,
+) -> Result<(), BlueprintRestoreError> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| BlueprintRestoreError::invalid_snapshot(format!("{label} 必须是对象")))?;
+    if let Some(field) = object
+        .keys()
+        .find(|field| !allowed.contains(&field.as_str()))
+    {
+        return Err(BlueprintRestoreError::invalid_snapshot(format!(
+            "{label} 包含未知字段: {field}"
+        )));
+    }
+    Ok(())
+}
 
 pub(in crate::project::blueprint_restore) fn required_blueprint_snapshot_string(
     value: &Value,
@@ -129,11 +148,11 @@ fn validate_blueprint_restore_chapter_count(
     value: i32,
     context: &str,
 ) -> Result<(), BlueprintRestoreError> {
-    if (MIN_BLUEPRINT_TOTAL_CHAPTERS..=MAX_BLUEPRINT_TOTAL_CHAPTERS).contains(&value) {
+    if is_valid_blueprint_total_chapters(value) {
         Ok(())
     } else {
         Err(BlueprintRestoreError::invalid_snapshot(format!(
-            "{context} 必须在 {MIN_BLUEPRINT_TOTAL_CHAPTERS} 到 {MAX_BLUEPRINT_TOTAL_CHAPTERS} 之间"
+            "{context} 必须在 {BLUEPRINT_MIN_TOTAL_CHAPTERS} 到 {BLUEPRINT_MAX_TOTAL_CHAPTERS} 之间"
         )))
     }
 }

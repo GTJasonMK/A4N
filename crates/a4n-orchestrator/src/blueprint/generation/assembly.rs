@@ -1,4 +1,4 @@
-use a4n_db::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
+use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
 use serde_json::{Map, Value};
 
 pub(super) fn assemble_staged_blueprint_json(

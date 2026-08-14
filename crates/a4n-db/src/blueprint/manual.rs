@@ -5,29 +5,30 @@ use a4n_core::{
         project::{blueprint_version, novel_blueprint},
     },
 };
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{
+    BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_TOTAL_CHAPTERS, CHAPTERS_PER_PART, ProjectStatus,
+    is_valid_blueprint_total_chapters, needs_part_outlines_for_chapters,
+};
 use chrono::Utc;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::{
     BlueprintDbError, BlueprintMutationStatusChange, BlueprintRefinePatchInput,
     InsertBlueprintVersionInput, ManualBlueprintUpsertInput, SaveManualBlueprintInput,
     SyncProjectAfterBlueprintInput, UpdateBlueprintWorldSettingInput,
     VersionedBlueprintMutationResult, apply_blueprint_refine_patch_record,
-    insert_blueprint_version_record, sync_project_after_blueprint_record,
-    upsert_manual_blueprint_record,
+    blueprint_version_snapshot, insert_blueprint_version_record,
+    sync_project_after_blueprint_record, upsert_manual_blueprint_record,
 };
 use crate::{
     generation::PROJECT_GATE_ACTIVE,
     outline::{OutlineGenerationSourceRows, load_outline_generation_source_rows_for_update},
     project::{
-        CHAPTERS_PER_PART, PROJECT_KIND_TEXT, ProjectStatusHistoryInput, ProjectStatusWriteError,
-        insert_project_status_history, needs_part_outlines_for_chapters,
+        PROJECT_KIND_TEXT, ProjectStatusHistoryInput, ProjectStatusWriteError,
+        insert_project_status_history,
     },
 };
-
-const MAX_BLUEPRINT_TOTAL_CHAPTERS: i32 = 10_000;
 
 pub async fn save_manual_blueprint_records_transaction<T>(
     db: &T,
@@ -72,7 +73,11 @@ where
         rows.blueprint.clone(),
     )
     .await?;
-    let snapshot = blueprint_snapshot(&blueprint, &rows);
+    let snapshot = blueprint_version_snapshot(
+        &blueprint,
+        &rows.blueprint_characters,
+        &rows.blueprint_relationships,
+    );
     let status_change = persist_blueprint_version_and_project(
         &txn,
         &rows,
@@ -131,7 +136,11 @@ where
         },
     )
     .await?;
-    let snapshot = blueprint_snapshot(&blueprint, &rows);
+    let snapshot = blueprint_version_snapshot(
+        &blueprint,
+        &rows.blueprint_characters,
+        &rows.blueprint_relationships,
+    );
     let status_change = persist_blueprint_version_and_project(
         &txn,
         &rows,
@@ -186,9 +195,9 @@ fn normalize_manual_input(
     input.one_sentence_summary = optional_text(input.one_sentence_summary, "一句话概要", 4096)?;
     input.full_synopsis = optional_text(input.full_synopsis, "完整梗概", 131_072)?;
     input.created_by = required_text(input.created_by, "created_by", 256)?;
-    if !(1..=MAX_BLUEPRINT_TOTAL_CHAPTERS).contains(&input.total_chapters) {
+    if !is_valid_blueprint_total_chapters(input.total_chapters) {
         return Err(BlueprintDbError::InvalidArgument(format!(
-            "总章节数必须是 1 到 {MAX_BLUEPRINT_TOTAL_CHAPTERS} 之间的整数"
+            "总章节数必须是 {BLUEPRINT_MIN_TOTAL_CHAPTERS} 到 {BLUEPRINT_MAX_TOTAL_CHAPTERS} 之间的整数"
         )));
     }
     Ok(input)
@@ -293,29 +302,6 @@ where
         candidate = increment_blueprint_version(&candidate)
             .map_err(|error| BlueprintDbError::InvalidArgument(error.to_string()))?;
     }
-}
-
-fn blueprint_snapshot(
-    blueprint: &novel_blueprint::Model,
-    rows: &OutlineGenerationSourceRows,
-) -> Value {
-    json!({
-        "title": blueprint.title,
-        "genre": blueprint.genre,
-        "style": blueprint.style,
-        "tone": blueprint.tone,
-        "target_audience": blueprint.target_audience,
-        "one_sentence_summary": blueprint.one_sentence_summary,
-        "full_synopsis": blueprint.full_synopsis,
-        "world_setting": blueprint.world_setting,
-        "needs_part_outlines": blueprint.needs_part_outlines,
-        "total_chapters": blueprint.total_chapters,
-        "chapters_per_part": blueprint.chapters_per_part,
-        "avatar_svg": blueprint.avatar_svg,
-        "avatar_animal": blueprint.avatar_animal,
-        "characters": rows.blueprint_characters,
-        "relationships": rows.blueprint_relationships,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]

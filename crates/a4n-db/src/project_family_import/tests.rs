@@ -1,5 +1,8 @@
 use super::*;
-use a4n_core::models::{media::media_asset, project::novel_project};
+use a4n_core::models::{
+    media::media_asset,
+    project::{blueprint_character, blueprint_version, novel_blueprint, novel_project},
+};
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::error::Error;
@@ -132,6 +135,124 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
     assert_eq!(imported.len(), 1);
     assert_eq!(imported[0].user_id, user.id);
     assert_eq!(imported[0].lifecycle_gate, "active");
+}
+
+#[tokio::test]
+async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let user = crate::auth::create_user(
+        &db,
+        "project_family_blueprint",
+        "project-family-blueprint@example.invalid",
+        "project-family-blueprint-password",
+        a4n_core::models::user::role::ROLE_USER,
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let project = novel_project::Model {
+        id: 1,
+        user_id: 99,
+        title: "雾城".to_string(),
+        description: String::new(),
+        project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        project_kind: crate::project::PROJECT_KIND_TEXT.to_string(),
+        source_mode: crate::project::SOURCE_MODE_SELF.to_string(),
+        root_project_id: None,
+        parent_project_id: None,
+        source_snapshot_id: None,
+        source_sync_status: "current".to_string(),
+        derived_project_status: None,
+        status: "blueprint_ready".to_string(),
+        lifecycle_gate: "active".to_string(),
+        target_chapters: 30,
+        current_chapter: 0,
+        total_chapters: Some(30),
+        chapters_per_part: None,
+        avatar_svg: None,
+        avatar_animal: None,
+        raw_blueprint: Some("{\"untrusted\":true}".to_string()),
+        import_analysis_progress: None,
+        export_config: None,
+        created_at: now,
+        updated_at: now,
+    };
+    let blueprint = novel_blueprint::Model {
+        id: 2,
+        project_id: project.id,
+        title: project.title.clone(),
+        genre: "悬疑".to_string(),
+        style: Some("冷峻".to_string()),
+        tone: None,
+        target_audience: None,
+        one_sentence_summary: None,
+        full_synopsis: Some("追查倒流迷雾".to_string()),
+        world_setting: Some(serde_json::json!({"premise": "迷雾倒流"})),
+        current_version: "1.0".to_string(),
+        needs_part_outlines: false,
+        total_chapters: Some(30),
+        chapters_per_part: None,
+        avatar_svg: None,
+        avatar_animal: Some("fox".to_string()),
+        created_at: now,
+        updated_at: now,
+    };
+    let character = blueprint_character::Model {
+        id: 3,
+        project_id: project.id,
+        name: "林澈".to_string(),
+        character_type: "protagonist".to_string(),
+        gender: None,
+        age: None,
+        appearance: None,
+        personality: Some("克制".to_string()),
+        background: None,
+        motivation: None,
+        arc_summary: None,
+        relationship_to_protagonist: None,
+        arc_stages: None,
+        created_at: now,
+        updated_at: now,
+    };
+    let snapshot = crate::blueprint::blueprint_version_snapshot(
+        &blueprint,
+        std::slice::from_ref(&character),
+        &[],
+    );
+    let package = ProjectFamilyImportPackage {
+        root_project_id: project.id,
+        projects: vec![project],
+        text_core: crate::project::ProjectFamilyTextCoreRows {
+            blueprint: Some(blueprint),
+            blueprint_versions: vec![blueprint_version::Model {
+                id: 4,
+                project_id: 1,
+                version: "1.0".to_string(),
+                change_description: Some("正式版本".to_string()),
+                blueprint_data: snapshot.clone(),
+                created_at: now,
+                created_by: Some("system".to_string()),
+            }],
+            blueprint_characters: vec![character],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let imported =
+        import_project_family_package_rows(&db, user.id, &package, &mut FailingMediaImporter)
+            .await
+            .expect("canonical blueprint package should import");
+    let imported_project = novel_project::Entity::find_by_id(imported[0].id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let raw: serde_json::Value =
+        serde_json::from_str(imported_project.raw_blueprint.as_deref().unwrap()).unwrap();
+
+    assert_eq!(raw, snapshot);
+    assert!(raw.get("untrusted").is_none());
 }
 
 #[tokio::test]

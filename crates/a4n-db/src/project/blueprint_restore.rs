@@ -24,5 +24,9 @@ mod types;
 pub use restore::*;
 pub use types::*;
 
+pub fn validate_blueprint_version_snapshot(data: &Value) -> Result<(), BlueprintRestoreError> {
+    snapshots::validate_blueprint_version_snapshot(data)
+}
+
 #[cfg(test)]
 mod tests;

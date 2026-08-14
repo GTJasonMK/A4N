@@ -1,5 +1,4 @@
 import { apiInvoke, extractErrorMessage } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import { generationClient } from "./generationTasks";
@@ -27,7 +26,8 @@ import type {
  * Blueprint API wrapper —— 对齐 crates/a4n-tauri/src/commands/blueprint.rs
  *
  * 命令组：
- *  - get/list_*: 用 projectId 平铺参数
+ *  - get/sync: 用 projectId 平铺参数
+ *  - preview/version/mutation: 使用严格 input envelope
  *  - start_blueprint_generation / start_blueprint_refinement: canonical generation task
  */
 
@@ -44,7 +44,6 @@ export type BlueprintVersion = BlueprintVersionSummary;
 
 export async function getBlueprint(projectId: Id): Promise<Blueprint | null> {
   return apiInvoke<Blueprint | null>("get_blueprint", {
-    userId: currentUserId(),
     projectId: idNum(projectId),
   });
 }
@@ -81,10 +80,9 @@ export async function loadBlueprintTaskResult(
 export async function syncBlueprintMaterials(
   projectId: Id,
 ): Promise<string[]> {
-  const normalizedProjectId = idNum(projectId);
   try {
     const result = await apiInvoke<BlueprintMutationResult>("sync_blueprint_materials", {
-      projectId: normalizedProjectId,
+      projectId: idNum(projectId),
     });
     return result.warnings;
   } catch (error) {
@@ -111,7 +109,6 @@ export async function previewGenerateBlueprintRequest(
   input: PreviewBlueprintGenerationInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_blueprint_request", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -130,14 +127,12 @@ export async function previewRefineBlueprintRequest(
   input: PreviewBlueprintRefinementInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_refine_blueprint_request", {
-    userId: currentUserId(),
     input,
   });
 }
 
 export async function listBlueprintVersions(projectId: Id): Promise<BlueprintVersion[]> {
   return apiInvoke<BlueprintVersion[]>("list_blueprint_versions", {
-    userId: currentUserId(),
     input: { project_id: idNum(projectId) } satisfies ListBlueprintVersionsInput,
   });
 }
@@ -146,7 +141,6 @@ export async function diffBlueprintVersions(
   input: DiffBlueprintVersionsInput,
 ): Promise<BlueprintDiffSummary> {
   return apiInvoke<BlueprintDiffSummary>("diff_blueprint_versions", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -155,7 +149,6 @@ export async function restoreBlueprintVersion(
   input: RestoreBlueprintVersionInput,
 ): Promise<BlueprintMutationResult> {
   return apiInvoke<BlueprintMutationResult>("restore_blueprint_version", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -164,7 +157,6 @@ export async function saveBlueprint(
   input: SaveBlueprintInput,
 ): Promise<BlueprintMutationResult> {
   return apiInvoke<BlueprintMutationResult>("save_blueprint", {
-    userId: currentUserId(),
     input: { ...input, project_id: idNum(input.project_id) },
   });
 }
@@ -173,7 +165,6 @@ export async function updateWorldSetting(
   input: UpdateWorldSettingInput,
 ): Promise<BlueprintMutationResult> {
   return apiInvoke<BlueprintMutationResult>("update_world_setting", {
-    userId: currentUserId(),
     input,
   });
 }

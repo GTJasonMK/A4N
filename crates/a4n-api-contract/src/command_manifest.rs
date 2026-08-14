@@ -355,7 +355,7 @@ command_specs! {
     "detect_image_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
     "detect_llm_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS);
     "detect_video_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
-    "diff_blueprint_versions" => args_diff_blueprint_versions, result_diff_blueprint_versions, "blueprint", effect(READ_EFFECT);
+    "diff_blueprint_versions" => args_diff_blueprint_versions, result_diff_blueprint_versions, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT);
     "diff_profile_chapters" => args_diff_profile_chapters, result_diff_profile_chapters, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "disable_user" => args_user_id, result_unit, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "discover_character_profiles" => args_opaque, result_opaque, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -385,7 +385,7 @@ command_specs! {
     "generate_portrait_prompt" => args_generate_portrait_prompt, result_string, "prompt", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_scene_profile_image_prompt" => args_generate_scene_profile_image_prompt, result_scene_profile_image_prompt, "profile", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_admin_overview" => empty_args_schema, result_get_admin_overview, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
-    "get_blueprint" => args_opaque, result_get_blueprint, "blueprint", effect(READ_EFFECT);
+    "get_blueprint" => args_project_id, result_get_blueprint, "blueprint", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_canvas_graph" => args_get_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_canvas_node_contracts" => args_get_canvas_node_contracts, result_get_canvas_node_contracts, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_chapter_outlines_pacing" => args_project_id, result_chapter_outline_pacing, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT);
@@ -438,7 +438,7 @@ command_specs! {
     "list_all_projects" => empty_args_schema, result_list_all_projects, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_all_users" => empty_args_schema, result_opaque, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_behaviors" => args_list_behaviors, result_list_behaviors, "profile", effect(READ_EFFECT);
-    "list_blueprint_versions" => args_list_blueprint_versions, result_list_blueprint_versions, "blueprint", effect(READ_EFFECT);
+    "list_blueprint_versions" => args_list_blueprint_versions, result_list_blueprint_versions, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_chapter_outlines" => args_project_id, result_chapter_outlines, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_scenes" => args_list_chapter_scenes, result_chapter_scenes, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_video_prompts" => args_list_chapter_video_prompts, result_list_chapter_video_prompts, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
@@ -508,7 +508,7 @@ command_specs! {
     "preview_discover_character_profiles_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_galgame_pipeline_request" => args_preview_galgame_pipeline_request, result_model_request_preview, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_age_variant_request" => args_preview_generate_age_variant_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_generate_blueprint_request" => args_preview_generate_blueprint_request, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_generate_blueprint_request" => args_preview_generate_blueprint_request, result_model_request_preview, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_chapter_outlines_by_count_request" => args_generate_chapter_outlines_by_count, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_missing_portraits_request" => args_preview_generate_missing_portraits_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_part_chapter_outlines_request" => args_generate_part_chapter_outlines, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -522,7 +522,7 @@ command_specs! {
     "preview_prepare_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_propose_optimization_patches_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_reference_media_video_request" => args_preview_reference_media_video_request, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_refine_blueprint_request" => args_preview_refine_blueprint_request, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_refine_blueprint_request" => args_preview_refine_blueprint_request, result_model_request_preview, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_chapter_outline_request" => args_regenerate_chapter_outline, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_last_part_request" => args_regenerate_last_part, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_part_outline_request" => args_regenerate_part_outline, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -578,7 +578,7 @@ command_specs! {
     "request_attribute_deletion" => args_request_attribute_deletion, result_request_attribute_deletion, "profile", effect(DESTRUCTIVE_EFFECT);
     "reset_deletion_marks" => args_reset_deletion_marks, result_reset_deletion_marks, "profile", effect(DESTRUCTIVE_EFFECT);
     "reset_project_generated_data" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "restore_blueprint_version" => args_restore_blueprint_version, result_restore_blueprint_version, "blueprint", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "restore_blueprint_version" => args_restore_blueprint_version, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "resume_chapter_analysis_sync" => args_chapter_analysis_task, result_chapter_summary, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_string, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_workflow_run" => args_resume_workflow_run, result_workflow_run, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
@@ -593,7 +593,7 @@ command_specs! {
     "run_canvas_node" => args_run_canvas_node, result_run_canvas_graph, "canvas", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "run_galgame_asset_generation" => args_run_galgame_asset_generation, result_run_galgame_asset_generation, "galgame", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_GENERATION_SPEC_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
     "run_import_project_analysis" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
-    "save_blueprint" => args_save_blueprint, result_restore_blueprint_version, "blueprint", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "save_blueprint" => args_save_blueprint, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_canvas_graph" => args_save_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT);
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
     "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -620,7 +620,7 @@ command_specs! {
     "start_portrait_generation" => args_start_portrait_generation, result_generation_task_handle, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_video_generation" => args_start_video_generation, result_generation_task_handle, "video", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "sync_all_character_profiles" => args_sync_all_character_profiles, result_sync_all_character_profiles, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
-    "sync_blueprint_materials" => args_project_id, result_restore_blueprint_version, "blueprint", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
+    "sync_blueprint_materials" => args_project_id, result_blueprint_mutation, "blueprint", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "sync_character_from_chapters" => args_sync_character_from_chapters, result_sync_character_from_chapters, "chapter", context(USER_CHAPTER_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "sync_outline_materials" => args_project_id, result_outline_mutation, "outline", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "sync_scene_profiles" => args_sync_scene_profiles, result_unit, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
@@ -656,7 +656,7 @@ command_specs! {
     "update_video" => args_update_video, result_generated_video, "video", context(NO_CONTEXT);
     "update_video_config" => args_update_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "update_video_segment_plan_draft_recipe" => args_opaque, result_opaque, "video", capabilities(CAPABILITIES_VIDEO);
-    "update_world_setting" => args_update_world_setting, result_restore_blueprint_version, "system", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "update_world_setting" => args_update_world_setting, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_chapter_video" => args_upload_chapter_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_image" => args_upload_image, result_update_image, "asset", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
@@ -1147,7 +1147,7 @@ fn args_detect_image_config_models() -> Value {
 }
 
 fn args_diff_blueprint_versions() -> Value {
-    typed_input_schema::<crate::blueprint::DiffBlueprintVersionsInput>()
+    strict_typed_input_schema::<crate::blueprint::DiffBlueprintVersionsInput>()
 }
 
 fn args_diff_profile_chapters() -> Value {
@@ -1395,7 +1395,7 @@ fn args_invite_id() -> Value {
 }
 
 fn args_list_blueprint_versions() -> Value {
-    typed_input_schema::<crate::blueprint::ListBlueprintVersionsInput>()
+    strict_typed_input_schema::<crate::blueprint::ListBlueprintVersionsInput>()
 }
 
 fn args_list_behaviors() -> Value {
@@ -1627,11 +1627,11 @@ fn args_preview_regenerate_portrait_request() -> Value {
 }
 
 fn args_preview_generate_blueprint_request() -> Value {
-    typed_input_schema::<crate::blueprint::PreviewBlueprintGenerationInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::PreviewBlueprintGenerationInput>()
 }
 
 fn args_preview_refine_blueprint_request() -> Value {
-    typed_input_schema::<crate::blueprint::PreviewBlueprintRefinementInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::PreviewBlueprintRefinementInput>()
 }
 
 fn args_preview_resume_manga_pipeline_request() -> Value {
@@ -1767,7 +1767,7 @@ fn args_reset_deletion_marks() -> Value {
 }
 
 fn args_restore_blueprint_version() -> Value {
-    typed_input_schema::<crate::blueprint::RestoreBlueprintVersionInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::RestoreBlueprintVersionInput>()
 }
 
 fn args_rollback_to_chapter() -> Value {
@@ -1791,7 +1791,7 @@ fn args_run_galgame_asset_generation() -> Value {
 }
 
 fn args_save_blueprint() -> Value {
-    typed_input_schema::<crate::blueprint::SaveBlueprintInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::SaveBlueprintInput>()
 }
 
 fn args_save_canvas_graph() -> Value {
@@ -2076,7 +2076,7 @@ fn args_update_video_config() -> Value {
 }
 
 fn args_update_world_setting() -> Value {
-    typed_input_schema::<crate::blueprint::UpdateWorldSettingInput>()
+    strict_runtime_typed_input_schema::<crate::blueprint::UpdateWorldSettingInput>()
 }
 
 fn args_upload_assembly_insert_video() -> Value {
@@ -2678,7 +2678,7 @@ fn result_reorder_galgame_lines() -> Value {
     typed_schema::<Vec<crate::galgame::GalgameLine>>()
 }
 
-fn result_restore_blueprint_version() -> Value {
+fn result_blueprint_mutation() -> Value {
     typed_schema::<crate::blueprint::BlueprintMutationResult>()
 }
 
@@ -3571,6 +3571,100 @@ mod tests {
                 .get("variables")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn blueprint_commands_use_one_authenticated_strict_contract() {
+        let commands = [
+            "get_blueprint",
+            "sync_blueprint_materials",
+            "preview_generate_blueprint_request",
+            "preview_refine_blueprint_request",
+            "list_blueprint_versions",
+            "diff_blueprint_versions",
+            "restore_blueprint_version",
+            "save_blueprint",
+            "update_world_setting",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+
+        for command in commands {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.result_schema["x-a4n-schema-quality"], "typed",
+                "{command}"
+            );
+        }
+
+        for command in ["get_blueprint", "sync_blueprint_materials"] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!(["projectId"]),
+                "{command}"
+            );
+            assert!(descriptor.args_schema["properties"].get("input").is_none());
+        }
+
+        for command in [
+            "preview_generate_blueprint_request",
+            "preview_refine_blueprint_request",
+            "list_blueprint_versions",
+            "diff_blueprint_versions",
+            "restore_blueprint_version",
+            "save_blueprint",
+            "update_world_setting",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!([]),
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.args_schema["properties"]["input"]["additionalProperties"], false,
+                "{command}"
+            );
+        }
+
+        for command in [
+            "preview_generate_blueprint_request",
+            "preview_refine_blueprint_request",
+            "restore_blueprint_version",
+            "save_blueprint",
+            "update_world_setting",
+        ] {
+            assert!(
+                command_descriptor(command).unwrap().args_schema["properties"]
+                    .get("runtime_config_snapshot")
+                    .is_some(),
+                "{command}"
+            );
+        }
+
+        for command in ["list_blueprint_versions", "diff_blueprint_versions"] {
+            assert!(
+                command_descriptor(command).unwrap().args_schema["properties"]
+                    .get("runtime_config_snapshot")
+                    .is_none(),
+                "{command}"
+            );
+        }
+
+        assert_eq!(
+            command_descriptor("update_world_setting").unwrap().domain,
+            "blueprint"
+        );
+
+        for command in [
+            "preview_generate_blueprint_request",
+            "start_blueprint_generation",
+        ] {
+            let target_length = &command_descriptor(command).unwrap().args_schema["properties"]["input"]
+                ["properties"]["target_length"];
+            assert_eq!(target_length["minimum"], 5, "{command}");
+            assert_eq!(target_length["maximum"], 10_000, "{command}");
+        }
     }
 
     #[test]

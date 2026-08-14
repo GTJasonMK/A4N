@@ -1,4 +1,7 @@
 use super::generation_tasks::GenerationStartRequestMeta;
+use a4n_domain::project::{
+    BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_GENERATION_CHAPTERS, BLUEPRINT_MIN_TOTAL_CHAPTERS,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,7 +18,10 @@ pub struct StartBlueprintGenerationInput {
     pub title: String,
     #[schemars(length(min = 1, max = 256))]
     pub genre: String,
-    #[schemars(range(min = 1))]
+    #[schemars(range(
+        min = BLUEPRINT_MIN_GENERATION_CHAPTERS,
+        max = BLUEPRINT_MAX_TOTAL_CHAPTERS
+    ))]
     pub target_length: i32,
     pub variables: Option<BTreeMap<String, Value>>,
 }
@@ -41,9 +47,12 @@ pub struct PreviewBlueprintGenerationInput {
     pub title: String,
     #[schemars(length(min = 1, max = 256))]
     pub genre: String,
-    #[schemars(range(min = 1))]
+    #[schemars(range(
+        min = BLUEPRINT_MIN_GENERATION_CHAPTERS,
+        max = BLUEPRINT_MAX_TOTAL_CHAPTERS
+    ))]
     pub target_length: i32,
-    pub variables: Option<Value>,
+    pub variables: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -53,7 +62,7 @@ pub struct PreviewBlueprintRefinementInput {
     pub project_id: i64,
     #[schemars(length(max = 32768))]
     pub focus: Option<String>,
-    pub variables: Option<Value>,
+    pub variables: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -100,7 +109,10 @@ pub struct SaveBlueprintInput {
     pub one_sentence_summary: Option<String>,
     #[schemars(length(max = 131072))]
     pub full_synopsis: Option<String>,
-    #[schemars(range(min = 1, max = 10000))]
+    #[schemars(range(
+        min = BLUEPRINT_MIN_TOTAL_CHAPTERS,
+        max = BLUEPRINT_MAX_TOTAL_CHAPTERS
+    ))]
     pub total_chapters: i32,
 }
 
@@ -147,4 +159,33 @@ pub struct BlueprintDiffSummary {
 #[derive(Serialize, JsonSchema)]
 pub struct BlueprintMutationResult {
     pub warnings: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{PreviewBlueprintGenerationInput, PreviewBlueprintRefinementInput};
+
+    #[test]
+    fn blueprint_preview_variables_require_the_canonical_object_shape() {
+        assert!(
+            serde_json::from_value::<PreviewBlueprintGenerationInput>(json!({
+                "project_id": 7,
+                "title": "雾城",
+                "genre": "悬疑",
+                "target_length": 30,
+                "variables": ["legacy"]
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<PreviewBlueprintRefinementInput>(json!({
+                "project_id": 7,
+                "focus": "加强动机",
+                "variables": "legacy"
+            }))
+            .is_err()
+        );
+    }
 }

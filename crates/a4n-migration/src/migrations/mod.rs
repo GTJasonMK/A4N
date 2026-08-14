@@ -1,6 +1,7 @@
 //! PostgreSQL baseline schema.
 
 pub mod blueprint_version_snapshot_cleanup;
+pub mod blueprint_version_snapshot_contract;
 pub mod canvas_assemble_clip_order;
 pub mod canvas_assemble_edge_role;
 pub mod canvas_node_ref_contract_cleanup;

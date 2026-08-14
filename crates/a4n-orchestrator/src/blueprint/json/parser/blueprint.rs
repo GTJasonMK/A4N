@@ -27,7 +27,6 @@ pub fn parse_blueprint_json(
         parse_blueprint_metadata(&raw)?;
 
     Ok(ParsedBlueprint {
-        raw,
         title,
         genre,
         style,

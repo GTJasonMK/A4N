@@ -216,7 +216,6 @@ impl OrchestratorContext {
     ) -> Result<BlueprintRestoreResult, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
-        let version = required_text(version, "版本号").map_err(AppError::InvalidArgument)?;
         self.restore_blueprint_version_record(project_id, version)
             .await
     }
@@ -229,7 +228,6 @@ impl OrchestratorContext {
     ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
-        let world_setting = required_world_setting_value(world_setting)?;
         let result = a4n_db::blueprint::update_blueprint_world_setting_records_transaction(
             self.project_blueprint.connection(),
             a4n_db::blueprint::UpdateBlueprintWorldSettingInput {
@@ -318,15 +316,6 @@ impl OrchestratorContext {
     }
 }
 
-fn required_world_setting_value(value: Value) -> Result<Value, AppError> {
-    if value.is_null() {
-        return Err(AppError::InvalidArgument(
-            "world_setting 不能为 null".to_string(),
-        ));
-    }
-    Ok(value)
-}
-
 fn blueprint_json_diff(left: &Value, right: &Value) -> Value {
     match (left, right) {
         (Value::Object(left), Value::Object(right)) => {
@@ -351,18 +340,6 @@ fn blueprint_json_diff(left: &Value, right: &Value) -> Value {
         }
         _ if left != right => serde_json::json!({"old": left, "new": right}),
         _ => Value::Null,
-    }
-}
-
-#[cfg(test)]
-mod world_setting_tests {
-    use super::required_world_setting_value;
-
-    #[test]
-    fn rejects_null_world_setting() {
-        let error = required_world_setting_value(serde_json::Value::Null)
-            .expect_err("null world setting should be rejected");
-        assert!(error.to_string().contains("world_setting 不能为 null"));
     }
 }
 

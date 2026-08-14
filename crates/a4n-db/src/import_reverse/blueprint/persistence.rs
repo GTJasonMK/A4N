@@ -27,9 +27,7 @@ where
         active.one_sentence_summary = Set(Some(record.one_sentence_summary.clone()));
         active.full_synopsis = Set(Some(record.full_synopsis.clone()));
         active.world_setting = Set(Some(record.world_setting.clone()));
-        if let Some(total_chapters) = record.total_chapters {
-            active.total_chapters = Set(Some(total_chapters));
-        }
+        active.total_chapters = Set(Some(record.total_chapters));
         active.needs_part_outlines = Set(record.needs_part_outlines);
         active.chapters_per_part = Set(record.chapters_per_part);
         active.current_version = Set(record.current_version.clone());
@@ -48,7 +46,7 @@ where
             world_setting: Set(Some(record.world_setting.clone())),
             current_version: Set(record.current_version.clone()),
             needs_part_outlines: Set(record.needs_part_outlines),
-            total_chapters: Set(record.total_chapters),
+            total_chapters: Set(Some(record.total_chapters)),
             chapters_per_part: Set(record.chapters_per_part),
             avatar_svg: Set(None),
             avatar_animal: Set(None),

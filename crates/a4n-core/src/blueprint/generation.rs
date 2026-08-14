@@ -1,26 +1,22 @@
 use std::collections::HashMap;
 
+use a4n_domain::project::{
+    BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_GENERATION_CHAPTERS,
+    is_valid_blueprint_generation_chapters,
+};
 use serde_json::Value;
 
 use crate::error::AppError;
 
 pub const BLUEPRINT_GENERATE_PROGRESS_TOTAL: u32 = 12;
 pub const BLUEPRINT_STAGE_SYSTEM_PROMPT: &str = "blueprint_stage_system";
-pub const BLUEPRINT_MIN_TOTAL_CHAPTERS: i32 = 5;
-pub const BLUEPRINT_MAX_TOTAL_CHAPTERS: i32 = 10_000;
-pub const PART_OUTLINE_THRESHOLD: i32 = 50;
-pub const CHAPTERS_PER_PART: i32 = 25;
-
-pub fn needs_part_outlines_for_chapters(total_chapters: i32) -> bool {
-    total_chapters > PART_OUTLINE_THRESHOLD
-}
 
 pub fn validate_blueprint_chapter_count(value: i32, context: &str) -> Result<(), AppError> {
-    if (BLUEPRINT_MIN_TOTAL_CHAPTERS..=BLUEPRINT_MAX_TOTAL_CHAPTERS).contains(&value) {
+    if is_valid_blueprint_generation_chapters(value) {
         Ok(())
     } else {
         Err(AppError::InvalidArgument(format!(
-            "{context} 必须在 {BLUEPRINT_MIN_TOTAL_CHAPTERS} 到 {BLUEPRINT_MAX_TOTAL_CHAPTERS} 之间"
+            "{context} 必须在 {BLUEPRINT_MIN_GENERATION_CHAPTERS} 到 {BLUEPRINT_MAX_TOTAL_CHAPTERS} 之间"
         )))
     }
 }

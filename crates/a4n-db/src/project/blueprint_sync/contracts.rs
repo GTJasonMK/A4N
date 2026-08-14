@@ -16,13 +16,6 @@ pub struct BlueprintCharacterDraft {
     pub arc_stages: Option<Value>,
 }
 
-pub const PART_OUTLINE_THRESHOLD: i32 = 50;
-pub const CHAPTERS_PER_PART: i32 = 25;
-
-pub fn needs_part_outlines_for_chapters(total_chapters: i32) -> bool {
-    total_chapters > PART_OUTLINE_THRESHOLD
-}
-
 #[derive(Debug, Clone)]
 pub struct BlueprintRelationshipDraft {
     pub relationship_type: String,

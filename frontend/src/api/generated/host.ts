@@ -2459,13 +2459,13 @@ export interface PreviewBlueprintGenerationInput {
   project_id: number;
   target_length: number;
   title: string;
-  variables?: unknown;
+  variables?: Record<string, unknown> | null;
 }
 
 export interface PreviewBlueprintRefinementInput {
   focus?: string | null;
   project_id: number;
-  variables?: unknown;
+  variables?: Record<string, unknown> | null;
 }
 
 export interface ListBlueprintVersionsInput {

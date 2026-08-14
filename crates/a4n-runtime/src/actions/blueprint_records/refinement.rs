@@ -9,7 +9,6 @@ use crate::AppState;
 use crate::actions::request_preview::{
     ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
 };
-use crate::actions::template_variables::parse_template_variables_app_error as parse_template_variables;
 
 pub async fn start_blueprint_refinement_typed(
     state: &AppState,
@@ -56,7 +55,7 @@ pub async fn preview_refine_blueprint_request(
     user_id: i64,
     input: PreviewBlueprintRefinementInput,
 ) -> Result<ModelRequestPreview, AppError> {
-    let variables = parse_template_variables(&input.variables)?;
+    let variables = input.variables.unwrap_or_default().into_iter().collect();
     let prompt_renderer = state;
     let request = state
         .orchestrator()

@@ -28,7 +28,7 @@ fn valid_restore_snapshot() -> Value {
         "genre": "科幻奇幻",
         "needs_part_outlines": false,
         "total_chapters": 30,
-        "chapters_per_part": 25
+        "chapters_per_part": null
     })
 }
 
@@ -43,8 +43,17 @@ fn restored_blueprint_fields_rejects_invalid_total_chapters() {
     assert!(matches!(
         err,
         BlueprintRestoreError::InvalidSnapshot(message)
-            if message.contains("5 到 10000")
+            if message.contains("1 到 10000")
     ));
+}
+
+#[test]
+fn restored_blueprint_fields_accepts_single_chapter_contract() {
+    let mut snapshot = valid_restore_snapshot();
+    snapshot["total_chapters"] = json!(1);
+
+    RestoredBlueprintFields::from_snapshot(&snapshot, "1.0")
+        .expect("restore must match the canonical 1..=10000 save contract");
 }
 
 #[test]
@@ -63,6 +72,48 @@ fn restored_blueprint_fields_rejects_non_positive_chapters_per_part() {
 }
 
 #[test]
+fn restored_blueprint_fields_rejects_derived_chapter_plan_drift() {
+    let mut snapshot = valid_restore_snapshot();
+    snapshot["chapters_per_part"] = json!(25);
+
+    let err = RestoredBlueprintFields::from_snapshot(&snapshot, "1.0")
+        .expect_err("short blueprints must not carry a part size");
+
+    assert!(matches!(
+        err,
+        BlueprintRestoreError::InvalidSnapshot(message)
+            if message.contains("chapters_per_part 必须为 null")
+    ));
+}
+
+#[test]
+fn restored_blueprint_fields_rejects_retired_snapshot_fields() {
+    let mut snapshot = valid_restore_snapshot();
+    snapshot["optimization_patch"] = json!({"style": "legacy"});
+
+    let err = RestoredBlueprintFields::from_snapshot(&snapshot, "1.0")
+        .expect_err("retired snapshot fields must not be ignored");
+
+    assert!(matches!(
+        err,
+        BlueprintRestoreError::InvalidSnapshot(message)
+            if message.contains("未知字段: optimization_patch")
+    ));
+}
+
+#[test]
+fn blueprint_version_snapshot_requires_both_entity_arrays() {
+    let err = validate_blueprint_version_snapshot(&valid_restore_snapshot())
+        .expect_err("canonical snapshots must include character and relationship arrays");
+
+    assert!(matches!(
+        err,
+        BlueprintRestoreError::InvalidSnapshot(message)
+            if message.contains("缺少 characters 数组")
+    ));
+}
+
+#[test]
 fn parse_blueprint_relationship_drafts_rejects_strength_out_of_range() {
     let err = parse_blueprint_relationship_drafts(&json!([{
         "relationship_type": "friend",
@@ -76,6 +127,23 @@ fn parse_blueprint_relationship_drafts_rejects_strength_out_of_range() {
         err,
         BlueprintRestoreError::InvalidSnapshot(message)
             if message.contains("strength 必须在 1 到 10 之间")
+    ));
+}
+
+#[test]
+fn parse_blueprint_relationship_drafts_rejects_database_fields() {
+    let err = parse_blueprint_relationship_drafts(&json!([{
+        "id": 9,
+        "relationship_type": "friend",
+        "character_a": "林澈",
+        "character_b": "许灯"
+    }]))
+    .expect_err("database identity must not leak into canonical snapshots");
+
+    assert!(matches!(
+        err,
+        BlueprintRestoreError::InvalidSnapshot(message)
+            if message.contains("未知字段: id")
     ));
 }
 
@@ -222,7 +290,7 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         "world_setting": {"premise": "星潮复苏"},
         "needs_part_outlines": false,
         "total_chapters": 30,
-        "chapters_per_part": 25,
+        "chapters_per_part": null,
         "characters": [
             {
                 "name": "林烬",
@@ -385,4 +453,36 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         .await
         .unwrap();
     assert_eq!(history_after_failure.len(), 1);
+
+    blueprint_version::ActiveModel {
+        project_id: Set(project_id),
+        version: Set("v4".to_string()),
+        blueprint_data: Set(json!({
+            "title": "缺少关系快照",
+            "genre": "测试",
+            "needs_part_outlines": false,
+            "total_chapters": 40,
+            "characters": []
+        })),
+        created_at: Set(old_time),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let error = restore_blueprint_version_record(&db, project_id, "v4")
+        .await
+        .expect_err("canonical restore must require relationship snapshots");
+    assert!(matches!(
+        error,
+        BlueprintRestoreError::InvalidSnapshot(message)
+            if message.contains("缺少 relationships 数组")
+    ));
+    let characters_after_missing_section = blueprint_character::Entity::find()
+        .filter(blueprint_character::Column::ProjectId.eq(project_id))
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(characters_after_missing_section.len(), 2);
 }

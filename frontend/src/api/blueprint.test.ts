@@ -7,12 +7,19 @@ vi.mock("./index", () => ({
   extractErrorMessage: (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback,
 }));
-vi.mock("./authStorage", () => ({ requireCurrentUserId: () => 42 }));
 vi.mock("./generationTasks", () => ({ generationClient: { start: vi.fn() } }));
 
 import {
+  diffBlueprintVersions,
+  getBlueprint,
+  listBlueprintVersions,
   matchesBlueprintTaskResult,
+  previewGenerateBlueprintRequest,
+  previewRefineBlueprintRequest,
+  restoreBlueprintVersion,
+  saveBlueprint,
   syncBlueprintMaterials,
+  updateWorldSetting,
   type Blueprint,
 } from "./blueprint";
 
@@ -66,6 +73,70 @@ describe("blueprint formal result and material sync", () => {
     expect(mocks.apiInvoke).toHaveBeenCalledWith("sync_blueprint_materials", {
       projectId: 7,
     });
+  });
+
+  it("uses authenticated Host identity and canonical blueprint envelopes", async () => {
+    mocks.apiInvoke.mockResolvedValue(undefined);
+
+    await getBlueprint(7);
+    await previewGenerateBlueprintRequest({
+      project_id: 7,
+      title: "雾城",
+      genre: "悬疑",
+      target_length: 30,
+      variables: null,
+    });
+    await previewRefineBlueprintRequest({ project_id: 7, focus: "加强动机", variables: null });
+    await listBlueprintVersions(7);
+    await diffBlueprintVersions({ project_id: 7, version_a: "1.0", version_b: "2.0" });
+    await restoreBlueprintVersion({ project_id: 7, version: "1.0" });
+    await saveBlueprint({
+      project_id: 7,
+      genre: "悬疑",
+      style: null,
+      tone: null,
+      target_audience: null,
+      one_sentence_summary: null,
+      full_synopsis: null,
+      total_chapters: 30,
+    });
+    await updateWorldSetting({ project_id: 7, world_setting: { premise: "迷雾倒流" } });
+
+    expect(mocks.apiInvoke.mock.calls).toEqual([
+      ["get_blueprint", { projectId: 7 }],
+      ["preview_generate_blueprint_request", {
+        input: {
+          project_id: 7,
+          title: "雾城",
+          genre: "悬疑",
+          target_length: 30,
+          variables: null,
+        },
+      }],
+      ["preview_refine_blueprint_request", {
+        input: { project_id: 7, focus: "加强动机", variables: null },
+      }],
+      ["list_blueprint_versions", { input: { project_id: 7 } }],
+      ["diff_blueprint_versions", {
+        input: { project_id: 7, version_a: "1.0", version_b: "2.0" },
+      }],
+      ["restore_blueprint_version", { input: { project_id: 7, version: "1.0" } }],
+      ["save_blueprint", {
+        input: {
+          project_id: 7,
+          genre: "悬疑",
+          style: null,
+          tone: null,
+          target_audience: null,
+          one_sentence_summary: null,
+          full_synopsis: null,
+          total_chapters: 30,
+        },
+      }],
+      ["update_world_setting", {
+        input: { project_id: 7, world_setting: { premise: "迷雾倒流" } },
+      }],
+    ]);
   });
 
   it("reports a sync command failure without turning the formal blueprint into a failure", async () => {

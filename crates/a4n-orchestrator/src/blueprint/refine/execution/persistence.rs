@@ -1,8 +1,9 @@
 use a4n_core::{error::AppError, models::project::novel_blueprint};
 use a4n_db::blueprint::{
     BlueprintRefinePatchInput, InsertBlueprintVersionInput, SyncProjectAfterBlueprintInput,
-    apply_blueprint_refine_patch_record, insert_blueprint_version_record,
-    next_blueprint_version_record, sync_project_after_blueprint_record,
+    apply_blueprint_refine_patch_record, blueprint_version_snapshot,
+    insert_blueprint_version_record, next_blueprint_version_record,
+    sync_project_after_blueprint_record,
 };
 use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
@@ -10,7 +11,6 @@ use a4n_db::project::{
 };
 use chrono::Utc;
 use sea_orm::DatabaseTransaction;
-use serde_json::json;
 
 use super::contracts::BlueprintRefinementPersistenceInput;
 use crate::blueprint::persistence::{blueprint_character_drafts, blueprint_relationship_drafts};
@@ -55,7 +55,6 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
         next_blueprint_version_record(tx, project_id, Some(blueprint.current_version.as_str()))
             .await
             .map_err(blueprint_db_error)?;
-    let optimization_patch = parsed.raw.clone();
     let now = Utc::now().naive_utc();
     let updated = apply_blueprint_refine_patch_record(
         tx,
@@ -90,22 +89,8 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
         .map_err(character_profile_seed_error)?;
     let updated_characters = blueprint_characters_for_project(tx, project_id).await?;
     let updated_relationships = blueprint_relationships_for_project(tx, project_id).await?;
-    let snapshot = json!({
-        "title": &updated.title,
-        "genre": &updated.genre,
-        "style": &updated.style,
-        "tone": &updated.tone,
-        "target_audience": &updated.target_audience,
-        "one_sentence_summary": &updated.one_sentence_summary,
-        "full_synopsis": &updated.full_synopsis,
-        "world_setting": &updated.world_setting,
-        "needs_part_outlines": updated.needs_part_outlines,
-        "total_chapters": updated.total_chapters,
-        "chapters_per_part": updated.chapters_per_part,
-        "characters": updated_characters,
-        "relationships": updated_relationships,
-        "optimization_patch": optimization_patch,
-    });
+    let snapshot =
+        blueprint_version_snapshot(&updated, &updated_characters, &updated_relationships);
     insert_blueprint_version_record(
         tx,
         InsertBlueprintVersionInput {

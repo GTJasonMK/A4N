@@ -1,3 +1,4 @@
+use a4n_domain::project::{CHAPTERS_PER_PART, PART_OUTLINE_THRESHOLD};
 use chrono::NaiveDateTime;
 
 use super::blueprint::resolve_reverse_blueprint_apply_record;
@@ -45,12 +46,9 @@ fn reverse_blueprint_plan_preserves_existing_chapter_count() {
     )
     .expect("existing chapter plan should be preserved");
 
-    assert_eq!(record.total_chapters, Some(51));
+    assert_eq!(record.total_chapters, 51);
     assert!(record.needs_part_outlines);
-    assert_eq!(
-        record.chapters_per_part,
-        Some(crate::project::CHAPTERS_PER_PART)
-    );
+    assert_eq!(record.chapters_per_part, Some(CHAPTERS_PER_PART));
     assert_eq!(record.current_version, "1.1");
 }
 
@@ -68,6 +66,38 @@ fn reverse_blueprint_plan_rejects_conflicting_chapter_count() {
     .expect_err("conflicting chapter plan must fail");
 
     assert!(error.to_string().contains("total_chapters"));
+}
+
+#[test]
+fn reverse_blueprint_plan_rejects_chapter_count_outside_domain_contract() {
+    let error = resolve_reverse_blueprint_apply_record(
+        &draft(Some(10_001), None),
+        &ReverseBlueprintApplyPlanRecord {
+            project_total_chapters: None,
+            existing_blueprint_total_chapters: None,
+            next_version: "1.0".to_string(),
+        },
+        applied_at(),
+    )
+    .expect_err("reverse blueprint must use the canonical persisted chapter range");
+
+    assert!(error.to_string().contains("1 到 10000"));
+}
+
+#[test]
+fn reverse_blueprint_plan_requires_a_chapter_count_source() {
+    let error = resolve_reverse_blueprint_apply_record(
+        &draft(None, None),
+        &ReverseBlueprintApplyPlanRecord {
+            project_total_chapters: None,
+            existing_blueprint_total_chapters: None,
+            next_version: "1.0".to_string(),
+        },
+        applied_at(),
+    )
+    .expect_err("reverse blueprint snapshots require total_chapters");
+
+    assert!(error.to_string().contains("total_chapters 不能为空"));
 }
 
 #[test]
@@ -89,7 +119,7 @@ fn reverse_blueprint_plan_rejects_mismatched_part_outline_flag() {
 #[test]
 fn reverse_blueprint_plan_uses_shared_part_outline_threshold() {
     let short = resolve_reverse_blueprint_apply_record(
-        &draft(Some(crate::project::PART_OUTLINE_THRESHOLD), None),
+        &draft(Some(PART_OUTLINE_THRESHOLD), None),
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: None,
             existing_blueprint_total_chapters: None,
@@ -99,7 +129,7 @@ fn reverse_blueprint_plan_uses_shared_part_outline_threshold() {
     )
     .unwrap();
     let long = resolve_reverse_blueprint_apply_record(
-        &draft(Some(crate::project::PART_OUTLINE_THRESHOLD + 1), None),
+        &draft(Some(PART_OUTLINE_THRESHOLD + 1), None),
         &ReverseBlueprintApplyPlanRecord {
             project_total_chapters: None,
             existing_blueprint_total_chapters: None,
@@ -112,8 +142,5 @@ fn reverse_blueprint_plan_uses_shared_part_outline_threshold() {
     assert!(!short.needs_part_outlines);
     assert_eq!(short.chapters_per_part, None);
     assert!(long.needs_part_outlines);
-    assert_eq!(
-        long.chapters_per_part,
-        Some(crate::project::CHAPTERS_PER_PART)
-    );
+    assert_eq!(long.chapters_per_part, Some(CHAPTERS_PER_PART));
 }

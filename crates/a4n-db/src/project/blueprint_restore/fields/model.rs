@@ -1,4 +1,5 @@
 use a4n_core::models::project::novel_blueprint;
+use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
 use chrono::NaiveDateTime;
 use sea_orm::Set;
 use serde_json::Value;
@@ -7,8 +8,9 @@ use crate::project::blueprint_restore::BlueprintRestoreError;
 
 use super::scalars::{
     optional_blueprint_snapshot_json, optional_blueprint_snapshot_string,
-    optional_positive_blueprint_snapshot_i32, required_blueprint_snapshot_bool,
-    required_blueprint_snapshot_string, required_blueprint_snapshot_total_chapters,
+    optional_positive_blueprint_snapshot_i32, reject_unknown_blueprint_snapshot_fields,
+    required_blueprint_snapshot_bool, required_blueprint_snapshot_string,
+    required_blueprint_snapshot_total_chapters,
 };
 
 #[derive(Debug)]
@@ -23,7 +25,7 @@ pub(in crate::project::blueprint_restore) struct RestoredBlueprintFields {
     world_setting: Option<Value>,
     current_version: String,
     needs_part_outlines: bool,
-    total_chapters: Option<i32>,
+    total_chapters: i32,
     chapters_per_part: Option<i32>,
     avatar_svg: Option<String>,
     avatar_animal: Option<String>,
@@ -34,6 +36,49 @@ impl RestoredBlueprintFields {
         data: &Value,
         version: &str,
     ) -> Result<Self, BlueprintRestoreError> {
+        reject_unknown_blueprint_snapshot_fields(
+            data,
+            &[
+                "title",
+                "genre",
+                "style",
+                "tone",
+                "target_audience",
+                "one_sentence_summary",
+                "full_synopsis",
+                "world_setting",
+                "needs_part_outlines",
+                "total_chapters",
+                "chapters_per_part",
+                "avatar_svg",
+                "avatar_animal",
+                "characters",
+                "relationships",
+            ],
+            "蓝图版本",
+        )?;
+        let needs_part_outlines =
+            required_blueprint_snapshot_bool(data, "needs_part_outlines", "蓝图版本")?;
+        let total_chapters =
+            required_blueprint_snapshot_total_chapters(data, "total_chapters", "蓝图版本")?;
+        let chapters_per_part =
+            optional_positive_blueprint_snapshot_i32(data, "chapters_per_part", "蓝图版本")?;
+        let expected_needs_part_outlines = needs_part_outlines_for_chapters(total_chapters);
+        if needs_part_outlines != expected_needs_part_outlines {
+            return Err(BlueprintRestoreError::invalid_snapshot(format!(
+                "蓝图版本.needs_part_outlines 必须为 {expected_needs_part_outlines}"
+            )));
+        }
+        let expected_chapters_per_part = needs_part_outlines.then_some(CHAPTERS_PER_PART);
+        if chapters_per_part != expected_chapters_per_part {
+            return Err(BlueprintRestoreError::invalid_snapshot(format!(
+                "蓝图版本.chapters_per_part 必须为 {}",
+                expected_chapters_per_part
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "null".to_string())
+            )));
+        }
+
         Ok(Self {
             title: required_blueprint_snapshot_string(data, "title", "蓝图版本")?,
             genre: required_blueprint_snapshot_string(data, "genre", "蓝图版本")?,
@@ -52,22 +97,9 @@ impl RestoredBlueprintFields {
             full_synopsis: optional_blueprint_snapshot_string(data, "full_synopsis", "蓝图版本")?,
             world_setting: optional_blueprint_snapshot_json(data, "world_setting"),
             current_version: version.to_string(),
-            needs_part_outlines: required_blueprint_snapshot_bool(
-                data,
-                "needs_part_outlines",
-                "蓝图版本",
-            )?,
-            total_chapters: required_blueprint_snapshot_total_chapters(
-                data,
-                "total_chapters",
-                "蓝图版本",
-            )
-            .map(Some)?,
-            chapters_per_part: optional_positive_blueprint_snapshot_i32(
-                data,
-                "chapters_per_part",
-                "蓝图版本",
-            )?,
+            needs_part_outlines,
+            total_chapters,
+            chapters_per_part,
             avatar_svg: optional_blueprint_snapshot_string(data, "avatar_svg", "蓝图版本")?,
             avatar_animal: optional_blueprint_snapshot_string(data, "avatar_animal", "蓝图版本")?,
         })
@@ -88,11 +120,15 @@ impl RestoredBlueprintFields {
         active.world_setting = Set(self.world_setting.clone());
         active.current_version = Set(self.current_version.clone());
         active.needs_part_outlines = Set(self.needs_part_outlines);
-        active.total_chapters = Set(self.total_chapters);
+        active.total_chapters = Set(Some(self.total_chapters));
         active.chapters_per_part = Set(self.chapters_per_part);
         active.avatar_svg = Set(self.avatar_svg.clone());
         active.avatar_animal = Set(self.avatar_animal.clone());
         active.updated_at = Set(now);
+    }
+
+    pub(in crate::project::blueprint_restore) fn total_chapters(&self) -> i32 {
+        self.total_chapters
     }
 
     pub(in crate::project::blueprint_restore) fn into_active_model(
@@ -112,7 +148,7 @@ impl RestoredBlueprintFields {
             world_setting: Set(self.world_setting),
             current_version: Set(self.current_version),
             needs_part_outlines: Set(self.needs_part_outlines),
-            total_chapters: Set(self.total_chapters),
+            total_chapters: Set(Some(self.total_chapters)),
             chapters_per_part: Set(self.chapters_per_part),
             avatar_svg: Set(self.avatar_svg),
             avatar_animal: Set(self.avatar_animal),

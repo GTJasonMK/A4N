@@ -101,7 +101,7 @@ pub struct ReverseBlueprintApplyRecord {
     pub one_sentence_summary: String,
     pub full_synopsis: String,
     pub world_setting: Value,
-    pub total_chapters: Option<i32>,
+    pub total_chapters: i32,
     pub needs_part_outlines: bool,
     pub chapters_per_part: Option<i32>,
     pub current_version: String,

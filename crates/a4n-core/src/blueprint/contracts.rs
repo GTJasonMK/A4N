@@ -2,7 +2,6 @@ use serde_json::Value;
 
 #[derive(Clone, Debug)]
 pub struct ParsedBlueprint {
-    pub raw: Value,
     pub title: String,
     pub genre: String,
     pub style: String,

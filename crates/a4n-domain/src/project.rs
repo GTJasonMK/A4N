@@ -2,6 +2,25 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub const BLUEPRINT_MIN_TOTAL_CHAPTERS: i32 = 1;
+pub const BLUEPRINT_MIN_GENERATION_CHAPTERS: i32 = 5;
+pub const BLUEPRINT_MAX_TOTAL_CHAPTERS: i32 = 10_000;
+pub const PART_OUTLINE_THRESHOLD: i32 = 50;
+pub const CHAPTERS_PER_PART: i32 = 25;
+
+pub const fn is_valid_blueprint_total_chapters(total_chapters: i32) -> bool {
+    total_chapters >= BLUEPRINT_MIN_TOTAL_CHAPTERS && total_chapters <= BLUEPRINT_MAX_TOTAL_CHAPTERS
+}
+
+pub const fn is_valid_blueprint_generation_chapters(total_chapters: i32) -> bool {
+    total_chapters >= BLUEPRINT_MIN_GENERATION_CHAPTERS
+        && total_chapters <= BLUEPRINT_MAX_TOTAL_CHAPTERS
+}
+
+pub const fn needs_part_outlines_for_chapters(total_chapters: i32) -> bool {
+    total_chapters > PART_OUTLINE_THRESHOLD
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectKind {
@@ -281,7 +300,12 @@ pub struct GenerationInputSource {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProjectStatus, ProjectStatusArtifacts};
+    use super::{
+        BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_GENERATION_CHAPTERS,
+        BLUEPRINT_MIN_TOTAL_CHAPTERS, PART_OUTLINE_THRESHOLD, ProjectStatus,
+        ProjectStatusArtifacts, is_valid_blueprint_generation_chapters,
+        is_valid_blueprint_total_chapters, needs_part_outlines_for_chapters,
+    };
 
     #[test]
     fn project_status_order_matches_all_and_artifact_progress() {
@@ -303,5 +327,27 @@ mod tests {
             }
             .supports(ProjectStatus::Completed)
         );
+    }
+
+    #[test]
+    fn part_outline_threshold_is_strictly_greater_than_limit() {
+        assert!(!needs_part_outlines_for_chapters(PART_OUTLINE_THRESHOLD));
+        assert!(needs_part_outlines_for_chapters(PART_OUTLINE_THRESHOLD + 1));
+    }
+
+    #[test]
+    fn blueprint_chapter_ranges_distinguish_persistence_from_generation() {
+        assert!(is_valid_blueprint_total_chapters(
+            BLUEPRINT_MIN_TOTAL_CHAPTERS
+        ));
+        assert!(!is_valid_blueprint_generation_chapters(
+            BLUEPRINT_MIN_GENERATION_CHAPTERS - 1
+        ));
+        assert!(is_valid_blueprint_generation_chapters(
+            BLUEPRINT_MIN_GENERATION_CHAPTERS
+        ));
+        assert!(!is_valid_blueprint_total_chapters(
+            BLUEPRINT_MAX_TOTAL_CHAPTERS + 1
+        ));
     }
 }

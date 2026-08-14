@@ -7,8 +7,7 @@ mod relationships;
 pub use characters::{merge_blueprint_characters, sync_blueprint_characters};
 pub use contracts::{
     BlueprintCharacterDraft, BlueprintIncrementalSyncStats, BlueprintRelationshipDraft,
-    BlueprintSyncError, CHAPTERS_PER_PART, PART_OUTLINE_THRESHOLD,
-    needs_part_outlines_for_chapters,
+    BlueprintSyncError,
 };
 pub use identity::normalized_blueprint_identity;
 pub use records::{

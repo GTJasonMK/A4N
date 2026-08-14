@@ -1,8 +1,11 @@
 use a4n_core::models::{
     chapter::{chapter, chapter_outline, part_outline},
-    project::{blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint},
+    project::{
+        blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
+        novel_project,
+    },
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, NotSet, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional,
@@ -14,6 +17,17 @@ pub(super) async fn insert_story_rows(
     package: &ProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
+    let canonical_raw_blueprint = canonical_package_blueprint_snapshot(package)?;
+    for version in &package.text_core.blueprint_versions {
+        crate::project::validate_blueprint_version_snapshot(&version.blueprint_data).map_err(
+            |error| {
+                ProjectFamilyImportError::invalid_package(format!(
+                    "项目族导入包蓝图版本快照无效: blueprint_version_id={}: {error}",
+                    version.id
+                ))
+            },
+        )?;
+    }
     if let Some(blueprint) = &package.text_core.blueprint {
         insert_mapped_import_row!(
             txn,
@@ -92,5 +106,62 @@ pub(super) async fn insert_story_rows(
             )?);
         }
     );
+    let project = novel_project::Entity::find_by_id(root_project_id)
+        .one(txn)
+        .await?
+        .ok_or_else(|| {
+            ProjectFamilyImportError::invalid_package(format!(
+                "项目族导入目标根项目不存在: {root_project_id}"
+            ))
+        })?;
+    let mut active: novel_project::ActiveModel = project.into();
+    active.raw_blueprint = Set(canonical_raw_blueprint);
+    active.update(txn).await?;
     Ok(())
+}
+
+fn canonical_package_blueprint_snapshot(
+    package: &ProjectFamilyImportPackage,
+) -> Result<Option<String>, ProjectFamilyImportError> {
+    let Some(blueprint) = &package.text_core.blueprint else {
+        if package.text_core.blueprint_versions.is_empty()
+            && package.text_core.blueprint_characters.is_empty()
+            && package.text_core.blueprint_relationships.is_empty()
+        {
+            return Ok(None);
+        }
+        return Err(ProjectFamilyImportError::invalid_package(
+            "项目族导入包缺少当前蓝图，但包含蓝图版本、角色或关系".to_string(),
+        ));
+    };
+    let snapshot = crate::blueprint::blueprint_version_snapshot(
+        blueprint,
+        &package.text_core.blueprint_characters,
+        &package.text_core.blueprint_relationships,
+    );
+    let current = package
+        .text_core
+        .blueprint_versions
+        .iter()
+        .find(|version| {
+            version.project_id == blueprint.project_id
+                && version.version == blueprint.current_version
+        })
+        .ok_or_else(|| {
+            ProjectFamilyImportError::invalid_package(format!(
+                "项目族导入包缺少当前蓝图版本: project_id={}, version={}",
+                blueprint.project_id, blueprint.current_version
+            ))
+        })?;
+    if current.blueprint_data != snapshot {
+        return Err(ProjectFamilyImportError::invalid_package(format!(
+            "项目族导入包当前蓝图与版本快照不一致: blueprint_version_id={}",
+            current.id
+        )));
+    }
+    serde_json::to_string_pretty(&snapshot)
+        .map(Some)
+        .map_err(|error| {
+            ProjectFamilyImportError::invalid_package(format!("序列化项目族蓝图快照失败: {error}"))
+        })
 }
