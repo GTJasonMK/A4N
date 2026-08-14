@@ -47,6 +47,7 @@ pub async fn update_part_outline_and_rebind_chapters_transaction(
     draft: PartOutlineSyncDraft,
     now: NaiveDateTime,
 ) -> Result<part_outline::Model, OutlineDbError> {
+    validate_part_outline_project(&existing, project_id)?;
     let txn = db.begin().await?;
     super::super::lock_outline_project_for_write(&txn, project_id, "更新分部大纲").await?;
     let updated =
@@ -65,12 +66,7 @@ pub async fn update_part_outline_and_rebind_chapters_in<C>(
 where
     C: ConnectionTrait,
 {
-    if existing.project_id != project_id {
-        return Err(OutlineDbError::InvalidArgument(format!(
-            "分部大纲 {} 不属于项目 {project_id}",
-            existing.id
-        )));
-    }
+    validate_part_outline_project(&existing, project_id)?;
 
     let updated = update_part_outline_record(db, existing, &draft, now).await?;
     let parts = part_outline::Entity::find()
@@ -81,4 +77,17 @@ where
         .await?;
     sync_chapter_outline_part_assignments(db, project_id, &parts, now).await?;
     Ok(updated)
+}
+
+fn validate_part_outline_project(
+    existing: &part_outline::Model,
+    project_id: i64,
+) -> Result<(), OutlineDbError> {
+    if existing.project_id == project_id {
+        return Ok(());
+    }
+    Err(OutlineDbError::InvalidArgument(format!(
+        "分部大纲 {} 不属于项目 {project_id}",
+        existing.id
+    )))
 }
