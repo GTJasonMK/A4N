@@ -1,6 +1,4 @@
-import { listThemes, type Theme, type ThemeMode } from "../api/theme";
-import { readCurrentAccessToken } from "../api/authStorage";
-import { shouldUseHttpBackend } from "../utils/runtimeMode";
+import { listThemes, type Theme } from "../api/theme";
 
 /**
  * 后端主题（theme_config 表）应用到 DOM 的工具
@@ -12,16 +10,8 @@ export const THEME_APPLIED_EVENT = "a4n:theme-applied";
 
 const appliedThemeVariables = new Set<string>();
 
-interface ThemeAppliedDetail {
-  mode: ThemeMode | null;
-}
-
-function dispatchThemeApplied(detail: ThemeAppliedDetail): void {
-  window.dispatchEvent(
-    new CustomEvent(THEME_APPLIED_EVENT, {
-      detail,
-    }),
-  );
+function dispatchThemeApplied(): void {
+  window.dispatchEvent(new Event(THEME_APPLIED_EVENT));
 }
 
 function clearAppliedThemeVariables(): void {
@@ -30,7 +20,7 @@ function clearAppliedThemeVariables(): void {
   appliedThemeVariables.clear();
   root.classList.remove("dark");
 
-  dispatchThemeApplied({ mode: null });
+  dispatchThemeApplied();
 }
 
 /**
@@ -53,35 +43,29 @@ export function applyActiveTheme(theme: Theme): void {
 
   root.classList.toggle("dark", theme.mode === "dark");
 
-  dispatchThemeApplied({ mode: theme.mode });
+  dispatchThemeApplied();
 }
 
 function selectActiveTheme(
   themes: Theme[],
-  userId?: number | null,
+  userId: number,
 ): Theme | null {
-  if (userId != null) {
-    const userTheme = themes.find((t) => t.is_active && t.user_id === userId);
-    if (userTheme) return userTheme;
-  }
+  const userTheme = themes.find((t) => t.is_active && t.user_id === userId);
+  if (userTheme) return userTheme;
   return themes.find((t) => t.is_active && t.user_id == null) ?? null;
 }
 
 /** 应用启动时调用：拉取主题列表，优先应用当前用户的 active 主题，否则应用全局 active 主题。 */
 export async function loadAndApplyActiveTheme(
-  userId?: number | null,
+  userId: number | null,
 ): Promise<void> {
-  if (shouldUseHttpBackend() && !readCurrentAccessToken()) {
-    clearAppliedThemeVariables();
-    return;
-  }
   if (userId == null) {
     clearAppliedThemeVariables();
     return;
   }
 
   clearAppliedThemeVariables();
-  const themes = await listThemes(userId);
+  const themes = await listThemes();
   const active = selectActiveTheme(themes, userId);
   if (active) {
     applyActiveTheme(active);

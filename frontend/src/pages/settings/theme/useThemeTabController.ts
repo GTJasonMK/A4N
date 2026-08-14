@@ -78,7 +78,7 @@ export const useThemeTabController = () => {
       refreshSeqRef.current = requestSeq;
       setLoading(true);
       try {
-        const data = user ? await listThemes(user.id) : [];
+        const data = user ? await listThemes() : [];
         if (isCurrentRefresh(requestUserKey, requestSeq)) setThemes(data);
       } catch (err) {
         if (isCurrentRefresh(requestUserKey, requestSeq)) {

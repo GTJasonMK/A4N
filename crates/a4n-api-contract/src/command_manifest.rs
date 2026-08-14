@@ -285,7 +285,7 @@ macro_rules! command_specs {
 command_specs! {
     "accept_import_review" => args_accept_import_review, result_import_review, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "accept_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT);
-    "activate_theme" => args_activate_theme, result_activate_theme, "settings";
+    "activate_theme" => args_activate_theme, result_activate_theme, "settings", context(NO_CONTEXT);
     "add_image_config" => args_add_image_config, result_add_image_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
     "add_profile_attribute" => args_add_profile_attribute, result_unit, "profile";
     "add_video_config" => args_add_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
@@ -326,7 +326,7 @@ command_specs! {
     "create_profile" => args_create_profile, result_create_profile, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_project" => args_create_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_scene_profile" => args_create_scene_profile, result_scene_profile_mutation, "profile", context(USER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "create_theme" => args_create_theme, result_activate_theme, "settings";
+    "create_theme" => args_create_theme, result_activate_theme, "settings", context(NO_CONTEXT);
     "create_user" => args_create_user, result_opaque, "auth", identity(ADMIN_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "decline_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_chapter_scene" => args_delete_chapter_scene, result_unit, "chapter", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -348,7 +348,7 @@ command_specs! {
     "delete_profile" => args_delete_profile, result_delete_profile, "profile", effect(DESTRUCTIVE_EFFECT);
     "delete_project" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "delete_scene_profile" => args_delete_scene_profile, result_scene_profile_delete, "profile", context(USER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "delete_theme" => args_activate_theme, result_unit, "settings", effect(DESTRUCTIVE_EFFECT);
+    "delete_theme" => args_activate_theme, result_unit, "settings", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_video" => args_delete_video, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
     "detach_derived_project" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "detect_image_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
@@ -372,7 +372,7 @@ command_specs! {
     "export_outline_json_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_pdf_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_project_family_data" => args_export_project_family_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_EXPORT);
-    "export_theme" => args_activate_theme, result_export_theme, "export", effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), capabilities(CAPABILITIES_EXPORT);
+    "export_theme" => args_activate_theme, result_export_theme, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), capabilities(CAPABILITIES_EXPORT);
     "export_txt_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_video_studio_project_data" => args_export_video_studio_project_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_VIDEO_EXPORT);
     "forward_project_status" => args_forward_project_status, result_create_project, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
@@ -428,7 +428,7 @@ command_specs! {
     "import_galgame_audio" => args_import_galgame_audio, result_bind_galgame_media, "galgame", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_IMPORT);
     "import_project_family_upload" => args_import_project_family_upload, result_project_summaries, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_text_upload" => args_import_project_text_upload, result_import_reviews, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
-    "import_theme" => args_create_theme, result_activate_theme, "import", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "import_theme" => args_create_theme, result_activate_theme, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_video_studio_project_upload" => args_import_video_studio_project_upload, result_create_project, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_VIDEO_IMPORT);
     "insert_galgame_line" => args_insert_galgame_line, result_insert_galgame_line, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_LINE_IDS);
     "invite_project_member" => args_invite_project_member, result_unit, "project", context(PROJECT_CONTEXT);
@@ -472,7 +472,7 @@ command_specs! {
     "list_sessions" => empty_args_schema, result_list_sessions, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
     "list_source_snapshot_chapters" => args_project_id, result_opaque, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
-    "list_themes" => args_get_llm_max_tokens_config, result_list_themes, "settings", effect(READ_EFFECT);
+    "list_themes" => args_get_llm_max_tokens_config, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_video_configs" => args_get_llm_max_tokens_config, result_list_video_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "list_video_reference_images" => args_list_video_reference_images, result_list_images_by_chapter, "asset", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_videos_by_chapter" => args_list_chapter_video_prompts, result_list_videos_by_chapter, "video", context(CHAPTER_CONTEXT), effect(READ_EFFECT);
@@ -649,7 +649,7 @@ command_specs! {
     "update_project" => args_update_project, result_create_project, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "update_project_member_role" => args_update_project_member_role, result_unit, "project", context(PROJECT_CONTEXT);
     "update_scene_profile" => args_update_scene_profile, result_scene_profile_mutation, "profile", context(USER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "update_theme" => args_update_theme, result_activate_theme, "settings";
+    "update_theme" => args_update_theme, result_activate_theme, "settings", context(NO_CONTEXT);
     "update_user_profile" => args_update_user_profile, result_get_current_user, "auth", context(NO_CONTEXT);
     "update_user_role" => args_update_user_role, result_opaque, "auth", identity(ADMIN_IDENTITY);
     "update_video" => args_update_video, result_select_segment_video, "video";
@@ -841,15 +841,13 @@ fn args_config_id() -> Value {
 }
 
 fn args_activate_theme() -> Value {
-    {
-        json!({
-            "type": "object",
-            "properties": { "themeId": { "type": "integer", "minimum": 1 } },
-            "required": ["themeId"],
-            "additionalProperties": true,
-            "x-a4n-schema-quality": "typed",
-        })
-    }
+    json!({
+        "type": "object",
+        "properties": { "themeId": { "type": "integer", "minimum": 1 } },
+        "required": ["themeId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
 }
 
 fn args_accept_import_review() -> Value {
@@ -977,7 +975,7 @@ fn args_create_project() -> Value {
 }
 
 fn args_create_theme() -> Value {
-    typed_input_schema::<crate::theme::CreateThemeInput>()
+    strict_typed_input_schema::<crate::theme::CreateThemeInput>()
 }
 
 fn args_create_invite_code() -> Value {
@@ -1819,7 +1817,7 @@ fn args_update_theme() -> Value {
             "input": raw_schema::<crate::theme::UpdateThemeInput>(),
         },
         "required": ["themeId", "input"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "x-a4n-schema-quality": "typed-input",
     })
 }
@@ -3194,6 +3192,31 @@ mod tests {
             "string"
         );
         assert_eq!(revoke.result_schema["x-a4n-schema-quality"], "typed");
+    }
+
+    #[test]
+    fn theme_commands_use_one_authenticated_identity() {
+        for command in [
+            "list_themes",
+            "create_theme",
+            "update_theme",
+            "delete_theme",
+            "activate_theme",
+            "export_theme",
+            "import_theme",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["x-a4n-context-fields"],
+                serde_json::json!([]),
+                "{command} must use the authenticated Host identity"
+            );
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command} must reject retired identity args"
+            );
+            assert!(descriptor.args_schema["properties"].get("userId").is_none());
+        }
     }
 
     #[test]
