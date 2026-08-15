@@ -23,9 +23,7 @@ pub use contracts::{
 pub(in crate::outline) use llm_stream::{
     OutlineLlmStreamContext, execute_outline_llm_call, with_outline_llm_stream,
 };
-pub(in crate::outline) use preview::{
-    blocked_outline_preview_step, ready_outline_preview_step, reused_outline_preview_step,
-};
+pub(in crate::outline) use preview::{ready_outline_preview_step, reused_outline_preview_step};
 pub use rules::{
     batch_parts_progress_total, order_parts_for_batch_generation, part_chapter_count,
     progress_total, required_outline_pacing_score,

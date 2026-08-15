@@ -33,19 +33,3 @@ pub fn reused_outline_preview_step(
         request: None,
     }
 }
-
-pub fn blocked_outline_preview_step(
-    key: impl Into<String>,
-    title: impl Into<String>,
-    prompt_name: impl Into<String>,
-    note: impl Into<String>,
-) -> OutlineRequestPreviewStep {
-    OutlineRequestPreviewStep {
-        key: key.into(),
-        title: title.into(),
-        prompt_name: prompt_name.into(),
-        state: "blocked".to_string(),
-        note: Some(note.into()),
-        request: None,
-    }
-}

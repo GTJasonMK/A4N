@@ -9,25 +9,17 @@ use a4n_llm::context::{
 };
 
 #[test]
-fn model_request_preview_counts_placeholder_steps_as_displayable() {
+fn model_request_preview_counts_only_ready_steps() {
     let preview = model_request_preview(
         "workflow",
         "title",
         vec![
             status_step("ready", "ready", "llm", None, "ready", None),
-            status_step(
-                "placeholder",
-                "placeholder",
-                "llm",
-                None,
-                "preview_placeholder",
-                None,
-            ),
-            blocked_step("blocked", "blocked", "llm", None, "等待前序输出"),
+            status_step("reused", "reused", "llm", None, "reused", None),
         ],
     );
 
-    assert_eq!(preview.ready_step_count, 2);
+    assert_eq!(preview.ready_step_count, 1);
 }
 
 #[test]
@@ -177,8 +169,8 @@ fn image_provider_request_step_uses_backend_request_body_and_redacts_media() {
 
 #[test]
 #[cfg(feature = "embedded-media-providers")]
-fn image_provider_request_step_blocks_unsupported_reference_images() {
-    let step = image_provider_request_step(
+fn image_provider_request_step_rejects_unsupported_reference_images() {
+    let error = image_provider_request_step(
         "image",
         "图片请求",
         None,
@@ -196,19 +188,15 @@ fn image_provider_request_step_blocks_unsupported_reference_images() {
             }],
         },
     )
-    .expect("blocked preview step");
+    .expect_err("unsupported provider request must fail");
 
-    assert_eq!(step.state, "blocked");
-    assert!(step.request.is_none());
-    let note = step.note.as_deref().unwrap();
-    assert!(note.contains("调用方备注"));
-    assert!(note.contains("真实请求不支持参考图输入"));
+    assert!(error.contains("真实请求不支持参考图输入"));
 }
 
 #[test]
 #[cfg(not(feature = "embedded-media-providers"))]
-fn image_provider_request_step_reports_disabled_provider_preview() {
-    let step = image_provider_request_step(
+fn image_provider_request_step_rejects_disabled_provider_preview() {
+    let error = image_provider_request_step(
         "image",
         "图片请求",
         None,
@@ -223,14 +211,7 @@ fn image_provider_request_step_reports_disabled_provider_preview() {
             reference_images: Vec::new(),
         },
     )
-    .expect("disabled preview should still return a blocked step");
+    .expect_err("disabled provider preview must fail");
 
-    assert_eq!(step.state, "blocked");
-    assert!(step.request.is_none());
-    assert!(
-        step.note
-            .as_deref()
-            .unwrap()
-            .contains("请使用 image sidecar")
-    );
+    assert!(error.contains("请使用 image sidecar"));
 }

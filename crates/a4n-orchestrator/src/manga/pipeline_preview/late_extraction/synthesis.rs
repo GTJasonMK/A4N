@@ -4,7 +4,7 @@ use serde_json::Value;
 use super::super::super::pipeline_prompt::{
     manga_chapter_comic_synthesis_user_message, validate_manga_chapter_comic_synthesis,
 };
-use super::super::call::{build_manga_preview_call, push_blocked_after};
+use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
     MangaPipelineRequestPreviewStep, MangaPreviewCall, MangaPreviewCallInput, MangaPreviewContext,
 };
@@ -60,7 +60,6 @@ pub(super) async fn preview_synthesis(
                 None,
                 *request,
             ));
-            push_blocked_after(steps, "manga_page_planning")?;
             return Ok(None);
         }
     };

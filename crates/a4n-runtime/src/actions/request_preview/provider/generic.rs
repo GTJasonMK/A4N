@@ -44,29 +44,3 @@ pub(crate) fn provider_request_step<T: Serialize>(
         })),
     })
 }
-
-pub(crate) fn blocked_step(
-    key: impl Into<String>,
-    title: impl Into<String>,
-    kind: impl Into<String>,
-    prompt_name: impl Into<Option<String>>,
-    note: impl Into<String>,
-) -> ModelRequestPreviewStep {
-    ModelRequestPreviewStep {
-        key: key.into(),
-        title: title.into(),
-        kind: kind.into(),
-        prompt_name: prompt_name.into(),
-        state: "blocked".to_string(),
-        note: Some(note.into()),
-        system_prompt: None,
-        user_prompt: None,
-        messages: None,
-        request: None,
-        context_manifest: None,
-        context_plan: None,
-        context_pack_refs: None,
-        total_chars: 0,
-        char_counts: None,
-    }
-}

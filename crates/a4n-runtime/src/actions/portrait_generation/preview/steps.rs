@@ -1,5 +1,5 @@
 use crate::actions::request_preview::{
-    ChatRequestStepInput, ModelRequestPreview, ModelRequestPreviewStep, blocked_step,
+    ChatRequestStepInput, ModelRequestPreview, ModelRequestPreviewStep,
     chat_request_step_for_state, image_provider_request_step, model_request_preview,
     provider_request_step,
 };
@@ -73,20 +73,5 @@ pub(super) async fn provider_preview_step(
         None,
         &config.backend,
         request,
-    )
-}
-
-pub(super) fn blocked_preview_step(
-    key: &str,
-    title: &str,
-    kind: &str,
-    note: &str,
-) -> ModelRequestPreviewStep {
-    blocked_step(
-        key.to_string(),
-        title.to_string(),
-        kind.to_string(),
-        None,
-        note.to_string(),
     )
 }

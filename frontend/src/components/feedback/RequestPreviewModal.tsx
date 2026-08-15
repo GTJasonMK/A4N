@@ -104,9 +104,7 @@ const charLabel = (value: number): string => `${value.toLocaleString()} 字符`;
 
 const stateLabel = (state: string): string => {
   if (state === "ready") return "可预览";
-  if (state === "preview_placeholder") return "结构预览";
   if (state === "reused") return "复用";
-  if (state === "blocked") return "等待前序输出";
   return "暂不可用";
 };
 
@@ -125,16 +123,12 @@ const stateClass = (state: string): string => {
   if (state === "reused") {
     return "text-info";
   }
-  if (state === "preview_placeholder") {
-    return "text-warning";
-  }
   return "text-warning";
 };
 
 const stateIcon = (state: string) => {
   if (state === "ready") return <CheckCircle2 size={11} />;
   if (state === "reused") return <RotateCcw size={11} />;
-  if (state === "preview_placeholder") return <CheckCircle2 size={11} />;
   return <XCircle size={11} />;
 };
 

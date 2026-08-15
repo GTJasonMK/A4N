@@ -704,9 +704,8 @@ impl OrchestratorContext {
             .await?;
         let variables = HashMap::new();
         let mut all_steps = Vec::new();
-        let mut first_ready_seen = false;
         for part in parts {
-            let mut steps = self
+            let steps = self
                 .preview_generate_part_chapter_outline_requests(
                     input.project_id,
                     part.id,
@@ -714,21 +713,11 @@ impl OrchestratorContext {
                     &variables,
                 )
                 .await?;
-            for step in &mut steps {
-                if step.state == "ready" {
-                    if first_ready_seen {
-                        step.state = "blocked".to_string();
-                        step.note = Some(
-                            "该请求位于批量流程后续阶段，依赖前序章节大纲生成并写入后的上下文。"
-                                .to_string(),
-                        );
-                        step.request = None;
-                    } else {
-                        first_ready_seen = true;
-                    }
-                }
-            }
+            let has_request = steps.iter().any(|step| step.request.is_some());
             all_steps.extend(steps);
+            if has_request {
+                break;
+            }
         }
         Ok(all_steps)
     }

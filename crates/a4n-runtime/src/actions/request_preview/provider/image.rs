@@ -10,7 +10,7 @@ use a4n_image_providers::image_provider_request_body_preview;
 use serde_json::Value;
 
 use super::super::contracts::ModelRequestPreviewStep;
-use super::generic::{blocked_step, provider_request_step};
+use super::generic::provider_request_step;
 
 pub(crate) fn image_provider_request_step(
     key: impl Into<String>,
@@ -26,25 +26,17 @@ pub(crate) fn image_provider_request_step(
     let prompt_name = prompt_name.into();
     let state = state.into();
     let note = note.into();
-    match image_provider_preview_payload(backend, &request) {
-        Ok((kind, provider_note, provider_request)) => provider_request_step(
-            key,
-            title,
-            kind,
-            prompt_name,
-            state,
-            join_preview_notes(note, Some(provider_note)),
-            &provider_request,
-        ),
-        Err(err) => Ok(blocked_step(
-            key,
-            title,
-            "image_generation",
-            prompt_name,
-            join_preview_notes(note, Some(err))
-                .unwrap_or_else(|| "图片 provider 请求不可用".into()),
-        )),
-    }
+    let (kind, provider_note, provider_request) =
+        image_provider_preview_payload(backend, &request)?;
+    provider_request_step(
+        key,
+        title,
+        kind,
+        prompt_name,
+        state,
+        join_preview_notes(note, Some(provider_note)),
+        &provider_request,
+    )
 }
 
 #[cfg(feature = "embedded-media-providers")]

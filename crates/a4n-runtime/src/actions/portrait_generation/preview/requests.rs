@@ -1,6 +1,4 @@
-use super::steps::{
-    blocked_preview_step, chat_preview_step, portrait_preview, provider_preview_step,
-};
+use super::steps::{chat_preview_step, portrait_preview, provider_preview_step};
 use crate::{
     actions::{
         access, portrait_records::portrait_project_id_for_user,
@@ -55,21 +53,13 @@ pub async fn preview_generate_portrait_request(
     input: GeneratePortraitInput,
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
+    validate_reference_image_ids(&input.reference_image_ids)?;
     let prompt_renderer = state;
     let request = state
         .orchestrator()
         .prepare_generate_portrait_request_preview_validated(&input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
-    let reference_count = validate_reference_image_ids(&input.reference_image_ids)?.len();
-    let image_step_message = if reference_count > 0 {
-        format!(
-            "该图片请求依赖上一步模型返回的 image prompt，生成前无法伪造完整 provider request；真实生成会附带 {reference_count} 张参考图。"
-        )
-    } else {
-        "该图片请求依赖上一步模型返回的 image prompt，生成前无法伪造完整 provider request"
-            .to_string()
-    };
     portrait_preview(
         "portrait_generation",
         "人物三视图拆解生成请求预览",
@@ -82,12 +72,6 @@ pub async fn preview_generate_portrait_request(
                 request,
             )
             .await?,
-            blocked_preview_step(
-                "portrait_image",
-                "人物三视图拆解图片 provider 请求",
-                "image_generation",
-                &image_step_message,
-            ),
         ],
     )
 }

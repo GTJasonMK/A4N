@@ -5,7 +5,7 @@ use serde_json::Value;
 use super::super::super::pipeline_json::parse_manga_page_plan;
 use super::super::super::pipeline_prompt::manga_page_planning_user_message;
 use super::super::super::shooting_script_projection::manga_page_planning_source;
-use super::super::call::{build_manga_preview_call, push_blocked_after};
+use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
     MangaPipelineRequestPreviewStep, MangaPreviewCall, MangaPreviewCallInput, MangaPreviewContext,
 };
@@ -53,7 +53,6 @@ pub(super) async fn preview_page_plan(
                 None,
                 *request,
             ));
-            push_blocked_after(steps, "manga_page_drawing_prompt")?;
             return Ok(None);
         }
     };

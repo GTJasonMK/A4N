@@ -4,7 +4,7 @@ use serde_json::Value;
 use super::super::super::pipeline_prompt::{
     manga_visual_anchor_extraction_user_message, validate_manga_visual_anchor_source_span_ids,
 };
-use super::super::call::{build_manga_preview_call, push_blocked_after};
+use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
     MangaPipelineRequestPreviewStep, MangaPreviewCall, MangaPreviewCallInput, MangaPreviewContext,
 };
@@ -51,7 +51,6 @@ pub(super) async fn preview_visual(
                 None,
                 *request,
             ));
-            push_blocked_after(steps, "manga_item_extraction")?;
             return Ok(None);
         }
     };

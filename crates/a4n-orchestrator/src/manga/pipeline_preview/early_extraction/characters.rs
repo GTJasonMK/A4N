@@ -5,7 +5,7 @@ use super::super::super::pipeline_json::required_object_field;
 use super::super::super::pipeline_prompt::{
     manga_character_binding_user_message, validate_manga_character_binding_source_span_ids,
 };
-use super::super::call::{build_manga_preview_call, push_blocked_after};
+use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
     MangaPipelineRequestPreviewStep, MangaPreviewCall, MangaPreviewCallInput, MangaPreviewContext,
 };
@@ -55,7 +55,6 @@ pub(super) async fn preview_characters(
                 None,
                 *request,
             ));
-            push_blocked_after(steps, "manga_speech_selection")?;
             return Ok(None);
         }
     };

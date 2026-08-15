@@ -3,10 +3,7 @@ use crate::{
     actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state},
 };
 
-use super::super::{
-    SendOptimizationMessageInput,
-    preview::{blocked_step, chat_step},
-};
+use super::super::{SendOptimizationMessageInput, preview::chat_step};
 
 pub async fn preview_send_optimization_message_request(
     state: &AppState,
@@ -29,22 +26,14 @@ pub async fn preview_send_optimization_message_request(
         state,
         "optimization_chat_agent_loop",
         "内容优化对话 Agent 请求预览",
-        vec![
-            chat_step(
-                "optimization_chat_step_1",
-                "内容优化对话 Agent Loop 第 1 步",
-                Some("content_optimization_chat"),
-                "ready",
-                None,
-                request,
-            ),
-            blocked_step(
-                "optimization_chat_followup",
-                "内容优化对话 Agent Loop 后续步骤",
-                Some("content_optimization_chat"),
-                "后续请求依赖上一轮模型决策、工具观察和补丁结果",
-            ),
-        ],
+        vec![chat_step(
+            "optimization_chat_step_1",
+            "内容优化对话 Agent Loop 第 1 步",
+            Some("content_optimization_chat"),
+            "ready",
+            None,
+            request,
+        )],
         "llm_chat",
     )
     .await

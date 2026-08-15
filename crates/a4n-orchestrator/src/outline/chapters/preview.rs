@@ -11,9 +11,8 @@ use crate::outline::chapter_contract::{
 };
 use crate::outline::context::load_chapter_outline_generation_context;
 use crate::outline::{
-    OrchestratorContext, OutlineRequestPreviewStep, blocked_outline_preview_step,
-    ready_outline_preview_step, reused_outline_preview_step,
-    validate_existing_chapter_outline_for_request,
+    OrchestratorContext, OutlineRequestPreviewStep, ready_outline_preview_step,
+    reused_outline_preview_step, validate_existing_chapter_outline_for_request,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -118,7 +117,6 @@ impl OrchestratorContext {
         ensure_focus_part_in_context(focus_part, &context.parts)?;
 
         let mut steps = Vec::new();
-        let mut first_pending_seen = false;
         for chapter_number in start_chapter..=end_chapter {
             let expected_part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
@@ -141,16 +139,6 @@ impl OrchestratorContext {
                 continue;
             }
 
-            if first_pending_seen {
-                steps.push(blocked_outline_preview_step(
-                    format!("chapter_{chapter_number}"),
-                    title,
-                    "outline",
-                    "该章节请求依赖前一章纲生成并写入后的上下文，需先完成前序章节。",
-                ));
-                continue;
-            }
-
             let request = build_chapter_outline_request(ChapterOutlineRequestInput {
                 project_id,
                 context: &context,
@@ -168,7 +156,7 @@ impl OrchestratorContext {
                 "outline",
                 request,
             ));
-            first_pending_seen = true;
+            break;
         }
 
         Ok(steps)

@@ -5,7 +5,7 @@ use super::super::super::pipeline_prompt::{
     manga_item_available_source_span_ids, manga_item_extraction_user_message,
     validate_manga_item_extraction_source_span_ids,
 };
-use super::super::call::{build_manga_preview_call, push_blocked_after};
+use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
     MangaPipelineRequestPreviewStep, MangaPreviewCall, MangaPreviewCallInput, MangaPreviewContext,
 };
@@ -57,7 +57,6 @@ pub(super) async fn preview_items(
                 None,
                 *request,
             ));
-            push_blocked_after(steps, "manga_chapter_comic_synthesis")?;
             return Ok(None);
         }
     };

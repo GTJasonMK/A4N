@@ -12,5 +12,4 @@ pub struct BlueprintStageSpec {
     pub restored_message: &'static str,
     pub output_schema: &'static str,
     pub expected_top_level_keys: &'static [&'static str],
-    pub blocked_note: &'static str,
 }

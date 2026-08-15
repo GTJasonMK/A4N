@@ -27,32 +27,21 @@ pub(in crate::blueprint) async fn preview_generate_requests(
         build_blueprint_generation_payload(novel_title, genre, target_length, variables)?;
     let user_payload_json = serde_json::to_string_pretty(&user_payload)?;
 
-    let mut steps = Vec::new();
-    let mut next_missing_seen = false;
-    for spec in &BLUEPRINT_GENERATION_STAGES {
-        if next_missing_seen {
-            steps.push(blocked_blueprint_preview_step(
-                spec.key,
-                spec.title,
-                spec.blocked_note,
-            ));
-            continue;
-        }
-        let request = build_blueprint_stage_request(BlueprintStageRequestInput {
-            prompt_renderer,
-            project_id,
-            base_prompt: &prompt_content,
-            user_payload_json: &user_payload_json,
-            stage_key: spec.key,
-            stage_name: spec.title,
-            output_schema: spec.output_schema,
-            previous_context: None,
-        })
-        .await?;
-        steps.push(ready_blueprint_preview_step(spec.key, spec.title, request));
-        next_missing_seen = true;
-    }
-    Ok(steps)
+    let spec = &BLUEPRINT_GENERATION_STAGES[0];
+    let request = build_blueprint_stage_request(BlueprintStageRequestInput {
+        prompt_renderer,
+        project_id,
+        base_prompt: &prompt_content,
+        user_payload_json: &user_payload_json,
+        stage_key: spec.key,
+        stage_name: spec.title,
+        output_schema: spec.output_schema,
+        previous_context: None,
+    })
+    .await?;
+    Ok(vec![ready_blueprint_preview_step(
+        spec.key, spec.title, request,
+    )])
 }
 
 fn ready_blueprint_preview_step(
@@ -67,57 +56,5 @@ fn ready_blueprint_preview_step(
         state: "ready".to_string(),
         note: None,
         request: Some(request),
-    }
-}
-
-fn blocked_blueprint_preview_step(
-    key: &str,
-    title: &str,
-    note: &str,
-) -> BlueprintGenerationPreviewStep {
-    BlueprintGenerationPreviewStep {
-        key: key.to_string(),
-        title: title.to_string(),
-        prompt_name: BLUEPRINT_STAGE_PREVIEW_PROMPT_NAME.to_string(),
-        state: "blocked".to_string(),
-        note: Some(note.to_string()),
-        request: None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use a4n_llm::provider::{ChatMessage, ChatRequest};
-
-    use super::*;
-
-    #[test]
-    fn projects_ready_and_blocked_preview_states() {
-        let ready = ready_blueprint_preview_step(
-            "story_core",
-            "阶段 1/4：故事核心",
-            ChatRequest::new(
-                vec![ChatMessage::user("生成故事核心")],
-                None,
-                None,
-                Some("blueprint".to_string()),
-            ),
-        );
-        assert_eq!(ready.state, "ready");
-        assert!(ready.note.is_none());
-        assert!(ready.request.is_some());
-        assert_eq!(ready.prompt_name, BLUEPRINT_STAGE_PREVIEW_PROMPT_NAME);
-
-        let blocked = blocked_blueprint_preview_step(
-            "world",
-            "阶段 2/4：世界观",
-            "需要先获得故事核心阶段输出。",
-        );
-        assert_eq!(blocked.state, "blocked");
-        assert_eq!(
-            blocked.note.as_deref(),
-            Some("需要先获得故事核心阶段输出。")
-        );
-        assert!(blocked.request.is_none());
     }
 }

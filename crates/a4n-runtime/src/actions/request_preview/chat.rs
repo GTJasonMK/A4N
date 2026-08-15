@@ -11,10 +11,7 @@ pub(crate) fn model_request_preview(
     title: impl Into<String>,
     steps: Vec<ModelRequestPreviewStep>,
 ) -> ModelRequestPreview {
-    let ready_step_count = steps
-        .iter()
-        .filter(|step| step.state == "ready" || step.state == "preview_placeholder")
-        .count();
+    let ready_step_count = steps.iter().filter(|step| step.state == "ready").count();
     let total_chars = steps.iter().map(|step| step.total_chars).sum();
     ModelRequestPreview {
         workflow: workflow.into(),

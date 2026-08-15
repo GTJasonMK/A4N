@@ -4,7 +4,7 @@ use serde_json::Value;
 use super::super::super::pipeline_prompt::{
     manga_speech_selection_user_message, validate_manga_speech_selection_source_span_ids,
 };
-use super::super::call::{build_manga_preview_call, push_blocked_after};
+use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
     MangaPipelineRequestPreviewStep, MangaPreviewCall, MangaPreviewCallInput, MangaPreviewContext,
 };
@@ -59,7 +59,6 @@ pub(super) async fn preview_speech(
                 None,
                 *request,
             ));
-            push_blocked_after(steps, "manga_visual_anchor_extraction")?;
             return Ok(None);
         }
     };

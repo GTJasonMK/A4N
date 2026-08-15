@@ -5,10 +5,7 @@ use a4n_core::error::AppError;
 
 use crate::outline::context::load_part_generation_context;
 use crate::outline::part_contract::validate_existing_parts_for_plan;
-use crate::outline::{
-    OrchestratorContext, OutlineRequestPreviewStep, blocked_outline_preview_step,
-    ready_outline_preview_step,
-};
+use crate::outline::{OrchestratorContext, OutlineRequestPreviewStep, ready_outline_preview_step};
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::contracts::PartOutlineRequestInput;
@@ -51,50 +48,33 @@ impl OrchestratorContext {
             AppError::InvalidArgument(format!("待预览分部数量超过 i32 范围：{}", batch.len()))
         })?;
 
-        let mut steps = Vec::new();
         let previous_parts = if regenerate {
             Vec::new()
         } else {
             context.parts.clone()
         };
-        let mut first_pending_seen = false;
-
-        for (part_num, start_ch, end_ch) in batch {
-            let title = format!("第 {part_num}/{num_parts} 部（第 {start_ch}-{end_ch} 章）");
-
-            if first_pending_seen {
-                steps.push(blocked_outline_preview_step(
-                    format!("part_{part_num}"),
-                    title,
-                    "part_outline_single",
-                    "该分部请求依赖前一部分部模型输出，需先完成前序阶段。",
-                ));
-                continue;
-            }
-
-            let request = build_part_outline_request(PartOutlineRequestInput {
-                project_id,
-                part_num,
-                start_ch,
-                end_ch,
-                chapters_per_part: context.chapters_per_part,
-                requested_part_count: context.requested_part_count,
-                blueprint_context: &context.blueprint_payload,
-                previous_parts: &previous_parts,
-                source_snapshot: &context.source_snapshot,
-                prompt_renderer,
-                variables,
-            })
-            .await?;
-            steps.push(ready_outline_preview_step(
-                format!("part_{part_num}"),
-                title,
-                "part_outline_single",
-                request,
-            ));
-            first_pending_seen = true;
-        }
-
-        Ok(steps)
+        let Some((part_num, start_ch, end_ch)) = batch.into_iter().next() else {
+            return Ok(Vec::new());
+        };
+        let request = build_part_outline_request(PartOutlineRequestInput {
+            project_id,
+            part_num,
+            start_ch,
+            end_ch,
+            chapters_per_part: context.chapters_per_part,
+            requested_part_count: context.requested_part_count,
+            blueprint_context: &context.blueprint_payload,
+            previous_parts: &previous_parts,
+            source_snapshot: &context.source_snapshot,
+            prompt_renderer,
+            variables,
+        })
+        .await?;
+        Ok(vec![ready_outline_preview_step(
+            format!("part_{part_num}"),
+            format!("第 {part_num}/{num_parts} 部（第 {start_ch}-{end_ch} 章）"),
+            "part_outline_single",
+            request,
+        )])
     }
 }
