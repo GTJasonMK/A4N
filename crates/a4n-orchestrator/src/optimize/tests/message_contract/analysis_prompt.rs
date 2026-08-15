@@ -10,7 +10,7 @@ fn content_optimization_user_message_uses_json_payload() {
                 "previous_chapters": 1
             }
         })),
-        &OptimizeAgentPermissions::default(),
+        &optimize_test_permissions(),
         Some("优先找逻辑漏洞"),
     )
     .expect("content optimization prompt should serialize");
@@ -49,6 +49,7 @@ fn content_optimization_user_message_uses_json_payload() {
 #[test]
 fn content_optimization_analysis_prompt_detection_uses_payload_task_name() {
     let now = Utc::now().naive_utc();
+    let permissions = optimize_test_permissions();
     let chat_prompt = build_content_optimization_chat_user_message(
         "帮我解释这段",
         &optimization_session::Model {
@@ -58,13 +59,14 @@ fn content_optimization_analysis_prompt_detection_uses_payload_task_name() {
             name: None,
             status: "active".to_string(),
             issues: None,
-            agent_permissions: None,
+            agent_permissions: Some(permissions.as_value()),
             agent_instruction: None,
             fixes_applied: 0,
             summary: None,
             created_at: now,
             updated_at: now,
         },
+        &permissions,
         &json!([]),
         &json!({}),
     )
@@ -81,7 +83,7 @@ fn content_optimization_user_message_rejects_blank_content() {
     let err = build_content_optimization_user_message(
         " \n\t ",
         None,
-        &OptimizeAgentPermissions::default(),
+        &optimize_test_permissions(),
         None,
     )
     .expect_err("blank chapter content must fail");
@@ -90,8 +92,8 @@ fn content_optimization_user_message_rejects_blank_content() {
 }
 
 #[test]
-fn agent_permissions_default_to_read_only_context() {
-    let permissions = OptimizeAgentPermissions::from_variables(&std::collections::HashMap::new());
+fn agent_permissions_fixture_allows_read_only_context() {
+    let permissions = optimize_test_permissions();
 
     assert!(permissions.read_project_detail);
     assert!(permissions.read_blueprint);

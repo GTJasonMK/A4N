@@ -14,14 +14,14 @@ import {
   listOptimizePatchSets,
   listOptimizeSessions,
   listOptimizeTurns,
+  type OptimizePatchSet,
   type OptimizeSession,
   type OptimizeTurn,
-  type ProposeOptimizationPatchesResponse,
 } from "../../../api/optimize";
 import type { ToastType } from "../../../components/feedback/Toast";
 import {
   initialSelectedChapter,
-  latestPendingPatchProposal,
+  latestPendingPatchSet,
 } from "./optimizeTabUtils";
 
 type AddToast = (message: unknown, type: ToastType) => void;
@@ -32,7 +32,7 @@ interface UseOptimizeSessionStateParams {
   taskRunning: boolean;
   addToast: AddToast;
   setPendingPatchState: (
-    proposal: ProposeOptimizationPatchesResponse | null,
+    proposal: OptimizePatchSet | null,
     baseContent: string | null,
   ) => void;
   clearPendingPatchState: () => void;
@@ -133,7 +133,7 @@ export function useOptimizeSessionState({
       }
       setActiveSession(session);
       setTurns(sessionTurns);
-      const proposal = latestPendingPatchProposal(patchSets, session.project_id);
+      const proposal = latestPendingPatchSet(patchSets);
       setPendingPatchState(
         proposal,
         proposal ? chapterContentById(proposal.chapter_id) : null,

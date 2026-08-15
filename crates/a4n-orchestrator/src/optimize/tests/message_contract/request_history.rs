@@ -11,7 +11,7 @@ fn content_optimization_patch_user_message_includes_capability_boundary() {
     let prompt = build_content_optimization_patch_user_message(
         "hash-001",
         &issues,
-        &OptimizeAgentPermissions::default(),
+        &optimize_test_permissions(),
         Some("只处理动机问题"),
     )
     .expect("patch prompt should serialize");
@@ -37,7 +37,7 @@ fn content_optimization_patch_request_moves_content_and_context_into_manifest() 
         description: "主角行动动机不足".to_string(),
         severity: "major".to_string(),
     }];
-    let permissions = OptimizeAgentPermissions::default();
+    let permissions = optimize_test_permissions();
     let user_message = build_content_optimization_patch_user_message(
         "hash-001",
         &issues,

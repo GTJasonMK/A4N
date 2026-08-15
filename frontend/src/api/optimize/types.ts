@@ -11,7 +11,6 @@ import type {
   OptimizationTurnSummary,
   PrepareOptimizationAnalysisSessionInput as ApiPrepareOptimizationAnalysisSessionInput,
   ProposeOptimizationPatchesInput as ApiProposeOptimizationPatchesInput,
-  ProposeOptimizationPatchesResponse as ApiProposeOptimizationPatchesResponse,
   SendOptimizationMessageInput as ApiSendOptimizationMessageInput,
 } from "../generated/host";
 
@@ -23,24 +22,9 @@ export type AnalyzeChapterInput = ApiAnalyzeChapterInput;
 export type CreateOptimizationChatSessionInput = ApiCreateOptimizationChatSessionInput;
 export type PrepareOptimizationAnalysisSessionInput =
   ApiPrepareOptimizationAnalysisSessionInput;
-export type OptimizationPatch = Omit<ApiOptimizationPatch, "operation"> & {
-  operation: "replace" | "delete" | "insert_before" | "insert_after";
-};
-export type OptimizePatchSet = Omit<OptimizationPatchSetSummary, "patches"> & {
-  patches: OptimizationPatch[];
-};
-export type ProposeOptimizationPatchesResponse = Omit<
-  ApiProposeOptimizationPatchesResponse,
-  "patches"
-> & {
-  patches: OptimizationPatch[];
-};
+export type OptimizationPatch = ApiOptimizationPatch;
+export type OptimizePatchSet = OptimizationPatchSetSummary;
 export type ApplyOptimizationPatchesResponse = ApiApplyOptimizationPatchesResponse;
 export type ProposeOptimizationPatchesInput = ApiProposeOptimizationPatchesInput;
-export type ApplyOptimizationPatchesInput = Omit<
-  ApiApplyOptimizationPatchesInput,
-  "patches"
-> & {
-  patches: OptimizationPatch[];
-};
+export type ApplyOptimizationPatchesInput = ApiApplyOptimizationPatchesInput;
 export type SendOptimizationMessageInput = ApiSendOptimizationMessageInput;

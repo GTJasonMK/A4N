@@ -13,6 +13,7 @@ use chrono::Utc;
 use serde_json::json;
 use std::path::Path;
 
+mod discard_flow;
 mod message_contract;
 mod patch_flow;
 

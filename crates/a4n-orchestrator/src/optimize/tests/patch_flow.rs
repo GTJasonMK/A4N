@@ -1,4 +1,5 @@
 use super::*;
+use a4n_api_contract::optimize::OptimizationPatchOperation;
 
 #[test]
 fn apply_optimization_patches_rejects_stale_hash() {
@@ -6,7 +7,7 @@ fn apply_optimization_patches_rejects_stale_hash() {
     let patch = OptimizationPatch {
         patch_id: "patch-001".to_string(),
         issue_id: Some("issue-plot-1".to_string()),
-        operation: "replace".to_string(),
+        operation: OptimizationPatchOperation::Replace,
         old_text: "主角收到旧信，决定进入旧城".to_string(),
         new_text: "主角收到旧信，又想起信中提到的旧城印记，决定进入旧城".to_string(),
         reason: "补足动机".to_string(),
@@ -25,7 +26,7 @@ fn apply_optimization_patches_requires_unique_old_text() {
     let patch = OptimizationPatch {
         patch_id: "patch-001".to_string(),
         issue_id: None,
-        operation: "replace".to_string(),
+        operation: OptimizationPatchOperation::Replace,
         old_text: "旧城".to_string(),
         new_text: "长安旧城".to_string(),
         reason: "明确地点".to_string(),
@@ -46,7 +47,7 @@ fn apply_optimization_patches_rejects_noop_replace() {
     let patch = OptimizationPatch {
         patch_id: "patch-noop".to_string(),
         issue_id: None,
-        operation: "replace".to_string(),
+        operation: OptimizationPatchOperation::Replace,
         old_text: "乙。".to_string(),
         new_text: "乙。".to_string(),
         reason: "无变化".to_string(),
@@ -67,7 +68,7 @@ fn apply_optimization_patches_supports_delete_and_insert_operations() {
         OptimizationPatch {
             patch_id: "patch-delete".to_string(),
             issue_id: None,
-            operation: "delete".to_string(),
+            operation: OptimizationPatchOperation::Delete,
             old_text: "乙。".to_string(),
             new_text: String::new(),
             reason: "删除冗余句".to_string(),
@@ -76,7 +77,7 @@ fn apply_optimization_patches_supports_delete_and_insert_operations() {
         OptimizationPatch {
             patch_id: "patch-before".to_string(),
             issue_id: None,
-            operation: "insert_before".to_string(),
+            operation: OptimizationPatchOperation::InsertBefore,
             old_text: "丙。".to_string(),
             new_text: "转折。".to_string(),
             reason: "补充转折".to_string(),
@@ -85,7 +86,7 @@ fn apply_optimization_patches_supports_delete_and_insert_operations() {
         OptimizationPatch {
             patch_id: "patch-after".to_string(),
             issue_id: None,
-            operation: "insert_after".to_string(),
+            operation: OptimizationPatchOperation::InsertAfter,
             old_text: "甲。".to_string(),
             new_text: "铺垫。".to_string(),
             reason: "补充铺垫".to_string(),
@@ -106,7 +107,7 @@ fn apply_optimization_patches_rejects_invalid_new_text_for_operation() {
     let delete_patch = OptimizationPatch {
         patch_id: "patch-delete".to_string(),
         issue_id: None,
-        operation: "delete".to_string(),
+        operation: OptimizationPatchOperation::Delete,
         old_text: "乙。".to_string(),
         new_text: "不应存在".to_string(),
         reason: "删除冗余句".to_string(),
@@ -115,7 +116,7 @@ fn apply_optimization_patches_rejects_invalid_new_text_for_operation() {
     let insert_patch = OptimizationPatch {
         patch_id: "patch-insert".to_string(),
         issue_id: None,
-        operation: "insert_after".to_string(),
+        operation: OptimizationPatchOperation::InsertAfter,
         old_text: "甲。".to_string(),
         new_text: String::new(),
         reason: "补充铺垫".to_string(),

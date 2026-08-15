@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { Eye, Search, Send, ShieldCheck, Square, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ChapterSummary } from "../../../api/chapter";
-import type { ProposeOptimizationPatchesResponse } from "../../../api/optimize";
+import type { OptimizePatchSet } from "../../../api/optimize";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { isImeCompositionActive } from "../../../utils/ime";
@@ -14,7 +14,7 @@ interface OptimizeComposerProps {
   canProposePatches: boolean;
   cancellingOptimize: boolean;
   input: string;
-  pendingPatchProposal: ProposeOptimizationPatchesResponse | null;
+  pendingPatchProposal: OptimizePatchSet | null;
   reviewInEditor: boolean;
   taskRunning: boolean;
   onAnalyze: () => void;

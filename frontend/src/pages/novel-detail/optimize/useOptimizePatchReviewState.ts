@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type {
+  OptimizePatchSet,
   OptimizationPatch,
-  ProposeOptimizationPatchesResponse,
 } from "../../../api/optimize";
 import type { PatchReviewDecisions } from "./patchPreviewTypes";
 
@@ -14,7 +14,7 @@ const initialPatchReviewDecisions = (
 
 export function useOptimizePatchReviewState() {
   const [pendingPatchProposal, setPendingPatchProposal] =
-    useState<ProposeOptimizationPatchesResponse | null>(null);
+    useState<OptimizePatchSet | null>(null);
   const [pendingPatchBaseContent, setPendingPatchBaseContent] = useState<
     string | null
   >(null);
@@ -23,7 +23,7 @@ export function useOptimizePatchReviewState() {
 
   const setPendingPatchState = useCallback(
     (
-      proposal: ProposeOptimizationPatchesResponse | null,
+      proposal: OptimizePatchSet | null,
       baseContent: string | null,
     ) => {
       setPendingPatchProposal(proposal);

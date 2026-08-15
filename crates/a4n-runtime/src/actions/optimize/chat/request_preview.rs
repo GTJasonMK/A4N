@@ -5,7 +5,6 @@ use crate::{
 
 use super::super::{
     SendOptimizationMessageInput,
-    contracts::orchestrator_permissions,
     preview::{blocked_step, chat_step},
 };
 
@@ -14,7 +13,6 @@ pub async fn preview_send_optimization_message_request(
     user_id: i64,
     input: SendOptimizationMessageInput,
 ) -> Result<ModelRequestPreview, String> {
-    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let prompt_renderer = state;
     let request = state
         .orchestrator()
@@ -22,7 +20,7 @@ pub async fn preview_send_optimization_message_request(
             user_id,
             input.session_id,
             &input.message,
-            permissions.as_ref(),
+            &input.permissions,
             prompt_renderer,
         )
         .await

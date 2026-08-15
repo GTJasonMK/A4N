@@ -22,23 +22,20 @@ impl OrchestratorContext {
     pub(super) async fn build_chat_agent_context(
         &self,
         session: &optimization_session::Model,
-        permissions_override: Option<&OptimizeAgentPermissions>,
+        permissions: &OptimizeAgentPermissions,
     ) -> Result<ChatAgentContext, AppError> {
         let previous_turns = self.list_turns(session.id).await?;
         let conversation_history = optimization_chat_history(&previous_turns);
-        let permissions = permissions_override
-            .cloned()
-            .unwrap_or_else(|| OptimizeAgentPermissions::from_session(session));
         let analysis_context = build_content_optimization_context(
             self.database.connection(),
             session.project_id,
             session.chapter_id,
-            &permissions,
+            permissions,
         )
         .await?;
         let context_manifest = optimization_context_manifest(&analysis_context);
         Ok(ChatAgentContext {
-            permissions,
+            permissions: permissions.clone(),
             chat_context: analysis_context,
             context_manifest,
             conversation_history,
@@ -71,6 +68,7 @@ impl OrchestratorContext {
         let base_user_message = build_content_optimization_chat_user_message(
             user_text,
             session,
+            &chat_context.permissions,
             &chat_context.conversation_history,
             &chat_context.context_manifest,
         )?;

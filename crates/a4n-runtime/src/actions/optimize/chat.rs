@@ -5,8 +5,7 @@ use a4n_orchestrator::GenerationTaskAccessError;
 use a4n_orchestrator::optimize::optimization_agent_variables;
 
 use super::{
-    CreateOptimizationChatSessionInput, OptimizationSessionSummary,
-    contracts::orchestrator_permissions, projections::to_session_summary,
+    CreateOptimizationChatSessionInput, OptimizationSessionSummary, projections::to_session_summary,
 };
 
 mod request_preview;
@@ -58,8 +57,7 @@ pub async fn create_optimization_chat_session(
     user_id: i64,
     input: CreateOptimizationChatSessionInput,
 ) -> Result<OptimizationSessionSummary, String> {
-    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
-    let variables = optimization_agent_variables(permissions.as_ref());
+    let variables = optimization_agent_variables(&input.permissions);
     let session = state
         .orchestrator()
         .create_optimize_chat_session_for_user_validated(
@@ -71,5 +69,5 @@ pub async fn create_optimization_chat_session(
         )
         .await
         .map_err(|err| err.to_string())?;
-    Ok(to_session_summary(&session))
+    to_session_summary(&session)
 }

@@ -1,6 +1,6 @@
 import type {
+  OptimizePatchSet,
   OptimizationPatch,
-  ProposeOptimizationPatchesResponse,
 } from "../../../api/optimize";
 
 export type PatchReviewDecision = "pending" | "accepted" | "rejected";
@@ -8,7 +8,7 @@ export type PatchReviewDecision = "pending" | "accepted" | "rejected";
 export type PatchReviewDecisions = Record<string, PatchReviewDecision>;
 
 export interface OptimizationPatchPreviewController {
-  proposal: ProposeOptimizationPatchesResponse;
+  proposal: OptimizePatchSet;
   baseContent: string;
   automaticWriteback: boolean;
   taskRunning: boolean;

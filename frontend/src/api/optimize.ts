@@ -5,7 +5,6 @@ export type {
   OptimizeSession,
   OptimizeTurn,
   OptimizeTurnEvent,
-  ProposeOptimizationPatchesResponse,
 } from "./optimize/types";
 export * from "./optimize/permissions";
 export * from "./optimize/sessions";

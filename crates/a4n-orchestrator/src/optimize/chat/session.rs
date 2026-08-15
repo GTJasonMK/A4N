@@ -6,10 +6,8 @@ use a4n_db::optimize::OptimizationSessionCreateInput;
 use serde_json::Value;
 
 use crate::optimize::context::{build_content_optimization_context, optimization_context_manifest};
-use crate::optimize::{
-    OptimizeAgentPermissions, OrchestratorContext, optimize_db_error,
-    required_available_session_name,
-};
+use crate::optimize::permissions::optimization_permissions_from_variables;
+use crate::optimize::{OrchestratorContext, optimize_db_error, required_available_session_name};
 
 impl OrchestratorContext {
     /// 创建一个不先跑分析的普通交互会话。
@@ -27,7 +25,7 @@ impl OrchestratorContext {
             name,
         )
         .await?;
-        let permissions = OptimizeAgentPermissions::from_variables(variables);
+        let permissions = optimization_permissions_from_variables(variables)?;
         let analysis_context = build_content_optimization_context(
             self.database.connection(),
             project_id,

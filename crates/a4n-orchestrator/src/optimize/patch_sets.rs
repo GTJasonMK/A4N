@@ -68,7 +68,7 @@ impl OrchestratorContext {
                     .map(|patch| OptimizationPatchCreateInput {
                         patch_id: patch.patch_id.clone(),
                         issue_id: patch.issue_id.clone(),
-                        operation: patch.operation.clone(),
+                        operation: patch.operation.as_str().to_string(),
                         old_text: patch.old_text.clone(),
                         new_text: patch.new_text.clone(),
                         reason: patch.reason.clone(),

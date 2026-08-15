@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 6;
+pub const COMMAND_MANIFEST_VERSION: u32 = 7;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -291,7 +291,7 @@ command_specs! {
     "add_video_config" => args_add_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "apply_implicit_update_decision" => args_apply_implicit_update_decision, result_apply_implicit_update_decision, "profile";
-    "apply_optimization_patches" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "apply_optimization_patches" => args_apply_optimization_patches, result_apply_optimization_patches, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "apply_source_sync_decisions" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "assemble_chapter_videos" => args_assemble_chapter_videos, result_assembled_chapter_video_preview, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "attribute_history" => args_attribute_history, result_attribute_history, "profile", effect(READ_EFFECT);
@@ -321,8 +321,8 @@ command_specs! {
     "create_invite_code" => args_create_invite_code, result_opaque, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
     "create_object_profile" => args_create_object_profile, result_object_profile_mutation, "profile";
-    "create_optimization_analysis_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "create_optimization_chat_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "create_optimization_analysis_session" => args_create_optimization_analysis_session, result_optimization_session, "optimize", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "create_optimization_chat_session" => args_create_optimization_chat_session, result_optimization_session, "optimize", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_profile" => args_create_profile, result_create_profile, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_project" => args_create_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_scene_profile" => args_create_scene_profile, result_scene_profile_mutation, "profile", context(USER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -344,7 +344,7 @@ command_specs! {
     "delete_manga_by_chapter" => args_cancel_manga_pipeline, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_manga_prompt" => args_delete_manga_prompt, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_object_profile" => args_delete_object_profile, result_object_profile_delete, "profile", effect(DESTRUCTIVE_EFFECT);
-    "delete_optimize_session" => args_opaque, result_opaque, "auth", effect(DESTRUCTIVE_EFFECT);
+    "delete_optimize_session" => args_optimize_session, result_unit, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_profile" => args_delete_profile, result_delete_profile, "profile", effect(DESTRUCTIVE_EFFECT);
     "delete_project" => args_project_id, result_opaque, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "delete_scene_profile" => args_delete_scene_profile, result_scene_profile_delete, "profile", context(USER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -357,6 +357,7 @@ command_specs! {
     "diff_blueprint_versions" => args_diff_blueprint_versions, result_diff_blueprint_versions, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT);
     "diff_profile_chapters" => args_diff_profile_chapters, result_diff_profile_chapters, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "disable_user" => args_user_id, result_unit, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
+    "discard_pending_optimize_patch_sets" => args_optimize_session, result_unit, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "discover_character_profiles" => args_opaque, result_opaque, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "download_embedding_model" => args_download_embedding_model, result_download_embedding_model, "rag", execution("task"), capabilities(CAPABILITIES_EMBEDDING);
     "duplicate_project" => args_duplicate_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
@@ -404,7 +405,7 @@ command_specs! {
     "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
-    "get_optimize_session" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
+    "get_optimize_session" => args_optimize_session, result_optimization_session, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_primary_portrait" => args_get_primary_portrait, result_get_primary_portrait, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "get_profile_state_at_chapter" => args_get_profile_state_at_chapter, result_get_profile_state_at_chapter, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_project" => args_project_id, result_create_project, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
@@ -457,9 +458,9 @@ command_specs! {
     "list_model_provider_catalog" => args_get_llm_max_tokens_config, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
-    "list_optimize_patch_sets" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
-    "list_optimize_sessions" => args_opaque, result_opaque, "auth", effect(READ_EFFECT);
-    "list_optimize_turns" => args_opaque, result_opaque, "system", effect(READ_EFFECT);
+    "list_optimize_patch_sets" => args_optimize_session, result_optimization_patch_sets, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_optimize_sessions" => args_list_optimize_sessions, result_optimization_sessions, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_optimize_turns" => args_optimize_session, result_optimization_turns, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_parts" => args_project_id, result_part_outlines, "outline", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "list_pending_tasks" => empty_args_schema, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
@@ -492,7 +493,7 @@ command_specs! {
     "plan_galgame_assets" => args_cancel_galgame_pipeline, result_plan_galgame_assets, "galgame", context(NO_CONTEXT), references(REFERENCES_GENERATION_SPEC_IDS), idempotency("safe");
     "poll_video_job" => args_opaque, result_opaque, "video", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full);
     "prepare_chapter_generation_rag_embedding" => args_prepare_chapter_generation_rag_embedding, result_prepare_chapter_generation_rag_embedding, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
-    "prepare_optimization_analysis_session" => args_opaque, result_opaque, "auth", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "prepare_optimization_analysis_session" => args_prepare_optimization_analysis_session, result_optimization_session, "optimize", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "preview_apply_beat_mapping_request" => args_apply_beat_mapping, result_model_request_preview, "system", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_batch_generate_part_outlines_request" => args_batch_generate_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_batch_images_request" => args_preview_batch_images_request, result_model_request_preview, "asset", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -504,7 +505,7 @@ command_specs! {
     "preview_check_character_conflict_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_implicit_update_request" => args_check_implicit_update, result_model_request_preview, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_continue_part_outlines_request" => args_continue_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_create_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_create_optimization_analysis_session_request" => args_create_optimization_analysis_session, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_discover_character_profiles_request" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_galgame_pipeline_request" => args_preview_galgame_pipeline_request, result_model_request_preview, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_age_variant_request" => args_preview_generate_age_variant_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -519,8 +520,8 @@ command_specs! {
     "preview_inspiration_request" => args_preview_inspiration_request, result_model_request_preview, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_object_profile_image_request" => args_preview_object_profile_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_page_image_request" => args_preview_page_image_request, result_model_request_preview, "asset", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_prepare_optimization_analysis_session_request" => args_opaque, result_opaque, "auth", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_propose_optimization_patches_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_prepare_optimization_analysis_session_request" => args_prepare_optimization_analysis_session, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_propose_optimization_patches_request" => args_propose_optimization_patches, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_reference_media_video_request" => args_preview_reference_media_video_request, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_refine_blueprint_request" => args_preview_refine_blueprint_request, result_model_request_preview, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_regenerate_chapter_outline_request" => args_regenerate_chapter_outline, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -533,7 +534,7 @@ command_specs! {
     "preview_reverse_engineer_request" => args_preview_reverse_engineer, result_model_request_preview, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_rollback" => args_forward_project_status, result_preview_rollback, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "preview_scene_image_request" => args_preview_scene_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_send_optimization_message_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_send_optimization_message_request" => args_send_optimization_message, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_source_sync" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(READ_EFFECT);
     "preview_start_manga_pipeline_request" => args_preview_start_manga_pipeline_request, result_model_request_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_sync_all_character_profiles_request" => args_preview_sync_all_character_profiles_request, result_model_request_preview, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -563,11 +564,10 @@ command_specs! {
     "rag_prepare_ingest_all" => args_rag_prepare_ingest_all, result_rag_prepare_ingest_all, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_upload_ingest_embeddings" => args_rag_upload_ingest_embeddings, result_rag_ingest, "rag", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
     "read_recent_logs" => args_read_recent_logs, result_read_recent_logs, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
-    "record_optimize_agent_event" => args_opaque, result_opaque, "system";
+    "record_optimize_agent_event" => args_record_optimize_agent_event, result_unit, "optimize", context(NO_CONTEXT);
     "refresh_token" => args_refresh_token, result_refresh_token, "auth", identity(PUBLIC_IDENTITY), secrets(REFRESH_TOKEN_SECRET_POINTERS);
     "register_user" => args_register_user, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "reject_import_review" => args_import_review_id, result_import_review, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMPORT);
-    "reject_pending_optimize_patch_sets" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
     "remove_image_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "remove_project_member" => args_member_user_id, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "remove_video_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
@@ -876,6 +876,10 @@ fn args_apply_assembly_postprocess_edit() -> Value {
     })
 }
 
+fn args_apply_optimization_patches() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::ApplyOptimizationPatchesInput>()
+}
+
 fn args_assemble_chapter_videos() -> Value {
     json!({
         "type": "object",
@@ -978,6 +982,14 @@ fn args_create_freeform_video_project() -> Value {
 
 fn args_create_llm_config() -> Value {
     strict_typed_input_schema::<crate::config::CreateLlmInput>()
+}
+
+fn args_create_optimization_analysis_session() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::AnalyzeChapterInput>()
+}
+
+fn args_create_optimization_chat_session() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::CreateOptimizationChatSessionInput>()
 }
 
 fn args_create_profile() -> Value {
@@ -1514,6 +1526,10 @@ fn args_list_images_by_project() -> Value {
     strict_typed_input_schema::<crate::image::ListImagesByProjectInput>()
 }
 
+fn args_list_optimize_sessions() -> Value {
+    strict_typed_input_schema::<crate::optimize::ListOptimizeSessionsInput>()
+}
+
 fn args_list_object_profiles() -> Value {
     strict_typed_input_schema::<crate::profile::ListObjectProfilesInput>()
 }
@@ -1569,6 +1585,18 @@ fn args_optimize_chapter_video_prompt() -> Value {
 
 fn args_optimize_manga_prompt() -> Value {
     strict_typed_input_schema::<crate::manga::OptimizeMangaPromptInput>()
+}
+
+fn args_optimize_session() -> Value {
+    strict_typed_input_schema::<crate::optimize::OptimizeSessionInput>()
+}
+
+fn args_prepare_optimization_analysis_session() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::PrepareOptimizationAnalysisSessionInput>()
+}
+
+fn args_propose_optimization_patches() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::ProposeOptimizationPatchesInput>()
 }
 
 fn args_preview_canvas_node_request() -> Value {
@@ -1801,6 +1829,10 @@ fn args_request_attribute_deletion() -> Value {
     strict_typed_input_schema::<crate::character::RequestAttributeDeletionInput>()
 }
 
+fn args_record_optimize_agent_event() -> Value {
+    strict_typed_input_schema::<crate::optimize::RecordOptimizeAgentEventInput>()
+}
+
 fn args_reset_deletion_marks() -> Value {
     strict_typed_input_schema::<crate::character::ResetDeletionMarksInput>()
 }
@@ -1851,6 +1883,10 @@ fn args_save_chapter_outline() -> Value {
 
 fn args_save_part_outline() -> Value {
     strict_typed_input_schema::<crate::outline::SavePartOutlineInput>()
+}
+
+fn args_send_optimization_message() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::SendOptimizationMessageInput>()
 }
 
 fn args_select_segment_video() -> Value {
@@ -2227,6 +2263,10 @@ fn result_assembly_push() -> Value {
 
 fn result_apply_implicit_update_decision() -> Value {
     typed_schema::<crate::character::ApplyImplicitUpdateDecisionResultSummary>()
+}
+
+fn result_apply_optimization_patches() -> Value {
+    typed_schema::<crate::optimize::ApplyOptimizationPatchesResponse>()
 }
 
 fn result_attribute_history() -> Value {
@@ -2651,6 +2691,22 @@ fn result_login_user() -> Value {
 
 fn result_optimize_chapter_video_prompt() -> Value {
     typed_schema::<crate::video::ChapterVideoPromptSummary>()
+}
+
+fn result_optimization_patch_sets() -> Value {
+    typed_schema::<Vec<crate::optimize::OptimizationPatchSetSummary>>()
+}
+
+fn result_optimization_session() -> Value {
+    typed_schema::<crate::optimize::OptimizationSessionSummary>()
+}
+
+fn result_optimization_sessions() -> Value {
+    typed_schema::<Vec<crate::optimize::OptimizationSessionSummary>>()
+}
+
+fn result_optimization_turns() -> Value {
+    typed_schema::<Vec<crate::optimize::OptimizationTurnSummary>>()
 }
 
 fn result_plan_galgame_assets() -> Value {
@@ -3124,6 +3180,76 @@ mod tests {
                 "{command}"
             );
         }
+    }
+
+    #[test]
+    fn optimize_commands_expose_one_strict_typed_contract() {
+        let commands = [
+            "apply_optimization_patches",
+            "create_optimization_analysis_session",
+            "create_optimization_chat_session",
+            "delete_optimize_session",
+            "discard_pending_optimize_patch_sets",
+            "get_optimize_session",
+            "list_optimize_patch_sets",
+            "list_optimize_sessions",
+            "list_optimize_turns",
+            "prepare_optimization_analysis_session",
+            "preview_create_optimization_analysis_session_request",
+            "preview_prepare_optimization_analysis_session_request",
+            "preview_propose_optimization_patches_request",
+            "preview_send_optimization_message_request",
+            "record_optimize_agent_event",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+
+        for command in commands {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["properties"]["input"]["additionalProperties"], false,
+                "{command}",
+            );
+            assert_eq!(
+                descriptor.result_schema["x-a4n-schema-quality"], "typed",
+                "{command}",
+            );
+        }
+
+        for command in [
+            "apply_optimization_patches",
+            "create_optimization_analysis_session",
+            "create_optimization_chat_session",
+            "prepare_optimization_analysis_session",
+            "preview_create_optimization_analysis_session_request",
+            "preview_prepare_optimization_analysis_session_request",
+            "preview_propose_optimization_patches_request",
+            "preview_send_optimization_message_request",
+        ] {
+            assert!(
+                command_descriptor(command).unwrap().args_schema["properties"]
+                    .get("runtime_config_snapshot")
+                    .is_some(),
+                "{command}",
+            );
+        }
+
+        let apply = command_descriptor("apply_optimization_patches").unwrap();
+        assert!(
+            apply.args_schema["properties"]["input"]["properties"]
+                .get("confirmed_apply")
+                .is_none()
+        );
+        assert!(
+            apply.result_schema["properties"]
+                .get("session_id")
+                .is_none()
+        );
+        assert!(
+            apply.result_schema["properties"]
+                .get("content_hash")
+                .is_none()
+        );
+        assert!(command_descriptor("reject_pending_optimize_patch_sets").is_none());
     }
 
     #[test]

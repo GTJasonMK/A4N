@@ -14,6 +14,7 @@ use super::context::{build_content_optimization_context, optimization_context_ma
 use super::messages::{build_content_optimization_user_message, optimization_dimensions};
 use super::permissions::{
     OptimizeAgentPermissions, insert_optimization_agent_capability_variables,
+    optimization_permissions_from_variables,
 };
 use super::{OrchestratorContext, optimize_db_error, required_available_session_name};
 use a4n_prompt::rendering::PromptRenderer;

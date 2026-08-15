@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use a4n_api_contract::optimize::OptimizationPatchOperation;
 use a4n_core::error::AppError;
 
 use super::super::{
@@ -16,7 +17,6 @@ pub(super) fn normalize_optimization_patch(mut patch: OptimizationPatch) -> Opti
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
-    patch.operation = patch.operation.trim().to_string();
     patch.old_text = patch.old_text.trim().to_string();
     patch.new_text = patch.new_text.trim().to_string();
     patch.reason = patch.reason.trim().to_string();
@@ -59,34 +59,27 @@ pub(super) fn validate_optimization_patches(
                 patch.patch_id
             )));
         }
-        if !matches!(
-            patch.operation.as_str(),
-            "replace" | "delete" | "insert_before" | "insert_after"
-        ) {
-            return Err(AppError::InvalidArgument(format!(
-                "补丁 {} operation 必须是 replace、delete、insert_before 或 insert_after",
-                patch.patch_id
-            )));
-        }
         if patch.old_text.is_empty() {
             return Err(AppError::InvalidArgument(format!(
                 "补丁 {} old_text 不能为空",
                 patch.patch_id
             )));
         }
-        if patch.operation == "delete" && !patch.new_text.is_empty() {
+        if patch.operation == OptimizationPatchOperation::Delete && !patch.new_text.is_empty() {
             return Err(AppError::InvalidArgument(format!(
                 "补丁 {} operation=delete 时 new_text 必须为空字符串",
                 patch.patch_id
             )));
         }
-        if patch.operation != "delete" && patch.new_text.is_empty() {
+        if patch.operation != OptimizationPatchOperation::Delete && patch.new_text.is_empty() {
             return Err(AppError::InvalidArgument(format!(
                 "补丁 {} operation={} 时 new_text 不能为空",
                 patch.patch_id, patch.operation
             )));
         }
-        if patch.operation == "replace" && patch.old_text == patch.new_text {
+        if patch.operation == OptimizationPatchOperation::Replace
+            && patch.old_text == patch.new_text
+        {
             return Err(AppError::InvalidArgument(format!(
                 "补丁 {} operation=replace 时 new_text 不能与 old_text 相同",
                 patch.patch_id
@@ -106,7 +99,9 @@ pub(super) fn validate_optimization_patches(
             )));
         }
         let new_chars = patch.new_text.chars().count();
-        if patch.operation != "delete" && new_chars > OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS {
+        if patch.operation != OptimizationPatchOperation::Delete
+            && new_chars > OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS
+        {
             return Err(AppError::InvalidArgument(format!(
                 "补丁 {} new_text 过长：{} 字，最大 {} 字",
                 patch.patch_id, new_chars, OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS

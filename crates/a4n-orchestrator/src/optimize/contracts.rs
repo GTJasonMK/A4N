@@ -9,7 +9,7 @@ use super::agent_loop_executor::AgentLoopGenerationContext;
 pub(in crate::optimize) struct OptimizeSendUserMessageInput<'a, 'generation> {
     pub session_id: i64,
     pub message: &'a str,
-    pub permissions_override: Option<&'a OptimizeAgentPermissions>,
+    pub permissions: &'a OptimizeAgentPermissions,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub workflow_run_id: i64,
     pub generation: &'generation AgentLoopGenerationContext<'generation>,

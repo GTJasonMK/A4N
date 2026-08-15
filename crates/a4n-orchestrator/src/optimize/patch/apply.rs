@@ -1,3 +1,4 @@
+use a4n_api_contract::optimize::OptimizationPatchOperation;
 use a4n_core::error::AppError;
 use a4n_core::source_spans::source_text_hash;
 
@@ -40,16 +41,14 @@ pub fn apply_optimization_patches_to_content(
                 patch.patch_id, occurrences
             )));
         }
-        let replacement = match patch.operation.as_str() {
-            "replace" => patch.new_text.clone(),
-            "delete" => String::new(),
-            "insert_before" => format!("{}{}", patch.new_text, patch.old_text),
-            "insert_after" => format!("{}{}", patch.old_text, patch.new_text),
-            _ => {
-                return Err(AppError::InvalidArgument(format!(
-                    "补丁 {} operation 非法：{}",
-                    patch.patch_id, patch.operation
-                )));
+        let replacement = match patch.operation {
+            OptimizationPatchOperation::Replace => patch.new_text.clone(),
+            OptimizationPatchOperation::Delete => String::new(),
+            OptimizationPatchOperation::InsertBefore => {
+                format!("{}{}", patch.new_text, patch.old_text)
+            }
+            OptimizationPatchOperation::InsertAfter => {
+                format!("{}{}", patch.old_text, patch.new_text)
             }
         };
         next_content = next_content.replacen(&patch.old_text, &replacement, 1);

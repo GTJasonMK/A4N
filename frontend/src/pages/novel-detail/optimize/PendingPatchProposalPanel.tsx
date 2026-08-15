@@ -1,10 +1,10 @@
 import { CheckCircle2 } from "lucide-react";
-import type { ProposeOptimizationPatchesResponse } from "../../../api/optimize";
+import type { OptimizePatchSet } from "../../../api/optimize";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 
 interface PendingPatchProposalPanelProps {
-  proposal: ProposeOptimizationPatchesResponse;
+  proposal: OptimizePatchSet;
   automaticWriteback: boolean;
   reviewInEditor: boolean;
   taskRunning: boolean;

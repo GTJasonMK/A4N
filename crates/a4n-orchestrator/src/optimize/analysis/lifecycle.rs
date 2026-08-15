@@ -95,20 +95,13 @@ impl OrchestratorContext {
             });
         }
 
-        let permissions = if variables.contains_key("agent_permissions") {
-            OptimizeAgentPermissions::from_variables(variables)
-        } else {
-            OptimizeAgentPermissions::from_session(&session)
-        };
-        let mut effective_variables = variables.clone();
-        effective_variables.insert("agent_permissions".to_string(), permissions.as_value());
         let bundle = self
             .build_analysis_session_prompt_bundle(
                 session.project_id,
                 session.chapter_id,
                 chapter_content,
                 prompt_renderer,
-                &effective_variables,
+                variables,
             )
             .await?;
 

@@ -1415,7 +1415,6 @@
       "additionalProperties": false,
       "properties": {
         "automatic_writeback": {
-          "default": false,
           "type": "boolean"
         },
         "read_blueprint": {
@@ -1439,7 +1438,8 @@
         "read_blueprint",
         "read_outlines",
         "read_character_profiles",
-        "read_foreshadowing"
+        "read_foreshadowing",
+        "automatic_writeback"
       ],
       "type": "object"
     },
@@ -1978,6 +1978,7 @@
       "type": "string"
     },
     "ProposeOptimizationPatchesInput": {
+      "additionalProperties": false,
       "properties": {
         "agent_instruction": {
           "type": [
@@ -1996,6 +1997,7 @@
         },
         "session_id": {
           "format": "int64",
+          "minimum": 1,
           "type": "integer"
         }
       },
@@ -2088,14 +2090,7 @@
           "type": "string"
         },
         "permissions": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OptimizationAgentPermissions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/OptimizationAgentPermissions"
         },
         "session_id": {
           "format": "int64",
@@ -2105,7 +2100,8 @@
       },
       "required": [
         "session_id",
-        "message"
+        "message",
+        "permissions"
       ],
       "type": "object"
     },

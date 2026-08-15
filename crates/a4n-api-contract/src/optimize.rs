@@ -2,6 +2,7 @@ use super::generation_tasks::GenerationStartRequestMeta;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -11,20 +12,38 @@ pub struct OptimizationAgentPermissions {
     pub read_outlines: bool,
     pub read_character_profiles: bool,
     pub read_foreshadowing: bool,
-    #[serde(default)]
     pub automatic_writeback: bool,
 }
 
-impl Default for OptimizationAgentPermissions {
-    fn default() -> Self {
-        Self {
-            read_project_detail: true,
-            read_blueprint: true,
-            read_outlines: true,
-            read_character_profiles: true,
-            read_foreshadowing: true,
-            automatic_writeback: false,
+impl OptimizationAgentPermissions {
+    pub fn as_value(&self) -> Value {
+        serde_json::to_value(self).expect("optimization permissions must serialize")
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OptimizationPatchOperation {
+    Replace,
+    Delete,
+    InsertBefore,
+    InsertAfter,
+}
+
+impl OptimizationPatchOperation {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Replace => "replace",
+            Self::Delete => "delete",
+            Self::InsertBefore => "insert_before",
+            Self::InsertAfter => "insert_after",
         }
+    }
+}
+
+impl fmt::Display for OptimizationPatchOperation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
     }
 }
 
@@ -33,7 +52,7 @@ impl Default for OptimizationAgentPermissions {
 pub struct OptimizationPatch {
     pub patch_id: String,
     pub issue_id: Option<String>,
-    pub operation: String,
+    pub operation: OptimizationPatchOperation,
     pub old_text: String,
     pub new_text: String,
     pub reason: String,
@@ -48,12 +67,12 @@ pub struct OptimizationSessionSummary {
     pub name: Option<String>,
     pub status: String,
     pub issues: Option<Value>,
-    pub agent_permissions: Option<Value>,
+    pub agent_permissions: OptimizationAgentPermissions,
     pub agent_instruction: Option<String>,
     pub fixes_applied: i32,
     pub summary: Option<String>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -65,7 +84,7 @@ pub struct OptimizationTurnEventSummary {
     pub status: String,
     pub public_text: String,
     pub payload: Option<Value>,
-    pub created_at: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -74,12 +93,12 @@ pub struct OptimizationTurnSummary {
     pub session_id: i64,
     pub user_text: String,
     pub status: String,
-    pub permissions_snapshot: Option<Value>,
+    pub permissions_snapshot: OptimizationAgentPermissions,
     pub final_reply: Option<String>,
     pub error: Option<String>,
     pub events: Vec<OptimizationTurnEventSummary>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -92,70 +111,71 @@ pub struct OptimizationPatchSetSummary {
     pub status: String,
     pub summary: String,
     pub patches: Vec<OptimizationPatch>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct AnalyzeChapterInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub chapter_number: i32,
+    #[schemars(length(min = 1, max = 200))]
     pub name: String,
     pub mode: String,
     pub scope: Option<String>,
-    pub permissions: Option<OptimizationAgentPermissions>,
+    pub permissions: OptimizationAgentPermissions,
     pub agent_instruction: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct CreateOptimizationChatSessionInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub chapter_number: i32,
+    #[schemars(length(min = 1, max = 200))]
     pub name: String,
-    pub permissions: Option<OptimizationAgentPermissions>,
+    pub permissions: OptimizationAgentPermissions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct PrepareOptimizationAnalysisSessionInput {
+    #[schemars(range(min = 1))]
     pub session_id: i64,
     pub mode: String,
     pub scope: Option<String>,
-    pub permissions: Option<OptimizationAgentPermissions>,
+    pub permissions: OptimizationAgentPermissions,
     pub agent_instruction: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ProposeOptimizationPatchesInput {
+    #[schemars(range(min = 1))]
     pub session_id: i64,
     pub issue_ids: Option<Vec<String>>,
     pub agent_instruction: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ProposeOptimizationPatchesResponse {
-    pub session_id: i64,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub base_content_hash: String,
-    pub summary: String,
-    pub patches: Vec<OptimizationPatch>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ApplyOptimizationPatchesInput {
+    #[schemars(range(min = 1))]
     pub session_id: i64,
     pub base_content_hash: String,
     pub patches: Vec<OptimizationPatch>,
-    pub confirmed_apply: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ApplyOptimizationPatchesResponse {
-    pub session_id: i64,
     pub chapter_id: i64,
     pub applied_count: usize,
     pub word_count: i32,
-    pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -165,7 +185,32 @@ pub struct SendOptimizationMessageInput {
     pub session_id: i64,
     #[schemars(length(min = 1, max = 32768))]
     pub message: String,
-    pub permissions: Option<OptimizationAgentPermissions>,
+    pub permissions: OptimizationAgentPermissions,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ListOptimizeSessionsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OptimizeSessionInput {
+    #[schemars(range(min = 1))]
+    pub session_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RecordOptimizeAgentEventInput {
+    #[schemars(range(min = 1))]
+    pub session_id: i64,
+    #[schemars(length(min = 1, max = 32768))]
+    pub content: String,
 }
 
 /// Start one Optimize chat turn through the canonical generation task path.

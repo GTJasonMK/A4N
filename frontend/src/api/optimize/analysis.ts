@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
   GenerationTaskHandle,
@@ -16,7 +15,6 @@ export async function createOptimizationChatSession(
   input: CreateOptimizationChatSessionInput,
 ): Promise<OptimizeSession> {
   return apiInvoke<OptimizeSession>("create_optimization_chat_session", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -25,7 +23,6 @@ export async function createOptimizationAnalysisSession(
   input: AnalyzeChapterInput,
 ): Promise<OptimizeSession> {
   return apiInvoke<OptimizeSession>("create_optimization_analysis_session", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -34,7 +31,6 @@ export async function prepareOptimizationAnalysisSession(
   input: PrepareOptimizationAnalysisSessionInput,
 ): Promise<OptimizeSession> {
   return apiInvoke<OptimizeSession>("prepare_optimization_analysis_session", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -52,7 +48,7 @@ export async function previewCreateOptimizationAnalysisSessionRequest(
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>(
     "preview_create_optimization_analysis_session_request",
-    { userId: currentUserId(), input },
+    { input },
   );
 }
 
@@ -61,6 +57,6 @@ export async function previewPrepareOptimizationAnalysisSessionRequest(
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>(
     "preview_prepare_optimization_analysis_session_request",
-    { userId: currentUserId(), input },
+    { input },
   );
 }

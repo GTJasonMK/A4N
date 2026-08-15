@@ -591,11 +591,11 @@ export interface StartOptimizeChatGenerationInput {
 }
 export interface SendOptimizationMessageInput {
   message: string;
-  permissions?: OptimizationAgentPermissions | null;
+  permissions: OptimizationAgentPermissions;
   session_id: number;
 }
 export interface OptimizationAgentPermissions {
-  automatic_writeback?: boolean;
+  automatic_writeback: boolean;
   read_blueprint: boolean;
   read_character_profiles: boolean;
   read_foreshadowing: boolean;
@@ -613,7 +613,6 @@ export interface ProposeOptimizationPatchesInput {
   agent_instruction?: string | null;
   issue_ids?: string[] | null;
   session_id: number;
-  [k: string]: unknown;
 }
 export interface StartOutlineGenerationInput {
   meta: GenerationStartRequestMeta;

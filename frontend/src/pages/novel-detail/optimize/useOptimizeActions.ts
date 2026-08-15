@@ -12,6 +12,7 @@ import {
   createOptimizationAnalysisSession,
   createOptimizationChatSession,
   deleteOptimizeSession,
+  discardPendingOptimizePatchSets,
   getOptimizeSession,
   listOptimizePatchSets,
   prepareOptimizationAnalysisSession,
@@ -20,7 +21,6 @@ import {
   previewProposeOptimizationPatchesRequest,
   previewSendOptimizationMessageRequest,
   recordOptimizeAgentEvent,
-  rejectPendingOptimizePatchSets,
   listOptimizeTurns,
   optimizeGenerationTarget,
   startOptimizeAnalysisGeneration,
@@ -46,7 +46,7 @@ import type { OptimizationPatchPreviewController } from "./patchPreviewTypes";
 import {
   chapterOptionLabel,
   isReusableAgentSession,
-  latestPendingPatchProposal,
+  latestPendingPatchSet,
   parseOptimizeIssues,
   persistedTurnCount,
   requireSessionName,
@@ -377,18 +377,11 @@ export function useOptimizeActions({
                 (item) => item.turn_id === resultId && item.status === "pending",
               ) ?? null
             : null;
-          const proposal = patchSet
-            ? {
-                session_id: patchSet.session_id,
-                project_id: nextSession.project_id,
-                chapter_id: patchSet.chapter_id,
-                base_content_hash: patchSet.base_content_hash,
-                summary: patchSet.summary,
-                patches: patchSet.patches,
-              }
-            : generationKind === "optimization_patch"
+          const proposal = patchSet ?? (
+            generationKind === "optimization_patch"
               ? null
-              : latestPendingPatchProposal(patchSets, nextSession.project_id);
+              : latestPendingPatchSet(patchSets)
+          );
           setPendingPatchState(
             proposal,
             proposal ? chapterContentById(proposal.chapter_id) : null,
@@ -666,9 +659,9 @@ export function useOptimizeActions({
         startOptimizePatchGeneration({
           meta,
           request: {
-              session_id: sessionId,
-              issue_ids: null,
-              agent_instruction: instruction?.trim() || null,
+            session_id: sessionId,
+            issue_ids: null,
+            agent_instruction: instruction?.trim() || null,
           },
         }),
       );
@@ -704,7 +697,6 @@ export function useOptimizeActions({
           session_id: proposal.session_id,
           base_content_hash: proposal.base_content_hash,
           patches,
-          confirmed_apply: true,
         });
         clearPendingPatchState();
         appendLocalItem({
@@ -751,11 +743,7 @@ export function useOptimizeActions({
     const actionKey = "discard-patches";
     if (!beginAction(actionKey)) return;
     try {
-      await recordOptimizeAgentEvent(
-        proposal.session_id,
-        "用户要求丢弃当前待应用局部补丁，前端已清除待应用补丁。",
-      );
-      await rejectPendingOptimizePatchSets(proposal.session_id);
+      await discardPendingOptimizePatchSets(proposal.session_id);
       clearPendingPatchState();
       appendLocalItem({
         kind: "agent",

@@ -7,4 +7,4 @@ pub use application::apply_optimization_patches;
 pub use proposal::{
     preview_propose_optimization_patches_request, start_optimize_patch_generation_typed,
 };
-pub use status::reject_pending_optimize_patch_sets;
+pub use status::discard_pending_optimize_patch_sets;

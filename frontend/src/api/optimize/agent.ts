@@ -1,5 +1,4 @@
 import { apiInvoke } from "../index";
-import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
   GenerationTaskHandle,
@@ -18,7 +17,6 @@ export async function previewProposeOptimizationPatchesRequest(
   input: ProposeOptimizationPatchesInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_propose_optimization_patches_request", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -27,7 +25,6 @@ export async function applyOptimizationPatches(
   input: ApplyOptimizationPatchesInput,
 ): Promise<ApplyOptimizationPatchesResponse> {
   return apiInvoke<ApplyOptimizationPatchesResponse>("apply_optimization_patches", {
-    userId: currentUserId(),
     input,
   });
 }
@@ -74,7 +71,6 @@ export async function previewSendOptimizationMessageRequest(
   input: SendOptimizationMessageInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_send_optimization_message_request", {
-    userId: currentUserId(),
     input,
   });
 }

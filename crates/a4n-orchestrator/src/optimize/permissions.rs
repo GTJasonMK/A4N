@@ -2,124 +2,55 @@ use std::collections::HashMap;
 
 use a4n_core::error::AppError;
 use a4n_core::models::ai::optimization_session;
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+
+pub use a4n_api_contract::optimize::OptimizationAgentPermissions as OptimizeAgentPermissions;
 
 use super::{
     OPTIMIZATION_PATCH_MAX_COUNT, OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS,
     OPTIMIZATION_PATCH_OLD_TEXT_MAX_CHARS,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OptimizeAgentPermissions {
-    pub read_project_detail: bool,
-    pub read_blueprint: bool,
-    pub read_outlines: bool,
-    pub read_character_profiles: bool,
-    pub read_foreshadowing: bool,
-    #[serde(default)]
-    pub automatic_writeback: bool,
+pub(super) fn optimization_permissions_from_variables(
+    variables: &HashMap<String, Value>,
+) -> Result<OptimizeAgentPermissions, AppError> {
+    let value = variables.get("agent_permissions").ok_or_else(|| {
+        AppError::InvalidArgument("缺少内容优化权限 agent_permissions".to_string())
+    })?;
+    serde_json::from_value(value.clone()).map_err(|error| {
+        AppError::InvalidArgument(format!("内容优化权限 agent_permissions 无效: {error}"))
+    })
 }
 
-impl Default for OptimizeAgentPermissions {
-    fn default() -> Self {
-        Self {
-            read_project_detail: true,
-            read_blueprint: true,
-            read_outlines: true,
-            read_character_profiles: true,
-            read_foreshadowing: true,
-            automatic_writeback: false,
-        }
-    }
-}
-
-impl OptimizeAgentPermissions {
-    pub(super) fn from_variables(variables: &std::collections::HashMap<String, Value>) -> Self {
-        let Some(value) = variables
-            .get("agent_permissions")
-            .and_then(Value::as_object)
-        else {
-            return Self::default();
-        };
-        Self::from_object(value)
-    }
-
-    pub fn as_value(&self) -> Value {
-        json!({
-            "read_project_detail": self.read_project_detail,
-            "read_blueprint": self.read_blueprint,
-            "read_outlines": self.read_outlines,
-            "read_character_profiles": self.read_character_profiles,
-            "read_foreshadowing": self.read_foreshadowing,
-            "automatic_writeback": self.automatic_writeback,
-        })
-    }
-
-    pub(super) fn from_session(session: &optimization_session::Model) -> Self {
-        let Some(value) = session
-            .agent_permissions
-            .as_ref()
-            .and_then(Value::as_object)
-        else {
-            return Self::default();
-        };
-        Self::from_object(value)
-    }
-
-    fn from_object(value: &serde_json::Map<String, Value>) -> Self {
-        let defaults = Self::default();
-        Self {
-            read_project_detail: permission_bool(
-                value,
-                "read_project_detail",
-                defaults.read_project_detail,
-            ),
-            read_blueprint: permission_bool(value, "read_blueprint", defaults.read_blueprint),
-            read_outlines: permission_bool(value, "read_outlines", defaults.read_outlines),
-            read_character_profiles: permission_bool(
-                value,
-                "read_character_profiles",
-                defaults.read_character_profiles,
-            ),
-            read_foreshadowing: permission_bool(
-                value,
-                "read_foreshadowing",
-                defaults.read_foreshadowing,
-            ),
-            automatic_writeback: permission_bool(
-                value,
-                "automatic_writeback",
-                defaults.automatic_writeback,
-            ),
-        }
-    }
-}
-
-impl From<&a4n_api_contract::optimize::OptimizationAgentPermissions> for OptimizeAgentPermissions {
-    fn from(value: &a4n_api_contract::optimize::OptimizationAgentPermissions) -> Self {
-        Self {
-            read_project_detail: value.read_project_detail,
-            read_blueprint: value.read_blueprint,
-            read_outlines: value.read_outlines,
-            read_character_profiles: value.read_character_profiles,
-            read_foreshadowing: value.read_foreshadowing,
-            automatic_writeback: value.automatic_writeback,
-        }
-    }
+pub(super) fn optimization_permissions_from_session(
+    session: &optimization_session::Model,
+) -> Result<OptimizeAgentPermissions, AppError> {
+    let value = session
+        .agent_permissions
+        .clone()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "missing_agent_permissions".to_string(),
+            operation: format!("读取内容优化会话权限: session_id={}", session.id),
+        })?;
+    serde_json::from_value(value).map_err(|error| AppError::InvalidState {
+        current: "invalid_agent_permissions".to_string(),
+        operation: format!(
+            "读取内容优化会话权限失败: session_id={}, error={error}",
+            session.id
+        ),
+    })
 }
 
 pub fn optimization_agent_variables(
-    permissions: Option<&OptimizeAgentPermissions>,
+    permissions: &OptimizeAgentPermissions,
 ) -> HashMap<String, Value> {
-    let permissions = permissions.cloned().unwrap_or_default();
     HashMap::from([("agent_permissions".to_string(), permissions.as_value())])
 }
 
 pub fn optimization_analysis_variables(
     mode: &str,
     scope: Option<&str>,
-    permissions: Option<&OptimizeAgentPermissions>,
+    permissions: &OptimizeAgentPermissions,
     agent_instruction: Option<&str>,
 ) -> HashMap<String, Value> {
     let mut variables = optimization_agent_variables(permissions);
@@ -137,17 +68,6 @@ pub fn optimization_analysis_variables(
         );
     }
     variables
-}
-
-fn permission_bool(
-    object: &serde_json::Map<String, Value>,
-    key: &str,
-    default_value: bool,
-) -> bool {
-    object
-        .get(key)
-        .and_then(Value::as_bool)
-        .unwrap_or(default_value)
 }
 
 pub(super) fn optimization_agent_capabilities(permissions: &OptimizeAgentPermissions) -> Value {
@@ -211,9 +131,21 @@ pub(super) fn insert_optimization_agent_capability_variables(
 mod tests {
     use super::*;
 
+    fn permissions() -> OptimizeAgentPermissions {
+        OptimizeAgentPermissions {
+            read_project_detail: true,
+            read_blueprint: true,
+            read_outlines: true,
+            read_character_profiles: true,
+            read_foreshadowing: true,
+            automatic_writeback: false,
+        }
+    }
+
     #[test]
-    fn analysis_variables_keep_required_mode_and_default_permissions() {
-        let variables = optimization_analysis_variables("review", None, None, None);
+    fn analysis_variables_keep_required_mode_and_permissions() {
+        let permissions = permissions();
+        let variables = optimization_analysis_variables("review", None, &permissions, None);
 
         assert_eq!(variables.get("mode"), Some(&Value::String("review".into())));
         assert!(variables.contains_key("agent_permissions"));
@@ -226,7 +158,7 @@ mod tests {
         let variables = optimization_analysis_variables(
             "rewrite",
             Some(" chapter "),
-            None,
+            &permissions(),
             Some("  保留叙事视角  "),
         );
 
@@ -242,7 +174,8 @@ mod tests {
 
     #[test]
     fn analysis_variables_drop_blank_instruction() {
-        let variables = optimization_analysis_variables("review", None, None, Some("  "));
+        let permissions = permissions();
+        let variables = optimization_analysis_variables("review", None, &permissions, Some("  "));
 
         assert!(!variables.contains_key("agent_instruction"));
     }

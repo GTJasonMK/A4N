@@ -11,6 +11,7 @@ use a4n_core::models::ai::{
 use a4n_core::models::chapter::chapter;
 use a4n_db::DbHandle;
 use a4n_db::optimize::{OptimizationChapterPatchWriteInput, OptimizationSessionMessageInsertInput};
+use sea_orm::TransactionTrait;
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
@@ -132,20 +133,6 @@ impl OptimizeApplication {
         .map_err(optimize_db_error)
     }
 
-    async fn pending_optimization_patch_sets(
-        &self,
-        session_id: i64,
-        pending_status: &str,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        a4n_db::optimize::pending_optimization_patch_sets(
-            self.database.connection(),
-            session_id,
-            pending_status,
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
     async fn update_optimization_patch_set_status(
         &self,
         patch_set: optimization_patch_set::Model,
@@ -236,16 +223,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn pending_optimization_patch_sets(
-        &self,
-        session_id: i64,
-        pending_status: &str,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        self.optimize
-            .pending_optimization_patch_sets(session_id, pending_status)
-            .await
-    }
-
     pub(crate) async fn update_optimization_patch_set_status(
         &self,
         patch_set: optimization_patch_set::Model,
@@ -268,6 +245,49 @@ impl OrchestratorContext {
         session_id: i64,
     ) -> Result<Vec<optimization_turn::Model>, AppError> {
         self.optimize.optimization_turns(session_id).await
+    }
+
+    pub(crate) async fn discard_pending_optimization_patch_sets(
+        &self,
+        session_id: i64,
+        pending_status: &str,
+        rejected_status: &str,
+        rejected_decision: &str,
+        pending_apply_status: &str,
+        event_content: &str,
+    ) -> Result<(), AppError> {
+        let transaction = self.database.connection().begin().await?;
+        let patch_sets = a4n_db::optimize::pending_optimization_patch_sets(
+            &transaction,
+            session_id,
+            pending_status,
+        )
+        .await
+        .map_err(optimize_db_error)?;
+        for patch_set in patch_sets {
+            a4n_db::optimize::update_optimization_patch_set_status(
+                &transaction,
+                patch_set,
+                rejected_status,
+                rejected_decision,
+                pending_apply_status,
+            )
+            .await
+            .map_err(optimize_db_error)?;
+        }
+        a4n_db::optimize::insert_optimization_session_message(
+            &transaction,
+            OptimizationSessionMessageInsertInput {
+                session_id,
+                role: "agent_event".to_string(),
+                content: event_content.to_string(),
+                tool_calls: None,
+            },
+        )
+        .await
+        .map_err(optimize_db_error)?;
+        transaction.commit().await?;
+        Ok(())
     }
 }
 

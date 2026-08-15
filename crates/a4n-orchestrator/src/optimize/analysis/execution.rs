@@ -1,3 +1,4 @@
+use super::super::OrchestratorContext;
 use super::super::agent_loop::insert_current_chapter_content;
 use super::super::agent_loop_executor::{
     AgentLoopExecutionError, AgentLoopGenerationContext, ExplicitAnalysisAgentLoopInput,
@@ -5,7 +6,7 @@ use super::super::agent_loop_executor::{
 };
 use super::super::context::build_content_optimization_context;
 use super::super::messages::is_content_optimization_analysis_prompt;
-use super::super::{OptimizeAgentPermissions, OrchestratorContext};
+use crate::optimize::permissions::optimization_permissions_from_session;
 
 impl OrchestratorContext {
     /// 执行已经创建的优化分析会话，结果由 generation terminal 事务正式提交。
@@ -52,7 +53,7 @@ impl OrchestratorContext {
                 Some("章节正文为空，无法执行内容优化分析"),
             )
             .await?;
-        let permissions = OptimizeAgentPermissions::from_session(&session);
+        let permissions = optimization_permissions_from_session(&session)?;
         let mut analysis_context = build_content_optimization_context(
             self.database.connection(),
             session.project_id,

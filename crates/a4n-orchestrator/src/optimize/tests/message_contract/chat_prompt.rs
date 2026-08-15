@@ -1,6 +1,7 @@
 #[test]
 fn content_optimization_chat_user_message_uses_session_context() {
     let now = Utc::now().naive_utc();
+    let permissions = optimize_test_permissions();
     let session = optimization_session::Model {
         id: 7,
         project_id: 3,
@@ -14,7 +15,7 @@ fn content_optimization_chat_user_message_uses_session_context() {
             "description": "人物动机不足",
             "severity": "major"
         }])),
-        agent_permissions: None,
+        agent_permissions: Some(permissions.as_value()),
         agent_instruction: Some("优先检查动机".to_string()),
         fixes_applied: 0,
         summary: Some("发现 1 个问题".to_string()),
@@ -25,6 +26,7 @@ fn content_optimization_chat_user_message_uses_session_context() {
     let prompt = build_content_optimization_chat_user_message(
         "这里最大的漏洞是什么？",
         &session,
+        &permissions,
         &json!([{"role": "assistant", "content": "上一轮结论"}]),
         &json!({
             "sections": ["current_chapter", "previous_chapters"],

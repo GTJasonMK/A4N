@@ -78,6 +78,7 @@ export const HOST_API_COMMANDS = [
   "diff_blueprint_versions",
   "diff_profile_chapters",
   "disable_user",
+  "discard_pending_optimize_patch_sets",
   "discover_character_profiles",
   "download_embedding_model",
   "duplicate_project",
@@ -288,7 +289,6 @@ export const HOST_API_COMMANDS = [
   "refresh_token",
   "register_user",
   "reject_import_review",
-  "reject_pending_optimize_patch_sets",
   "remove_image_config",
   "remove_project_member",
   "remove_video_config",
@@ -2130,11 +2130,13 @@ export interface OptimizationAgentPermissions {
   read_project_detail: boolean;
 }
 
+export type OptimizationPatchOperation = "replace" | "delete" | "insert_before" | "insert_after";
+
 export interface OptimizationPatch {
   issue_id: string | null;
   new_text: string;
   old_text: string;
-  operation: string;
+  operation: OptimizationPatchOperation;
   patch_id: string;
   reason: string;
   risk: string | null;
@@ -2142,9 +2144,9 @@ export interface OptimizationPatch {
 
 export interface OptimizationSessionSummary {
   agent_instruction: string | null;
-  agent_permissions: unknown;
+  agent_permissions: OptimizationAgentPermissions;
   chapter_id: number;
-  created_at: string | null;
+  created_at: string;
   fixes_applied: number;
   id: number;
   issues: unknown;
@@ -2152,11 +2154,11 @@ export interface OptimizationSessionSummary {
   project_id: number;
   status: string;
   summary: string | null;
-  updated_at: string | null;
+  updated_at: string;
 }
 
 export interface OptimizationTurnEventSummary {
-  created_at: string | null;
+  created_at: string;
   id: number;
   kind: string;
   payload: unknown;
@@ -2167,29 +2169,29 @@ export interface OptimizationTurnEventSummary {
 }
 
 export interface OptimizationTurnSummary {
-  created_at: string | null;
+  created_at: string;
   error: string | null;
   events: OptimizationTurnEventSummary[];
   final_reply: string | null;
   id: number;
-  permissions_snapshot: unknown;
+  permissions_snapshot: OptimizationAgentPermissions;
   session_id: number;
   status: string;
-  updated_at: string | null;
+  updated_at: string;
   user_text: string;
 }
 
 export interface OptimizationPatchSetSummary {
   base_content_hash: string;
   chapter_id: number;
-  created_at: string | null;
+  created_at: string;
   id: number;
   patches: OptimizationPatch[];
   session_id: number;
   status: string;
   summary: string;
   turn_id: number;
-  updated_at: string | null;
+  updated_at: string;
 }
 
 export interface AnalyzeChapterInput {
@@ -2197,7 +2199,7 @@ export interface AnalyzeChapterInput {
   chapter_number: number;
   mode: string;
   name: string;
-  permissions?: OptimizationAgentPermissions | null;
+  permissions: OptimizationAgentPermissions;
   project_id: number;
   scope?: string | null;
 }
@@ -2205,14 +2207,14 @@ export interface AnalyzeChapterInput {
 export interface CreateOptimizationChatSessionInput {
   chapter_number: number;
   name: string;
-  permissions?: OptimizationAgentPermissions | null;
+  permissions: OptimizationAgentPermissions;
   project_id: number;
 }
 
 export interface PrepareOptimizationAnalysisSessionInput {
   agent_instruction?: string | null;
   mode: string;
-  permissions?: OptimizationAgentPermissions | null;
+  permissions: OptimizationAgentPermissions;
   scope?: string | null;
   session_id: number;
 }
@@ -2223,18 +2225,8 @@ export interface ProposeOptimizationPatchesInput {
   session_id: number;
 }
 
-export interface ProposeOptimizationPatchesResponse {
-  base_content_hash: string;
-  chapter_id: number;
-  patches: OptimizationPatch[];
-  project_id: number;
-  session_id: number;
-  summary: string;
-}
-
 export interface ApplyOptimizationPatchesInput {
   base_content_hash: string;
-  confirmed_apply: boolean;
   patches: OptimizationPatch[];
   session_id: number;
 }
@@ -2242,14 +2234,26 @@ export interface ApplyOptimizationPatchesInput {
 export interface ApplyOptimizationPatchesResponse {
   applied_count: number;
   chapter_id: number;
-  content_hash: string;
-  session_id: number;
   word_count: number;
 }
 
 export interface SendOptimizationMessageInput {
   message: string;
-  permissions?: OptimizationAgentPermissions | null;
+  permissions: OptimizationAgentPermissions;
+  session_id: number;
+}
+
+export interface ListOptimizeSessionsInput {
+  chapter_id?: number | null;
+  project_id: number;
+}
+
+export interface OptimizeSessionInput {
+  session_id: number;
+}
+
+export interface RecordOptimizeAgentEventInput {
+  content: string;
   session_id: number;
 }
 

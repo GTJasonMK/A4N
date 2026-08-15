@@ -2798,6 +2798,14 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
     .insert(&db)
     .await
     .unwrap();
+    let permissions = serde_json::json!({
+        "read_project_detail": true,
+        "read_blueprint": true,
+        "read_outlines": true,
+        "read_character_profiles": true,
+        "read_foreshadowing": true,
+        "automatic_writeback": false
+    });
     let session = a4n_db::optimize::create_optimization_session(
         &db,
         a4n_db::optimize::OptimizationSessionCreateInput {
@@ -2806,7 +2814,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
             name: Some("进程失败测试".to_string()),
             status: "waiting_user".to_string(),
             issues: None,
-            agent_permissions: None,
+            agent_permissions: Some(permissions.clone()),
             agent_instruction: None,
             fixes_applied: 0,
             summary: Some("普通交互会话".to_string()),
@@ -2861,7 +2869,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
         "request": {
             "session_id": session.id,
             "message": "请帮我优化这一段内容",
-            "permissions": null
+            "permissions": permissions
         }
     });
     let response = client

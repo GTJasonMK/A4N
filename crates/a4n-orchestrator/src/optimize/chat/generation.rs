@@ -20,7 +20,7 @@ use crate::{
         terminal::CompletionDescriptor,
     },
     optimize::{
-        AgentLoopGenerationContext, OptimizeAgentPermissions, OptimizeSendUserMessageInput,
+        AgentLoopGenerationContext, OptimizeSendUserMessageInput,
         agent_loop_error_to_generation_error, app_error_to_generation_error, optimize_progress,
     },
     workflow::WorkflowRunFinalizeOutcome,
@@ -119,10 +119,6 @@ impl OrchestratorContext {
             }
         };
 
-        let permissions = request
-            .permissions
-            .as_ref()
-            .map(OptimizeAgentPermissions::from);
         let generation = AgentLoopGenerationContext {
             publisher: &publisher,
             cancellation: &cancel_token,
@@ -133,7 +129,7 @@ impl OrchestratorContext {
             .send_user_message_with_permissions(OptimizeSendUserMessageInput {
                 session_id: request.session_id,
                 message: &request.message,
-                permissions_override: permissions.as_ref(),
+                permissions: &request.permissions,
                 prompt_renderer: context.prompt_renderer,
                 workflow_run_id: workflow.id,
                 generation: &generation,

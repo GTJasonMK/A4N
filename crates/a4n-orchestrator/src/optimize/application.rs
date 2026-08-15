@@ -38,18 +38,15 @@ pub struct PrepareOptimizeAnalysisApplicationInput<'a> {
 pub struct ApplyOptimizePatchesApplicationInput<'a> {
     pub user_id: i64,
     pub session_id: i64,
-    pub confirmed_apply: bool,
     pub base_content_hash: &'a str,
     pub patches: &'a [OptimizationPatch],
     pub host_port: &'a dyn OptimizePatchApplyHostPort,
 }
 
 pub struct ApplyOptimizePatchesApplicationResult {
-    pub session_id: i64,
     pub chapter_id: i64,
     pub applied_count: usize,
     pub word_count: i32,
-    pub content_hash: String,
 }
 
 impl OrchestratorContext {
@@ -178,14 +175,14 @@ impl OrchestratorContext {
         user_id: i64,
         session_id: i64,
         message: &str,
-        permissions_override: Option<&OptimizeAgentPermissions>,
+        permissions: &OptimizeAgentPermissions,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
         self.build_send_user_message_preview_request(
             session_id,
             message,
-            permissions_override,
+            permissions,
             prompt_renderer,
         )
         .await
@@ -242,11 +239,6 @@ impl OrchestratorContext {
             .optimize_session_for_user(input.user_id, input.session_id)
             .await?;
         let result = async {
-            if !input.confirmed_apply {
-                return Err(AppError::InvalidArgument(
-                    "应用局部补丁必须经过用户确认".to_string(),
-                ));
-            }
             if input.patches.is_empty() {
                 return Err(AppError::InvalidArgument(
                     "应用补丁列表不能为空".to_string(),
@@ -307,11 +299,9 @@ impl OrchestratorContext {
             self.mark_matching_patch_sets_applied(input.session_id, input.base_content_hash)
                 .await?;
             Ok(ApplyOptimizePatchesApplicationResult {
-                session_id: input.session_id,
                 chapter_id: updated.id,
                 applied_count: input.patches.len(),
                 word_count: updated.word_count,
-                content_hash,
             })
         }
         .await;
@@ -319,25 +309,21 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn reject_pending_optimize_patch_sets_for_user_validated(
+    pub async fn discard_pending_optimize_patch_sets_for_user_validated(
         &self,
         user_id: i64,
         session_id: i64,
     ) -> Result<(), AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
-        let patch_sets = self
-            .pending_optimization_patch_sets(session_id, PATCH_SET_STATUS_PENDING)
-            .await?;
-        for patch_set in patch_sets {
-            self.update_optimization_patch_set_status(
-                patch_set,
-                PATCH_SET_STATUS_REJECTED,
-                PATCH_DECISION_REJECTED,
-                PATCH_APPLY_STATUS_PENDING,
-            )
-            .await?;
-        }
-        Ok(())
+        self.discard_pending_optimization_patch_sets(
+            session_id,
+            PATCH_SET_STATUS_PENDING,
+            PATCH_SET_STATUS_REJECTED,
+            PATCH_DECISION_REJECTED,
+            PATCH_APPLY_STATUS_PENDING,
+            "用户已丢弃当前待应用局部补丁。",
+        )
+        .await
     }
 
     async fn mark_matching_patch_sets_applied(

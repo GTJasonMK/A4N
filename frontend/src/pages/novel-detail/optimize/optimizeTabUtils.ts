@@ -8,7 +8,6 @@ import type {
   OptimizeSession,
   OptimizeTurn,
   OptimizeTurnEvent,
-  ProposeOptimizationPatchesResponse,
 } from "../../../api/optimize";
 import {
   isJsonRecord as isRecord,
@@ -71,21 +70,9 @@ export const initialSelectedChapter = (
   chapterId: number | null | undefined,
 ): number | "" => (chapterId == null ? "" : chapterId);
 
-export function latestPendingPatchProposal(
+export const latestPendingPatchSet = (
   patchSets: OptimizePatchSet[],
-  projectId: number,
-): ProposeOptimizationPatchesResponse | null {
-  const patchSet = patchSets.find((item) => item.status === "pending");
-  if (!patchSet) return null;
-  return {
-    session_id: patchSet.session_id,
-    project_id: projectId,
-    chapter_id: patchSet.chapter_id,
-    base_content_hash: patchSet.base_content_hash,
-    summary: patchSet.summary,
-    patches: patchSet.patches,
-  };
-}
+): OptimizePatchSet | null => patchSets.find((item) => item.status === "pending") ?? null;
 
 export function persistedTurnCount(turns: OptimizeTurn[], text: string): number {
   const normalized = text.trim();

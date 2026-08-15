@@ -29,8 +29,8 @@ pub(super) async fn try_dispatch(
         "get_optimize_session" => get_optimize_session(state, user_id, args).await?,
         "list_optimize_turns" => list_optimize_turns(state, user_id, args).await?,
         "list_optimize_patch_sets" => list_optimize_patch_sets(state, user_id, args).await?,
-        "reject_pending_optimize_patch_sets" => {
-            reject_pending_optimize_patch_sets(state, user_id, args).await?
+        "discard_pending_optimize_patch_sets" => {
+            discard_pending_optimize_patch_sets(state, user_id, args).await?
         }
         "delete_optimize_session" => delete_optimize_session(state, user_id, args).await?,
         "record_optimize_agent_event" => record_optimize_agent_event(state, user_id, args).await?,

@@ -3,7 +3,7 @@ use a4n_orchestrator::optimize::optimization_analysis_variables;
 
 use super::super::{
     AnalyzeChapterInput, PrepareOptimizationAnalysisSessionInput,
-    contracts::orchestrator_permissions, preview::optimization_analysis_request_preview,
+    preview::optimization_analysis_request_preview,
 };
 
 pub async fn preview_create_optimization_analysis_session_request(
@@ -11,11 +11,10 @@ pub async fn preview_create_optimization_analysis_session_request(
     user_id: i64,
     input: AnalyzeChapterInput,
 ) -> Result<ModelRequestPreview, String> {
-    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_analysis_variables(
         &input.mode,
         input.scope.as_deref(),
-        permissions.as_ref(),
+        &input.permissions,
         input.agent_instruction.as_deref(),
     );
     let prompt_renderer = state;
@@ -38,11 +37,10 @@ pub async fn preview_prepare_optimization_analysis_session_request(
     user_id: i64,
     input: PrepareOptimizationAnalysisSessionInput,
 ) -> Result<ModelRequestPreview, String> {
-    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_analysis_variables(
         &input.mode,
         input.scope.as_deref(),
-        permissions.as_ref(),
+        &input.permissions,
         input.agent_instruction.as_deref(),
     );
     let prompt_renderer = state;

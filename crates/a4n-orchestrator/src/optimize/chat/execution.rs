@@ -21,7 +21,7 @@ impl OrchestratorContext {
         let OptimizeSendUserMessageInput {
             session_id,
             message,
-            permissions_override,
+            permissions,
             prompt_renderer,
             workflow_run_id,
             generation,
@@ -40,9 +40,7 @@ impl OrchestratorContext {
             )
             .await?;
 
-        let mut chat_context = self
-            .build_chat_agent_context(&session, permissions_override)
-            .await?;
+        let mut chat_context = self.build_chat_agent_context(&session, permissions).await?;
         insert_current_chapter_content(&mut chat_context.chat_context, &chapter.content);
 
         self.save_agent_event(
@@ -98,16 +96,14 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
         message: &str,
-        permissions_override: Option<&OptimizeAgentPermissions>,
+        permissions: &OptimizeAgentPermissions,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError> {
         let user_text = required_chat_user_text(message)?;
 
         let session = self.get_session(session_id).await?;
         ensure_chat_session_accepts_message(&session, "预览内容优化 Agent 对话")?;
-        let chat_context = self
-            .build_chat_agent_context(&session, permissions_override)
-            .await?;
+        let chat_context = self.build_chat_agent_context(&session, permissions).await?;
         let (system_prompt, base_user_message) = self
             .build_chat_agent_prompt_bundle(&session, user_text, &chat_context, prompt_renderer)
             .await?;

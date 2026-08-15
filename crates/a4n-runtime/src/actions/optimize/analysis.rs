@@ -9,7 +9,7 @@ use a4n_orchestrator::optimize::{
 
 use super::{
     AnalyzeChapterInput, OptimizationSessionSummary, PrepareOptimizationAnalysisSessionInput,
-    contracts::orchestrator_permissions, projections::to_session_summary,
+    projections::to_session_summary,
 };
 
 mod request_preview;
@@ -55,11 +55,10 @@ pub async fn create_optimization_analysis_session(
     user_id: i64,
     input: AnalyzeChapterInput,
 ) -> Result<OptimizationSessionSummary, String> {
-    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_analysis_variables(
         &input.mode,
         input.scope.as_deref(),
-        permissions.as_ref(),
+        &input.permissions,
         input.agent_instruction.as_deref(),
     );
     let prompt_renderer = state;
@@ -75,7 +74,7 @@ pub async fn create_optimization_analysis_session(
         )
         .await
         .map_err(|err| err.to_string())?;
-    Ok(to_session_summary(&session))
+    to_session_summary(&session)
 }
 
 pub async fn prepare_optimization_analysis_session(
@@ -84,23 +83,22 @@ pub async fn prepare_optimization_analysis_session(
     input: PrepareOptimizationAnalysisSessionInput,
 ) -> Result<OptimizationSessionSummary, String> {
     let session_id = input.session_id;
-    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_analysis_variables(
         &input.mode,
         input.scope.as_deref(),
-        permissions.as_ref(),
+        &input.permissions,
         input.agent_instruction.as_deref(),
     );
     let prompt_renderer = state;
-    state
+    let session = state
         .orchestrator()
         .prepare_optimize_analysis_session_validated(PrepareOptimizeAnalysisApplicationInput {
             user_id,
             session_id,
-            prompt_renderer: prompt_renderer,
+            prompt_renderer,
             variables: &variables,
         })
         .await
-        .map(|session| to_session_summary(&session))
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    to_session_summary(&session)
 }

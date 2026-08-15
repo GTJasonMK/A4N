@@ -6,7 +6,9 @@ use crate::optimize::messages::{
     build_content_optimization_patch_user_message, select_optimization_issues,
 };
 use crate::optimize::patch::optimization_content_hash;
-use crate::optimize::permissions::insert_optimization_agent_capability_variables;
+use crate::optimize::permissions::{
+    insert_optimization_agent_capability_variables, optimization_permissions_from_session,
+};
 use crate::optimize::{
     OrchestratorContext, PatchPromptBundle, PatchRequestBase,
     build_content_optimization_patch_request,
@@ -72,7 +74,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<PatchPromptBundle, AppError> {
         let selected_issues = select_optimization_issues(&base.session, issue_ids)?;
-        let permissions = crate::optimize::OptimizeAgentPermissions::from_session(&base.session);
+        let permissions = optimization_permissions_from_session(&base.session)?;
         let analysis_context = build_content_optimization_context(
             self.database.connection(),
             base.session.project_id,

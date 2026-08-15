@@ -43,7 +43,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<AnalysisSessionPromptBundle, AppError> {
-        let permissions = OptimizeAgentPermissions::from_variables(variables);
+        let permissions = optimization_permissions_from_variables(variables)?;
         let agent_instruction = variables
             .get("agent_instruction")
             .and_then(Value::as_str)
@@ -96,7 +96,7 @@ impl OrchestratorContext {
             "tools_prompt".to_string(),
             serde_json::Value::String(serde_json::to_string_pretty(&self.tool_specs())?),
         );
-        let permissions = OptimizeAgentPermissions::from_variables(variables);
+        let permissions = optimization_permissions_from_variables(variables)?;
         prompt_vars.insert("agent_permissions".to_string(), permissions.as_value());
         prompt_vars.insert(
             "agent_permissions_prompt".to_string(),

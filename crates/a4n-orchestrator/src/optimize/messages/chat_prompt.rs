@@ -10,6 +10,7 @@ use crate::optimize::{
 pub(in crate::optimize) fn build_content_optimization_chat_user_message(
     user_message: &str,
     session: &optimization_session::Model,
+    permissions: &OptimizeAgentPermissions,
     conversation_history: &Value,
     context_manifest: &Value,
 ) -> Result<String, AppError> {
@@ -20,7 +21,7 @@ pub(in crate::optimize) fn build_content_optimization_chat_user_message(
 
     let payload = json!({
         "write_policy": {
-            "automatic_writeback": OptimizeAgentPermissions::from_session(session).automatic_writeback,
+            "automatic_writeback": permissions.automatic_writeback,
             "edit_article_result": "edit_article 只返回待审阅补丁；automatic_writeback=false 时逐条审阅，automatic_writeback=true 时批量审阅",
         },
         "interaction_policy": {
