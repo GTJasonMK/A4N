@@ -208,12 +208,9 @@ pub use reference_media_generation::{
     ReferenceMediaVideoRequestPreview,
 };
 pub use reference_media_rules::{
-    MIN_PROVIDER_VISUAL_PROMPT_CHARS, REFERENCE_MEDIA_PREVIEW_PROMPT_PLACEHOLDER,
-    ReferenceMediaImportOptions, ReferenceMediaVideoInput, VideoProviderValidationMode,
-    ensure_reference_media_tokens, reference_media_dimensions_for_aspect_ratio,
-    reference_media_preview_placeholder_url, reference_media_prompt, reference_media_urls,
+    MIN_PROVIDER_VISUAL_PROMPT_CHARS, ReferenceMediaImportOptions, ReferenceMediaVideoInput,
+    VideoProviderValidationMode, reference_media_dimensions_for_aspect_ratio,
     validate_reference_media_import_options, validate_reference_media_start_input,
-    validation_error_or_preview_note,
 };
 pub use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,

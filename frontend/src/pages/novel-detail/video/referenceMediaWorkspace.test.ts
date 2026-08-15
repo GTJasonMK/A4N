@@ -4,7 +4,7 @@ import {
   normalizeReferenceMediaRows,
   referenceMediaDraftScopeKey,
   referenceMediaDraftFromRecipe,
-  referenceMediaGenerateDraftError,
+  referenceMediaDraftError,
   referenceMediaRecipeFromDraft,
 } from "./referenceMediaWorkspace";
 
@@ -40,7 +40,7 @@ describe("reference media draft persistence", () => {
 
     const restored = referenceMediaDraftFromRecipe(recipe);
     expect(normalizeReferenceMediaRows(restored.imageRows)).toHaveLength(1);
-    expect(referenceMediaGenerateDraftError(restored.prompt, {
+    expect(referenceMediaDraftError(restored.prompt, {
       image: restored.imageRows,
       video: restored.videoRows,
       audio: restored.audioRows,

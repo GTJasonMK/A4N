@@ -22,8 +22,10 @@ use a4n_core::{
 };
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
+use base64::Engine as _;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::test_support::TestOrchestratorBuilder;
@@ -262,8 +264,8 @@ fn seedance_config(id: i64) -> video_gen_config::Model {
         default_width: 1280,
         default_height: 720,
         default_duration_secs: 8,
-        min_duration_secs: 1,
-        max_duration_secs: 60,
+        min_duration_secs: 4,
+        max_duration_secs: 15,
         duration_mode: "range".to_string(),
         supported_durations_json: None,
         default_fps: 24,
@@ -312,6 +314,13 @@ async fn insert_reference_media_segment_plan(
     chapter_id: i64,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(3);
+    let source_content = chapter::Entity::find_by_id(chapter_id)
+        .one(db)
+        .await
+        .expect("查询参考媒体测试章节")
+        .expect("参考媒体测试章节应存在")
+        .content;
+    let source_content_sha256 = a4n_core::source_spans::source_text_hash(&source_content);
     let segment = reference_media_segment();
     let segment_sha256 = a4n_core::video_execution::video_segment_content_fingerprint(&segment)
         .expect("参考媒体测试片段应可计算指纹");
@@ -367,7 +376,7 @@ async fn insert_reference_media_segment_plan(
                 "projection_sha256": "projection",
                 "segment_plan_sha256": "segment-plan",
                 "unit_plan_sha256": "unit-plan",
-                "source_content_sha256": "source",
+                "source_content_sha256": source_content_sha256,
                 "style_sha256": "style",
                 "duration_secs": 8,
                 "aspect_ratio": "16:9",
@@ -516,6 +525,90 @@ async fn reference_media_preview_returns_request_body_without_submit() {
     assert_eq!(host.body_calls.load(Ordering::SeqCst), 1);
     assert!(preview.request.get("prompt").is_some());
     assert!(preview.note.contains("当前表单") || !preview.note.is_empty());
+}
+
+#[tokio::test]
+async fn reference_media_preview_rejects_generation_invalid_recipe() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let mut metadata = plan.metadata_json.expect("参考媒体规划应有 metadata");
+    metadata["segment_recipes"][0]["reference_media"]["prompt"] = json!("短");
+    chapter_video_prompt::ActiveModel {
+        id: Set(plan.id),
+        metadata_json: Set(Some(metadata)),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("应可写入无效参考媒体草稿用于边界测试");
+    let host = TestReferenceMediaHost::default();
+
+    let error = context
+        .preview_reference_media_video_request_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(plan.id),
+            },
+        )
+        .await
+        .expect_err("预览不得软化生成无效的 prompt");
+
+    assert!(error.to_string().contains("prompt 过短"));
+    assert_eq!(host.body_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn reference_media_preview_redacts_validated_local_upload_without_staging() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let bytes = b"validated local preview image";
+    let sha256 = format!("{:x}", Sha256::digest(bytes));
+    let data_base64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+    let mut metadata = plan.metadata_json.expect("参考媒体规划应有 metadata");
+    metadata["segment_recipes"][0]["reference_media"]["image_rows"][0] = json!({
+        "url": "",
+        "usage": "人物外观与服装一致性参考",
+        "upload_sha256": sha256.clone(),
+        "upload_file_name": "reference.png",
+        "upload_mime_type": "image/png"
+    });
+    chapter_video_prompt::ActiveModel {
+        id: Set(plan.id),
+        metadata_json: Set(Some(metadata)),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("应可写入本地参考媒体测试方案");
+    let host = TestReferenceMediaHost::default();
+    let mut input = reference_media_input(plan.id);
+    input.image_uploads = vec![a4n_api_contract::video::ReferenceMediaUploadInput {
+        file_name: "reference.png".to_string(),
+        mime_type: "image/png".to_string(),
+        data_base64: data_base64.clone(),
+    }];
+
+    let preview = context
+        .preview_reference_media_video_request_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input,
+            },
+        )
+        .await
+        .expect("合法本地参考媒体应可脱敏预览");
+
+    let serialized = preview.request.to_string();
+    assert!(serialized.contains(&sha256));
+    assert!(!serialized.contains(&data_base64));
+    assert!(preview.note.contains("脱敏 URL"));
+    assert_eq!(host.submit_calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

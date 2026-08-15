@@ -1,4 +1,3 @@
-use a4n_api_contract::video::ReferenceMediaUploadInput;
 use a4n_core::{
     error::AppError,
     models::ai::{generated_video, video_gen_config},
@@ -21,7 +20,6 @@ use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::video_provider_capabilities;
 use a4n_video::{VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
-use base64::Engine as _;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
@@ -440,25 +438,18 @@ impl ReferenceMediaVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> 
         project_id: i64,
         source_media_id: i64,
         source_media_kind: &str,
-        upload: &ReferenceMediaUploadInput,
+        file_name: &str,
+        mime_type: &str,
+        bytes: &[u8],
     ) -> Result<(String, GenerationArtifactRef), AppError> {
-        let payload = upload
-            .data_base64
-            .trim()
-            .strip_prefix("data:")
-            .and_then(|value| value.split_once(',').map(|(_, payload)| payload))
-            .unwrap_or(upload.data_base64.trim());
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(payload)
-            .map_err(|error| host_error(format!("参考媒体文件 base64 无效：{error}")))?;
         let uploaded = media_bytes_to_remote_temp_media_url(
             owner_user_id,
             project_id,
             source_media_kind,
             source_media_id,
-            &upload.file_name,
-            &upload.mime_type,
-            &bytes,
+            file_name,
+            mime_type,
+            bytes,
         )
         .await
         .map_err(host_error)?;

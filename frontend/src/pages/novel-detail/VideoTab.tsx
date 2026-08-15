@@ -78,20 +78,15 @@ import { VideoPostProcessWorkspace } from "./video/VideoPostProcessWorkspace";
 import {
   createReferenceMediaDraft,
   normalizeReferenceMediaRows,
-  REFERENCE_MEDIA_KIND_META,
-  REFERENCE_MEDIA_LIMITS,
   ReferenceMediaWorkspace,
   referenceMediaDraftScopeKey,
-  referenceMediaGenerateDraftError,
+  referenceMediaDraftError,
   referenceMediaDraftFromRecipe,
   referenceMediaRecipeFromDraft,
   referenceMediaRowsByKindFromDraft,
-  validReferenceMediaUrl,
   VideoReferenceInputSlots,
   type ReferenceMediaBindingRow,
   type ReferenceMediaDraft,
-  type ReferenceMediaInputPurpose,
-  type ReferenceMediaKind,
 } from "./video/referenceMediaWorkspace";
 import {
   buildVideoFrameImageTraceMetadata,
@@ -2752,81 +2747,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     await previewImageRequests(requests);
   };
 
-  const collectReferenceMediaRows = (
-    kind: ReferenceMediaKind,
-    rows: ReferenceMediaBindingRow[],
-    purpose: ReferenceMediaInputPurpose,
-  ): ReferenceMediaBindingRow[] | null => {
-    const activeRows = normalizeReferenceMediaRows(rows);
-    const meta = REFERENCE_MEDIA_KIND_META[kind];
-    if (
-      purpose === "generate" &&
-      activeRows.length > REFERENCE_MEDIA_LIMITS[kind]
-    ) {
-      addToast(
-        `${meta.label}最多允许 ${REFERENCE_MEDIA_LIMITS[kind]} 个输入`,
-        "error",
-      );
-      return null;
-    }
-    if (purpose === "preview") {
-      return activeRows;
-    }
-    for (const [index, row] of activeRows.entries()) {
-      const token = `@${meta.tokenPrefix}_${index + 1}`;
-      if (row.url && row.upload) {
-        addToast(`${token} 不能同时使用 URL 和本地文件`, "error");
-        return null;
-      }
-      if (!row.url && !row.upload) {
-        addToast(`${token} 缺少 URL 或本地文件`, "error");
-        return null;
-      }
-      if (row.url && !validReferenceMediaUrl(row.url)) {
-        addToast(`${token} URL 必须以小写 http:// 或 https:// 开头`, "error");
-        return null;
-      }
-      if (!row.usage) {
-        addToast(`${token} 缺少用途描述`, "error");
-        return null;
-      }
-    }
-    return activeRows;
-  };
-
   const buildReferenceMediaVideoInput = (
     segment: ReferenceMediaSegmentState,
-    purpose: ReferenceMediaInputPurpose = "generate",
-  ): ReferenceMediaVideoInput | null => {
-    const imageRows = collectReferenceMediaRows(
-      "image",
-      referenceMediaDraft.imageRows,
-      purpose,
-    );
-    if (!imageRows) return null;
-    const videoRows = collectReferenceMediaRows(
-      "video",
-      referenceMediaDraft.videoRows,
-      purpose,
-    );
-    if (!videoRows) return null;
-    const audioRows = collectReferenceMediaRows(
-      "audio",
-      referenceMediaDraft.audioRows,
-      purpose,
-    );
-    if (!audioRows) return null;
-    if (
-      imageRows.length === 0 &&
-      videoRows.length === 0 &&
-      audioRows.length === 0
-    ) {
-      if (purpose !== "preview") {
-        addToast("参考媒体模式至少需要一个图片、视频或音频输入", "error");
-        return null;
-      }
-    }
-    const input: ReferenceMediaVideoInput = {
+    draft: ReferenceMediaDraft,
+  ): ReferenceMediaVideoInput => {
+    const imageRows = normalizeReferenceMediaRows(draft.imageRows);
+    const videoRows = normalizeReferenceMediaRows(draft.videoRows);
+    const audioRows = normalizeReferenceMediaRows(draft.audioRows);
+    return {
       segment_plan_prompt_id: segment.segmentPlanPromptId,
       target_segment: segment.targetSegment,
       image_uploads: imageRows.flatMap((row) =>
@@ -2840,7 +2768,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       ),
       config_id: null,
     };
-    return input;
   };
 
   const referenceMediaSegmentFor = (
@@ -2878,16 +2805,29 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     return segment;
   };
 
+  const prepareReferenceMediaVideoInput = async () => {
+    const segment = referenceMediaSegmentFor();
+    if (!segment) return null;
+    const draft = referenceMediaDraftRef.current;
+    const inputError = referenceMediaDraftError(
+      draft.prompt,
+      referenceMediaRowsByKindFromDraft(draft),
+    );
+    if (inputError) {
+      addToast(inputError, "error");
+      return null;
+    }
+    try {
+      if (!(await saveReferenceMediaDraft(segment.segmentNumber))) return null;
+    } catch {
+      return null;
+    }
+    return buildReferenceMediaVideoInput(segment, draft);
+  };
+
   const handlePreviewReferenceMediaVideoRequest = async () => {
     if (!chapter) return;
-    const segment = referenceMediaSegmentFor(false);
-    if (!segment) return;
-    try {
-      if (!(await saveReferenceMediaDraft(segment.segmentNumber))) return;
-    } catch {
-      return;
-    }
-    const input = buildReferenceMediaVideoInput(segment, "preview");
+    const input = await prepareReferenceMediaVideoInput();
     if (!input) return;
     const previewScope = promptRequestPreviewScopeRef.current;
     setPromptRequestPreviewOpen(true);
@@ -2927,22 +2867,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const handleGenerateReferenceMediaVideo = async () => {
     if (!chapter) return;
-    const segment = referenceMediaSegmentFor();
-    if (!segment) return;
-    const generateInputError = referenceMediaGenerateDraftError(
-      referenceMediaDraft.prompt,
-      referenceMediaRowsByKindFromDraft(referenceMediaDraft),
-    );
-    if (generateInputError) {
-      addToast(generateInputError, "error");
-      return;
-    }
-    try {
-      if (!(await saveReferenceMediaDraft(segment.segmentNumber))) return;
-    } catch {
-      return;
-    }
-    const input = buildReferenceMediaVideoInput(segment);
+    const input = await prepareReferenceMediaVideoInput();
     if (!input) return;
     const actionKey = "reference-media-video";
     const requestScope = videoActionScopeKey;

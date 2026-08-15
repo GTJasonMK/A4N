@@ -17,12 +17,10 @@ use super::{
     VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
     VideoProviderValidationMode, provider_request_snapshot_value,
     reference_media_rules::{
-        MAX_SEEDANCE2_AUDIO_FILES, MAX_SEEDANCE2_IMAGE_FILES, MAX_SEEDANCE2_VIDEO_FILES,
-        PreparedReferenceMediaVideoRequest, ReferenceMediaVideoInput,
-        ResolvedReferenceMediaVideoInput, build_reference_media_video_request,
-        reference_media_prompt_from_recipe, reference_media_provider_request_note,
-        reference_media_upload_slot_count, resolve_reference_media_urls,
-        validate_reference_media_upload_identity,
+        ReferenceMediaVideoInput, ResolvedReferenceMediaVideoInput, ValidatedReferenceMediaUpload,
+        build_reference_media_video_request, reference_media_prompt_from_recipe,
+        reference_media_provider_request_note, resolve_reference_media_urls,
+        validate_reference_media_start_input, validated_reference_media_uploads,
     },
 };
 
@@ -64,14 +62,18 @@ pub trait ReferenceMediaVideoGenerationHostPort: Send + Sync {
         project_id: i64,
         source_media_id: i64,
         source_media_kind: &str,
-        upload: &a4n_api_contract::video::ReferenceMediaUploadInput,
+        file_name: &str,
+        mime_type: &str,
+        bytes: &[u8],
     ) -> Result<(String, GenerationArtifactRef), AppError> {
         let _ = (
             owner_user_id,
             project_id,
             source_media_id,
             source_media_kind,
-            upload,
+            file_name,
+            mime_type,
+            bytes,
         );
         Err(AppError::InvalidArgument(
             "当前运行环境不支持本地参考媒体临时上传".to_string(),
@@ -91,7 +93,7 @@ struct PreparedReferenceMediaVideoGeneration {
     video_execution_identity: Value,
     config: video_gen_config::Model,
     request: VideoGenerationRequest,
-    provider_input_note: Option<String>,
+    redacted_local_uploads: usize,
     staging_artifacts: Vec<GenerationArtifactRef>,
 }
 
@@ -106,8 +108,6 @@ impl OrchestratorContext {
                 host_port,
                 input,
                 VideoProviderValidationMode::Preview,
-                "预览参考媒体视频请求",
-                false,
             )
             .await?;
         let body = host_port
@@ -118,11 +118,18 @@ impl OrchestratorContext {
                 provider_idempotency_key_sha256: None,
             })
             .await?;
+        let source_label = if prepared.redacted_local_uploads == 0 {
+            format!("当前片段执行方案；{}", body.source_label)
+        } else {
+            format!(
+                "当前片段执行方案；{}；已校验的 {} 个本地媒体在预览中以脱敏 URL 表示",
+                body.source_label, prepared.redacted_local_uploads
+            )
+        };
         let note = reference_media_provider_request_note(
-            &format!("当前片段执行方案；{}", body.source_label),
+            &source_label,
             &prepared.config,
             &prepared.request,
-            prepared.provider_input_note.as_deref(),
         )
         .map_err(AppError::InvalidArgument)?;
         Ok(ReferenceMediaVideoRequestPreview {
@@ -144,11 +151,7 @@ impl OrchestratorContext {
                 host_port,
                 input,
                 VideoProviderValidationMode::Generate,
-                "生成参考媒体视频",
-                true,
             )
-            .await?;
-        self.ensure_video_capacity(prepared.config.id, prepared.config.max_concurrent)
             .await?;
 
         progress.progress(2, VIDEO_GENERATION_PROGRESS_TOTAL, "正在创建视频生成记录")?;
@@ -165,7 +168,6 @@ impl OrchestratorContext {
             &format!("生成时请求快照；{}", request_body.source_label),
             &prepared.config,
             &prepared.request,
-            prepared.provider_input_note.as_deref(),
         )
         .map_err(AppError::InvalidArgument)?;
         let provider_request_snapshot = provider_request_snapshot_value(
@@ -324,15 +326,18 @@ impl OrchestratorContext {
         host_port: &dyn ReferenceMediaVideoGenerationHostPort,
         input: GenerateReferenceMediaVideoInput,
         mode: VideoProviderValidationMode,
-        operation: &str,
-        writable: bool,
     ) -> Result<PreparedReferenceMediaVideoGeneration, AppError> {
+        validate_reference_media_start_input(&input.input).map_err(AppError::InvalidArgument)?;
         let GenerateReferenceMediaVideoInput {
             user_id,
             project_id,
             chapter_id,
             input,
         } = input;
+        let (operation, writable) = match mode {
+            VideoProviderValidationMode::Generate => ("生成参考媒体视频", true),
+            VideoProviderValidationMode::Preview => ("预览参考媒体视频请求", false),
+        };
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.project_chapter_video_source(project_id, chapter_id, operation, writable)
@@ -380,87 +385,58 @@ impl OrchestratorContext {
         )?;
         let config = host_port.resolve_video_config(input.config_id).await?;
         let source_media_id = segment_plan_prompt_id;
-        let mut staging_artifacts = Vec::new();
-        let mut uploaded_image_urls = Vec::new();
-        let mut uploaded_video_urls = Vec::new();
-        let mut uploaded_audio_urls = Vec::new();
-        for (kind, uploads, rows, urls) in [
-            (
-                "image",
-                input.image_uploads,
-                reference_media.image_rows.as_slice(),
-                &mut uploaded_image_urls,
-            ),
-            (
-                "video",
-                input.video_uploads,
-                reference_media.video_rows.as_slice(),
-                &mut uploaded_video_urls,
-            ),
-            (
-                "audio",
-                input.audio_uploads,
-                reference_media.audio_rows.as_slice(),
-                &mut uploaded_audio_urls,
-            ),
-        ] {
-            validate_reference_media_upload_identity(rows, &uploads, kind)
-                .map_err(AppError::InvalidArgument)?;
-            let expected_uploads = reference_media_upload_slot_count(rows);
-            if uploads.len() != expected_uploads {
-                return Err(AppError::InvalidArgument(format!(
-                    "{kind}_uploads 需要 {expected_uploads} 个本地文件，实际提交 {} 个；刷新页面后请重新选择本地文件",
-                    uploads.len()
-                )));
-            }
-            for (index, upload) in uploads.into_iter().enumerate() {
-                if mode == VideoProviderValidationMode::Preview {
-                    urls.push(super::reference_media_preview_placeholder_url(kind, index));
-                    continue;
-                }
-                let (url, artifact) = host_port
-                    .upload_reference_media_input(
-                        user_id,
-                        project_id,
-                        source_media_id,
-                        &format!("reference_media_{kind}"),
-                        &upload,
+        let image_uploads = validated_reference_media_uploads(
+            &reference_media.image_rows,
+            &input.image_uploads,
+            "image",
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let video_uploads = validated_reference_media_uploads(
+            &reference_media.video_rows,
+            &input.video_uploads,
+            "video",
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let audio_uploads = validated_reference_media_uploads(
+            &reference_media.audio_rows,
+            &input.audio_uploads,
+            "audio",
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let redacted_local_uploads =
+            image_uploads.len() + video_uploads.len() + audio_uploads.len();
+        let redacted_urls = |kind: &str, uploads: &[ValidatedReferenceMediaUpload]| {
+            uploads
+                .iter()
+                .enumerate()
+                .map(|(index, upload)| {
+                    format!(
+                        "https://example.invalid/a4n-media/preview/reference-media-{kind}-{}/{}",
+                        index + 1,
+                        upload.sha256
                     )
-                    .await?;
-                urls.push(url);
-                staging_artifacts.push(artifact);
-            }
-        }
+                })
+                .collect::<Vec<_>>()
+        };
         let image_files = resolve_reference_media_urls(
             &reference_media.image_rows,
-            uploaded_image_urls,
+            redacted_urls("image", &image_uploads),
             "image_files",
-            MAX_SEEDANCE2_IMAGE_FILES,
         )
         .map_err(AppError::InvalidArgument)?;
         let video_files = resolve_reference_media_urls(
             &reference_media.video_rows,
-            uploaded_video_urls,
+            redacted_urls("video", &video_uploads),
             "video_files",
-            MAX_SEEDANCE2_VIDEO_FILES,
         )
         .map_err(AppError::InvalidArgument)?;
         let audio_files = resolve_reference_media_urls(
             &reference_media.audio_rows,
-            uploaded_audio_urls,
+            redacted_urls("audio", &audio_uploads),
             "audio_files",
-            MAX_SEEDANCE2_AUDIO_FILES,
         )
         .map_err(AppError::InvalidArgument)?;
-        if image_files.is_empty() && video_files.is_empty() && audio_files.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "参考媒体方案至少需要一个图片、视频或音频媒体槽".to_string(),
-            ));
-        }
-        let PreparedReferenceMediaVideoRequest {
-            request,
-            provider_input_note,
-        } = build_reference_media_video_request(
+        let mut request = build_reference_media_video_request(
             &config,
             ResolvedReferenceMediaVideoInput {
                 prompt: reference_media_prompt_from_recipe(reference_media),
@@ -470,9 +446,60 @@ impl OrchestratorContext {
                 duration_secs: recipe.duration_secs,
                 aspect_ratio: recipe.aspect_ratio.clone(),
             },
-            mode,
         )
         .map_err(AppError::InvalidArgument)?;
+        let mut staging_artifacts = Vec::new();
+        if mode == VideoProviderValidationMode::Generate {
+            self.ensure_video_capacity(config.id, config.max_concurrent)
+                .await?;
+        }
+        if mode == VideoProviderValidationMode::Generate && redacted_local_uploads > 0 {
+            let mut uploaded_image_urls = Vec::with_capacity(image_uploads.len());
+            let mut uploaded_video_urls = Vec::with_capacity(video_uploads.len());
+            let mut uploaded_audio_urls = Vec::with_capacity(audio_uploads.len());
+            for (kind, uploads, urls) in [
+                ("image", image_uploads.as_slice(), &mut uploaded_image_urls),
+                ("video", video_uploads.as_slice(), &mut uploaded_video_urls),
+                ("audio", audio_uploads.as_slice(), &mut uploaded_audio_urls),
+            ] {
+                let source_media_kind = format!("reference_media_{kind}");
+                for upload in uploads {
+                    let (url, artifact) = host_port
+                        .upload_reference_media_input(
+                            user_id,
+                            project_id,
+                            source_media_id,
+                            &source_media_kind,
+                            &upload.file_name,
+                            &upload.mime_type,
+                            &upload.bytes,
+                        )
+                        .await?;
+                    urls.push(url);
+                    staging_artifacts.push(artifact);
+                }
+            }
+            request.media = a4n_video::VideoMediaInput::References {
+                images: resolve_reference_media_urls(
+                    &reference_media.image_rows,
+                    uploaded_image_urls,
+                    "image_files",
+                )
+                .map_err(AppError::InvalidArgument)?,
+                videos: resolve_reference_media_urls(
+                    &reference_media.video_rows,
+                    uploaded_video_urls,
+                    "video_files",
+                )
+                .map_err(AppError::InvalidArgument)?,
+                audio: resolve_reference_media_urls(
+                    &reference_media.audio_rows,
+                    uploaded_audio_urls,
+                    "audio_files",
+                )
+                .map_err(AppError::InvalidArgument)?,
+            };
+        }
         Ok(PreparedReferenceMediaVideoGeneration {
             project_id,
             chapter_id,
@@ -481,7 +508,7 @@ impl OrchestratorContext {
             video_execution_identity,
             config,
             request,
-            provider_input_note,
+            redacted_local_uploads,
             staging_artifacts,
         })
     }

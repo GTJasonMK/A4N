@@ -29,14 +29,13 @@ import {
 } from "./videoTabUtils";
 
 const REFERENCE_MEDIA_PROMPT_MIN_CHARS = 100;
-export const REFERENCE_MEDIA_LIMITS = {
+const REFERENCE_MEDIA_LIMITS = {
   image: 9,
   video: 3,
   audio: 3,
 } as const;
 
-export type ReferenceMediaKind = keyof typeof REFERENCE_MEDIA_LIMITS;
-export type ReferenceMediaInputPurpose = "generate" | "preview";
+type ReferenceMediaKind = keyof typeof REFERENCE_MEDIA_LIMITS;
 type ReferenceMediaRowsByKind = Record<
   ReferenceMediaKind,
   ReferenceMediaBindingRow[]
@@ -59,7 +58,7 @@ export interface ReferenceMediaDraft {
   audioRows: ReferenceMediaBindingRow[];
 }
 
-export const REFERENCE_MEDIA_KIND_META: Record<
+const REFERENCE_MEDIA_KIND_META: Record<
   ReferenceMediaKind,
   {
     label: string;
@@ -217,7 +216,7 @@ const normalizeReferenceMediaRowsByKind = (
   audio: normalizeReferenceMediaRows(rowsByKind.audio),
 });
 
-export const validReferenceMediaUrl = (url: string): boolean =>
+const validReferenceMediaUrl = (url: string): boolean =>
   url.startsWith("https://") || url.startsWith("http://");
 
 const buildReferenceMediaBindingLines = (
@@ -248,7 +247,7 @@ const buildReferenceMediaPrompt = (
     .trim();
 };
 
-export const referenceMediaGenerateDraftError = (
+export const referenceMediaDraftError = (
   prompt: string,
   rowsByKind: ReferenceMediaRowsByKind,
 ): string | null => {
@@ -257,7 +256,7 @@ export const referenceMediaGenerateDraftError = (
     const meta = REFERENCE_MEDIA_KIND_META[kind];
     const rows = normalizedRowsByKind[kind];
     if (rows.length > REFERENCE_MEDIA_LIMITS[kind]) {
-      return `${meta.label}最多允许 ${REFERENCE_MEDIA_LIMITS[kind]} 个 URL`;
+      return `${meta.label}最多允许 ${REFERENCE_MEDIA_LIMITS[kind]} 个输入`;
     }
     for (const [index, row] of rows.entries()) {
       const token = `@${meta.tokenPrefix}_${index + 1}`;
@@ -849,15 +848,12 @@ export const ReferenceMediaWorkspace: React.FC<{
     video: videoRows,
     audio: audioRows,
   };
-  const generateInputError = referenceMediaGenerateDraftError(
-    prompt,
-    rowsByKind,
-  );
-  const generateBlockedReason = durationLimits.configError
+  const inputError = referenceMediaDraftError(prompt, rowsByKind);
+  const providerBlockedReason = durationLimits.configError
     ? durationLimits.configError
     : !durationSupported
       ? "当前时长不在默认视频模型支持范围内"
-      : (generateInputError ?? undefined);
+      : (inputError ?? undefined);
   const setRowsByKind: Record<
     ReferenceMediaKind,
     (rows: ReferenceMediaBindingRow[]) => void
@@ -876,7 +872,7 @@ export const ReferenceMediaWorkspace: React.FC<{
     {
       label: "查看模型请求",
       icon: <Eye size={12} />,
-      disabled: previewing,
+      disabled: providerBlockedReason != null || previewing || acting != null,
       onClick: () => void onPreview(),
     },
     {
@@ -887,7 +883,7 @@ export const ReferenceMediaWorkspace: React.FC<{
     },
   ];
   const showGeneratePrimary =
-    generationRunning || generateBlockedReason == null;
+    generationRunning || providerBlockedReason == null;
 
   const renderMediaRows = (kind: ReferenceMediaKind) => {
     const rows = rowsByKind[kind];
@@ -1108,12 +1104,12 @@ export const ReferenceMediaWorkspace: React.FC<{
                 {durationLimits.configError}
               </div>
             )}
-            {generateInputError && (
+            {inputError && (
               <div
                 role="status"
                 className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-small text-warning"
               >
-                {generateInputError}
+                {inputError}
               </div>
             )}
           </div>
