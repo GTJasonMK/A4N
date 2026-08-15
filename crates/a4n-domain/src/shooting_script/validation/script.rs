@@ -80,12 +80,6 @@ pub(super) fn validate_script(
                     "不能指向当前 narrative unit 自身",
                 );
             }
-            required_text(
-                &transition.transition_type,
-                &format!(
-                    "scenes[{scene_offset}].transition_contracts[{transition_offset}].transition_type"
-                ),
-            )?;
         }
     }
     let expected_positions = (1..=script.scenes.len())

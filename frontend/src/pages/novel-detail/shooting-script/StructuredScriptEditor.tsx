@@ -39,6 +39,19 @@ const CONTINUITY_OPTIONS = [
   ["open_ambiguity", "保留空间歧义"],
 ] as const;
 
+const TRANSITION_TYPE_OPTIONS = [
+  ["continuous", "连续转场"],
+  ["hard_cut", "硬切"],
+  ["match_cut", "匹配剪辑"],
+  ["whip_pan", "甩摇转场"],
+  ["action_wipe", "动作遮挡转场"],
+  ["sound_bridge", "声音桥"],
+  ["dissolve", "叠化"],
+  ["fade", "淡入淡出"],
+  ["focus_transition", "焦点转移"],
+  ["morph", "形变转场"],
+] as const;
+
 const CAMERA_HEIGHT_OPTIONS = [
   ["ground", "贴地机位"],
   ["low", "低机位"],
@@ -93,13 +106,20 @@ export const StructuredScriptEditor: React.FC<
   StructuredScriptEditorProps
 > = ({ script, onChange, disabled = false }) => {
   const update: UpdateValue = (path, value) => {
-    const next = structuredClone(script) as unknown as Record<string, unknown>;
-    let cursor: unknown = next;
+    const next = structuredClone(script);
+    let cursor: object = next;
     for (const key of path.slice(0, -1)) {
-      cursor = (cursor as Record<string | number, unknown>)[key];
+      const child = Reflect.get(cursor, key);
+      if (child == null || typeof child !== "object") {
+        throw new Error(`拍摄剧本编辑路径无效: ${path.join(".")}`);
+      }
+      cursor = child;
     }
-    (cursor as Record<string | number, unknown>)[path[path.length - 1]] = value;
-    onChange(next as unknown as ChapterShootingScriptV1);
+    const leaf = path[path.length - 1];
+    if (leaf == null || !Reflect.set(cursor, leaf, value)) {
+      throw new Error(`拍摄剧本编辑路径无效: ${path.join(".")}`);
+    }
+    onChange(next);
   };
 
   const directing = script.directing_statement;
@@ -398,9 +418,10 @@ const SceneEditor: React.FC<{
                         path={[...path, "to_narrative_unit_index"]}
                         onChange={onChange}
                       />
-                      <TextField
+                      <SelectField
                         label="转场方式"
                         value={transition.transition_type}
+                        options={TRANSITION_TYPE_OPTIONS}
                         path={[...path, "transition_type"]}
                         onChange={onChange}
                       />

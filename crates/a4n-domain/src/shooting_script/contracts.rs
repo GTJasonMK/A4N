@@ -77,11 +77,56 @@ pub enum ShootingEditingModeV1 {
     SoundBridge,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ShootingTransitionTypeV1 {
+    Continuous,
+    HardCut,
+    MatchCut,
+    WhipPan,
+    ActionWipe,
+    SoundBridge,
+    Dissolve,
+    Fade,
+    FocusTransition,
+    Morph,
+}
+
+impl ShootingTransitionTypeV1 {
+    pub const VALUES: &'static [&'static str] = &[
+        "continuous",
+        "hard_cut",
+        "match_cut",
+        "whip_pan",
+        "action_wipe",
+        "sound_bridge",
+        "dissolve",
+        "fade",
+        "focus_transition",
+        "morph",
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Continuous => "continuous",
+            Self::HardCut => "hard_cut",
+            Self::MatchCut => "match_cut",
+            Self::WhipPan => "whip_pan",
+            Self::ActionWipe => "action_wipe",
+            Self::SoundBridge => "sound_bridge",
+            Self::Dissolve => "dissolve",
+            Self::Fade => "fade",
+            Self::FocusTransition => "focus_transition",
+            Self::Morph => "morph",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ShootingTransitionContractV1 {
     pub to_narrative_unit_index: u32,
-    pub transition_type: String,
+    pub transition_type: ShootingTransitionTypeV1,
     pub preserved_action: Option<String>,
     pub preserved_sound: Option<String>,
     pub preserved_knowledge: Vec<String>,

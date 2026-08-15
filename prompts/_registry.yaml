@@ -383,7 +383,7 @@ prompts:
     tags: ["analysis", "screenplay", "skeleton", "editing"]
     version: "1.0"
     used_by:
-      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_fact_extraction"
       - "chapter_summary_synthesis"
@@ -396,7 +396,7 @@ prompts:
     tags: ["analysis", "screenplay", "layout", "unit"]
     version: "1.0"
     used_by:
-      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_screenplay_skeleton"
     description: "在固定全章骨架下逐单元细化场记、戏剧状态和转场合同"
@@ -408,7 +408,7 @@ prompts:
     tags: ["analysis", "screenplay", "adaptation", "design-unit"]
     version: "1.0"
     used_by:
-      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_screenplay_layout_unit"
     description: "为一个已校验叙事单元独立提取可观察、可表演事实"
@@ -420,7 +420,7 @@ prompts:
     tags: ["analysis", "directing", "shot", "blocking"]
     version: "1.0"
     used_by:
-      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_screenplay_unit_adaptation"
     description: "针对一个已校验叙事单元生成可独立缓存的 ShootingSceneV1，最终合同由后端确定性装配"

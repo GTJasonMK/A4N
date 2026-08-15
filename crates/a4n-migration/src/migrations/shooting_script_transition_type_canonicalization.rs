@@ -1,6 +1,6 @@
 //! 将严格转场枚举启用前保存的自然语言值一次性规范化为当前合同。
 
-use a4n_domain::shooting_script::ChapterShootingScriptV1;
+use a4n_domain::shooting_script::{ChapterShootingScriptV1, ShootingTransitionTypeV1};
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 use serde_json::Value;
@@ -32,7 +32,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-async fn canonicalize_stored_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+pub(crate) async fn canonicalize_stored_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let connection = manager.get_connection();
     let rows = connection
         .query_all(Statement::from_string(
@@ -44,9 +44,11 @@ async fn canonicalize_stored_scripts(manager: &SchemaManager<'_>) -> Result<(), 
     for row in rows {
         let record_id: i64 = row.try_get("", "id")?;
         let mut script_json: Value = row.try_get("", "script_json")?;
-        if normalize_transition_types(&mut script_json) == 0 {
-            continue;
-        }
+        let changed = normalize_transition_types(&mut script_json).map_err(|value| {
+            DbErr::Custom(format!(
+                "章节拍摄剧本 {record_id} 含未知 transition_type: {value}"
+            ))
+        })?;
 
         let script: ChapterShootingScriptV1 =
             serde_json::from_value(script_json).map_err(|error| {
@@ -59,6 +61,9 @@ async fn canonicalize_stored_scripts(manager: &SchemaManager<'_>) -> Result<(), 
                 "章节拍摄剧本 {record_id} 的历史转场值规范化后校验失败：{error}"
             ))
         })?;
+        if changed == 0 {
+            continue;
+        }
         let canonical_json = serde_json::to_value(&script).map_err(|error| {
             DbErr::Custom(format!("序列化章节拍摄剧本 {record_id} 失败：{error}"))
         })?;
@@ -80,7 +85,7 @@ async fn canonicalize_stored_scripts(manager: &SchemaManager<'_>) -> Result<(), 
     Ok(())
 }
 
-async fn canonicalize_shooting_script_checkpoints(
+pub(crate) async fn canonicalize_shooting_script_checkpoints(
     manager: &SchemaManager<'_>,
 ) -> Result<(), DbErr> {
     let connection = manager.get_connection();
@@ -102,7 +107,12 @@ ORDER BY checkpoint.id
     for row in rows {
         let checkpoint_id: i64 = row.try_get("", "id")?;
         let mut checkpoint_json: Value = row.try_get("", "checkpoint_json")?;
-        if normalize_transition_types(&mut checkpoint_json) == 0 {
+        if normalize_transition_types(&mut checkpoint_json).map_err(|value| {
+            DbErr::Custom(format!(
+                "拍摄剧本 checkpoint {checkpoint_id} 含未知 transition_type: {value}"
+            ))
+        })? == 0
+        {
             continue;
         }
         connection
@@ -116,38 +126,48 @@ ORDER BY checkpoint.id
     Ok(())
 }
 
-fn normalize_transition_types(value: &mut Value) -> usize {
+pub(crate) fn normalize_transition_types(value: &mut Value) -> Result<usize, String> {
     match value {
-        Value::Array(items) => items.iter_mut().map(normalize_transition_types).sum(),
-        Value::Object(fields) => {
-            let mut changed = 0;
-            for (key, value) in fields {
-                if key == "transition_type" {
-                    let Value::String(raw) = value else {
-                        continue;
-                    };
-                    let Some(canonical) = canonical_transition_type(raw) else {
-                        continue;
-                    };
-                    if raw != canonical {
-                        *raw = canonical.to_string();
-                        changed += 1;
-                    }
-                } else {
-                    changed += normalize_transition_types(value);
+        Value::Array(items) => items.iter_mut().try_fold(0, |changed, item| {
+            normalize_transition_types(item).map(|item_changed| changed + item_changed)
+        }),
+        Value::Object(fields) => fields.iter_mut().try_fold(0, |changed, (key, value)| {
+            if key == "transition_type"
+                && let Value::String(raw) = value
+            {
+                let canonical = canonical_transition_type(raw).ok_or_else(|| raw.clone())?;
+                if raw != canonical.as_str() {
+                    *raw = canonical.as_str().to_string();
+                    return Ok(changed + 1);
                 }
+                return Ok(changed);
             }
-            changed
-        }
-        _ => 0,
+            normalize_transition_types(value).map(|item_changed| changed + item_changed)
+        }),
+        _ => Ok(0),
     }
 }
 
-fn canonical_transition_type(value: &str) -> Option<&'static str> {
+fn canonical_transition_type(value: &str) -> Option<ShootingTransitionTypeV1> {
     match value.trim() {
-        "continuous" | "hard_cut" | "match_cut" | "whip_pan" | "action_wipe" | "sound_bridge"
-        | "dissolve" | "fade" | "focus_transition" | "morph" => None,
+        "continuous" => Some(ShootingTransitionTypeV1::Continuous),
+        "hard_cut" => Some(ShootingTransitionTypeV1::HardCut),
+        "match_cut" => Some(ShootingTransitionTypeV1::MatchCut),
+        "whip_pan" => Some(ShootingTransitionTypeV1::WhipPan),
+        "action_wipe" => Some(ShootingTransitionTypeV1::ActionWipe),
+        "sound_bridge" => Some(ShootingTransitionTypeV1::SoundBridge),
+        "dissolve" => Some(ShootingTransitionTypeV1::Dissolve),
+        "fade" => Some(ShootingTransitionTypeV1::Fade),
+        "focus_transition" => Some(ShootingTransitionTypeV1::FocusTransition),
+        "morph" => Some(ShootingTransitionTypeV1::Morph),
         "continuity"
+        | "continuous_action"
+        | "action_continuity"
+        | "continuity_cut"
+        | "dialogue_continuity"
+        | "direct_continuity"
+        | "spatial_continuity"
+        | "直接连戏"
         | "连续动作转场"
         | "时间顺接"
         | "连续时间推进"
@@ -157,39 +177,21 @@ fn canonical_transition_type(value: &str) -> Option<&'static str> {
         | "连续转场"
         | "同场景连续转场"
         | "连续时空转场"
-        | "时空连续转场" => Some("continuous"),
-        "主观回忆" | "回忆延展至蒙太奇" | "时间推进与场景转换" | "意识蒙太奇转场" => {
-            Some("dissolve")
+        | "时空连续转场" => Some(ShootingTransitionTypeV1::Continuous),
+        "cut" | "direct_cut" | "TIME_CUT" | "time_cut" => Some(ShootingTransitionTypeV1::HardCut),
+        "match on action" | "cut_on_glance" | "cause_effect" => {
+            Some(ShootingTransitionTypeV1::MatchCut)
         }
+        "sound_cut" => Some(ShootingTransitionTypeV1::SoundBridge),
+        "主观回忆"
+        | "回忆延展至蒙太奇"
+        | "时间推进与场景转换"
+        | "意识蒙太奇转场"
+        | "time_ellipsis"
+        | "time_jump"
+        | "montage_to_scene"
+        | "意识闪回" => Some(ShootingTransitionTypeV1::Dissolve),
+        "意识回归" => Some(ShootingTransitionTypeV1::FocusTransition),
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn known_legacy_transition_types_are_canonicalized_recursively() {
-        let mut value = json!({
-            "transition_type": "连续动作转场",
-            "nested": [
-                { "transition_type": "主观回忆" },
-                { "transition_type": "sound_bridge" }
-            ]
-        });
-
-        assert_eq!(normalize_transition_types(&mut value), 2);
-        assert_eq!(value["transition_type"], "continuous");
-        assert_eq!(value["nested"][0]["transition_type"], "dissolve");
-        assert_eq!(value["nested"][1]["transition_type"], "sound_bridge");
-    }
-
-    #[test]
-    fn unknown_transition_type_is_not_silently_rewritten() {
-        let mut value = json!({ "transition_type": "模型新造的转场" });
-        assert_eq!(normalize_transition_types(&mut value), 0);
-        assert_eq!(value["transition_type"], "模型新造的转场");
     }
 }

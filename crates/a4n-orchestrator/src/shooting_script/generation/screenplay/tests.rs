@@ -2,6 +2,7 @@ use a4n_core::source_spans::source_spans_for_content;
 use a4n_db::project::{ResolvedChapterSource, ResolvedChapterSourceKind};
 use a4n_domain::shooting_script::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingTransitionContractV1,
+    ShootingTransitionTypeV1,
 };
 
 use crate::{
@@ -134,7 +135,7 @@ fn layout_detail_rejects_transition_outside_skeleton() {
         narrative_unit_index: 1,
         transition_contracts: vec![ShootingTransitionContractV1 {
             to_narrative_unit_index: 3,
-            transition_type: "cut".into(),
+            transition_type: ShootingTransitionTypeV1::HardCut,
             preserved_action: None,
             preserved_sound: None,
             preserved_knowledge: Vec::new(),
@@ -175,7 +176,7 @@ fn adaptation_rejects_non_contiguous_fact_indexes() {
     let error = validate_unit_adaptation(&output, &layout)
         .expect_err("fact indexes must start at one and remain contiguous");
 
-    assert!(error.to_string().contains("fact 2"));
+    assert!(error.to_string().contains("fact_index=2"));
 }
 
 #[test]
@@ -186,7 +187,7 @@ fn layout_detail_parser_rejects_string_for_preserved_knowledge_array() {
       "narrative_unit_index": 1,
       "transition_contracts": [{
         "to_narrative_unit_index": 2,
-        "transition_type": "cut",
+        "transition_type": "hard_cut",
         "preserved_action": null,
         "preserved_sound": null,
         "preserved_knowledge": "她借固定日常维持安全距离",

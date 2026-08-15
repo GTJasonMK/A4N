@@ -1,5 +1,4 @@
 import { apiInvoke } from "./index";
-import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type {
   ChapterShootingScriptSourceInput,
   ChapterShootingScriptUnitProgressView,
@@ -31,17 +30,22 @@ export type {
   ShootingSoundDesignV1,
   ShootingSpatialContinuityV1,
   ShootingTransitionContractV1,
+  ShootingTransitionTypeV1,
   ShootingViewpointModeV1,
   ShootingViewpointV1,
 } from "./generated/host";
 
+const sourceInput = (
+  projectId: number,
+  sourceChapterId: number,
+): ChapterShootingScriptSourceInput => ({
+  project_id: projectId,
+  source_chapter_id: sourceChapterId,
+});
+
 export const getChapterShootingScript = (projectId: number, sourceChapterId: number) =>
   apiInvoke<ChapterShootingScriptView | null>("get_chapter_shooting_script", {
-    userId: currentUserId(),
-    input: {
-      project_id: projectId,
-      source_chapter_id: sourceChapterId,
-    } satisfies ChapterShootingScriptSourceInput,
+    input: sourceInput(projectId, sourceChapterId),
   });
 
 export const getChapterShootingScriptUnitProgress = (
@@ -50,11 +54,7 @@ export const getChapterShootingScriptUnitProgress = (
 ) => apiInvoke<ChapterShootingScriptUnitProgressView | null>(
   "get_chapter_shooting_script_unit_progress",
   {
-    userId: currentUserId(),
-    input: {
-      project_id: projectId,
-      source_chapter_id: sourceChapterId,
-    } satisfies ChapterShootingScriptSourceInput,
+    input: sourceInput(projectId, sourceChapterId),
   },
 );
 
@@ -64,11 +64,7 @@ export const generateChapterShootingScript = (
   taskId: string,
 ) =>
   apiInvoke<ChapterShootingScriptView>("generate_chapter_shooting_script", {
-    userId: currentUserId(),
-    input: {
-      project_id: projectId,
-      source_chapter_id: sourceChapterId,
-    } satisfies ChapterShootingScriptSourceInput,
+    input: sourceInput(projectId, sourceChapterId),
     taskId,
   });
 
@@ -79,11 +75,7 @@ export const generateNextChapterShootingScriptUnit = (
 ) => apiInvoke<ChapterShootingScriptUnitProgressView>(
   "generate_next_chapter_shooting_script_unit",
   {
-    userId: currentUserId(),
-    input: {
-      project_id: projectId,
-      source_chapter_id: sourceChapterId,
-    } satisfies ChapterShootingScriptSourceInput,
+    input: sourceInput(projectId, sourceChapterId),
     taskId,
   },
 );
@@ -96,10 +88,8 @@ export const editChapterShootingScript = (
 ) => apiInvoke<EditedChapterShootingScriptView>(
   "edit_chapter_shooting_script",
   {
-    userId: currentUserId(),
     input: {
-      project_id: projectId,
-      source_chapter_id: sourceChapterId,
+      ...sourceInput(projectId, sourceChapterId),
       record_id: view.record.id,
       expected_revision: view.record.revision,
       script,

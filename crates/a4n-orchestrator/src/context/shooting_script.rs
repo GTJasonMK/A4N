@@ -182,29 +182,6 @@ impl OrchestratorContext {
         }
     }
 
-    pub(crate) async fn next_chapter_shooting_script_revision(
-        &self,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<i32, AppError> {
-        let (_, existing) = self.load_chapter_shooting_script_source(&input).await?;
-        match existing {
-            Some(existing) => {
-                existing
-                    .record
-                    .revision
-                    .checked_add(1)
-                    .ok_or_else(|| AppError::InvalidState {
-                        current: format!(
-                            "chapter_shooting_script_revision_exhausted:id={},revision={}",
-                            existing.record.id, existing.record.revision
-                        ),
-                        operation: "创建章节拍摄剧本工作流".to_string(),
-                    })
-            }
-            None => Ok(1),
-        }
-    }
-
     pub async fn edit_current_chapter_shooting_script_for_user_validated(
         &self,
         user_id: i64,
@@ -225,24 +202,6 @@ impl OrchestratorContext {
         self.shooting_script
             .edit_chapter_shooting_script(input)
             .await
-    }
-
-    /// 章节分镜脚本：校验后创建 workflow_run（RUNNING）。
-    pub(crate) async fn begin_chapter_shooting_script_workflow_validated(
-        &self,
-        project_id: i64,
-        source_chapter_id: i64,
-        target_revision: i32,
-        active_task_id: Option<&str>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
-        let input = crate::shooting_script::chapter_shooting_script_workflow_run_input(
-            project_id,
-            source_chapter_id,
-            target_revision,
-            active_task_id,
-        )
-        .map_err(AppError::InvalidArgument)?;
-        self.begin_or_resume_workflow_run_validated(input).await
     }
 }
 

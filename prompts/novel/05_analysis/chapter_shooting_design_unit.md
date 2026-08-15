@@ -17,7 +17,7 @@ name: chapter_shooting_design_unit
 - `scene_identity`、`title`、`slugline`、`dramatic_question`、`scene_objective`、`scene_obstacle`、`relationship_before`、`relationship_after`、`sound_strategy`、`entry_state`、`exit_state`：非空 string。
 - `participants`、`source_span_ids`、`audience_knowledge_before`、`audience_knowledge_after`、`withheld_information`：string[]，即使只有一句话也必须写成 `["一句话"]`，没有内容时写 `[]`，禁止直接输出 string。
 - `transition_contracts`、`shots`：object[]。
-- `transition_contracts[].to_narrative_unit_index`：正整数；`transition_type`：非空 string；`preserved_action`、`preserved_sound`、`required_cut_point`：string|null。
+- `transition_contracts[].to_narrative_unit_index`：正整数；`transition_type`：只能是 `continuous`、`hard_cut`、`match_cut`、`whip_pan`、`action_wipe`、`sound_bridge`、`dissolve`、`fade`、`focus_transition`、`morph`；`preserved_action`、`preserved_sound`、`required_cut_point`：string|null。
 - `transition_contracts[].preserved_knowledge`、`shots[].source_span_ids`、`shots[].spatial_anchors`、`shots[].continuity_requirements`：string[]。
 - `shots[].performance_beats`、`shots[].dialogue_cues`：object[]。
 - `shots[].performance_beats[].source_span_ids`、`shots[].performance_beats[].knowledge_delta`：string[]。

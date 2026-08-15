@@ -129,6 +129,15 @@ fn schema_version_rejects_noncanonical_values_during_deserialization() {
 }
 
 #[test]
+fn transition_type_rejects_free_text_during_deserialization() {
+    assert_eq!(
+        serde_json::from_str::<ShootingTransitionTypeV1>("\"match_cut\"").unwrap(),
+        ShootingTransitionTypeV1::MatchCut
+    );
+    assert!(serde_json::from_str::<ShootingTransitionTypeV1>("\"cut\"").is_err());
+}
+
+#[test]
 fn shot_source_spans_must_belong_to_scene() {
     let mut script = valid_script();
     script.scenes[0].shots[0].source_span_ids = vec!["outside-scene".to_string()];

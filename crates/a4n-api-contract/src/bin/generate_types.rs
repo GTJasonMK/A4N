@@ -207,7 +207,8 @@ use a4n_api_contract::{
         ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1,
         ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
         ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
-        ShootingTransitionContractV1, ShootingViewpointModeV1, ShootingViewpointV1,
+        ShootingTransitionContractV1, ShootingTransitionTypeV1, ShootingViewpointModeV1,
+        ShootingViewpointV1,
     },
     source_sync::{
         ApplySourceSyncInput, SourceSyncChangeKind, SourceSyncConflictSeverity,
@@ -822,6 +823,7 @@ fn main() {
             "ChapterShootingScriptSchemaVersion",
         ),
         &typescript_enum::<ShootingEditingModeV1>("ShootingEditingModeV1"),
+        &typescript_enum::<ShootingTransitionTypeV1>("ShootingTransitionTypeV1"),
         &typescript_enum::<ShootingViewpointModeV1>("ShootingViewpointModeV1"),
         &typescript_enum::<ShootingContinuityIntentV1>("ShootingContinuityIntentV1"),
         &typescript_enum::<ShootingCoverageV1>("ShootingCoverageV1"),

@@ -5,7 +5,7 @@ use a4n_domain::shooting_script::{
     ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingCoverageV1,
     ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingShotSizeV1,
     ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
-    ShootingViewpointV1,
+    ShootingTransitionTypeV1, ShootingViewpointV1,
 };
 
 pub const VIDEO_EXECUTION_CONTRACT_EPOCH: u32 = 5;
@@ -315,7 +315,7 @@ pub struct VideoMaterialCoverageV1 {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoSegmentTransitionV1 {
-    pub transition_type: String,
+    pub transition_type: ShootingTransitionTypeV1,
     pub editing_mode: ShootingEditingModeV1,
     pub preserved_action: Option<String>,
     pub preserved_sound: Option<String>,

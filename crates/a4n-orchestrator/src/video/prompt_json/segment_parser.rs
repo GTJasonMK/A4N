@@ -245,7 +245,7 @@ fn apply_segment_transitions(
             continue;
         };
         segments[index].transition_to_next = Some(VideoSegmentTransitionV1 {
-            transition_type: contract.transition_type.clone(),
+            transition_type: contract.transition_type,
             editing_mode: from_shot.editing_mode,
             preserved_action: contract.preserved_action.clone(),
             preserved_sound: contract.preserved_sound.clone(),

@@ -3758,6 +3758,8 @@ export type ChapterShootingScriptSchemaVersion = "chapter_shooting_script_v1";
 
 export type ShootingEditingModeV1 = "continuity" | "intercut" | "montage" | "flashback" | "parallel_action" | "sound_bridge";
 
+export type ShootingTransitionTypeV1 = "continuous" | "hard_cut" | "match_cut" | "whip_pan" | "action_wipe" | "sound_bridge" | "dissolve" | "fade" | "focus_transition" | "morph";
+
 export type ShootingViewpointModeV1 = "direct_subjective" | "modified_subjective" | "limited_third_person" | "omniscient_objective";
 
 export type ShootingContinuityIntentV1 = "transparent" | "deliberate_disorientation" | "open_ambiguity";
@@ -3789,7 +3791,7 @@ export interface ShootingTransitionContractV1 {
   preserved_sound: string | null;
   required_cut_point: string | null;
   to_narrative_unit_index: number;
-  transition_type: string;
+  transition_type: ShootingTransitionTypeV1;
 }
 
 export interface ShootingViewpointV1 {

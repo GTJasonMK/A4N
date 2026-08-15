@@ -88,8 +88,7 @@ pub(super) fn validate_layout_unit_detail(
     let max_index = u32::try_from(total_unit_count)
         .map_err(|_| AppError::InvalidArgument("叙事布局单元数量超出 u32 范围".into()))?;
     if output.transition_contracts.iter().any(|transition| {
-        transition.transition_type.trim().is_empty()
-            || transition.to_narrative_unit_index == 0
+        transition.to_narrative_unit_index == 0
             || transition.to_narrative_unit_index == expected_index
             || transition.to_narrative_unit_index > max_index
     }) {

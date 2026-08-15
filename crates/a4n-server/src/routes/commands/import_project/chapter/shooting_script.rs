@@ -1,7 +1,7 @@
 use crate::routes::commands::{
-    ApiError, command_input, finish_web_task, optional_string_field, register_web_task,
-    sanitize_optional_task_id, string_action_result, web_fire_and_forget_progress_reporter,
-    web_stream_reporter,
+    ApiError, finish_web_task, optional_string_field, register_web_task, sanitize_optional_task_id,
+    strict_command_input, strict_optional_task_runtime_command_input, string_action_result,
+    web_fire_and_forget_progress_reporter, web_stream_reporter,
 };
 use crate::state::ServerState;
 use a4n_core::event::channel::TaskKind;
@@ -14,7 +14,7 @@ pub(in crate::routes::commands) async fn get_chapter_shooting_script(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
-        command_input(args, "get_chapter_shooting_script")?;
+        strict_command_input(args, "get_chapter_shooting_script")?;
     Ok(json!(string_action_result(
         shooting_script_records_actions::get_chapter_shooting_script(
             state.runtime(),
@@ -32,7 +32,7 @@ pub(in crate::routes::commands) async fn get_chapter_shooting_script_unit_progre
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
-        command_input(args, "get_chapter_shooting_script_unit_progress")?;
+        strict_command_input(args, "get_chapter_shooting_script_unit_progress")?;
     Ok(json!(string_action_result(
         shooting_script_records_actions::get_chapter_shooting_script_unit_progress(
             state.runtime(),
@@ -50,7 +50,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
-        command_input(args, "generate_chapter_shooting_script")?;
+        strict_optional_task_runtime_command_input(args, "generate_chapter_shooting_script")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
@@ -100,7 +100,10 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
-        command_input(args, "generate_next_chapter_shooting_script_unit")?;
+        strict_optional_task_runtime_command_input(
+            args,
+            "generate_next_chapter_shooting_script_unit",
+        )?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
@@ -150,7 +153,7 @@ pub(in crate::routes::commands) async fn edit_chapter_shooting_script(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: shooting_script_records_actions::EditChapterShootingScriptInput =
-        command_input(args, "edit_chapter_shooting_script")?;
+        strict_command_input(args, "edit_chapter_shooting_script")?;
     Ok(json!(string_action_result(
         shooting_script_records_actions::edit_chapter_shooting_script(
             state.runtime(),

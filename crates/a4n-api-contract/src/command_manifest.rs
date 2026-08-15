@@ -1222,7 +1222,7 @@ fn args_execute_attribute_deletion() -> Value {
 }
 
 fn args_edit_chapter_shooting_script() -> Value {
-    typed_input_schema::<crate::shooting_script::EditChapterShootingScriptInput>()
+    strict_typed_input_schema::<crate::shooting_script::EditChapterShootingScriptInput>()
 }
 
 fn args_export_batch_data() -> Value {
@@ -1280,18 +1280,9 @@ fn args_project_asset_dependency_graph_node_detail() -> Value {
 }
 
 fn args_generate_chapter_shooting_script() -> Value {
-    {
-        json!({
-            "type": "object",
-            "properties": {
-                "input": raw_schema::<crate::shooting_script::ChapterShootingScriptSourceInput>(),
-                "taskId": { "type": ["string", "null"], "minLength": 1 },
-            },
-            "required": ["input"],
-            "additionalProperties": true,
-            "x-a4n-schema-quality": "typed-input",
-        })
-    }
+    optional_task_runtime_typed_input_schema::<
+        crate::shooting_script::ChapterShootingScriptSourceInput,
+    >()
 }
 
 fn args_generate_chapter_scene() -> Value {
@@ -1319,7 +1310,7 @@ fn args_get_canvas_node_contracts() -> Value {
 }
 
 fn args_get_chapter_shooting_script() -> Value {
-    typed_input_schema::<crate::shooting_script::ChapterShootingScriptSourceInput>()
+    strict_typed_input_schema::<crate::shooting_script::ChapterShootingScriptSourceInput>()
 }
 
 fn args_get_generation_call_analytics() -> Value {

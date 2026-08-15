@@ -173,24 +173,13 @@ impl OrchestratorContext {
     ) -> Result<ChapterShootingScriptUnitProgress, AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
             .await?;
-        let target_revision = self
-            .next_chapter_shooting_script_revision(source.clone())
+        let input = self
+            .begin_chapter_shooting_script_generation(&source, active_task_id)
             .await?;
-        let workflow = self
-            .begin_chapter_shooting_script_workflow_validated(
-                source.project_id,
-                source.source_chapter_id,
-                target_revision,
-                active_task_id,
-            )
-            .await?;
+        let workflow_run_id = input.workflow_run_id;
         let result = self
             .regenerate_chapter_shooting_script_units_with_progress(
-                RegenerateChapterShootingScriptInput {
-                    project_id: source.project_id,
-                    source_chapter_id: source.source_chapter_id,
-                    workflow_run_id: workflow.id,
-                },
+                input,
                 true,
                 progress,
                 stream_reporter,
@@ -207,14 +196,14 @@ impl OrchestratorContext {
                     "已在场景边界暂停：已完成 {completed_unit_count}/{total_unit_count} 个场景"
                 );
                 self.mark_workflow_status(
-                    workflow.id,
+                    workflow_run_id,
                     WORKFLOW_STATUS_INTERRUPTED,
                     true,
                     Some(&reason),
                 )
                 .await?;
                 Ok(ChapterShootingScriptUnitProgress {
-                    workflow_run_id: workflow.id,
+                    workflow_run_id,
                     script: *script,
                     completed_unit_count,
                     total_unit_count,
@@ -222,10 +211,11 @@ impl OrchestratorContext {
                 })
             }
             Ok(ShootingScriptGenerationOutcome::Complete(resolved)) => {
-                self.complete_workflow_run_validated(workflow.id).await?;
+                self.complete_workflow_run_validated(workflow_run_id)
+                    .await?;
                 let total_unit_count = resolved.shooting_script.script.scenes.len();
                 Ok(ChapterShootingScriptUnitProgress {
-                    workflow_run_id: workflow.id,
+                    workflow_run_id,
                     script: resolved.shooting_script.script.clone(),
                     completed_unit_count: total_unit_count,
                     total_unit_count,
@@ -234,7 +224,7 @@ impl OrchestratorContext {
             }
             Err(error) => {
                 self.finalize_workflow_outcome_result::<ChapterShootingScriptUnitProgress>(
-                    workflow.id,
+                    workflow_run_id,
                     Err(error),
                     "章节拍摄剧本单元生成",
                 )
@@ -243,7 +233,7 @@ impl OrchestratorContext {
         }
     }
 
-    pub async fn generate_chapter_shooting_script_with_progress(
+    async fn generate_chapter_shooting_script_with_progress(
         &self,
         source: ChapterShootingScriptSourceInput,
         progress: ShootingScriptProgressReporter<'_>,
@@ -251,24 +241,13 @@ impl OrchestratorContext {
         cancel_token: Option<&CancellationToken>,
         active_task_id: Option<&str>,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
-        let target_revision = self
-            .next_chapter_shooting_script_revision(source.clone())
+        let input = self
+            .begin_chapter_shooting_script_generation(&source, active_task_id)
             .await?;
-        let workflow = self
-            .begin_chapter_shooting_script_workflow_validated(
-                source.project_id,
-                source.source_chapter_id,
-                target_revision,
-                active_task_id,
-            )
-            .await?;
+        let workflow_run_id = input.workflow_run_id;
         let result = self
             .regenerate_chapter_shooting_script_units_with_progress(
-                RegenerateChapterShootingScriptInput {
-                    project_id: source.project_id,
-                    source_chapter_id: source.source_chapter_id,
-                    workflow_run_id: workflow.id,
-                },
+                input,
                 false,
                 progress,
                 stream_reporter,
@@ -282,8 +261,44 @@ impl OrchestratorContext {
                     operation: "发布完整章节拍摄剧本".to_string(),
                 }),
             });
-        self.finalize_workflow_outcome_result(workflow.id, result, "章节拍摄剧本生成")
+        self.finalize_workflow_outcome_result(workflow_run_id, result, "章节拍摄剧本生成")
             .await
+    }
+
+    async fn begin_chapter_shooting_script_generation(
+        &self,
+        source: &ChapterShootingScriptSourceInput,
+        active_task_id: Option<&str>,
+    ) -> Result<RegenerateChapterShootingScriptInput, AppError> {
+        let (_, existing) = self.load_chapter_shooting_script_source(source).await?;
+        let target_revision =
+            match existing {
+                Some(existing) => existing.record.revision.checked_add(1).ok_or_else(|| {
+                    AppError::InvalidState {
+                        current: format!(
+                            "chapter_shooting_script_revision_exhausted:id={},revision={}",
+                            existing.record.id, existing.record.revision
+                        ),
+                        operation: "创建章节拍摄剧本工作流".to_string(),
+                    }
+                })?,
+                None => 1,
+            };
+        let workflow_input = super::chapter_shooting_script_workflow_run_input(
+            source.project_id,
+            source.source_chapter_id,
+            target_revision,
+            active_task_id,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let workflow = self
+            .begin_or_resume_workflow_run_validated(workflow_input)
+            .await?;
+        Ok(RegenerateChapterShootingScriptInput {
+            project_id: source.project_id,
+            source_chapter_id: source.source_chapter_id,
+            workflow_run_id: workflow.id,
+        })
     }
 
     async fn regenerate_chapter_shooting_script_units_with_progress(

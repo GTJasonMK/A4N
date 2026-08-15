@@ -7,8 +7,8 @@ pub use a4n_domain::shooting_script::{
     ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
     ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
-    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingViewpointModeV1,
-    ShootingViewpointV1,
+    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
+    ShootingViewpointModeV1, ShootingViewpointV1,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
