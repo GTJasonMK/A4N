@@ -10,8 +10,8 @@ pub struct ImportReviewSummary {
     pub filename: String,
     pub analysis_result: Value,
     pub review_status: ImportReviewStatus,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -43,7 +43,7 @@ pub struct BatchAcceptImportReviewsInput {
 pub struct DedupResult {
     pub content_hash: String,
     pub is_duplicate: bool,
-    pub closest_distance: u32,
+    pub closest_distance: Option<u32>,
     pub matched_chapter_id: Option<i64>,
 }
 

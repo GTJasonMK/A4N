@@ -1,6 +1,8 @@
 export type {
+  DedupResult,
   ImportReview,
   ImportReviewStatus,
+  ImportProjectAnalysisSummary,
   ProjectImportAnalysisProgress,
   ConfirmReverseEngineeringCandidateInput,
 } from "./import/types";

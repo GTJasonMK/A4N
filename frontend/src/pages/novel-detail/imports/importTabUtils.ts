@@ -103,14 +103,6 @@ export const REVERSE_CONTEXT_LIMITS: Record<ReverseType, number> = {
   part_outline: 200,
 };
 
-export const projectProgressPercent = (
-  progress: ProjectImportAnalysisProgress,
-): number | null => {
-  const value = progress.overall_progress;
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return Math.min(100, Math.max(0, value));
-};
-
 export interface ImportAnalysisDialogState {
   open: boolean;
   status: ProgressDialogStatus;
@@ -120,58 +112,28 @@ export interface ImportAnalysisDialogState {
   error: string | null;
 }
 
-export const emptyImportAnalysisDialog = (): ImportAnalysisDialogState => ({
-  open: false,
-  status: "idle",
-  current: 0,
-  total: 1,
-  message: "",
-  error: null,
-});
-
-const importAnalysisStatus = (status?: string): ProgressDialogStatus => {
-  switch (status) {
-    case "completed":
-      return "success";
-    case "failed":
-      return "error";
-    case "cancelled":
-      return "cancelled";
-    case "analyzing":
-      return "running";
-    default:
-      return "idle";
-  }
-};
-
-const importProgressTotals = (
-  progress: ProjectImportAnalysisProgress,
-): { current: number; total: number } => {
-  const stages = progress.stages ? Object.values(progress.stages) : [];
-  const totals = stages.reduce(
-    (acc, stage) => ({
-      current: acc.current + Math.max(0, stage.completed || 0),
-      total: acc.total + Math.max(0, stage.total || 0),
-    }),
-    { current: 0, total: 0 },
-  );
-  if (totals.total > 0) return totals;
-  const percent = projectProgressPercent(progress) ?? 0;
-  return { current: percent, total: 100 };
+const IMPORT_ANALYSIS_DIALOG_STATUS: Record<
+  ProjectImportAnalysisProgress["status"],
+  ProgressDialogStatus
+> = {
+  analyzing: "running",
+  completed: "success",
+  failed: "error",
+  cancelled: "cancelled",
 };
 
 export const importAnalysisDialogFromProgress = (
   progress: ProjectImportAnalysisProgress,
 ): ImportAnalysisDialogState => {
-  const totals = importProgressTotals(progress);
-  const status = importAnalysisStatus(progress.status);
+  const stage = progress.stages.generating_analysis_data;
+  const status = IMPORT_ANALYSIS_DIALOG_STATUS[progress.status];
   return {
     open: true,
     status,
-    current: status === "success" ? totals.total : totals.current,
-    total: Math.max(1, totals.total),
-    message: progress.message || "正在分析导入项目",
-    error: progress.error || null,
+    current: status === "success" ? stage.total : stage.completed,
+    total: stage.total,
+    message: progress.message,
+    error: progress.error,
   };
 };
 

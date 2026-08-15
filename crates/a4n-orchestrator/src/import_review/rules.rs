@@ -18,16 +18,17 @@ pub(crate) fn calculate_import_dedup(
         ));
     }
     let content_hash = dedup::compute_simhash(content, SIMHASH_NGRAM);
-    let mut closest_distance = u32::MAX;
-    let mut matched_chapter_id = None;
-    for (chapter_id, chapter_content) in existing_chapters {
-        let existing_hash = dedup::compute_simhash(chapter_content, SIMHASH_NGRAM);
-        let distance = content_hash.hamming_distance(&existing_hash);
-        closest_distance = closest_distance.min(distance);
-        if distance <= DUPLICATE_HAMMING_THRESHOLD && matched_chapter_id.is_none() {
-            matched_chapter_id = Some(*chapter_id);
-        }
-    }
+    let closest = existing_chapters
+        .iter()
+        .map(|(chapter_id, chapter_content)| {
+            let existing_hash = dedup::compute_simhash(chapter_content, SIMHASH_NGRAM);
+            (*chapter_id, content_hash.hamming_distance(&existing_hash))
+        })
+        .min_by_key(|(_, distance)| *distance);
+    let closest_distance = closest.map(|(_, distance)| distance);
+    let matched_chapter_id = closest
+        .filter(|(_, distance)| *distance <= DUPLICATE_HAMMING_THRESHOLD)
+        .map(|(chapter_id, _)| chapter_id);
     Ok(ImportDedupResult {
         content_hash: format!("{:016x}", content_hash.0),
         is_duplicate: matched_chapter_id.is_some(),
@@ -53,8 +54,17 @@ mod tests {
 
         assert!(result.is_duplicate);
         assert_eq!(result.matched_chapter_id, Some(9));
-        assert_eq!(result.closest_distance, 0);
+        assert_eq!(result.closest_distance, Some(0));
         assert_eq!(result.content_hash.len(), 16);
+    }
+
+    #[test]
+    fn calculate_import_dedup_has_no_distance_sentinel_without_chapters() {
+        let result = calculate_import_dedup("待导入正文", &[]).unwrap();
+
+        assert!(!result.is_duplicate);
+        assert_eq!(result.closest_distance, None);
+        assert_eq!(result.matched_chapter_id, None);
     }
 
     #[test]

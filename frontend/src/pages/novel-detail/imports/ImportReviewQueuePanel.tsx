@@ -11,7 +11,6 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayText } from "../../../utils/progressDisplay";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
-import { projectProgressPercent } from "./importTabUtils";
 
 export type ReviewAction = "accept" | "reject" | "delete";
 
@@ -57,15 +56,10 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   const analysisStatus = projectProgress?.status ?? null;
   const analyzeActionLabel =
     analysisStatus === "failed" || analysisStatus === "cancelled" ? "继续分析" : "分析项目";
-  const progressPercent = projectProgress ? projectProgressPercent(projectProgress) : null;
-  const progressStageName = projectProgress?.current_stage
-    ? projectProgress.stages?.[projectProgress.current_stage]?.name
-    : undefined;
   const progressDisplay = projectProgress
     ? progressDisplayText({
         message: projectProgress.message,
-        stageHint: progressStageName ?? projectProgress.current_stage,
-        fallbackStage: "导入项目分析",
+        stageHint: projectProgress.stages.generating_analysis_data.name,
       })
     : null;
   const reviewActionBusy = actBusy !== null;
@@ -180,25 +174,24 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
             <div className="py-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-book-text-main">
-                  {progressDisplay?.stage ?? "项目分析"}
+                  {projectProgress.stages.generating_analysis_data.name}
                 </span>
                 <span className="text-book-text-muted">{getOperationStatusLabel(projectProgress.status)}</span>
                 <span className="ml-auto font-mono text-book-text-muted">
-                  {progressPercent == null ? "—" : `${progressPercent}%`}
+                  {projectProgress.overall_progress}%
                 </span>
               </div>
               <div className="relative mt-1.5 h-4 overflow-hidden rounded bg-book-bg-tertiary">
                 <div
                   className="h-full bg-book-primary/35"
-                  style={{ width: progressPercent == null ? "0%" : `${progressPercent}%` }}
+                  style={{ width: `${projectProgress.overall_progress}%` }}
                 />
-                <div className="pointer-events-none absolute inset-x-1.5 top-1/2 -translate-y-1/2 truncate text-caption leading-3 text-book-text-main">
-                  {progressDisplay?.detail ?? "等待子阶段更新…"}
-                </div>
+                {progressDisplay?.detail ? (
+                  <div className="pointer-events-none absolute inset-x-1.5 top-1/2 -translate-y-1/2 truncate text-caption leading-3 text-book-text-main">
+                    {progressDisplay.detail}
+                  </div>
+                ) : null}
               </div>
-              {!progressDisplay?.detail ? (
-                <div className="mt-1 text-book-text-muted">等待进度更新…</div>
-              ) : null}
               {projectProgress.error ? (
                 <div role="alert" className="mt-1 truncate text-small leading-4 text-error">
                   {projectProgress.error}

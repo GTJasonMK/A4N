@@ -3,11 +3,12 @@ import { Check, ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import type { DedupResult } from "../../../api/import";
 import { parseReverseCandidateEnvelope, type ReverseType } from "./importTabUtils";
 
 interface ImportToolsPanelProps {
   dedupText: string;
-  dedupResult: unknown;
+  dedupResult: DedupResult | null;
   dedupBusy: boolean;
   reverseType: ReverseType;
   reverseSample: string;

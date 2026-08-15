@@ -1,6 +1,5 @@
 use a4n_core::{error::AppError, models::chapter::chapter};
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
-use serde_json::Value;
 
 use crate::{
     OrchestratorContext,
@@ -12,13 +11,12 @@ use crate::{
 };
 
 use super::{
-    ImportProjectAnalysisSummary,
+    ImportProjectAnalysisSummary, ProjectImportAnalysisProgress,
     chapter_outline::importable_chapters,
     lifecycle::cancelled_import_analysis_summary,
-    progress::{STAGE_ANALYSIS, import_analysis_cancelled},
-    summary::completed_import_stage,
+    progress::{completed_import_chapters, import_analysis_cancelled},
     workflow::{
-        ImportAnalysisStageResult, PreparedImportAnalysisRun, complete_import_project_analysis,
+        ImportAnalysisStageResult, complete_import_project_analysis,
         prepare_import_project_analysis, record_import_analysis_failure, save_import_stage,
     },
 };
@@ -31,13 +29,7 @@ impl OrchestratorContext {
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<ImportProjectAnalysisSummary, AppError> {
-        let mut prepared = match prepare_import_project_analysis(self, project_id)
-            .await
-            .map_err(import_analysis_error)?
-        {
-            PreparedImportAnalysisRun::Completed(summary) => return Ok(summary),
-            PreparedImportAnalysisRun::Ready(prepared) => prepared,
-        };
+        let mut prepared = prepare_import_project_analysis(self, project_id).await?;
 
         let result = self
             .execute_import_project_analysis(
@@ -51,12 +43,17 @@ impl OrchestratorContext {
             .await;
         match result {
             Ok(summary) => Ok(summary),
+            Err(_) if import_analysis_cancelled(self, project_id).await? => {
+                cancelled_import_analysis_summary(
+                    self,
+                    project_id,
+                    completed_import_chapters(&prepared.progress)?,
+                )
+                .await
+            }
             Err(AppError::Cancelled) => Err(AppError::Cancelled),
             Err(error) => {
-                let error_text = error.to_string();
-                record_import_analysis_failure(self, project_id, &error_text)
-                    .await
-                    .map_err(import_analysis_error)?;
+                record_import_analysis_failure(self, project_id, &error).await?;
                 Err(error)
             }
         }
@@ -67,9 +64,7 @@ impl OrchestratorContext {
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
-        let chapters = importable_chapters(self, project_id)
-            .await
-            .map_err(import_analysis_error)?;
+        let chapters = importable_chapters(self, project_id).await?;
         if chapters.is_empty() {
             return Err(AppError::InvalidState {
                 current: "no_importable_chapters".to_string(),
@@ -91,14 +86,13 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapters: &[chapter::Model],
-        progress: &mut Value,
+        progress: &mut ProjectImportAnalysisProgress,
         prompt_renderer: &dyn PromptRenderer,
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<ImportProjectAnalysisSummary, AppError> {
         let total_chapters = chapters.len();
-        let mut analyzed = completed_import_stage(progress, STAGE_ANALYSIS, total_chapters)
-            .map_err(import_analysis_error)?;
+        let mut analyzed = completed_import_chapters(progress)?;
         if analyzed < total_chapters {
             match self
                 .run_import_analysis_chapter_stage(
@@ -114,26 +108,15 @@ impl OrchestratorContext {
             {
                 ImportAnalysisStageResult::Complete(value) => analyzed = value,
                 ImportAnalysisStageResult::Cancelled(value) => {
-                    return cancelled_import_analysis_summary(self, project_id, value)
-                        .await
-                        .map_err(import_analysis_error);
+                    return cancelled_import_analysis_summary(self, project_id, value).await;
                 }
             }
-        } else {
-            analyzed = total_chapters;
         }
 
-        if import_analysis_cancelled(self, project_id)
-            .await
-            .map_err(import_analysis_error)?
-        {
-            return cancelled_import_analysis_summary(self, project_id, analyzed)
-                .await
-                .map_err(import_analysis_error);
+        if import_analysis_cancelled(self, project_id).await? {
+            return cancelled_import_analysis_summary(self, project_id, analyzed).await;
         }
-        complete_import_project_analysis(self, project_id, progress, analyzed)
-            .await
-            .map_err(import_analysis_error)
+        complete_import_project_analysis(self, project_id, progress, analyzed).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -142,7 +125,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapters: &[chapter::Model],
         mut analyzed: usize,
-        progress: &mut Value,
+        progress: &mut ProjectImportAnalysisProgress,
         prompt_renderer: &dyn PromptRenderer,
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
@@ -152,34 +135,25 @@ impl OrchestratorContext {
             self,
             project_id,
             progress,
-            STAGE_ANALYSIS,
             analyzed,
-            total,
             format!(
                 "正在分析并同步第{}章资料",
                 chapters[analyzed].chapter_number
             ),
         )
-        .await
-        .map_err(import_analysis_error)?;
+        .await?;
         for chapter in chapters.iter().skip(analyzed) {
-            if import_analysis_cancelled(self, project_id)
-                .await
-                .map_err(import_analysis_error)?
-            {
+            if import_analysis_cancelled(self, project_id).await? {
                 return Ok(ImportAnalysisStageResult::Cancelled(analyzed));
             }
             save_import_stage(
                 self,
                 project_id,
                 progress,
-                STAGE_ANALYSIS,
                 analyzed,
-                total,
                 format!("正在分析并同步第{}章资料", chapter.chapter_number),
             )
-            .await
-            .map_err(import_analysis_error)?;
+            .await?;
             self.run_chapter_analysis_validated(
                 chapter.id,
                 prompt_renderer,
@@ -194,33 +168,20 @@ impl OrchestratorContext {
                 self,
                 project_id,
                 progress,
-                STAGE_ANALYSIS,
                 analyzed,
-                total,
                 format!("已完成第{}章分析", chapter.chapter_number),
             )
-            .await
-            .map_err(import_analysis_error)?;
+            .await?;
         }
         save_import_stage(
             self,
             project_id,
             progress,
-            STAGE_ANALYSIS,
-            total,
             total,
             "逐章分析与资料同步完成".to_owned(),
         )
-        .await
-        .map_err(import_analysis_error)?;
+        .await?;
         Ok(ImportAnalysisStageResult::Complete(total))
-    }
-}
-
-fn import_analysis_error(error: impl ToString) -> AppError {
-    AppError::InvalidState {
-        current: "import_project_analysis".to_string(),
-        operation: error.to_string(),
     }
 }
 

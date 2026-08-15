@@ -99,7 +99,11 @@ use a4n_api_contract::{
         ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
         SceneProfileImagePromptOutput,
     },
-    import::{ImportProjectTextUploadInput, MAX_PROJECT_TEXT_UPLOAD_BYTES},
+    import::{
+        ImportAnalysisStageKey, ImportAnalysisStageProgress, ImportAnalysisStageStatus,
+        ImportAnalysisStages, ImportAnalysisStatus, ImportProjectAnalysisSummary,
+        ImportProjectTextUploadInput, MAX_PROJECT_TEXT_UPLOAD_BYTES, ProjectImportAnalysisProgress,
+    },
     import_reverse::{ConfirmReverseEngineeringCandidateInput, ReverseEngineerInput},
     import_review::{
         AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
@@ -330,6 +334,13 @@ fn main() {
         &typescript_interface::<OrphanProjectDataDirSummary>("OrphanProjectDataDirSummary"),
         &typescript_interface::<OrphanProjectDataDirsSummary>("OrphanProjectDataDirsSummary"),
         &typescript_interface::<ImportProjectTextUploadInput>("ImportProjectTextUploadInput"),
+        &typescript_enum::<ImportAnalysisStatus>("ImportAnalysisStatus"),
+        &typescript_enum::<ImportAnalysisStageKey>("ImportAnalysisStageKey"),
+        &typescript_enum::<ImportAnalysisStageStatus>("ImportAnalysisStageStatus"),
+        &typescript_interface::<ImportAnalysisStageProgress>("ImportAnalysisStageProgress"),
+        &typescript_interface::<ImportAnalysisStages>("ImportAnalysisStages"),
+        &typescript_interface::<ProjectImportAnalysisProgress>("ProjectImportAnalysisProgress"),
+        &typescript_interface::<ImportProjectAnalysisSummary>("ImportProjectAnalysisSummary"),
         &typescript_chapter_constants(),
         &typescript_interface::<ChapterAnalysisInput>("ChapterAnalysisInput"),
         &typescript_interface::<PreparedGenerationRagEmbeddingRequest>(

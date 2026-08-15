@@ -5,7 +5,6 @@ use parsing::parse_import_file_bytes;
 use upload::decode_import_upload;
 
 use a4n_core::error::AppError;
-use a4n_orchestrator::import_analysis::ParsedChapterInput;
 
 use crate::{AppState, actions::import_review};
 
@@ -20,14 +19,7 @@ pub async fn import_project_text_upload(
     let upload = decode_import_upload(input).map_err(AppError::InvalidArgument)?;
     let chapters =
         parse_import_file_bytes(&upload.file_type, &upload.file_bytes, &upload.file_name)
-            .map_err(AppError::InvalidArgument)?
-            .into_iter()
-            .map(|chapter| ParsedChapterInput {
-                number: chapter.number,
-                title: chapter.title,
-                content: chapter.content,
-            })
-            .collect::<Vec<_>>();
+            .map_err(AppError::InvalidArgument)?;
     a4n_orchestrator::import_analysis::ingest::create_import_analysis_reviews_for_user_validated(
         state.orchestrator(),
         user_id,

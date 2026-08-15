@@ -24,6 +24,7 @@ import {
   reverseEngineerOutline,
   reverseEngineerPartOutline,
   runImportProjectAnalysis,
+  type DedupResult,
   type ImportReview,
   type ProjectImportAnalysisProgress,
 } from "../../api/import";
@@ -49,7 +50,6 @@ import { ImportToolsPanel } from "./imports/ImportToolsPanel";
 import {
   REVERSE_CONTEXT_LIMITS,
   delay,
-  emptyImportAnalysisDialog,
   formalReverseNotice,
   importAnalysisDialogFromProgress,
   parseReverseCandidateEnvelope,
@@ -114,7 +114,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const requestPreviewBusyRef = useRef(false);
   const [actBusy, setActBusy] = useState<string | null>(null);
   const [dedupText, setDedupText] = useState("");
-  const [dedupResult, setDedupResult] = useState<unknown>(null);
+  const [dedupResult, setDedupResult] = useState<DedupResult | null>(null);
   const [dedupBusy, setDedupBusy] = useState(false);
   const [reverseType, setReverseType] = useState<ReverseType>("blueprint");
   const [reverseSample, setReverseSample] = useState("");
@@ -129,7 +129,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [requestPreviewTitle, setRequestPreviewTitle] =
     useState("模型请求预览");
   const [importAnalysisDialog, setImportAnalysisDialog] =
-    useState<ImportAnalysisDialogState>(emptyImportAnalysisDialog);
+    useState<ImportAnalysisDialogState | null>(null);
   const writeBusy =
     importBusy ||
     analyzeBusy ||
@@ -170,11 +170,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     progress: ProjectImportAnalysisProgress,
   ) => {
     const dialog = importAnalysisDialogFromProgress(progress);
-    setImportAnalysisDialog(
-      importAnalysisDialogDismissedRef.current
-        ? { ...dialog, open: false }
-        : dialog,
-    );
+    setImportAnalysisDialog({
+      ...dialog,
+      open: !importAnalysisDialogDismissedRef.current,
+    });
   };
 
   const nextSequence = (ref: React.MutableRefObject<number>) => {
@@ -191,9 +190,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     sequence: number,
   ) => isCurrentProject(requestProjectId) && ref.current === sequence;
 
-  const canCancelAnalysis = () =>
-    analyzeBusy || projectProgress?.status === "analyzing";
-  const analysisInProgress = canCancelAnalysis();
+  const canCancelAnalysis = projectProgress?.status === "analyzing";
+  const analysisInProgress = analyzeBusy || canCancelAnalysis;
   const fileExternalBusy =
     analysisInProgress ||
     batchBusy ||
@@ -381,7 +379,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setRequestPreviewData(null);
     setRequestPreviewTitle("模型请求预览");
     importAnalysisDialogDismissedRef.current = false;
-    setImportAnalysisDialog(emptyImportAnalysisDialog);
+    setImportAnalysisDialog(null);
     setSelected(new Set());
     setActiveReviewState(null);
     setActiveReviewJsonState("", false);
@@ -473,14 +471,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setAnalyzeBusy(true);
     let polling = true;
     importAnalysisDialogDismissedRef.current = false;
-    setImportAnalysisDialog({
-      open: true,
-      status: "running",
-      current: 0,
-      total: 1,
-      message: "正在启动导入项目分析",
-      error: null,
-    });
+    setImportAnalysisDialog(null);
 
     const pollProgress = async () => {
       while (
@@ -492,14 +483,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
             await getProjectImportAnalysisProgress(requestProjectId);
           if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq))
             return;
-          if (progress) {
+          if (progress?.status === "analyzing") {
             setProjectProgress(progress);
             setProgressDialogFromProgress(progress);
-            if (
-              ["completed", "failed", "cancelled"].includes(progress.status)
-            ) {
-              return;
-            }
           }
         } catch {
           // 主命令会返回明确错误；轮询失败不覆盖弹窗主状态。
@@ -528,13 +514,17 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq))
         return;
       const message = extractErrorMessage(err, "启动失败");
-      setImportAnalysisDialog((prev) => ({
-        ...prev,
-        open: !importAnalysisDialogDismissedRef.current,
-        status: "error",
-        message: "导入项目分析失败",
-        error: message,
-      }));
+      setImportAnalysisDialog((prev) =>
+        prev
+          ? {
+              ...prev,
+              open: !importAnalysisDialogDismissedRef.current,
+              status: "error",
+              message: "导入项目分析失败",
+              error: message,
+            }
+          : null,
+      );
       addToast(message, "error");
     } finally {
       polling = false;
@@ -579,7 +569,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const handleCancelAnalysis = async () => {
     if (cancelBusyRef.current) return;
-    if (!canCancelAnalysis()) {
+    if (!canCancelAnalysis) {
       addToast("当前没有正在运行的导入项目分析", "info");
       return;
     }
@@ -601,13 +591,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (progress) {
         setProjectProgress(progress);
         setProgressDialogFromProgress(progress);
-      } else {
-        setImportAnalysisDialog((prev) => ({
-          ...prev,
-          open: true,
-          status: "cancelled",
-          message: "导入分析已取消",
-        }));
       }
       await load(requestProjectId);
     } catch (err) {
@@ -1115,10 +1098,14 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const handleImportAnalysisDialogClose = () => {
     importAnalysisDialogDismissedRef.current = true;
-    setImportAnalysisDialog((prev) => ({
-      ...prev,
-      open: false,
-    }));
+    setImportAnalysisDialog((prev) =>
+      prev
+        ? {
+            ...prev,
+            open: false,
+          }
+        : null,
+    );
   };
 
   return (
@@ -1196,24 +1183,26 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           </aside>
         </div>
       </div>
-      <ProgressDialog
-        open={importAnalysisDialog.open}
-        title="导入项目分析"
-        status={importAnalysisDialog.status}
-        current={importAnalysisDialog.current}
-        total={importAnalysisDialog.total}
-        message={importAnalysisDialog.message}
-        error={importAnalysisDialog.error}
-        onClose={handleImportAnalysisDialogClose}
-        onCancel={
-          importAnalysisDialog.status === "running"
-            ? handleCancelAnalysis
-            : undefined
-        }
-        cancelLabel="停止分析"
-        cancelling={cancelBusy}
-        runningHint="分析过程中已完成的章节和大纲会保留"
-      />
+      {importAnalysisDialog ? (
+        <ProgressDialog
+          open={importAnalysisDialog.open}
+          title="导入项目分析"
+          status={importAnalysisDialog.status}
+          current={importAnalysisDialog.current}
+          total={importAnalysisDialog.total}
+          message={importAnalysisDialog.message}
+          error={importAnalysisDialog.error}
+          onClose={handleImportAnalysisDialogClose}
+          onCancel={
+            importAnalysisDialog.status === "running"
+              ? handleCancelAnalysis
+              : undefined
+          }
+          cancelLabel="停止分析"
+          cancelling={cancelBusy}
+          runningHint="分析过程中已完成的章节和大纲会保留"
+        />
+      ) : null}
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}

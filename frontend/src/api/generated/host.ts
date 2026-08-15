@@ -586,6 +586,41 @@ export interface ImportProjectTextUploadInput {
   project_id: number;
 }
 
+export type ImportAnalysisStatus = "analyzing" | "completed" | "failed" | "cancelled";
+
+export type ImportAnalysisStageKey = "generating_analysis_data";
+
+export type ImportAnalysisStageStatus = "pending" | "in_progress" | "completed" | "failed";
+
+export interface ImportAnalysisStageProgress {
+  completed: number;
+  name: string;
+  status: ImportAnalysisStageStatus;
+  total: number;
+}
+
+export interface ImportAnalysisStages {
+  generating_analysis_data: ImportAnalysisStageProgress;
+}
+
+export interface ProjectImportAnalysisProgress {
+  cancelled_at: string | null;
+  completed_at: string | null;
+  current_stage: ImportAnalysisStageKey;
+  error: string | null;
+  failed_at: string | null;
+  message: string;
+  overall_progress: number;
+  stages: ImportAnalysisStages;
+  started_at: string;
+  status: ImportAnalysisStatus;
+}
+
+export interface ImportProjectAnalysisSummary {
+  analyzed_chapters: number;
+  progress: ProjectImportAnalysisProgress;
+}
+
 export const CHAPTER_ANALYSIS_PROGRESS_TOTAL = 100;
 export const CHAPTER_SCENE_PROGRESS_TOTAL = 4;
 
@@ -1882,12 +1917,12 @@ export type ImportReviewStatus = "pending" | "accepted" | "rejected" | "modified
 
 export interface ImportReviewSummary {
   analysis_result: unknown;
-  created_at: string | null;
+  created_at: string;
   filename: string;
   id: number;
   project_id: number;
   review_status: ImportReviewStatus;
-  updated_at: string | null;
+  updated_at: string;
 }
 
 export interface ImportProjectReviewsInput {
@@ -1908,7 +1943,7 @@ export interface BatchAcceptImportReviewsInput {
 }
 
 export interface DedupResult {
-  closest_distance: number;
+  closest_distance: number | null;
   content_hash: string;
   is_duplicate: boolean;
   matched_chapter_id: number | null;

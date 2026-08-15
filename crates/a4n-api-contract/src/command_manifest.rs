@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 4;
+pub const COMMAND_MANIFEST_VERSION: u32 = 5;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -283,7 +283,7 @@ macro_rules! command_specs {
 }
 
 command_specs! {
-    "accept_import_review" => args_accept_import_review, result_import_review, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
+    "accept_import_review" => args_accept_import_review, result_import_review, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "accept_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT);
     "activate_theme" => args_activate_theme, result_activate_theme, "settings", context(NO_CONTEXT);
     "add_image_config" => args_add_image_config, result_add_image_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
@@ -295,21 +295,21 @@ command_specs! {
     "apply_source_sync_decisions" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "assemble_chapter_videos" => args_assemble_chapter_videos, result_assembled_chapter_video_preview, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "attribute_history" => args_attribute_history, result_attribute_history, "profile", effect(READ_EFFECT);
-    "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
+    "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
     "bind_manga_reference_image" => args_bind_manga_reference_image, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
     "cancel_admin_task" => args_task_id, result_unit, "task", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_embedding_model_download" => args_cancel_embedding_model_download, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "cancel_galgame_pipeline" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
     "cancel_generation_task" => args_cancel_generation_task, result_generation_task_handle, "task", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "cancel_import_analysis" => args_project_id, result_unit, "import", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "cancel_import_analysis" => args_project_id, result_unit, "import", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "cancel_manga_pipeline" => args_cancel_manga_pipeline, result_cancel_manga_pipeline, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), idempotency("server_workflow");
     "cancel_task" => args_cancel_task, result_unit, "task", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "cancel_workflow" => args_cancel_workflow, result_unit, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
     "change_user_password" => args_change_user_password, result_unit, "auth", context(NO_CONTEXT), secrets(CHANGE_PASSWORD_SECRET_POINTERS);
     "check_character_conflict" => args_opaque, result_opaque, "profile", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "check_implicit_update" => args_check_implicit_update, result_check_implicit_update, "profile", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "check_import_dedup" => args_check_import_dedup, result_dedup, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "check_import_dedup" => args_check_import_dedup, result_dedup, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "check_profile_sync_conflict" => args_check_profile_sync_conflict, result_check_profile_sync_conflict, "profile", effect(READ_EFFECT);
     "cleanup_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "commit_inserted_segment_draft" => args_commit_inserted_segment_draft, result_video_timeline, "video";
@@ -335,7 +335,7 @@ command_specs! {
     "delete_foreshadowing" => args_delete_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_galgame_line" => args_delete_galgame_line, result_unit, "galgame", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_image" => args_delete_image, result_unit, "asset", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "delete_import_review" => args_import_review_id, result_unit, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "delete_import_review" => args_import_review_id, result_unit, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "delete_inserted_segment" => args_delete_inserted_segment, result_video_timeline, "video", effect(DESTRUCTIVE_EFFECT);
     "delete_latest_chapter_outlines" => args_delete_latest_outline_records, result_outline_mutation, "chapter", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "delete_latest_parts" => args_delete_latest_outline_records, result_outline_mutation, "outline", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -410,7 +410,7 @@ command_specs! {
     "get_project" => args_project_id, result_create_project, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "get_project_asset_dependency_graph" => args_project_id, result_get_project_asset_dependency_graph, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "get_project_asset_dependency_graph_node_detail" => args_project_asset_dependency_graph_node_detail, result_get_project_asset_dependency_graph_node_detail, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
-    "get_project_import_analysis_progress" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "get_project_import_analysis_progress" => args_project_id, result_import_analysis_progress, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "get_project_status_machine" => args_project_id, result_get_project_status_machine, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_queue_stats" => empty_args_schema, result_get_queue_stats, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_snapshot" => args_get_snapshot, result_get_snapshot, "profile", effect(READ_EFFECT);
@@ -448,7 +448,7 @@ command_specs! {
     "list_image_configs" => args_get_llm_max_tokens_config, result_list_image_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_images_by_chapter" => args_list_images_by_chapter, result_list_images_by_chapter, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_images_by_project" => args_list_images_by_project, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
-    "list_import_queue" => args_import_project_reviews, result_import_reviews, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "list_import_queue" => args_import_project_reviews, result_import_reviews, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "list_invite_codes" => empty_args_schema, result_opaque, "collaboration", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_llm_config" => args_get_llm_max_tokens_config, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_local_embedding_models" => args_get_llm_max_tokens_config, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
@@ -514,7 +514,7 @@ command_specs! {
     "preview_generate_parts_request" => args_generate_parts, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_portrait_prompt_request" => args_preview_generate_portrait_prompt_request, result_model_request_preview, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_portrait_request" => args_preview_generate_portrait_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_import_project_analysis_request" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_import_project_analysis_request" => args_project_id, result_model_request_preview, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_inspiration_request" => args_preview_inspiration_request, result_model_request_preview, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_object_profile_image_request" => args_preview_object_profile_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_page_image_request" => args_preview_page_image_request, result_model_request_preview, "asset", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -567,7 +567,7 @@ command_specs! {
     "record_optimize_agent_event" => args_opaque, result_opaque, "system";
     "refresh_token" => args_refresh_token, result_refresh_token, "auth", identity(PUBLIC_IDENTITY), secrets(REFRESH_TOKEN_SECRET_POINTERS);
     "register_user" => args_register_user, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
-    "reject_import_review" => args_import_review_id, result_import_review, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "reject_import_review" => args_import_review_id, result_import_review, "import", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "reject_pending_optimize_patch_sets" => args_opaque, result_opaque, "system", effect(DESTRUCTIVE_EFFECT);
     "remove_image_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "remove_project_member" => args_member_user_id, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -591,7 +591,7 @@ command_specs! {
     "run_canvas_graph" => args_run_canvas_graph, result_run_canvas_graph, "canvas", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "run_canvas_node" => args_run_canvas_node, result_run_canvas_graph, "canvas", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "run_galgame_asset_generation" => args_run_galgame_asset_generation, result_run_galgame_asset_generation, "galgame", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_GENERATION_SPEC_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
-    "run_import_project_analysis" => args_project_id, result_opaque, "import", context(PROJECT_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
+    "run_import_project_analysis" => args_project_id, result_import_analysis_summary, "import", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "save_blueprint" => args_save_blueprint, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_canvas_graph" => args_save_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT);
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
@@ -2482,6 +2482,14 @@ fn result_import_reviews() -> Value {
     typed_schema::<Vec<crate::import_review::ImportReviewSummary>>()
 }
 
+fn result_import_analysis_progress() -> Value {
+    typed_schema::<Option<crate::import::ProjectImportAnalysisProgress>>()
+}
+
+fn result_import_analysis_summary() -> Value {
+    typed_schema::<crate::import::ImportProjectAnalysisSummary>()
+}
+
 fn result_insert_galgame_line() -> Value {
     typed_schema::<crate::galgame::GalgameLine>()
 }
@@ -3368,6 +3376,44 @@ mod tests {
         assert_eq!(
             resume_preview.result_schema["x-a4n-schema-quality"],
             "typed"
+        );
+    }
+
+    #[test]
+    fn import_analysis_and_review_commands_expose_one_typed_contract() {
+        for command in [
+            "accept_import_review",
+            "batch_accept_reviews",
+            "cancel_import_analysis",
+            "check_import_dedup",
+            "delete_import_review",
+            "get_project_import_analysis_progress",
+            "list_import_queue",
+            "preview_import_project_analysis_request",
+            "reject_import_review",
+            "run_import_project_analysis",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert!(descriptor.file_inputs.is_empty(), "{command}");
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.result_schema["x-a4n-schema-quality"], "typed",
+                "{command}"
+            );
+        }
+
+        let run = command_descriptor("run_import_project_analysis").unwrap();
+        assert_eq!(run.execution, "immediate");
+        assert!(run.result_references.is_empty());
+
+        let preview = command_descriptor("preview_import_project_analysis_request").unwrap();
+        assert_eq!(preview.effect, "read");
+        assert_eq!(
+            preview.runtime_config_policy,
+            RuntimeConfigPolicy::WithoutSecrets
         );
     }
 

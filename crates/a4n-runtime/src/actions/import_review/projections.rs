@@ -12,8 +12,8 @@ pub fn import_review_summary(
         filename: review.filename.clone(),
         analysis_result: review.analysis_result.clone(),
         review_status,
-        created_at: Some(review.created_at.to_string()),
-        updated_at: Some(review.updated_at.to_string()),
+        created_at: review.created_at.to_string(),
+        updated_at: review.updated_at.to_string(),
     })
 }
 

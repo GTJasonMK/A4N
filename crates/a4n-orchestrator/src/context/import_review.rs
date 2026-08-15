@@ -155,8 +155,17 @@ impl OrchestratorContext {
             .import_review
             .accept_import_review_validated(review, analysis_result)
             .await?;
-        self.finish_import_review_acceptance(&accepted, host_port)
-            .await?;
+        if let Err(error) = self
+            .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id)
+            .await
+        {
+            tracing::warn!(
+                review_id = accepted.review.id,
+                chapter_id = accepted.chapter_id,
+                error = %error,
+                "导入审核已接受，章节派生资料同步待恢复"
+            );
+        }
         Ok(accepted)
     }
 
@@ -223,24 +232,5 @@ impl OrchestratorContext {
         self.verify_project_permission(review.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         Ok(review)
-    }
-
-    async fn finish_import_review_acceptance(
-        &self,
-        accepted: &AcceptedImportReview,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-    ) -> Result<(), AppError> {
-        if let Err(error) = self
-            .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id)
-            .await
-        {
-            tracing::warn!(
-                review_id = accepted.review.id,
-                chapter_id = accepted.chapter_id,
-                error = %error,
-                "导入审核已接受，章节派生资料同步待恢复"
-            );
-        }
-        Ok(())
     }
 }

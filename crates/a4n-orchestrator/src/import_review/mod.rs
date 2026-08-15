@@ -4,15 +4,7 @@
 
 mod rules;
 
+pub use a4n_api_contract::import_review::DedupResult as ImportDedupResult;
 pub use a4n_db::import_review::{AcceptedImportReview, ImportReviewCreateInput};
-
-/// 导入审核去重结果；阈值和匹配规则由 Orchestrator 统一持有，Runtime 只做 DTO 投影。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ImportDedupResult {
-    pub content_hash: String,
-    pub is_duplicate: bool,
-    pub closest_distance: u32,
-    pub matched_chapter_id: Option<i64>,
-}
 
 pub(crate) use rules::calculate_import_dedup;

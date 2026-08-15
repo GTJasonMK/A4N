@@ -7,19 +7,19 @@ use crate::{
     },
     state::AppState,
 };
+use a4n_core::error::AppError;
 
 pub async fn preview_import_project_analysis_request(
     state: &AppState,
     user_id: i64,
     project_id: i64,
-) -> Result<ModelRequestPreview, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
+) -> Result<ModelRequestPreview, AppError> {
+    access::verify_project_editor(state, user_id, project_id).await?;
     let prompt_renderer = state;
     let steps = state
         .orchestrator()
         .prepare_import_project_analysis_preview_validated(project_id, prompt_renderer)
-        .await
-        .map_err(|error| error.to_string())?
+        .await?
         .into_iter()
         .map(|step| {
             ChatStatusPreviewStep::llm(
@@ -40,4 +40,5 @@ pub async fn preview_import_project_analysis_request(
         "llm_chat",
     )
     .await
+    .map_err(AppError::InvalidArgument)
 }

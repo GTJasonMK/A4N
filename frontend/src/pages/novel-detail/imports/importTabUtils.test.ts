@@ -1,11 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
   formalReverseNotice,
+  importAnalysisDialogFromProgress,
   parseReverseCandidateEnvelope,
   reverseCandidateFromCheckpoint,
 } from "./importTabUtils";
 
 describe("import candidate contracts", () => {
+  it("maps strict import analysis progress to the completed dialog state", () => {
+    expect(
+      importAnalysisDialogFromProgress({
+        cancelled_at: null,
+        completed_at: "now",
+        current_stage: "generating_analysis_data",
+        error: null,
+        failed_at: null,
+        message: "导入项目分析已完成",
+        overall_progress: 100,
+        stages: {
+          generating_analysis_data: {
+            completed: 3,
+            name: "生成分析数据",
+            status: "completed",
+            total: 3,
+          },
+        },
+        started_at: "now",
+        status: "completed",
+      }),
+    ).toEqual({
+      open: true,
+      status: "success",
+      current: 3,
+      total: 3,
+      message: "导入项目分析已完成",
+      error: null,
+    });
+  });
+
   it("maps the UI reverse type to the backend prompt target", () => {
     const candidate = parseReverseCandidateEnvelope(
       {
