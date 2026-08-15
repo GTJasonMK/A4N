@@ -66,12 +66,3 @@ pub(in crate::workflow) fn generated_video_ids_for_active_checkpoints(
     }
     video_ids.into_iter().collect()
 }
-
-pub(in crate::workflow) fn normalize_cancel_reason(reason: &str) -> String {
-    let reason = reason.trim();
-    if reason.is_empty() {
-        "工作流已取消".to_string()
-    } else {
-        reason.to_string()
-    }
-}

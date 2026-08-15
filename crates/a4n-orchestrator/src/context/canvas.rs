@@ -320,62 +320,6 @@ impl OrchestratorContext {
         self.complete_workflow_run_validated(workflow_run_id).await
     }
 
-    /// 画布独立节点 run 成功：按 finalize_on_success 决定是否将 workflow 标 completed。
-    /// 返回 (可选已 finalize 的 run, 用于 Host 摘要的 status 字符串)。
-    pub async fn complete_canvas_node_workflow_validated(
-        &self,
-        workflow_run_id: i64,
-        finalize_on_success: bool,
-    ) -> Result<
-        (
-            Option<a4n_core::models::generation::workflow_run::Model>,
-            String,
-        ),
-        AppError,
-    > {
-        crate::workflow::require_positive_workflow_run_id(workflow_run_id)
-            .map_err(AppError::InvalidArgument)?;
-        if !crate::canvas::canvas_node_should_finalize_on_success(finalize_on_success) {
-            return Ok((None, crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string()));
-        }
-        let completed = self
-            .finalize_workflow_run_outcome_validated(
-                workflow_run_id,
-                crate::canvas::canvas_node_success_finalize_outcome(),
-                None,
-            )
-            .await?;
-        let status = completed.status.clone();
-        Ok((Some(completed), status))
-    }
-
-    /// 视频画布节点关联 workflow：按 status 完成/失败/非终态回落（消除 Host 裸 mark）。
-    pub async fn finalize_canvas_video_workflow_validated(
-        &self,
-        workflow_run_id: i64,
-        status: &str,
-        error_message: Option<&str>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
-        crate::workflow::require_positive_workflow_run_id(workflow_run_id)
-            .map_err(AppError::InvalidArgument)?;
-        let action = crate::canvas::canvas_video_workflow_status_action(status)
-            .map_err(AppError::InvalidArgument)?;
-        match action {
-            crate::canvas::CanvasVideoWorkflowStatusAction::Complete => {
-                self.complete_workflow_run_validated(workflow_run_id).await
-            }
-            crate::canvas::CanvasVideoWorkflowStatusAction::Fail => {
-                self.fail_workflow_run_validated(workflow_run_id, error_message)
-                    .await
-            }
-            crate::canvas::CanvasVideoWorkflowStatusAction::MarkNonTerminal => {
-                // 非 completed/failed：按调用方 status 回落；can_resume=false（与历史 Host 约定一致）。
-                self.mark_workflow_status(workflow_run_id, status, false, error_message)
-                    .await
-            }
-        }
-    }
-
     /// 画布整图：校验后创建 workflow_run（RUNNING）。
     pub(crate) async fn begin_canvas_graph_workflow_validated(
         &self,

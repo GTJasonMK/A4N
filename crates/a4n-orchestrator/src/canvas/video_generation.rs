@@ -342,8 +342,9 @@ impl OrchestratorContext {
                     .await;
             }
             if self
-                .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
+                .canvas_workflow_cancellation_reason(lifecycle.run.workflow_run_id)
                 .await?
+                .is_some()
             {
                 self.cancel_canvas_video_record(&video, "画布运行已取消，视频未提交 provider")
                     .await?;
@@ -436,8 +437,9 @@ impl OrchestratorContext {
     ) -> Result<generated_video::Model, AppError> {
         let workflow_run_id = canvas_video_workflow_run_id(&video)?;
         if self
-            .canvas_workflow_run_is_cancelled(workflow_run_id)
+            .canvas_workflow_cancellation_reason(workflow_run_id)
             .await?
+            .is_some()
         {
             self.cancel_canvas_video_record(&video, "画布运行已取消，视频结果不再写入")
                 .await?;
@@ -543,8 +545,9 @@ impl OrchestratorContext {
 
         loop {
             if self
-                .canvas_workflow_run_is_cancelled(workflow_run_id)
+                .canvas_workflow_cancellation_reason(workflow_run_id)
                 .await?
+                .is_some()
             {
                 self.interrupt_canvas_video_polling(
                     &video,
@@ -574,8 +577,9 @@ impl OrchestratorContext {
             {
                 Ok(VideoJobState::Completed(result)) => {
                     if self
-                        .canvas_workflow_run_is_cancelled(workflow_run_id)
+                        .canvas_workflow_cancellation_reason(workflow_run_id)
                         .await?
+                        .is_some()
                     {
                         self.interrupt_canvas_video_polling(
                             &video,
@@ -712,8 +716,13 @@ impl OrchestratorContext {
             WORKFLOW_STATUS_FAILED => {
                 let error = video
                     .error_message
-                    .clone()
-                    .unwrap_or_else(|| "画布视频生成失败".to_string());
+                    .as_deref()
+                    .filter(|message| !message.trim().is_empty())
+                    .ok_or_else(|| AppError::InvalidState {
+                        current: format!("failed_generated_video_without_error:{}", video.id),
+                        operation: "完成画布视频生成".to_string(),
+                    })?
+                    .to_string();
                 self.mark_canvas_generation_spec_status_record(
                     generation_spec_id,
                     WORKFLOW_STATUS_FAILED,

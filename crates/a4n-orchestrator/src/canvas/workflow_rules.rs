@@ -1,11 +1,8 @@
-//! 画布图/节点工作流 business key、begin 输入与节点完成态纯规则（无 DB）。
+//! 画布图/节点工作流 business key、begin 输入与 step key 规则（无 DB）。
 
 use serde_json::Value;
 
-use crate::workflow::{
-    UpsertWorkflowRunInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING, WorkflowRunFinalizeOutcome,
-};
+use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// 视频画布图工作流 kind。
 pub const WORKFLOW_KIND_VIDEO_CANVAS_GRAPH: &str = "video_canvas_graph";
@@ -165,51 +162,6 @@ pub fn canvas_node_step_key(node_id: i64) -> Result<String, String> {
     Ok(format!("canvas_node:{node_id}"))
 }
 
-/// 独立节点 run 成功时是否应 finalize workflow（与 Host CanvasRunHandle 约定一致）。
-pub fn canvas_node_should_finalize_on_success(finalize_on_success: bool) -> bool {
-    finalize_on_success
-}
-
-/// 视频画布节点关联 workflow 的状态推进策略（纯规则）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CanvasVideoWorkflowStatusAction {
-    /// 标 completed。
-    Complete,
-    /// 标 failed（可 resume）。
-    Fail,
-    /// 非终态：按给定 status 回落 mark，can_resume=false。
-    MarkNonTerminal,
-}
-
-/// 将视频画布 workflow status 解析为推进动作。
-pub fn canvas_video_workflow_status_action(
-    status: &str,
-) -> Result<CanvasVideoWorkflowStatusAction, String> {
-    let status = status.trim();
-    if status.is_empty() {
-        return Err("画布视频 workflow status 不能为空".to_string());
-    }
-    Ok(match status {
-        s if s == WORKFLOW_STATUS_COMPLETED => CanvasVideoWorkflowStatusAction::Complete,
-        s if s == WORKFLOW_STATUS_FAILED => CanvasVideoWorkflowStatusAction::Fail,
-        s if s == WORKFLOW_STATUS_CANCELLED => CanvasVideoWorkflowStatusAction::MarkNonTerminal,
-        _ => CanvasVideoWorkflowStatusAction::MarkNonTerminal,
-    })
-}
-
-/// 节点成功 finalize 对应的终态 outcome。
-pub fn canvas_node_success_finalize_outcome() -> WorkflowRunFinalizeOutcome {
-    WorkflowRunFinalizeOutcome::Completed
-}
-
-/// checkpoint 是否视为节点/视频画布已完成（completed 或 failed）。
-pub fn canvas_workflow_checkpoint_is_terminal(status: &str) -> bool {
-    matches!(
-        status.trim(),
-        s if s == WORKFLOW_STATUS_COMPLETED || s == WORKFLOW_STATUS_FAILED
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,35 +192,5 @@ mod tests {
     fn node_step_key_requires_positive_id() {
         assert!(canvas_node_step_key(0).is_err());
         assert_eq!(canvas_node_step_key(9).unwrap(), "canvas_node:9");
-    }
-
-    #[test]
-    fn video_status_action_maps_terminal_and_non_terminal() {
-        assert_eq!(
-            canvas_video_workflow_status_action(WORKFLOW_STATUS_COMPLETED).unwrap(),
-            CanvasVideoWorkflowStatusAction::Complete
-        );
-        assert_eq!(
-            canvas_video_workflow_status_action(WORKFLOW_STATUS_FAILED).unwrap(),
-            CanvasVideoWorkflowStatusAction::Fail
-        );
-        assert_eq!(
-            canvas_video_workflow_status_action("interrupted").unwrap(),
-            CanvasVideoWorkflowStatusAction::MarkNonTerminal
-        );
-        assert!(canvas_video_workflow_status_action("  ").is_err());
-    }
-
-    #[test]
-    fn checkpoint_terminal_predicate() {
-        assert!(canvas_workflow_checkpoint_is_terminal(
-            WORKFLOW_STATUS_COMPLETED
-        ));
-        assert!(canvas_workflow_checkpoint_is_terminal(
-            WORKFLOW_STATUS_FAILED
-        ));
-        assert!(!canvas_workflow_checkpoint_is_terminal(
-            WORKFLOW_STATUS_RUNNING
-        ));
     }
 }

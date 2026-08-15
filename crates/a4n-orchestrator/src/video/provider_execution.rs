@@ -874,6 +874,17 @@ impl crate::OrchestratorContext {
         else {
             return Ok(());
         };
+        let checkpoint_completed = match video.status.as_str() {
+            crate::video::GENERATED_VIDEO_STATUS_COMPLETED
+            | crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED => true,
+            crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED => false,
+            other => {
+                return Err(AppError::InvalidState {
+                    current: format!("generated_video_status={other}"),
+                    operation: "同步画布视频 workflow".to_string(),
+                });
+            }
+        };
         let step_key = format!("canvas_node:{}", canvas.node_id);
         self.upsert_workflow_checkpoint(a4n_db::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: canvas.workflow_run_id,
@@ -897,19 +908,155 @@ impl crate::OrchestratorContext {
             })),
             generation_run_ids_json: None,
             error_message: error_message.map(str::to_string),
-            completed: matches!(
-                video.status.as_str(),
-                crate::video::GENERATED_VIDEO_STATUS_COMPLETED
-                    | crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
-            ),
+            completed: checkpoint_completed,
         })
         .await?;
-        self.finalize_canvas_video_workflow_validated(
-            canvas.workflow_run_id,
-            &video.status,
-            error_message,
-        )
-        .await?;
+        if video.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+            self.complete_workflow_run_validated(canvas.workflow_run_id)
+                .await?;
+        } else if video.status == crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED {
+            self.fail_workflow_run_validated(canvas.workflow_run_id, error_message)
+                .await?;
+        } else {
+            self.mark_workflow_status(
+                canvas.workflow_run_id,
+                crate::workflow::WORKFLOW_STATUS_INTERRUPTED,
+                true,
+                error_message,
+            )
+            .await?;
+        }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use a4n_core::models::ai::generated_video;
+    use a4n_db::workflow::{
+        UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
+        WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
+    };
+    use serde_json::json;
+
+    use super::AppError;
+    use crate::test_support::TestOrchestratorBuilder;
+
+    #[tokio::test]
+    async fn canvas_video_sync_only_accepts_produced_terminal_or_interrupted_statuses() {
+        let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+        let context = TestOrchestratorBuilder::new(Arc::clone(&database))
+            .build()
+            .await;
+
+        for (status, error_message, expected_can_resume) in [
+            (WORKFLOW_STATUS_COMPLETED, None, false),
+            (WORKFLOW_STATUS_FAILED, Some("provider failed"), true),
+            (
+                WORKFLOW_STATUS_INTERRUPTED,
+                Some("provider interrupted"),
+                true,
+            ),
+        ] {
+            let run = context
+                .begin_workflow_run_validated(canvas_workflow_input(status))
+                .await
+                .expect("应可创建画布 workflow");
+            context
+                .sync_canvas_video_workflow(
+                    &canvas_video(run.id, status, error_message),
+                    error_message,
+                )
+                .await
+                .expect("生产路径状态应可同步");
+            let stored = context
+                .workflow_run_model_by_id(run.id)
+                .await
+                .expect("应可读取同步后的 workflow");
+            assert_eq!(stored.status, status);
+            assert_eq!(stored.can_resume, expected_can_resume);
+        }
+
+        let run = context
+            .begin_workflow_run_validated(canvas_workflow_input("running-rejected"))
+            .await
+            .expect("应可创建待拒绝状态的画布 workflow");
+        let error = context
+            .sync_canvas_video_workflow(&canvas_video(run.id, WORKFLOW_STATUS_RUNNING, None), None)
+            .await
+            .expect_err("provider 同步入口不会产出 running，必须显式拒绝");
+        assert!(matches!(error, AppError::InvalidState { .. }));
+        assert!(
+            context
+                .workflow_checkpoint_models(run.id)
+                .await
+                .expect("应可读取 workflow checkpoints")
+                .is_empty()
+        );
+    }
+
+    fn canvas_workflow_input(key: &str) -> UpsertWorkflowRunInput {
+        UpsertWorkflowRunInput {
+            business_key: format!("canvas-video-sync-test:{key}"),
+            workflow_kind: "video_canvas_graph".to_string(),
+            project_id: None,
+            root_project_id: None,
+            source_snapshot_id: None,
+            scope_table: None,
+            scope_id: None,
+            chapter_id: None,
+            mode: Some("single_node".to_string()),
+            input_fingerprint_json: None,
+            status: WORKFLOW_STATUS_RUNNING.to_string(),
+            current_step_key: None,
+            active_task_id: None,
+            can_resume: true,
+            resume_block_reason: None,
+            error_message: None,
+        }
+    }
+
+    fn canvas_video(
+        workflow_run_id: i64,
+        status: &str,
+        error_message: Option<&str>,
+    ) -> generated_video::Model {
+        let now = chrono::Utc::now().naive_utc();
+        generated_video::Model {
+            id: workflow_run_id,
+            project_id: 1,
+            chapter_id: None,
+            video_type: "canvas_video".to_string(),
+            workflow_mode: Some("canvas_video".to_string()),
+            file_path: None,
+            thumbnail_path: None,
+            prompt: "test prompt".to_string(),
+            negative_prompt: None,
+            model: "test-model".to_string(),
+            width: 1280,
+            height: 720,
+            duration_secs: 5.0,
+            fps: 24,
+            file_size: None,
+            source_video_id: None,
+            source_image_id: None,
+            status: status.to_string(),
+            provider_job_id: Some("provider-job".to_string()),
+            error_message: error_message.map(str::to_string),
+            timeline_item_id: None,
+            metadata_json: Some(json!({
+                "config_id": 1,
+                "canvas": {
+                    "workflow_run_id": workflow_run_id,
+                    "graph_id": 1,
+                    "node_id": 1,
+                }
+            })),
+            is_favorite: false,
+            created_at: now,
+            updated_at: now,
+        }
     }
 }

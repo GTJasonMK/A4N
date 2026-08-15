@@ -400,12 +400,15 @@ fn workflow_terminal_transition_requires_explicit_resume() {
 }
 
 #[test]
-fn cancel_helpers_classify_terminal_status_and_default_reason() {
+fn cancel_helpers_classify_terminal_status_and_require_reason() {
     assert!(is_terminal_workflow_status(WORKFLOW_STATUS_COMPLETED));
     assert!(is_terminal_workflow_status(WORKFLOW_STATUS_FAILED));
     assert!(!is_terminal_workflow_status(WORKFLOW_STATUS_RUNNING));
-    assert_eq!(normalize_cancel_reason("  "), "工作流已取消");
-    assert_eq!(normalize_cancel_reason(" 用户取消 "), "用户取消");
+    assert!(required_text("  ".to_string(), "取消原因").is_err());
+    assert_eq!(
+        required_text(" 用户取消 ".to_string(), "取消原因").unwrap(),
+        "用户取消"
+    );
 }
 
 #[test]

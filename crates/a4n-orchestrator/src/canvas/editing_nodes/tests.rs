@@ -106,12 +106,10 @@ impl CanvasEditingNodeHostPort for TestEditingHost {
     ) -> Result<CanvasGeneratedVideoArtifact, AppError> {
         self.operation_error("trim_video")?;
         if self.cancel_trim {
-            a4n_db::workflow::mark_workflow_status(
+            a4n_db::workflow::cancel_workflow_run_persistence(
                 self.database.as_ref(),
                 input.workflow_run_id,
-                "cancelled",
-                true,
-                Some("test cancellation"),
+                "test cancellation",
             )
             .await
             .expect("测试 workflow 应可取消");
@@ -257,12 +255,13 @@ async fn trim_video_cancellation_marks_spec_and_checkpoint_cancelled() {
 
     let (spec, run, checkpoint) = persisted_lifecycle(&setup, summary.workflow_run_id).await;
     assert_eq!(summary.status, "cancelled");
+    assert_eq!(summary.error_message.as_deref(), Some("test cancellation"));
     assert_eq!(spec.status, "cancelled");
     assert_eq!(run.status, "cancelled");
     assert_eq!(checkpoint.status, "cancelled");
     assert_eq!(
         checkpoint.error_message.as_deref(),
-        Some("用户取消画布运行")
+        Some("test cancellation")
     );
 }
 

@@ -26,14 +26,14 @@ impl OrchestratorContext {
         {
             Ok(summary) => Ok(summary),
             Err(primary) => {
-                let cancelled = self
-                    .canvas_workflow_run_is_cancelled(prepared.workflow_run_id)
+                let cancellation_reason = self
+                    .canvas_workflow_cancellation_reason(prepared.workflow_run_id)
                     .await
                     .map_err(|status_error| {
                         format!("{primary}；画布 workflow 取消状态复验失败: {status_error}")
                     })?;
-                if cancelled {
-                    return Ok(cancelled_canvas_graph_summary(&prepared));
+                if let Some(reason) = cancellation_reason {
+                    return Ok(cancelled_canvas_graph_summary(&prepared, reason));
                 }
                 match self
                     .fail_workflow_run_validated(prepared.workflow_run_id, Some(primary.as_str()))
@@ -66,12 +66,12 @@ impl OrchestratorContext {
         };
         let mut last_summary = None;
         for node_id in prepared.runnable_node_ids.iter().copied() {
-            if self
-                .canvas_workflow_run_is_cancelled(prepared.workflow_run_id)
+            if let Some(reason) = self
+                .canvas_workflow_cancellation_reason(prepared.workflow_run_id)
                 .await
                 .map_err(|error| error.to_string())?
             {
-                return Ok(cancelled_canvas_graph_summary(prepared));
+                return Ok(cancelled_canvas_graph_summary(prepared, reason));
             }
             let current_document = self
                 .get_or_create_canvas_graph_record(
@@ -114,12 +114,12 @@ impl OrchestratorContext {
         let Some(summary) = last_summary else {
             return Err("画布中没有可执行的操作节点".to_string());
         };
-        if self
-            .canvas_workflow_run_is_cancelled(prepared.workflow_run_id)
+        if let Some(reason) = self
+            .canvas_workflow_cancellation_reason(prepared.workflow_run_id)
             .await
             .map_err(|error| error.to_string())?
         {
-            return Ok(cancelled_canvas_graph_summary(prepared));
+            return Ok(cancelled_canvas_graph_summary(prepared, reason));
         }
         if summary.status == WORKFLOW_STATUS_COMPLETED {
             let completed = self
@@ -139,9 +139,9 @@ impl OrchestratorContext {
     }
 }
 
-fn cancelled_canvas_graph_summary(prepared: &PreparedCanvasGraphRun) -> CanvasNodeRunSummary {
-    prepared.summary(
-        WORKFLOW_STATUS_CANCELLED,
-        Some("用户取消画布运行".to_string()),
-    )
+fn cancelled_canvas_graph_summary(
+    prepared: &PreparedCanvasGraphRun,
+    reason: String,
+) -> CanvasNodeRunSummary {
+    prepared.summary(WORKFLOW_STATUS_CANCELLED, Some(reason))
 }

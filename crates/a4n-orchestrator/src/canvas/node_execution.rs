@@ -46,16 +46,6 @@ impl OrchestratorContext {
         shared_run: Option<CanvasNodeRunHandle>,
     ) -> Result<CanvasNodeLifecycle, AppError> {
         let run = if let Some(run) = shared_run {
-            self.record_canvas_node_checkpoint(
-                run.workflow_run_id,
-                step_key.clone(),
-                WORKFLOW_STATUS_RUNNING,
-                input_json.clone(),
-                None,
-                None,
-                false,
-            )
-            .await?;
             run
         } else {
             let run = self
@@ -72,6 +62,16 @@ impl OrchestratorContext {
                 finalize_on_success: true,
             }
         };
+        self.record_canvas_node_checkpoint(
+            run.workflow_run_id,
+            step_key.clone(),
+            WORKFLOW_STATUS_RUNNING,
+            input_json.clone(),
+            None,
+            None,
+            false,
+        )
+        .await?;
         Ok(CanvasNodeLifecycle {
             run,
             project_id,
@@ -93,6 +93,16 @@ impl OrchestratorContext {
         error_message: Option<String>,
         completed: bool,
     ) -> Result<(), AppError> {
+        let message = match status {
+            WORKFLOW_STATUS_RUNNING => format!("画布节点运行中: {step_key}"),
+            WORKFLOW_STATUS_COMPLETED => format!("画布节点已完成: {step_key}"),
+            WORKFLOW_STATUS_FAILED => format!("画布节点失败: {step_key}"),
+            other => {
+                return Err(AppError::InvalidArgument(format!(
+                    "画布节点 checkpoint 状态无效: {other}"
+                )));
+            }
+        };
         if status != WORKFLOW_STATUS_COMPLETED {
             self.mark_workflow_current_step(workflow_run_id, &step_key)
                 .await?;
@@ -111,13 +121,6 @@ impl OrchestratorContext {
             completed,
         })
         .await?;
-        let message = match status {
-            WORKFLOW_STATUS_RUNNING => format!("画布节点运行中: {step_key}"),
-            WORKFLOW_STATUS_COMPLETED => format!("画布节点已完成: {step_key}"),
-            WORKFLOW_STATUS_FAILED => format!("画布节点失败: {step_key}"),
-            WORKFLOW_STATUS_CANCELLED => format!("画布节点已取消: {step_key}"),
-            other => format!("画布节点状态 {other}: {step_key}"),
-        };
         self.record_workflow_progress_event(WorkflowProgressEventInput {
             workflow_run_id,
             task_id: None,
@@ -138,21 +141,16 @@ impl OrchestratorContext {
         &self,
         lifecycle: &CanvasNodeLifecycle,
     ) -> Result<CanvasNodeRunSummary, AppError> {
-        let (completed, status) = self
-            .complete_canvas_node_workflow_validated(
-                lifecycle.run.workflow_run_id,
-                lifecycle.run.finalize_on_success,
-            )
-            .await?;
+        if lifecycle.run.finalize_on_success {
+            self.complete_workflow_run_validated(lifecycle.run.workflow_run_id)
+                .await?;
+        }
         Ok(CanvasNodeRunSummary {
-            workflow_run_id: completed
-                .as_ref()
-                .map(|run| run.id)
-                .unwrap_or(lifecycle.run.workflow_run_id),
+            workflow_run_id: lifecycle.run.workflow_run_id,
             project_id: lifecycle.project_id,
             graph_id: lifecycle.graph_id,
             mode: lifecycle.mode.clone(),
-            status,
+            status: WORKFLOW_STATUS_COMPLETED.to_string(),
             error_message: None,
         })
     }
@@ -235,69 +233,51 @@ impl OrchestratorContext {
         lifecycle: CanvasNodeLifecycle,
         primary: AppError,
     ) -> Result<CanvasNodeRunSummary, AppError> {
-        let cancelled = self
-            .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
+        let cancellation_reason = self
+            .canvas_workflow_cancellation_reason(lifecycle.run.workflow_run_id)
             .await
             .map_err(|status_error| {
                 AppError::Internal(anyhow::anyhow!(
                     "{primary}；画布 workflow 取消状态复验失败: {status_error}"
                 ))
             })?;
-        if cancelled {
-            self.cancel_canvas_node(lifecycle, "用户取消画布运行").await
-        } else {
-            self.fail_canvas_node(lifecycle, primary).await
+        if let Some(message) = cancellation_reason {
+            if let Some(spec_id) = lifecycle.generation_spec_id {
+                self.mark_canvas_generation_spec_status_record(spec_id, WORKFLOW_STATUS_CANCELLED)
+                    .await
+                    .map_err(|error| {
+                        AppError::Internal(anyhow::anyhow!(
+                            "{message}；generation spec 取消状态写入失败: {error}"
+                        ))
+                    })?;
+            }
+            return Ok(CanvasNodeRunSummary {
+                workflow_run_id: lifecycle.run.workflow_run_id,
+                project_id: lifecycle.project_id,
+                graph_id: lifecycle.graph_id,
+                mode: lifecycle.mode,
+                status: WORKFLOW_STATUS_CANCELLED.to_string(),
+                error_message: Some(message),
+            });
         }
+        self.fail_canvas_node(lifecycle, primary).await
     }
 
-    pub(crate) async fn cancel_canvas_node(
-        &self,
-        lifecycle: CanvasNodeLifecycle,
-        message: &str,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
-        let mut state_errors = Vec::new();
-        if let Some(spec_id) = lifecycle.generation_spec_id
-            && let Err(error) = self
-                .mark_canvas_generation_spec_status_record(spec_id, WORKFLOW_STATUS_CANCELLED)
-                .await
-        {
-            state_errors.push(format!("generation spec 取消状态写入失败: {error}"));
-        }
-        if let Err(error) = self
-            .record_canvas_node_checkpoint(
-                lifecycle.run.workflow_run_id,
-                lifecycle.step_key,
-                WORKFLOW_STATUS_CANCELLED,
-                lifecycle.input_json,
-                None,
-                Some(message.to_string()),
-                true,
-            )
-            .await
-        {
-            state_errors.push(format!("节点取消 checkpoint 写入失败: {error}"));
-        }
-        if !state_errors.is_empty() {
-            return Err(AppError::Internal(anyhow::anyhow!(
-                "{message}；{}",
-                state_errors.join("；")
-            )));
-        }
-        Ok(CanvasNodeRunSummary {
-            workflow_run_id: lifecycle.run.workflow_run_id,
-            project_id: lifecycle.project_id,
-            graph_id: lifecycle.graph_id,
-            mode: lifecycle.mode,
-            status: WORKFLOW_STATUS_CANCELLED.to_string(),
-            error_message: Some(message.to_string()),
-        })
-    }
-
-    pub(crate) async fn canvas_workflow_run_is_cancelled(
+    pub(crate) async fn canvas_workflow_cancellation_reason(
         &self,
         workflow_run_id: i64,
-    ) -> Result<bool, AppError> {
-        Ok(self.workflow_run_model_by_id(workflow_run_id).await?.status
-            == WORKFLOW_STATUS_CANCELLED)
+    ) -> Result<Option<String>, AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        if run.status != WORKFLOW_STATUS_CANCELLED {
+            return Ok(None);
+        }
+        let reason = run
+            .error_message
+            .filter(|reason| !reason.trim().is_empty())
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("cancelled_workflow_without_reason:{workflow_run_id}"),
+                operation: "读取画布 workflow 取消原因".to_string(),
+            })?;
+        Ok(Some(reason))
     }
 }

@@ -1,9 +1,9 @@
-use super::projections::{generated_video_ids_for_active_checkpoints, normalize_cancel_reason};
+use super::projections::generated_video_ids_for_active_checkpoints;
 use crate::workflow::{
     CancelWorkflowRunPersistenceResult, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
     WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_SUPERSEDED, WorkflowWriteError,
-    is_terminal_workflow_status, locked_workflow_run_by_id, trim_workflow_progress_events,
-    validate_positive_i64, workflow_checkpoints,
+    is_terminal_workflow_status, locked_workflow_run_by_id, required_text,
+    trim_workflow_progress_events, validate_positive_i64, workflow_checkpoints,
 };
 use a4n_core::models::generation::{workflow_checkpoint, workflow_progress_event, workflow_run};
 use chrono::Utc;
@@ -19,7 +19,7 @@ pub async fn cancel_workflow_run_persistence(
     reason: &str,
 ) -> Result<CancelWorkflowRunPersistenceResult, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
-    let reason = normalize_cancel_reason(reason);
+    let reason = required_text(reason.to_string(), "取消原因")?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
     if is_terminal_workflow_status(&run.status) {
