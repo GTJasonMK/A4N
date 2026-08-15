@@ -1,11 +1,12 @@
 use a4n_core::{error::AppError, models::chapter::chapter};
-use a4n_prompt::rendering::PromptRenderer;
+use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use serde_json::Value;
 
 use crate::{
     OrchestratorContext,
     chapter_analysis::{
-        ChapterAnalysisApplicationProgress, ChapterAnalysisHostPort, ChapterAnalysisPreviewStep,
+        ChapterAnalysisApplicationProgress, ChapterAnalysisHostPort,
+        build_chapter_analysis_initial_request,
     },
     character::CharacterProfileSyncStageTracePort,
 };
@@ -65,7 +66,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<ChapterAnalysisPreviewStep>, AppError> {
+    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
         let chapters = importable_chapters(self, project_id)
             .await
             .map_err(import_analysis_error)?;
@@ -75,32 +76,14 @@ impl OrchestratorContext {
                 operation: "预览导入项目分析请求".to_string(),
             });
         }
-        let mut steps = Vec::with_capacity(chapters.len() * 4 + 1);
+        let mut steps = Vec::with_capacity(chapters.len());
         for chapter in chapters {
-            for request in self
-                .build_chapter_analysis_requests(chapter.id, prompt_renderer)
-                .await?
-            {
-                steps.push(ChapterAnalysisPreviewStep {
-                    key: format!("import_chapter_analysis_{}_{}", chapter.id, request.key),
-                    title: format!("第 {} 章{}", chapter.chapter_number, request.title),
-                    prompt_name: Some(request.prompt_name),
-                    status: "ready".to_string(),
-                    note: Some("导入项目分析的分析阶段会按顺序发送该请求".to_string()),
-                    request: Some(request.request),
-                });
-            }
+            let mut request =
+                build_chapter_analysis_initial_request(&chapter, prompt_renderer).await?;
+            request.key = format!("import_chapter_analysis_{}_{}", chapter.id, request.key);
+            request.title = format!("第 {} 章{}", chapter.chapter_number, request.title);
+            steps.push(request);
         }
-        steps.push(ChapterAnalysisPreviewStep {
-            key: "import_analysis_character_sync".to_string(),
-            title: "导入章节角色发现和角色同步请求".to_string(),
-            prompt_name: Some("character_discovery".to_string()),
-            status: "blocked".to_string(),
-            note: Some(
-                "这些请求依赖对应章节结构化分析输出，运行前无法提前构造真实请求".to_string(),
-            ),
-            request: None,
-        });
         Ok(steps)
     }
 

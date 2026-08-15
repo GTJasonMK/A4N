@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_prompt::rendering::PromptRenderer;
+use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use serde_json::json;
 
 use crate::OrchestratorContext;
@@ -8,21 +8,18 @@ use super::{
     context::{build_scene_profile_sync_request, select_scene_profile_sync_chapters},
     stages::build_scene_profile_stage_request,
     types::{
-        ChapterAnchorMode, SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_ENTITY_STATE_PROMPT,
-        SCENE_OCCURRENCE_PROMPT, SCENE_PROFILE_CANDIDATES_PROMPT, SCENE_TRANSITION_PROMPT,
-        SCENE_TYPE_RULE, SceneProfileSyncPreviewStep,
+        ChapterAnchorMode, SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_PROFILE_CANDIDATES_PROMPT,
+        SCENE_TYPE_RULE,
     },
 };
 
 impl OrchestratorContext {
-    pub async fn prepare_scene_profile_sync_preview_validated(
+    pub(crate) async fn prepare_scene_profile_sync_preview_validated(
         &self,
         project_id: i64,
         chapter_number: Option<i32>,
         prompt_renderer: &dyn PromptRenderer,
-        ready_state: &str,
-        ready_note: Option<String>,
-    ) -> Result<Vec<SceneProfileSyncPreviewStep>, AppError> {
+    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
         let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number)
             .await
             .map_err(scene_profile_sync_preview_error)?;
@@ -59,59 +56,15 @@ impl OrchestratorContext {
             )
             .await
             .map_err(scene_profile_sync_preview_error)?;
-            steps.push(SceneProfileSyncPreviewStep {
+            steps.push(ChapterAnalysisRequestStep {
                 key: format!("scene_profile_sync_ch{chapter_number}_scenes"),
                 title: format!("第 {chapter_number} 章场景档案候选识别请求"),
-                prompt_name: Some(SCENE_PROFILE_CANDIDATES_PROMPT.to_string()),
-                state: ready_state.to_string(),
-                note: ready_note.clone(),
-                request: Some(scene_request),
+                prompt_name: SCENE_PROFILE_CANDIDATES_PROMPT.to_string(),
+                request: scene_request,
             });
-            steps.extend(blocked_scene_profile_dependent_preview_steps(
-                chapter_number,
-            ));
         }
         Ok(steps)
     }
-}
-
-fn blocked_scene_profile_dependent_preview_steps(
-    chapter_number: i32,
-) -> Vec<SceneProfileSyncPreviewStep> {
-    vec![
-        SceneProfileSyncPreviewStep {
-            key: format!("scene_profile_sync_ch{chapter_number}_occurrences"),
-            title: format!("第 {chapter_number} 章场景出场抽取请求"),
-            prompt_name: Some(SCENE_OCCURRENCE_PROMPT.to_string()),
-            state: "blocked".to_string(),
-            note: Some(
-                "该请求依赖场景档案候选识别返回的 scenes，发送前无法提前构造真实请求".to_string(),
-            ),
-            request: None,
-        },
-        SceneProfileSyncPreviewStep {
-            key: format!("scene_profile_sync_ch{chapter_number}_transitions"),
-            title: format!("第 {chapter_number} 章场景转场抽取请求"),
-            prompt_name: Some(SCENE_TRANSITION_PROMPT.to_string()),
-            state: "blocked".to_string(),
-            note: Some(
-                "该请求依赖场景档案候选和场景出场模型返回结果，发送前无法提前构造真实请求"
-                    .to_string(),
-            ),
-            request: None,
-        },
-        SceneProfileSyncPreviewStep {
-            key: format!("scene_profile_sync_ch{chapter_number}_entity_states"),
-            title: format!("第 {chapter_number} 章场景实体状态抽取请求"),
-            prompt_name: Some(SCENE_ENTITY_STATE_PROMPT.to_string()),
-            state: "blocked".to_string(),
-            note: Some(
-                "该请求依赖场景档案候选和场景出场模型返回结果，发送前无法提前构造真实请求"
-                    .to_string(),
-            ),
-            request: None,
-        },
-    ]
 }
 
 fn scene_profile_sync_preview_error(message: String) -> AppError {

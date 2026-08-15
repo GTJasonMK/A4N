@@ -4,8 +4,7 @@ use a4n_core::{
     error::AppError,
     models::{chapter::chapter, generation::workflow_run},
 };
-use a4n_llm::provider::ChatRequest;
-use a4n_prompt::rendering::PromptRenderer;
+use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -31,7 +30,8 @@ use super::outputs::{
 };
 use super::{
     CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
-    ChapterAnalysisInput, chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
+    ChapterAnalysisInput, build_chapter_analysis_initial_request,
+    chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
     chapter_analysis_run_input_matches, chapter_analysis_run_uses_replacement_commit,
     chapter_analysis_workflow_business_key, require_completed_chapter_analysis_phase,
 };
@@ -56,16 +56,6 @@ pub struct ChapterAnalysisApplicationProgress<'a> {
     pub stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub cancel_token: Option<&'a CancellationToken>,
     pub active_task_id: Option<&'a str>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterAnalysisPreviewStep {
-    pub key: String,
-    pub title: String,
-    pub prompt_name: Option<String>,
-    pub status: String,
-    pub note: Option<String>,
-    pub request: Option<ChatRequest>,
 }
 
 impl ChapterAnalysisApplicationProgress<'_> {
@@ -119,152 +109,88 @@ pub trait ChapterAnalysisHostPort: ChapterDerivedCleanupHostPort + Send + Sync {
 }
 
 impl OrchestratorContext {
-    pub async fn prepare_chapter_analysis_preview_validated(
-        &self,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<(chapter::Model, Vec<ChapterAnalysisPreviewStep>), AppError> {
-        let chapter = self
-            .preflight_chapter_analysis_validated(chapter_id, false)
-            .await?;
-        let mut steps = self
-            .build_chapter_analysis_requests(chapter_id, prompt_renderer)
-            .await?
-            .into_iter()
-            .map(|step| ChapterAnalysisPreviewStep {
-                key: step.key,
-                title: step.title,
-                prompt_name: Some(step.prompt_name),
-                status: "ready".to_string(),
-                note: None,
-                request: Some(step.request),
-            })
-            .collect::<Vec<_>>();
-        steps.push(blocked_preview_step(
-            "object_discovery",
-            "分析后物体档案发现请求",
-            Some("object_discovery"),
-            "该请求依赖结构化分析保存后的章节数据，发送前无法提前构造真实请求",
-        ));
-        let character_preview = self
-            .prepare_character_discovery_request_preview_validated(
-                CharacterDiscoveryInput {
-                    project_id: chapter.project_id,
-                    chapter_number: Some(chapter.chapter_number),
-                },
-                prompt_renderer,
-            )
-            .await?;
-        steps.push(ChapterAnalysisPreviewStep {
-            key: "character_discovery".to_string(),
-            title: "角色发现初始 LLM 请求".to_string(),
-            prompt_name: Some("character_discovery".to_string()),
-            status: "ready".to_string(),
-            note: Some(format!(
-                "结构化分析保存后会继续执行该请求；分析章节数：{}",
-                character_preview.analyzed_chapter_count
-            )),
-            request: Some(character_preview.request),
-        });
-        steps.extend(blocked_scene_preview_steps(
-            chapter.chapter_number,
-            "该请求依赖结构化分析保存后的章节数据，发送前无法提前构造真实请求",
-        ));
-        steps.push(blocked_preview_step(
-            "analysis_character_sync",
-            "分析后角色档案同步请求",
-            Some("character_sync"),
-            "该请求依赖结构化分析输出和角色发现模型返回结果，发送前无法提前构造真实请求",
-        ));
-        Ok((chapter, steps))
-    }
-
     pub async fn prepare_resume_chapter_analysis_preview_validated(
         &self,
-        chapter_id: i64,
+        chapter: &chapter::Model,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<(chapter::Model, Vec<ChapterAnalysisPreviewStep>), AppError> {
-        let chapter = self
-            .preflight_resume_chapter_analysis_validated(chapter_id)
-            .await?;
-        let run = self.resumable_chapter_analysis_run(&chapter).await?;
+    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
+        let run = self.resumable_chapter_analysis_run(chapter).await?;
         if !self
-            .chapter_analysis_run_has_saved_analysis(&run, &chapter)
+            .chapter_analysis_run_has_saved_analysis(&run, chapter)
             .await?
         {
-            return self
-                .prepare_chapter_analysis_preview_validated(chapter_id, prompt_renderer)
-                .await;
+            return Ok(vec![
+                build_chapter_analysis_initial_request(chapter, prompt_renderer).await?,
+            ]);
         }
-        let object_preview = self
-            .prepare_object_discovery_request_preview_validated(
-                ObjectDiscoveryInput {
-                    project_id: chapter.project_id,
-                    chapter_number: Some(chapter.chapter_number),
-                },
-                prompt_renderer,
-            )
-            .await?;
-        let mut steps = vec![ChapterAnalysisPreviewStep {
-            key: "object_discovery".to_string(),
-            title: "物体档案发现初始 LLM 请求".to_string(),
-            prompt_name: Some("object_discovery".to_string()),
-            status: "ready".to_string(),
-            note: Some(format!(
-                "继续同步会先重新执行物体档案发现；分析章节数：{}",
-                object_preview.analyzed_chapter_count
-            )),
-            request: Some(object_preview.request),
-        }];
-        let character_preview = self
-            .prepare_character_discovery_request_preview_validated(
-                CharacterDiscoveryInput {
-                    project_id: chapter.project_id,
-                    chapter_number: Some(chapter.chapter_number),
-                },
-                prompt_renderer,
-            )
-            .await?;
-        steps.push(ChapterAnalysisPreviewStep {
-            key: "character_discovery".to_string(),
-            title: "角色发现初始 LLM 请求".to_string(),
-            prompt_name: Some("character_discovery".to_string()),
-            status: "ready".to_string(),
-            note: Some(format!(
-                "继续同步会先重新执行角色发现；分析章节数：{}",
-                character_preview.analyzed_chapter_count
-            )),
-            request: Some(character_preview.request),
-        });
-        steps.extend(
-            self.prepare_scene_profile_sync_preview_validated(
-                chapter.project_id,
-                Some(chapter.chapter_number),
-                prompt_renderer,
-                "ready",
-                Some(
-                    "继续同步会先执行场景档案候选识别；后续场景同步请求依赖该阶段返回结果"
-                        .to_string(),
-                ),
+
+        if self
+            .completed_chapter_analysis_phase(
+                run.id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY,
             )
             .await?
-            .into_iter()
-            .map(|step| ChapterAnalysisPreviewStep {
-                key: step.key,
-                title: step.title,
-                prompt_name: step.prompt_name,
-                status: step.state,
-                note: step.note,
-                request: step.request,
-            }),
-        );
-        steps.push(blocked_preview_step(
-            "analysis_character_sync",
-            "分析后角色档案同步请求",
-            Some("character_sync"),
-            "该请求依赖角色发现模型返回结果；当前只能确认会在发现结果返回后构造",
-        ));
-        Ok((chapter, steps))
+            .is_none()
+        {
+            let preview = self
+                .prepare_object_discovery_request_preview_validated(
+                    ObjectDiscoveryInput {
+                        project_id: chapter.project_id,
+                        chapter_number: Some(chapter.chapter_number),
+                    },
+                    prompt_renderer,
+                )
+                .await?;
+            return Ok(vec![ChapterAnalysisRequestStep {
+                key: "object_discovery".to_string(),
+                title: "物体档案发现初始 LLM 请求".to_string(),
+                prompt_name: "object_discovery".to_string(),
+                request: preview.request,
+            }]);
+        }
+
+        if self
+            .completed_chapter_analysis_phase(
+                run.id,
+                chapter,
+                CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY,
+            )
+            .await?
+            .is_none()
+        {
+            let preview = self
+                .prepare_character_discovery_request_preview_validated(
+                    CharacterDiscoveryInput {
+                        project_id: chapter.project_id,
+                        chapter_number: Some(chapter.chapter_number),
+                    },
+                    prompt_renderer,
+                )
+                .await?;
+            return Ok(vec![ChapterAnalysisRequestStep {
+                key: "character_discovery".to_string(),
+                title: "角色发现初始 LLM 请求".to_string(),
+                prompt_name: "character_discovery".to_string(),
+                request: preview.request,
+            }]);
+        }
+
+        if self
+            .completed_chapter_analysis_phase(run.id, chapter, CHAPTER_ANALYSIS_STEP_SCENE_SYNC)
+            .await?
+            .is_none()
+        {
+            return self
+                .prepare_scene_profile_sync_preview_validated(
+                    chapter.project_id,
+                    Some(chapter.chapter_number),
+                    prompt_renderer,
+                )
+                .await;
+        }
+
+        Ok(Vec::new())
     }
 
     pub async fn preflight_chapter_analysis_validated(
@@ -1207,77 +1133,9 @@ fn replacement_cleanup_artifacts_from_checkpoint(
     })
 }
 
-fn blocked_preview_step(
-    key: impl Into<String>,
-    title: impl Into<String>,
-    prompt_name: Option<&str>,
-    note: impl Into<String>,
-) -> ChapterAnalysisPreviewStep {
-    ChapterAnalysisPreviewStep {
-        key: key.into(),
-        title: title.into(),
-        prompt_name: prompt_name.map(str::to_string),
-        status: "blocked".to_string(),
-        note: Some(note.into()),
-        request: None,
-    }
-}
-
-fn blocked_scene_preview_steps(
-    chapter_number: i32,
-    first_note: &str,
-) -> Vec<ChapterAnalysisPreviewStep> {
-    vec![
-        blocked_preview_step(
-            format!("scene_profile_sync_ch{chapter_number}_scenes"),
-            "分析后场景档案候选识别请求",
-            Some("scene_profile_candidates"),
-            first_note,
-        ),
-        blocked_preview_step(
-            format!("scene_profile_sync_ch{chapter_number}_occurrences"),
-            "分析后场景出场抽取请求",
-            Some("scene_occurrence_extraction"),
-            "该请求依赖场景档案候选识别返回的 scenes，发送前无法提前构造真实请求",
-        ),
-        blocked_preview_step(
-            format!("scene_profile_sync_ch{chapter_number}_transitions"),
-            "分析后场景转场抽取请求",
-            Some("scene_transition_extraction"),
-            "该请求依赖场景档案候选和场景出场模型返回结果，发送前无法提前构造真实请求",
-        ),
-        blocked_preview_step(
-            format!("scene_profile_sync_ch{chapter_number}_entity_states"),
-            "分析后场景实体状态抽取请求",
-            Some("scene_entity_state_extraction"),
-            "该请求依赖场景档案候选和场景出场模型返回结果，发送前无法提前构造真实请求",
-        ),
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn blocked_scene_preview_covers_full_scene_sync_chain() {
-        let steps = blocked_scene_preview_steps(3, "结构化分析保存后才能构造");
-        assert_eq!(steps.len(), 4);
-        assert!(steps.iter().all(|step| step.status == "blocked"));
-        assert_eq!(steps[0].key, "scene_profile_sync_ch3_scenes");
-        assert_eq!(
-            steps
-                .iter()
-                .filter_map(|step| step.prompt_name.as_deref())
-                .collect::<Vec<_>>(),
-            vec![
-                "scene_profile_candidates",
-                "scene_occurrence_extraction",
-                "scene_transition_extraction",
-                "scene_entity_state_extraction",
-            ]
-        );
-    }
 
     #[test]
     fn replacement_commit_cleanup_artifacts_round_trip() {

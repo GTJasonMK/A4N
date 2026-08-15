@@ -16,7 +16,7 @@ pub use extract::chapter_analysis_storage_projection;
 pub use materialize::materialize_analysis_source_spans;
 pub use normalization::normalize_analysis;
 pub use requests::{
-    build_chapter_analysis_preview_requests, build_chapter_character_state_request,
+    build_chapter_analysis_initial_request, build_chapter_character_state_request,
     build_chapter_fact_extraction_request, build_chapter_foreshadowing_events_request,
     build_chapter_summary_synthesis_request, chapter_analysis_root_field_progress,
     chapter_foreshadowing_resolution_context, json_value_shape_summary,

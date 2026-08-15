@@ -201,7 +201,7 @@ prompts:
     tags: ["analysis", "session", "cache"]
     version: "1.0"
     used_by:
-      - "ChapterAnalysisService.build_analysis_requests"
+      - "chapter_analysis::owner::requests::context::build_chapter_analysis_stage_request"
     dependencies: []
     description: "为同一章节的结构化分析阶段提供稳定公共 System 前缀"
 
@@ -223,8 +223,7 @@ prompts:
     tags: ["analysis", "extraction", "facts"]
     version: "1.0"
     used_by:
-      - "ChapterAnalysisService.analyze_and_store"
-      - "ChapterAnalysisService.build_analysis_requests"
+      - "chapter_analysis::owner::requests::stages::build_chapter_fact_extraction_request"
     dependencies:
       - "chapter_analysis_session"
       - "writing"
@@ -237,8 +236,7 @@ prompts:
     tags: ["analysis", "summary", "synthesis"]
     version: "1.0"
     used_by:
-      - "ChapterAnalysisService.analyze_and_store"
-      - "ChapterAnalysisService.build_analysis_requests"
+      - "chapter_analysis::owner::requests::stages::build_chapter_summary_synthesis_request"
     dependencies:
       - "chapter_analysis_session"
       - "chapter_fact_extraction"
@@ -251,8 +249,7 @@ prompts:
     tags: ["analysis", "character", "state"]
     version: "1.0"
     used_by:
-      - "ChapterAnalysisService.analyze_and_store"
-      - "ChapterAnalysisService.build_analysis_requests"
+      - "chapter_analysis::owner::requests::stages::build_chapter_character_state_request"
     dependencies:
       - "chapter_analysis_session"
       - "chapter_fact_extraction"
@@ -265,8 +262,7 @@ prompts:
     tags: ["analysis", "foreshadowing", "events"]
     version: "1.0"
     used_by:
-      - "ChapterAnalysisService.analyze_and_store"
-      - "ChapterAnalysisService.build_analysis_requests"
+      - "chapter_analysis::owner::requests::stages::build_chapter_foreshadowing_events_request"
     dependencies:
       - "chapter_analysis_session"
       - "chapter_fact_extraction"

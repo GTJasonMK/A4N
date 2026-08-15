@@ -14,18 +14,19 @@ pub async fn preview_chapter_analysis_request(
     user_id: i64,
     chapter_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    preflight_generate_chapter_analysis(state, user_id, chapter_id).await?;
+    let chapter = preflight_generate_chapter_analysis(state, user_id, chapter_id).await?;
     let prompt_renderer = state;
-    let (chapter, steps) = state
-        .orchestrator()
-        .prepare_chapter_analysis_preview_validated(chapter_id, prompt_renderer)
-        .await
-        .map_err(|error| error.to_string())?;
+    let step = a4n_orchestrator::chapter_analysis::build_chapter_analysis_initial_request(
+        &chapter,
+        prompt_renderer,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(
         state,
         "chapter_analysis",
         format!("第 {} 章结构化分析请求预览", chapter.chapter_number),
-        steps.into_iter().map(preview_step),
+        [preview_step(step)],
         "llm_chat",
     )
     .await
@@ -36,11 +37,11 @@ pub async fn preview_resume_chapter_analysis_sync_request(
     user_id: i64,
     chapter_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    preflight_resume_chapter_analysis_sync(state, user_id, chapter_id).await?;
+    let chapter = preflight_resume_chapter_analysis_sync(state, user_id, chapter_id).await?;
     let prompt_renderer = state;
-    let (chapter, steps) = state
+    let steps = state
         .orchestrator()
-        .prepare_resume_chapter_analysis_preview_validated(chapter_id, prompt_renderer)
+        .prepare_resume_chapter_analysis_preview_validated(&chapter, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(
@@ -54,14 +55,14 @@ pub async fn preview_resume_chapter_analysis_sync_request(
 }
 
 fn preview_step(
-    step: a4n_orchestrator::chapter_analysis::ChapterAnalysisPreviewStep,
+    step: a4n_prompt::chapter_analysis::ChapterAnalysisRequestStep,
 ) -> ChatStatusPreviewStep {
     ChatStatusPreviewStep::llm(
         step.key,
         step.title,
-        step.prompt_name,
-        step.status,
-        step.note,
-        step.request,
+        Some(step.prompt_name),
+        "ready",
+        None,
+        Some(step.request),
     )
 }

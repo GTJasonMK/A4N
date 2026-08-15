@@ -1,12 +1,8 @@
-use a4n_core::{
-    chapter_analysis::ensure_chapter_has_analysis_content, error::AppError,
-    models::chapter::chapter,
-};
-use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
+use a4n_core::{error::AppError, models::chapter::chapter};
+use a4n_prompt::rendering::PromptRenderer;
 use tokio_util::sync::CancellationToken;
 
-use crate::{OrchestratorContext, chapter_content_edit_error_to_app_error};
-use owner::{build_chapter_analysis_preview_requests, chapter_foreshadowing_resolution_context};
+use crate::OrchestratorContext;
 
 mod application;
 mod checkpoint;
@@ -94,33 +90,12 @@ impl<'a> ChapterAnalysisProgress<'a> {
     }
 }
 
-impl OrchestratorContext {
-    pub(crate) async fn build_chapter_analysis_requests(
-        &self,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
-        let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(
-            self.database.connection(),
-            chapter_id,
-        )
-        .await
-        .map_err(chapter_content_edit_error_to_app_error)?;
-        ensure_chapter_has_analysis_content(&chapter)?;
-        let foreshadowing = self
-            .foreshadowing_items_for_rag_ingest(chapter.project_id)
-            .await?;
-        let resolution_context =
-            chapter_foreshadowing_resolution_context(chapter.chapter_number, &foreshadowing);
-        build_chapter_analysis_preview_requests(&chapter, prompt_renderer, &resolution_context)
-            .await
-    }
-}
+pub use owner::build_chapter_analysis_initial_request;
 
 pub use application::{
     CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
     CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,
     CHAPTER_ANALYSIS_STEP_SCENE_SYNC, CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS,
     ChapterAnalysisApplicationProgress, ChapterAnalysisApplicationProgressReporter,
-    ChapterAnalysisHostPort, ChapterAnalysisPreviewStep,
+    ChapterAnalysisHostPort,
 };

@@ -12,8 +12,8 @@ mod rules;
 mod workflow_rules;
 
 pub use application::{
-    SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncHostPort, SceneProfileSyncPreviewStep,
-    SceneProfileSyncProgress, SceneProfileSyncProgressReporter,
+    SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncHostPort, SceneProfileSyncProgress,
+    SceneProfileSyncProgressReporter,
 };
 pub use contracts::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SCENE_TRANSITION_MOVEMENT_TYPES, SCENE_TYPES,

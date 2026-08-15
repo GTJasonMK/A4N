@@ -14,8 +14,6 @@ use async_trait::async_trait;
 pub use progress::{
     SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncProgress, SceneProfileSyncProgressReporter,
 };
-pub use types::SceneProfileSyncPreviewStep;
-
 #[async_trait]
 pub trait SceneProfileSyncHostPort: Send + Sync {
     async fn sync_scene_rag_records(

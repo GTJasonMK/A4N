@@ -4,8 +4,9 @@ use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 
 use crate::chapter_analysis::owner::requests::{
-    build_chapter_character_state_request, build_chapter_fact_extraction_request,
-    build_chapter_foreshadowing_events_request, build_chapter_summary_synthesis_request,
+    build_chapter_analysis_initial_request, build_chapter_character_state_request,
+    build_chapter_fact_extraction_request, build_chapter_foreshadowing_events_request,
+    build_chapter_summary_synthesis_request,
 };
 
 struct ChapterSessionPromptRenderer;
@@ -20,6 +21,20 @@ impl PromptRenderer for ChapterSessionPromptRenderer {
     ) -> Result<String, AppError> {
         Ok(format!("rendered prompt for {template_name}"))
     }
+}
+
+#[tokio::test]
+async fn chapter_analysis_preview_builds_only_the_exact_initial_request() {
+    let step = build_chapter_analysis_initial_request(
+        &sample_chapter(),
+        &ChapterSessionPromptRenderer,
+    )
+    .await
+    .expect("initial request");
+
+    assert_eq!(step.key, "chapter_fact_extraction");
+    assert_eq!(step.prompt_name, "chapter_fact_extraction");
+    assert!(!step.request.messages[1].content.contains("preview_note"));
 }
 
 #[test]

@@ -25,10 +25,10 @@ pub async fn preview_import_project_analysis_request(
             ChatStatusPreviewStep::llm(
                 step.key,
                 step.title,
-                step.prompt_name,
-                step.status,
-                step.note,
-                step.request,
+                Some(step.prompt_name),
+                "ready",
+                None,
+                Some(step.request),
             )
         })
         .collect::<Vec<_>>();
