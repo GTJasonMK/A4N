@@ -13,18 +13,17 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     OrchestratorContext,
-    context::GenerationTaskExecution,
+    context::{GenerationTaskExecution, fail_generation_workflow_execution},
     generation::{
         checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher,
-        generation_session_error, generation_terminal_error, terminal::CompletionDescriptor,
+        generation_failure_is_cancelled_or_interrupted, generation_session_error,
+        generation_terminal_error, terminal::CompletionDescriptor,
     },
     optimize::{
         AgentLoopGenerationContext, OptimizeProposePatchesInput,
         agent_loop_error_to_generation_error, app_error_to_generation_error,
-        generation_stream_completion, is_generation_cancelled, optimize_db_error,
-        optimize_progress,
+        generation_stream_completion, optimize_db_error, optimize_progress,
     },
-    workflow::WorkflowRunFinalizeOutcome,
 };
 
 use super::execution::{PendingPatchGeneration, prepare_patch_generation_result};
@@ -265,13 +264,11 @@ impl OrchestratorContext {
             .await;
         }
         execution.finish();
-        self.finalize_workflow_run_outcome_validated(
-            workflow.id,
-            WorkflowRunFinalizeOutcome::Completed,
-            None,
-        )
-        .await
-        .map_err(|error| format!("局部补丁提案已保存，但 workflow 完成状态写入失败: {error}"))?;
+        self.complete_workflow_run_validated(workflow.id)
+            .await
+            .map_err(|error| {
+                format!("局部补丁提案已保存，但 workflow 完成状态写入失败: {error}")
+            })?;
         Ok(())
     }
 }
@@ -311,7 +308,8 @@ async fn fail_optimize_patch_generation_execution(
     turn_id: Option<i64>,
     error: a4n_service_protocol::GenerationError,
 ) -> Result<(), String> {
-    let cancelled = is_generation_cancelled(execution.session.snapshot().status, &error);
+    let cancelled =
+        generation_failure_is_cancelled_or_interrupted(execution.session.snapshot().status, &error);
     if let Some(turn_id) = turn_id {
         let status = if cancelled { "cancelled" } else { "failed" };
         if let Err(turn_error) = orchestrator
@@ -327,24 +325,5 @@ async fn fail_optimize_patch_generation_execution(
     {
         tracing::error!(session_id, error = %event_error, "局部补丁失败事件写入失败");
     }
-    let outcome = if cancelled {
-        WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        WorkflowRunFinalizeOutcome::Failed
-    };
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        orchestrator
-            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error.message))
-            .await
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(workflow_error) = workflow_error {
-        message.push_str(&format!(
-            "; 记录局部补丁 workflow 终态失败: {workflow_error}"
-        ));
-    }
-    Err(message)
+    fail_generation_workflow_execution(orchestrator, execution, workflow_run_id, error).await
 }

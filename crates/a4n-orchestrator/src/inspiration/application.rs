@@ -5,16 +5,13 @@ use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
-use a4n_service_protocol::{
-    GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
-    StreamTextHash,
-};
+use a4n_service_protocol::{GenerationFinishReason, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};
 
 use crate::{
     OrchestratorContext,
-    context::GenerationTaskExecution,
+    context::fail_generation_workflow_execution,
     generation::{
         checkpoint::GenerationCheckpointMetadata,
         events::GenerationEventPublisher,
@@ -26,7 +23,6 @@ use crate::{
         },
         terminal::CompletionDescriptor,
     },
-    workflow::WorkflowRunFinalizeOutcome,
 };
 
 use super::{
@@ -68,7 +64,7 @@ impl OrchestratorContext {
         let project_id = input.project_id;
         let user_input = input.message;
         if let Err(error) = self.ensure_inspiration_conversation(project_id).await {
-            return fail_inspiration_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 None,
@@ -92,7 +88,7 @@ impl OrchestratorContext {
             ))
             .await
         {
-            return fail_inspiration_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 None,
@@ -107,7 +103,7 @@ impl OrchestratorContext {
         {
             Ok(request) => request,
             Err(error) => {
-                return fail_inspiration_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     None,
@@ -131,7 +127,7 @@ impl OrchestratorContext {
         {
             Ok(workflow) => workflow,
             Err(error) => {
-                return fail_inspiration_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     None,
@@ -150,7 +146,7 @@ impl OrchestratorContext {
         {
             Ok(request) => request,
             Err(error) => {
-                return fail_inspiration_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow.id),
@@ -180,7 +176,7 @@ impl OrchestratorContext {
         {
             Ok(restored) => restored,
             Err(error) => {
-                return fail_inspiration_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow.id),
@@ -195,7 +191,7 @@ impl OrchestratorContext {
         };
         let output = if let Some(content) = restored {
             if let Err(error) = publisher.text_delta("raw_json", &content).await {
-                return fail_inspiration_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow.id),
@@ -230,7 +226,7 @@ impl OrchestratorContext {
             {
                 Ok(output) => output,
                 Err(error) => {
-                    return fail_inspiration_generation_execution(
+                    return fail_generation_workflow_execution(
                         self,
                         execution,
                         Some(workflow.id),
@@ -245,7 +241,7 @@ impl OrchestratorContext {
             .persist_if_due(&session, checkpoint_metadata, true)
             .await
         {
-            return fail_inspiration_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow.id),
@@ -261,7 +257,7 @@ impl OrchestratorContext {
             ))
             .await
         {
-            return fail_inspiration_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow.id),
@@ -272,7 +268,7 @@ impl OrchestratorContext {
         let validated = match validate_inspiration_response_json(&output.content) {
             Ok(validated) => validated,
             Err(error) => {
-                return fail_inspiration_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow.id),
@@ -296,7 +292,7 @@ impl OrchestratorContext {
             )
             .await
         {
-            return fail_inspiration_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow.id),
@@ -353,7 +349,7 @@ impl OrchestratorContext {
             })
             .await;
         if let Err(error) = completion {
-            return fail_inspiration_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow.id),
@@ -363,41 +359,9 @@ impl OrchestratorContext {
         }
 
         execution.finish();
-        self.finalize_workflow_run_outcome_validated(
-            workflow.id,
-            WorkflowRunFinalizeOutcome::Completed,
-            None,
-        )
-        .await
-        .map_err(|error| format!("灵感对话已保存，但 workflow 完成状态写入失败: {error}"))?;
+        self.complete_workflow_run_validated(workflow.id)
+            .await
+            .map_err(|error| format!("灵感对话已保存，但 workflow 完成状态写入失败: {error}"))?;
         Ok(())
     }
-}
-
-async fn fail_inspiration_generation_execution(
-    orchestrator: &OrchestratorContext,
-    execution: GenerationTaskExecution,
-    workflow_run_id: Option<i64>,
-    error: GenerationError,
-) -> Result<(), String> {
-    let outcome = if execution.session.snapshot().status == GenerationTaskStatus::Cancelling {
-        WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        WorkflowRunFinalizeOutcome::Failed
-    };
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        orchestrator
-            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error.message))
-            .await
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(workflow_error) = workflow_error {
-        message.push_str(&format!(
-            "; 记录灵感对话 workflow 终态失败: {workflow_error}"
-        ));
-    }
-    Err(message)
 }

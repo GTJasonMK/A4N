@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_core::error::AppError;
-use a4n_service_protocol::{GenerationError, GenerationTaskStatus, GenerationUsage};
+use a4n_service_protocol::{GenerationError, GenerationUsage};
 
 use crate::generation::{events::GenerationTaskSession, generation_public_error};
 
@@ -72,12 +72,4 @@ pub(in crate::optimize) fn generation_stream_completion(
         raw_sha256: stream.sha256,
         final_usage: session.snapshot().usage,
     })
-}
-
-pub(in crate::optimize) fn is_generation_cancelled(
-    session_status: GenerationTaskStatus,
-    error: &GenerationError,
-) -> bool {
-    session_status == GenerationTaskStatus::Cancelling
-        || error.code.as_str() == "generation_interrupted"
 }

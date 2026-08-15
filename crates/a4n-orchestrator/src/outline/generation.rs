@@ -22,7 +22,6 @@ use tokio::sync::mpsc;
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    context::GenerationTaskExecution,
     generation::{
         GenerationProgressUpdate, generation_public_error, publish_step_progress,
         terminal::CompletionDescriptor,
@@ -201,25 +200,21 @@ impl OrchestratorContext {
         let summary = match (application_result, progress_result) {
             (Ok(summary), Ok(())) => summary,
             (Err(error), Ok(())) => {
-                return fail_outline_generation_execution(
-                    execution,
-                    outline_app_error_to_generation_error(error, operation_key),
-                )
-                .await;
+                return Err(execution
+                    .fail(outline_app_error_to_generation_error(error, operation_key))
+                    .await);
             }
             (Ok(_), Err(error)) => {
-                return fail_outline_generation_execution(execution, error).await;
+                return Err(execution.fail(error).await);
             }
             (Err(error), Err(progress_error)) => {
-                return fail_outline_generation_execution(
-                    execution,
-                    generation_public_error(
+                return Err(execution
+                    .fail(generation_public_error(
                         progress_error.code.as_str(),
                         operation_key,
                         format!("{error}; 进度发布失败: {}", progress_error.message),
-                    ),
-                )
-                .await;
+                    ))
+                    .await);
             }
         };
 
@@ -242,11 +237,13 @@ impl OrchestratorContext {
             })
             .await;
         if let Err(error) = completion {
-            return fail_outline_generation_execution(
-                execution,
-                generation_public_error(error.code(), "outline_terminal", error),
-            )
-            .await;
+            return Err(execution
+                .fail(generation_public_error(
+                    error.code(),
+                    "outline_terminal",
+                    error,
+                ))
+                .await);
         }
         execution.finish();
         Ok(())
@@ -432,13 +429,6 @@ impl OrchestratorContext {
             }
         }
     }
-}
-
-async fn fail_outline_generation_execution(
-    execution: GenerationTaskExecution,
-    error: GenerationError,
-) -> Result<(), String> {
-    Err(execution.fail(error).await)
 }
 
 fn outline_app_error_to_generation_error(error: AppError, stage_code: &str) -> GenerationError {

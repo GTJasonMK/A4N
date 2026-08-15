@@ -25,10 +25,10 @@ use crate::blueprint::generation::stage::{BlueprintStageRunInput, ensure_not_can
 use crate::blueprint::generation::trace::blueprint_stage_trace_requests;
 use crate::blueprint::json::parse_blueprint_json;
 use crate::blueprint::{BlueprintGenerationApplicationContext, OrchestratorContext};
+use crate::context::fail_generation_workflow_execution;
 use crate::generation::{
     events::GenerationEventPublisher, generation_public_error, terminal::CompletionDescriptor,
 };
-use crate::workflow::WorkflowRunFinalizeOutcome;
 
 impl OrchestratorContext {
     /// 在唯一 generation worker/session/terminal owner 中执行蓝图生成。
@@ -60,7 +60,7 @@ impl OrchestratorContext {
         let variables_json = match serde_json::to_value(&variables) {
             Ok(value) => value,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     None,
@@ -86,7 +86,7 @@ impl OrchestratorContext {
         {
             Ok(workflow) => workflow,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     None,
@@ -104,7 +104,7 @@ impl OrchestratorContext {
             match blueprint_generation_source_snapshot(self, project_id).await {
                 Ok(snapshot) => snapshot,
                 Err(error) => {
-                    return fail_blueprint_generation_execution(
+                    return fail_generation_workflow_execution(
                         self,
                         execution,
                         Some(workflow_run_id),
@@ -127,7 +127,7 @@ impl OrchestratorContext {
         )
         .await
         {
-            return fail_blueprint_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -136,7 +136,7 @@ impl OrchestratorContext {
             .await;
         }
         if let Err(error) = ensure_not_cancelled(&cancel_token) {
-            return fail_blueprint_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -151,7 +151,7 @@ impl OrchestratorContext {
         {
             Ok(prompt) => prompt,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -172,7 +172,7 @@ impl OrchestratorContext {
         ) {
             Ok(payload) => payload,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -188,7 +188,7 @@ impl OrchestratorContext {
         let user_payload_json = match serde_json::to_string_pretty(&user_payload) {
             Ok(payload) => payload,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -216,7 +216,7 @@ impl OrchestratorContext {
             )
             .await
             {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -228,7 +228,7 @@ impl OrchestratorContext {
                 match blueprint_stage_previous_context(stage_index, &stage_outputs) {
                     Ok(value) => value,
                     Err(error) => {
-                        return fail_blueprint_generation_execution(
+                        return fail_generation_workflow_execution(
                             self,
                             execution,
                             Some(workflow_run_id),
@@ -264,7 +264,7 @@ impl OrchestratorContext {
                     } else {
                         "generation_validation_failed"
                     };
-                    return fail_blueprint_generation_execution(
+                    return fail_generation_workflow_execution(
                         self,
                         execution,
                         Some(workflow_run_id),
@@ -284,7 +284,7 @@ impl OrchestratorContext {
         ]: [Value; 4] = match stage_outputs.try_into() {
             Ok(outputs) => outputs,
             Err(_) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -306,7 +306,7 @@ impl OrchestratorContext {
         )
         .await
         {
-            return fail_blueprint_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -326,7 +326,7 @@ impl OrchestratorContext {
         let assembled_content = match serde_json::to_string(&assembled) {
             Ok(value) => value,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -342,7 +342,7 @@ impl OrchestratorContext {
         let parsed = match parse_blueprint_json(&assembled_content, input.target_length) {
             Ok(value) => value,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -371,7 +371,7 @@ impl OrchestratorContext {
         {
             Ok(requests) => requests,
             Err(error) => {
-                return fail_blueprint_generation_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -441,7 +441,7 @@ impl OrchestratorContext {
             })
             .await;
         if let Err(error) = completion {
-            return fail_blueprint_generation_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -471,13 +471,9 @@ impl OrchestratorContext {
             version: outcome.blueprint.current_version.clone(),
         })
         .map_err(|error| format!("蓝图已保存，但蓝图更新事件发布失败: {error}"))?;
-        self.finalize_workflow_run_outcome_validated(
-            workflow_run_id,
-            WorkflowRunFinalizeOutcome::Completed,
-            None,
-        )
-        .await
-        .map_err(|error| format!("蓝图已保存，但 workflow 完成状态写入失败: {error}"))?;
+        self.complete_workflow_run_validated(workflow_run_id)
+            .await
+            .map_err(|error| format!("蓝图已保存，但 workflow 完成状态写入失败: {error}"))?;
         Ok(())
     }
 }
@@ -524,33 +520,4 @@ async fn publish_blueprint_progress(
         })
         .await
         .map_err(|error| generation_public_error(error.code(), stage_code, error))
-}
-
-async fn fail_blueprint_generation_execution(
-    orchestrator: &OrchestratorContext,
-    execution: crate::context::GenerationTaskExecution,
-    workflow_run_id: Option<i64>,
-    error: GenerationError,
-) -> Result<(), String> {
-    let outcome = if execution.session.snapshot().status
-        == a4n_service_protocol::GenerationTaskStatus::Cancelling
-    {
-        WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        WorkflowRunFinalizeOutcome::Failed
-    };
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        let error_message = error.message.clone();
-        orchestrator
-            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error_message))
-            .await
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(error) = workflow_error {
-        message.push_str(&format!("; 记录蓝图 workflow 终态失败: {error}"));
-    }
-    Err(message)
 }

@@ -11,17 +11,17 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     OrchestratorContext,
-    context::GenerationTaskExecution,
+    context::{GenerationTaskExecution, fail_generation_workflow_execution},
     generation::{
         checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher,
-        generation_session_error, generation_terminal_error,
+        generation_failure_is_cancelled_or_interrupted, generation_session_error,
+        generation_terminal_error,
     },
     optimize::{
         AgentLoopGenerationContext, agent_loop_error_to_generation_error,
-        app_error_to_generation_error, generation_stream_completion, is_generation_cancelled,
-        optimize_db_error, optimize_progress,
+        app_error_to_generation_error, generation_stream_completion, optimize_db_error,
+        optimize_progress,
     },
-    workflow::WorkflowRunFinalizeOutcome,
 };
 
 impl OrchestratorContext {
@@ -243,13 +243,11 @@ impl OrchestratorContext {
         }
 
         execution.finish();
-        self.finalize_workflow_run_outcome_validated(
-            workflow.id,
-            WorkflowRunFinalizeOutcome::Completed,
-            None,
-        )
-        .await
-        .map_err(|error| format!("内容优化分析已保存，但 workflow 完成状态写入失败: {error}"))?;
+        self.complete_workflow_run_validated(workflow.id)
+            .await
+            .map_err(|error| {
+                format!("内容优化分析已保存，但 workflow 完成状态写入失败: {error}")
+            })?;
         Ok(())
     }
 }
@@ -262,7 +260,8 @@ async fn fail_optimize_analysis_generation_execution(
     turn_id: Option<i64>,
     error: a4n_service_protocol::GenerationError,
 ) -> Result<(), String> {
-    let cancelled = is_generation_cancelled(execution.session.snapshot().status, &error);
+    let cancelled =
+        generation_failure_is_cancelled_or_interrupted(execution.session.snapshot().status, &error);
     if let Some(turn_id) = turn_id {
         let status = if cancelled { "cancelled" } else { "failed" };
         if let Err(turn_error) = orchestrator
@@ -276,27 +275,12 @@ async fn fail_optimize_analysis_generation_execution(
         .record_command_error(session_id, "内容优化分析", &error.message, cancelled)
         .await
         .err();
-    let outcome = if cancelled {
-        WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        WorkflowRunFinalizeOutcome::Failed
-    };
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        orchestrator
-            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error.message))
-            .await
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(cleanup) = cleanup {
-        message.push_str(&format!("; 记录内容优化分析失败状态失败: {cleanup}"));
-    }
-    if let Some(workflow_error) = workflow_error {
-        message.push_str(&format!(
-            "; 记录内容优化分析 workflow 终态失败: {workflow_error}"
-        ));
-    }
-    Err(message)
+    fail_generation_workflow_execution(orchestrator, execution, workflow_run_id, error)
+        .await
+        .map_err(|mut message| {
+            if let Some(cleanup) = cleanup {
+                message.push_str(&format!("; 记录内容优化分析失败状态失败: {cleanup}"));
+            }
+            message
+        })
 }

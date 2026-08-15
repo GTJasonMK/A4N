@@ -22,10 +22,10 @@ mod construction;
 pub mod dynamic_provider;
 mod galgame;
 mod generation;
-pub(crate) use generation::GenerationTaskExecution;
 pub use generation::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
 };
+pub(crate) use generation::{GenerationTaskExecution, fail_generation_workflow_execution};
 mod import_reverse;
 mod import_review;
 mod inspiration;

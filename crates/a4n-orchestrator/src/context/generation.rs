@@ -49,7 +49,7 @@ use crate::generation::{
         GenerationSessionConfig, GenerationSessionError, GenerationSessionRegistry,
         GenerationSubscription, GenerationTaskSession, SessionGenerationEventPublisher,
     },
-    generation_error,
+    generation_error, generation_failure_is_cancelled_or_interrupted,
     terminal::{
         CompletionDescriptor, GenerationTerminalCoordinator, GenerationTerminalError,
         GenerationTerminalWriteOutcome,
@@ -199,13 +199,14 @@ impl GenerationTaskExecution {
             permit,
             ..
         } = self;
-        let terminal_result = match session.snapshot().status {
+        let session_status = session.snapshot().status;
+        let terminal_result = match session_status {
             GenerationTaskStatus::Cancelling => {
                 terminal
                     .cancel(&session, None, batch_summary.clone(), artifacts)
                     .await
             }
-            _ if error.code.as_str() == "generation_interrupted" => {
+            _ if generation_failure_is_cancelled_or_interrupted(session_status, &error) => {
                 terminal
                     .interrupt(
                         &session,
@@ -231,6 +232,37 @@ impl GenerationTaskExecution {
         }
         message
     }
+}
+
+pub(crate) async fn fail_generation_workflow_execution(
+    orchestrator: &OrchestratorContext,
+    execution: GenerationTaskExecution,
+    workflow_run_id: Option<i64>,
+    error: GenerationError,
+) -> Result<(), String> {
+    let cancelled_or_interrupted =
+        generation_failure_is_cancelled_or_interrupted(execution.session.snapshot().status, &error);
+    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
+        let result = if cancelled_or_interrupted {
+            orchestrator
+                .cancel_workflow_run_status_validated(workflow_run_id, &error.message)
+                .await
+        } else {
+            orchestrator
+                .fail_workflow_run_validated(workflow_run_id, &error.message)
+                .await
+        };
+        result.err().map(|error| (workflow_run_id, error))
+    } else {
+        None
+    };
+    let mut message = execution.fail(error).await;
+    if let Some((workflow_run_id, workflow_error)) = workflow_error {
+        message.push_str(&format!(
+            "; generation workflow {workflow_run_id} 终态写入失败: {workflow_error}"
+        ));
+    }
+    Err(message)
 }
 
 fn settle_generation_permit(permit: TaskPermit, status: GenerationTaskStatus, message: String) {

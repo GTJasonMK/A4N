@@ -13,17 +13,16 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     OrchestratorContext,
-    context::GenerationTaskExecution,
+    context::{GenerationTaskExecution, fail_generation_workflow_execution},
     generation::{
         checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher,
-        generation_public_error, generation_session_error, generation_terminal_error,
-        terminal::CompletionDescriptor,
+        generation_failure_is_cancelled_or_interrupted, generation_public_error,
+        generation_session_error, generation_terminal_error, terminal::CompletionDescriptor,
     },
     optimize::{
         AgentLoopGenerationContext, OptimizeSendUserMessageInput,
         agent_loop_error_to_generation_error, app_error_to_generation_error, optimize_progress,
     },
-    workflow::WorkflowRunFinalizeOutcome,
 };
 
 pub struct OptimizeChatGenerationApplicationContext<'a> {
@@ -269,13 +268,11 @@ impl OrchestratorContext {
         }
 
         execution.finish();
-        self.finalize_workflow_run_outcome_validated(
-            workflow.id,
-            WorkflowRunFinalizeOutcome::Completed,
-            None,
-        )
-        .await
-        .map_err(|error| format!("内容优化对话已保存，但 workflow 完成状态写入失败: {error}"))?;
+        self.complete_workflow_run_validated(workflow.id)
+            .await
+            .map_err(|error| {
+                format!("内容优化对话已保存，但 workflow 完成状态写入失败: {error}")
+            })?;
         Ok(())
     }
 }
@@ -287,14 +284,10 @@ async fn fail_optimize_generation_execution(
     turn_id: Option<i64>,
     error: GenerationError,
 ) -> Result<(), String> {
+    let cancelled =
+        generation_failure_is_cancelled_or_interrupted(execution.session.snapshot().status, &error);
     if let Some(turn_id) = turn_id {
-        let status = if execution.session.snapshot().status == GenerationTaskStatus::Cancelling
-            || error.code.as_str() == "generation_interrupted"
-        {
-            "cancelled"
-        } else {
-            "failed"
-        };
+        let status = if cancelled { "cancelled" } else { "failed" };
         if let Err(turn_error) = orchestrator
             .fail_turn(turn_id, status, &error.message)
             .await
@@ -302,27 +295,5 @@ async fn fail_optimize_generation_execution(
             tracing::error!(turn_id, error = %turn_error, "内容优化 Turn 失败状态写入失败");
         }
     }
-    let outcome = if execution.session.snapshot().status == GenerationTaskStatus::Cancelling
-        || error.code.as_str() == "generation_interrupted"
-    {
-        WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        WorkflowRunFinalizeOutcome::Failed
-    };
-    let error_message = error.message.clone();
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        orchestrator
-            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error_message))
-            .await
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(workflow_error) = workflow_error {
-        message.push_str(&format!(
-            "; 记录内容优化 workflow 终态失败: {workflow_error}"
-        ));
-    }
-    Err(message)
+    fail_generation_workflow_execution(orchestrator, execution, workflow_run_id, error).await
 }

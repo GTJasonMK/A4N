@@ -36,7 +36,7 @@ pub(in crate::optimize) use contracts::{
 pub(in crate::optimize) use contracts::{PatchPromptBundle, PatchRequestBase};
 pub(in crate::optimize) use generation::{
     agent_loop_error_to_generation_error, app_error_to_generation_error,
-    generation_stream_completion, is_generation_cancelled, optimize_progress,
+    generation_stream_completion, optimize_progress,
 };
 pub use patch::{
     OptimizationPatch, OptimizationPatchProposal, apply_optimization_patches_to_content,

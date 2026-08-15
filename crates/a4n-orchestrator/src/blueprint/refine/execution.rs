@@ -17,11 +17,11 @@ use futures::future::BoxFuture;
 
 use crate::OrchestratorContext;
 use crate::blueprint::BlueprintRefinementApplicationContext;
+use crate::context::fail_generation_workflow_execution;
 use crate::generation::{
     events::GenerationEventPublisher, generation_progress, generation_public_error,
     terminal::CompletionDescriptor,
 };
-use crate::workflow::WorkflowRunFinalizeOutcome;
 
 use self::call::execute_blueprint_refine_call;
 use self::contracts::BlueprintRefinementPersistenceInput;
@@ -63,7 +63,7 @@ impl OrchestratorContext {
         )
         .await
         {
-            return fail_blueprint_refinement_execution(self, execution, None, error).await;
+            return fail_generation_workflow_execution(self, execution, None, error).await;
         }
         let prepared = match prepare_blueprint_refine(
             self,
@@ -77,7 +77,7 @@ impl OrchestratorContext {
         {
             Ok(prepared) => prepared,
             Err(error) => {
-                return fail_blueprint_refinement_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     None,
@@ -99,7 +99,7 @@ impl OrchestratorContext {
         )
         .await
         {
-            return fail_blueprint_refinement_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -124,7 +124,7 @@ impl OrchestratorContext {
                 } else {
                     "generation_validation_failed"
                 };
-                return fail_blueprint_refinement_execution(
+                return fail_generation_workflow_execution(
                     self,
                     execution,
                     Some(workflow_run_id),
@@ -146,7 +146,7 @@ impl OrchestratorContext {
             )
             .await
         {
-            return fail_blueprint_refinement_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -162,7 +162,7 @@ impl OrchestratorContext {
         )
         .await
         {
-            return fail_blueprint_refinement_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -222,7 +222,7 @@ impl OrchestratorContext {
             })
             .await;
         if let Err(error) = completion {
-            return fail_blueprint_refinement_execution(
+            return fail_generation_workflow_execution(
                 self,
                 execution,
                 Some(workflow_run_id),
@@ -241,13 +241,9 @@ impl OrchestratorContext {
             version: outcome.blueprint.current_version.clone(),
         })
         .map_err(|error| format!("蓝图优化已保存，但蓝图更新事件发布失败: {error}"))?;
-        self.finalize_workflow_run_outcome_validated(
-            workflow_run_id,
-            WorkflowRunFinalizeOutcome::Completed,
-            None,
-        )
-        .await
-        .map_err(|error| format!("蓝图优化已保存，但 workflow 完成状态写入失败: {error}"))?;
+        self.complete_workflow_run_validated(workflow_run_id)
+            .await
+            .map_err(|error| format!("蓝图优化已保存，但 workflow 完成状态写入失败: {error}"))?;
         Ok(())
     }
 }
@@ -262,32 +258,4 @@ async fn publish_refinement_progress(
         .progress(generation_progress(stage_code, phase_kind, message))
         .await
         .map_err(|error| generation_public_error(error.code(), stage_code, error))
-}
-
-async fn fail_blueprint_refinement_execution(
-    orchestrator: &OrchestratorContext,
-    execution: crate::context::GenerationTaskExecution,
-    workflow_run_id: Option<i64>,
-    error: GenerationError,
-) -> Result<(), String> {
-    let outcome = if execution.session.snapshot().status
-        == a4n_service_protocol::GenerationTaskStatus::Cancelling
-    {
-        WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        WorkflowRunFinalizeOutcome::Failed
-    };
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        orchestrator
-            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error.message))
-            .await
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(error) = workflow_error {
-        message.push_str(&format!("; 记录蓝图优化 workflow 终态失败: {error}"));
-    }
-    Err(message)
 }

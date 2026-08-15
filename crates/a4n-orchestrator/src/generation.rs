@@ -23,7 +23,8 @@ use std::sync::Arc;
 use a4n_core::error::AppError;
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::{
-    GenerationError, GenerationErrorCode, GenerationFinishReason, ProgressEvent,
+    GenerationError, GenerationErrorCode, GenerationFinishReason, GenerationTaskStatus,
+    ProgressEvent,
 };
 use tokio::sync::mpsc;
 
@@ -158,6 +159,14 @@ pub(crate) fn generation_public_error(
     }
 }
 
+pub(crate) fn generation_failure_is_cancelled_or_interrupted(
+    session_status: GenerationTaskStatus,
+    error: &GenerationError,
+) -> bool {
+    session_status == GenerationTaskStatus::Cancelling
+        || error.code.as_str() == "generation_interrupted"
+}
+
 pub(crate) fn generation_session_error(error: events::GenerationSessionError) -> GenerationError {
     generation_public_error(error.code(), "checkpoint", error)
 }
@@ -228,5 +237,25 @@ mod tests {
             0,
         );
         assert_eq!(event.phase_kind, ProgressPhaseKind::AssetGeneration);
+    }
+
+    #[test]
+    fn generation_failure_distinguishes_cancel_or_interrupt_from_failure() {
+        let failed = generation_public_error("provider_job_failed", "provider_stream", "failed");
+        let interrupted =
+            generation_public_error("generation_interrupted", "provider_stream", "interrupted");
+
+        assert!(generation_failure_is_cancelled_or_interrupted(
+            GenerationTaskStatus::Cancelling,
+            &failed,
+        ));
+        assert!(generation_failure_is_cancelled_or_interrupted(
+            GenerationTaskStatus::Running,
+            &interrupted,
+        ));
+        assert!(!generation_failure_is_cancelled_or_interrupted(
+            GenerationTaskStatus::Running,
+            &failed,
+        ));
     }
 }

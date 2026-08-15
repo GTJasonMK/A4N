@@ -14,9 +14,7 @@ use a4n_domain::progress::ProgressPhaseKind;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
-use a4n_service_protocol::{
-    GenerationError, GenerationResultRef, GenerationTaskStatus, StreamTextHash,
-};
+use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -27,7 +25,7 @@ use crate::{
     OrchestratorContext,
     chapter_content::ChapterDerivedCleanupHostPort,
     collaboration::ProjectAccessRole,
-    context::GenerationTaskExecution,
+    context::{GenerationTaskExecution, fail_generation_workflow_execution},
     generation::{
         checkpoint::GenerationCheckpointMetadata,
         events::GenerationEventPublisher,
@@ -622,8 +620,9 @@ impl OrchestratorContext {
                 "章节正文已完成，派生资料同步待恢复"
             );
         }
-        self.complete_chapter_generation_workflow(workflow_run_id)
-            .await?;
+        self.complete_workflow_run_validated(workflow_run_id)
+            .await
+            .map_err(|error| error.to_string())?;
         Ok(())
     }
 
@@ -1245,41 +1244,12 @@ async fn fail_chapter_generation_execution(
     workflow_run_id: Option<i64>,
     error: GenerationError,
 ) -> Result<(), String> {
-    let workflow_outcome = chapter_generation_failure_outcome(execution.session.snapshot().status);
     if let Some(chapter_session) = chapter_session.as_deref() {
         chapter_service
             .restore_generation_status_ref(chapter_session)
             .await;
     }
-    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
-        orchestrator
-            .finalize_workflow_run_outcome_validated(
-                workflow_run_id,
-                workflow_outcome,
-                Some(&error.message),
-            )
-            .await
-            .map(|_| ())
-            .map_err(|status_error| status_error.to_string())
-            .err()
-    } else {
-        None
-    };
-    let mut message = execution.fail(error).await;
-    if let Some(workflow_error) = workflow_error {
-        message.push_str(&format!("; 记录章节生成工作流终态失败: {workflow_error}"));
-    }
-    Err(message)
-}
-
-fn chapter_generation_failure_outcome(
-    status: GenerationTaskStatus,
-) -> crate::workflow::WorkflowRunFinalizeOutcome {
-    if status == GenerationTaskStatus::Cancelling {
-        crate::workflow::WorkflowRunFinalizeOutcome::Cancelled
-    } else {
-        crate::workflow::WorkflowRunFinalizeOutcome::Failed
-    }
+    fail_generation_workflow_execution(orchestrator, execution, workflow_run_id, error).await
 }
 
 fn check_optional_cancelled(cancel_token: Option<&CancellationToken>) -> Result<(), String> {
@@ -1315,18 +1285,6 @@ mod cancellation_tests {
             client_rag_query_fingerprint: None,
             client_rag_query_vectors: None,
         }
-    }
-
-    #[test]
-    fn cancelling_generation_finalizes_workflow_as_cancelled() {
-        assert_eq!(
-            chapter_generation_failure_outcome(GenerationTaskStatus::Cancelling),
-            crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
-        );
-        assert_eq!(
-            chapter_generation_failure_outcome(GenerationTaskStatus::Running),
-            crate::workflow::WorkflowRunFinalizeOutcome::Failed,
-        );
     }
 
     #[test]
