@@ -135,7 +135,6 @@ pub(in crate::project::family_package::tests) fn package_with_part_outlines(
             part_outlines,
             ..Default::default()
         },
-        project_derivations: Vec::new(),
         source_snapshots: Vec::new(),
         source_snapshot_chapters: Vec::new(),
         source_snapshot_outlines: Vec::new(),

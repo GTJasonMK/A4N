@@ -1,6 +1,6 @@
 use a4n_core::models::{
     project::{
-        profile_evidence, project_derivation, project_source_snapshot, source_snapshot_chapter,
+        profile_evidence, project_source_snapshot, source_snapshot_chapter,
         source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
     source_sync::source_sync_run,
@@ -10,24 +10,13 @@ use std::collections::BTreeSet;
 
 use super::types::ProjectFamilyExportError;
 
-project_family_export_load_by_ids!(
-    project_family_export_project_derivations,
-    project_derivation::Entity,
-    project_derivation::Column::DerivedProjectId,
-    project_derivation::Column::Id,
-);
-
 pub(super) fn collect_project_family_export_snapshot_ids(
     derived_source_snapshot_ids: &[i64],
-    derivations: &[project_derivation::Model],
     sync_runs: &[source_sync_run::Model],
 ) -> Vec<i64> {
     let mut ids = BTreeSet::new();
     for id in derived_source_snapshot_ids {
         ids.insert(*id);
-    }
-    for derivation in derivations {
-        ids.insert(derivation.source_snapshot_id);
     }
     for run in sync_runs {
         ids.insert(run.from_snapshot_id);

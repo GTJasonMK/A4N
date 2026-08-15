@@ -273,7 +273,6 @@ async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

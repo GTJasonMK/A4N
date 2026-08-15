@@ -70,7 +70,6 @@ pub(super) fn validate_primary_row_ids(package: &ProjectFamilyPackage) -> Result
             id,
             "text_core.scene_entity_states.id"
         ),
-        (&package.project_derivations, id, "project_derivations.id"),
         (&package.source_snapshots, id, "source_snapshots.id"),
         (
             &package.source_snapshot_chapters,

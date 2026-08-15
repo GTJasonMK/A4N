@@ -45,7 +45,6 @@ async fn boundary_frame_image_lookup_accepts_root_project_images_for_video_proje
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

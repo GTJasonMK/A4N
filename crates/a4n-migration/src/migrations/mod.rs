@@ -53,6 +53,7 @@ pub mod object_profile_usage_fields;
 pub mod postgres_baseline;
 pub mod profile_record_ownership;
 pub mod project_collaboration;
+pub mod project_derivation_identity_cleanup;
 pub mod provider_default_config_integrity_contract;
 pub mod segment_card_video_workflow;
 pub mod segment_execution_recipe_identity;

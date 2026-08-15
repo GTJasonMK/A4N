@@ -26,9 +26,9 @@ use a4n_core::models::{
     media::{media_asset, media_binding, media_provenance},
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, import_review_queue,
-        novel_blueprint, novel_project, profile_evidence, project_derivation,
-        project_source_snapshot, project_status_history, source_snapshot_chapter,
-        source_snapshot_outline, source_snapshot_profile, text_anchor,
+        novel_blueprint, novel_project, profile_evidence, project_source_snapshot,
+        project_status_history, source_snapshot_chapter, source_snapshot_outline,
+        source_snapshot_profile, text_anchor,
     },
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
@@ -188,19 +188,6 @@ async fn create_baseline_indexes(manager: &SchemaManager<'_>) -> Result<(), DbEr
         "idx_novel_project_source_snapshot",
         novel_project::Entity,
         [novel_project::Column::SourceSnapshotId]
-    );
-    create_entity_index!(
-        manager,
-        "idx_project_derivation_derived_unique",
-        project_derivation::Entity,
-        [project_derivation::Column::DerivedProjectId],
-        unique
-    );
-    create_entity_index!(
-        manager,
-        "idx_project_derivation_root",
-        project_derivation::Entity,
-        [project_derivation::Column::RootProjectId]
     );
     create_entity_index!(
         manager,
@@ -638,7 +625,6 @@ impl MigrationTrait for Migration {
             [canvas_text_asset::Column::ProjectId]
         );
         create_entity_table!(manager, schema, text_anchor::Entity);
-        create_entity_table!(manager, schema, project_derivation::Entity);
 
         create_entity_table!(manager, schema, part_outline::Entity);
         create_entity_table!(manager, schema, chapter_outline::Entity);
@@ -848,7 +834,6 @@ impl MigrationTrait for Migration {
         drop_entity_table!(manager, chapter::Entity);
         drop_entity_table!(manager, chapter_outline::Entity);
         drop_entity_table!(manager, part_outline::Entity);
-        drop_entity_table!(manager, project_derivation::Entity);
         drop_entity_table!(manager, text_anchor::Entity);
         drop_entity_table!(manager, source_snapshot_profile::Entity);
         drop_entity_table!(manager, source_snapshot_outline::Entity);
@@ -882,7 +867,6 @@ const PROJECT_FAMILY_INTEGRITY_FUNCTION_NAMES: &[&str] = &[
     "a4n_validate_project_source_snapshot_family",
     "a4n_validate_source_snapshot_chapter_family",
     "a4n_validate_text_anchor_family",
-    "a4n_validate_project_derivation_family",
     "a4n_validate_generation_spec_family",
     "a4n_validate_generation_spec_text_anchor_family",
     "a4n_validate_generation_spec_entity_ref_family",
@@ -920,16 +904,8 @@ const TEXT_SOURCE_SYNC_TRIGGER_BASE_NAMES: &[&str] = &[
 
 const PROJECT_FAMILY_INTEGRITY_SQL: &[&str] = &[
     crate::migrations::video_canvas_workflow::NOVEL_PROJECT_FAMILY_FUNCTION_SQL,
-    r#"
-CREATE TRIGGER trg_novel_project_family_insert
-BEFORE INSERT ON novel_project
-FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
-"#,
-    r#"
-CREATE TRIGGER trg_novel_project_family_update
-BEFORE UPDATE OF project_kind, source_mode, root_project_id, parent_project_id, source_snapshot_id, derived_project_status ON novel_project
-FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
-"#,
+    crate::migrations::video_canvas_workflow::NOVEL_PROJECT_FAMILY_INSERT_TRIGGER_SQL,
+    crate::migrations::video_canvas_workflow::NOVEL_PROJECT_FAMILY_UPDATE_TRIGGER_SQL,
     r#"
 CREATE OR REPLACE FUNCTION a4n_validate_project_source_snapshot_family()
 RETURNS trigger
@@ -1039,50 +1015,6 @@ FOR EACH ROW EXECUTE FUNCTION a4n_validate_text_anchor_family()
 CREATE TRIGGER trg_text_anchor_family_update
 BEFORE UPDATE OF project_id, source_chapter_id, source_snapshot_id, source_snapshot_chapter_id ON text_anchor
 FOR EACH ROW EXECUTE FUNCTION a4n_validate_text_anchor_family()
-"#,
-    r#"
-CREATE OR REPLACE FUNCTION a4n_validate_project_derivation_family()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM novel_project root
-        WHERE root.id = NEW.root_project_id
-          AND root.project_kind = 'text'
-    ) THEN
-        RAISE EXCEPTION '派生关系 root_project_id 必须指向文本项目';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM novel_project derived
-        WHERE derived.id = NEW.derived_project_id
-          AND derived.project_kind = NEW.derived_kind
-          AND derived.project_kind <> 'text'
-          AND derived.root_project_id = NEW.root_project_id
-          AND derived.source_snapshot_id = NEW.source_snapshot_id
-    ) THEN
-        RAISE EXCEPTION '派生关系必须与派生项目主体一致';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM project_source_snapshot snapshot
-        WHERE snapshot.id = NEW.source_snapshot_id
-          AND snapshot.root_project_id = NEW.root_project_id
-    ) THEN
-        RAISE EXCEPTION '派生关系 source_snapshot_id 必须属于根文本项目';
-    END IF;
-    RETURN NEW;
-END;
-$$
-"#,
-    r#"
-CREATE TRIGGER trg_project_derivation_family_insert
-BEFORE INSERT ON project_derivation
-FOR EACH ROW EXECUTE FUNCTION a4n_validate_project_derivation_family()
-"#,
-    r#"
-CREATE TRIGGER trg_project_derivation_family_update
-BEFORE UPDATE OF root_project_id, derived_project_id, derived_kind, source_snapshot_id ON project_derivation
-FOR EACH ROW EXECUTE FUNCTION a4n_validate_project_derivation_family()
 "#,
     crate::migrations::galgame_generation_spec_contract::GALGAME_GENERATION_SPEC_FAMILY_FUNCTION_SQL,
     r#"
@@ -1615,7 +1547,6 @@ const PROJECT_FAMILY_TRIGGER_BASE_NAMES: &[&str] = &[
     "trg_project_source_snapshot_family",
     "trg_source_snapshot_chapter_family",
     "trg_text_anchor_family",
-    "trg_project_derivation_family",
     "trg_generation_spec_family",
     "trg_generation_spec_text_anchor_family",
     "trg_generation_spec_entity_ref_family",

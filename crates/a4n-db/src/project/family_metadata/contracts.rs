@@ -39,8 +39,6 @@ pub enum ProjectFamilyMetadataReadError {
     RootProjectMissing { root_project_id: i64 },
     #[error("派生项目引用的源文本快照不存在: {source_snapshot_id}")]
     SourceSnapshotMissing { source_snapshot_id: i64 },
-    #[error("派生项目缺少派生关系: {project_id}")]
-    DerivationMissing { project_id: i64 },
     #[error("{operation}: {source}")]
     Database {
         operation: &'static str,

@@ -67,7 +67,6 @@ pub fn assemble_project_family_export_package(
         root_project_id: root.id,
         projects,
         text_core: export_rows.text_core,
-        project_derivations: export_rows.project_derivations,
         source_snapshots: export_rows.source_snapshots,
         source_snapshot_chapters: export_rows.source_snapshot_chapters,
         source_snapshot_outlines: export_rows.source_snapshot_outlines,
@@ -133,10 +132,8 @@ mod tests {
                 "self".to_string()
             },
             root_project_id: root,
-            parent_project_id: root,
             source_snapshot_id: None,
             source_sync_status: "current".to_string(),
-            derived_project_status: None,
             status: "draft".to_string(),
             lifecycle_gate: "active".to_string(),
             target_chapters: 20,

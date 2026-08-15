@@ -85,6 +85,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::blueprint_version_snapshot_contract::Migration),
             Box::new(crate::migrations::source_sync_regenerate_scene_strategy::Migration),
             Box::new(crate::migrations::shooting_script_transition_type_contract::Migration),
+            Box::new(crate::migrations::project_derivation_identity_cleanup::Migration),
         ]
     }
 }
@@ -134,7 +135,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(28)
+                .take(29)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -167,6 +168,7 @@ mod tests {
                 "blueprint_version_snapshot_contract",
                 "source_sync_regenerate_scene_strategy",
                 "shooting_script_transition_type_contract",
+                "project_derivation_identity_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

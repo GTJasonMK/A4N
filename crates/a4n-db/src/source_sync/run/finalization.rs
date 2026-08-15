@@ -1,5 +1,5 @@
 use a4n_core::models::{
-    project::{novel_project, project_derivation},
+    project::novel_project,
     source_sync::{source_sync_conflict, source_sync_run},
 };
 use a4n_domain::source_sync::SourceSyncConflictSeverity;
@@ -66,17 +66,6 @@ where
         );
     }
     project_update.exec(db).await?;
-
-    if !input.detach_requested {
-        project_derivation::Entity::update_many()
-            .col_expr(
-                project_derivation::Column::SourceSnapshotId,
-                Expr::value(run.to_snapshot_id),
-            )
-            .filter(project_derivation::Column::DerivedProjectId.eq(run.derived_project_id))
-            .exec(db)
-            .await?;
-    }
 
     let new_run_status = if pending_any > 0 && !input.detach_requested {
         SYNC_RUN_STATUS_APPLYING

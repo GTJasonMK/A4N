@@ -316,7 +316,7 @@ enum ProjectCommand {
         #[arg(long)]
         description: Option<String>,
         #[arg(long)]
-        project_type: Option<String>,
+        project_type: String,
         /// 创建后写入当前上下文
         #[arg(long)]
         use_context: bool,

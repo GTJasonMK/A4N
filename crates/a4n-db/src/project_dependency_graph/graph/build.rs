@@ -6,8 +6,8 @@ use crate::project_dependency_graph::{
     AssetDependencyGraph,
     builder::{GraphBuilder, NodeSeedMetadata, node},
     nodes::{
-        add_generation_nodes, add_inspiration_nodes, add_manga_nodes, add_profile_nodes,
-        add_project_derivation_nodes, add_story_nodes, add_video_nodes,
+        add_derived_project_nodes, add_generation_nodes, add_inspiration_nodes, add_manga_nodes,
+        add_profile_nodes, add_story_nodes, add_video_nodes,
     },
     scope::AssetGraphScope,
 };
@@ -82,11 +82,7 @@ pub(super) fn build_asset_dependency_graph(
         &records.media_assets,
         &records.media_provenance,
     );
-    add_project_derivation_nodes(
-        &mut graph,
-        &scope.derived_projects,
-        &scope.project_derivations,
-    );
+    add_derived_project_nodes(&mut graph, &scope.derived_projects);
 
     graph.finish(root_project_id)
 }

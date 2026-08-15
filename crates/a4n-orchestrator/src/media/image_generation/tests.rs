@@ -957,7 +957,6 @@ async fn insert_manga_page_fixture(
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

@@ -26,17 +26,11 @@ pub struct Model {
     /// 派生项目指向文本根项目；文本项目为空
     pub root_project_id: Option<i64>,
 
-    /// 直接来源项目；第一阶段派生项目与 root_project_id 一致
-    pub parent_project_id: Option<i64>,
-
     /// 派生项目绑定的源文本快照
     pub source_snapshot_id: Option<i64>,
 
     /// current / root_updated / conflict / detached
     pub source_sync_status: String,
-
-    /// 派生项目工作流状态；文本项目为空
-    pub derived_project_status: Option<String>,
 
     /// 状态：draft / blueprint_ready / part_outlines_ready / chapter_outlines_ready / writing / completed
     pub status: String,

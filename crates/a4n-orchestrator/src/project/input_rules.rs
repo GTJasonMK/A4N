@@ -32,14 +32,6 @@ pub fn required_text<'a>(value: &'a str, field: &str) -> Result<&'a str, String>
     }
 }
 
-/// 可选字段作为必填：Some 且 trim 后非空。
-pub fn required_optional_text<'a>(value: Option<&'a str>, field: &str) -> Result<&'a str, String> {
-    value
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("{field} 不能为空"))
-}
-
 /// 可选文本：None 或空白视为空串。
 pub fn optional_text(value: Option<&str>) -> String {
     value.map(str::trim).unwrap_or_default().to_string()
@@ -79,10 +71,8 @@ mod tests {
             project_kind: kind.into(),
             source_mode: source_mode.into(),
             root_project_id: None,
-            parent_project_id: None,
             source_snapshot_id: None,
             source_sync_status: "current".into(),
-            derived_project_status: None,
             status: "draft".into(),
             lifecycle_gate: "active".into(),
             target_chapters: 0,
@@ -115,11 +105,6 @@ mod tests {
     fn required_and_optional_text_trim() {
         assert_eq!(required_text(" 标题 ", "项目标题").unwrap(), "标题");
         assert!(required_text("  ", "项目标题").is_err());
-        assert_eq!(
-            required_optional_text(Some(" novel_long "), "项目类型").unwrap(),
-            "novel_long"
-        );
-        assert!(required_optional_text(None, "项目类型").is_err());
         assert_eq!(optional_text(None), "");
         assert_eq!(optional_text(Some(" 简介 ")), "简介");
     }

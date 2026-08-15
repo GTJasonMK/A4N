@@ -8,8 +8,8 @@ pub use contracts::*;
 pub use creation::*;
 pub use queries::{project_by_id_record, project_ids};
 pub use rules::{
-    is_valid_derived_project_status, is_valid_source_sync_status, normalize_derived_project_kind,
-    normalize_project_kind, normalize_project_type,
+    is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
+    normalize_project_type,
 };
 pub use updates::{mark_derived_projects_root_updated_record, update_project_record};
 

@@ -2,7 +2,7 @@ use super::contracts::{ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadErro
 use super::projection::build_project_family_metadata;
 use super::queries::{project_family_metadata, project_family_metadata_batch};
 use crate::project::{SOURCE_MODE_DERIVED, SOURCE_MODE_SELF};
-use a4n_core::models::project::{novel_project, project_derivation, project_source_snapshot};
+use a4n_core::models::project::{novel_project, project_source_snapshot};
 use chrono::{NaiveDate, NaiveDateTime};
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::json;
@@ -21,16 +21,6 @@ fn preserves_family_fields() {
         profile_hashes_json: json!({}),
         created_at: naive_datetime(),
     };
-    let derivation = project_derivation::Model {
-        id: 30,
-        root_project_id: 7,
-        derived_project_id: 10,
-        derived_kind: "comic".to_string(),
-        source_snapshot_id: 20,
-        chapter_scope_json: json!({"start_chapter": 1, "end_chapter": 3}),
-        creation_options_json: json!({}),
-        created_at: naive_datetime(),
-    };
     let query = ProjectFamilyMetadataQuery {
         project_id: 10,
         root_project_id: Some(7),
@@ -42,7 +32,6 @@ fn preserves_family_fields() {
         &query,
         &HashMap::from([(root.id, root)]),
         &HashMap::from([(snapshot.id, snapshot)]),
-        &HashMap::from([(derivation.derived_project_id, derivation)]),
     )
     .expect("family metadata should be complete");
 
@@ -54,7 +43,7 @@ fn preserves_family_fields() {
     );
     assert_eq!(
         metadata.derived_chapter_scope,
-        Some(json!({"start_chapter": 1, "end_chapter": 3}))
+        Some(json!({"start": 1, "end": 2}))
     );
 }
 
@@ -67,7 +56,6 @@ fn keeps_missing_reference_errors() {
             source_snapshot_id: None,
             source_mode: SOURCE_MODE_SELF.to_string(),
         },
-        &HashMap::new(),
         &HashMap::new(),
         &HashMap::new(),
     )
@@ -86,7 +74,6 @@ fn keeps_missing_reference_errors() {
         },
         &HashMap::new(),
         &HashMap::new(),
-        &HashMap::new(),
     )
     .expect_err("missing snapshot should be rejected");
     assert!(matches!(
@@ -94,23 +81,6 @@ fn keeps_missing_reference_errors() {
         ProjectFamilyMetadataReadError::SourceSnapshotMissing {
             source_snapshot_id: 20
         }
-    ));
-
-    let missing_derivation = build_project_family_metadata(
-        &ProjectFamilyMetadataQuery {
-            project_id: 10,
-            root_project_id: None,
-            source_snapshot_id: None,
-            source_mode: SOURCE_MODE_DERIVED.to_string(),
-        },
-        &HashMap::new(),
-        &HashMap::new(),
-        &HashMap::new(),
-    )
-    .expect_err("missing derivation should be rejected");
-    assert!(matches!(
-        missing_derivation,
-        ProjectFamilyMetadataReadError::DerivationMissing { project_id: 10 }
     ));
 }
 
@@ -193,10 +163,8 @@ fn project() -> novel_project::Model {
         project_kind: "text".to_string(),
         source_mode: SOURCE_MODE_SELF.to_string(),
         root_project_id: None,
-        parent_project_id: None,
         source_snapshot_id: None,
         source_sync_status: "current".to_string(),
-        derived_project_status: None,
         status: "draft".to_string(),
         lifecycle_gate: "active".to_string(),
         target_chapters: 10,

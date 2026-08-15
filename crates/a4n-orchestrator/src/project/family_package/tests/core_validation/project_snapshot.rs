@@ -51,43 +51,6 @@ fn validate_package_manifest_rejects_root_project_non_current_source_sync_status
 }
 
 #[test]
-fn validate_package_manifest_rejects_root_project_derived_status() {
-    let mut package = package_with_part_outlines(Vec::new());
-    package.projects[0].derived_project_status = Some(DERIVED_PROJECT_STATUS_DRAFT.to_string());
-
-    let err = validate_package_manifest(&package)
-        .expect_err("text root projects must not carry derived-only status");
-
-    assert!(err.contains("文本项目不能包含派生项目状态"));
-    assert!(err.contains("project_id=1"));
-}
-
-#[test]
-fn validate_package_manifest_rejects_derived_project_missing_derived_status() {
-    let mut package = package_with_derived_project();
-    package.projects[1].derived_project_status = None;
-
-    let err = validate_package_manifest(&package)
-        .expect_err("derived projects must carry derived_project_status");
-
-    assert!(err.contains("派生项目缺少 derived_project_status"));
-    assert!(err.contains("project_id=2"));
-}
-
-#[test]
-fn validate_package_manifest_rejects_unknown_derived_project_status() {
-    let mut package = package_with_derived_project();
-    package.projects[1].derived_project_status = Some("ready".to_string());
-
-    let err = validate_package_manifest(&package)
-        .expect_err("derived project status must use known values");
-
-    assert!(err.contains("派生项目状态无效"));
-    assert!(err.contains("project_id=2"));
-    assert!(err.contains("derived_project_status=ready"));
-}
-
-#[test]
 fn validate_package_manifest_accepts_known_derived_project_source_sync_statuses() {
     for status in [
         SOURCE_SYNC_CURRENT,
@@ -104,40 +67,15 @@ fn validate_package_manifest_accepts_known_derived_project_source_sync_statuses(
 }
 
 #[test]
-fn validate_package_manifest_rejects_invalid_project_derivation_scope() {
+fn validate_package_manifest_rejects_missing_project_snapshot_reference() {
     let mut package = package_with_derived_project();
-    package.project_derivations[0].chapter_scope_json = json!({"start": 0, "end": 10});
+    package.projects[1].source_snapshot_id = Some(999);
 
     let err = validate_package_manifest(&package)
-        .expect_err("derivation chapter scope must match source sync parser constraints");
+        .expect_err("derived projects must reference a packaged source snapshot");
 
-    assert!(err.contains("派生关系 chapter_scope_json 范围无效"));
-    assert!(err.contains("start=0"));
-}
-
-#[test]
-fn validate_package_manifest_rejects_non_object_project_derivation_options() {
-    let mut package = package_with_derived_project();
-    package.project_derivations[0].creation_options_json = json!(["not", "an", "object"]);
-
-    let err = validate_package_manifest(&package)
-        .expect_err("creation_options_json must keep service object invariant");
-
-    assert!(err.contains("creation_options_json 必须是 JSON 对象"));
-    assert!(err.contains("project_derivation_id=911"));
-}
-
-#[test]
-fn validate_package_manifest_rejects_derivation_scope_mismatched_snapshot_scope() {
-    let mut package = package_with_derived_project();
-    package.project_derivations[0].chapter_scope_json = json!({"start": 1, "end": 5});
-
-    let err = validate_package_manifest(&package)
-        .expect_err("derivation scope and snapshot scope describe the same frozen source");
-
-    assert!(err.contains("派生关系章节范围与源文本快照不一致"));
-    assert!(err.contains("project_derivation_id=911"));
-    assert!(err.contains("source_snapshot_id=901"));
+    assert!(err.contains("派生项目引用了导入包不存在的源文本快照"));
+    assert!(err.contains("snapshot_id=999"));
 }
 
 #[test]

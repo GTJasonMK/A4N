@@ -11,16 +11,12 @@ use super::super::{
         validate_text_core_part_outline_ranges,
     },
 };
-use super::{
-    derivations::validate_package_derivations, projects::validate_package_projects,
-    uniqueness::validate_package_uniqueness,
-};
+use super::{projects::validate_package_projects, uniqueness::validate_package_uniqueness};
 
 pub fn validate_package_manifest(package: &ProjectFamilyPackage) -> Result<(), String> {
     validate_package_projects(package)?;
     validate_package_uniqueness(package)?;
     validate_source_snapshot_manifest(package)?;
-    validate_package_derivations(package)?;
     validate_text_core_part_outline_ranges(package)?;
     validate_text_core_chapter_outline_statuses(package)?;
     validate_text_core_chapter_outline_part_references(package)?;

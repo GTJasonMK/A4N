@@ -5,7 +5,7 @@ use super::OrchestratorContext;
 use crate::project::{
     CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
     UpdateProjectRecordInput, optional_text, project_basic_record_error_to_app_error,
-    project_mutation_error_to_app_error, required_optional_text, required_text,
+    project_mutation_error_to_app_error, required_text,
 };
 
 #[derive(Clone)]
@@ -38,46 +38,20 @@ impl ProjectMutationApplication {
         .map_err(project_basic_record_error_to_app_error)
     }
 
-    /// 校验标题/类型后创建文本项目。
-    async fn create_project_validated(
+    async fn create_project(
         &self,
-        user_id: i64,
-        title: String,
-        description: Option<String>,
-        project_type: Option<String>,
+        input: CreateProjectRecordInput,
     ) -> Result<novel_project::Model, AppError> {
-        let title = required_text(&title, "项目标题")
-            .map_err(AppError::InvalidArgument)?
-            .to_string();
-        let description = optional_text(description.as_deref());
-        let project_type = required_optional_text(project_type.as_deref(), "项目类型")
-            .map_err(AppError::InvalidArgument)?
-            .to_string();
-        a4n_db::project::create_project_record(
-            self.database.connection(),
-            CreateProjectRecordInput {
-                user_id,
-                title,
-                description,
-                project_type,
-            },
-        )
-        .await
-        .map_err(project_mutation_error_to_app_error)
+        a4n_db::project::create_project_record(self.database.connection(), input)
+            .await
+            .map_err(project_mutation_error_to_app_error)
     }
 
-    /// 校验标题后创建派生项目。
-    async fn create_derived_project_validated(
+    async fn create_derived_project(
         &self,
         owner_user_id: i64,
-        mut params: CreateDerivedProjectParams,
+        params: CreateDerivedProjectParams,
     ) -> Result<novel_project::Model, AppError> {
-        params.title = required_text(&params.title, "项目标题")
-            .map_err(AppError::InvalidArgument)?
-            .to_string();
-        params.description = required_optional_text(Some(params.description.as_str()), "项目简介")
-            .map_err(AppError::InvalidArgument)?
-            .to_string();
         a4n_db::project::create_derived_project_record(
             self.database.connection(),
             owner_user_id,
@@ -87,16 +61,11 @@ impl ProjectMutationApplication {
         .map_err(project_mutation_error_to_app_error)
     }
 
-    /// 校验标题后创建 freeform 视频项目。
-    async fn create_freeform_video_project_validated(
+    async fn create_freeform_video_project(
         &self,
         user_id: i64,
-        mut params: CreateFreeformVideoProjectParams,
+        params: CreateFreeformVideoProjectParams,
     ) -> Result<novel_project::Model, AppError> {
-        params.title = required_text(&params.title, "项目标题")
-            .map_err(AppError::InvalidArgument)?
-            .to_string();
-        params.description = optional_text(Some(params.description.as_str()));
         a4n_db::project::create_freeform_video_project_record(
             self.database.connection(),
             user_id,
@@ -136,38 +105,30 @@ impl ProjectMutationApplication {
 }
 
 impl OrchestratorContext {
-    /// 创建文本项目：校验标题/类型后落库。
-    pub async fn create_project_validated(
+    pub async fn create_project(
         &self,
-        user_id: i64,
-        title: String,
-        description: Option<String>,
-        project_type: Option<String>,
+        input: CreateProjectRecordInput,
     ) -> Result<novel_project::Model, AppError> {
-        self.project_mutation
-            .create_project_validated(user_id, title, description, project_type)
-            .await
+        self.project_mutation.create_project(input).await
     }
 
-    /// 创建派生项目：校验标题/简介后落库。
-    pub async fn create_derived_project_validated(
+    pub async fn create_derived_project(
         &self,
         owner_user_id: i64,
         params: CreateDerivedProjectParams,
     ) -> Result<novel_project::Model, AppError> {
         self.project_mutation
-            .create_derived_project_validated(owner_user_id, params)
+            .create_derived_project(owner_user_id, params)
             .await
     }
 
-    /// 创建 freeform 视频项目：校验标题后落库。
-    pub async fn create_freeform_video_project_validated(
+    pub async fn create_freeform_video_project(
         &self,
         user_id: i64,
         params: CreateFreeformVideoProjectParams,
     ) -> Result<novel_project::Model, AppError> {
         self.project_mutation
-            .create_freeform_video_project_validated(user_id, params)
+            .create_freeform_video_project(user_id, params)
             .await
     }
 

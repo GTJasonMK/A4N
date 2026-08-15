@@ -1,8 +1,8 @@
 use a4n_core::models::{
-    project::{novel_project, project_derivation, project_source_snapshot},
+    project::{novel_project, project_source_snapshot},
     source_sync::source_sync_run,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ConnectionTrait, EntityTrait};
 
 use crate::source_sync::snapshots::{
     calculate_source_sync_version_hash, parse_source_sync_chapter_scope,
@@ -53,24 +53,14 @@ where
             operation: "apply_source_sync_decisions".to_string(),
         });
     }
-    let derivation = project_derivation::Entity::find()
-        .filter(project_derivation::Column::DerivedProjectId.eq(run.derived_project_id))
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            SourceSyncDbError::InvalidArgument(format!(
-                "派生项目缺少派生关系: {}",
-                run.derived_project_id
-            ))
-        })?;
-    let scope = parse_source_sync_chapter_scope(&derivation.chapter_scope_json)?;
-    let current_hash = calculate_source_sync_version_hash(db, run.root_project_id, scope).await?;
     let target_snapshot = project_source_snapshot::Entity::find_by_id(run.to_snapshot_id)
         .one(db)
         .await?
         .ok_or_else(|| {
             SourceSyncDbError::NotFound(format!("目标源快照不存在: {}", run.to_snapshot_id))
         })?;
+    let scope = parse_source_sync_chapter_scope(&target_snapshot.chapter_scope_json)?;
+    let current_hash = calculate_source_sync_version_hash(db, run.root_project_id, scope).await?;
     if current_hash != target_snapshot.source_version_hash {
         return Err(SourceSyncDbError::InvalidState {
             current: "root_changed_after_dry_run".to_string(),

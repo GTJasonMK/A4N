@@ -10,8 +10,8 @@ use a4n_core::models::{
     media::{media_asset, media_binding, media_provenance},
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-        novel_project, profile_evidence, project_derivation, project_source_snapshot,
-        source_snapshot_chapter, source_snapshot_outline, source_snapshot_profile, text_anchor,
+        novel_project, profile_evidence, project_source_snapshot, source_snapshot_chapter,
+        source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
@@ -59,7 +59,6 @@ pub struct ProjectFamilyTextCoreRows {
 pub struct ProjectFamilyExportRows {
     pub snapshot_ids: Vec<i64>,
     pub text_core: ProjectFamilyTextCoreRows,
-    pub project_derivations: Vec<project_derivation::Model>,
     pub source_snapshots: Vec<project_source_snapshot::Model>,
     pub source_snapshot_chapters: Vec<source_snapshot_chapter::Model>,
     pub source_snapshot_outlines: Vec<source_snapshot_outline::Model>,

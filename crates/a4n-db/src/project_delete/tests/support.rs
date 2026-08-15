@@ -86,7 +86,6 @@ pub(super) async fn root_with_video_derivative(
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: serde_json::json!({}),
         },
     )
     .await

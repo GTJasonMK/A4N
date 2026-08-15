@@ -64,7 +64,6 @@ async fn video_project(db: &DatabaseConnection, user_id: i64, title: &str) -> no
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

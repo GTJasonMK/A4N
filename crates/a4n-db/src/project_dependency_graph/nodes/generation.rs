@@ -94,10 +94,9 @@ pub(in crate::project_dependency_graph) fn add_generation_nodes(
     );
 }
 
-pub(in crate::project_dependency_graph) fn add_project_derivation_nodes(
+pub(in crate::project_dependency_graph) fn add_derived_project_nodes(
     graph: &mut GraphBuilder,
     derived_projects: &[novel_project::Model],
-    project_derivations: &[project_derivation::Model],
 ) {
     if derived_projects.is_empty() {
         return;
@@ -118,7 +117,6 @@ pub(in crate::project_dependency_graph) fn add_project_derivation_nodes(
             details: json!({
                 "derived_kinds": count_strings(derived_projects.iter().map(|row| row.project_kind.as_str())),
                 "project_ids": derived_projects.iter().map(|row| row.id).collect::<Vec<_>>(),
-                "derivation_count": project_derivations.len(),
             }),
         },
     ));

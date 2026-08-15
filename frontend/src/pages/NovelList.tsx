@@ -448,7 +448,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
         description: `基于「${project.title}」的${label}`,
         start_chapter: start,
         end_chapter: end,
-        creation_options: {},
       });
       if (!mountedRef.current) return;
       addToast(`已创建${label}：${derived.title}`, "success");

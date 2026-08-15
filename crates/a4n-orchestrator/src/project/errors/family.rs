@@ -43,8 +43,7 @@ pub(crate) fn project_family_metadata_read_error_to_app_error(
         }
         ProjectFamilyMetadataReadError::MetadataMissing { .. }
         | ProjectFamilyMetadataReadError::RootProjectMissing { .. }
-        | ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. }
-        | ProjectFamilyMetadataReadError::DerivationMissing { .. } => {
+        | ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. } => {
             AppError::Internal(anyhow::anyhow!(error.to_string()))
         }
         ProjectFamilyMetadataReadError::Database { source, .. } => AppError::Database(source),

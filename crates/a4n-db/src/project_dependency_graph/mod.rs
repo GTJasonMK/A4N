@@ -8,7 +8,7 @@ use a4n_core::models::{
     },
     generation::{generation_spec, prompt_artifact},
     media::{media_asset, media_provenance},
-    project::{novel_project, project_derivation},
+    project::novel_project,
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;

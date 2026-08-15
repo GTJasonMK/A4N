@@ -21,7 +21,7 @@ impl MigrationTrait for Migration {
             "DELETE FROM chapter_shooting_script",
             "DELETE FROM workflow_checkpoint WHERE workflow_run_id IN (SELECT id FROM workflow_run WHERE workflow_kind = 'chapter_shooting_script')",
             "UPDATE workflow_run SET status = 'cancelled', can_resume = FALSE, resume_block_reason = 'shooting_script_narrative_unit_contract_changed', active_task_id = NULL, updated_at = NOW() WHERE workflow_kind = 'chapter_shooting_script' AND status <> 'cancelled'",
-            "UPDATE novel_project SET source_sync_status = 'root_updated', derived_project_status = 'draft', updated_at = NOW() WHERE project_kind IN ('video', 'comic', 'galgame') AND source_mode = 'derived'",
+            "UPDATE novel_project SET source_sync_status = 'root_updated', updated_at = NOW() WHERE project_kind IN ('video', 'comic', 'galgame') AND source_mode = 'derived'",
         ] {
             manager
                 .get_connection()

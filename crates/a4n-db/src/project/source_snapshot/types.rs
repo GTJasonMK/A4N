@@ -16,7 +16,6 @@ pub struct CreateDerivedProjectParams {
     pub title: String,
     pub description: String,
     pub chapter_scope: DerivedChapterScope,
-    pub creation_options_json: Value,
 }
 
 pub(super) struct SourceSnapshotBuildData {

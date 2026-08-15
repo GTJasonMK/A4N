@@ -16,8 +16,6 @@ pub const SOURCE_SYNC_CURRENT: &str = "current";
 pub const SOURCE_SYNC_ROOT_UPDATED: &str = "root_updated";
 pub const SOURCE_SYNC_CONFLICT: &str = "conflict";
 pub const SOURCE_SYNC_DETACHED: &str = "detached";
-pub const DERIVED_PROJECT_STATUS_DRAFT: &str = "draft";
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateProjectRecordInput {
     pub user_id: i64,

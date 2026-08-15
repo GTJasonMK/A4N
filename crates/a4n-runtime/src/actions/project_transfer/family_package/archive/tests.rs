@@ -15,7 +15,6 @@ fn empty_package() -> ProjectFamilyPackage {
         root_project_id: 1,
         projects: Vec::new(),
         text_core: TextCorePackage::default(),
-        project_derivations: Vec::new(),
         source_snapshots: Vec::new(),
         source_snapshot_chapters: Vec::new(),
         source_snapshot_outlines: Vec::new(),

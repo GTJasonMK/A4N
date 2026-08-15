@@ -2432,7 +2432,7 @@ export interface PaginatedProjects {
 
 export interface CreateProjectInput {
   description?: string | null;
-  project_type?: string | null;
+  project_type: string;
   title: string;
 }
 
@@ -2442,9 +2442,8 @@ export interface CreateFreeformVideoProjectInput {
 }
 
 export interface CreateDerivedProjectInput {
-  creation_options: unknown;
   derived_kind: string;
-  description?: string | null;
+  description: string;
   end_chapter: number;
   root_project_id: number;
   start_chapter: number;

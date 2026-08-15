@@ -73,7 +73,6 @@ async fn video_project(
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

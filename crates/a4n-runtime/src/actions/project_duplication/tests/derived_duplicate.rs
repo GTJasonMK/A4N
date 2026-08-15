@@ -57,10 +57,8 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
         project_kind: Set("video".to_string()),
         source_mode: Set("derived".to_string()),
         root_project_id: Set(Some(root.id)),
-        parent_project_id: Set(Some(root.id)),
         source_snapshot_id: Set(Some(snapshot.id)),
         source_sync_status: Set("current".to_string()),
-        derived_project_status: Set(Some("draft".to_string())),
         status: Set(ProjectStatus::Draft.as_str().to_string()),
         target_chapters: Set(1),
         current_chapter: Set(0),
@@ -292,20 +290,6 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     .insert(&db)
     .await
     .unwrap();
-    project_derivation::ActiveModel {
-        root_project_id: Set(root.id),
-        derived_project_id: Set(derived.id),
-        derived_kind: Set("video".to_string()),
-        source_snapshot_id: Set(snapshot.id),
-        chapter_scope_json: Set(json!({"start": 1, "end": 1})),
-        creation_options_json: Set(json!({"style": "film"})),
-        created_at: Set(fixed_time()),
-        ..Default::default()
-    }
-    .insert(&db)
-    .await
-    .unwrap();
-
     let mut copied_media_files = Vec::new();
     let mut media_file_copier = RuntimeProjectMediaFileCopier {
         data_dir: data_dir.path(),
@@ -314,19 +298,13 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     let duplicated =
         duplicate_derived_project_record(&db, &derived, 1, "视频项目 副本", &mut media_file_copier)
             .await
-            .expect("derived project should duplicate snapshot and derivation");
+            .expect("derived project should duplicate snapshot");
 
     let duplicated_chapters = chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(duplicated.id))
         .all(&db)
         .await
         .unwrap();
-    let duplicated_derivation = project_derivation::Entity::find()
-        .filter(project_derivation::Column::DerivedProjectId.eq(duplicated.id))
-        .one(&db)
-        .await
-        .unwrap()
-        .expect("duplicated derived project should have derivation");
     let duplicated_snapshot_id = duplicated
         .source_snapshot_id
         .expect("duplicated project should reference snapshot");
@@ -339,10 +317,6 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     assert_eq!(duplicated.project_kind, "video");
     assert_eq!(duplicated.root_project_id, Some(root.id));
     assert_ne!(duplicated_snapshot_id, snapshot.id);
-    assert_eq!(
-        duplicated_derivation.source_snapshot_id,
-        duplicated_snapshot_id
-    );
     assert!(duplicated_chapters.is_empty());
     assert_eq!(duplicated_snapshot_chapters.len(), 1);
     assert_eq!(

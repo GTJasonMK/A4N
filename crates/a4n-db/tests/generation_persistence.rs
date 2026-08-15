@@ -181,7 +181,6 @@ async fn generation_reservation_resolves_derived_project_root() {
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

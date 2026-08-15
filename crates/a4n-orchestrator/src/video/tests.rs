@@ -101,7 +101,6 @@ pub(in crate::video) async fn insert_derived_video_project(
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

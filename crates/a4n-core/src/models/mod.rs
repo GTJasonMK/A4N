@@ -29,7 +29,6 @@ pub mod project {
     pub mod novel_blueprint;
     pub mod novel_project;
     pub mod profile_evidence;
-    pub mod project_derivation;
     pub mod project_invite;
     pub mod project_member;
     pub mod project_source_snapshot;

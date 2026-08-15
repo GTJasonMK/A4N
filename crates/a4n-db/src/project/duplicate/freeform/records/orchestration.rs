@@ -37,7 +37,6 @@ where
             user_id,
             title: new_title.to_string(),
             root_project_id: None,
-            parent_project_id: None,
             source_snapshot_id: None,
             status: original.status.clone(),
             current_chapter: original.current_chapter,

@@ -14,9 +14,8 @@ use crate::media::{
     MEDIA_STATUS_RUNNING,
 };
 use crate::project::{
-    DERIVED_PROJECT_STATUS_DRAFT, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_SYNC_CONFLICT,
-    SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,
-    media_asset_status_for_import_insert,
+    PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT,
+    SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED, media_asset_status_for_import_insert,
 };
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,

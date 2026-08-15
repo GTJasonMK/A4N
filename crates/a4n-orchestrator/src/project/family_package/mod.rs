@@ -19,9 +19,7 @@ use a4n_core::models::{
         generation_spec_entity_ref, generation_spec_media_ref, generation_spec_text_anchor,
     },
     media::media_provenance,
-    project::{
-        profile_evidence, project_derivation, source_snapshot_outline, source_snapshot_profile,
-    },
+    project::{profile_evidence, source_snapshot_outline, source_snapshot_profile},
     scene::scene_profile,
     video_project::{assembly_timeline, video_segment},
 };
@@ -72,7 +70,6 @@ impl ProjectFamilyPackage {
             root_project_id: self.root_project_id,
             projects: self.projects,
             text_core: self.text_core,
-            project_derivations: self.project_derivations,
             source_snapshots: self.source_snapshots,
             source_snapshot_chapters: self.source_snapshot_chapters,
             source_snapshot_outlines: self.source_snapshot_outlines,

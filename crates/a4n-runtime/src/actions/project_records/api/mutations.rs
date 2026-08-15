@@ -8,9 +8,10 @@ use crate::AppState;
 use crate::actions::{access, app_error_message};
 use a4n_orchestrator::collaboration::ProjectAccessRole;
 use a4n_orchestrator::project::{
-    CreateDerivedProjectParams, CreateFreeformVideoProjectParams, DerivedChapterScope,
+    CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
+    DerivedChapterScope,
 };
-use a4n_orchestrator::project::{optional_text, required_optional_text, required_text};
+use a4n_orchestrator::project::{optional_text, required_text};
 
 pub async fn create_project(
     state: &AppState,
@@ -19,15 +20,15 @@ pub async fn create_project(
 ) -> Result<ProjectSummary, String> {
     let title = required_text(&input.title, "项目标题")?;
     let description = optional_text(input.description.as_deref());
-    let project_type = required_optional_text(input.project_type.as_deref(), "项目类型")?;
+    let project_type = required_text(&input.project_type, "项目类型")?;
     let project = state
         .orchestrator()
-        .create_project_validated(
+        .create_project(CreateProjectRecordInput {
             user_id,
-            title.to_string(),
-            Some(description).filter(|value| !value.is_empty()),
-            Some(project_type.to_string()),
-        )
+            title: title.to_string(),
+            description,
+            project_type: project_type.to_string(),
+        })
         .await
         .map_err(app_error_message)?;
     project_summary_with_family_for_user(state, user_id, &project).await
@@ -39,7 +40,7 @@ pub async fn create_derived_project(
     input: CreateDerivedProjectInput,
 ) -> Result<ProjectSummary, String> {
     let title = required_text(&input.title, "项目标题")?;
-    let description = required_optional_text(input.description.as_deref(), "项目简介")?;
+    let description = required_text(&input.description, "项目简介")?;
     let root = state
         .orchestrator()
         .collaboration_root_project(input.root_project_id)
@@ -52,7 +53,7 @@ pub async fn create_derived_project(
         .map_err(|error| error.to_string())?;
     let project = state
         .orchestrator()
-        .create_derived_project_validated(
+        .create_derived_project(
             root.user_id,
             CreateDerivedProjectParams {
                 root_project_id: input.root_project_id,
@@ -63,7 +64,6 @@ pub async fn create_derived_project(
                     start_chapter: input.start_chapter,
                     end_chapter: input.end_chapter,
                 },
-                creation_options_json: input.creation_options,
             },
         )
         .await
@@ -80,7 +80,7 @@ pub async fn create_freeform_video_project(
     let description = optional_text(input.description.as_deref());
     let project = state
         .orchestrator()
-        .create_freeform_video_project_validated(
+        .create_freeform_video_project(
             user_id,
             CreateFreeformVideoProjectParams {
                 title: title.to_string(),

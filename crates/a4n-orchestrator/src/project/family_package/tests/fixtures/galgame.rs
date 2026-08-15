@@ -7,13 +7,6 @@ pub(in crate::project::family_package::tests) fn derived_galgame_project() -> no
     project
 }
 
-pub(in crate::project::family_package::tests) fn galgame_project_derivation_record()
--> project_derivation::Model {
-    let mut derivation = project_derivation_record();
-    derivation.derived_kind = PROJECT_KIND_GALGAME_TEST.to_string();
-    derivation
-}
-
 pub(in crate::project::family_package::tests) fn package_with_galgame_project()
 -> ProjectFamilyPackage {
     let mut package = package_with_part_outlines(Vec::new());
@@ -30,7 +23,6 @@ pub(in crate::project::family_package::tests) fn package_with_galgame_project()
     package.projects.push(derived_galgame_project());
     package.source_snapshots = vec![snapshot];
     package.source_snapshot_chapters = snapshot_chapters;
-    package.project_derivations = vec![galgame_project_derivation_record()];
     package.galgame_scripts = vec![galgame_script_record()];
     package.galgame_scenes = vec![galgame_scene_record(1001)];
     package.galgame_lines = vec![galgame_line_record(2201)];

@@ -51,7 +51,7 @@ pub struct PaginatedProjects {
 pub struct CreateProjectInput {
     pub title: String,
     pub description: Option<String>,
-    pub project_type: Option<String>,
+    pub project_type: String,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -67,10 +67,9 @@ pub struct CreateDerivedProjectInput {
     pub root_project_id: i64,
     pub derived_kind: String,
     pub title: String,
-    pub description: Option<String>,
+    pub description: String,
     pub start_chapter: i32,
     pub end_chapter: i32,
-    pub creation_options: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

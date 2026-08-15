@@ -1,19 +1,19 @@
 pub use a4n_db::project::{
     BlueprintRestoreError, BlueprintRestoreResult, ChapterGenerationReferenceContextRows,
     ChapterMangaSourceSummary, CreateDerivedProjectParams, CreateFreeformVideoProjectParams,
-    CreateProjectRecordInput, DERIVED_PROJECT_STATUS_DRAFT, DeleteLatestOutlineRecordsInput,
-    DerivedChapterScope, ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult,
-    FreeformGeneratedResetTargets, FreeformVideoGeneratedDataResetResult,
-    MangaCharacterPortraitRefSummary, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
-    OutlineDeleteTarget, OutlineGenerationProgressRows, PROJECT_KIND_COMIC, PROJECT_KIND_GALGAME,
-    PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, PROJECT_TYPE_NOVEL_LONG, PROJECT_TYPE_NOVEL_SHORT,
-    PROJECT_TYPE_PROSE, PROJECT_TYPE_SCRIPT, ProjectBasicRecordError,
-    ProjectBlueprintCleanupResult, ProjectChapterOutlineUpdateError,
-    ProjectChapterOutlineUpdateInput, ProjectChapterSceneRecordError,
-    ProjectChapterSceneReorderError, ProjectChapterSceneReorderInput,
-    ProjectChapterSceneReorderScope, ProjectConversationCleanupResult, ProjectFamilyContext,
-    ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyMetadata,
-    ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError, ProjectFamilyTextCoreRows,
+    CreateProjectRecordInput, DeleteLatestOutlineRecordsInput, DerivedChapterScope,
+    ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, FreeformGeneratedResetTargets,
+    FreeformVideoGeneratedDataResetResult, MangaCharacterPortraitRefSummary,
+    ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput, OutlineDeleteTarget,
+    OutlineGenerationProgressRows, PROJECT_KIND_COMIC, PROJECT_KIND_GALGAME, PROJECT_KIND_TEXT,
+    PROJECT_KIND_VIDEO, PROJECT_TYPE_NOVEL_LONG, PROJECT_TYPE_NOVEL_SHORT, PROJECT_TYPE_PROSE,
+    PROJECT_TYPE_SCRIPT, ProjectBasicRecordError, ProjectBlueprintCleanupResult,
+    ProjectChapterOutlineUpdateError, ProjectChapterOutlineUpdateInput,
+    ProjectChapterSceneRecordError, ProjectChapterSceneReorderError,
+    ProjectChapterSceneReorderInput, ProjectChapterSceneReorderScope,
+    ProjectConversationCleanupResult, ProjectFamilyContext, ProjectFamilyExportRows,
+    ProjectFamilyExportSelection, ProjectFamilyMetadata, ProjectFamilyMetadataQuery,
+    ProjectFamilyMetadataReadError, ProjectFamilyTextCoreRows,
     ProjectGeneratedArtifactLinkCleanupResult, ProjectGeneratedArtifactRowCleanupResult,
     ProjectGeneratedChapterSceneSaveError, ProjectGeneratedChapterSceneSaveInput,
     ProjectGenerationMediaGraphCleanupResult, ProjectGenerationRunCleanupResult,
@@ -25,8 +25,8 @@ pub use a4n_db::project::{
     SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED, UpdateProjectRecordInput,
     duplicate_freeform_project_record, is_freeform_generated_media_asset,
     is_freeform_imported_canvas_image, is_freeform_imported_canvas_video,
-    is_valid_derived_project_status, is_valid_source_sync_status, normalize_derived_project_kind,
-    normalize_project_kind, normalize_project_type,
+    is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
+    normalize_project_type,
 };
 pub use a4n_db::project_family_import::*;
 pub use a4n_db::project_reset::{
@@ -167,7 +167,7 @@ pub use generation_params_rules::{
 };
 pub use input_rules::{
     ProjectDuplicatePath, is_freeform_video_generated_data_reset_project, optional_text,
-    project_list_offset, required_optional_text, required_text, resolve_project_duplicate_path,
+    project_list_offset, required_text, resolve_project_duplicate_path,
 };
 pub use json_field_rules::{
     required_json_i32_field, required_json_i64_field, required_json_string_field,

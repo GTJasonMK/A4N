@@ -1,7 +1,7 @@
 use super::contracts::{
-    DERIVED_PROJECT_STATUS_DRAFT, PROJECT_KIND_TEXT, PROJECT_TYPE_NOVEL_LONG,
-    PROJECT_TYPE_NOVEL_SHORT, PROJECT_TYPE_PROSE, PROJECT_TYPE_SCRIPT, ProjectMutationError,
-    SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,
+    PROJECT_KIND_TEXT, PROJECT_TYPE_NOVEL_LONG, PROJECT_TYPE_NOVEL_SHORT, PROJECT_TYPE_PROSE,
+    PROJECT_TYPE_SCRIPT, ProjectMutationError, SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT,
+    SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,
 };
 use a4n_domain::project::ProjectKind;
 
@@ -11,14 +11,8 @@ const SOURCE_SYNC_STATUSES: [&str; 4] = [
     SOURCE_SYNC_CONFLICT,
     SOURCE_SYNC_DETACHED,
 ];
-const DERIVED_PROJECT_STATUSES: [&str; 1] = [DERIVED_PROJECT_STATUS_DRAFT];
-
 pub fn is_valid_source_sync_status(value: &str) -> bool {
     SOURCE_SYNC_STATUSES.contains(&value)
-}
-
-pub fn is_valid_derived_project_status(value: &str) -> bool {
-    DERIVED_PROJECT_STATUSES.contains(&value)
 }
 
 pub fn normalize_project_kind(project_kind: &str) -> Result<&str, ProjectMutationError> {

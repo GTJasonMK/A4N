@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 8;
+pub const COMMAND_MANIFEST_VERSION: u32 = 9;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -317,7 +317,7 @@ command_specs! {
     "create_derived_project" => args_create_derived_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
     "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "create_freeform_video_project" => args_create_freeform_video_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
+    "create_freeform_video_project" => args_create_freeform_video_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
     "create_invite_code" => args_create_invite_code, result_opaque, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
     "create_object_profile" => args_create_object_profile, result_object_profile_mutation, "profile";
@@ -985,7 +985,7 @@ fn args_create_embedding_config() -> Value {
 }
 
 fn args_create_freeform_video_project() -> Value {
-    typed_input_schema::<crate::project::CreateFreeformVideoProjectInput>()
+    strict_typed_input_schema::<crate::project::CreateFreeformVideoProjectInput>()
 }
 
 fn args_create_llm_config() -> Value {
@@ -1017,7 +1017,7 @@ fn args_create_scene_profile() -> Value {
 }
 
 fn args_create_project() -> Value {
-    typed_input_schema::<crate::project::CreateProjectInput>()
+    strict_typed_input_schema::<crate::project::CreateProjectInput>()
 }
 
 fn args_create_theme() -> Value {

@@ -312,7 +312,6 @@ async fn server_startup_restores_rejected_project_delete_gate() {
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

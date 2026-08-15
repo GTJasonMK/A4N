@@ -10,10 +10,8 @@ pub(in crate::project::family_package::tests) fn root_project() -> novel_project
         project_kind: PROJECT_KIND_TEXT.to_string(),
         source_mode: "self".to_string(),
         root_project_id: None,
-        parent_project_id: None,
         source_snapshot_id: None,
         source_sync_status: "current".to_string(),
-        derived_project_status: None,
         status: "draft".to_string(),
         lifecycle_gate: "active".to_string(),
         target_chapters: 20,
@@ -40,10 +38,8 @@ pub(in crate::project::family_package::tests) fn derived_video_project() -> nove
         project_kind: PROJECT_KIND_VIDEO.to_string(),
         source_mode: "derived".to_string(),
         root_project_id: Some(1),
-        parent_project_id: Some(1),
         source_snapshot_id: Some(901),
         source_sync_status: SOURCE_SYNC_CURRENT.to_string(),
-        derived_project_status: Some(DERIVED_PROJECT_STATUS_DRAFT.to_string()),
         status: "draft".to_string(),
         lifecycle_gate: "active".to_string(),
         target_chapters: 20,
@@ -76,6 +72,5 @@ pub(in crate::project::family_package::tests) fn package_with_derived_project()
     package.projects.push(derived_video_project());
     package.source_snapshots = vec![snapshot];
     package.source_snapshot_chapters = snapshot_chapters;
-    package.project_derivations = vec![project_derivation_record()];
     package
 }

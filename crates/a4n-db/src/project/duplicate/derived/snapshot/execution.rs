@@ -1,6 +1,6 @@
-use a4n_core::models::project::{novel_project, project_derivation};
+use a4n_core::models::project::novel_project;
 use chrono::NaiveDateTime;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::ConnectionTrait;
 
 use crate::project::{
     PROJECT_KIND_TEXT,
@@ -45,25 +45,6 @@ where
                 current: format!("派生项目 {} 缺少 source_snapshot_id", original.id),
                 operation: "复制派生项目".to_string(),
             })?;
-    let derivation = project_derivation::Entity::find()
-        .filter(project_derivation::Column::DerivedProjectId.eq(original.id))
-        .one(db)
-        .await
-        .map_err(ProjectDuplicateError::Database)?
-        .ok_or_else(|| ProjectDuplicateError::InvalidState {
-            current: format!("派生项目 {} 缺少派生关系", original.id),
-            operation: "复制派生项目".to_string(),
-        })?;
-    if derivation.root_project_id != root_project_id
-        || derivation.source_snapshot_id != source_snapshot_id
-        || derivation.derived_kind != original.project_kind
-    {
-        return Err(ProjectDuplicateError::InvalidState {
-            current: format!("派生项目 {} 的派生关系与项目主体不一致", original.id),
-            operation: "复制派生项目".to_string(),
-        });
-    }
-
     let duplicated_snapshot =
         duplicate_derived_source_snapshot(db, root_project_id, source_snapshot_id, now).await?;
     let new_snapshot_id = duplicated_snapshot.snapshot.id;
@@ -74,7 +55,6 @@ where
             user_id,
             title: new_title.to_string(),
             root_project_id: Some(root_project_id),
-            parent_project_id: original.parent_project_id,
             source_snapshot_id: Some(new_snapshot_id),
             status: original.status.clone(),
             current_chapter: original.current_chapter,
@@ -84,20 +64,6 @@ where
         now,
     )
     .await?;
-
-    project_derivation::ActiveModel {
-        root_project_id: Set(root_project_id),
-        derived_project_id: Set(new_project.id),
-        derived_kind: Set(original.project_kind.clone()),
-        source_snapshot_id: Set(new_snapshot_id),
-        chapter_scope_json: Set(derivation.chapter_scope_json),
-        creation_options_json: Set(derivation.creation_options_json),
-        created_at: Set(now),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-    .map_err(ProjectDuplicateError::Database)?;
 
     copy_derived_workflow_records(
         db,

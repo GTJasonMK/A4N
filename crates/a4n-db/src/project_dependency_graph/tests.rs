@@ -103,7 +103,6 @@ async fn derived_project_graph_matches_root_family_graph() {
                 start_chapter: 1,
                 end_chapter: 1,
             },
-            creation_options_json: json!({}),
         },
     )
     .await

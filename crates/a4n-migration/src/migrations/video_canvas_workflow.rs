@@ -58,22 +58,15 @@ BEGIN
     END IF;
     IF NEW.source_mode IN ('self','freeform') AND (
         NEW.root_project_id IS NOT NULL
-        OR NEW.parent_project_id IS NOT NULL
         OR NEW.source_snapshot_id IS NOT NULL
-        OR NEW.derived_project_status IS NOT NULL
     ) THEN
         RAISE EXCEPTION 'self/freeform 项目不能绑定派生项目字段';
     END IF;
     IF NEW.source_mode = 'derived' AND (
         NEW.root_project_id IS NULL
-        OR NEW.parent_project_id IS NULL
         OR NEW.source_snapshot_id IS NULL
-        OR NEW.derived_project_status IS NULL
     ) THEN
-        RAISE EXCEPTION '派生项目必须绑定根项目、父项目、源快照和派生状态';
-    END IF;
-    IF NEW.source_mode = 'derived' AND NEW.parent_project_id IS DISTINCT FROM NEW.root_project_id THEN
-        RAISE EXCEPTION '第一阶段派生项目 parent_project_id 必须等于 root_project_id';
+        RAISE EXCEPTION '派生项目必须绑定根项目和源快照';
     END IF;
     IF NEW.source_mode = 'derived' AND NOT EXISTS (
         SELECT 1 FROM novel_project root
@@ -82,14 +75,6 @@ BEGIN
           AND root.source_mode = 'self'
     ) THEN
         RAISE EXCEPTION '派生项目 root_project_id 必须指向文本项目';
-    END IF;
-    IF NEW.parent_project_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM novel_project parent
-        WHERE parent.id = NEW.parent_project_id
-          AND parent.project_kind = 'text'
-          AND parent.source_mode = 'self'
-    ) THEN
-        RAISE EXCEPTION '派生项目 parent_project_id 必须指向文本项目';
     END IF;
     IF NEW.source_snapshot_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM project_source_snapshot snapshot
@@ -101,6 +86,18 @@ BEGIN
     RETURN NEW;
 END;
 $$
+"#;
+
+pub(crate) const NOVEL_PROJECT_FAMILY_INSERT_TRIGGER_SQL: &str = r#"
+CREATE TRIGGER trg_novel_project_family_insert
+BEFORE INSERT ON novel_project
+FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
+"#;
+
+pub(crate) const NOVEL_PROJECT_FAMILY_UPDATE_TRIGGER_SQL: &str = r#"
+CREATE TRIGGER trg_novel_project_family_update
+BEFORE UPDATE OF project_kind, source_mode, root_project_id, source_snapshot_id ON novel_project
+FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
 "#;
 
 const VIDEO_CANVAS_UP_SQL: &[&str] = &[
@@ -166,11 +163,7 @@ CREATE TABLE IF NOT EXISTS canvas_text_asset (
     "CREATE INDEX IF NOT EXISTS idx_canvas_text_asset_project ON canvas_text_asset(project_id)",
     NOVEL_PROJECT_FAMILY_FUNCTION_SQL,
     "DROP TRIGGER IF EXISTS trg_novel_project_family_update ON novel_project",
-    r#"
-CREATE TRIGGER trg_novel_project_family_update
-BEFORE UPDATE OF project_kind, source_mode, root_project_id, parent_project_id, source_snapshot_id, derived_project_status ON novel_project
-FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
-"#,
+    NOVEL_PROJECT_FAMILY_UPDATE_TRIGGER_SQL,
 ];
 
 const VIDEO_CANVAS_DOWN_SQL: &[&str] = &[

@@ -8,8 +8,8 @@ use a4n_core::models::{
     },
     media::{media_asset, media_binding, media_provenance},
     project::{
-        novel_project, profile_evidence, project_derivation, project_source_snapshot,
-        source_snapshot_chapter, source_snapshot_outline, source_snapshot_profile, text_anchor,
+        novel_project, profile_evidence, project_source_snapshot, source_snapshot_chapter,
+        source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
@@ -23,7 +23,6 @@ pub struct ProjectFamilyImportPackage {
     pub root_project_id: i64,
     pub projects: Vec<novel_project::Model>,
     pub text_core: ProjectFamilyTextCoreRows,
-    pub project_derivations: Vec<project_derivation::Model>,
     pub source_snapshots: Vec<project_source_snapshot::Model>,
     pub source_snapshot_chapters: Vec<source_snapshot_chapter::Model>,
     pub source_snapshot_outlines: Vec<source_snapshot_outline::Model>,

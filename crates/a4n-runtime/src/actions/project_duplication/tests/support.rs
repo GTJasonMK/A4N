@@ -5,8 +5,7 @@ use a4n_core::models::{
     media::{media_asset, media_binding, media_provenance},
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-        novel_project, project_derivation, project_source_snapshot, source_snapshot_chapter,
-        text_anchor,
+        novel_project, project_source_snapshot, source_snapshot_chapter, text_anchor,
     },
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };

@@ -87,10 +87,7 @@ where
             "freeform 媒体资产 root_project_id 必须等于项目自身".to_string(),
         ));
     }
-    if project.root_project_id.is_some()
-        || project.parent_project_id.is_some()
-        || project.source_snapshot_id.is_some()
-    {
+    if project.root_project_id.is_some() || project.source_snapshot_id.is_some() {
         return Err(MediaDbError::InvalidArgument(
             "freeform 媒体资产项目不能包含文本派生上下文字段".to_string(),
         ));

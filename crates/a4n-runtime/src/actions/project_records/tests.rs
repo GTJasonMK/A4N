@@ -10,7 +10,7 @@ use a4n_orchestrator::canvas::{
 use a4n_orchestrator::project::{
     FreeformGeneratedResetTargets, is_freeform_generated_media_asset,
     is_freeform_imported_canvas_image, is_freeform_imported_canvas_video, optional_text,
-    project_list_offset, required_optional_text,
+    project_list_offset,
 };
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -135,16 +135,6 @@ fn project_list_offset_rejects_overflow() {
 fn project_list_offset_uses_one_based_pages() {
     assert_eq!(project_list_offset(1, 20), Ok(0));
     assert_eq!(project_list_offset(3, 20), Ok(40));
-}
-
-#[test]
-fn required_optional_text_rejects_missing_or_blank_value() {
-    assert!(required_optional_text(None, "项目类型").is_err());
-    assert!(required_optional_text(Some(" \n\t "), "项目类型").is_err());
-    assert_eq!(
-        required_optional_text(Some(" novel_long "), "项目类型").expect("valid text"),
-        "novel_long"
-    );
 }
 
 #[test]

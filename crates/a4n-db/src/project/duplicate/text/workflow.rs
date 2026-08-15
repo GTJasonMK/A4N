@@ -72,7 +72,6 @@ where
             user_id,
             title: new_title.to_string(),
             root_project_id: original.root_project_id,
-            parent_project_id: original.parent_project_id,
             source_snapshot_id: original.source_snapshot_id,
             status: original.status.clone(),
             current_chapter: original.current_chapter,

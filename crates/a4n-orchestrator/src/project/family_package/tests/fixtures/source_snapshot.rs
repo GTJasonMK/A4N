@@ -14,20 +14,6 @@ pub(in crate::project::family_package::tests) fn source_snapshot_record()
     }
 }
 
-pub(in crate::project::family_package::tests) fn project_derivation_record()
--> project_derivation::Model {
-    project_derivation::Model {
-        id: 911,
-        root_project_id: 1,
-        derived_project_id: 2,
-        derived_kind: PROJECT_KIND_VIDEO.to_string(),
-        source_snapshot_id: 901,
-        chapter_scope_json: json!({"start": 1, "end": 10}),
-        creation_options_json: json!({}),
-        created_at: dt(),
-    }
-}
-
 pub(in crate::project::family_package::tests) fn source_snapshot_chapter_record(
     chapter_number: i32,
 ) -> source_snapshot_chapter::Model {

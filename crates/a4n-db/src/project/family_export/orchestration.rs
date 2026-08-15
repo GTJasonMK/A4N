@@ -17,14 +17,9 @@ where
     C: ConnectionTrait,
 {
     let text_core = project_family_export_text_core_rows(db, root_project_id).await?;
-    let project_derivations =
-        project_family_export_project_derivations(db, derived_project_ids).await?;
     let source_sync_runs = project_family_export_source_sync_runs(db, derived_project_ids).await?;
-    let snapshot_ids = collect_project_family_export_snapshot_ids(
-        derived_source_snapshot_ids,
-        &project_derivations,
-        &source_sync_runs,
-    );
+    let snapshot_ids =
+        collect_project_family_export_snapshot_ids(derived_source_snapshot_ids, &source_sync_runs);
     let source_snapshots = project_family_export_source_snapshots(db, &snapshot_ids).await?;
     let source_snapshot_chapters =
         project_family_export_source_snapshot_chapters(db, &snapshot_ids).await?;
@@ -103,7 +98,6 @@ where
     Ok(ProjectFamilyExportRows {
         snapshot_ids,
         text_core,
-        project_derivations,
         source_snapshots,
         source_snapshot_chapters,
         source_snapshot_outlines,

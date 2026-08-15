@@ -120,11 +120,7 @@ pub fn validate_freeform_video_project(
     if project.project_kind != PROJECT_KIND_VIDEO || project.source_mode != SOURCE_MODE_FREEFORM {
         return Err(format!("{label}必须是 source_mode=freeform 的 video 项目"));
     }
-    if project.root_project_id.is_some()
-        || project.parent_project_id.is_some()
-        || project.source_snapshot_id.is_some()
-        || project.derived_project_status.is_some()
-    {
+    if project.root_project_id.is_some() || project.source_snapshot_id.is_some() {
         return Err(format!("{label}不能包含文本派生项目引用字段"));
     }
     Ok(())
