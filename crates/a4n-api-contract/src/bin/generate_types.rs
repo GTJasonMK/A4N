@@ -104,7 +104,11 @@ use a4n_api_contract::{
         ImportAnalysisStages, ImportAnalysisStatus, ImportProjectAnalysisSummary,
         ImportProjectTextUploadInput, MAX_PROJECT_TEXT_UPLOAD_BYTES, ProjectImportAnalysisProgress,
     },
-    import_reverse::{ConfirmReverseEngineeringCandidateInput, ReverseEngineerInput},
+    import_reverse::{
+        ConfirmReverseEngineeringCandidateInput, GetReverseEngineeringCandidateInput,
+        REVERSE_ENGINEERING_PROGRESS_TOTAL, ReverseEngineerInput, ReverseEngineeringCandidate,
+        ReverseEngineeringCandidateState, ReverseEngineeringTarget,
+    },
     import_review::{
         AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
         ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
@@ -359,10 +363,16 @@ fn main() {
         &typescript_interface::<ChapterSummary>("ChapterSummary"),
         &typescript_interface::<ChapterAnalysisMutationResult>("ChapterAnalysisMutationResult"),
         &typescript_interface::<ChapterSceneSummary>("ChapterSceneSummary"),
+        &typescript_enum::<ReverseEngineeringTarget>("ReverseEngineeringTarget"),
+        &typescript_enum::<ReverseEngineeringCandidateState>("ReverseEngineeringCandidateState"),
         &typescript_interface::<ReverseEngineerInput>("ReverseEngineerInput"),
+        &typescript_interface::<GetReverseEngineeringCandidateInput>(
+            "GetReverseEngineeringCandidateInput",
+        ),
         &typescript_interface::<ConfirmReverseEngineeringCandidateInput>(
             "ConfirmReverseEngineeringCandidateInput",
         ),
+        &typescript_interface::<ReverseEngineeringCandidate>("ReverseEngineeringCandidate"),
         &typescript_interface::<ModelRequestPreview>("ModelRequestPreview"),
         &typescript_interface::<ModelRequestPreviewStep>("ModelRequestPreviewStep"),
         &typescript_interface::<EmbeddingModelIdentity>("EmbeddingModelIdentity"),
@@ -1027,7 +1037,9 @@ fn typescript_project_package_suffixes() -> String {
 }
 
 fn typescript_import_constants() -> String {
-    format!("export const MAX_PROJECT_TEXT_UPLOAD_BYTES = {MAX_PROJECT_TEXT_UPLOAD_BYTES};\n\n")
+    format!(
+        "export const MAX_PROJECT_TEXT_UPLOAD_BYTES = {MAX_PROJECT_TEXT_UPLOAD_BYTES};\nexport const REVERSE_ENGINEERING_PROGRESS_TOTAL = {REVERSE_ENGINEERING_PROGRESS_TOTAL};\n\n"
+    )
 }
 
 fn typescript_chapter_constants() -> String {

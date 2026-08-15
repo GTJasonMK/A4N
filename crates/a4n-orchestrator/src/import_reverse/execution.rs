@@ -6,9 +6,9 @@ mod schema;
 
 pub(in crate::import_reverse) use checkpoint::restored_import_reverse_checkpoint;
 
+use a4n_api_contract::import_reverse::ReverseEngineeringCandidate;
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
-use serde_json::Value;
 
 use crate::OrchestratorContext;
 
@@ -21,7 +21,7 @@ impl OrchestratorContext {
         prompt_name: &str,
         request: ChatRequest,
         workflow_run_id: Option<i64>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<ReverseEngineeringCandidate, AppError> {
         let prepared =
             prepare_import_reverse_call(self, prompt_name, request, workflow_run_id).await?;
         execute_import_reverse_call(self, prepared).await

@@ -1,3 +1,4 @@
+use a4n_api_contract::import_reverse::ReverseEngineeringCandidate;
 use a4n_core::error::AppError;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
 use a4n_llm::provider::is_truncated_finish_reason;
@@ -14,7 +15,7 @@ use super::schema::reverse_engineer_output_schema;
 pub(super) async fn execute_import_reverse_call(
     context: &OrchestratorContext,
     prepared: PreparedImportReverseCall,
-) -> Result<Value, AppError> {
+) -> Result<ReverseEngineeringCandidate, AppError> {
     let PreparedImportReverseCall {
         prompt_name,
         request,
@@ -74,11 +75,8 @@ pub(super) async fn execute_import_reverse_call(
     let output_fingerprint_sha256 =
         a4n_db::generation::generation_checkpoint_fingerprint_sha256(&output)
             .map_err(AppError::Serialization)?;
-    let candidate = crate::import_reverse::candidate::reverse_candidate_proposal(
-        workflow_run_id,
-        &prompt_name,
-        &output_fingerprint_sha256,
-    );
+    let candidate =
+        crate::import_reverse::candidate::reverse_candidate_proposal(&output_fingerprint_sha256);
     let candidate_response =
         crate::import_reverse::candidate::reverse_candidate_checkpoint_response(
             workflow_run_id,

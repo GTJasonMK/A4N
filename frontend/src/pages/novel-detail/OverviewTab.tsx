@@ -20,16 +20,12 @@ import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
 import { ProjectCollaborationPanel } from "./overview/ProjectCollaborationPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
-import { reverseEngineerBlueprint } from "../../api/import";
-import { cancelWorkflowTask } from "../../api/streaming";
-import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
-import { isCancelledOperation } from "../../utils/cancellation";
 import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
-import { formalReverseNotice, parseReverseCandidateEnvelope } from "./imports/importTabUtils";
 
 interface OverviewTabProps {
   project: NovelProject;
   onRefresh: () => Promise<void>;
+  onOpenImports: () => void;
 }
 
 interface BlueprintEditorDraft {
@@ -55,14 +51,16 @@ const EMPTY_BLUEPRINT_DRAFT: BlueprintEditorDraft = {
 /**
  * 项目概览：项目进度与故事摘要是主信息，版本和协作是次级入口。
  */
-export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({
+  project,
+  onRefresh,
+  onOpenImports,
+}) => {
   const { addToast } = useToast();
-  const { runProgressTask } = useProgressTask();
   const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [refining, setRefining] = useState(false);
-  const [aggregatingBlueprint, setAggregatingBlueprint] = useState(false);
   const [synopsisOpen, setSynopsisOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [collabOpen, setCollabOpen] = useState(false);
@@ -73,9 +71,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
   const activeProjectIdRef = useRef(project.id);
   const loadSeqRef = useRef(0);
   const refineSeqRef = useRef(0);
-  const aggregateSeqRef = useRef(0);
   const refiningRef = useRef(false);
-  const aggregatingBlueprintRef = useRef(false);
   const blueprintSaveBusyRef = useRef(false);
   const mountedRef = useRef(false);
 
@@ -107,9 +103,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
       mountedRef.current = false;
       loadSeqRef.current += 1;
       refineSeqRef.current += 1;
-      aggregateSeqRef.current += 1;
       refiningRef.current = false;
-      aggregatingBlueprintRef.current = false;
       blueprintSaveBusyRef.current = false;
     };
   }, []);
@@ -141,9 +135,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
 
   useEffect(() => {
     refineSeqRef.current += 1;
-    aggregateSeqRef.current += 1;
     refiningRef.current = false;
-    aggregatingBlueprintRef.current = false;
     setSynopsisOpen(false);
     setVersionsOpen(false);
     setCollabOpen(false);
@@ -151,7 +143,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     setBlueprintSaving(false);
     blueprintSaveBusyRef.current = false;
     setRefining(false);
-    setAggregatingBlueprint(false);
   }, [project.id]);
 
   const handleRefine = async () => {
@@ -204,83 +195,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     navigate(`/inspiration/${project.id}`);
   };
 
-  const handleAggregateBlueprint = async () => {
+  const handleOpenImports = () => {
     if (!canEditProject) {
       addToast("当前账号没有编辑此项目的权限", "error");
       return;
     }
-    if (aggregatingBlueprintRef.current) return;
-    const requestProjectId = project.id;
-    const requestSeq = aggregateSeqRef.current + 1;
-    aggregateSeqRef.current = requestSeq;
-    aggregatingBlueprintRef.current = true;
-    setAggregatingBlueprint(true);
-    const taskId = createWorkflowTaskId("reverse-blueprint", requestProjectId);
-    try {
-      const result = await runProgressTask(
-        {
-          cancelTaskId: taskId,
-          cancelTask: cancelWorkflowTask,
-          pollTaskProgress: true,
-          title: displayBlueprint ? "更新正式蓝图" : "归纳正式蓝图",
-          startMessage: "正在整理项目正文、简介、大纲和正式资料",
-          successMessage: "蓝图已归纳并写入正式资料",
-          errorMessage: "归纳蓝图失败",
-          total: 3,
-          cancelLabel: "停止归纳",
-          runningHint: "只有成功完成才会更新正式蓝图；失败或停止时保留原蓝图",
-        },
-        () =>
-          reverseEngineerBlueprint(
-            {
-              project_id: requestProjectId,
-              content_sample: "",
-              auto_context: true,
-              context_limit: 50,
-              variables: null,
-            },
-            taskId,
-          ),
-      );
-      if (
-        !isCurrentProject(requestProjectId) ||
-        aggregateSeqRef.current !== requestSeq
-      )
-        return;
-      await load();
-      if (
-        !isCurrentProject(requestProjectId) ||
-        aggregateSeqRef.current !== requestSeq
-      )
-        return;
-      await onRefresh();
-      if (
-        !isCurrentProject(requestProjectId) ||
-        aggregateSeqRef.current !== requestSeq
-      )
-        return;
-      const aggregation = parseReverseCandidateEnvelope(result, "blueprint");
-      if (!aggregation) throw new Error("蓝图归纳接口返回的正式资料状态无效");
-      const notice = formalReverseNotice(
-        "蓝图已依据当前正式资料完成归纳",
-        aggregation.warnings,
-      );
-      addToast(notice.message, notice.tone);
-    } catch (err) {
-      if (
-        !isCurrentProject(requestProjectId) ||
-        aggregateSeqRef.current !== requestSeq
-      )
-        return;
-      const message = extractErrorMessage(err, "归纳蓝图失败");
-      addToast(message, isCancelledOperation(message) ? "info" : "error");
-    } finally {
-      if (aggregateSeqRef.current === requestSeq)
-        aggregatingBlueprintRef.current = false;
-      if (isCurrentProject(requestProjectId) && aggregateSeqRef.current === requestSeq) {
-        setAggregatingBlueprint(false);
-      }
-    }
+    onOpenImports();
   };
 
   const displayBlueprint = loadedProjectId === project.id ? blueprint : null;
@@ -384,12 +304,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
           blueprint={displayBlueprint}
           loading={displayLoading}
           refining={refining}
-          aggregating={aggregatingBlueprint}
           canEditBlueprint={canEditProject}
           onOpenSynopsis={() => setSynopsisOpen(true)}
           onRefine={() => void handleRefine()}
           onEditBlueprint={handleOpenBlueprintEditor}
-          onAggregateBlueprint={() => void handleAggregateBlueprint()}
+          onOpenImports={handleOpenImports}
           onCreateBlueprint={handleCreateBlueprint}
         />
 

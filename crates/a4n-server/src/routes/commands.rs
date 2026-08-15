@@ -178,8 +178,8 @@ async fn dispatch_runtime_command_inner(
         a4n_runtime::runtime_config::snapshot_from_args(&args).map_err(ApiError::bad_request)?;
     let state = ServerState::from_runtime(runtime.clone());
     run_with_runtime_context(user_id, runtime_config_snapshot, async move {
-        if let Some(command) = reverse_engineer_web_command(&cmd) {
-            return run_reverse_engineer_web_command(&state, user_id, &args, command).await;
+        if is_reverse_engineer_web_command(&cmd) {
+            return run_reverse_engineer_web_command(&state, user_id, &args, &cmd).await;
         }
         if is_canvas_web_command(&cmd) {
             return run_canvas_web_command(&state, user_id, &args, &cmd).await;

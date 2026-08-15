@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 5;
+pub const COMMAND_MANIFEST_VERSION: u32 = 6;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -313,7 +313,7 @@ command_specs! {
     "check_profile_sync_conflict" => args_check_profile_sync_conflict, result_check_profile_sync_conflict, "profile", effect(READ_EFFECT);
     "cleanup_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "commit_inserted_segment_draft" => args_commit_inserted_segment_draft, result_video_timeline, "video";
-    "confirm_reverse_engineering_candidate" => args_opaque, result_opaque, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
+    "confirm_reverse_engineering_candidate" => args_confirm_reverse_engineering_candidate, result_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "create_derived_project" => args_create_derived_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
     "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -413,6 +413,7 @@ command_specs! {
     "get_project_import_analysis_progress" => args_project_id, result_import_analysis_progress, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "get_project_status_machine" => args_project_id, result_get_project_status_machine, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_queue_stats" => empty_args_schema, result_get_queue_stats, "system", context(NO_CONTEXT), effect(READ_EFFECT);
+    "get_reverse_engineering_candidate" => args_get_reverse_engineering_candidate, result_optional_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_WORKFLOW_RUN_IDS);
     "get_snapshot" => args_get_snapshot, result_get_snapshot, "profile", effect(READ_EFFECT);
     "get_storage_paths" => empty_args_schema, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_task_history" => args_get_task_history, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_TASK_IDS);
@@ -529,9 +530,7 @@ command_specs! {
     "preview_regenerate_portrait_request" => args_preview_regenerate_portrait_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_resume_chapter_analysis_sync_request" => args_chapter_analysis, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_resume_manga_pipeline_request" => args_preview_resume_manga_pipeline_request, result_model_request_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_reverse_engineer_blueprint_request" => args_opaque, result_opaque, "blueprint", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_reverse_engineer_outline_request" => args_opaque, result_opaque, "outline", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_reverse_engineer_part_outline_request" => args_opaque, result_opaque, "outline", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
+    "preview_reverse_engineer_request" => args_preview_reverse_engineer, result_model_request_preview, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_rollback" => args_forward_project_status, result_preview_rollback, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "preview_scene_image_request" => args_preview_scene_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_send_optimization_message_request" => args_opaque, result_opaque, "system", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -581,9 +580,7 @@ command_specs! {
     "resume_chapter_analysis_sync" => args_chapter_analysis_task, result_chapter_summary, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_string, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_workflow_run" => args_resume_workflow_run, result_workflow_run, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
-    "reverse_engineer_blueprint" => args_opaque, result_opaque, "blueprint", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "reverse_engineer_outline" => args_opaque, result_opaque, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "reverse_engineer_part_outline" => args_opaque, result_opaque, "outline", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "reverse_engineer" => args_reverse_engineer, result_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full);
     "revoke_project_invite" => args_invite_id, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "revoke_session" => args_revoke_session, result_unit, "auth", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "rollback_project_status" => args_forward_project_status, result_create_project, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
@@ -939,6 +936,12 @@ fn args_cancel_workflow() -> Value {
 
 fn args_change_user_password() -> Value {
     typed_input_schema::<crate::auth::ChangePasswordInput>()
+}
+
+fn args_confirm_reverse_engineering_candidate() -> Value {
+    strict_runtime_typed_input_schema::<
+        crate::import_reverse::ConfirmReverseEngineeringCandidateInput,
+    >()
 }
 
 fn args_check_import_dedup() -> Value {
@@ -1376,6 +1379,10 @@ fn args_get_workflow_run_detail() -> Value {
     strict_typed_input_schema::<crate::workflow::GetWorkflowRunInput>()
 }
 
+fn args_get_reverse_engineering_candidate() -> Value {
+    strict_typed_input_schema::<crate::import_reverse::GetReverseEngineeringCandidateInput>()
+}
+
 fn args_import_canvas_media() -> Value {
     strict_typed_input_schema::<crate::canvas::ImportCanvasMediaInput>()
 }
@@ -1670,6 +1677,10 @@ fn args_preview_refine_blueprint_request() -> Value {
     strict_runtime_typed_input_schema::<crate::blueprint::PreviewBlueprintRefinementInput>()
 }
 
+fn args_preview_reverse_engineer() -> Value {
+    strict_runtime_typed_input_schema::<crate::import_reverse::ReverseEngineerInput>()
+}
+
 fn args_preview_resume_manga_pipeline_request() -> Value {
     strict_typed_input_schema::<crate::manga::MangaPipelineResumeInput>()
 }
@@ -1804,6 +1815,10 @@ fn args_rollback_to_chapter() -> Value {
 
 fn args_resume_workflow_run() -> Value {
     strict_runtime_typed_input_schema::<crate::workflow::ResumeWorkflowRunInput>()
+}
+
+fn args_reverse_engineer() -> Value {
+    optional_task_runtime_typed_input_schema::<crate::import_reverse::ReverseEngineerInput>()
 }
 
 fn args_run_canvas_graph() -> Value {
@@ -2488,6 +2503,14 @@ fn result_import_analysis_progress() -> Value {
 
 fn result_import_analysis_summary() -> Value {
     typed_schema::<crate::import::ImportProjectAnalysisSummary>()
+}
+
+fn result_reverse_engineering_candidate() -> Value {
+    typed_schema::<crate::import_reverse::ReverseEngineeringCandidate>()
+}
+
+fn result_optional_reverse_engineering_candidate() -> Value {
+    typed_schema::<Option<crate::import_reverse::ReverseEngineeringCandidate>>()
 }
 
 fn result_insert_galgame_line() -> Value {
@@ -3410,6 +3433,49 @@ mod tests {
         assert!(run.result_references.is_empty());
 
         let preview = command_descriptor("preview_import_project_analysis_request").unwrap();
+        assert_eq!(preview.effect, "read");
+        assert_eq!(
+            preview.runtime_config_policy,
+            RuntimeConfigPolicy::WithoutSecrets
+        );
+    }
+
+    #[test]
+    fn reverse_engineering_uses_one_typed_command_family() {
+        for command in [
+            "reverse_engineer",
+            "preview_reverse_engineer_request",
+            "get_reverse_engineering_candidate",
+            "confirm_reverse_engineering_candidate",
+        ] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["additionalProperties"], false,
+                "{command}"
+            );
+            assert_eq!(
+                descriptor.result_schema["x-a4n-schema-quality"], "typed",
+                "{command}"
+            );
+        }
+
+        for retired in [
+            "reverse_engineer_blueprint",
+            "reverse_engineer_outline",
+            "reverse_engineer_part_outline",
+            "preview_reverse_engineer_blueprint_request",
+            "preview_reverse_engineer_outline_request",
+            "preview_reverse_engineer_part_outline_request",
+        ] {
+            assert!(command_descriptor(retired).is_none(), "{retired}");
+        }
+
+        let run = command_descriptor("reverse_engineer").unwrap();
+        assert_eq!(run.execution, "workflow");
+        assert_eq!(run.runtime_config_policy, RuntimeConfigPolicy::Full);
+        assert!(run.args_schema["properties"].get("taskId").is_some());
+
+        let preview = command_descriptor("preview_reverse_engineer_request").unwrap();
         assert_eq!(preview.effect, "read");
         assert_eq!(
             preview.runtime_config_policy,

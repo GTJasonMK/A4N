@@ -109,7 +109,7 @@ prompts:
     tags: ["导入分析", "蓝图"]
     version: "1.0"
     used_by:
-      - "ImportService.reverse_engineer_blueprint"
+      - "ImportService.reverse_engineer"
     dependencies: []
     description: "从已有小说内容反推生成蓝图结构（用于导入分析）"
 
@@ -151,7 +151,7 @@ prompts:
     tags: ["导入分析", "大纲"]
     version: "1.0"
     used_by:
-      - "ImportService.reverse_engineer_outline"
+      - "ImportService.reverse_engineer"
     dependencies: []
     description: "从已有章节内容反推生成大纲（用于导入分析）"
 
@@ -162,7 +162,7 @@ prompts:
     tags: ["导入分析", "大纲", "长篇"]
     version: "1.0"
     used_by:
-      - "ImportService.reverse_engineer_part_outline"
+      - "ImportService.reverse_engineer"
     dependencies: []
     description: "从已有内容反推生成分部大纲结构"
 

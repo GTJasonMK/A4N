@@ -579,7 +579,13 @@ export const NovelDetail: React.FC = () => {
         key={project.lifecycle_gate}
         className="flex-1 min-h-0 overflow-y-auto custom-scrollbar a4n-page-container"
       >
-        {tab === "overview" && <OverviewTab project={project} onRefresh={refresh} />}
+        {tab === "overview" && (
+          <OverviewTab
+            project={project}
+            onRefresh={refresh}
+            onOpenImports={() => setTab("imports")}
+          />
+        )}
         {tab === "world" && (
           <WorldTab
             projectId={projectId}

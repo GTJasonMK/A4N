@@ -3,8 +3,8 @@ import { Check, ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import type { DedupResult } from "../../../api/import";
-import { parseReverseCandidateEnvelope, type ReverseType } from "./importTabUtils";
+import type { DedupResult, ReverseEngineeringCandidate } from "../../../api/import";
+import type { ReverseType } from "./importTabUtils";
 
 interface ImportToolsPanelProps {
   dedupText: string;
@@ -13,8 +13,8 @@ interface ImportToolsPanelProps {
   reverseType: ReverseType;
   reverseSample: string;
   reverseAutoContext: boolean;
-  reverseResult: unknown;
-  reverseBusy: "preview" | null;
+  reverseResult: ReverseEngineeringCandidate | null;
+  reverseGenerating: boolean;
   reverseConfirmBusy: boolean;
   externalBusy: boolean;
   onDedupTextChange: (value: string) => void;
@@ -35,7 +35,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   reverseSample,
   reverseAutoContext,
   reverseResult,
-  reverseBusy,
+  reverseGenerating,
   reverseConfirmBusy,
   externalBusy,
   onDedupTextChange,
@@ -47,11 +47,10 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   onReverseEngineer,
   onConfirmReverse,
 }) => {
-  const reverseActionBusy = reverseBusy !== null;
-  const toolsBusy = externalBusy || dedupBusy || reverseActionBusy || reverseConfirmBusy;
+  const toolsBusy = externalBusy || dedupBusy || reverseGenerating || reverseConfirmBusy;
   const dedupReady = dedupText.trim().length > 0;
   const reverseReady = reverseAutoContext || reverseSample.trim().length > 0;
-  const reverseCandidate = parseReverseCandidateEnvelope(reverseResult, reverseType);
+  const reverseCandidate = reverseResult;
   const reverseLabel =
     reverseType === "blueprint"
       ? "故事蓝图"
@@ -187,7 +186,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             className="pyqt-input h-28 w-full resize-y"
           />
           <div className="flex items-center justify-end gap-2">
-            {reverseBusy === "preview" ? (
+            {reverseGenerating ? (
               <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
                 <LoadingSpinner size="sm" /> 正在生成结果…
               </span>
@@ -208,7 +207,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               onClick={() => void onReverseEngineer()}
               disabled={toolsBusy || !reverseReady}
             >
-              {reverseBusy === "preview" ? (
+              {reverseGenerating ? (
                 <span className="inline-flex items-center gap-1.5">
                   <LoadingSpinner size="sm" /> 生成中…
                 </span>
@@ -270,7 +269,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
                   {reverseType === "blueprint" ? "查看模型归纳内容" : "查看候选内容"}
                 </summary>
                 <div className="pt-2">
-                  <ImportToolResult value={reverseCandidate?.result ?? reverseResult} />
+                  <ImportToolResult value={reverseResult.result} />
                 </div>
               </details>
             </div>

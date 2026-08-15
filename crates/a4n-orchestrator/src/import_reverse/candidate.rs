@@ -4,6 +4,9 @@
 //! 写入正式资料，不接受调用方上传的 JSON，也不重新调用模型。蓝图由用户发起归纳后
 //! 直接应用，章节与分部大纲继续保留显式确认。
 
+use a4n_api_contract::import_reverse::{
+    ReverseEngineeringCandidate, ReverseEngineeringCandidateState,
+};
 use a4n_core::{
     error::AppError,
     event::bridge::InternalEvent,
@@ -21,14 +24,14 @@ use a4n_db::{
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
-    QuerySelect, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
 
 use super::{
-    ReverseEngineeringTarget,
+    ReverseEngineeringTarget, ReverseEngineeringTargetDomain,
     application::{
         reverse_blueprint_apply_draft, reverse_blueprint_apply_result,
         reverse_outline_apply_result, reverse_outline_rows, reverse_part_outline_apply_result,
@@ -41,16 +44,8 @@ use super::{
 pub(crate) const REVERSE_CANDIDATE_ARTIFACT_KEY: &str = "candidate";
 
 /// 在 LLM checkpoint 中保存一个可审阅的候选标记。
-pub(crate) fn reverse_candidate_proposal(
-    workflow_run_id: i64,
-    prompt_name: &str,
-    output_fingerprint_sha256: &str,
-) -> Value {
+pub(crate) fn reverse_candidate_proposal(output_fingerprint_sha256: &str) -> Value {
     json!({
-        "candidate_id": workflow_run_id,
-        "workflow_run_id": workflow_run_id,
-        "origin": "import_reverse",
-        "target": prompt_name,
         "state": "proposal",
         "output_fingerprint_sha256": output_fingerprint_sha256,
     })
@@ -68,26 +63,19 @@ pub(crate) fn reverse_target_from_prompt_name(
 pub(crate) fn reverse_candidate_response(
     workflow_run_id: i64,
     target: ReverseEngineeringTarget,
-    state: &str,
-    result: Option<Value>,
+    state: ReverseEngineeringCandidateState,
+    result: Value,
     applied: Option<Value>,
     warnings: Vec<String>,
-) -> Value {
-    let mut response = json!({
-        "candidate_id": workflow_run_id,
-        "workflow_run_id": workflow_run_id,
-        "origin": "import_reverse",
-        "target": target.prompt_name(),
-        "state": state,
-        "warnings": warnings,
-    });
-    if let Some(result) = result {
-        response["result"] = result;
+) -> ReverseEngineeringCandidate {
+    ReverseEngineeringCandidate {
+        workflow_run_id,
+        target,
+        state,
+        warnings,
+        result,
+        applied,
     }
-    if let Some(applied) = applied {
-        response["applied"] = applied;
-    }
-    response
 }
 
 pub(crate) fn reverse_candidate_checkpoint_response(
@@ -95,7 +83,7 @@ pub(crate) fn reverse_candidate_checkpoint_response(
     prompt_name: &str,
     result: Value,
     artifacts: Option<&Value>,
-) -> Result<Value, AppError> {
+) -> Result<ReverseEngineeringCandidate, AppError> {
     let target = reverse_target_from_prompt_name(prompt_name)?;
     let candidate = artifacts
         .and_then(Value::as_object)
@@ -105,21 +93,21 @@ pub(crate) fn reverse_candidate_checkpoint_response(
             current: "missing_reverse_candidate".to_string(),
             operation: "恢复项目资料归纳结果".to_string(),
         })?;
-    validate_candidate_identity(candidate, workflow_run_id, prompt_name, &result)?;
+    validate_candidate_output_fingerprint(candidate, &result)?;
     match candidate.get("state").and_then(Value::as_str) {
         Some("proposal") => Ok(reverse_candidate_response(
             workflow_run_id,
             target,
-            "proposal",
-            Some(result),
+            ReverseEngineeringCandidateState::Proposal,
+            result,
             None,
             Vec::new(),
         )),
         Some("confirmed") => Ok(reverse_candidate_response(
             workflow_run_id,
             target,
-            "already_confirmed",
-            Some(result),
+            ReverseEngineeringCandidateState::Confirmed,
+            result,
             confirmed_reverse_candidate_apply_result(candidate)?,
             Vec::new(),
         )),
@@ -138,15 +126,78 @@ impl OrchestratorContext {
     pub async fn confirm_reverse_engineering_candidate_validated(
         &self,
         workflow_run_id: i64,
-    ) -> Result<Value, AppError> {
+    ) -> Result<ReverseEngineeringCandidate, AppError> {
         confirm_reverse_engineering_candidate(self, workflow_run_id).await
     }
+
+    pub async fn latest_reverse_engineering_candidate_validated(
+        &self,
+        project_id: i64,
+        target: ReverseEngineeringTarget,
+    ) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
+        latest_reverse_engineering_candidate(self, project_id, target).await
+    }
+}
+
+async fn latest_reverse_engineering_candidate(
+    context: &OrchestratorContext,
+    project_id: i64,
+    target: ReverseEngineeringTarget,
+) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
+    if project_id <= 0 {
+        return Err(AppError::InvalidArgument(
+            "project_id 必须大于 0".to_string(),
+        ));
+    }
+    let prompt_name = target.prompt_name();
+    let business_key = super::import_reverse_business_key(project_id, prompt_name)
+        .map_err(AppError::InvalidArgument)?;
+    let Some(run) = workflow_run::Entity::find()
+        .filter(workflow_run::Column::BusinessKey.eq(business_key))
+        .filter(workflow_run::Column::ProjectId.eq(project_id))
+        .filter(workflow_run::Column::Status.eq(WORKFLOW_STATUS_COMPLETED))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .one(context.database.connection())
+        .await?
+    else {
+        return Ok(None);
+    };
+    validate_reverse_candidate_run(&run, project_id, prompt_name, WORKFLOW_STATUS_COMPLETED)?;
+    let checkpoint = workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(run.id))
+        .filter(workflow_checkpoint::Column::StepKey.eq(prompt_name))
+        .one(context.database.connection())
+        .await?
+        .ok_or_else(|| {
+            AppError::NotFound(format!(
+                "工作流 {} 缺少反推 checkpoint {prompt_name}",
+                run.id
+            ))
+        })?;
+    validate_reverse_candidate_checkpoint(&checkpoint, run.id, prompt_name)?;
+    let checkpoint_json =
+        checkpoint
+            .checkpoint_json
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_checkpoint_json".to_string(),
+                operation: "恢复项目资料归纳结果".to_string(),
+            })?;
+    let result = restored_import_reverse_checkpoint(checkpoint_json, prompt_name)?;
+    reverse_candidate_checkpoint_response(
+        run.id,
+        prompt_name,
+        result,
+        checkpoint.artifacts_json.as_ref(),
+    )
+    .map(Some)
 }
 
 pub(crate) async fn confirm_reverse_engineering_candidate(
     context: &OrchestratorContext,
     workflow_run_id: i64,
-) -> Result<Value, AppError> {
+) -> Result<ReverseEngineeringCandidate, AppError> {
     apply_reverse_engineering_checkpoint(context, workflow_run_id, None, WORKFLOW_STATUS_COMPLETED)
         .await
 }
@@ -154,7 +205,7 @@ pub(crate) async fn confirm_reverse_engineering_candidate(
 pub(crate) async fn apply_reverse_blueprint_workflow_result(
     context: &OrchestratorContext,
     workflow_run_id: i64,
-) -> Result<Value, AppError> {
+) -> Result<ReverseEngineeringCandidate, AppError> {
     apply_reverse_engineering_checkpoint(
         context,
         workflow_run_id,
@@ -169,7 +220,7 @@ async fn apply_reverse_engineering_checkpoint(
     workflow_run_id: i64,
     expected_target: Option<ReverseEngineeringTarget>,
     expected_run_status: &str,
-) -> Result<Value, AppError> {
+) -> Result<ReverseEngineeringCandidate, AppError> {
     if workflow_run_id <= 0 {
         return Err(AppError::InvalidArgument(
             "workflow_run_id 必须大于 0".to_string(),
@@ -276,12 +327,7 @@ async fn apply_reverse_engineering_checkpoint(
             current: "invalid_reverse_candidate".to_string(),
             operation: "写入项目资料归纳结果".to_string(),
         })?;
-    validate_candidate_identity(
-        candidate_object,
-        workflow_run_id,
-        prompt_name,
-        &parsed_output,
-    )?;
+    validate_candidate_output_fingerprint(candidate_object, &parsed_output)?;
 
     if let Some(applied) = confirmed_reverse_candidate_apply_result(candidate_object)? {
         tx.rollback().await?;
@@ -305,8 +351,8 @@ async fn apply_reverse_engineering_checkpoint(
         return Ok(reverse_candidate_response(
             workflow_run_id,
             target,
-            "already_confirmed",
-            None,
+            ReverseEngineeringCandidateState::Confirmed,
+            parsed_output,
             Some(applied),
             Vec::new(),
         ));
@@ -363,7 +409,6 @@ async fn apply_reverse_engineering_checkpoint(
         None
     };
     candidate_object.insert("state".to_string(), json!("confirmed"));
-    candidate_object.insert("confirmed_at".to_string(), json!(now.to_string()));
     candidate_object.insert("apply_result".to_string(), applied.clone());
     artifacts_object.insert(REVERSE_CANDIDATE_ARTIFACT_KEY.to_string(), candidate);
     let mut checkpoint_active: workflow_checkpoint::ActiveModel = checkpoint.into();
@@ -387,8 +432,8 @@ async fn apply_reverse_engineering_checkpoint(
     Ok(reverse_candidate_response(
         workflow_run_id,
         target,
-        "confirmed",
-        None,
+        ReverseEngineeringCandidateState::Confirmed,
+        parsed_output,
         Some(applied),
         Vec::new(),
     ))
@@ -660,28 +705,10 @@ fn validate_reverse_candidate_checkpoint(
     Ok(())
 }
 
-fn validate_candidate_identity(
+fn validate_candidate_output_fingerprint(
     candidate: &serde_json::Map<String, Value>,
-    workflow_run_id: i64,
-    prompt_name: &str,
     parsed_output: &Value,
 ) -> Result<(), AppError> {
-    if candidate.get("candidate_id").and_then(Value::as_i64) != Some(workflow_run_id)
-        || candidate.get("workflow_run_id").and_then(Value::as_i64) != Some(workflow_run_id)
-    {
-        return Err(AppError::InvalidState {
-            current: "reverse_candidate_id_mismatch".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        });
-    }
-    if candidate.get("origin").and_then(Value::as_str) != Some("import_reverse")
-        || candidate.get("target").and_then(Value::as_str) != Some(prompt_name)
-    {
-        return Err(AppError::InvalidState {
-            current: "reverse_candidate_target_mismatch".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        });
-    }
     let output_fingerprint = candidate
         .get("output_fingerprint_sha256")
         .and_then(Value::as_str)
@@ -813,12 +840,11 @@ mod tests {
     }
 
     #[test]
-    fn candidate_proposal_is_stable_and_identifiable() {
-        let proposal = reverse_candidate_proposal(42, "reverse_outline", "output-hash");
-        assert_eq!(proposal["candidate_id"], 42);
-        assert_eq!(proposal["workflow_run_id"], 42);
+    fn candidate_proposal_only_persists_mutable_candidate_state() {
+        let proposal = reverse_candidate_proposal("output-hash");
         assert_eq!(proposal["state"], "proposal");
         assert_eq!(proposal["output_fingerprint_sha256"], "output-hash");
+        assert_eq!(proposal.as_object().unwrap().len(), 2);
         assert_eq!(
             reverse_target_from_prompt_name("reverse_part_outline").unwrap(),
             ReverseEngineeringTarget::PartOutline
@@ -832,7 +858,7 @@ mod tests {
             a4n_db::generation::generation_checkpoint_fingerprint_sha256(&output).unwrap();
         let artifacts = json!({
             (REVERSE_CANDIDATE_ARTIFACT_KEY):
-                reverse_candidate_proposal(42, "reverse_outline", &output_hash),
+                reverse_candidate_proposal(&output_hash),
         });
 
         let response = reverse_candidate_checkpoint_response(
@@ -843,9 +869,9 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(response["state"], "proposal");
-        assert_eq!(response["result"], output);
-        assert!(response.get("applied").is_none());
+        assert_eq!(response.state, ReverseEngineeringCandidateState::Proposal);
+        assert_eq!(response.result, output);
+        assert!(response.applied.is_none());
     }
 
     #[test]
@@ -927,48 +953,26 @@ mod tests {
     }
 
     #[test]
-    fn candidate_identity_target_and_output_tampering_are_rejected() {
+    fn candidate_output_tampering_is_rejected() {
         let output = json!({"outlines": []});
         let output_hash =
             a4n_db::generation::generation_checkpoint_fingerprint_sha256(&output).unwrap();
-        let candidate = reverse_candidate_proposal(42, "reverse_outline", &output_hash);
-        validate_candidate_identity(
-            candidate.as_object().unwrap(),
-            42,
-            "reverse_outline",
-            &output,
-        )
-        .unwrap();
+        let candidate = reverse_candidate_proposal(&output_hash);
+        validate_candidate_output_fingerprint(candidate.as_object().unwrap(), &output).unwrap();
 
-        for (field, value, expected) in [
-            ("candidate_id", json!(43), "reverse_candidate_id_mismatch"),
-            (
-                "target",
-                json!("reverse_blueprint"),
-                "reverse_candidate_target_mismatch",
-            ),
-            (
-                "output_fingerprint_sha256",
-                json!("tampered"),
-                "reverse_candidate_output_fingerprint_mismatch",
-            ),
-        ] {
-            let mut tampered = candidate.clone();
-            tampered[field] = value;
-            let error = validate_candidate_identity(
-                tampered.as_object().unwrap(),
-                42,
-                "reverse_outline",
-                &output,
-            )
+        let mut tampered = candidate;
+        tampered["output_fingerprint_sha256"] = json!("tampered");
+        let error = validate_candidate_output_fingerprint(tampered.as_object().unwrap(), &output)
             .unwrap_err();
-            assert_eq!(invalid_state(error), expected);
-        }
+        assert_eq!(
+            invalid_state(error),
+            "reverse_candidate_output_fingerprint_mismatch"
+        );
     }
 
     #[test]
     fn confirmed_candidate_returns_stored_result_without_reapplying() {
-        let mut candidate = reverse_candidate_proposal(42, "reverse_outline", "output-hash");
+        let mut candidate = reverse_candidate_proposal("output-hash");
         candidate["state"] = json!("confirmed");
         candidate["apply_result"] = json!({"outline_count": 3});
 
@@ -979,7 +983,7 @@ mod tests {
         assert_eq!(applied, json!({"outline_count": 3}));
         assert!(
             confirmed_reverse_candidate_apply_result(
-                reverse_candidate_proposal(42, "reverse_outline", "output-hash")
+                reverse_candidate_proposal("output-hash")
                     .as_object()
                     .unwrap()
             )
@@ -990,7 +994,7 @@ mod tests {
 
     #[test]
     fn confirmed_candidate_requires_structured_apply_result() {
-        let mut candidate = reverse_candidate_proposal(42, "reverse_outline", "output-hash");
+        let mut candidate = reverse_candidate_proposal("output-hash");
         candidate["state"] = json!("confirmed");
         candidate["apply_result"] = json!(3);
 

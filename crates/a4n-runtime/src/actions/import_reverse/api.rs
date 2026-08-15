@@ -1,68 +1,96 @@
-use super::ReverseEngineeringTarget;
-use super::contracts::{
-    REVERSE_VARIABLES_ERROR, ReverseEngineerInput, ReverseEngineerTaskScope,
-    ReverseProgressReporter,
+use super::{
+    ConfirmReverseEngineeringCandidateInput, GetReverseEngineeringCandidateInput,
+    ReverseEngineerInput, ReverseEngineeringCandidate, ReverseEngineeringTarget,
 };
-use crate::actions::template_variables::parse_template_variables_app_error_from_ref_with_message;
 use crate::{AppState, actions::access};
 use a4n_core::error::AppError;
 use a4n_orchestrator::import_reverse::ReverseEngineerApplicationInput;
-use serde_json::Value;
 
-pub async fn reverse_engineer_task_scope(
+pub type ReverseProgressReporter<'a> =
+    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync + 'a);
+
+pub struct AuthorizedReverseEngineerInput {
+    input: ReverseEngineerInput,
+}
+
+impl AuthorizedReverseEngineerInput {
+    pub fn project_id(&self) -> i64 {
+        self.input.project_id
+    }
+
+    pub fn target(&self) -> ReverseEngineeringTarget {
+        self.input.target
+    }
+
+    pub(super) fn into_input(self) -> ReverseEngineerInput {
+        self.input
+    }
+}
+
+pub async fn authorize_reverse_engineer(
     state: &AppState,
     user_id: i64,
-    input: &ReverseEngineerInput,
-) -> Result<ReverseEngineerTaskScope, AppError> {
+    input: ReverseEngineerInput,
+) -> Result<AuthorizedReverseEngineerInput, AppError> {
     access::verify_project_editor(state, user_id, input.project_id).await?;
-    Ok(ReverseEngineerTaskScope {
-        project_id: input.project_id,
-        total: 3,
-    })
+    Ok(AuthorizedReverseEngineerInput { input })
 }
 
 pub async fn reverse_engineer(
     state: &AppState,
-    user_id: i64,
-    input: &ReverseEngineerInput,
-    target: ReverseEngineeringTarget,
+    authorized: AuthorizedReverseEngineerInput,
     progress: ReverseProgressReporter<'_>,
     active_task_id: Option<&str>,
-) -> Result<Value, AppError> {
-    reverse_engineer_task_scope(state, user_id, input).await?;
-    let variables = parse_template_variables_app_error_from_ref_with_message(
-        input.variables.as_ref(),
-        REVERSE_VARIABLES_ERROR,
-    )?;
+) -> Result<ReverseEngineeringCandidate, AppError> {
+    let ReverseEngineerInput {
+        target,
+        project_id,
+        content_sample,
+        auto_context,
+        context_limit,
+        variables,
+    } = authorized.input;
+    let variables = variables.unwrap_or_default();
     let prompt_renderer = state;
     let mut result = state
         .orchestrator()
         .run_reverse_engineering_validated(ReverseEngineerApplicationInput {
-            project_id: input.project_id,
-            manual_sample: &input.content_sample,
-            auto_context: input.auto_context,
-            context_limit: input.context_limit,
+            project_id,
+            manual_sample: &content_sample,
+            auto_context,
+            context_limit,
             variables: &variables,
             target,
-            prompt_renderer: prompt_renderer,
+            prompt_renderer,
             progress,
             active_task_id,
         })
         .await?;
     if target == ReverseEngineeringTarget::Blueprint {
-        append_response_warnings(
-            &mut result,
-            reverse_material_sync_warnings(state, input.project_id, target).await,
-        )?;
+        result
+            .warnings
+            .extend(reverse_material_sync_warnings(state, project_id, target).await);
     }
     Ok(result)
+}
+
+pub async fn get_reverse_engineering_candidate(
+    state: &AppState,
+    user_id: i64,
+    input: &GetReverseEngineeringCandidateInput,
+) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
+    access::verify_project_access(state, user_id, input.project_id).await?;
+    state
+        .orchestrator()
+        .latest_reverse_engineering_candidate_validated(input.project_id, input.target)
+        .await
 }
 
 pub async fn confirm_reverse_engineering_candidate(
     state: &AppState,
     user_id: i64,
-    input: &super::ConfirmReverseEngineeringCandidateInput,
-) -> Result<Value, AppError> {
+    input: &ConfirmReverseEngineeringCandidateInput,
+) -> Result<ReverseEngineeringCandidate, AppError> {
     let run = state
         .orchestrator()
         .workflow_run_model_by_id(input.workflow_run_id)
@@ -90,10 +118,9 @@ pub async fn confirm_reverse_engineering_candidate(
         .orchestrator()
         .confirm_reverse_engineering_candidate_validated(input.workflow_run_id)
         .await?;
-    append_response_warnings(
-        &mut result,
-        reverse_material_sync_warnings(state, project_id, target).await,
-    )?;
+    result
+        .warnings
+        .extend(reverse_material_sync_warnings(state, project_id, target).await);
     Ok(result)
 }
 
@@ -111,30 +138,4 @@ async fn reverse_material_sync_warnings(
             crate::actions::outline_records::outline_material_sync_warnings(state, project_id).await
         }
     }
-}
-
-pub(super) fn append_response_warnings(
-    response: &mut Value,
-    warnings: Vec<String>,
-) -> Result<(), AppError> {
-    if warnings.is_empty() {
-        return Ok(());
-    }
-    let response = response
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "invalid_reverse_engineering_response".to_string(),
-            operation: "附加项目资料同步警告".to_string(),
-        })?;
-    let response_warnings = response
-        .entry("warnings")
-        .or_insert_with(|| Value::Array(Vec::new()));
-    if !response_warnings.is_array() {
-        *response_warnings = Value::Array(Vec::new());
-    }
-    response_warnings
-        .as_array_mut()
-        .expect("warnings was normalized to an array")
-        .extend(warnings.into_iter().map(Value::String));
-    Ok(())
 }

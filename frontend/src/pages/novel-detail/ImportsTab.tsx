@@ -11,35 +11,29 @@ import {
   checkImportDedup,
   confirmReverseEngineeringCandidate,
   deleteImportReview,
+  getReverseEngineeringCandidate,
   getProjectImportAnalysisProgress,
   importProjectTextUpload,
   listImportQueue,
   MAX_PROJECT_TEXT_UPLOAD_BYTES,
   previewImportProjectAnalysisRequest,
-  previewReverseEngineerBlueprintRequest,
-  previewReverseEngineerOutlineRequest,
-  previewReverseEngineerPartOutlineRequest,
+  previewReverseEngineerRequest,
   rejectImportReview,
-  reverseEngineerBlueprint,
-  reverseEngineerOutline,
-  reverseEngineerPartOutline,
+  REVERSE_ENGINEERING_PROGRESS_TOTAL,
+  reverseEngineer,
   runImportProjectAnalysis,
   type DedupResult,
   type ImportReview,
   type ProjectImportAnalysisProgress,
+  type ReverseEngineeringCandidate,
 } from "../../api/import";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import {
-  cancelWorkflowTask,
-  getWorkflowRunDetail,
-  listWorkflowRuns,
-} from "../../api/streaming";
+import { cancelWorkflowTask } from "../../api/streaming";
 import {
   createWorkflowTaskId,
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
-import { isJsonRecord } from "../../utils/jsonRecord";
 import { ImportFilePanel } from "./imports/ImportFilePanel";
 import { ImportReviewDetailPanel } from "./imports/ImportReviewDetailPanel";
 import {
@@ -52,9 +46,6 @@ import {
   delay,
   formalReverseNotice,
   importAnalysisDialogFromProgress,
-  parseReverseCandidateEnvelope,
-  reverseCandidateFromCheckpoint,
-  reversePromptName,
   type ImportAnalysisDialogState,
   type ReverseType,
 } from "./imports/importTabUtils";
@@ -119,8 +110,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [reverseType, setReverseType] = useState<ReverseType>("blueprint");
   const [reverseSample, setReverseSample] = useState("");
   const [reverseAutoContext, setReverseAutoContext] = useState(true);
-  const [reverseResult, setReverseResult] = useState<unknown>(null);
-  const [reverseBusy, setReverseBusy] = useState<"preview" | null>(null);
+  const [reverseResult, setReverseResult] =
+    useState<ReverseEngineeringCandidate | null>(null);
+  const [reverseGenerating, setReverseGenerating] = useState(false);
   const [reverseConfirmBusy, setReverseConfirmBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
@@ -136,7 +128,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     cancelBusy ||
     batchBusy ||
     actBusy !== null ||
-    reverseBusy !== null ||
+    reverseGenerating ||
     reverseConfirmBusy;
 
   // 导入新文件
@@ -197,16 +189,16 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     batchBusy ||
     actBusy !== null ||
     dedupBusy ||
-    reverseBusy !== null ||
+    reverseGenerating ||
     reverseConfirmBusy;
   const reviewExternalBusy =
-    importBusy || dedupBusy || reverseBusy !== null || reverseConfirmBusy;
+    importBusy || dedupBusy || reverseGenerating || reverseConfirmBusy;
   const detailExternalBusy =
     importBusy ||
     analysisInProgress ||
     batchBusy ||
     dedupBusy ||
-    reverseBusy !== null ||
+    reverseGenerating ||
     reverseConfirmBusy;
   const toolsExternalBusy =
     importBusy ||
@@ -309,36 +301,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   ) => {
     const requestSeq = nextSequence(reverseSeqRef);
     try {
-      const runs = await listWorkflowRuns({
+      const restored = await getReverseEngineeringCandidate({
         project_id: requestProjectId,
-        workflow_kind: "import_reverse_engineer",
-        status: "completed",
-        resumable_only: false,
-        limit: 200,
+        target: requestReverseType,
       });
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      const run = runs.find(
-        (item) =>
-          item.mode === "reverse" &&
-          item.current_step_key === reversePromptName(requestReverseType),
-      );
-      if (!run) {
-        setReverseResult(null);
-        return;
-      }
-      const detail = await getWorkflowRunDetail(run.id, false);
-      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      const checkpoint = detail.checkpoints.find(
-        (item) => item.step_key === reversePromptName(requestReverseType),
-      );
-      const restored = checkpoint
-        ? reverseCandidateFromCheckpoint(checkpoint, requestReverseType)
-        : null;
-      setReverseResult(
-        requestReverseType === "blueprint" && restored?.state === "proposal"
-          ? null
-          : restored,
-      );
+      setReverseResult(restored);
     } catch (err) {
       if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, "恢复项目资料归纳结果失败"), "error");
@@ -371,7 +339,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setActBusy(null);
     setDedupBusy(false);
     setDedupResult(null);
-    setReverseBusy(null);
+    setReverseGenerating(false);
     setReverseConfirmBusy(false);
     setReverseResult(null);
     setRequestPreviewOpen(false);
@@ -386,7 +354,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setActiveReviewJsonError(null);
     setActiveReviewJsonDirty(false);
     void load(projectId);
-    void restoreLatestReverseCandidate(projectId, "blueprint");
+    void restoreLatestReverseCandidate(projectId, reverseType);
     const t = setInterval(() => {
       void load(projectId);
     }, 5000);
@@ -854,6 +822,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     requestSample: string,
     requestAutoContext: boolean,
   ) => ({
+    target: requestReverseType,
     project_id: requestProjectId,
     content_sample: requestSample.trim(),
     auto_context: requestAutoContext,
@@ -886,12 +855,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setRequestPreviewData(null);
     setRequestPreviewTitle("项目资料归纳请求预览");
     try {
-      const preview =
-        requestReverseType === "blueprint"
-          ? await previewReverseEngineerBlueprintRequest(input)
-          : requestReverseType === "outline"
-            ? await previewReverseEngineerOutlineRequest(input)
-            : await previewReverseEngineerPartOutlineRequest(input);
+      const preview = await previewReverseEngineerRequest(input);
       if (!isCurrentAction(requestProjectId, requestPreviewSeqRef, requestSeq))
         return;
       setRequestPreviewData(preview);
@@ -923,7 +887,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     reverseBusyRef.current = true;
     const requestSeq = nextSequence(reverseSeqRef);
     const taskId = createWorkflowTaskId(
-      `import-reverse-${requestReverseType}-preview`,
+      `import-reverse-${requestReverseType}`,
       requestProjectId,
     );
     const reverseLabel =
@@ -938,7 +902,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       requestSample,
       requestAutoContext,
     );
-    setReverseBusy("preview");
+    setReverseGenerating(true);
     setReverseResult(null);
     const writesFormalBlueprint = requestReverseType === "blueprint";
     try {
@@ -955,7 +919,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
             ? "蓝图已归纳并写入正式资料"
             : `${reverseLabel}候选已生成，尚未写入正式资料`,
           errorMessage: "项目资料归纳失败",
-          total: 3,
+          total: REVERSE_ENGINEERING_PROGRESS_TOTAL,
           cancelLabel: "停止归纳",
           runningHint: writesFormalBlueprint
             ? "只有成功完成才会更新正式蓝图；失败或停止时保留原蓝图"
@@ -965,24 +929,16 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
             return Promise.reject(new Error("任务已停止"));
           }
-          if (requestReverseType === "blueprint") {
-            return reverseEngineerBlueprint(input, taskId);
-          }
-          if (requestReverseType === "outline") {
-            return reverseEngineerOutline(input, taskId);
-          }
-          return reverseEngineerPartOutline(input, taskId);
+          return reverseEngineer(input, taskId);
         },
       );
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      const aggregation = parseReverseCandidateEnvelope(result, requestReverseType);
-      if (!aggregation) throw new Error("项目资料归纳接口返回的状态无效");
       setReverseResult(result);
       const notice = formalReverseNotice(
         writesFormalBlueprint
           ? "蓝图已归纳并写入正式资料"
           : `${reverseLabel}候选已生成，尚未写入正式资料`,
-        aggregation.warnings,
+        result.warnings,
       );
       addToast(notice.message, notice.tone);
       if (writesFormalBlueprint) await load(requestProjectId);
@@ -992,7 +948,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
-        setReverseBusy(null);
+        setReverseGenerating(false);
       }
       if (reverseSeqRef.current === requestSeq) {
         reverseBusyRef.current = false;
@@ -1006,7 +962,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       addToast("蓝图归纳成功后会直接写入正式资料，无需再次确认", "info");
       return;
     }
-    const candidate = parseReverseCandidateEnvelope(reverseResult, reverseType);
+    const candidate = reverseResult;
     if (!candidate || candidate.state !== "proposal") {
       addToast("当前没有可确认的反推候选", "error");
       return;
@@ -1035,22 +991,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         workflow_run_id: candidate.workflow_run_id,
       });
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      const confirmation = parseReverseCandidateEnvelope(
-        confirmed,
-        reverseType,
-      );
-      if (!confirmation) throw new Error("确认接口返回的候选状态无效");
-      const previous = isJsonRecord(reverseResult) ? reverseResult : {};
-      setReverseResult({
-        ...previous,
-        ...confirmation,
-        result: previous.result ?? confirmation.result,
-      });
+      setReverseResult(confirmed);
       addToast(
-        confirmation.warnings.length > 0
-          ? `反推候选已确认并写入正式资料；${confirmation.warnings.join("；")}`
+        confirmed.warnings.length > 0
+          ? `反推候选已确认并写入正式资料；${confirmed.warnings.join("；")}`
           : "反推候选已确认并写入正式资料",
-        confirmation.warnings.length > 0 ? "info" : "success",
+        confirmed.warnings.length > 0 ? "info" : "success",
       );
       await load(requestProjectId);
     } catch (err) {
@@ -1119,7 +1065,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           reverseSample={reverseSample}
           reverseAutoContext={reverseAutoContext}
           reverseResult={reverseResult}
-          reverseBusy={reverseBusy}
+          reverseGenerating={reverseGenerating}
           reverseConfirmBusy={reverseConfirmBusy}
           externalBusy={toolsExternalBusy}
           onDedupTextChange={handleDedupTextChange}

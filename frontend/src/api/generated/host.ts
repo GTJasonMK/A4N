@@ -134,6 +134,7 @@ export const HOST_API_COMMANDS = [
   "get_project_import_analysis_progress",
   "get_project_status_machine",
   "get_queue_stats",
+  "get_reverse_engineering_candidate",
   "get_snapshot",
   "get_storage_paths",
   "get_task_history",
@@ -250,9 +251,7 @@ export const HOST_API_COMMANDS = [
   "preview_regenerate_portrait_request",
   "preview_resume_chapter_analysis_sync_request",
   "preview_resume_manga_pipeline_request",
-  "preview_reverse_engineer_blueprint_request",
-  "preview_reverse_engineer_outline_request",
-  "preview_reverse_engineer_part_outline_request",
+  "preview_reverse_engineer_request",
   "preview_rollback",
   "preview_scene_image_request",
   "preview_send_optimization_message_request",
@@ -302,9 +301,7 @@ export const HOST_API_COMMANDS = [
   "resume_chapter_analysis_sync",
   "resume_manga_pipeline",
   "resume_workflow_run",
-  "reverse_engineer_blueprint",
-  "reverse_engineer_outline",
-  "reverse_engineer_part_outline",
+  "reverse_engineer",
   "revoke_project_invite",
   "revoke_session",
   "rollback_project_status",
@@ -391,6 +388,7 @@ export const PROJECT_FAMILY_PACKAGE_SUFFIX = ".a4n-family.zip";
 export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = ".a4n-video-studio.zip";
 
 export const MAX_PROJECT_TEXT_UPLOAD_BYTES = 104857600;
+export const REVERSE_ENGINEERING_PROGRESS_TOTAL = 3;
 
 export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<string, string>([
   ["start_blueprint_generation", "/generation-tasks/blueprint"],
@@ -473,9 +471,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_regenerate_portrait_request": "without_secrets",
   "preview_resume_chapter_analysis_sync_request": "without_secrets",
   "preview_resume_manga_pipeline_request": "without_secrets",
-  "preview_reverse_engineer_blueprint_request": "without_secrets",
-  "preview_reverse_engineer_outline_request": "without_secrets",
-  "preview_reverse_engineer_part_outline_request": "without_secrets",
+  "preview_reverse_engineer_request": "without_secrets",
   "preview_scene_image_request": "without_secrets",
   "preview_send_optimization_message_request": "without_secrets",
   "preview_start_manga_pipeline_request": "without_secrets",
@@ -494,9 +490,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "resume_chapter_analysis_sync": "full",
   "resume_manga_pipeline": "full",
   "resume_workflow_run": "full",
-  "reverse_engineer_blueprint": "full",
-  "reverse_engineer_outline": "full",
-  "reverse_engineer_part_outline": "full",
+  "reverse_engineer": "full",
   "run_canvas_graph": "full",
   "run_canvas_node": "full",
   "run_galgame_asset_generation": "full",
@@ -736,15 +730,34 @@ export interface ChapterSceneSummary {
   word_count: number;
 }
 
+export type ReverseEngineeringTarget = "blueprint" | "outline" | "part_outline";
+
+export type ReverseEngineeringCandidateState = "proposal" | "confirmed";
+
 export interface ReverseEngineerInput {
-  auto_context?: boolean;
-  content_sample?: string;
+  auto_context: boolean;
+  content_sample: string;
   context_limit?: number | null;
   project_id: number;
-  variables?: unknown;
+  target: ReverseEngineeringTarget;
+  variables?: Record<string, unknown> | null;
+}
+
+export interface GetReverseEngineeringCandidateInput {
+  project_id: number;
+  target: ReverseEngineeringTarget;
 }
 
 export interface ConfirmReverseEngineeringCandidateInput {
+  workflow_run_id: number;
+}
+
+export interface ReverseEngineeringCandidate {
+  applied: unknown;
+  result: unknown;
+  state: ReverseEngineeringCandidateState;
+  target: ReverseEngineeringTarget;
+  warnings: string[];
   workflow_run_id: number;
 }
 

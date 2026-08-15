@@ -1,3 +1,6 @@
+use a4n_api_contract::import_reverse::{
+    REVERSE_ENGINEERING_PROGRESS_TOTAL, ReverseEngineeringCandidate,
+};
 use a4n_core::error::AppError;
 pub(in crate::import_reverse) use apply::{
     reverse_blueprint_apply_draft, reverse_blueprint_apply_result, reverse_outline_apply_result,
@@ -8,8 +11,8 @@ use std::collections::HashMap;
 
 use crate::OrchestratorContext;
 
-use super::ReverseEngineeringTarget;
 use super::request::{ReverseEngineerRequestInput, build_reverse_engineer_request};
+use super::{ReverseEngineeringTarget, ReverseEngineeringTargetDomain};
 use a4n_core::import_reverse::ReverseContentRequest;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -90,8 +93,8 @@ impl OrchestratorContext {
     pub async fn run_reverse_engineering_validated(
         &self,
         input: ReverseEngineerApplicationInput<'_>,
-    ) -> Result<Value, AppError> {
-        let total = 3;
+    ) -> Result<ReverseEngineeringCandidate, AppError> {
+        let total = REVERSE_ENGINEERING_PROGRESS_TOTAL;
         (input.progress)(0, total, input.target.preparing_context_message())?;
         let (content_sample, auto_context_source_sha256) = self
             .resolve_reverse_content_sample_validated(
@@ -132,7 +135,7 @@ impl OrchestratorContext {
         total: u32,
         workflow_run_id: i64,
         content_sample: &str,
-    ) -> Result<Value, AppError> {
+    ) -> Result<ReverseEngineeringCandidate, AppError> {
         (input.progress)(1, total, input.target.calling_model_message())?;
         let request = build_reverse_engineer_request(ReverseEngineerRequestInput {
             project_id: input.project_id,
