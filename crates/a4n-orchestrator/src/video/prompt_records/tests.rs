@@ -121,59 +121,6 @@ mod tests {
     }
 
     #[test]
-    fn base_execution_identity_matches_final_identity_with_additional_fields() {
-        let base = json!({
-            "contract_epoch": 5,
-            "shooting_script_identity": {"record_id": 1, "revision": 2},
-            "projection_sha256": "projection",
-            "segment_plan_sha256": "segments",
-            "unit_plan_sha256": "units",
-            "source_content_sha256": "source",
-            "style_sha256": "style",
-            "duration_secs": 4,
-            "aspect_ratio": "16:9"
-        });
-        let mut final_identity = base.clone();
-        final_identity["frame_set_sha256"] = json!("frames");
-        final_identity["prompt_output_language"] = json!("zh-CN");
-        final_identity["generation_asset_fingerprint"] = json!({});
-
-        assert!(video_execution_base_identity_matches(
-            Some(&json!({"video_execution_identity": final_identity})),
-            &base,
-        ));
-    }
-
-    #[test]
-    fn base_execution_identity_ignores_changed_plan_audit_hashes() {
-        let expected = json!({
-            "contract_epoch": 5,
-            "shooting_script_identity": {"record_id": 1, "revision": 2},
-            "projection_sha256": "projection",
-            "segment_plan_sha256": "segments",
-            "unit_plan_sha256": "current-units",
-            "source_content_sha256": "source",
-            "style_sha256": "style",
-            "duration_secs": 4,
-            "aspect_ratio": "16:9"
-        });
-        let mut stored = expected.clone();
-        stored["unit_plan_sha256"] = json!("old-units");
-
-        assert!(video_execution_base_identity_matches(
-            Some(&json!({"video_execution_identity": stored})),
-            &expected,
-        ));
-
-        let mut incomplete = expected.clone();
-        incomplete.as_object_mut().unwrap().remove("style_sha256");
-        assert!(!video_execution_base_identity_matches(
-            Some(&json!({"video_execution_identity": incomplete})),
-            &expected,
-        ));
-    }
-
-    #[test]
     fn segment_lineage_allows_final_duration_override() {
         let expected = json!({
             "contract_epoch": 5,

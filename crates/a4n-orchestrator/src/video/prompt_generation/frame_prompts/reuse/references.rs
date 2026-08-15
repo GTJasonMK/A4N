@@ -7,29 +7,6 @@ use crate::video::prompt_store::PromptWorkflowMode;
 
 use super::super::VideoUnitPlan;
 
-pub(in crate::video) fn video_prompt_segments_with_reference_ids(
-    workflow_mode: PromptWorkflowMode,
-    segments: &[VideoSegmentPlan],
-    frame_by_number: &HashMap<i32, VideoFramePrompt>,
-    frame_image_ids_by_number: &HashMap<i32, i64>,
-    generation_reference_ids: &[i64],
-) -> Vec<VideoSegmentPlan> {
-    segments
-        .iter()
-        .map(|segment| {
-            let mut segment = segment.clone();
-            segment.reference_image_ids = video_prompt_reference_ids_for_segment(
-                workflow_mode,
-                segment.segment_number,
-                frame_by_number,
-                frame_image_ids_by_number,
-                generation_reference_ids,
-            );
-            segment
-        })
-        .collect()
-}
-
 pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_unit_segments_with_reference_ids(
     workflow_mode: PromptWorkflowMode,
     units: &[VideoUnitPlan],
@@ -157,57 +134,6 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference
                 if let Some(frame) = frame_by_number.get(&storyboard_number) {
                     extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
                 }
-            }
-        }
-    }
-    extend_unique_reference_ids(&mut refs, generation_reference_ids);
-    refs
-}
-
-pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference_ids_for_segment(
-    workflow_mode: PromptWorkflowMode,
-    segment_number: i32,
-    frame_by_number: &HashMap<i32, VideoFramePrompt>,
-    frame_image_ids_by_number: &HashMap<i32, i64>,
-    generation_reference_ids: &[i64],
-) -> Vec<i64> {
-    let mut refs = Vec::new();
-    match workflow_mode {
-        PromptWorkflowMode::SharedSegmentPlan => {
-            unreachable!("共享片段规划不参与卡片媒体引用计算")
-        }
-        PromptWorkflowMode::BoundaryFrames | PromptWorkflowMode::ChatVideo => {
-            if let Some(image_id) = frame_image_ids_by_number.get(&segment_number) {
-                extend_unique_reference_ids(&mut refs, &[*image_id]);
-            }
-            if let Some(image_id) = frame_image_ids_by_number.get(&(segment_number + 1)) {
-                extend_unique_reference_ids(&mut refs, &[*image_id]);
-            }
-            if let Some(frame) = frame_by_number.get(&segment_number) {
-                extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
-            }
-            if let Some(frame) = frame_by_number.get(&(segment_number + 1)) {
-                extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
-            }
-        }
-        PromptWorkflowMode::FirstFrameChain => {
-            if segment_number == 1
-                && let Some(image_id) = frame_image_ids_by_number.get(&1)
-            {
-                extend_unique_reference_ids(&mut refs, &[*image_id]);
-            }
-            if segment_number == 1
-                && let Some(frame) = frame_by_number.get(&1)
-            {
-                extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
-            }
-        }
-        PromptWorkflowMode::Storyboard => {
-            if let Some(image_id) = frame_image_ids_by_number.get(&segment_number) {
-                extend_unique_reference_ids(&mut refs, &[*image_id]);
-            }
-            if let Some(frame) = frame_by_number.get(&segment_number) {
-                extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
             }
         }
     }

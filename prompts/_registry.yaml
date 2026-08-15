@@ -784,7 +784,7 @@ prompts:
     tags: ["video", "segment", "planning"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_frame_prompts"
+      - "video::prompt_generation::frame_prompts::staged_segment_plan::shots::render_segment_plan_shots"
     dependencies:
       - "chapter_shooting_design_unit"
     description: "按单个导演镜头生成片段规划，系统再合并为全章连续 segment 列表"
@@ -796,7 +796,7 @@ prompts:
     tags: ["video", "frame", "prompt"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_frame_prompts"
+      - "video::prompt_generation::frame_prompts::frame_chain::boundary_frames::checkpoint::render_boundary_frame_checkpoint"
     dependencies:
       - "chapter_video_segment_plan"
     description: "为视频执行单元链生成 U+1 个共享边界帧提示词"
@@ -808,7 +808,7 @@ prompts:
     tags: ["video", "first-frame", "prompt"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_first_frame_prompts"
+      - "video::prompt_generation::frame_prompts::frame_chain::first_frame_workflow::generate_first_frame_workflow"
     dependencies:
       - "chapter_video_segment_plan"
     description: "为首帧串联模式生成整条执行链唯一的初始首帧提示词"
@@ -820,7 +820,7 @@ prompts:
     tags: ["video", "storyboard", "prompt"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_storyboard_prompts"
+      - "video::prompt_generation::frame_prompts::frame_chain::storyboard_workflow::generation::checkpoint::render_storyboard_frame_checkpoint"
     dependencies:
       - "chapter_video_segment_plan"
     description: "为每个内容单元或显式动作桥生成一张多格分镜板提示词"
@@ -832,7 +832,7 @@ prompts:
     tags: ["video", "prompt"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_frame_prompts"
+      - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
     dependencies:
       - "chapter_video_segment_plan"
       - "chapter_video_frame_prompts"
@@ -845,7 +845,7 @@ prompts:
     tags: ["video", "prompt", "first-frame"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_first_frame_video_prompts"
+      - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
     dependencies:
       - "chapter_video_segment_plan"
       - "chapter_video_first_frame_prompts"
@@ -858,7 +858,7 @@ prompts:
     tags: ["video", "prompt", "storyboard"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_storyboard_video_prompts"
+      - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
     dependencies:
       - "chapter_video_segment_plan"
       - "chapter_video_storyboard_prompts"
@@ -925,7 +925,7 @@ prompts:
     tags: ["video", "prompt", "chat"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_chat_video_prompts"
+      - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
     dependencies:
       - "chapter_video_segment_plan"
     description: "生成可复制到外部 Chat 视频模型的单段视频提示词"

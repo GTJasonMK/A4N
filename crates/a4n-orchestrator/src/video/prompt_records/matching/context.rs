@@ -33,17 +33,6 @@ const VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS: [&str; 5] = [
     "segment_recipe_fingerprint",
 ];
 
-pub(in crate::video) fn video_execution_base_identity_matches(
-    stored_metadata: Option<&Value>,
-    expected_identity: &Value,
-) -> bool {
-    video_execution_identity_fields_match(
-        stored_metadata,
-        expected_identity,
-        &VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
-    )
-}
-
 pub(in crate::video) fn video_execution_segment_identity_matches(
     stored_metadata: Option<&Value>,
     expected_identity: &Value,
@@ -207,18 +196,8 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
     match context.video_execution_identity {
         #[cfg(test)]
         VideoExecutionIdentityMatch::NotApplicable => {}
-        VideoExecutionIdentityMatch::Exact(expected_identity) => {
-            if metadata.get("video_execution_identity") != Some(expected_identity) {
-                return false;
-            }
-        }
         VideoExecutionIdentityMatch::Segment(expected_identity) => {
             if !video_execution_segment_identity_matches(Some(metadata), expected_identity) {
-                return false;
-            }
-        }
-        VideoExecutionIdentityMatch::Base(expected_identity) => {
-            if !video_execution_base_identity_matches(Some(metadata), expected_identity) {
                 return false;
             }
         }

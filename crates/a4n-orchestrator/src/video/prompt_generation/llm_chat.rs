@@ -15,7 +15,6 @@ pub(super) use contracts::{
     VideoPromptStepProgress, report_video_prompt_checkpoint, report_video_prompt_item_committed,
     report_video_prompt_progress,
 };
-pub(in crate::video) use request::build_video_prompt_request;
 pub(super) use request::build_video_prompt_request_with_call_trace;
 
 pub(super) async fn render_and_chat_trace_with_context(

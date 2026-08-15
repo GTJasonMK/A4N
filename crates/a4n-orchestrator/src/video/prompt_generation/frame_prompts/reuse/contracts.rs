@@ -34,18 +34,6 @@ pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSharedSegm
     pub aspect_ratio: &'a str,
 }
 
-pub(crate) struct ReusableSegmentPlanForPreviewQuery<'a> {
-    pub service: &'a OrchestratorContext,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub workflow_mode: &'a str,
-    pub source_metadata: &'a Value,
-    pub source_spans: &'a [SourceSpan],
-    pub style: &'a str,
-    pub duration_secs: i32,
-    pub aspect_ratio: &'a str,
-}
-
 pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSegmentPlanFromRowInput<'a> {
     pub row: chapter_video_prompt::Model,
     pub source_metadata: &'a Value,

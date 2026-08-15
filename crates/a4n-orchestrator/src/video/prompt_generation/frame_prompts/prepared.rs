@@ -41,10 +41,8 @@ pub(super) struct PreparedSegmentPlan {
 }
 
 pub(crate) struct ReusableSegmentPlan {
-    pub(crate) segment_json: Value,
     pub(crate) segment_plan: Vec<VideoSegmentPlan>,
     pub(super) draft: NewChapterVideoPrompt,
-    pub(crate) execution_identity: Value,
 }
 
 pub(super) struct LoadedSharedSegmentPlan {

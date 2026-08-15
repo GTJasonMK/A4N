@@ -15,8 +15,7 @@ use super::super::{
     video_execution_chain_identity, video_projection_from_shooting_script,
 };
 use super::contracts::{
-    ReusableSegmentPlanForPreviewQuery, ReusableSegmentPlanFromRowInput, ReusableSegmentPlanQuery,
-    ReusableSharedSegmentPlanQuery,
+    ReusableSegmentPlanFromRowInput, ReusableSegmentPlanQuery, ReusableSharedSegmentPlanQuery,
 };
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn load_shared_segment_plan_for_execution(
@@ -320,10 +319,6 @@ pub(in crate::video::prompt_generation::frame_prompts) fn reusable_segment_plan_
     metadata.insert("video_execution_identity".to_string(), expected_identity);
     metadata.insert("segments".to_string(), json!(segment_plan));
     metadata.insert("source".to_string(), source_metadata.clone());
-    let execution_identity = metadata
-        .get("video_execution_identity")
-        .cloned()
-        .expect("validated execution identity must remain present");
     let draft = new_prompt_draft(NewChapterVideoPromptInput {
         project_id: row.project_id,
         chapter_id: row.chapter_id,
@@ -342,10 +337,8 @@ pub(in crate::video::prompt_generation::frame_prompts) fn reusable_segment_plan_
         metadata_json: Some(metadata_json),
     });
     Ok(ReusableSegmentPlan {
-        segment_json,
         segment_plan,
         draft,
-        execution_identity,
     })
 }
 
@@ -381,61 +374,6 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_shared_
         context: super::super::SHARED_SEGMENT_PLAN_CONTEXT,
     })
     .await
-}
-
-pub(crate) async fn reusable_segment_plan_for_preview(
-    query: ReusableSegmentPlanForPreviewQuery<'_>,
-) -> Result<Option<ReusableSegmentPlan>, AppError> {
-    let ReusableSegmentPlanForPreviewQuery {
-        service,
-        project_id,
-        chapter_id,
-        workflow_mode,
-        source_metadata,
-        source_spans,
-        style,
-        duration_secs,
-        aspect_ratio,
-    } = query;
-    let spec = super::super::frame_prompt_generation_spec_for_workflow(workflow_mode)?;
-    let shooting_script_projection =
-        current_video_shooting_script_projection(service, project_id, chapter_id, duration_secs)
-            .await?;
-    for row in segment_plan_rows(
-        service,
-        project_id,
-        chapter_id,
-        spec.segment_storage_workflow_mode(),
-        spec.segment_storage_prompt_type(),
-        false,
-    )
-    .await?
-    .into_iter()
-    .filter(|row| row.status != "running")
-    {
-        match reusable_segment_plan_from_row(ReusableSegmentPlanFromRowInput {
-            row,
-            source_metadata,
-            source_spans,
-            style,
-            duration_secs,
-            aspect_ratio,
-            shooting_script_projection: &shooting_script_projection,
-            contract_version: spec.segment_storage_contract_version(),
-            context: spec.segment_storage_context(),
-            draft_workflow_mode: spec.segment_storage_workflow_mode(),
-            draft_prompt_type: spec.segment_storage_prompt_type(),
-            draft_title: spec.segment_storage_title(),
-        }) {
-            Ok(reusable) => return Ok(Some(reusable)),
-            Err(err) => tracing::debug!(
-                target: "a4n::video_prompt_preview",
-                error = %err,
-                "已保存视频片段规划不满足当前 v5 identity，预览不会复用"
-            ),
-        }
-    }
-    Ok(None)
 }
 
 async fn current_video_shooting_script_projection(

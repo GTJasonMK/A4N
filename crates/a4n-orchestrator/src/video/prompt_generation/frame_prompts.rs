@@ -113,10 +113,8 @@ pub(in crate::video) use self::records::{
 use self::render_restore::*;
 use self::reuse::*;
 pub(in crate::video) use self::reuse::{
-    FrameImageLookupContext, FrameImageLookupRowsQuery, ReusableSegmentPlanForPreviewQuery,
-    boundary_frame_image_ids_by_number, boundary_frame_rows_for_image_lookup,
-    reusable_segment_plan_for_preview, storyboard_frame_image_ids_by_number,
-    video_prompt_segments_with_reference_ids,
+    FrameImageLookupContext, FrameImageLookupRowsQuery, boundary_frame_image_ids_by_number,
+    boundary_frame_rows_for_image_lookup, storyboard_frame_image_ids_by_number,
 };
 pub(in crate::video) use self::shooting_script_projection::video_projection_from_shooting_script;
 use self::staged_segment_plan::{

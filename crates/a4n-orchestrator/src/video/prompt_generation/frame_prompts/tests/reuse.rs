@@ -157,35 +157,6 @@ fn image_lookup_context_ignores_generation_asset_fingerprint() {
 }
 
 #[test]
-fn video_prompt_reference_ids_are_system_derived_from_generation_and_frames() {
-    let segments = vec![segment(1), segment(2)];
-    let frame_by_number = HashMap::from([
-        (1, frame(1, vec![11])),
-        (2, frame(2, vec![12])),
-        (3, frame(3, vec![13, 11])),
-    ]);
-    let frame_image_ids_by_number = HashMap::from([(1, 101), (2, 102), (3, 103)]);
-
-    let enriched_segments = video_prompt_segments_with_reference_ids(
-        PromptWorkflowMode::BoundaryFrames,
-        &segments,
-        &frame_by_number,
-        &frame_image_ids_by_number,
-        &[99, 12],
-    );
-
-    assert_eq!(segments[0].reference_image_ids, vec![3, 9]);
-    assert_eq!(
-        enriched_segments[0].reference_image_ids,
-        vec![101, 102, 11, 12, 99]
-    );
-    assert_eq!(
-        enriched_segments[1].reference_image_ids,
-        vec![102, 103, 12, 13, 11, 99]
-    );
-}
-
-#[test]
 fn trims_reusable_frame_prefix_when_previous_image_is_missing_from_prompt_refs() {
     let frames = vec![frame(1, vec![3, 9]), frame(2, vec![3, 9])];
     let image_id_by_frame_number = HashMap::from([(1, 13)]);

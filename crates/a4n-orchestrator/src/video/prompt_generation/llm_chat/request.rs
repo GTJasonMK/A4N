@@ -17,7 +17,7 @@ use super::contracts::VideoPromptLlmCallTraceContext;
 
 const VIDEO_PROMPT_WORKFLOW: &str = "video_prompt_generation";
 
-pub(in crate::video) async fn build_video_prompt_request(
+async fn build_video_prompt_request(
     prompt_renderer: &dyn PromptRenderer,
     prompt_name: &str,
     project_id: i64,

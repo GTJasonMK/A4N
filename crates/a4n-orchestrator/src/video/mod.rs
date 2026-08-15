@@ -28,7 +28,6 @@ mod prompt_json;
 mod prompt_optimization;
 mod prompt_optimization_checkpoint;
 mod prompt_optimization_rules;
-mod prompt_preview;
 mod prompt_records;
 mod prompt_store;
 mod prompt_workflow_rules;
@@ -243,7 +242,6 @@ pub use self::prompt_json::{
     video_prompt_missing_required_section_for_language, video_prompt_stale_section_for_language,
     video_prompt_upload_status_term,
 };
-pub use self::prompt_preview::{VideoPromptRequestPreview, VideoPromptRequestPreviewStep};
 #[cfg(test)]
 pub use self::prompt_records::VideoPromptUpdateInput;
 

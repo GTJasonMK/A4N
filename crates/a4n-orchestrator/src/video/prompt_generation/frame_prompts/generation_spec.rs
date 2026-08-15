@@ -1,9 +1,4 @@
-use a4n_core::error::AppError;
-
-use super::{
-    PromptWorkflowMode, SHARED_SEGMENT_PLAN_CONTEXT, SHARED_SEGMENT_PLAN_CONTRACT_VERSION,
-    SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE,
-};
+use super::{PromptWorkflowMode, SHARED_SEGMENT_PLAN_PROMPT_TYPE};
 
 pub(super) struct FramePromptGenerationSpec {
     pub(super) workflow_mode: PromptWorkflowMode,
@@ -44,42 +39,12 @@ impl FramePromptGenerationSpec {
         matches!(self.layout, FramePromptLayout::PerSegmentStoryboard)
     }
 
-    pub(super) fn segment_storage_workflow_mode(&self) -> PromptWorkflowMode {
-        PromptWorkflowMode::SharedSegmentPlan
-    }
-
     pub(super) fn segment_storage_prompt_type(&self) -> &'static str {
         SHARED_SEGMENT_PLAN_PROMPT_TYPE
     }
 
-    pub(super) fn segment_storage_title(&self) -> &'static str {
-        SHARED_SEGMENT_PLAN_TITLE
-    }
-
-    pub(super) fn segment_storage_context(&self) -> &'static str {
-        SHARED_SEGMENT_PLAN_CONTEXT
-    }
-
-    pub(super) fn segment_storage_contract_version(&self) -> &'static str {
-        SHARED_SEGMENT_PLAN_CONTRACT_VERSION
-    }
-
     pub(super) fn frame_source_prompt_type(&self) -> &'static str {
         self.frame_source_prompt_type
-    }
-}
-
-pub(super) fn frame_prompt_generation_spec_for_workflow(
-    workflow_mode: &str,
-) -> Result<&'static FramePromptGenerationSpec, AppError> {
-    match workflow_mode {
-        "boundary_frames" => Ok(&BOUNDARY_FRAME_PROMPT_GENERATION),
-        "first_frame_chain" => Ok(&FIRST_FRAME_PROMPT_GENERATION),
-        "chat_video" => Ok(&CHAT_VIDEO_PROMPT_GENERATION),
-        "storyboard" => Ok(&STORYBOARD_PROMPT_GENERATION),
-        other => Err(AppError::InvalidArgument(format!(
-            "视频片段规划不支持 workflow_mode={other}"
-        ))),
     }
 }
 
