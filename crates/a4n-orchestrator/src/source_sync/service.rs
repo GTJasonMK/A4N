@@ -44,30 +44,8 @@ impl OrchestratorContext {
                 },
             )
             .await;
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(
-                workflow.id,
-                if result.is_ok() {
-                    crate::workflow::WorkflowRunFinalizeOutcome::Completed
-                } else {
-                    crate::workflow::WorkflowRunFinalizeOutcome::Failed
-                },
-                error_message.as_deref(),
-            )
-            .await;
-        if matches!(&finalized, Err(AppError::Cancelled)) {
-            return Err(AppError::Cancelled);
-        }
-        match (result, finalized) {
-            (Ok(plan), Ok(_)) => Ok(plan),
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(error), Ok(_)) => Err(error),
-            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!("源同步应用失败，且 workflow 终态写入失败: {status_error}"),
-            }),
-        }
+        self.finalize_workflow_result(workflow.id, result, "源同步应用")
+            .await
     }
 
     pub(crate) async fn apply_source_sync_decisions_with_context(

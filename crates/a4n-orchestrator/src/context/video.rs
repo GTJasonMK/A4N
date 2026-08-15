@@ -1728,26 +1728,6 @@ impl OrchestratorContext {
         self.begin_workflow_run_validated(input).await
     }
 
-    /// 视频 provider 轮询/状态：校验后 upsert workflow_run（状态由调用方指定）。
-    pub async fn begin_video_provider_workflow_validated(
-        &self,
-        video: &a4n_core::models::ai::generated_video::Model,
-        job_id: &str,
-        status: &str,
-        can_resume: bool,
-        error_message: Option<&str>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
-        let input = crate::video::video_provider_workflow_run_input(
-            video,
-            job_id,
-            status,
-            can_resume,
-            error_message,
-        )
-        .map_err(AppError::InvalidArgument)?;
-        self.upsert_workflow_run(input).await
-    }
-
     /// 视频 provider 进度：校验后创建/恢复 RUNNING workflow_run。
     pub async fn begin_video_provider_progress_workflow_validated(
         &self,
@@ -1905,14 +1885,9 @@ impl OrchestratorContext {
             }
             Some(run) => run,
             None => {
-                self.begin_video_provider_workflow_validated(
-                    video,
-                    job_id,
-                    crate::workflow::WORKFLOW_STATUS_RUNNING,
-                    true,
-                    None,
-                )
-                .await?
+                let input = crate::video::video_provider_progress_workflow_run_input(video, job_id)
+                    .map_err(AppError::InvalidArgument)?;
+                self.begin_workflow_run_validated(input).await?
             }
         };
         self.upsert_workflow_checkpoint(a4n_db::workflow::UpsertWorkflowCheckpointInput {

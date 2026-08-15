@@ -207,12 +207,8 @@ impl OrchestratorContext {
         run: &workflow_run::Model,
     ) -> Result<chapter::Model, AppError> {
         let result = self.execute_chapter_content_sync_run(host_port, run).await;
-        self.finalize_workflow_result(
-            run.id,
-            result,
-            Some("章节资料同步已完成，但工作流终态写入失败"),
-        )
-        .await
+        self.finalize_workflow_result(run.id, result, "章节资料同步")
+            .await
     }
 
     pub async fn resume_chapter_content_sync_workflow_run_validated(
@@ -225,14 +221,15 @@ impl OrchestratorContext {
         let _guard = lock.lock_owned().await;
         let run = self.workflow_run_model_by_id(requested_run.id).await?;
         self.require_current_chapter_content_sync_run(&run).await?;
-        if !run.can_resume {
-            return Err(AppError::InvalidState {
-                current: run.status,
-                operation: run
-                    .resume_block_reason
-                    .unwrap_or_else(|| "恢复章节资料同步".to_string()),
-            });
-        }
+        crate::workflow::require_workflow_can_resume(
+            &run.status,
+            run.can_resume,
+            run.resume_block_reason.as_deref(),
+        )
+        .map_err(|operation| AppError::InvalidState {
+            current: run.status.clone(),
+            operation,
+        })?;
         let run = self.mark_workflow_running_validated(run.id).await?;
         self.settle_chapter_content_sync_run(host_port, &run).await
     }

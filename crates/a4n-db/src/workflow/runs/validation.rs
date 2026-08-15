@@ -17,6 +17,51 @@ pub(in crate::workflow) fn validate_workflow_run_input(
     if input.chapter_id.is_some_and(|id| id <= 0) {
         return Err(WorkflowValidationError("chapter_id 必须大于 0".to_string()));
     }
+    validate_workflow_status_fields(
+        &input.status,
+        input.can_resume,
+        input.resume_block_reason.as_deref(),
+        input.error_message.as_deref(),
+    )?;
+    Ok(())
+}
+
+pub(in crate::workflow) fn validate_workflow_status_fields(
+    status: &str,
+    can_resume: bool,
+    resume_block_reason: Option<&str>,
+    error_message: Option<&str>,
+) -> Result<(), WorkflowValidationError> {
+    if can_resume
+        && !matches!(
+            status,
+            WORKFLOW_STATUS_RUNNING
+                | WORKFLOW_STATUS_FAILED
+                | WORKFLOW_STATUS_CANCELLED
+                | WORKFLOW_STATUS_INTERRUPTED
+        )
+    {
+        return Err(WorkflowValidationError(format!(
+            "{status} 工作流不能标记为可恢复"
+        )));
+    }
+    if matches!(
+        status,
+        WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED | WORKFLOW_STATUS_INTERRUPTED
+    ) && error_message.and_then(non_empty_text).is_none()
+    {
+        return Err(WorkflowValidationError(format!(
+            "{status} 工作流必须提供 error_message"
+        )));
+    }
+    if !can_resume
+        && !matches!(status, WORKFLOW_STATUS_RUNNING | WORKFLOW_STATUS_COMPLETED)
+        && resume_block_reason.and_then(non_empty_text).is_none()
+    {
+        return Err(WorkflowValidationError(format!(
+            "不可恢复的 {status} 工作流必须提供 resume_block_reason"
+        )));
+    }
     Ok(())
 }
 

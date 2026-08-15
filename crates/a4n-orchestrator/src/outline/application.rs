@@ -808,7 +808,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         result: Result<T, AppError>,
     ) -> Result<T, AppError> {
-        self.finalize_workflow_outcome_result(workflow_run_id, result, "大纲生成")
+        self.finalize_workflow_result(workflow_run_id, result, "大纲生成")
             .await
     }
 }

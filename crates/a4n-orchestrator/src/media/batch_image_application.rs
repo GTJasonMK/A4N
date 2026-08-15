@@ -89,31 +89,48 @@ impl OrchestratorContext {
             .execute_batch_image_generation(host_port, input, workflow_run_id, progress)
             .await;
         let finalize_result = match &result {
-            Ok(outcome) if outcome.interrupted => self
-                .cancel_workflow_run_status_validated(
-                    workflow_run_id,
-                    outcome.first_error.as_deref(),
-                )
-                .await
-                .map(|_| ()),
-            Ok(outcome) if outcome.succeeded() == 0 => self
-                .fail_workflow_run_validated(workflow_run_id, outcome.first_error.as_deref())
-                .await
-                .map(|_| ()),
+            Ok(outcome) if outcome.interrupted => {
+                let error =
+                    outcome
+                        .first_error
+                        .as_deref()
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "batch_image_interrupted_without_error".to_string(),
+                            operation: "写入批量图片取消终态".to_string(),
+                        })?;
+                self.cancel_workflow_run_status_validated(workflow_run_id, error)
+                    .await
+                    .map(|_| ())
+            }
+            Ok(outcome) if outcome.succeeded() == 0 => {
+                let error =
+                    outcome
+                        .first_error
+                        .as_deref()
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "batch_image_failed_without_error".to_string(),
+                            operation: "写入批量图片失败终态".to_string(),
+                        })?;
+                self.fail_workflow_run_validated(workflow_run_id, error)
+                    .await
+                    .map(|_| ())
+            }
             Ok(_) => self
-                .finalize_workflow_run_validated(workflow_run_id, true, None)
+                .complete_workflow_run_validated(workflow_run_id)
                 .await
                 .map(|_| ()),
             Err(error @ AppError::Cancelled) => {
                 let message = error.to_string();
-                self.cancel_workflow_run_status_validated(workflow_run_id, Some(&message))
+                self.cancel_workflow_run_status_validated(workflow_run_id, &message)
                     .await
                     .map(|_| ())
             }
-            Err(error) => self
-                .finalize_workflow_run_validated(workflow_run_id, false, Some(&error.to_string()))
-                .await
-                .map(|_| ()),
+            Err(error) => {
+                let message = error.to_string();
+                self.fail_workflow_run_validated(workflow_run_id, &message)
+                    .await
+                    .map(|_| ())
+            }
         };
 
         if let Err(finalize_error) = finalize_result {

@@ -16,10 +16,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    workflow::{
-        ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING,
-        WorkflowRunFinalizeOutcome,
-    },
+    workflow::{ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING},
 };
 
 use super::super::super::prompt_json::InsertedSegmentDraft;
@@ -320,30 +317,14 @@ pub(crate) async fn generate_inserted_segment_draft(
         |draft| serde_json::to_value(draft).map_err(AppError::Serialization),
     )
     .await;
-    let result = match rendered {
-        Ok((_trace, _draft)) => {
-            service
-                .complete_workflow_run_validated(workflow_run_id)
-                .await?;
-            Ok(GenerationResultRef {
-                kind: "inserted_segment_draft".to_string(),
-                id: workflow_run_id.to_string(),
-                revision: fingerprint,
-            })
-        }
-        Err(error) => {
-            let outcome = if matches!(error, AppError::Cancelled) {
-                WorkflowRunFinalizeOutcome::Cancelled
-            } else {
-                WorkflowRunFinalizeOutcome::Failed
-            };
-            let message = error.to_string();
-            service
-                .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&message))
-                .await?;
-            Err(error)
-        }
-    }?;
+    let result = rendered.map(|(_trace, _draft)| GenerationResultRef {
+        kind: "inserted_segment_draft".to_string(),
+        id: workflow_run_id.to_string(),
+        revision: fingerprint,
+    });
+    let result = service
+        .finalize_workflow_result(workflow_run_id, result, "插入片段草稿生成")
+        .await?;
     report_video_prompt_progress(
         &mut progress,
         100,

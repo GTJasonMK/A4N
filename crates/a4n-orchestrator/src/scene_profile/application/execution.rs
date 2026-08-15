@@ -10,7 +10,6 @@ use super::{
     SceneProfileSyncHostPort,
     context::select_scene_profile_sync_chapters,
     progress::{SceneProfileSyncProgress, report_scene_profile_sync_progress},
-    workflow::finalize_scene_profile_sync_workflow,
 };
 
 impl OrchestratorContext {
@@ -44,25 +43,10 @@ impl OrchestratorContext {
             chapters,
             progress,
         )
-        .await;
-        let finalized = finalize_scene_profile_sync_workflow(self, workflow_run.id, &result).await;
-        if matches!(&finalized, Err(AppError::Cancelled)) {
-            return Err(AppError::Cancelled);
-        }
-        match (result, finalized) {
-            (Ok(()), Ok(())) => Ok(()),
-            (Err(error), Ok(())) => Err(scene_profile_sync_application_error(error)),
-            (Ok(()), Err(status_error)) => Err(AppError::InvalidState {
-                current: "场景档案同步业务已完成".to_string(),
-                operation: format!("写入 workflow completed 终态失败: {status_error}"),
-            }),
-            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
-                current: error,
-                operation: format!(
-                    "场景档案同步主流程失败，且 workflow failed 终态写入失败: {status_error}"
-                ),
-            }),
-        }
+        .await
+        .map_err(scene_profile_sync_application_error);
+        self.finalize_workflow_result(workflow_run.id, result, "场景档案同步")
+            .await
     }
 }
 

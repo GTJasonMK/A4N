@@ -116,7 +116,7 @@ impl OrchestratorContext {
                 trace_port,
             )
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, Some("角色同步完成"))
+        self.finalize_workflow_result(workflow_run.id, result, "角色同步")
             .await
     }
 

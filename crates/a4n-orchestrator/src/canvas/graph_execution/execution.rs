@@ -36,7 +36,7 @@ impl OrchestratorContext {
                     return Ok(cancelled_canvas_graph_summary(&prepared, reason));
                 }
                 match self
-                    .fail_workflow_run_validated(prepared.workflow_run_id, Some(primary.as_str()))
+                    .fail_workflow_run_validated(prepared.workflow_run_id, primary.as_str())
                     .await
                 {
                     Ok(failed) => Ok(CanvasNodeRunSummary {

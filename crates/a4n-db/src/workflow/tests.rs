@@ -508,6 +508,41 @@ fn validate_workflow_run_input_rejects_invalid_ids() {
     );
 }
 
+#[test]
+fn validate_workflow_run_input_requires_terminal_reasons() {
+    let mut input = workflow_run_input();
+    input.status = WORKFLOW_STATUS_COMPLETED.to_string();
+    input.can_resume = true;
+    assert_eq!(
+        validate_workflow_run_input(&input)
+            .expect_err("completed workflow must not be resumable")
+            .to_string(),
+        "completed 工作流不能标记为可恢复"
+    );
+
+    input.status = WORKFLOW_STATUS_FAILED.to_string();
+    assert_eq!(
+        validate_workflow_run_input(&input)
+            .expect_err("failed workflow without error should fail")
+            .to_string(),
+        "failed 工作流必须提供 error_message"
+    );
+
+    input.error_message = Some("provider failed".to_string());
+    assert!(validate_workflow_run_input(&input).is_ok());
+
+    input.can_resume = false;
+    assert_eq!(
+        validate_workflow_run_input(&input)
+            .expect_err("non-resumable failed workflow without block reason should fail")
+            .to_string(),
+        "不可恢复的 failed 工作流必须提供 resume_block_reason"
+    );
+
+    input.resume_block_reason = Some("输入已失效".to_string());
+    assert!(validate_workflow_run_input(&input).is_ok());
+}
+
 fn task_row(
     id: &str,
     status: &str,

@@ -29,8 +29,8 @@ use super::{
     },
     request::{prepare_named_portrait_request, prepare_profile_portrait_request},
     workflow::{
-        finalize_portrait_application, load_completed_portrait_checkpoint, report_progress,
-        require_not_cancelled, resolve_initial_portrait_prompt, save_completed_portrait_checkpoint,
+        load_completed_portrait_checkpoint, report_progress, require_not_cancelled,
+        resolve_initial_portrait_prompt, save_completed_portrait_checkpoint,
     },
 };
 
@@ -124,9 +124,9 @@ impl OrchestratorContext {
                 workflow_run_id: Some(workflow_run.id),
             })
             .await;
-        finalize_portrait_application(self, workflow_run.id, &result, "人物三视图提示词生成成功")
-            .await?;
-        result.map(|prompt| prompt.trim().to_string())
+        self.finalize_workflow_result(workflow_run.id, result, "人物三视图提示词生成")
+            .await
+            .map(|prompt| prompt.trim().to_string())
     }
 
     pub async fn generate_portrait_validated(
@@ -232,9 +232,8 @@ impl OrchestratorContext {
             portrait_summary(&portrait)
         }
         .await;
-        finalize_portrait_application(self, workflow_run_id, &result, "人物三视图拆解生成完成")
-            .await?;
-        result
+        self.finalize_workflow_result(workflow_run_id, result, "人物三视图拆解生成")
+            .await
     }
 
     pub async fn generate_missing_portraits_validated(
@@ -421,23 +420,36 @@ impl OrchestratorContext {
             Ok(outcome)
         }
         .await;
-        if let Ok(outcome) = &result {
-            if outcome.interrupted {
-                self.cancel_workflow_run_status_validated(
-                    workflow_run_id,
-                    outcome.first_error.as_deref(),
-                )
-                .await?;
-            } else if outcome.succeeded() == 0 {
-                self.fail_workflow_run_validated(workflow_run_id, outcome.first_error.as_deref())
-                    .await?;
-            } else {
-                finalize_portrait_application(self, workflow_run_id, &result, "缺失立绘生成完成")
+        match &result {
+            Ok(outcome) if outcome.interrupted => {
+                let error =
+                    outcome
+                        .first_error
+                        .as_deref()
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "portrait_batch_interrupted_without_error".to_string(),
+                            operation: "写入缺失立绘取消终态".to_string(),
+                        })?;
+                self.cancel_workflow_run_status_validated(workflow_run_id, error)
                     .await?;
             }
-        } else {
-            finalize_portrait_application(self, workflow_run_id, &result, "缺失立绘生成完成")
-                .await?;
+            Ok(outcome) if outcome.succeeded() == 0 => {
+                let error =
+                    outcome
+                        .first_error
+                        .as_deref()
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "portrait_batch_failed_without_error".to_string(),
+                            operation: "写入缺失立绘失败终态".to_string(),
+                        })?;
+                self.fail_workflow_run_validated(workflow_run_id, error)
+                    .await?;
+            }
+            _ => {
+                return self
+                    .finalize_workflow_result(workflow_run_id, result, "缺失立绘生成")
+                    .await;
+            }
         }
         result
     }
@@ -633,7 +645,7 @@ impl OrchestratorContext {
             Ok(summary)
         }
         .await;
-        finalize_portrait_application(self, workflow_run.id, &result, completed_message).await?;
-        result
+        self.finalize_workflow_result(workflow_run.id, result, path_context)
+            .await
     }
 }

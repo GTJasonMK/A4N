@@ -128,7 +128,7 @@ impl OrchestratorContext {
                 },
             )
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, Some("隐性属性复审完成"))
+        self.finalize_workflow_result(workflow_run.id, result, "隐性属性复审")
             .await
     }
 

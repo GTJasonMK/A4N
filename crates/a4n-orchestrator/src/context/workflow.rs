@@ -582,34 +582,11 @@ impl OrchestratorContext {
         self.workflow.resume_or_upsert_workflow_run(input).await
     }
 
-    /// 按成败将 workflow 标为 completed/failed。
-    pub async fn finalize_workflow_run_validated(
-        &self,
-        workflow_run_id: i64,
-        success: bool,
-        error_message: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
-        crate::workflow::require_positive_workflow_run_id(workflow_run_id)
-            .map_err(AppError::InvalidArgument)?;
-        let (status, can_resume) =
-            crate::workflow::workflow_run_finalize_status_from_success(success);
-        let message = if success {
-            None
-        } else {
-            error_message
-                .map(str::trim)
-                .filter(|msg| !msg.is_empty())
-                .or(Some("工作流失败"))
-        };
-        self.mark_workflow_status(workflow_run_id, status, can_resume, message)
-            .await
-    }
-
     pub(crate) async fn finalize_workflow_result<T>(
         &self,
         workflow_run_id: i64,
         result: Result<T, AppError>,
-        completed_context: Option<&str>,
+        context: &str,
     ) -> Result<T, AppError> {
         let outcome = match &result {
             Ok(_) => crate::workflow::WorkflowRunFinalizeOutcome::Completed,
@@ -630,50 +607,12 @@ impl OrchestratorContext {
         match (result, finalized) {
             (Ok(value), Ok(_)) => Ok(value),
             (Err(error), Ok(_)) => Err(error),
-            (Ok(_), Err(status_error)) => match completed_context {
-                Some(context) => Err(AppError::Internal(anyhow::anyhow!(
-                    "{context}，但工作流状态写入失败: {status_error}"
-                ))),
-                None => Err(status_error),
-            },
-            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "{primary}；工作流失败状态写入失败: {status_error}"
+            (Ok(_), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
+                "{context}已完成，但工作流终态写入失败: {status_error}"
             ))),
-        }
-    }
-
-    pub(crate) async fn finalize_workflow_outcome_result<T>(
-        &self,
-        workflow_run_id: i64,
-        result: Result<T, AppError>,
-        failure_context: &str,
-    ) -> Result<T, AppError> {
-        let outcome = match &result {
-            Ok(_) => crate::workflow::WorkflowRunFinalizeOutcome::Completed,
-            Err(AppError::Cancelled) => crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
-            Err(_) => crate::workflow::WorkflowRunFinalizeOutcome::Failed,
-        };
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(
-                workflow_run_id,
-                outcome,
-                error_message.as_deref(),
-            )
-            .await;
-        if matches!(&finalized, Err(AppError::Cancelled)) {
-            return Err(AppError::Cancelled);
-        }
-        match (result, finalized) {
-            (Ok(value), Ok(_)) => Ok(value),
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(error), Ok(_)) => Err(error),
-            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!(
-                    "{failure_context}失败，且 workflow 终态写入失败: {status_error}"
-                ),
-            }),
+            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
+                "{context}失败: {primary}；工作流终态写入失败: {status_error}"
+            ))),
         }
     }
 
@@ -690,10 +629,16 @@ impl OrchestratorContext {
         let message = match outcome {
             crate::workflow::WorkflowRunFinalizeOutcome::Completed => None,
             crate::workflow::WorkflowRunFinalizeOutcome::Failed
-            | crate::workflow::WorkflowRunFinalizeOutcome::Cancelled => error_message
-                .map(str::trim)
-                .filter(|msg| !msg.is_empty())
-                .or(Some("工作流未完成")),
+            | crate::workflow::WorkflowRunFinalizeOutcome::Cancelled => Some(
+                error_message
+                    .map(str::trim)
+                    .filter(|msg| !msg.is_empty())
+                    .ok_or_else(|| {
+                        AppError::InvalidArgument(format!(
+                            "workflow {status} 终态必须提供 error_message"
+                        ))
+                    })?,
+            ),
         };
         self.mark_workflow_status(workflow_run_id, status, can_resume, message)
             .await
@@ -716,12 +661,12 @@ impl OrchestratorContext {
     pub async fn fail_workflow_run_validated(
         &self,
         workflow_run_id: i64,
-        error_message: Option<&str>,
+        error_message: &str,
     ) -> Result<workflow_run::Model, AppError> {
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,
             crate::workflow::WorkflowRunFinalizeOutcome::Failed,
-            error_message,
+            Some(error_message),
         )
         .await
     }
@@ -730,12 +675,12 @@ impl OrchestratorContext {
     pub async fn cancel_workflow_run_status_validated(
         &self,
         workflow_run_id: i64,
-        error_message: Option<&str>,
+        error_message: &str,
     ) -> Result<workflow_run::Model, AppError> {
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,
             crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
-            error_message,
+            Some(error_message),
         )
         .await
     }

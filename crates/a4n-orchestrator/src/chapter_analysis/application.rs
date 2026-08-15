@@ -20,8 +20,7 @@ use crate::{
     project::ChapterDerivedCleanupArtifacts,
     scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress},
     workflow::{
-        CompletedWorkflowCheckpointInput, WorkflowRunFinalizeOutcome, required_checkpoint_field,
-        required_checkpoint_json,
+        CompletedWorkflowCheckpointInput, required_checkpoint_field, required_checkpoint_json,
     },
 };
 
@@ -299,7 +298,7 @@ impl OrchestratorContext {
                 character_trace_port,
             )
             .await;
-        self.finalize_chapter_analysis_application(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, "章节分析")
             .await?;
         self.chapter_by_id_for_analysis(chapter_id).await
     }
@@ -317,15 +316,15 @@ impl OrchestratorContext {
                 run.workflow_kind
             )));
         }
-        if !run.can_resume {
-            return Err(AppError::InvalidState {
-                current: run.status.clone(),
-                operation: run
-                    .resume_block_reason
-                    .clone()
-                    .unwrap_or_else(|| "恢复章节结构化分析".to_string()),
-            });
-        }
+        crate::workflow::require_workflow_can_resume(
+            &run.status,
+            run.can_resume,
+            run.resume_block_reason.as_deref(),
+        )
+        .map_err(|operation| AppError::InvalidState {
+            current: run.status.clone(),
+            operation,
+        })?;
         let chapter_id = run.chapter_id.ok_or_else(|| {
             AppError::InvalidArgument("章节结构化分析工作流缺少 chapter_id".to_string())
         })?;
@@ -365,7 +364,7 @@ impl OrchestratorContext {
                     character_trace_port,
                 )
                 .await;
-            self.finalize_chapter_analysis_application(running.id, result)
+            self.finalize_workflow_result(running.id, result, "章节分析")
                 .await?;
         } else {
             self.run_chapter_analysis_inner(
@@ -451,7 +450,7 @@ impl OrchestratorContext {
             Ok(updated)
         }
         .await;
-        self.finalize_chapter_analysis_application(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, "章节分析")
             .await
     }
 
@@ -1013,15 +1012,15 @@ impl OrchestratorContext {
                 operation: reason.to_string(),
             });
         }
-        if !run.can_resume {
-            return Err(AppError::InvalidState {
-                current: run.status.clone(),
-                operation: run
-                    .resume_block_reason
-                    .clone()
-                    .unwrap_or_else(|| "该章节结构化分析不可恢复".to_string()),
-            });
-        }
+        crate::workflow::require_workflow_can_resume(
+            &run.status,
+            run.can_resume,
+            run.resume_block_reason.as_deref(),
+        )
+        .map_err(|operation| AppError::InvalidState {
+            current: run.status.clone(),
+            operation,
+        })?;
         Ok(run)
     }
 
@@ -1062,41 +1061,6 @@ impl OrchestratorContext {
             });
         }
         Ok(())
-    }
-
-    async fn finalize_chapter_analysis_application<T>(
-        &self,
-        workflow_run_id: i64,
-        result: Result<T, AppError>,
-    ) -> Result<T, AppError> {
-        let outcome = match &result {
-            Ok(_) => WorkflowRunFinalizeOutcome::Completed,
-            Err(AppError::Cancelled) => WorkflowRunFinalizeOutcome::Cancelled,
-            Err(_) => WorkflowRunFinalizeOutcome::Failed,
-        };
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(
-                workflow_run_id,
-                outcome,
-                error_message.as_deref(),
-            )
-            .await;
-        if matches!(&finalized, Err(AppError::Cancelled)) {
-            return Err(AppError::Cancelled);
-        }
-        match (result, finalized) {
-            (Ok(value), Ok(_)) => Ok(value),
-            (Err(error), Ok(_)) => Err(error),
-            (Ok(_), Err(error)) => Err(AppError::InvalidState {
-                current: "chapter_analysis_completed".to_string(),
-                operation: format!("章节分析完成，但工作流终态写入失败: {error}"),
-            }),
-            (Err(error), Err(finalize_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!("章节分析失败，且工作流终态写入失败: {finalize_error}"),
-            }),
-        }
     }
 }
 

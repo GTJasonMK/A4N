@@ -198,7 +198,7 @@ pub use provider_request_rules::{
 pub use provider_workflow_rules::{
     is_video_provider_terminal_or_interrupted_status, prompt_id_from_generated_video,
     video_provider_progress_workflow_run_input, video_provider_workflow_business_key,
-    video_provider_workflow_fingerprint, video_provider_workflow_run_input,
+    video_provider_workflow_fingerprint,
 };
 pub use reference_id_rules::{
     batch_item_reference_image_ids, ensure_reference_image_ids_valid, reference_image_ids,

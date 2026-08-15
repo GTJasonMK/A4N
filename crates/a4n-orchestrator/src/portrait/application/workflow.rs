@@ -42,44 +42,6 @@ pub(super) fn require_not_cancelled(cancel_token: &CancellationToken) -> Result<
     Ok(())
 }
 
-pub(super) async fn finalize_portrait_application<T>(
-    context: &OrchestratorContext,
-    workflow_run_id: i64,
-    result: &Result<T, AppError>,
-    success_message: &str,
-) -> Result<(), AppError> {
-    let (outcome, error_message) = match result {
-        Ok(_) => (crate::workflow::WorkflowRunFinalizeOutcome::Completed, None),
-        Err(AppError::Cancelled) => (
-            crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
-            Some(AppError::Cancelled.to_string()),
-        ),
-        Err(error) => (
-            crate::workflow::WorkflowRunFinalizeOutcome::Failed,
-            Some(error.to_string()),
-        ),
-    };
-    context
-        .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, error_message.as_deref())
-        .await
-        .map_err(|status_error| {
-            if matches!(&status_error, AppError::Cancelled) {
-                return AppError::Cancelled;
-            }
-            match result {
-                Ok(_) => AppError::InvalidState {
-                    current: "portrait_application_completed".to_string(),
-                    operation: format!("{success_message}，但工作流状态写入失败: {status_error}"),
-                },
-                Err(error) => AppError::InvalidState {
-                    current: error.to_string(),
-                    operation: format!("工作流失败状态写入失败: {status_error}"),
-                },
-            }
-        })?;
-    Ok(())
-}
-
 pub(super) async fn resolve_initial_portrait_prompt(
     context: &OrchestratorContext,
     workflow_run_id: i64,

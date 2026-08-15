@@ -25,6 +25,7 @@ pub async fn resume_workflow_run_for_user(
         .map_err(|err| err.to_string())?;
     verify_workflow_run_access(state, user_id, &run).await?;
     let dispatch = plan_unified_resume(
+        &run.status,
         run.can_resume,
         run.resume_block_reason.as_deref(),
         &run.workflow_kind,

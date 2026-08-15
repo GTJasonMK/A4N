@@ -229,7 +229,7 @@ async fn canvas_graph_resume_skips_completed_checkpoints_and_finishes_pending_no
         .await
         .expect("completed checkpoint 应写入成功");
     context
-        .fail_workflow_run_validated(prepared.workflow_run_id, Some("模拟中断"))
+        .fail_workflow_run_validated(prepared.workflow_run_id, "模拟中断")
         .await
         .expect("workflow 应可进入可恢复失败态");
 

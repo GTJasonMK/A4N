@@ -312,11 +312,6 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
-        if workflow_run_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "workflow_run_id 必须大于 0".to_string(),
-            ));
-        }
         self.complete_workflow_run_validated(workflow_run_id).await
     }
 

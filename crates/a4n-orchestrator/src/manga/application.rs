@@ -86,7 +86,7 @@ impl OrchestratorContext {
                 resume_from_checkpoint: input.resume_from_checkpoint,
             })
             .await;
-        self.finalize_workflow_outcome_result(workflow.id, result, "漫画流水线")
+        self.finalize_workflow_result(workflow.id, result, "漫画流水线")
             .await
     }
 
@@ -378,7 +378,7 @@ impl OrchestratorContext {
                 current: "no_running_manga_pipeline".to_string(),
                 operation: "取消漫画流水线".to_string(),
             })?;
-        self.cancel_workflow_run_status_validated(run.id, Some("用户请求取消漫画流水线"))
+        self.cancel_workflow_run_status_validated(run.id, "用户请求取消漫画流水线")
             .await?;
         a4n_db::manga::cancel_manga_page_prompts(self.database.connection(), project_id, chapter_id)
             .await

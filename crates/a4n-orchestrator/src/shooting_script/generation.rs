@@ -211,19 +211,19 @@ impl OrchestratorContext {
                 })
             }
             Ok(ShootingScriptGenerationOutcome::Complete(resolved)) => {
-                self.complete_workflow_run_validated(workflow_run_id)
-                    .await?;
                 let total_unit_count = resolved.shooting_script.script.scenes.len();
-                Ok(ChapterShootingScriptUnitProgress {
+                let progress = ChapterShootingScriptUnitProgress {
                     workflow_run_id,
                     script: resolved.shooting_script.script.clone(),
                     completed_unit_count: total_unit_count,
                     total_unit_count,
                     resolved: Some(*resolved),
-                })
+                };
+                self.finalize_workflow_result(workflow_run_id, Ok(progress), "章节拍摄剧本单元生成")
+                    .await
             }
             Err(error) => {
-                self.finalize_workflow_outcome_result::<ChapterShootingScriptUnitProgress>(
+                self.finalize_workflow_result::<ChapterShootingScriptUnitProgress>(
                     workflow_run_id,
                     Err(error),
                     "章节拍摄剧本单元生成",
@@ -261,7 +261,7 @@ impl OrchestratorContext {
                     operation: "发布完整章节拍摄剧本".to_string(),
                 }),
             });
-        self.finalize_workflow_outcome_result(workflow_run_id, result, "章节拍摄剧本生成")
+        self.finalize_workflow_result(workflow_run_id, result, "章节拍摄剧本生成")
             .await
     }
 

@@ -743,7 +743,7 @@ impl OrchestratorContext {
                 )
                 .await?;
                 let failed = self
-                    .fail_workflow_run_validated(lifecycle.run.workflow_run_id, Some(&error))
+                    .fail_workflow_run_validated(lifecycle.run.workflow_run_id, &error)
                     .await?;
                 Ok(CanvasNodeRunSummary {
                     workflow_run_id: failed.id,

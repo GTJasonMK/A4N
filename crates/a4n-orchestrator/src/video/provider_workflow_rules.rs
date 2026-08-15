@@ -49,23 +49,16 @@ pub fn video_provider_workflow_fingerprint(video: &generated_video::Model, job_i
     })
 }
 
-/// 构造视频 provider 工作流 upsert 输入（状态由调用方指定）。
-pub fn video_provider_workflow_run_input(
+/// 构造 RUNNING 态 provider 进度 begin 输入。
+pub fn video_provider_progress_workflow_run_input(
     video: &generated_video::Model,
     job_id: &str,
-    status: &str,
-    can_resume: bool,
-    error_message: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
     if video.project_id <= 0 {
         return Err("项目 ID 必须大于 0".to_string());
     }
     if job_id.trim().is_empty() {
         return Err("provider_job_id 不能为空".to_string());
-    }
-    let status = status.trim();
-    if status.is_empty() {
-        return Err("provider workflow status 不能为空".to_string());
     }
     let fingerprint = video_provider_workflow_fingerprint(video, job_id);
     Ok(UpsertWorkflowRunInput {
@@ -79,25 +72,13 @@ pub fn video_provider_workflow_run_input(
         chapter_id: video.chapter_id,
         mode: video.workflow_mode.clone(),
         input_fingerprint_json: Some(fingerprint),
-        status: status.to_string(),
+        status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some("provider_poll".to_string()),
         active_task_id: None,
-        can_resume,
-        resume_block_reason: (!can_resume && status != WORKFLOW_STATUS_COMPLETED).then(|| {
-            error_message
-                .unwrap_or("该 provider 任务已进入终态，不能继续轮询")
-                .to_string()
-        }),
-        error_message: error_message.map(str::to_string),
+        can_resume: true,
+        resume_block_reason: None,
+        error_message: None,
     })
-}
-
-/// 构造 RUNNING 态 provider 进度 begin 输入。
-pub fn video_provider_progress_workflow_run_input(
-    video: &generated_video::Model,
-    job_id: &str,
-) -> Result<UpsertWorkflowRunInput, String> {
-    video_provider_workflow_run_input(video, job_id, WORKFLOW_STATUS_RUNNING, true, None)
 }
 
 /// 允许的终态/中断状态（用于调用方校验）。

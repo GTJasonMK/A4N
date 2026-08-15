@@ -2,7 +2,7 @@
 
 use super::{
     UpsertWorkflowRunInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING,
+    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
 };
 
 /// 统一恢复入口可分发的目标（不含 Host 访问与领域执行）。
@@ -27,15 +27,6 @@ pub enum WorkflowRunFinalizeOutcome {
     Failed,
     /// 取消，可 resume。
     Cancelled,
-}
-
-/// 按成败解析 completed/failed 与 can_resume。
-pub fn workflow_run_finalize_status_from_success(success: bool) -> (&'static str, bool) {
-    if success {
-        (WORKFLOW_STATUS_COMPLETED, false)
-    } else {
-        (WORKFLOW_STATUS_FAILED, true)
-    }
 }
 
 /// 按终态枚举解析 status 与 can_resume。
@@ -125,19 +116,31 @@ pub fn is_video_status_final_for_cancel_interrupt(status: &str) -> bool {
     matches!(status, "completed" | "failed" | "cancelled" | "interrupted")
 }
 
-/// 工作流是否允许恢复；不允许时返回已存原因或默认文案。
-pub fn require_workflow_can_resume(
+/// 工作流是否允许恢复；状态本身可判定时直接拒绝，其余不可恢复状态必须有持久化原因。
+pub(crate) fn require_workflow_can_resume(
+    status: &str,
     can_resume: bool,
     resume_block_reason: Option<&str>,
 ) -> Result<(), String> {
-    if can_resume {
-        Ok(())
-    } else {
-        Err(resume_block_reason
-            .filter(|reason| !reason.trim().is_empty())
-            .unwrap_or("该工作流当前不可恢复")
-            .to_string())
+    match status {
+        WORKFLOW_STATUS_RUNNING => return Err("工作流正在运行，不能重复恢复".to_string()),
+        WORKFLOW_STATUS_COMPLETED => return Err("工作流已完成，不能恢复".to_string()),
+        _ => {}
     }
+    if can_resume {
+        return if matches!(
+            status,
+            WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED | WORKFLOW_STATUS_INTERRUPTED
+        ) {
+            Ok(())
+        } else {
+            Err(format!("工作流状态 {status} 不支持恢复"))
+        };
+    }
+    let reason = resume_block_reason
+        .filter(|reason| !reason.trim().is_empty())
+        .ok_or_else(|| format!("工作流状态 {status} 缺少不可恢复原因"))?;
+    Err(reason.to_string())
 }
 
 /// 解析统一恢复入口的分发目标（权限校验与领域执行由调用方完成）。
@@ -162,13 +165,14 @@ pub fn resolve_unified_resume_dispatch(
 
 /// 可恢复校验 + kind 分发的单一规划入口（Host 访问校验仍在调用方）。
 pub fn plan_unified_resume(
+    status: &str,
     can_resume: bool,
     resume_block_reason: Option<&str>,
     workflow_kind: &str,
     scope_table: Option<&str>,
     scope_id: Option<i64>,
 ) -> Result<UnifiedResumeDispatch, String> {
-    require_workflow_can_resume(can_resume, resume_block_reason)?;
+    require_workflow_can_resume(status, can_resume, resume_block_reason)?;
     resolve_unified_resume_dispatch(workflow_kind, scope_table, scope_id)
 }
 
@@ -240,19 +244,24 @@ mod tests {
     }
 
     #[test]
-    fn require_workflow_can_resume_uses_block_reason() {
-        assert!(require_workflow_can_resume(true, None).is_ok());
+    fn require_workflow_can_resume_is_status_aware() {
+        assert!(require_workflow_can_resume(WORKFLOW_STATUS_FAILED, true, None).is_ok());
         assert_eq!(
-            require_workflow_can_resume(false, Some("已完成")).unwrap_err(),
-            "已完成"
+            require_workflow_can_resume(WORKFLOW_STATUS_COMPLETED, false, None).unwrap_err(),
+            "工作流已完成，不能恢复"
         );
         assert_eq!(
-            require_workflow_can_resume(false, None).unwrap_err(),
-            "该工作流当前不可恢复"
+            require_workflow_can_resume(WORKFLOW_STATUS_RUNNING, true, None).unwrap_err(),
+            "工作流正在运行，不能重复恢复"
         );
         assert_eq!(
-            require_workflow_can_resume(false, Some("  ")).unwrap_err(),
-            "该工作流当前不可恢复"
+            require_workflow_can_resume(WORKFLOW_STATUS_FAILED, false, Some("断点已失效"))
+                .unwrap_err(),
+            "断点已失效"
+        );
+        assert_eq!(
+            require_workflow_can_resume(WORKFLOW_STATUS_FAILED, false, None).unwrap_err(),
+            "工作流状态 failed 缺少不可恢复原因"
         );
     }
 
@@ -260,6 +269,7 @@ mod tests {
     fn plan_unified_resume_combines_gate_and_dispatch() {
         assert_eq!(
             plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
                 true,
                 None,
                 "video_provider_job",
@@ -270,52 +280,111 @@ mod tests {
             UnifiedResumeDispatch::VideoProviderJob { video_id: 42 }
         );
         assert_eq!(
-            plan_unified_resume(false, Some("已完成"), "chapter_analysis", None, None).unwrap_err(),
-            "已完成"
+            plan_unified_resume(
+                WORKFLOW_STATUS_COMPLETED,
+                false,
+                None,
+                "chapter_analysis",
+                None,
+                None,
+            )
+            .unwrap_err(),
+            "工作流已完成，不能恢复"
         );
         assert_eq!(
-            plan_unified_resume(true, None, "video_canvas_graph", None, None).unwrap(),
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "video_canvas_graph",
+                None,
+                None,
+            )
+            .unwrap(),
             UnifiedResumeDispatch::VideoCanvasGraph
         );
         assert_eq!(
-            plan_unified_resume(true, None, "chapter_analysis", None, None).unwrap(),
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "chapter_analysis",
+                None,
+                None,
+            )
+            .unwrap(),
             UnifiedResumeDispatch::ChapterAnalysis
         );
         assert_eq!(
-            plan_unified_resume(true, None, "chapter_content_sync", Some("chapter"), Some(7))
-                .unwrap(),
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "chapter_content_sync",
+                Some("chapter"),
+                Some(7),
+            )
+            .unwrap(),
             UnifiedResumeDispatch::ChapterContentSync { chapter_id: 7 }
         );
         assert!(
-            plan_unified_resume(true, None, "manga_pipeline", None, None)
-                .unwrap_err()
-                .contains("漫画流水线")
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "manga_pipeline",
+                None,
+                None,
+            )
+            .unwrap_err()
+            .contains("漫画流水线")
         );
         assert!(
-            plan_unified_resume(true, None, "unknown_kind", None, None)
-                .unwrap_err()
-                .contains("暂未接入")
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "unknown_kind",
+                None,
+                None,
+            )
+            .unwrap_err()
+            .contains("暂未接入")
         );
         assert_eq!(
-            plan_unified_resume(true, None, "video_provider_job", Some("other"), Some(1))
-                .unwrap_err(),
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "video_provider_job",
+                Some("other"),
+                Some(1),
+            )
+            .unwrap_err(),
             "视频 provider 工作流缺少 generated_video 目标"
         );
         assert_eq!(
-            plan_unified_resume(true, None, "chapter_content_sync", Some("other"), Some(7))
-                .unwrap_err(),
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "chapter_content_sync",
+                Some("other"),
+                Some(7),
+            )
+            .unwrap_err(),
             "章节资料同步工作流缺少 chapter 目标"
         );
     }
 
     #[test]
-    fn finalize_status_from_success_and_outcome() {
+    fn finalize_status_comes_from_outcome() {
         assert_eq!(
-            workflow_run_finalize_status_from_success(true),
+            workflow_run_finalize_status(WorkflowRunFinalizeOutcome::Completed),
             (WORKFLOW_STATUS_COMPLETED, false)
         );
         assert_eq!(
-            workflow_run_finalize_status_from_success(false),
+            workflow_run_finalize_status(WorkflowRunFinalizeOutcome::Failed),
             (WORKFLOW_STATUS_FAILED, true)
         );
         assert_eq!(

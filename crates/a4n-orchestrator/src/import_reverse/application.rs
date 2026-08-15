@@ -125,7 +125,7 @@ impl OrchestratorContext {
         let result = self
             .run_reverse_engineering_workflow(input, total, workflow.id, &content_sample)
             .await;
-        self.finalize_workflow_outcome_result(workflow.id, result, "导入反推")
+        self.finalize_workflow_result(workflow.id, result, "导入反推")
             .await
     }
 

@@ -4,7 +4,7 @@ use a4n_prompt::rendering::PromptRenderer;
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    workflow::{ListWorkflowRunsInput, WORKFLOW_STATUS_RUNNING, WorkflowRunFinalizeOutcome},
+    workflow::{ListWorkflowRunsInput, WORKFLOW_STATUS_RUNNING},
 };
 
 use super::{
@@ -321,7 +321,7 @@ impl OrchestratorContext {
                 },
             )
             .await;
-        self.finalize_galgame_pipeline_application(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, "Galgame 管线")
             .await
     }
 
@@ -355,46 +355,7 @@ impl OrchestratorContext {
                 current: "no_running_galgame_pipeline".to_string(),
                 operation: "取消 Galgame 管线".to_string(),
             })?;
-        self.cancel_workflow_run_status_validated(run.id, Some("用户请求取消 Galgame 管线"))
+        self.cancel_workflow_run_status_validated(run.id, "用户请求取消 Galgame 管线")
             .await
-    }
-
-    async fn finalize_galgame_pipeline_application(
-        &self,
-        workflow_run_id: i64,
-        result: Result<GalgameScriptDetail, AppError>,
-    ) -> Result<GalgameScriptDetail, AppError> {
-        let outcome = match &result {
-            Ok(_) => WorkflowRunFinalizeOutcome::Completed,
-            Err(AppError::Cancelled) => WorkflowRunFinalizeOutcome::Cancelled,
-            Err(_) => WorkflowRunFinalizeOutcome::Failed,
-        };
-        let error_message = match &result {
-            Err(AppError::Cancelled) => Some("Galgame 管线已取消".to_string()),
-            Err(error) => Some(error.to_string()),
-            Ok(_) => None,
-        };
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(
-                workflow_run_id,
-                outcome,
-                error_message.as_deref(),
-            )
-            .await;
-        if matches!(&finalized, Err(AppError::Cancelled)) {
-            return Err(AppError::Cancelled);
-        }
-        match (result, finalized) {
-            (Ok(detail), Ok(_)) => Ok(detail),
-            (Err(error), Ok(_)) => Err(error),
-            (Ok(_), Err(error)) => Err(AppError::InvalidState {
-                current: "galgame_pipeline_completed".to_string(),
-                operation: format!("Galgame 管线完成，但工作流终态写入失败: {error}"),
-            }),
-            (Err(error), Err(finalize_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!("Galgame 管线失败，且工作流终态写入失败: {finalize_error}"),
-            }),
-        }
     }
 }

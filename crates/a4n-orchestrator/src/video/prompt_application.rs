@@ -27,9 +27,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    workflow::{
-        WorkflowRunFinalizeOutcome, WorkflowRunSummary, workflow_run_is_running_or_resumable,
-    },
+    workflow::{WorkflowRunSummary, workflow_run_is_running_or_resumable},
 };
 
 use super::{
@@ -233,7 +231,7 @@ impl OrchestratorContext {
             )
             .await;
         let rows = self
-            .finalize_video_prompt_generation(prepared.workflow_run_id, result)
+            .finalize_workflow_result(prepared.workflow_run_id, result, "视频提示词生成")
             .await?;
         Ok(rows.iter().map(prompt_to_summary).collect())
     }
@@ -456,44 +454,6 @@ impl OrchestratorContext {
             PromptGenerationStage::Video => {
                 self.generate_chapter_video_prompts_for_mode(input, chunks, progress.take())
                     .await
-            }
-        }
-    }
-
-    async fn finalize_video_prompt_generation(
-        &self,
-        workflow_run_id: i64,
-        result: Result<Vec<chapter_video_prompt::Model>, AppError>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        match result {
-            Ok(rows) => {
-                self.complete_workflow_run_validated(workflow_run_id)
-                    .await?;
-                Ok(rows)
-            }
-            Err(error) => {
-                let outcome = if matches!(error, AppError::Cancelled) {
-                    WorkflowRunFinalizeOutcome::Cancelled
-                } else {
-                    WorkflowRunFinalizeOutcome::Failed
-                };
-                let message = error.to_string();
-                self.finalize_workflow_run_outcome_validated(
-                    workflow_run_id,
-                    outcome,
-                    Some(&message),
-                )
-                .await
-                .map_err(|finalize_error| {
-                    if matches!(&finalize_error, AppError::Cancelled) {
-                        return AppError::Cancelled;
-                    }
-                    AppError::InvalidState {
-                        current: message,
-                        operation: format!("同步视频工作流状态失败: {finalize_error}"),
-                    }
-                })?;
-                Err(error)
             }
         }
     }

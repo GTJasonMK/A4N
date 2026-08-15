@@ -113,7 +113,7 @@ impl OrchestratorContext {
                 progress,
             )
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, None)
+        self.finalize_workflow_result(workflow_run.id, result, "角色冲突检查")
             .await
     }
 

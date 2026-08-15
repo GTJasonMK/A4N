@@ -202,7 +202,7 @@ impl OrchestratorContext {
             state_errors.push(format!("节点失败 checkpoint 写入失败: {error}"));
         }
         let failed = match self
-            .fail_workflow_run_validated(lifecycle.run.workflow_run_id, Some(message.as_str()))
+            .fail_workflow_run_validated(lifecycle.run.workflow_run_id, message.as_str())
             .await
         {
             Ok(run) => Some(run),

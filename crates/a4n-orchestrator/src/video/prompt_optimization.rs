@@ -104,7 +104,7 @@ impl OrchestratorContext {
         let result = self
             .execute_video_prompt_optimization(workflow_run.id, prepared, cleanup_port)
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, Some("视频提示词优化完成"))
+        self.finalize_workflow_result(workflow_run.id, result, "视频提示词优化")
             .await
     }
 

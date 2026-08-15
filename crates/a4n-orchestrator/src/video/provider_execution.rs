@@ -915,14 +915,22 @@ impl crate::OrchestratorContext {
             self.complete_workflow_run_validated(canvas.workflow_run_id)
                 .await?;
         } else if video.status == crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED {
+            let error_message = error_message.ok_or_else(|| AppError::InvalidState {
+                current: "failed_video_without_error".to_string(),
+                operation: "同步画布视频失败终态".to_string(),
+            })?;
             self.fail_workflow_run_validated(canvas.workflow_run_id, error_message)
                 .await?;
         } else {
+            let error_message = error_message.ok_or_else(|| AppError::InvalidState {
+                current: "interrupted_video_without_error".to_string(),
+                operation: "同步画布视频中断终态".to_string(),
+            })?;
             self.mark_workflow_status(
                 canvas.workflow_run_id,
                 crate::workflow::WORKFLOW_STATUS_INTERRUPTED,
                 true,
-                error_message,
+                Some(error_message),
             )
             .await?;
         }

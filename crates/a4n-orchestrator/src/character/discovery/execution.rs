@@ -119,7 +119,7 @@ impl OrchestratorContext {
             Ok(result)
         }
         .await;
-        self.finalize_workflow_result(workflow_run.id, result, Some("角色发现完成"))
+        self.finalize_workflow_result(workflow_run.id, result, "角色发现")
             .await
     }
 

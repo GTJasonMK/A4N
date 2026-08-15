@@ -4,7 +4,7 @@ use super::queries::{locked_latest_workflow_run_by_business_key_model, locked_wo
 use super::validation::{
     completed_at_for_status_value, ensure_workflow_status_transition, ensure_workflow_write_open,
     requires_explicit_interrupted_resume, should_resume_existing_run, should_update_existing_run,
-    validate_workflow_run_input, workflow_fingerprint_matches,
+    validate_workflow_run_input, validate_workflow_status_fields, workflow_fingerprint_matches,
 };
 
 pub async fn upsert_workflow_run(
@@ -190,6 +190,8 @@ pub async fn mark_workflow_status(
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     validate_workflow_status(status)?;
+    validate_workflow_status_fields(status, can_resume, error_message, error_message)?;
+    let error_message = error_message.and_then(non_empty_text);
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
     ensure_workflow_status_transition(&run.status, status, false)?;
@@ -201,10 +203,8 @@ pub async fn mark_workflow_status(
     let mut active: workflow_run::ActiveModel = run.into();
     active.status = Set(status.to_string());
     active.can_resume = Set(can_resume);
-    active.resume_block_reason = Set((!can_resume)
-        .then(|| error_message.and_then(non_empty_text))
-        .flatten());
-    active.error_message = Set(error_message.and_then(non_empty_text));
+    active.resume_block_reason = Set((!can_resume).then(|| error_message.clone()).flatten());
+    active.error_message = Set(error_message);
     active.active_task_id = Set(None);
     active.updated_at = Set(now);
     active.completed_at = Set(completed_at_for_status_value(status, now));
@@ -223,11 +223,13 @@ pub async fn resume_workflow_run(
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
-    ensure_workflow_status_transition(&run.status, WORKFLOW_STATUS_RUNNING, true)?;
     if run.status == WORKFLOW_STATUS_RUNNING {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(run);
+        return Err(WorkflowWriteError::StatusConflict {
+            current: run.status,
+            operation: "重复恢复工作流".to_string(),
+        });
     }
+    ensure_workflow_status_transition(&run.status, WORKFLOW_STATUS_RUNNING, true)?;
     let mut active: workflow_run::ActiveModel = run.into();
     active.status = Set(WORKFLOW_STATUS_RUNNING.to_string());
     active.can_resume = Set(true);

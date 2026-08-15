@@ -708,7 +708,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
         run.id,
         crate::workflow::WORKFLOW_STATUS_CANCELLED,
         true,
-        None,
+        Some("测试取消后恢复"),
     )
     .await
     .unwrap();
@@ -742,6 +742,15 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     crate::workflow::resume_workflow_run(&db, run.id)
         .await
         .unwrap();
+    let duplicate_resume = crate::workflow::resume_workflow_run(&db, run.id)
+        .await
+        .expect_err("running workflow must reject duplicate resume");
+    assert!(matches!(
+        duplicate_resume,
+        crate::workflow::WorkflowWriteError::StatusConflict { current, operation }
+            if current == crate::workflow::WORKFLOW_STATUS_RUNNING
+                && operation == "重复恢复工作流"
+    ));
 
     crate::workflow::upsert_workflow_checkpoint(
         &db,

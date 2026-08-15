@@ -22,10 +22,10 @@ pub use a4n_db::workflow::{
 pub(crate) use errors::{
     workflow_checkpoint_contract_app_error, workflow_read_app_error, workflow_write_app_error,
 };
+pub(crate) use rules::require_workflow_can_resume;
 pub use rules::{
     UnifiedResumeDispatch, WorkflowRunFinalizeOutcome, cancel_workflow_requires_target,
     is_video_status_final_for_cancel_interrupt, plan_unified_resume,
     require_positive_workflow_run_id, validate_begin_workflow_run_input,
     validate_optional_project_id, validate_task_history_limit, workflow_run_finalize_status,
-    workflow_run_finalize_status_from_success,
 };

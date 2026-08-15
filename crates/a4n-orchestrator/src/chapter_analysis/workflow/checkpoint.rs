@@ -82,12 +82,12 @@ pub fn chapter_analysis_resume_block_reason(
     if run.status == WORKFLOW_STATUS_RUNNING {
         return Some(ChapterAnalysisResumeBlockReason::Running);
     }
-    if !run.can_resume {
-        return Some(ChapterAnalysisResumeBlockReason::NotResumable(
-            run.resume_block_reason
-                .clone()
-                .unwrap_or_else(|| "该章节结构化分析工作流当前不可继续同步".to_string()),
-        ));
+    if let Err(reason) = crate::workflow::require_workflow_can_resume(
+        &run.status,
+        run.can_resume,
+        run.resume_block_reason.as_deref(),
+    ) {
+        return Some(ChapterAnalysisResumeBlockReason::NotResumable(reason));
     }
     None
 }
