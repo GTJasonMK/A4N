@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use a4n_core::error::AppError;
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 
 use super::spans::galgame_regeneration_source_spans;
 use crate::OrchestratorContext;
@@ -100,7 +101,9 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
                 "galgame_directing_scene_not_found_for_source_sync_scene_{}",
                 source.scene.id
             ),
-            operation: "regenerate_scene".to_string(),
+            operation: SourceSyncResolutionStrategy::RegenerateScene
+                .as_str()
+                .to_string(),
         })?;
     let plan = service
         .build_source_sync_scene_regeneration(

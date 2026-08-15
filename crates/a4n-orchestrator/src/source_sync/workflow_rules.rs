@@ -1,5 +1,6 @@
 //! 源文本同步 apply 工作流指纹与 business key 纯规则（无 DB）。
 
+use a4n_domain::source_sync::SourceSyncRunMode;
 use serde_json::{Value, json};
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
@@ -57,7 +58,7 @@ pub fn source_sync_apply_workflow_run_input(
         scope_table: Some("source_sync_run".to_string()),
         scope_id: Some(sync_run_id),
         chapter_id: None,
-        mode: Some("apply".to_string()),
+        mode: Some(SourceSyncRunMode::Apply.as_str().to_string()),
         input_fingerprint_json: Some(source_sync_apply_workflow_fingerprint(
             sync_run_id,
             derived_project_id,

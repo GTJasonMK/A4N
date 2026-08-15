@@ -64,7 +64,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import type { SourceSnapshotChapter } from "../../api/project";
+import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
@@ -73,7 +73,7 @@ import { downloadBase64ExportFile } from "../../utils/downloadFile";
 interface GalgameTabProps {
   projectId: number;
   canEditGalgame: boolean;
-  snapshotChapters: SourceSnapshotChapter[];
+  snapshotChapters: SourceSnapshotChapterSummary[];
 }
 
 const LINE_TYPES: Array<{ value: GalgameLineType; label: string }> = [
@@ -261,7 +261,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   );
 
   const chapterBySnapshotId = useMemo(() => {
-    const map = new Map<number, SourceSnapshotChapter>();
+    const map = new Map<number, SourceSnapshotChapterSummary>();
     for (const chapter of snapshotChapters) map.set(chapter.id, chapter);
     return map;
   }, [snapshotChapters]);
@@ -1148,7 +1148,7 @@ interface LineEditorProps {
   line: GalgameLine;
   speakerProfiles: GalgameSpeakerProfile[];
   sourceAnchor: GalgameTextAnchorSummary | null;
-  sourceChapter: SourceSnapshotChapter | null;
+  sourceChapter: SourceSnapshotChapterSummary | null;
   mediaBindings: GalgameMediaBindingSummary[];
   choices: GalgameChoice[];
   scenes: GalgameSceneDetail[];

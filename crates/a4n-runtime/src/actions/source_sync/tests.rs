@@ -1,5 +1,6 @@
 use super::projections::source_sync_run_summary;
 use a4n_core::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::{SourceSyncRunMode, SourceSyncRunStatus};
 use chrono::NaiveDate;
 use serde_json::json;
 
@@ -27,16 +28,16 @@ fn source_sync_run_summary_preserves_public_contract_fields() {
         updated_at,
     };
 
-    let summary = source_sync_run_summary(&run);
+    let summary = source_sync_run_summary(run).expect("valid source sync run should serialize");
 
     assert_eq!(summary.id, 1);
     assert_eq!(summary.derived_project_id, 2);
     assert_eq!(summary.root_project_id, 3);
     assert_eq!(summary.from_snapshot_id, 4);
     assert_eq!(summary.to_snapshot_id, 5);
-    assert_eq!(summary.mode, "dry_run");
-    assert_eq!(summary.status, "planned");
-    assert_eq!(summary.summary_json, json!({"conflicts": 6}));
+    assert_eq!(summary.mode, SourceSyncRunMode::DryRun);
+    assert_eq!(summary.status, SourceSyncRunStatus::Planned);
+    assert_eq!(summary.summary_json.get("conflicts"), Some(&json!(6)));
     assert_eq!(summary.error_message.as_deref(), Some("err"));
     assert_eq!(summary.created_at, "2026-06-01 02:03:04");
     assert_eq!(summary.updated_at, "2026-06-02 03:04:05");

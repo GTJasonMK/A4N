@@ -4,7 +4,7 @@ use super::{
 use a4n_core::models::source_sync::source_sync_run;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CreateSourceSyncDryRunRecordInput {
@@ -98,34 +98,31 @@ fn dry_run_summary_json(
     from_snapshot_id: i64,
     to_snapshot_id: i64,
 ) -> Value {
-    let mut summary = json!({
-        "chapter_changes": chapter_change_count,
-        "profile_changes": profile_change_count,
-        "from_snapshot_id": from_snapshot_id,
-        "to_snapshot_id": to_snapshot_id,
-    });
-    let Some(summary_object) = summary.as_object_mut() else {
-        return summary;
-    };
+    let mut summary = Map::from_iter([
+        ("chapter_changes".to_string(), json!(chapter_change_count)),
+        ("profile_changes".to_string(), json!(profile_change_count)),
+        ("from_snapshot_id".to_string(), json!(from_snapshot_id)),
+        ("to_snapshot_id".to_string(), json!(to_snapshot_id)),
+    ]);
     if let Some(anchor_conflict_count) = anchor_conflict_count {
-        summary_object.insert("anchor_conflicts".to_string(), json!(anchor_conflict_count));
+        summary.insert("anchor_conflicts".to_string(), json!(anchor_conflict_count));
     }
     if let Some(galgame_scene_conflict_count) = galgame_scene_conflict_count {
-        summary_object.insert(
+        summary.insert(
             "galgame_scene_conflicts".to_string(),
             json!(galgame_scene_conflict_count),
         );
     }
     if let Some(galgame_anchor_conflict_count) = galgame_anchor_conflict_count {
-        summary_object.insert(
+        summary.insert(
             "galgame_anchor_conflicts".to_string(),
             json!(galgame_anchor_conflict_count),
         );
     }
     if let Some(conflict_count) = conflict_count {
-        summary_object.insert("conflicts".to_string(), json!(conflict_count));
+        summary.insert("conflicts".to_string(), json!(conflict_count));
     }
-    summary
+    Value::Object(summary)
 }
 
 #[cfg(test)]

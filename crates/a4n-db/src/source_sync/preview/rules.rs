@@ -1,6 +1,9 @@
 use super::types::AnchorChange;
 use crate::source_sync::{SourceSyncDbError, local_state_for_generation_spec};
 use a4n_core::models::{generation::generation_spec, project::text_anchor};
+use a4n_domain::source_sync::{
+    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
+};
 use sea_orm::ConnectionTrait;
 
 pub(super) fn classify_anchor_change(
@@ -27,38 +30,54 @@ pub(super) fn classify_anchor_change(
 
 pub(super) fn anchor_change_conflict(
     change: &AnchorChange,
-    local_state: &str,
-) -> Option<(&'static str, Option<i64>, &'static str)> {
+    local_state: SourceSyncLocalStateKind,
+) -> Option<(
+    SourceSyncChangeKind,
+    Option<i64>,
+    SourceSyncConflictSeverity,
+)> {
     match change {
         AnchorChange::Unchanged => None,
         AnchorChange::Moved(new_anchor_id) => Some((
-            "moved",
+            SourceSyncChangeKind::Moved,
             Some(*new_anchor_id),
-            severity_for_impacted_local_state(local_state, "moved"),
+            severity_for_impacted_local_state(local_state, SourceSyncChangeKind::Moved),
         )),
-        AnchorChange::Missing => Some(("deleted", None, "blocking")),
-        AnchorChange::Ambiguous => Some(("split", None, "blocking")),
+        AnchorChange::Missing => Some((
+            SourceSyncChangeKind::Deleted,
+            None,
+            SourceSyncConflictSeverity::Blocking,
+        )),
+        AnchorChange::Ambiguous => Some((
+            SourceSyncChangeKind::Split,
+            None,
+            SourceSyncConflictSeverity::Blocking,
+        )),
     }
 }
 
 pub(super) fn severity_for_impacted_local_state(
-    local_state: &str,
-    source_change_kind: &str,
-) -> &'static str {
-    if source_change_kind == "deleted" {
-        return "blocking";
+    local_state: SourceSyncLocalStateKind,
+    source_change_kind: SourceSyncChangeKind,
+) -> SourceSyncConflictSeverity {
+    if source_change_kind == SourceSyncChangeKind::Deleted {
+        return SourceSyncConflictSeverity::Blocking;
     }
     match local_state {
-        "user_edited" | "generated" | "imported" | "assembled" | "exported" => "blocking",
-        "clean" | "draft" => "warning",
-        _ => "info",
+        SourceSyncLocalStateKind::UserEdited
+        | SourceSyncLocalStateKind::Generated
+        | SourceSyncLocalStateKind::Imported
+        | SourceSyncLocalStateKind::Assembled => SourceSyncConflictSeverity::Blocking,
+        SourceSyncLocalStateKind::Clean | SourceSyncLocalStateKind::Draft => {
+            SourceSyncConflictSeverity::Warning
+        }
     }
 }
 
 pub(super) async fn local_state_for_spec<C>(
     db: &C,
     spec: &generation_spec::Model,
-) -> Result<String, SourceSyncDbError>
+) -> Result<SourceSyncLocalStateKind, SourceSyncDbError>
 where
     C: ConnectionTrait,
 {

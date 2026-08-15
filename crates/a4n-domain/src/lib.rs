@@ -18,6 +18,7 @@ pub mod profile_material;
 pub mod progress;
 pub mod project;
 pub mod shooting_script;
+pub mod source_sync;
 
 pub use canvas::{
     CanvasNodeRefKind, canvas_transfer_runtime_identity_key, clear_canvas_transfer_runtime_identity,

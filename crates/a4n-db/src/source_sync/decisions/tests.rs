@@ -11,6 +11,7 @@ use crate::source_sync::{
     SourceSyncReplacementSegmentRecordInput, SourceSyncReplacementSpecRecordInput,
 };
 use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
@@ -139,15 +140,42 @@ fn prepared_decision_variant_metadata_is_stable() {
         },
     ];
     let expected = [
-        ("keep_local", "ignored", false),
-        ("detach", "ignored", true),
-        ("rebind_anchor", "resolved", false),
-        ("manual", "resolved", false),
-        ("delete_local", "resolved", false),
-        ("adopt_source", "resolved", false),
-        ("rebuild_prompt", "resolved", false),
-        ("create_replacement", "resolved", false),
-        ("regenerate_scene", "resolved", false),
+        (
+            SourceSyncResolutionStrategy::KeepLocal,
+            SourceSyncConflictStatus::Ignored,
+        ),
+        (
+            SourceSyncResolutionStrategy::Detach,
+            SourceSyncConflictStatus::Ignored,
+        ),
+        (
+            SourceSyncResolutionStrategy::RebindAnchor,
+            SourceSyncConflictStatus::Resolved,
+        ),
+        (
+            SourceSyncResolutionStrategy::Manual,
+            SourceSyncConflictStatus::Resolved,
+        ),
+        (
+            SourceSyncResolutionStrategy::DeleteLocal,
+            SourceSyncConflictStatus::Resolved,
+        ),
+        (
+            SourceSyncResolutionStrategy::AdoptSource,
+            SourceSyncConflictStatus::Resolved,
+        ),
+        (
+            SourceSyncResolutionStrategy::RebuildPrompt,
+            SourceSyncConflictStatus::Resolved,
+        ),
+        (
+            SourceSyncResolutionStrategy::CreateReplacement,
+            SourceSyncConflictStatus::Resolved,
+        ),
+        (
+            SourceSyncResolutionStrategy::RegenerateScene,
+            SourceSyncConflictStatus::Resolved,
+        ),
     ];
 
     for (index, decision) in decisions.iter().enumerate() {
@@ -155,7 +183,6 @@ fn prepared_decision_variant_metadata_is_stable() {
         assert_eq!(decision.conflict_id(), conflict_id);
         assert_eq!(decision.strategy(), expected[index].0);
         assert_eq!(decision.conflict_status(), expected[index].1);
-        assert_eq!(decision.detaches_project(), expected[index].2);
         assert_eq!(
             decision.decision_payload_json(),
             &json!({"id": conflict_id})
@@ -183,7 +210,7 @@ fn clean_target_and_generation_spec_guards_preserve_authoritative_id_rules() {
         43
     );
 
-    let fallback = conflict_record(
+    let summary_bound = conflict_record(
         "text_anchor",
         "galgame_line",
         44,
@@ -191,7 +218,7 @@ fn clean_target_and_generation_spec_guards_preserve_authoritative_id_rules() {
         json!({"generation_spec_id": 45}),
     );
     assert_eq!(
-        source_sync_generation_spec_id_for_conflict(&fallback, "manual")
+        source_sync_generation_spec_id_for_conflict(&summary_bound, "manual")
             .expect("local summary supplies generation spec id"),
         45
     );

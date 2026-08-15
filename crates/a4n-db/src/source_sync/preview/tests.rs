@@ -3,6 +3,9 @@ use super::{
     types::AnchorChange,
 };
 use a4n_core::models::project::text_anchor;
+use a4n_domain::source_sync::{
+    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
+};
 use chrono::Utc;
 
 fn anchor(
@@ -60,27 +63,44 @@ fn classify_anchor_change_treats_missing_and_ambiguous_as_blocking() {
         AnchorChange::Ambiguous
     );
     assert_eq!(
-        anchor_change_conflict(&AnchorChange::Missing, "clean"),
-        Some(("deleted", None, "blocking"))
+        anchor_change_conflict(&AnchorChange::Missing, SourceSyncLocalStateKind::Clean),
+        Some((
+            SourceSyncChangeKind::Deleted,
+            None,
+            SourceSyncConflictSeverity::Blocking,
+        ))
     );
     assert_eq!(
-        anchor_change_conflict(&AnchorChange::Ambiguous, "draft"),
-        Some(("split", None, "blocking"))
+        anchor_change_conflict(&AnchorChange::Ambiguous, SourceSyncLocalStateKind::Draft),
+        Some((
+            SourceSyncChangeKind::Split,
+            None,
+            SourceSyncConflictSeverity::Blocking,
+        ))
     );
 }
 
 #[test]
 fn severity_for_impacted_local_state_is_conservative() {
     assert_eq!(
-        severity_for_impacted_local_state("clean", "updated"),
-        "warning"
+        severity_for_impacted_local_state(
+            SourceSyncLocalStateKind::Clean,
+            SourceSyncChangeKind::Updated,
+        ),
+        SourceSyncConflictSeverity::Warning
     );
     assert_eq!(
-        severity_for_impacted_local_state("generated", "updated"),
-        "blocking"
+        severity_for_impacted_local_state(
+            SourceSyncLocalStateKind::Generated,
+            SourceSyncChangeKind::Updated,
+        ),
+        SourceSyncConflictSeverity::Blocking
     );
     assert_eq!(
-        severity_for_impacted_local_state("clean", "deleted"),
-        "blocking"
+        severity_for_impacted_local_state(
+            SourceSyncLocalStateKind::Clean,
+            SourceSyncChangeKind::Deleted,
+        ),
+        SourceSyncConflictSeverity::Blocking
     );
 }

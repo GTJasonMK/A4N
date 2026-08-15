@@ -1,26 +1,13 @@
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
 use a4n_db::source_sync::{
     SourceSyncEntityRefRecordInput as EntityRefInput,
     SourceSyncMediaRefRecordInput as MediaRefInput,
     SourceSyncTextAnchorRefRecordInput as TextAnchorRefInput,
 };
 use a4n_prompt::rendering::PromptRenderer;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct SourceSyncPlan {
-    pub run: source_sync_run::Model,
-    pub conflicts: Vec<source_sync_conflict::Model>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct SourceSyncDecisionInput {
-    pub conflict_id: i64,
-    pub strategy: String,
-    pub decision_payload_json: Value,
-}
+pub use a4n_api_contract::source_sync::SourceSyncDecisionInput;
 
 #[derive(Clone, Copy, Default)]
 pub struct SourceSyncExecutionContext<'a> {

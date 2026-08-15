@@ -1,34 +1,30 @@
-use crate::source_sync::{
-    SYNC_RUN_MODE_APPLY, SYNC_RUN_MODE_DRY_RUN, SYNC_RUN_STATUS_APPLYING,
-    SYNC_RUN_STATUS_COMPLETED, SYNC_RUN_STATUS_PLANNED, is_valid_sync_run_mode,
-    is_valid_sync_run_status,
-};
+use a4n_domain::source_sync::{SourceSyncRunMode, SourceSyncRunStatus};
 
 use super::super::super::ProjectFamilyPackage;
 
 pub(super) fn validate_source_sync_runs(package: &ProjectFamilyPackage) -> Result<(), String> {
     for run in &package.source_sync_runs {
-        ensure_package!(
-            is_valid_sync_run_mode(&run.mode),
-            "项目族导入包源同步运行模式无效: source_sync_run_id={}, mode={}",
-            run.id,
-            run.mode
-        );
-        ensure_package!(
-            is_valid_sync_run_status(&run.status),
-            "项目族导入包源同步运行状态无效: source_sync_run_id={}, status={}",
-            run.id,
-            run.status
-        );
-        match run.status.as_str() {
-            SYNC_RUN_STATUS_PLANNED if run.mode != SYNC_RUN_MODE_DRY_RUN => {
+        let mode = SourceSyncRunMode::parse(&run.mode).ok_or_else(|| {
+            format!(
+                "项目族导入包源同步运行模式无效: source_sync_run_id={}, mode={}",
+                run.id, run.mode
+            )
+        })?;
+        let status = SourceSyncRunStatus::parse(&run.status).ok_or_else(|| {
+            format!(
+                "项目族导入包源同步运行状态无效: source_sync_run_id={}, status={}",
+                run.id, run.status
+            )
+        })?;
+        match status {
+            SourceSyncRunStatus::Planned if mode != SourceSyncRunMode::DryRun => {
                 return Err(format!(
                     "项目族导入包源同步运行状态与模式不一致: source_sync_run_id={}, status={}, mode={}",
                     run.id, run.status, run.mode
                 ));
             }
-            SYNC_RUN_STATUS_APPLYING | SYNC_RUN_STATUS_COMPLETED
-                if run.mode != SYNC_RUN_MODE_APPLY =>
+            SourceSyncRunStatus::Applying | SourceSyncRunStatus::Completed
+                if mode != SourceSyncRunMode::Apply =>
             {
                 return Err(format!(
                     "项目族导入包源同步运行状态与模式不一致: source_sync_run_id={}, status={}, mode={}",

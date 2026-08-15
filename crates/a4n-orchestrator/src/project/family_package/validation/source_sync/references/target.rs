@@ -1,5 +1,6 @@
 use super::super::contracts::SourceSyncReferenceSets;
 use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::Value;
 
 pub(in super::super) fn validate_source_sync_conflict_target_ref(
@@ -38,7 +39,7 @@ pub(in super::super) fn validate_source_sync_conflict_regenerate_scene_target(
     payload: &Value,
     refs: &SourceSyncReferenceSets,
 ) -> Result<(), String> {
-    if strategy != "regenerate_scene" {
+    if strategy != SourceSyncResolutionStrategy::RegenerateScene.as_str() {
         return Ok(());
     }
     ensure_package!(

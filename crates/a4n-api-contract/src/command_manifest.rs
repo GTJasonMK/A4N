@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 7;
+pub const COMMAND_MANIFEST_VERSION: u32 = 8;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -292,7 +292,7 @@ command_specs! {
     "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "apply_implicit_update_decision" => args_apply_implicit_update_decision, result_apply_implicit_update_decision, "profile";
     "apply_optimization_patches" => args_apply_optimization_patches, result_apply_optimization_patches, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "apply_source_sync_decisions" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "apply_source_sync_decisions" => args_apply_source_sync, result_source_sync_plan, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "assemble_chapter_videos" => args_assemble_chapter_videos, result_assembled_chapter_video_preview, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "attribute_history" => args_attribute_history, result_attribute_history, "profile", effect(READ_EFFECT);
     "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
@@ -314,7 +314,7 @@ command_specs! {
     "cleanup_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "commit_inserted_segment_draft" => args_commit_inserted_segment_draft, result_video_timeline, "video";
     "confirm_reverse_engineering_candidate" => args_confirm_reverse_engineering_candidate, result_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
-    "create_derived_project" => args_create_derived_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
+    "create_derived_project" => args_create_derived_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
     "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", context(USER_CHAPTER_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_freeform_video_project" => args_create_freeform_video_project, result_opaque, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
@@ -350,7 +350,7 @@ command_specs! {
     "delete_scene_profile" => args_delete_scene_profile, result_scene_profile_delete, "profile", context(USER_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "delete_theme" => args_activate_theme, result_unit, "settings", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_video" => args_video_id, result_unit, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "detach_derived_project" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "detach_derived_project" => args_source_sync_project, result_unit, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "detect_image_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
     "detect_llm_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS);
     "detect_video_config_models" => args_detect_image_config_models, result_detect_image_config_models, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
@@ -473,7 +473,7 @@ command_specs! {
     "list_scene_profiles" => args_list_scene_profiles, result_list_scene_profiles, "profile", effect(READ_EFFECT);
     "list_sessions" => empty_args_schema, result_list_sessions, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
-    "list_source_snapshot_chapters" => args_project_id, result_opaque, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_source_snapshot_chapters" => args_project_id, result_source_snapshot_chapters, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_themes" => args_get_llm_max_tokens_config, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_video_configs" => args_get_llm_max_tokens_config, result_list_video_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "list_video_reference_images" => args_list_video_reference_images, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -535,7 +535,7 @@ command_specs! {
     "preview_rollback" => args_forward_project_status, result_preview_rollback, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "preview_scene_image_request" => args_preview_scene_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_send_optimization_message_request" => args_send_optimization_message, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_source_sync" => args_opaque, result_opaque, "source-sync", context(NO_CONTEXT), effect(READ_EFFECT);
+    "preview_source_sync" => args_source_sync_project, result_source_sync_plan, "source-sync", context(NO_CONTEXT), effect(READ_EFFECT);
     "preview_start_manga_pipeline_request" => args_preview_start_manga_pipeline_request, result_model_request_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_sync_all_character_profiles_request" => args_preview_sync_all_character_profiles_request, result_model_request_preview, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_sync_character_from_chapters_request" => args_preview_sync_character_from_chapters_request, result_model_request_preview, "chapter", context(USER_CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -942,6 +942,10 @@ fn args_change_user_password() -> Value {
     typed_input_schema::<crate::auth::ChangePasswordInput>()
 }
 
+fn args_apply_source_sync() -> Value {
+    strict_runtime_typed_input_schema::<crate::source_sync::ApplySourceSyncInput>()
+}
+
 fn args_confirm_reverse_engineering_candidate() -> Value {
     strict_runtime_typed_input_schema::<
         crate::import_reverse::ConfirmReverseEngineeringCandidateInput,
@@ -969,7 +973,11 @@ fn args_chapter_analysis_task() -> Value {
 }
 
 fn args_create_derived_project() -> Value {
-    typed_input_schema::<crate::project::CreateDerivedProjectInput>()
+    strict_typed_input_schema::<crate::project::CreateDerivedProjectInput>()
+}
+
+fn args_source_sync_project() -> Value {
+    strict_typed_input_schema::<crate::source_sync::SourceSyncProjectInput>()
 }
 
 fn args_create_embedding_config() -> Value {
@@ -2241,6 +2249,14 @@ fn result_unit() -> Value {
     typed_schema::<()>()
 }
 
+fn result_source_snapshot_chapters() -> Value {
+    typed_schema::<Vec<crate::project::SourceSnapshotChapterSummary>>()
+}
+
+fn result_source_sync_plan() -> Value {
+    typed_schema::<crate::source_sync::SourceSyncPlanSummary>()
+}
+
 fn result_activate_theme() -> Value {
     typed_schema::<crate::theme::ThemeSummary>()
 }
@@ -3147,6 +3163,36 @@ mod tests {
         assert!(is_destructive("delete_project"));
         assert!(!is_destructive("get_project"));
         assert!(is_destructive("delete_future_resource"));
+    }
+
+    #[test]
+    fn source_sync_commands_expose_one_strict_typed_contract() {
+        let commands = [
+            "preview_source_sync",
+            "apply_source_sync_decisions",
+            "detach_derived_project",
+        ];
+        assert_commands_use_authenticated_host_identity(&commands);
+
+        for command in commands {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(
+                descriptor.args_schema["properties"]["input"]["additionalProperties"], false,
+                "{command}",
+            );
+            assert_eq!(
+                descriptor.result_schema["x-a4n-schema-quality"], "typed",
+                "{command}",
+            );
+        }
+
+        let apply = command_descriptor("apply_source_sync_decisions").unwrap();
+        assert!(
+            apply.args_schema["properties"]
+                .get("runtime_config_snapshot")
+                .is_some()
+        );
+        assert_eq!(apply.runtime_config_policy, RuntimeConfigPolicy::Full);
     }
 
     #[test]

@@ -175,6 +175,21 @@ pub struct ProjectProgressSummary {
     pub detail: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SourceSnapshotChapterSummary {
+    pub id: i64,
+    pub snapshot_id: i64,
+    pub root_project_id: i64,
+    pub source_chapter_id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub content: String,
+    pub analysis_data_json: Option<Value>,
+    pub content_hash: String,
+    pub analysis_hash: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AssetDependencyGraph {
     pub project_id: i64,

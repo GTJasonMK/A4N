@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::source_sync::SourceSyncConflictStatus;
 
 pub(super) fn is_valid_source_sync_conflict_target_ref(
     conflict_scope: &str,
@@ -27,7 +28,7 @@ pub(super) fn validate_source_sync_decision_conflict(
             decision.id, decision.conflict_id
         )
     })?;
-    if conflict.status == CONFLICT_STATUS_PENDING {
+    if conflict.status == SourceSyncConflictStatus::Pending.as_str() {
         return Err(format!(
             "项目族导入包源同步决策引用了待处理源同步冲突: source_sync_decision_id={}, source_sync_conflict_id={}",
             decision.id, conflict.id

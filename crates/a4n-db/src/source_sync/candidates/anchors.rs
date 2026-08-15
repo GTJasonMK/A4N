@@ -54,7 +54,7 @@ where
                 .await?;
             records.push(SourceSyncAnchorConflictCandidateRecord {
                 spec: spec.clone(),
-                local_state: local_state.clone(),
+                local_state,
                 text_anchor_role: item.role,
                 old_anchor,
                 candidates,

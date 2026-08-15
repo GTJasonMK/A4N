@@ -6,6 +6,7 @@ use super::{
         remap_anchor_mappings, remap_refresh_spec_payload, remap_replacement_segment_payload,
     },
 };
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::Value;
 
 pub fn remap_source_sync_decision_payload(
@@ -15,9 +16,14 @@ pub fn remap_source_sync_decision_payload(
     label: &str,
 ) -> Result<Value, ProjectFamilyImportError> {
     let mut object = json_object(value, label)?;
+    let strategy = SourceSyncResolutionStrategy::parse(strategy).ok_or_else(|| {
+        ProjectFamilyImportError::invalid_package(format!("同步决策 strategy 无效: {strategy}"))
+    })?;
     match strategy {
-        "keep_local" | "detach" | "delete_local" => {}
-        "manual" => {
+        SourceSyncResolutionStrategy::KeepLocal
+        | SourceSyncResolutionStrategy::Detach
+        | SourceSyncResolutionStrategy::DeleteLocal => {}
+        SourceSyncResolutionStrategy::Manual => {
             remap_object_id(
                 &mut object,
                 "prompt_artifact_id",
@@ -25,7 +31,7 @@ pub fn remap_source_sync_decision_payload(
                 label,
             )?;
         }
-        "rebind_anchor" => {
+        SourceSyncResolutionStrategy::RebindAnchor => {
             remap_object_id(
                 &mut object,
                 "generation_spec_id",
@@ -34,20 +40,15 @@ pub fn remap_source_sync_decision_payload(
             )?;
             remap_anchor_mappings(&mut object, maps, label)?;
         }
-        "adopt_source" | "rebuild_prompt" => {
+        SourceSyncResolutionStrategy::AdoptSource | SourceSyncResolutionStrategy::RebuildPrompt => {
             remap_refresh_spec_payload(&mut object, maps, label)?;
         }
-        "regenerate_scene" => {
+        SourceSyncResolutionStrategy::RegenerateScene => {
             remap_regenerate_scene_payload(&mut object, maps, label)?;
         }
-        "create_replacement" => {
+        SourceSyncResolutionStrategy::CreateReplacement => {
             remap_refresh_spec_payload(&mut object, maps, label)?;
             remap_replacement_segment_payload(&mut object, maps, label)?;
-        }
-        other => {
-            return Err(ProjectFamilyImportError::invalid_package(format!(
-                "同步决策 strategy 无效: {other}"
-            )));
         }
     }
     Ok(Value::Object(object))

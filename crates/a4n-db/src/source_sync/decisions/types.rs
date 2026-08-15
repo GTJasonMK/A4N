@@ -1,9 +1,9 @@
 use crate::source_sync::{
-    CONFLICT_STATUS_IGNORED, CONFLICT_STATUS_RESOLVED, SourceSyncAnchorMappingRecord,
-    SourceSyncEntityRefRecordInput, SourceSyncGalgameSceneWriteRecordInput,
-    SourceSyncMediaRefRecordInput, SourceSyncReplacementSpecRecordInput,
-    SourceSyncTextAnchorRefRecordInput,
+    SourceSyncAnchorMappingRecord, SourceSyncEntityRefRecordInput,
+    SourceSyncGalgameSceneWriteRecordInput, SourceSyncMediaRefRecordInput,
+    SourceSyncReplacementSpecRecordInput, SourceSyncTextAnchorRefRecordInput,
 };
+use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -84,17 +84,17 @@ impl PreparedSourceSyncDecisionRecordInput {
         }
     }
 
-    pub(super) fn strategy(&self) -> &'static str {
+    pub(super) fn strategy(&self) -> SourceSyncResolutionStrategy {
         match self {
-            Self::KeepLocal { .. } => "keep_local",
-            Self::Detach { .. } => "detach",
-            Self::RebindAnchor { .. } => "rebind_anchor",
-            Self::Manual { .. } => "manual",
-            Self::DeleteLocal { .. } => "delete_local",
-            Self::AdoptSource { .. } => "adopt_source",
-            Self::RebuildPrompt { .. } => "rebuild_prompt",
-            Self::CreateReplacement { .. } => "create_replacement",
-            Self::RegenerateScene { .. } => "regenerate_scene",
+            Self::KeepLocal { .. } => SourceSyncResolutionStrategy::KeepLocal,
+            Self::Detach { .. } => SourceSyncResolutionStrategy::Detach,
+            Self::RebindAnchor { .. } => SourceSyncResolutionStrategy::RebindAnchor,
+            Self::Manual { .. } => SourceSyncResolutionStrategy::Manual,
+            Self::DeleteLocal { .. } => SourceSyncResolutionStrategy::DeleteLocal,
+            Self::AdoptSource { .. } => SourceSyncResolutionStrategy::AdoptSource,
+            Self::RebuildPrompt { .. } => SourceSyncResolutionStrategy::RebuildPrompt,
+            Self::CreateReplacement { .. } => SourceSyncResolutionStrategy::CreateReplacement,
+            Self::RegenerateScene { .. } => SourceSyncResolutionStrategy::RegenerateScene,
         }
     }
 
@@ -139,20 +139,16 @@ impl PreparedSourceSyncDecisionRecordInput {
         }
     }
 
-    pub(super) fn detaches_project(&self) -> bool {
-        matches!(self, Self::Detach { .. })
-    }
-
-    pub(super) fn conflict_status(&self) -> &'static str {
+    pub(super) fn conflict_status(&self) -> SourceSyncConflictStatus {
         match self {
-            Self::KeepLocal { .. } | Self::Detach { .. } => CONFLICT_STATUS_IGNORED,
+            Self::KeepLocal { .. } | Self::Detach { .. } => SourceSyncConflictStatus::Ignored,
             Self::RebindAnchor { .. }
             | Self::Manual { .. }
             | Self::DeleteLocal { .. }
             | Self::AdoptSource { .. }
             | Self::RebuildPrompt { .. }
             | Self::CreateReplacement { .. }
-            | Self::RegenerateScene { .. } => CONFLICT_STATUS_RESOLVED,
+            | Self::RegenerateScene { .. } => SourceSyncConflictStatus::Resolved,
         }
     }
 }

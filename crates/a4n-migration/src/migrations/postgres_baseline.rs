@@ -1455,30 +1455,7 @@ CREATE TRIGGER trg_source_sync_conflict_family_update
 BEFORE UPDATE OF sync_run_id, derived_project_id, root_project_id, from_snapshot_id, to_snapshot_id ON source_sync_conflict
 FOR EACH ROW EXECUTE FUNCTION a4n_validate_source_sync_conflict_family()
 "#,
-    r#"
-CREATE OR REPLACE FUNCTION a4n_validate_source_sync_decision_family()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    IF NEW.decided_by NOT IN ('user','system') THEN
-        RAISE EXCEPTION '源同步决策 decided_by 无效';
-    END IF;
-    IF NEW.strategy NOT IN ('keep_local','adopt_source','rebuild_prompt','rebind_anchor','create_replacement','manual','detach','delete_local') THEN
-        RAISE EXCEPTION '源同步决策 strategy 无效';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM source_sync_conflict sync_conflict
-        WHERE sync_conflict.id = NEW.conflict_id
-          AND sync_conflict.status IN ('resolved','ignored')
-          AND sync_conflict.resolution_strategy = NEW.strategy
-    ) THEN
-        RAISE EXCEPTION '源同步决策必须指向已按同一策略处理的冲突';
-    END IF;
-    RETURN NEW;
-END;
-$$
-"#,
+    crate::migrations::source_sync_regenerate_scene_strategy::SOURCE_SYNC_DECISION_FAMILY_FUNCTION_SQL,
     r#"
 CREATE TRIGGER trg_source_sync_decision_family_insert
 BEFORE INSERT ON source_sync_decision

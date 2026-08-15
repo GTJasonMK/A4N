@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::Value;
 
 use crate::galgame::GalgameSceneRegenerationPlan;
@@ -22,7 +23,9 @@ pub(in crate::source_sync) fn require_galgame_scene_regeneration_plan(
         .get(&conflict_id)
         .ok_or_else(|| AppError::InvalidState {
             current: format!("missing_galgame_scene_regeneration_plan_for_conflict_{conflict_id}"),
-            operation: "regenerate_scene".to_string(),
+            operation: SourceSyncResolutionStrategy::RegenerateScene
+                .as_str()
+                .to_string(),
         })
 }
 

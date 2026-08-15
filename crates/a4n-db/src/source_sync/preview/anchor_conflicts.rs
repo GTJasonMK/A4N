@@ -9,6 +9,7 @@ use crate::source_sync::{
     galgame_anchor_conflict_candidates_for_run,
 };
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_domain::source_sync::SourceSyncLocalStateKind;
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -30,7 +31,7 @@ where
         } = candidate;
         let anchor_change = classify_anchor_change(&old_anchor, &candidates);
         let Some((change_kind, new_anchor_id, severity)) =
-            anchor_change_conflict(&anchor_change, "generated")
+            anchor_change_conflict(&anchor_change, SourceSyncLocalStateKind::Generated)
         else {
             continue;
         };
@@ -43,7 +44,7 @@ where
                     target_kind: "galgame_line",
                     target_id: line.id,
                     source_change_kind: change_kind,
-                    local_state_kind: "generated",
+                    local_state_kind: SourceSyncLocalStateKind::Generated,
                     severity,
                     source_summary_json: json!({
                         "old_text_anchor_id": old_anchor.id,
@@ -93,7 +94,7 @@ where
         } = candidate;
         let anchor_change = classify_anchor_change(&old_anchor, &candidates);
         let Some((change_kind, new_anchor_id, severity)) =
-            anchor_change_conflict(&anchor_change, &local_state)
+            anchor_change_conflict(&anchor_change, local_state)
         else {
             continue;
         };
@@ -106,7 +107,7 @@ where
                     target_kind: "segment",
                     target_id: spec.id,
                     source_change_kind: change_kind,
-                    local_state_kind: &local_state,
+                    local_state_kind: local_state,
                     severity,
                     source_summary_json: json!({
                         "old_text_anchor_id": old_anchor.id,

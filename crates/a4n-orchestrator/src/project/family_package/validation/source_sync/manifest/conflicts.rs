@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use crate::source_sync::{
-    CONFLICT_STATUS_IGNORED, CONFLICT_STATUS_PENDING, CONFLICT_STATUS_RESOLVED,
-    is_valid_conflict_severity, is_valid_conflict_status, is_valid_local_state_kind,
-    is_valid_resolution_strategy, is_valid_source_change_kind,
-};
 use a4n_core::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::{
+    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,
+    SourceSyncLocalStateKind, SourceSyncResolutionStrategy,
+};
 
 use super::super::super::ProjectFamilyPackage;
 use super::super::contracts::SourceSyncReferenceSets;
@@ -35,31 +34,31 @@ pub(super) fn validate_source_sync_conflicts(
             conflict.target_kind
         );
         ensure_package!(
-            is_valid_source_change_kind(&conflict.source_change_kind),
+            SourceSyncChangeKind::parse(&conflict.source_change_kind).is_some(),
             "项目族导入包源同步冲突源变更类型无效: source_sync_conflict_id={}, source_change_kind={}",
             conflict.id,
             conflict.source_change_kind
         );
         ensure_package!(
-            is_valid_local_state_kind(&conflict.local_state_kind),
+            SourceSyncLocalStateKind::parse(&conflict.local_state_kind).is_some(),
             "项目族导入包源同步冲突本地状态类型无效: source_sync_conflict_id={}, local_state_kind={}",
             conflict.id,
             conflict.local_state_kind
         );
         ensure_package!(
-            is_valid_conflict_severity(&conflict.severity),
+            SourceSyncConflictSeverity::parse(&conflict.severity).is_some(),
             "项目族导入包源同步冲突严重级别无效: source_sync_conflict_id={}, severity={}",
             conflict.id,
             conflict.severity
         );
-        ensure_package!(
-            is_valid_conflict_status(&conflict.status),
-            "项目族导入包源同步冲突状态无效: source_sync_conflict_id={}, status={}",
-            conflict.id,
-            conflict.status
-        );
+        let status = SourceSyncConflictStatus::parse(&conflict.status).ok_or_else(|| {
+            format!(
+                "项目族导入包源同步冲突状态无效: source_sync_conflict_id={}, status={}",
+                conflict.id, conflict.status
+            )
+        })?;
         if let Some(strategy) = &conflict.resolution_strategy
-            && !is_valid_resolution_strategy(strategy)
+            && SourceSyncResolutionStrategy::parse(strategy).is_none()
         {
             return Err(format!(
                 "项目族导入包源同步冲突解决策略无效: source_sync_conflict_id={}, resolution_strategy={}",
@@ -82,8 +81,8 @@ pub(super) fn validate_source_sync_conflicts(
             conflict.id
         );
         validate_source_sync_conflict_json_refs(conflict, refs)?;
-        match conflict.status.as_str() {
-            CONFLICT_STATUS_PENDING
+        match status {
+            SourceSyncConflictStatus::Pending
                 if conflict.resolution_strategy.is_some()
                     || conflict.decision_json.is_some()
                     || conflict.resolved_at.is_some() =>
@@ -93,7 +92,7 @@ pub(super) fn validate_source_sync_conflicts(
                     conflict.id
                 ));
             }
-            CONFLICT_STATUS_RESOLVED | CONFLICT_STATUS_IGNORED
+            SourceSyncConflictStatus::Resolved | SourceSyncConflictStatus::Ignored
                 if conflict.resolution_strategy.is_none()
                     || conflict.decision_json.is_none()
                     || conflict.resolved_at.is_none() =>

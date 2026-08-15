@@ -1,14 +1,16 @@
 use a4n_core::error::AppError;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::galgame::GalgamePersistScene;
 
-pub(in crate::source_sync) fn parse_decision_payload<T>(value: &Value) -> Result<T, AppError>
+pub(in crate::source_sync) fn parse_decision_payload<T>(
+    value: &Map<String, Value>,
+) -> Result<T, AppError>
 where
     T: DeserializeOwned,
 {
-    serde_json::from_value(value.clone())
+    serde_json::from_value(Value::Object(value.clone()))
         .map_err(|err| AppError::InvalidArgument(format!("同步决策 payload 无效: {err}")))
 }
 

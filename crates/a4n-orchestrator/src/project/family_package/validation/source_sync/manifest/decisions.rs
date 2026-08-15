@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::source_sync::{is_valid_decision_actor, is_valid_resolution_strategy};
 use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_domain::source_sync::{SourceSyncDecisionActor, SourceSyncResolutionStrategy};
 
 use super::super::super::ProjectFamilyPackage;
 use super::super::contracts::SourceSyncReferenceSets;
@@ -15,13 +15,13 @@ pub(super) fn validate_source_sync_decisions(
 ) -> Result<(), String> {
     for decision in &package.source_sync_decisions {
         ensure_package!(
-            is_valid_decision_actor(&decision.decided_by),
+            SourceSyncDecisionActor::parse(&decision.decided_by).is_some(),
             "项目族导入包源同步决策人无效: source_sync_decision_id={}, decided_by={}",
             decision.id,
             decision.decided_by
         );
         ensure_package!(
-            is_valid_resolution_strategy(&decision.strategy),
+            SourceSyncResolutionStrategy::parse(&decision.strategy).is_some(),
             "项目族导入包源同步决策策略无效: source_sync_decision_id={}, strategy={}",
             decision.id,
             decision.strategy

@@ -18,9 +18,10 @@ use crate::project::{
     SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,
     media_asset_status_for_import_insert,
 };
-use crate::source_sync::{
-    CONFLICT_SEVERITIES, CONFLICT_STATUSES, DECISION_ACTORS, LOCAL_STATE_KINDS,
-    RESOLUTION_STRATEGIES, SOURCE_CHANGE_KINDS, SYNC_RUN_STATUSES,
+use a4n_domain::source_sync::{
+    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,
+    SourceSyncDecisionActor, SourceSyncLocalStateKind, SourceSyncResolutionStrategy,
+    SourceSyncRunMode, SourceSyncRunStatus,
 };
 use chrono::NaiveDate;
 

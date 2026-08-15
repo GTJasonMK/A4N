@@ -98,7 +98,7 @@ fn validate_package_manifest_rejects_unknown_source_sync_conflict_change_kind() 
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_conflict_change_kinds() {
-    for source_change_kind in SOURCE_CHANGE_KINDS {
+    for source_change_kind in SourceSyncChangeKind::VALUES {
         let mut conflict = source_sync_conflict_record();
         conflict.source_change_kind = (*source_change_kind).to_string();
         let package = package_with_source_sync_conflict(conflict);
@@ -125,7 +125,7 @@ fn validate_package_manifest_rejects_unknown_source_sync_conflict_local_state() 
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_conflict_local_states() {
-    for local_state_kind in LOCAL_STATE_KINDS {
+    for local_state_kind in SourceSyncLocalStateKind::VALUES {
         let mut conflict = source_sync_conflict_record();
         conflict.local_state_kind = (*local_state_kind).to_string();
         let package = package_with_source_sync_conflict(conflict);
@@ -152,7 +152,7 @@ fn validate_package_manifest_rejects_unknown_source_sync_conflict_severity() {
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_conflict_severities() {
-    for severity in CONFLICT_SEVERITIES {
+    for severity in SourceSyncConflictSeverity::VALUES {
         let mut conflict = source_sync_conflict_record();
         conflict.severity = (*severity).to_string();
         let package = package_with_source_sync_conflict(conflict);
@@ -179,8 +179,8 @@ fn validate_package_manifest_rejects_unknown_source_sync_conflict_status() {
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_conflict_statuses() {
-    for status in CONFLICT_STATUSES {
-        let conflict = if *status == CONFLICT_STATUS_PENDING {
+    for status in SourceSyncConflictStatus::VALUES {
+        let conflict = if *status == SourceSyncConflictStatus::Pending.as_str() {
             source_sync_conflict_record()
         } else {
             handled_source_sync_conflict(status)
@@ -195,7 +195,7 @@ fn validate_package_manifest_accepts_known_source_sync_conflict_statuses() {
 #[test]
 fn validate_package_manifest_rejects_unknown_source_sync_conflict_resolution_strategy() {
     let mut package = package_with_part_outlines(Vec::new());
-    let mut conflict = handled_source_sync_conflict(CONFLICT_STATUS_RESOLVED);
+    let mut conflict = handled_source_sync_conflict(SourceSyncConflictStatus::Resolved.as_str());
     conflict.resolution_strategy = Some("archive".to_string());
     package.source_sync_conflicts = vec![conflict];
 
@@ -227,7 +227,7 @@ fn validate_package_manifest_rejects_pending_source_sync_conflict_with_resolutio
 fn validate_package_manifest_rejects_handled_source_sync_conflict_without_resolution() {
     let mut package = package_with_part_outlines(Vec::new());
     let mut conflict = source_sync_conflict_record();
-    conflict.status = CONFLICT_STATUS_RESOLVED.to_string();
+    conflict.status = SourceSyncConflictStatus::Resolved.as_str().to_string();
     package.source_sync_conflicts = vec![conflict];
 
     let err = validate_package_manifest(&package)

@@ -6,7 +6,7 @@ import {
   getProject,
   listSourceSnapshotChapters,
   type NovelProject,
-  type SourceSnapshotChapter,
+  type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { useToast } from "../components/feedback/Toast";
@@ -25,7 +25,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapter[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [selectedSourceChapterId, setSelectedSourceChapterId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
@@ -256,7 +256,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   );
 };
 
-function sourceChapterTitle(chapter: SourceSnapshotChapter): string | null {
+function sourceChapterTitle(chapter: SourceSnapshotChapterSummary): string | null {
   const title = chapter.title?.trim();
   if (!title) return null;
   const normalizedTitle = title.replace(/\s+/g, "");

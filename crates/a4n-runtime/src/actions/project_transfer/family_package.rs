@@ -6,13 +6,13 @@ use a4n_core::models::{
     project::{source_snapshot_outline, source_snapshot_profile},
     source_sync::source_sync_conflict,
 };
+#[cfg(test)]
+use a4n_domain::source_sync::SourceSyncConflictStatus;
 use a4n_orchestrator::project::{
     FAMILY_PACKAGE_MANIFEST_PATH as MANIFEST_PATH, FamilyImportMediaPayload, ProjectFamilyPackage,
 };
 #[cfg(test)]
 use a4n_orchestrator::project::{PROJECT_FAMILY_PACKAGE_VERSION, TextCorePackage, hash_json};
-#[cfg(test)]
-use a4n_orchestrator::source_sync::CONFLICT_STATUS_PENDING;
 #[cfg(test)]
 use std::collections::HashMap;
 

@@ -18,12 +18,12 @@ fn validate_package_manifest_rejects_unknown_source_sync_decision_actor() {
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_decision_actors() {
-    for actor in DECISION_ACTORS {
+    for actor in SourceSyncDecisionActor::VALUES {
         let mut decision = source_sync_decision_record("keep_local");
         decision.decided_by = (*actor).to_string();
         let mut package =
             package_with_source_sync_conflict(handled_source_sync_conflict_for_decision(
-                CONFLICT_STATUS_RESOLVED,
+                SourceSyncConflictStatus::Resolved.as_str(),
                 "keep_local",
                 decision.decision_payload_json.clone(),
             ));
@@ -49,7 +49,7 @@ fn validate_package_manifest_rejects_unknown_source_sync_decision_strategy() {
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_decision_strategies() {
-    for strategy in RESOLUTION_STRATEGIES {
+    for strategy in SourceSyncResolutionStrategy::VALUES {
         let decision_payload_json = if *strategy == "regenerate_scene" {
             regenerate_scene_decision_payload()
         } else {
@@ -61,7 +61,7 @@ fn validate_package_manifest_accepts_known_source_sync_decision_strategies() {
             package_with_regenerate_scene_decision(decision_payload_json)
         } else {
             package_with_source_sync_conflict(handled_source_sync_conflict_for_decision(
-                CONFLICT_STATUS_RESOLVED,
+                SourceSyncConflictStatus::Resolved.as_str(),
                 strategy,
                 decision_payload_json,
             ))
@@ -104,7 +104,7 @@ fn validate_package_manifest_rejects_source_sync_decision_for_pending_conflict()
 fn validate_package_manifest_rejects_source_sync_decision_strategy_mismatch() {
     let decision = source_sync_decision_record("manual");
     let mut package = package_with_source_sync_conflict(handled_source_sync_conflict_for_decision(
-        CONFLICT_STATUS_RESOLVED,
+        SourceSyncConflictStatus::Resolved.as_str(),
         "keep_local",
         decision.decision_payload_json.clone(),
     ));
@@ -123,7 +123,7 @@ fn validate_package_manifest_rejects_source_sync_decision_strategy_mismatch() {
 fn validate_package_manifest_rejects_source_sync_decision_payload_mismatch() {
     let decision = source_sync_decision_record("keep_local");
     let mut package = package_with_source_sync_conflict(handled_source_sync_conflict_for_decision(
-        CONFLICT_STATUS_RESOLVED,
+        SourceSyncConflictStatus::Resolved.as_str(),
         "keep_local",
         json!({"reason": "different"}),
     ));
@@ -141,7 +141,7 @@ fn validate_package_manifest_rejects_source_sync_decision_payload_mismatch() {
 fn validate_package_manifest_accepts_source_sync_decision_matching_conflict() {
     let decision = source_sync_decision_record("keep_local");
     let mut package = package_with_source_sync_conflict(handled_source_sync_conflict_for_decision(
-        CONFLICT_STATUS_RESOLVED,
+        SourceSyncConflictStatus::Resolved.as_str(),
         "keep_local",
         decision.decision_payload_json.clone(),
     ));
@@ -157,7 +157,7 @@ fn validate_package_manifest_rejects_duplicate_source_sync_decision_for_conflict
     let mut duplicate = source_sync_decision_record("keep_local");
     duplicate.id = 822;
     let mut package = package_with_source_sync_conflict(handled_source_sync_conflict_for_decision(
-        CONFLICT_STATUS_RESOLVED,
+        SourceSyncConflictStatus::Resolved.as_str(),
         "keep_local",
         decision.decision_payload_json.clone(),
     ));

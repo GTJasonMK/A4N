@@ -1,7 +1,11 @@
 use super::records::{insert_source_sync_decision_record, resolve_source_sync_conflict_record};
 use super::types::SourceSyncDecisionRecordInput;
-use crate::source_sync::{CONFLICT_STATUS_PENDING, CONFLICT_STATUS_RESOLVED, SourceSyncDbError};
+use crate::source_sync::{CONFLICT_STATUS_PENDING, SourceSyncDbError};
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_domain::source_sync::{
+    SourceSyncConflictSeverity, SourceSyncConflictStatus, SourceSyncDecisionActor,
+    SourceSyncResolutionStrategy,
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 
@@ -15,7 +19,9 @@ where
     let conflicts = source_sync_conflict::Entity::find()
         .filter(source_sync_conflict::Column::SyncRunId.eq(run.id))
         .filter(source_sync_conflict::Column::Status.eq(CONFLICT_STATUS_PENDING))
-        .filter(source_sync_conflict::Column::Severity.eq("info"))
+        .filter(
+            source_sync_conflict::Column::Severity.eq(SourceSyncConflictSeverity::Info.as_str()),
+        )
         .all(db)
         .await?;
     let mut applied = 0u64;
@@ -29,8 +35,8 @@ where
         resolve_source_sync_conflict_record(
             db,
             conflict,
-            "keep_local",
-            CONFLICT_STATUS_RESOLVED,
+            SourceSyncResolutionStrategy::KeepLocal,
+            SourceSyncConflictStatus::Resolved,
             decision_payload.clone(),
         )
         .await?;
@@ -38,8 +44,8 @@ where
             db,
             SourceSyncDecisionRecordInput {
                 conflict_id,
-                decided_by: "system".to_string(),
-                strategy: "keep_local".to_string(),
+                decided_by: SourceSyncDecisionActor::System,
+                strategy: SourceSyncResolutionStrategy::KeepLocal,
                 decision_payload_json: decision_payload,
             },
         )

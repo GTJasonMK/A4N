@@ -1,3 +1,4 @@
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::Value;
 
 use super::super::contracts::SourceSyncReferenceSets;
@@ -14,7 +15,7 @@ pub(in super::super) fn validate_source_sync_decision_payload(
     payload: &Value,
     refs: &SourceSyncReferenceSets,
 ) -> Result<(), String> {
-    if strategy != "regenerate_scene" {
+    if strategy != SourceSyncResolutionStrategy::RegenerateScene.as_str() {
         return Ok(());
     }
     validate_regenerate_scene_payload(owner_kind, owner_id, payload, refs)
@@ -49,7 +50,7 @@ fn validate_regenerate_scene_payload(
     validate_required_json_string_value(
         object,
         "user_action",
-        "regenerate_scene",
+        SourceSyncResolutionStrategy::RegenerateScene.as_str(),
         "regenerate_scene 决策载荷",
         owner_kind,
         owner_id,

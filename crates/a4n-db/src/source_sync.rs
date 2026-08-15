@@ -1,11 +1,16 @@
 use sea_orm::DbErr;
 
+use crate::project::{
+    SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,
+};
+
 mod candidates;
 mod conflicts;
 mod decisions;
 mod dry_run;
 mod galgame;
 mod generation_specs;
+mod plan;
 mod preview;
 mod run;
 mod snapshots;
@@ -27,26 +32,27 @@ pub use generation_specs::*;
 use generation_specs::{
     create_source_sync_replacement_spec_record, source_sync_params_with_prompt_kind,
 };
-pub use preview::{SourceSyncPreviewRecord, create_source_sync_preview_records};
+pub use plan::SourceSyncPlanRecord;
+use plan::source_sync_plan_record;
+pub use preview::create_source_sync_preview_records;
 pub use run::*;
 pub use snapshots::{
     SourceSnapshotChapterChangeRecord, SourceSnapshotDiffRecord, SourceSnapshotProfileChangeRecord,
     diff_source_snapshots, source_sync_chapter_scope_for_derived_project,
 };
 
-const SYNC_RUN_STATUS_PLANNED: &str = "planned";
-const SYNC_RUN_MODE_DRY_RUN: &str = "dry_run";
-const SYNC_RUN_MODE_APPLY: &str = "apply";
-const SYNC_RUN_STATUS_APPLYING: &str = "applying";
-const SYNC_RUN_STATUS_COMPLETED: &str = "completed";
-const CONFLICT_STATUS_PENDING: &str = "pending";
-const CONFLICT_STATUS_RESOLVED: &str = "resolved";
-const CONFLICT_STATUS_IGNORED: &str = "ignored";
-const SOURCE_SYNC_CURRENT: &str = "current";
-const SOURCE_SYNC_ROOT_UPDATED: &str = "root_updated";
-const SOURCE_SYNC_CONFLICT: &str = "conflict";
-const SOURCE_SYNC_DETACHED: &str = "detached";
-
+const SYNC_RUN_STATUS_PLANNED: &str =
+    a4n_domain::source_sync::SourceSyncRunStatus::Planned.as_str();
+const SYNC_RUN_MODE_DRY_RUN: &str = a4n_domain::source_sync::SourceSyncRunMode::DryRun.as_str();
+const SYNC_RUN_MODE_APPLY: &str = a4n_domain::source_sync::SourceSyncRunMode::Apply.as_str();
+const SYNC_RUN_STATUS_APPLYING: &str =
+    a4n_domain::source_sync::SourceSyncRunStatus::Applying.as_str();
+const SYNC_RUN_STATUS_COMPLETED: &str =
+    a4n_domain::source_sync::SourceSyncRunStatus::Completed.as_str();
+const CONFLICT_STATUS_PENDING: &str =
+    a4n_domain::source_sync::SourceSyncConflictStatus::Pending.as_str();
+const CONFLICT_STATUS_RESOLVED: &str =
+    a4n_domain::source_sync::SourceSyncConflictStatus::Resolved.as_str();
 #[derive(Debug, thiserror::Error)]
 pub enum SourceSyncDbError {
     #[error("{0}")]

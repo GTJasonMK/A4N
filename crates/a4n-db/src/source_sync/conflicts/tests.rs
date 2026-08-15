@@ -1,9 +1,9 @@
-use super::{
-    SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput,
-    insert_source_sync_conflict_record, insert_source_sync_decision_record,
-};
+use super::{SourceSyncConflictRecordInput, insert_source_sync_conflict_record};
 use crate::source_sync::SourceSyncDbError;
 use a4n_core::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::{
+    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
+};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 use serde_json::json;
@@ -30,9 +30,9 @@ fn conflict_input() -> SourceSyncConflictRecordInput {
         conflict_scope: "generation_spec".to_string(),
         target_kind: "segment".to_string(),
         target_id: 6,
-        source_change_kind: "updated".to_string(),
-        local_state_kind: "draft".to_string(),
-        severity: "blocking".to_string(),
+        source_change_kind: SourceSyncChangeKind::Updated,
+        local_state_kind: SourceSyncLocalStateKind::Draft,
+        severity: SourceSyncConflictSeverity::Blocking,
         source_summary_json: json!({}),
         local_summary_json: json!({}),
         affected_refs_json: json!({}),
@@ -55,25 +55,5 @@ async fn conflict_insert_rejects_invalid_run_before_database_access() {
     assert!(matches!(
         error,
         SourceSyncDbError::InvalidArgument(message) if message == "sync_run_id 必须为正数"
-    ));
-}
-
-#[tokio::test]
-async fn decision_insert_rejects_blank_actor_before_database_access() {
-    let error = insert_source_sync_decision_record(
-        &DatabaseConnection::Disconnected,
-        SourceSyncDecisionRecordInput {
-            conflict_id: 1,
-            decided_by: "  ".to_string(),
-            strategy: "keep_local".to_string(),
-            decision_payload_json: json!({}),
-        },
-    )
-    .await
-    .expect_err("blank decided_by must fail before database access");
-
-    assert!(matches!(
-        error,
-        SourceSyncDbError::InvalidArgument(message) if message == "decided_by 不能为空"
     ));
 }

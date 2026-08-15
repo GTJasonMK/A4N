@@ -6,6 +6,7 @@ use crate::OrchestratorContext;
 use crate::source_sync::source_sync_db_error;
 use a4n_core::error::AppError;
 use a4n_core::models::source_sync::source_sync_run;
+use a4n_db::source_sync::SourceSyncPlanRecord;
 
 pub struct ApplySourceSyncApplicationInput<'a> {
     pub run: source_sync_run::Model,
@@ -17,7 +18,7 @@ impl OrchestratorContext {
     pub async fn run_source_sync_apply_validated(
         &self,
         input: ApplySourceSyncApplicationInput<'_>,
-    ) -> Result<source_sync_run::Model, AppError> {
+    ) -> Result<SourceSyncPlanRecord, AppError> {
         let decisions_json = serde_json::to_value(&input.decisions)?;
         let workflow = self
             .begin_source_sync_apply_workflow_validated(
@@ -59,7 +60,7 @@ impl OrchestratorContext {
             return Err(AppError::Cancelled);
         }
         match (result, finalized) {
-            (Ok(run), Ok(_)) => Ok(run),
+            (Ok(plan), Ok(_)) => Ok(plan),
             (Ok(_), Err(status_error)) => Err(status_error),
             (Err(error), Ok(_)) => Err(error),
             (Err(error), Err(status_error)) => Err(AppError::InvalidState {
@@ -74,7 +75,7 @@ impl OrchestratorContext {
         sync_run_id: i64,
         decisions: Vec<SourceSyncDecisionInput>,
         execution_context: SourceSyncExecutionContext<'_>,
-    ) -> Result<source_sync_run::Model, AppError> {
+    ) -> Result<SourceSyncPlanRecord, AppError> {
         if decisions.is_empty() {
             return a4n_db::source_sync::apply_unconflicted_source_sync_records_transaction(
                 self.database.connection(),
@@ -83,7 +84,7 @@ impl OrchestratorContext {
             .await
             .map_err(source_sync_db_error);
         }
-        let prepared_context = if source_sync_decisions_require_galgame_preparation(&decisions)? {
+        let prepared_context = if source_sync_decisions_require_galgame_preparation(&decisions) {
             let run = a4n_db::source_sync::load_source_sync_apply_run_record(
                 self.database.connection(),
                 sync_run_id,

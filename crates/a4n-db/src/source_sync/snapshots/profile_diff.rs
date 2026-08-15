@@ -1,6 +1,7 @@
 use super::super::SourceSyncDbError;
 use super::contracts::SourceSnapshotProfileChangeRecord;
 use a4n_core::models::project::source_snapshot_profile;
+use a4n_domain::source_sync::SourceSyncChangeKind;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use std::collections::HashMap;
@@ -41,7 +42,7 @@ where
                 changes.push(SourceSnapshotProfileChangeRecord {
                     profile_kind: old.profile_kind.clone(),
                     source_profile_id: old.source_profile_id,
-                    change_kind: "updated".to_string(),
+                    change_kind: SourceSyncChangeKind::Updated,
                     source_summary_json: json!({
                         "profile_kind": old.profile_kind,
                         "source_profile_id": old.source_profile_id,
@@ -53,7 +54,7 @@ where
             None => changes.push(SourceSnapshotProfileChangeRecord {
                 profile_kind: old.profile_kind.clone(),
                 source_profile_id: old.source_profile_id,
-                change_kind: "deleted".to_string(),
+                change_kind: SourceSyncChangeKind::Deleted,
                 source_summary_json: json!({
                     "profile_kind": old.profile_kind,
                     "source_profile_id": old.source_profile_id,
@@ -68,7 +69,7 @@ where
             changes.push(SourceSnapshotProfileChangeRecord {
                 profile_kind: new.profile_kind.clone(),
                 source_profile_id: new.source_profile_id,
-                change_kind: "added".to_string(),
+                change_kind: SourceSyncChangeKind::Added,
                 source_summary_json: json!({
                     "profile_kind": new.profile_kind,
                     "source_profile_id": new.source_profile_id,

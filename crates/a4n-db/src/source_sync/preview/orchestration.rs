@@ -4,13 +4,12 @@ use super::{
         insert_conflicts_for_change, insert_conflicts_for_profile_change,
         insert_galgame_conflicts_for_change,
     },
-    types::SourceSyncPreviewRecord,
 };
 use crate::{
     project::{ProjectFamilyDbError, ProjectMutationError},
     source_sync::{
         CreateSourceSyncDryRunRecordInput, SOURCE_SYNC_DETACHED, SourceSyncDbError,
-        UpdateSourceSyncDryRunSummaryInput, diff_source_snapshots,
+        SourceSyncPlanRecord, UpdateSourceSyncDryRunSummaryInput, diff_source_snapshots,
         insert_source_sync_dry_run_record, source_sync_chapter_scope_for_derived_project,
         update_source_sync_dry_run_summary,
     },
@@ -21,7 +20,7 @@ use sea_orm::TransactionTrait;
 pub async fn create_source_sync_preview_records<T>(
     db: &T,
     derived_project_id: i64,
-) -> Result<SourceSyncPreviewRecord, SourceSyncDbError>
+) -> Result<SourceSyncPlanRecord, SourceSyncDbError>
 where
     T: TransactionTrait,
 {
@@ -90,7 +89,7 @@ where
     )
     .await?;
     tx.commit().await?;
-    Ok(SourceSyncPreviewRecord { run, conflicts })
+    Ok(SourceSyncPlanRecord { run, conflicts })
 }
 
 fn source_sync_project_family_error(error: ProjectFamilyDbError) -> SourceSyncDbError {

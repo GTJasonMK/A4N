@@ -1,5 +1,6 @@
 use crate::source_sync::{CONFLICT_STATUS_PENDING, CONFLICT_STATUS_RESOLVED, SourceSyncDbError};
 use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
@@ -30,7 +31,11 @@ where
         }
         let mut active: source_sync_conflict::ActiveModel = conflict.into();
         active.status = Set(CONFLICT_STATUS_RESOLVED.to_string());
-        active.resolution_strategy = Set(Some("regenerate_scene".to_string()));
+        active.resolution_strategy = Set(Some(
+            SourceSyncResolutionStrategy::RegenerateScene
+                .as_str()
+                .to_string(),
+        ));
         active.decision_json = Set(Some(json!({
             "system_action": "resolved_by_regenerate_scene",
             "galgame_scene_id": scene_id,

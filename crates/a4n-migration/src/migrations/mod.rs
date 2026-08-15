@@ -61,6 +61,7 @@ pub mod shared_video_segment_plan;
 pub mod shooting_script_narrative_units;
 pub mod shooting_script_staged_generation;
 pub mod shooting_script_transition_type_canonicalization;
+pub mod source_sync_regenerate_scene_strategy;
 pub mod system_settings_key_unique;
 pub mod theme_config_integrity_contract;
 pub mod unified_model_provider_requests;

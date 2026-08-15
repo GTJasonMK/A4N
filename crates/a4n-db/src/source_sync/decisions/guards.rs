@@ -1,12 +1,18 @@
 use crate::source_sync::SourceSyncDbError;
 use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_domain::source_sync::SourceSyncLocalStateKind;
 use serde_json::Value;
 
 pub(super) fn ensure_clean_source_sync_target(
     conflict: &source_sync_conflict::Model,
     strategy: &str,
 ) -> Result<(), SourceSyncDbError> {
-    if conflict.local_state_kind == "clean" || conflict.local_state_kind == "draft" {
+    if SourceSyncLocalStateKind::parse(&conflict.local_state_kind).is_some_and(|state| {
+        matches!(
+            state,
+            SourceSyncLocalStateKind::Clean | SourceSyncLocalStateKind::Draft
+        )
+    }) {
         Ok(())
     } else {
         Err(SourceSyncDbError::InvalidArgument(format!(

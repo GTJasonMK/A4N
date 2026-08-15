@@ -8,8 +8,8 @@ pub(in crate::project::family_package::tests) fn source_sync_run_record() -> sou
         root_project_id: 1,
         from_snapshot_id: 901,
         to_snapshot_id: 902,
-        mode: SYNC_RUN_MODE_DRY_RUN.to_string(),
-        status: SYNC_RUN_STATUS_PLANNED.to_string(),
+        mode: SourceSyncRunMode::DryRun.as_str().to_string(),
+        status: SourceSyncRunStatus::Planned.as_str().to_string(),
         summary_json: json!({}),
         error_message: None,
         created_at: dt(),
@@ -29,10 +29,10 @@ pub(in crate::project::family_package::tests) fn source_sync_conflict_record()
         conflict_scope: "generation_spec".to_string(),
         target_kind: "segment".to_string(),
         target_id: 301,
-        source_change_kind: "updated".to_string(),
-        local_state_kind: "draft".to_string(),
-        severity: "warning".to_string(),
-        status: CONFLICT_STATUS_PENDING.to_string(),
+        source_change_kind: SourceSyncChangeKind::Updated.as_str().to_string(),
+        local_state_kind: SourceSyncLocalStateKind::Draft.as_str().to_string(),
+        severity: SourceSyncConflictSeverity::Warning.as_str().to_string(),
+        status: SourceSyncConflictStatus::Pending.as_str().to_string(),
         resolution_strategy: None,
         source_summary_json: json!({}),
         local_summary_json: json!({}),
@@ -48,7 +48,8 @@ pub(in crate::project::family_package::tests) fn handled_source_sync_conflict(
 ) -> source_sync_conflict::Model {
     let mut conflict = source_sync_conflict_record();
     conflict.status = status.to_string();
-    conflict.resolution_strategy = Some("keep_local".to_string());
+    conflict.resolution_strategy =
+        Some(SourceSyncResolutionStrategy::KeepLocal.as_str().to_string());
     conflict.decision_json = Some(json!({"reason": "kept"}));
     conflict.resolved_at = Some(dt());
     conflict
@@ -73,7 +74,7 @@ pub(in crate::project::family_package::tests) fn source_sync_decision_record(
     source_sync_decision::Model {
         id: 821,
         conflict_id: 811,
-        decided_by: "user".to_string(),
+        decided_by: SourceSyncDecisionActor::User.as_str().to_string(),
         strategy: strategy.to_string(),
         decision_payload_json: json!({}),
         created_at: dt(),

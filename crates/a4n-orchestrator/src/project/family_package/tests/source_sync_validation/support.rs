@@ -11,8 +11,8 @@ pub(super) fn package_with_regenerate_scene_decision(
     package.text_anchors = vec![snapshot_text_anchor_record(&snapshot_chapter)];
     package.source_sync_runs = vec![source_sync_run_record()];
     let mut conflict = handled_source_sync_conflict_for_decision(
-        CONFLICT_STATUS_RESOLVED,
-        "regenerate_scene",
+        SourceSyncConflictStatus::Resolved.as_str(),
+        SourceSyncResolutionStrategy::RegenerateScene.as_str(),
         decision_payload_json,
     );
     conflict.conflict_scope = "text_anchor".to_string();

@@ -1,6 +1,6 @@
 pub use a4n_api_contract::project::{
     AssetDependencyGraph, AssetGraphNodeDetail, CreateDerivedProjectInput,
     CreateFreeformVideoProjectInput, CreateProjectInput, PaginatedProjects,
-    ProjectGeneratedDataResetSummary, ProjectProgressSummary, ProjectSummary, UpdateProjectInput,
+    ProjectGeneratedDataResetSummary, ProjectProgressSummary, ProjectSummary,
+    SourceSnapshotChapterSummary, UpdateProjectInput,
 };
-pub use a4n_orchestrator::project::SourceSnapshotChapterSummary;

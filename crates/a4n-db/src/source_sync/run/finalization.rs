@@ -2,6 +2,7 @@ use a4n_core::models::{
     project::{novel_project, project_derivation},
     source_sync::{source_sync_conflict, source_sync_run},
 };
+use a4n_domain::source_sync::SourceSyncConflictSeverity;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
@@ -26,7 +27,10 @@ where
     let pending_blocking = source_sync_conflict::Entity::find()
         .filter(source_sync_conflict::Column::SyncRunId.eq(run.id))
         .filter(source_sync_conflict::Column::Status.eq(CONFLICT_STATUS_PENDING))
-        .filter(source_sync_conflict::Column::Severity.eq("blocking"))
+        .filter(
+            source_sync_conflict::Column::Severity
+                .eq(SourceSyncConflictSeverity::Blocking.as_str()),
+        )
         .count(db)
         .await?;
     let pending_any = source_sync_conflict::Entity::find()

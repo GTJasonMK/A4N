@@ -8,6 +8,7 @@ pub use a4n_domain::project::{
     AssetLineageRecord, AssetLineageRef, GenerationInputSource, GenerationRunSnapshot, ProjectKind,
     ProjectProgressSummary, ProjectRollbackImpactSummary, ProjectRollbackPreview, ProjectStatus,
     ProjectStatusHistorySummary, ProjectStatusMachineSummary, PromptSource,
+    SourceSnapshotChapterSummary,
 };
 
 #[derive(Serialize, JsonSchema)]

@@ -6,7 +6,7 @@ import {
   getProject,
   listSourceSnapshotChapters,
   type NovelProject,
-  type SourceSnapshotChapter,
+  type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { useToast } from "../components/feedback/Toast";
@@ -24,7 +24,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapter[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);

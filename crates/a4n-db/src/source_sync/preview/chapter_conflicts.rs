@@ -9,6 +9,9 @@ use crate::source_sync::{
     generation_specs_for_source_chapter,
 };
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_domain::source_sync::{
+    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
+};
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -32,12 +35,12 @@ where
                     conflict_scope: "text_anchor",
                     target_kind: "chapter",
                     target_id: change.source_chapter_id,
-                    source_change_kind: &change.change_kind,
-                    local_state_kind: "clean",
-                    severity: if change.change_kind == "deleted" {
-                        "blocking"
+                    source_change_kind: change.change_kind,
+                    local_state_kind: SourceSyncLocalStateKind::Clean,
+                    severity: if change.change_kind == SourceSyncChangeKind::Deleted {
+                        SourceSyncConflictSeverity::Blocking
                     } else {
-                        "info"
+                        SourceSyncConflictSeverity::Info
                     },
                     source_summary_json: change.source_summary_json.clone(),
                     local_summary_json: json!({ "local": "no_generation_spec" }),
@@ -50,7 +53,7 @@ where
     let mut conflicts = Vec::new();
     for spec in specs {
         let state = local_state_for_spec(db, &spec).await?;
-        let severity = severity_for_impacted_local_state(&state, &change.change_kind);
+        let severity = severity_for_impacted_local_state(state, change.change_kind);
         conflicts.push(
             insert_conflict(
                 db,
@@ -59,8 +62,8 @@ where
                     conflict_scope: "generation_spec",
                     target_kind: "segment",
                     target_id: spec.id,
-                    source_change_kind: &change.change_kind,
-                    local_state_kind: &state,
+                    source_change_kind: change.change_kind,
+                    local_state_kind: state,
                     severity,
                     source_summary_json: change.source_summary_json.clone(),
                     local_summary_json: json!({
@@ -100,9 +103,12 @@ where
                     conflict_scope: "text_anchor",
                     target_kind: "galgame_scene",
                     target_id: scene.id,
-                    source_change_kind: &change.change_kind,
-                    local_state_kind: "generated",
-                    severity: severity_for_impacted_local_state("generated", &change.change_kind),
+                    source_change_kind: change.change_kind,
+                    local_state_kind: SourceSyncLocalStateKind::Generated,
+                    severity: severity_for_impacted_local_state(
+                        SourceSyncLocalStateKind::Generated,
+                        change.change_kind,
+                    ),
                     source_summary_json: change.source_summary_json.clone(),
                     local_summary_json: json!({
                         "galgame_scene_id": scene.id,
@@ -133,7 +139,7 @@ pub(super) async fn insert_conflicts_for_profile_change<C>(
 where
     C: ConnectionTrait,
 {
-    if change.change_kind == "added" {
+    if change.change_kind == SourceSyncChangeKind::Added {
         return Ok(Vec::new());
     }
     let refs =
@@ -151,9 +157,9 @@ where
                     conflict_scope: "profile",
                     target_kind: &change.profile_kind,
                     target_id: change.source_profile_id,
-                    source_change_kind: &change.change_kind,
-                    local_state_kind: &state,
-                    severity: severity_for_impacted_local_state(&state, &change.change_kind),
+                    source_change_kind: change.change_kind,
+                    local_state_kind: state,
+                    severity: severity_for_impacted_local_state(state, change.change_kind),
                     source_summary_json: change.source_summary_json.clone(),
                     local_summary_json: json!({
                         "generation_spec_id": spec.id,

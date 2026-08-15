@@ -34,7 +34,7 @@ fn validate_package_manifest_rejects_unknown_source_sync_run_status() {
 fn validate_package_manifest_rejects_source_sync_run_status_mode_mismatch() {
     let mut package = package_with_part_outlines(Vec::new());
     let mut run = source_sync_run_record();
-    run.status = SYNC_RUN_STATUS_COMPLETED.to_string();
+    run.status = SourceSyncRunStatus::Completed.as_str().to_string();
     package.source_sync_runs = vec![run];
 
     let err = validate_package_manifest(&package)
@@ -48,14 +48,14 @@ fn validate_package_manifest_rejects_source_sync_run_status_mode_mismatch() {
 
 #[test]
 fn validate_package_manifest_accepts_known_source_sync_run_states() {
-    for status in SYNC_RUN_STATUSES {
+    for status in SourceSyncRunStatus::VALUES {
         let mut package = package_with_part_outlines(Vec::new());
         let mut run = source_sync_run_record();
         run.status = (*status).to_string();
-        run.mode = if *status == SYNC_RUN_STATUS_PLANNED {
-            SYNC_RUN_MODE_DRY_RUN.to_string()
+        run.mode = if *status == SourceSyncRunStatus::Planned.as_str() {
+            SourceSyncRunMode::DryRun.as_str().to_string()
         } else {
-            SYNC_RUN_MODE_APPLY.to_string()
+            SourceSyncRunMode::Apply.as_str().to_string()
         };
         package.source_sync_runs = vec![run];
 

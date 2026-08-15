@@ -1,4 +1,5 @@
 use a4n_core::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::{SourceSyncDecisionActor, SourceSyncResolutionStrategy};
 use sea_orm::DatabaseTransaction;
 
 use super::generation::{
@@ -8,7 +9,7 @@ use super::generation::{
 use super::regeneration::{RegenerateSceneDecisionInput, apply_regenerate_scene_decision};
 use crate::source_sync::decisions::types::PreparedSourceSyncDecisionRecordInput;
 use crate::source_sync::{
-    SourceSyncDbError, SourceSyncDecisionRecordInput, detach_source_sync_project_record,
+    SourceSyncDbError, SourceSyncDecisionRecordInput, detach_derived_project_record,
     insert_source_sync_decision_record, resolve_source_sync_conflict_record,
     source_sync_conflict_for_decision,
 };
@@ -27,8 +28,8 @@ pub(super) async fn apply_prepared_source_sync_decision_record(
     .await?;
     let strategy = decision.strategy();
     let mut decision_payload_json = decision.decision_payload_json().clone();
-    if decision.detaches_project() {
-        detach_source_sync_project_record(tx, run.derived_project_id).await?;
+    if strategy == SourceSyncResolutionStrategy::Detach {
+        detach_derived_project_record(tx, run.derived_project_id).await?;
     }
 
     match &decision {
@@ -41,7 +42,7 @@ pub(super) async fn apply_prepared_source_sync_decision_record(
                 tx,
                 run,
                 &conflict,
-                strategy,
+                strategy.as_str(),
                 *generation_spec_id,
                 anchor_mappings,
             )
@@ -56,21 +57,21 @@ pub(super) async fn apply_prepared_source_sync_decision_record(
                 tx,
                 run,
                 &conflict,
-                strategy,
+                strategy.as_str(),
                 *prompt_artifact_id,
                 prompt_text,
             )
             .await?;
         }
         PreparedSourceSyncDecisionRecordInput::DeleteLocal { .. } => {
-            apply_delete_local_decision(tx, run, &conflict, strategy).await?;
+            apply_delete_local_decision(tx, run, &conflict, strategy.as_str()).await?;
         }
         PreparedSourceSyncDecisionRecordInput::AdoptSource { input, .. }
         | PreparedSourceSyncDecisionRecordInput::RebuildPrompt { input, .. } => {
-            apply_refresh_decision(tx, run, &conflict, strategy, input).await?;
+            apply_refresh_decision(tx, run, &conflict, strategy.as_str(), input).await?;
         }
         PreparedSourceSyncDecisionRecordInput::CreateReplacement { input, .. } => {
-            apply_create_replacement_decision(tx, run, &conflict, strategy, input).await?;
+            apply_create_replacement_decision(tx, run, &conflict, strategy.as_str(), input).await?;
         }
         PreparedSourceSyncDecisionRecordInput::RegenerateScene {
             galgame_scene_id,
@@ -112,8 +113,8 @@ pub(super) async fn apply_prepared_source_sync_decision_record(
         tx,
         SourceSyncDecisionRecordInput {
             conflict_id: decision.conflict_id(),
-            decided_by: "user".to_string(),
-            strategy: strategy.to_string(),
+            decided_by: SourceSyncDecisionActor::User,
+            strategy,
             decision_payload_json,
         },
     )

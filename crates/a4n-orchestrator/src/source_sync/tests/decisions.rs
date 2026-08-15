@@ -1,4 +1,5 @@
-use serde_json::json;
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
+use serde_json::{Map, Value, json};
 
 use super::super::decisions::{PreparedSourceSyncDecisionContext, parse_decision_payload};
 use super::super::{RefreshSpecPayload, SourceSyncDecisionInput, prepared_source_sync_decisions};
@@ -17,70 +18,89 @@ fn source_sync_decision_input_rejects_unknown_fields() {
 }
 
 #[test]
+fn source_sync_decision_input_rejects_noncanonical_strategy_and_payload_shape() {
+    for input in [
+        json!({
+            "conflict_id": 1,
+            "strategy": " keep_local ",
+            "decision_payload_json": {}
+        }),
+        json!({
+            "conflict_id": 1,
+            "strategy": "keep_local",
+            "decision_payload_json": []
+        }),
+    ] {
+        serde_json::from_value::<SourceSyncDecisionInput>(input)
+            .expect_err("source sync decision input must use canonical object contract");
+    }
+}
+
+#[test]
 fn prepared_source_sync_decisions_prepares_supported_mixed_batch() {
     let decisions = vec![
         SourceSyncDecisionInput {
             conflict_id: 11,
-            strategy: " keep_local ".to_string(),
-            decision_payload_json: json!({"reason": "preserve_local"}),
+            strategy: SourceSyncResolutionStrategy::KeepLocal,
+            decision_payload_json: object(json!({"reason": "preserve_local"})),
         },
         SourceSyncDecisionInput {
             conflict_id: 12,
-            strategy: "detach".to_string(),
-            decision_payload_json: json!({"reason": "independent_project"}),
+            strategy: SourceSyncResolutionStrategy::Detach,
+            decision_payload_json: object(json!({"reason": "independent_project"})),
         },
         SourceSyncDecisionInput {
             conflict_id: 13,
-            strategy: "rebind_anchor".to_string(),
-            decision_payload_json: json!({
+            strategy: SourceSyncResolutionStrategy::RebindAnchor,
+            decision_payload_json: object(json!({
                 "generation_spec_id": 30,
                 "anchor_mappings": [{
                     "old_text_anchor_id": 40,
                     "new_text_anchor_id": 41
                 }]
-            }),
+            })),
         },
         SourceSyncDecisionInput {
             conflict_id: 14,
-            strategy: "manual".to_string(),
-            decision_payload_json: json!({
+            strategy: SourceSyncResolutionStrategy::Manual,
+            decision_payload_json: object(json!({
                 "prompt_artifact_id": 50,
                 "prompt_text": "manual prompt"
-            }),
+            })),
         },
         SourceSyncDecisionInput {
             conflict_id: 15,
-            strategy: "delete_local".to_string(),
-            decision_payload_json: json!({"reason": "discard_draft"}),
+            strategy: SourceSyncResolutionStrategy::DeleteLocal,
+            decision_payload_json: object(json!({"reason": "discard_draft"})),
         },
         SourceSyncDecisionInput {
             conflict_id: 16,
-            strategy: "adopt_source".to_string(),
-            decision_payload_json: json!({
+            strategy: SourceSyncResolutionStrategy::AdoptSource,
+            decision_payload_json: object(json!({
                 "generation_spec_id": 60,
                 "prompt_kind": "chapter_video_segment",
                 "params_json": {"style": "cinematic"},
                 "text_anchor_refs": [{"text_anchor_id": 61, "role": "source"}],
                 "entity_refs": [],
                 "media_refs": []
-            }),
+            })),
         },
         SourceSyncDecisionInput {
             conflict_id: 17,
-            strategy: "rebuild_prompt".to_string(),
-            decision_payload_json: json!({
+            strategy: SourceSyncResolutionStrategy::RebuildPrompt,
+            decision_payload_json: object(json!({
                 "generation_spec_id": 70,
                 "prompt_kind": "chapter_video_segment",
                 "params_json": {},
                 "text_anchor_refs": [{"text_anchor_id": 71, "role": "source"}],
                 "entity_refs": [],
                 "media_refs": []
-            }),
+            })),
         },
         SourceSyncDecisionInput {
             conflict_id: 18,
-            strategy: "create_replacement".to_string(),
-            decision_payload_json: json!({
+            strategy: SourceSyncResolutionStrategy::CreateReplacement,
+            decision_payload_json: object(json!({
                 "generation_spec_id": 80,
                 "prompt_kind": "chapter_video_segment",
                 "params_json": {},
@@ -94,7 +114,7 @@ fn prepared_source_sync_decisions_prepares_supported_mixed_batch() {
                     "previous_segment_id": null,
                     "next_segment_id": null
                 }
-            }),
+            })),
         },
     ];
 
@@ -191,8 +211,15 @@ fn source_sync_decision_payload_rejects_unknown_nested_fields() {
         "media_refs": []
     });
 
-    let err = parse_decision_payload::<RefreshSpecPayload>(&payload)
+    let err = parse_decision_payload::<RefreshSpecPayload>(&object(payload))
         .expect_err("source sync payload must reject unknown nested fields");
 
     assert!(err.to_string().contains("unknown field"));
+}
+
+fn object(value: Value) -> Map<String, Value> {
+    value
+        .as_object()
+        .expect("test payload must be an object")
+        .clone()
 }

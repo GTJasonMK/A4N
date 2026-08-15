@@ -1,4 +1,5 @@
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use sea_orm::DatabaseTransaction;
 use serde_json::{Value, json};
 
@@ -40,7 +41,7 @@ pub(super) async fn apply_regenerate_scene_decision(
     )
     .await?;
     Ok(json!({
-        "user_action": "regenerate_scene",
+        "user_action": SourceSyncResolutionStrategy::RegenerateScene.as_str(),
         "galgame_scene_id": input.galgame_scene_id,
         "reason": input.reason,
         "result": {

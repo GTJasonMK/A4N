@@ -1,9 +1,9 @@
 use super::super::{
-    CONFLICT_STATUS_PENDING, SourceSyncDbError, required_owned_text, required_text,
-    validate_positive_id,
+    CONFLICT_STATUS_PENDING, SourceSyncDbError, required_owned_text, validate_positive_id,
 };
 use super::types::{SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput};
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_decision, source_sync_run};
+use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde_json::Value;
@@ -52,9 +52,6 @@ where
     validate_positive_id(input.target_id, "target_id")?;
     let conflict_scope = required_owned_text(input.conflict_scope, "conflict_scope")?;
     let target_kind = required_owned_text(input.target_kind, "target_kind")?;
-    let source_change_kind = required_owned_text(input.source_change_kind, "source_change_kind")?;
-    let local_state_kind = required_owned_text(input.local_state_kind, "local_state_kind")?;
-    let severity = required_owned_text(input.severity, "severity")?;
     source_sync_conflict::ActiveModel {
         sync_run_id: Set(run.id),
         derived_project_id: Set(run.derived_project_id),
@@ -64,9 +61,9 @@ where
         conflict_scope: Set(conflict_scope),
         target_kind: Set(target_kind),
         target_id: Set(input.target_id),
-        source_change_kind: Set(source_change_kind),
-        local_state_kind: Set(local_state_kind),
-        severity: Set(severity),
+        source_change_kind: Set(input.source_change_kind.as_str().to_string()),
+        local_state_kind: Set(input.local_state_kind.as_str().to_string()),
+        severity: Set(input.severity.as_str().to_string()),
         status: Set(CONFLICT_STATUS_PENDING.to_string()),
         resolution_strategy: Set(None),
         source_summary_json: Set(input.source_summary_json),
@@ -85,16 +82,16 @@ where
 pub async fn resolve_source_sync_conflict_record<C>(
     db: &C,
     conflict: source_sync_conflict::Model,
-    strategy: &str,
-    status: &str,
+    strategy: SourceSyncResolutionStrategy,
+    status: SourceSyncConflictStatus,
     decision_json: Value,
 ) -> Result<source_sync_conflict::Model, SourceSyncDbError>
 where
     C: ConnectionTrait,
 {
     let mut active: source_sync_conflict::ActiveModel = conflict.into();
-    active.status = Set(status.to_string());
-    active.resolution_strategy = Set(Some(strategy.to_string()));
+    active.status = Set(status.as_str().to_string());
+    active.resolution_strategy = Set(Some(strategy.as_str().to_string()));
     active.decision_json = Set(Some(decision_json));
     active.resolved_at = Set(Some(Utc::now().naive_utc()));
     active.update(db).await.map_err(SourceSyncDbError::Database)
@@ -107,12 +104,10 @@ pub async fn insert_source_sync_decision_record<C>(
 where
     C: ConnectionTrait,
 {
-    let decided_by = required_text(&input.decided_by, "decided_by")?.to_string();
-    let strategy = required_text(&input.strategy, "strategy")?.to_string();
     source_sync_decision::ActiveModel {
         conflict_id: Set(input.conflict_id),
-        decided_by: Set(decided_by),
-        strategy: Set(strategy),
+        decided_by: Set(input.decided_by.as_str().to_string()),
+        strategy: Set(input.strategy.as_str().to_string()),
         decision_payload_json: Set(input.decision_payload_json),
         created_at: Set(Utc::now().naive_utc()),
         ..Default::default()

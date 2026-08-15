@@ -3,6 +3,7 @@ use a4n_core::models::{
     media::{media_asset, media_provenance},
     video_project::assembly_clip,
 };
+use a4n_domain::source_sync::SourceSyncLocalStateKind;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
@@ -10,7 +11,7 @@ use crate::source_sync::{SourceSyncDbError, validate_positive_id};
 pub async fn local_state_for_generation_spec<C>(
     db: &C,
     spec: &generation_spec::Model,
-) -> Result<String, SourceSyncDbError>
+) -> Result<SourceSyncLocalStateKind, SourceSyncDbError>
 where
     C: ConnectionTrait,
 {
@@ -21,36 +22,39 @@ where
         .count(db)
         .await?;
     if edited > 0 {
-        return Ok("user_edited".to_string());
+        return Ok(SourceSyncLocalStateKind::UserEdited);
     }
     let media = media_provenance::Entity::find()
         .filter(media_provenance::Column::GenerationSpecId.eq(spec.id))
         .all(db)
         .await?;
     for provenance in media {
-        let Some(asset) = media_asset::Entity::find_by_id(provenance.media_asset_id)
+        let asset = media_asset::Entity::find_by_id(provenance.media_asset_id)
             .one(db)
             .await?
-        else {
-            continue;
-        };
+            .ok_or_else(|| {
+                SourceSyncDbError::NotFound(format!(
+                    "媒体来源记录引用的媒体资产不存在: {}",
+                    provenance.media_asset_id
+                ))
+            })?;
         let clip_count = assembly_clip::Entity::find()
             .filter(assembly_clip::Column::MediaAssetId.eq(asset.id))
             .count(db)
             .await?;
         if clip_count > 0 {
-            return Ok("assembled".to_string());
+            return Ok(SourceSyncLocalStateKind::Assembled);
         }
         if asset.origin == "imported" {
-            return Ok("imported".to_string());
+            return Ok(SourceSyncLocalStateKind::Imported);
         }
         if asset.status == "completed" {
-            return Ok("generated".to_string());
+            return Ok(SourceSyncLocalStateKind::Generated);
         }
     }
     if spec.status == "draft" {
-        Ok("draft".to_string())
+        Ok(SourceSyncLocalStateKind::Draft)
     } else {
-        Ok("clean".to_string())
+        Ok(SourceSyncLocalStateKind::Clean)
     }
 }

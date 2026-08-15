@@ -4,9 +4,9 @@
 //! Galgame 场景再生成等跨域编排仍在 `source_sync/` 模块，但 DB 只经本 owner。
 
 use a4n_core::error::AppError;
-use a4n_core::models::{project::novel_project, source_sync::source_sync_run};
+use a4n_core::models::source_sync::source_sync_run;
 use a4n_db::DbHandle;
-use a4n_db::source_sync::SourceSyncPreviewRecord;
+use a4n_db::source_sync::SourceSyncPlanRecord;
 
 use super::OrchestratorContext;
 use crate::source_sync::source_sync_db_error;
@@ -29,7 +29,7 @@ impl SourceSyncApplication {
     async fn create_source_sync_preview_records(
         &self,
         derived_project_id: i64,
-    ) -> Result<SourceSyncPreviewRecord, AppError> {
+    ) -> Result<SourceSyncPlanRecord, AppError> {
         a4n_db::source_sync::create_source_sync_preview_records(
             self.connection(),
             derived_project_id,
@@ -47,11 +47,8 @@ impl SourceSyncApplication {
             .map_err(AppError::Database)
     }
 
-    async fn detach_derived_project_record(
-        &self,
-        project: novel_project::Model,
-    ) -> Result<novel_project::Model, AppError> {
-        a4n_db::source_sync::detach_derived_project_record(self.connection(), project)
+    async fn detach_derived_project_record(&self, derived_project_id: i64) -> Result<(), AppError> {
+        a4n_db::source_sync::detach_derived_project_record(self.connection(), derived_project_id)
             .await
             .map_err(source_sync_db_error)
     }
@@ -67,28 +64,13 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn preview_source_sync_for_user_validated(
-        &self,
-        user_id: i64,
-        derived_project_id: i64,
-    ) -> Result<crate::source_sync::SourceSyncPlan, AppError> {
-        self.derived_project_family_editor_context_validated(user_id, derived_project_id)
-            .await?;
-        self.preview_source_sync(derived_project_id).await
-    }
-
     pub async fn preview_source_sync(
         &self,
         derived_project_id: i64,
-    ) -> Result<crate::source_sync::SourceSyncPlan, AppError> {
-        let preview = self
-            .source_sync
+    ) -> Result<SourceSyncPlanRecord, AppError> {
+        self.source_sync
             .create_source_sync_preview_records(derived_project_id)
-            .await?;
-        Ok(crate::source_sync::SourceSyncPlan {
-            run: preview.run,
-            conflicts: preview.conflicts,
-        })
+            .await
     }
 
     pub async fn source_sync_run_by_id(
@@ -122,51 +104,17 @@ impl OrchestratorContext {
         Ok(run)
     }
 
-    pub async fn run_source_sync_apply_for_user_validated(
-        &self,
-        user_id: i64,
-        run: source_sync_run::Model,
-        decisions: Vec<crate::source_sync::SourceSyncDecisionInput>,
-        galgame_prompt_renderer: Option<&dyn a4n_prompt::rendering::PromptRenderer>,
-    ) -> Result<source_sync_run::Model, AppError> {
-        self.verify_project_permission(
-            run.derived_project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.verify_project_permission(
-            run.root_project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.run_source_sync_apply_validated(crate::source_sync::ApplySourceSyncApplicationInput {
-            run,
-            decisions,
-            galgame_prompt_renderer,
-        })
-        .await
-    }
-
-    pub async fn detach_derived_project_record(
-        &self,
-        project: novel_project::Model,
-    ) -> Result<novel_project::Model, AppError> {
-        self.source_sync
-            .detach_derived_project_record(project)
-            .await
-    }
-
     pub async fn detach_derived_project_for_user_validated(
         &self,
         user_id: i64,
         derived_project_id: i64,
-    ) -> Result<novel_project::Model, AppError> {
+    ) -> Result<(), AppError> {
         let family = self
             .derived_project_family_editor_context_validated(user_id, derived_project_id)
             .await?;
-        self.detach_derived_project_record(family.project).await
+        self.source_sync
+            .detach_derived_project_record(family.project.id)
+            .await
     }
 
     /// 源文本同步 apply：校验后创建 workflow_run（RUNNING）。

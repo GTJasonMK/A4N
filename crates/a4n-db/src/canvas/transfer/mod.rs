@@ -13,7 +13,7 @@ pub use types::{
     VideoStudioProjectImportRows,
 };
 
-pub(super) const SOURCE_SYNC_CURRENT: &str = "current";
+pub(super) use crate::project::SOURCE_SYNC_CURRENT;
 pub(super) const MEDIA_OWNER_IMAGE: &str = "generated_image";
 pub(super) const MEDIA_OWNER_VIDEO: &str = "generated_video";
 pub(super) const MEDIA_OWNER_MEDIA_ASSET: &str = "media_asset";

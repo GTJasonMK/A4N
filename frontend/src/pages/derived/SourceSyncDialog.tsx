@@ -33,13 +33,13 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const TARGET_KIND_LABELS: Record<string, string> = {
+  chapter: "章节",
+  segment: "视频片段",
   galgame_scene: "GALGame 场次",
   galgame_line: "GALGame 台词",
-  manga_prompt: "漫画页",
-  manga_page: "漫画页",
-  video_prompt: "视频提示词",
-  video_segment: "视频片段",
-  text_anchor: "正文锚点",
+  character: "人物资料",
+  object: "物品资料",
+  scene: "场景资料",
 };
 
 const CONFLICT_STATUS_LABELS: Record<string, string> = {
@@ -51,15 +51,19 @@ const CONFLICT_STATUS_LABELS: Record<string, string> = {
 const SOURCE_CHANGE_LABELS: Record<string, string> = {
   added: "来源新增",
   updated: "来源已更新",
+  reordered: "来源顺序变化",
   deleted: "来源已删除",
   moved: "来源位置变化",
+  split: "来源内容已拆分",
 };
 
 const LOCAL_STATE_LABELS: Record<string, string> = {
-  unchanged: "当前项目未修改",
-  modified: "当前项目已修改",
+  user_edited: "已由用户编辑",
   generated: "已有生成内容",
-  missing: "当前项目中不存在",
+  imported: "已有导入内容",
+  assembled: "已进入成片装配",
+  clean: "当前内容未修改",
+  draft: "当前内容为草稿",
 };
 
 export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
@@ -225,13 +229,12 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       return;
     }
     const targetProjectId = projectId;
-    const targetPreviewScope = { projectId: targetProjectId, token: scopeRef.current.token };
     const requestSeq = applySeqRef.current + 1;
     applySeqRef.current = requestSeq;
     const targetSyncRunId = requestPlan.run.id;
     setApplying(true);
     try {
-      const updatedRun = await applySourceSyncDecisions({
+      const updatedPlan = await applySourceSyncDecisions({
         sync_run_id: targetSyncRunId,
         decisions: [],
       });
@@ -239,30 +242,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       addToast("无冲突项已应用", "success");
       await onChanged();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      if (!isCurrentScope(targetPreviewScope)) return;
-      const resolvedAt = new Date().toISOString();
-      setPlan((current) => {
-        if (!current || current.run.id !== requestPlan.run.id) return current;
-        return {
-          ...current,
-          run: updatedRun,
-          conflicts: current.conflicts.map((item) =>
-            item.status === "pending" && item.severity === "info"
-              ? {
-                  ...item,
-                  status: "resolved",
-                  resolution_strategy: "keep_local",
-                  decision_json: {
-                    system_action: "apply_unconflicted_item",
-                    source_change_kind: item.source_change_kind,
-                    local_state_kind: item.local_state_kind,
-                  },
-                  resolved_at: resolvedAt,
-                }
-              : item,
-          ),
-        };
-      });
+      setPlan(updatedPlan);
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, "应用无冲突项失败"), "error");
@@ -309,7 +289,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     setApplying(true);
     setApplyingConflictId(conflict.id);
     try {
-      const updatedRun = await applySourceSyncDecisions({
+      const updatedPlan = await applySourceSyncDecisions({
         sync_run_id: requestPlan.run.id,
         decisions: [
           {
@@ -320,23 +300,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
         ],
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      setPlan((current) => {
-        if (!current || current.run.id !== requestPlan.run.id) return current;
-        return {
-          run: updatedRun,
-          conflicts: current.conflicts.map((item) =>
-            item.id === conflict.id
-              ? {
-                  ...item,
-                  status: "ignored",
-                  resolution_strategy: "keep_local",
-                  decision_json: decisionPayload,
-                  resolved_at: new Date().toISOString(),
-                }
-              : item,
-          ),
-        };
-      });
+      setPlan(updatedPlan);
       addToast("已保留当前本地内容", "success");
       await onChanged();
     } catch (err) {
@@ -395,7 +359,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     setApplying(true);
     setApplyingConflictId(conflict.id);
     try {
-      const updatedRun = await applySourceSyncDecisions({
+      const updatedPlan = await applySourceSyncDecisions({
         sync_run_id: requestPlan.run.id,
         decisions: [
           {
@@ -406,30 +370,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
         ],
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      const resolvedAt = new Date().toISOString();
-      setPlan((current) => {
-        if (!current || current.run.id !== requestPlan.run.id) return current;
-        return {
-          run: updatedRun,
-          conflicts: current.conflicts.map((item) =>
-            isSameGalgameSceneConflict(item, sceneId)
-              ? {
-                  ...item,
-                  status: "resolved",
-                  resolution_strategy: "regenerate_scene",
-                  decision_json:
-                    item.id === conflict.id
-                      ? decisionPayload
-                      : {
-                          system_action: "resolved_by_regenerate_scene",
-                          galgame_scene_id: sceneId,
-                        },
-                  resolved_at: resolvedAt,
-                }
-              : item,
-          ),
-        };
-      });
+      setPlan(updatedPlan);
       addToast("GALGame 场已重建", "success");
       await onChanged();
     } catch (err) {
@@ -722,10 +663,6 @@ function galgameSceneIdForConflict(conflict: SourceSyncConflictSummary): number 
   if (conflict.target_kind !== "galgame_line") return null;
   const raw = conflict.affected_refs_json.galgame_scene_id;
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-}
-
-function isSameGalgameSceneConflict(conflict: SourceSyncConflictSummary, sceneId: number): boolean {
-  return conflict.status === "pending" && galgameSceneIdForConflict(conflict) === sceneId;
 }
 
 const JsonSummary: React.FC<{ title: string; value: Record<string, unknown> }> = ({ title, value }) => (

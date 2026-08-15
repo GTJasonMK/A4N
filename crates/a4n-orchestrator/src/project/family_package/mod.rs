@@ -8,12 +8,6 @@ use crate::media::{
     MEDIA_STATUS_COMPLETED, galgame_media_binding_required_media_kind,
     is_valid_galgame_media_binding_pair,
 };
-use crate::source_sync::CONFLICT_STATUS_PENDING;
-#[cfg(test)]
-use crate::source_sync::{
-    CONFLICT_STATUS_RESOLVED, SYNC_RUN_MODE_APPLY, SYNC_RUN_MODE_DRY_RUN,
-    SYNC_RUN_STATUS_COMPLETED, SYNC_RUN_STATUS_PLANNED,
-};
 #[cfg(test)]
 use crate::text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, SOURCE_KIND_CHAPTER_CONTENT};
 #[cfg(test)]

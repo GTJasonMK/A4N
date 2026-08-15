@@ -2472,6 +2472,20 @@ export interface CreateDerivedProjectInput {
   title: string;
 }
 
+export interface SourceSnapshotChapterSummary {
+  analysis_data_json: unknown;
+  analysis_hash: string | null;
+  chapter_number: number;
+  content: string;
+  content_hash: string;
+  id: number;
+  root_project_id: number;
+  snapshot_id: number;
+  source_chapter_id: number;
+  summary: string | null;
+  title: string | null;
+}
+
 export interface DuplicateProjectInput {
   new_title: string;
   project_id: number;
@@ -3939,10 +3953,28 @@ export interface EditedChapterShootingScriptView {
   shooting_script: ChapterShootingScriptView;
 }
 
+export type SourceSyncRunMode = "dry_run" | "apply";
+
+export type SourceSyncRunStatus = "planned" | "applying" | "completed";
+
+export type SourceSyncChangeKind = "added" | "updated" | "reordered" | "deleted" | "moved" | "split";
+
+export type SourceSyncLocalStateKind = "user_edited" | "generated" | "imported" | "assembled" | "clean" | "draft";
+
+export type SourceSyncConflictSeverity = "blocking" | "warning" | "info";
+
+export type SourceSyncConflictStatus = "pending" | "resolved" | "ignored";
+
+export type SourceSyncResolutionStrategy = "keep_local" | "adopt_source" | "rebuild_prompt" | "rebind_anchor" | "regenerate_scene" | "create_replacement" | "manual" | "detach" | "delete_local";
+
 export interface SourceSyncDecisionInput {
   conflict_id: number;
-  decision_payload_json: unknown;
-  strategy: string;
+  decision_payload_json: Record<string, unknown>;
+  strategy: SourceSyncResolutionStrategy;
+}
+
+export interface SourceSyncProjectInput {
+  derived_project_id: number;
 }
 
 export interface ApplySourceSyncInput {
@@ -3956,31 +3988,31 @@ export interface SourceSyncRunSummary {
   error_message: string | null;
   from_snapshot_id: number;
   id: number;
-  mode: string;
+  mode: SourceSyncRunMode;
   root_project_id: number;
-  status: string;
-  summary_json: unknown;
+  status: SourceSyncRunStatus;
+  summary_json: Record<string, unknown>;
   to_snapshot_id: number;
   updated_at: string;
 }
 
 export interface SourceSyncConflictSummary {
-  affected_refs_json: unknown;
+  affected_refs_json: Record<string, unknown>;
   conflict_scope: string;
   created_at: string;
-  decision_json: unknown;
+  decision_json: Record<string, unknown> | null;
   derived_project_id: number;
   from_snapshot_id: number;
   id: number;
-  local_state_kind: string;
-  local_summary_json: unknown;
-  resolution_strategy: string | null;
+  local_state_kind: SourceSyncLocalStateKind;
+  local_summary_json: Record<string, unknown>;
+  resolution_strategy: SourceSyncResolutionStrategy | null;
   resolved_at: string | null;
   root_project_id: number;
-  severity: string;
-  source_change_kind: string;
-  source_summary_json: unknown;
-  status: string;
+  severity: SourceSyncConflictSeverity;
+  source_change_kind: SourceSyncChangeKind;
+  source_summary_json: Record<string, unknown>;
+  status: SourceSyncConflictStatus;
   sync_run_id: number;
   target_id: number;
   target_kind: string;

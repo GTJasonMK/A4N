@@ -29,10 +29,10 @@ pub async fn preview_source_sync(
             || async move {
                 state_for_task
                     .orchestrator()
-                    .preview_source_sync_for_user_validated(user_id, derived_project_id)
+                    .preview_source_sync(derived_project_id)
                     .await
             },
         )
         .await?;
-    Ok(projections::source_sync_plan_summary(plan))
+    projections::source_sync_plan_summary(plan)
 }

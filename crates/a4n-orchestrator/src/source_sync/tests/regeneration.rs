@@ -1,4 +1,5 @@
-use serde_json::json;
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
+use serde_json::{Map, Value, json};
 
 use super::super::decisions::{
     PreparedSourceSyncDecisionContext, parse_decision_payload,
@@ -17,20 +18,19 @@ fn regenerate_scene_requires_prepared_context_before_db_plan_conversion() {
     let decisions = vec![
         SourceSyncDecisionInput {
             conflict_id: 11,
-            strategy: "keep_local".to_string(),
-            decision_payload_json: json!({}),
+            strategy: SourceSyncResolutionStrategy::KeepLocal,
+            decision_payload_json: Map::new(),
         },
         SourceSyncDecisionInput {
             conflict_id: 12,
-            strategy: "regenerate_scene".to_string(),
-            decision_payload_json: json!({"galgame_scene_id": 99, "reason": null}),
+            strategy: SourceSyncResolutionStrategy::RegenerateScene,
+            decision_payload_json: object(json!({"galgame_scene_id": 99, "reason": null})),
         },
     ];
 
-    assert!(
-        source_sync_decisions_require_galgame_preparation(&decisions)
-            .expect("regenerate strategy should be valid")
-    );
+    assert!(source_sync_decisions_require_galgame_preparation(
+        &decisions
+    ));
     let err =
         prepared_source_sync_decisions(&decisions, &PreparedSourceSyncDecisionContext::default())
             .expect_err("regenerate decision must not reach DB without prepared LLM plan");
@@ -84,10 +84,17 @@ fn regenerate_scene_payload_rejects_unknown_fields() {
         "silent_fallback": true
     });
 
-    let err = parse_decision_payload::<RegenerateGalgameScenePayload>(&payload)
+    let err = parse_decision_payload::<RegenerateGalgameScenePayload>(&object(payload))
         .expect_err("regenerate_scene payload must reject unknown fields");
 
     assert!(err.to_string().contains("unknown field"));
+}
+
+fn object(value: Value) -> Map<String, Value> {
+    value
+        .as_object()
+        .expect("test payload must be an object")
+        .clone()
 }
 
 #[test]

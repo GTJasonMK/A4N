@@ -15,7 +15,7 @@ pub(in crate::actions::project_transfer::family_package::tests) fn source_sync_c
         source_change_kind: "updated".to_string(),
         local_state_kind: "draft".to_string(),
         severity: "warning".to_string(),
-        status: CONFLICT_STATUS_PENDING.to_string(),
+        status: SourceSyncConflictStatus::Pending.as_str().to_string(),
         resolution_strategy: None,
         source_summary_json: json!({}),
         local_summary_json: json!({}),

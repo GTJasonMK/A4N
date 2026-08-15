@@ -15,7 +15,7 @@ import {
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
 import { listChapters } from "../../api/chapter";
-import type { SourceSnapshotChapter } from "../../api/project";
+import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import { listImagesByProject, type GeneratedImage } from "../../api/image";
 import {
@@ -62,7 +62,7 @@ import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
 interface MangaTabProps {
   projectId: number;
   canEditManga?: boolean;
-  snapshotChapters?: SourceSnapshotChapter[];
+  snapshotChapters?: SourceSnapshotChapterSummary[];
   assetProjectId?: number;
   imageProjectIds?: number[];
   /**

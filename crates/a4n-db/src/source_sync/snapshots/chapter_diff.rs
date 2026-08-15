@@ -1,6 +1,7 @@
 use super::super::SourceSyncDbError;
 use super::contracts::SourceSnapshotChapterChangeRecord;
 use a4n_core::models::project::source_snapshot_chapter;
+use a4n_domain::source_sync::SourceSyncChangeKind;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use std::collections::HashMap;
@@ -39,7 +40,7 @@ where
                 changes.push(SourceSnapshotChapterChangeRecord {
                     source_chapter_id: old.source_chapter_id,
                     source_snapshot_chapter_id: Some(new.id),
-                    change_kind: "updated".to_string(),
+                    change_kind: SourceSyncChangeKind::Updated,
                     source_summary_json: json!({
                         "old_chapter_number": old.chapter_number,
                         "new_chapter_number": new.chapter_number,
@@ -55,7 +56,7 @@ where
                 changes.push(SourceSnapshotChapterChangeRecord {
                     source_chapter_id: old.source_chapter_id,
                     source_snapshot_chapter_id: Some(new.id),
-                    change_kind: "reordered".to_string(),
+                    change_kind: SourceSyncChangeKind::Reordered,
                     source_summary_json: json!({
                         "old_chapter_number": old.chapter_number,
                         "new_chapter_number": new.chapter_number,
@@ -66,7 +67,7 @@ where
             None => changes.push(SourceSnapshotChapterChangeRecord {
                 source_chapter_id: old.source_chapter_id,
                 source_snapshot_chapter_id: None,
-                change_kind: "deleted".to_string(),
+                change_kind: SourceSyncChangeKind::Deleted,
                 source_summary_json: json!({
                     "chapter_number": old.chapter_number,
                     "title": old.title,
@@ -80,7 +81,7 @@ where
             changes.push(SourceSnapshotChapterChangeRecord {
                 source_chapter_id: new.source_chapter_id,
                 source_snapshot_chapter_id: Some(new.id),
-                change_kind: "added".to_string(),
+                change_kind: SourceSyncChangeKind::Added,
                 source_summary_json: json!({
                     "chapter_number": new.chapter_number,
                     "title": new.title,

@@ -9,7 +9,7 @@ import {
   projectLifecycleBlockedReason,
   resetProjectGeneratedData,
   type NovelProject,
-  type SourceSnapshotChapter,
+  type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
@@ -29,7 +29,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapter[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const [resetting, setResetting] = useState(false);

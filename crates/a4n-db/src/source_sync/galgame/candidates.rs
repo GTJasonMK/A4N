@@ -110,9 +110,12 @@ where
 
     let mut records = Vec::new();
     for line in lines {
-        let Some(text_anchor_id) = line.text_anchor_id else {
-            continue;
-        };
+        let text_anchor_id = line.text_anchor_id.ok_or_else(|| {
+            SourceSyncDbError::Internal(format!(
+                "非空文本锚点查询返回空值: galgame_line_id={}",
+                line.id
+            ))
+        })?;
         let old_anchor = text_anchor::Entity::find_by_id(text_anchor_id)
             .one(db)
             .await?

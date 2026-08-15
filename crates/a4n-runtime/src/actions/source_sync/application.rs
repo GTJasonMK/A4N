@@ -1,4 +1,4 @@
-use super::{ApplySourceSyncInput, SourceSyncRunSummary, orchestrator_decision, projections};
+use super::{ApplySourceSyncInput, SourceSyncPlanSummary, projections};
 use crate::AppState;
 use a4n_core::error::AppError;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
@@ -8,7 +8,7 @@ pub async fn apply_source_sync_decisions(
     state: &AppState,
     user_id: i64,
     input: ApplySourceSyncInput,
-) -> Result<SourceSyncRunSummary, AppError> {
+) -> Result<SourceSyncPlanSummary, AppError> {
     let run = state
         .orchestrator()
         .source_sync_run_for_user_validated(user_id, input.sync_run_id)
@@ -21,11 +21,7 @@ pub async fn apply_source_sync_decisions(
     )?;
     let state_for_task = state.clone();
     let prompt_renderer = state;
-    let decisions = input
-        .decisions
-        .into_iter()
-        .map(orchestrator_decision)
-        .collect();
+    let decisions = input.decisions;
     let updated = state
         .orchestrator()
         .queue_run_tracked_with_family_context(
@@ -35,15 +31,16 @@ pub async fn apply_source_sync_decisions(
             || async move {
                 state_for_task
                     .orchestrator()
-                    .run_source_sync_apply_for_user_validated(
-                        user_id,
-                        run,
-                        decisions,
-                        Some(prompt_renderer),
+                    .run_source_sync_apply_validated(
+                        a4n_orchestrator::source_sync::ApplySourceSyncApplicationInput {
+                            run,
+                            decisions,
+                            galgame_prompt_renderer: Some(prompt_renderer),
+                        },
                     )
                     .await
             },
         )
         .await;
-    Ok(projections::source_sync_run_summary(&updated?))
+    projections::source_sync_plan_summary(updated?)
 }

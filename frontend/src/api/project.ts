@@ -24,6 +24,7 @@ import type {
   ProjectStatus,
   ProjectStatusMachineSummary,
   ProjectSummary,
+  SourceSnapshotChapterSummary,
   UpdateProjectInput,
 } from "./generated/host";
 
@@ -54,6 +55,7 @@ export type {
   ProjectStatusHistorySummary,
   ProjectStatusMachineSummary,
   ProjectKind,
+  SourceSnapshotChapterSummary,
 } from "./generated/host";
 
 // ============================================================================
@@ -69,20 +71,6 @@ export type NovelProject = Omit<
   source_mode: ProjectSourceMode;
   source_sync_status: SourceSyncStatus;
 };
-
-export interface SourceSnapshotChapter {
-  id: number;
-  snapshot_id: number;
-  root_project_id: number;
-  source_chapter_id: number;
-  chapter_number: number;
-  title: string | null;
-  summary: string | null;
-  content: string;
-  analysis_data_json: unknown | null;
-  content_hash: string;
-  analysis_hash: string | null;
-}
 
 export type ProjectLifecycleGate = "active" | "deleting" | "resetting";
 type ProjectSourceMode = "self" | "derived" | "freeform";
@@ -217,8 +205,8 @@ export async function createFreeformVideoProject(
   });
 }
 
-export async function listSourceSnapshotChapters(projectId: Id): Promise<SourceSnapshotChapter[]> {
-  return apiInvoke<SourceSnapshotChapter[]>("list_source_snapshot_chapters", {
+export async function listSourceSnapshotChapters(projectId: Id): Promise<SourceSnapshotChapterSummary[]> {
+  return apiInvoke<SourceSnapshotChapterSummary[]>("list_source_snapshot_chapters", {
     projectId: idNum(projectId),
   });
 }

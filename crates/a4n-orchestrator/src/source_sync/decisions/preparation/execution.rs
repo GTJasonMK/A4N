@@ -1,5 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_core::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 
 use super::context::PreparedSourceSyncDecisionContext;
 use super::plan::build_prepared_galgame_scene_regeneration_plan;
@@ -8,7 +9,6 @@ use crate::source_sync::contracts::{
     RegenerateGalgameScenePayload, SourceSyncDecisionInput, SourceSyncExecutionContext,
 };
 use crate::source_sync::decisions::payload::parse_decision_payload;
-use crate::source_sync::rules::normalize_strategy;
 use crate::source_sync::source_sync_db_error;
 
 pub(in crate::source_sync) async fn prepare_decision_execution_context(
@@ -18,11 +18,16 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
     execution_context: SourceSyncExecutionContext<'_>,
 ) -> Result<PreparedSourceSyncDecisionContext, AppError> {
     let mut prepared = PreparedSourceSyncDecisionContext::default();
-    let Some(galgame_execution) = execution_context.galgame else {
-        return Ok(prepared);
-    };
+    let galgame_execution = execution_context
+        .galgame
+        .ok_or_else(|| AppError::InvalidState {
+            current: "missing_galgame_execution_context".to_string(),
+            operation: SourceSyncResolutionStrategy::RegenerateScene
+                .as_str()
+                .to_string(),
+        })?;
     for decision in decisions {
-        if normalize_strategy(&decision.strategy)? != "regenerate_scene" {
+        if decision.strategy != SourceSyncResolutionStrategy::RegenerateScene {
             continue;
         }
         let conflict = a4n_db::source_sync::source_sync_conflict_for_decision(
