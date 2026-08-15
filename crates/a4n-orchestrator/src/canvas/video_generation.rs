@@ -67,7 +67,6 @@ pub struct CanvasVideoRequestPreview {
     pub graph_id: i64,
     pub node_id: i64,
     pub request: VideoGenerationRequest,
-    pub provider_input_note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,7 +110,6 @@ pub struct CanvasVideoResolvedImages {
     pub first_frame_image_url: Option<String>,
     pub last_frame_image_url: Option<String>,
     pub reference_image_urls: Vec<String>,
-    pub provider_input_note: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -213,7 +211,6 @@ impl OrchestratorContext {
             graph_id: input.graph_id,
             node_id: input.node_id,
             request: prepared.request,
-            provider_input_note: prepared.provider_input_note,
         })
     }
 
@@ -244,7 +241,6 @@ impl OrchestratorContext {
             first_frame_image_id,
             last_frame_image_id,
             reference_image_ids,
-            provider_input_note,
         } = prepare_canvas_video_request(
             host_port,
             input.user_id,
@@ -294,7 +290,6 @@ impl OrchestratorContext {
                 "provider_backend": config.backend,
                 "model": config.model,
                 "request": request,
-                "provider_input_note": provider_input_note,
             });
             let mut video = self
                 .create_video_generation_record_validated(
@@ -1092,7 +1087,6 @@ struct PreparedCanvasVideoRequest {
     first_frame_image_id: Option<i64>,
     last_frame_image_id: Option<i64>,
     reference_image_ids: Vec<i64>,
-    provider_input_note: Option<String>,
 }
 
 async fn prepare_canvas_video_request(
@@ -1138,7 +1132,6 @@ async fn prepare_canvas_video_request(
             reference_image_ids: reference_image_ids.clone(),
         })
         .await?;
-    let provider_input_note = images.provider_input_note;
     let request = VideoGenerationRequest {
         prompt: prompt.clone(),
         negative_prompt: input
@@ -1165,7 +1158,6 @@ async fn prepare_canvas_video_request(
         first_frame_image_id,
         last_frame_image_id,
         reference_image_ids,
-        provider_input_note,
     })
 }
 

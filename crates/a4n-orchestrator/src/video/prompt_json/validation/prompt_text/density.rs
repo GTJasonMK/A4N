@@ -75,7 +75,6 @@ fn provider_prompt_text(
         "插入片段草稿",
         prompt_output_language,
         min_chars,
-        false,
     )
     .map(str::to_string)
     .map_err(AppError::InvalidArgument)

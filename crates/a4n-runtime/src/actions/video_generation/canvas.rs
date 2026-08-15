@@ -33,7 +33,7 @@ pub async fn preview_canvas_video_request(
             "video_generation_request",
             Some("canvas_video_prompt".to_string()),
             "ready",
-            preview.provider_input_note,
+            None,
             &payload,
         )?],
     ))

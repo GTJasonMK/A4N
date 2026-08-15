@@ -53,7 +53,6 @@ pub fn validate_provider_model_text<'a>(
     prompt_id: i64,
     prompt_output_language: PromptOutputLanguage,
     min_chars: usize,
-    allow_preview_placeholders: bool,
 ) -> Result<&'a str, String> {
     validate_provider_model_text_for_context(
         value,
@@ -61,7 +60,6 @@ pub fn validate_provider_model_text<'a>(
         &format!("视频提示词 #{prompt_id}"),
         prompt_output_language,
         min_chars,
-        allow_preview_placeholders,
     )
 }
 
@@ -71,16 +69,11 @@ pub(in crate::video) fn validate_provider_model_text_for_context<'a>(
     context: &str,
     prompt_output_language: PromptOutputLanguage,
     min_chars: usize,
-    allow_preview_placeholders: bool,
 ) -> Result<&'a str, String> {
     let text = value.trim();
-    if let Some(violation) = provider_prompt_text_violation(
-        text,
-        field,
-        prompt_output_language,
-        min_chars,
-        allow_preview_placeholders,
-    ) {
+    if let Some(violation) =
+        provider_prompt_text_violation(text, field, prompt_output_language, min_chars)
+    {
         return Err(provider_prompt_text_error(context, field, violation));
     }
     Ok(text)
@@ -92,7 +85,6 @@ pub fn provider_prompt_text_violation(
     field: &str,
     prompt_output_language: PromptOutputLanguage,
     min_chars: usize,
-    allow_preview_placeholders: bool,
 ) -> Option<ProviderPromptTextViolation> {
     let text = text.trim();
     if text.is_empty() {
@@ -102,7 +94,7 @@ pub fn provider_prompt_text_violation(
     if contains_dictionary_like_prompt_text(text) {
         return Some(ProviderPromptTextViolation::DictionaryLike);
     }
-    if text.contains("请求预览占位") && !allow_preview_placeholders {
+    if text.contains("请求预览占位") {
         return Some(ProviderPromptTextViolation::PreviewPlaceholder);
     }
     if let Some(term) = internal_video_workflow_term(text) {
@@ -202,7 +194,6 @@ mod tests {
             "visual_prompt",
             PromptOutputLanguage::ZhCn,
             MIN_PROVIDER_VISUAL_PROMPT_CHARS,
-            false,
         );
         assert_eq!(
             dictionary_violation,
@@ -214,7 +205,6 @@ mod tests {
             "visual_prompt",
             PromptOutputLanguage::ZhCn,
             MIN_PROVIDER_VISUAL_PROMPT_CHARS,
-            false,
         );
         assert_eq!(
             upload_status_violation,
@@ -228,7 +218,6 @@ mod tests {
             "visual_prompt",
             PromptOutputLanguage::ZhCn,
             MIN_PROVIDER_VISUAL_PROMPT_CHARS,
-            false,
         );
         assert!(matches!(
             short_natural_violation,

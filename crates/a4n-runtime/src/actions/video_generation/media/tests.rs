@@ -119,26 +119,6 @@ fn reference_image_ids_rejects_invalid_or_duplicate_values() {
 }
 
 #[test]
-fn reference_image_project_ids_preserve_reference_order_and_deduplicate_projects() {
-    let mut first = image_for_preview(20, Some(1), "first.png", Some(10));
-    first.id = 11;
-    let mut second = image_for_preview(10, Some(1), "second.png", Some(10));
-    second.id = 12;
-    let mut third_same_project = image_for_preview(20, Some(1), "third.png", Some(10));
-    third_same_project.id = 13;
-    let images_by_id = HashMap::from([
-        (first.id, first),
-        (second.id, second),
-        (third_same_project.id, third_same_project),
-    ]);
-
-    let project_ids =
-        reference_image_project_ids_in_reference_order(&[11, 404, 12, 13], &images_by_id);
-
-    assert_eq!(project_ids, vec![20, 10]);
-}
-
-#[test]
 fn image_mime_from_path_requires_supported_extension() {
     for path in ["image", "image.bmp", "image.gif"] {
         let err = image_mime_from_path(std::path::Path::new(path))
@@ -197,35 +177,6 @@ fn provider_image_content_type_rejects_non_images() {
             "{content_type} should be rejected"
         );
     }
-}
-
-#[test]
-fn preview_placeholder_records_invalid_reference_notes_without_blocking_url() {
-    let image = image_for_preview(2, Some(9), "bad.bmp", None);
-
-    let notes = reference_image_preview_notes(1, 9, &[1], &image);
-    let placeholder = reference_image_preview_placeholder(&image);
-
-    assert!(notes.iter().any(|note| note.contains("不属于当前视频项目")));
-    assert!(
-        notes
-            .iter()
-            .any(|note| note.contains("文件类型无法作为视频图片输入"))
-    );
-    assert!(placeholder.starts_with("https://example.invalid/a4n-media/preview/generated-image-7"));
-    assert!(placeholder.contains("validation=deferred"));
-}
-
-#[test]
-fn preview_placeholder_uses_image_metadata_without_reading_file() {
-    let image = image_for_preview(1, Some(9), "still.jpeg", Some(1234));
-
-    let notes = reference_image_preview_notes(1, 9, &[1], &image);
-    let placeholder = reference_image_preview_placeholder(&image);
-
-    assert!(notes.is_empty());
-    assert!(placeholder.starts_with("https://example.invalid/a4n-media/preview/generated-image-7"));
-    assert!(placeholder.contains("1234%20bytes"));
 }
 
 #[test]

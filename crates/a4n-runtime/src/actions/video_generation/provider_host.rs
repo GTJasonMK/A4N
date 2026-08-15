@@ -36,9 +36,9 @@ use crate::{
         job_lifecycle::poll_provider_job,
         media::{
             delete_video_tail_frame_assets, media_bytes_to_remote_temp_media_url,
-            persist_canvas_video_bytes, reference_image_preview_placeholder_by_id,
-            reference_image_preview_placeholders_by_ids, reference_image_provider_input_by_id,
-            reference_image_provider_inputs_by_ids, remote_temp_upload_configured,
+            persist_canvas_video_bytes, reference_image_provider_input_by_id,
+            reference_image_provider_inputs_by_ids, reference_image_request_preview_url_by_id,
+            reference_image_request_preview_urls_by_ids, remote_temp_upload_configured,
         },
         relay_video_sidecar_progress, resolve_video_config, run_queued_request_with_cancel,
         video_sidecar_root_project_id,
@@ -230,12 +230,11 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     )
                     .await
                     .map_err(host_error)?,
-                    notes: Vec::new(),
                     staging_artifacts,
                 })
             }
             VideoProviderValidationMode::Preview => {
-                let references = reference_image_preview_placeholders_by_ids(
+                let reference_image_urls = reference_image_request_preview_urls_by_ids(
                     &video,
                     &collaboration,
                     input.user_id,
@@ -245,18 +244,17 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 )
                 .await
                 .map_err(host_error)?;
-                let (first_frame_image_url, first_notes) =
-                    reference_image_preview_placeholder_by_id(
-                        &video,
-                        &collaboration,
-                        input.user_id,
-                        input.project_id,
-                        input.chapter_id,
-                        input.first_frame_image_id,
-                    )
-                    .await
-                    .map_err(host_error)?;
-                let (last_frame_image_url, last_notes) = reference_image_preview_placeholder_by_id(
+                let first_frame_image_url = reference_image_request_preview_url_by_id(
+                    &video,
+                    &collaboration,
+                    input.user_id,
+                    input.project_id,
+                    input.chapter_id,
+                    input.first_frame_image_id,
+                )
+                .await
+                .map_err(host_error)?;
+                let last_frame_image_url = reference_image_request_preview_url_by_id(
                     &video,
                     &collaboration,
                     input.user_id,
@@ -266,14 +264,10 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 )
                 .await
                 .map_err(host_error)?;
-                let mut notes = references.notes;
-                notes.extend(first_notes);
-                notes.extend(last_notes);
                 Ok(ResolvedChapterVideoImageInputs {
-                    reference_image_urls: references.urls,
+                    reference_image_urls,
                     first_frame_image_url,
                     last_frame_image_url,
-                    notes,
                     staging_artifacts: Vec::new(),
                 })
             }
@@ -514,7 +508,6 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             first_frame_image_url: resolved.first_frame_image_url,
             last_frame_image_url: resolved.last_frame_image_url,
             reference_image_urls: resolved.reference_image_urls,
-            provider_input_note: (!resolved.notes.is_empty()).then(|| resolved.notes.join("；")),
         })
     }
 

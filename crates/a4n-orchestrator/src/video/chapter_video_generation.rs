@@ -22,12 +22,10 @@ use crate::OrchestratorContext;
 
 use super::chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
-    append_provider_input_note, append_provider_input_notes,
-    append_video_request_prompt_length_context, apply_chapter_video_prompt_preview_override,
-    build_video_generation_provider_preview_prompt_with_renderer,
+    append_provider_input_note, append_video_request_prompt_length_context,
+    apply_chapter_video_prompt_preview_override,
     build_video_generation_provider_prompt_with_renderer, chapter_video_provider_descriptor,
     enforce_provider_image_binding_contract, enforce_provider_prompt_length_contract,
-    ensure_chapter_video_prompt_preview_metadata, ensure_chapter_video_prompt_preview_texts,
     provider_specific_negative_prompt, sanitized_chapter_video_request_for_snapshot,
     video_request_prompt_length_context,
 };
@@ -89,7 +87,6 @@ pub struct ResolvedChapterVideoImageInputs {
     pub reference_image_urls: Vec<String>,
     pub first_frame_image_url: Option<String>,
     pub last_frame_image_url: Option<String>,
-    pub notes: Vec<String>,
     pub staging_artifacts: Vec<GenerationArtifactRef>,
 }
 
@@ -342,13 +339,6 @@ impl OrchestratorContext {
                 &mut provider_input_note,
             )
             .map_err(AppError::InvalidArgument)?;
-            ensure_chapter_video_prompt_preview_texts(&mut prompt, &mut provider_input_note);
-            ensure_chapter_video_prompt_preview_metadata(
-                &mut prompt,
-                provider_workflow,
-                &mut provider_input_note,
-            )
-            .map_err(AppError::InvalidArgument)?;
         } else {
             if prompt.status == "running" {
                 return Err(invalid_argument(
@@ -392,8 +382,6 @@ impl OrchestratorContext {
             &config.backend,
             provider_workflow,
             prompt_reference_image_count,
-            mode,
-            &mut provider_input_note,
         )
         .map_err(AppError::InvalidArgument)?;
 
@@ -413,7 +401,6 @@ impl OrchestratorContext {
                 prompt_reference_image_ids_json.as_ref(),
                 provider_workflow,
                 &execution_contract.recipe,
-                mode,
                 &mut provider_input_note,
             )
             .await?;
@@ -450,7 +437,6 @@ impl OrchestratorContext {
                 last_frame_image_id: selected_last_frame_image_id,
             })
             .await?;
-        append_provider_input_notes(&mut provider_input_note, image_inputs.notes);
         if config.backend == NEWAPI_VIDEO_BACKEND && mode == VideoProviderValidationMode::Generate {
             ensure_newapi_first_frame_image_supported(
                 image_inputs.first_frame_image_url.as_deref(),
@@ -466,26 +452,13 @@ impl OrchestratorContext {
             has_storyboard_reference_image: storyboard_workflow
                 && references.storyboard_image_id.is_some(),
         };
-        let full_prompt = match mode {
-            VideoProviderValidationMode::Generate => {
-                build_video_generation_provider_prompt_with_renderer(
-                    self,
-                    &prompt,
-                    provider_workflow,
-                    image_binding,
-                )
-                .await
-            }
-            VideoProviderValidationMode::Preview => {
-                build_video_generation_provider_preview_prompt_with_renderer(
-                    self,
-                    &prompt,
-                    provider_workflow,
-                    image_binding,
-                )
-                .await
-            }
-        }
+        let full_prompt = build_video_generation_provider_prompt_with_renderer(
+            self,
+            &prompt,
+            provider_workflow,
+            image_binding,
+        )
+        .await
         .map_err(AppError::InvalidArgument)?;
         let prompt_source = prompt
             .metadata_json
@@ -506,13 +479,8 @@ impl OrchestratorContext {
                 image_inputs.reference_image_urls,
             )?,
         };
-        enforce_provider_prompt_length_contract(
-            &config.backend,
-            &request.prompt,
-            mode,
-            &mut provider_input_note,
-        )
-        .map_err(AppError::InvalidArgument)?;
+        enforce_provider_prompt_length_contract(&config.backend, &request.prompt)
+            .map_err(AppError::InvalidArgument)?;
         Ok(PreparedChapterVideoGeneration {
             project_id,
             chapter_id,
@@ -868,7 +836,6 @@ impl OrchestratorContext {
         prompt_reference_image_ids_json: Option<&Value>,
         provider_workflow: ProviderGenerationWorkflow,
         recipe: &VideoSegmentExecutionRecipeV1,
-        mode: VideoProviderValidationMode,
         provider_input_note: &mut Option<String>,
     ) -> Result<ChapterProviderReferences, AppError> {
         let storyboard_workflow = provider_workflow.uses_storyboard();
@@ -881,13 +848,9 @@ impl OrchestratorContext {
                 .first_frame_chain_start_image_id_for_prompt(project_id, chapter_id, prompt, recipe)
                 .await?;
             if start.is_none() {
-                let message = super::first_frame_chain_missing_start_image_message(prompt);
-                missing_image_error_or_note(
-                    mode,
-                    provider_input_note,
-                    message,
-                    "当前首帧串联起始帧缺失",
-                )?;
+                return Err(invalid_argument(
+                    super::first_frame_chain_missing_start_image_message(prompt),
+                ));
             }
             (
                 BoundaryFrameImageIds {
@@ -901,12 +864,9 @@ impl OrchestratorContext {
                 .storyboard_image_id_for_prompt(project_id, chapter_id, prompt)
                 .await?;
             if storyboard_image_id.is_none() {
-                missing_image_error_or_note(
-                    mode,
-                    provider_input_note,
-                    super::storyboard_missing_image_message(prompt),
-                    "当前分镜图缺失",
-                )?;
+                return Err(invalid_argument(super::storyboard_missing_image_message(
+                    prompt,
+                )));
             }
             (BoundaryFrameImageIds::default(), storyboard_image_id)
         } else {
@@ -918,12 +878,7 @@ impl OrchestratorContext {
                 frame_ids.first.is_some(),
                 frame_ids.last.is_some(),
             ) {
-                missing_image_error_or_note(
-                    mode,
-                    provider_input_note,
-                    message,
-                    "当前首尾帧图片不完整",
-                )?;
+                return Err(invalid_argument(message));
             }
             (frame_ids, None)
         };
@@ -1152,22 +1107,6 @@ fn inserted_video_execution_identity(
         )));
     }
     Ok(Value::Object(identity.clone()))
-}
-
-fn missing_image_error_or_note(
-    mode: VideoProviderValidationMode,
-    note: &mut Option<String>,
-    message: String,
-    label: &str,
-) -> Result<(), AppError> {
-    if mode == VideoProviderValidationMode::Generate {
-        return Err(AppError::InvalidArgument(message));
-    }
-    append_provider_input_note(
-        note,
-        format!("{label}：{message}；此处仅展示 provider 请求结构，真实生成仍需补齐该输入"),
-    );
-    Ok(())
 }
 
 fn joined_ids(ids: &[i64]) -> String {

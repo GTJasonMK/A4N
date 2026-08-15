@@ -72,7 +72,6 @@ pub fn validate_optimized_prompt_fields(
                 prompt.id,
                 prompt_output_language,
                 MIN_PROVIDER_VISUAL_PROMPT_CHARS,
-                false,
             )?;
             let motion_prompt = motion_prompt.ok_or_else(|| {
                 format!(
@@ -86,7 +85,6 @@ pub fn validate_optimized_prompt_fields(
                 prompt.id,
                 prompt_output_language,
                 MIN_PROVIDER_MOTION_PROMPT_CHARS,
-                false,
             )?;
         }
         prompt_type if is_frame_prompt_type(prompt_type) => {
@@ -96,7 +94,6 @@ pub fn validate_optimized_prompt_fields(
                 prompt.id,
                 prompt_output_language,
                 MIN_FRAME_PROMPT_CHARS,
-                false,
             )?;
         }
         _ => {

@@ -94,7 +94,6 @@ pub use chapter_video_generation::{
 pub use chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
     append_provider_input_note, append_video_request_prompt_length_context,
-    build_video_generation_provider_preview_prompt_with_renderer,
     build_video_generation_provider_prompt_with_renderer, provider_specific_negative_prompt,
     video_request_prompt_length_context,
 };
