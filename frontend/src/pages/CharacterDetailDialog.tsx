@@ -482,7 +482,6 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           startMessage: "正在准备角色同步",
           successMessage: "角色同步完成",
           errorMessage: "同步失败",
-          total: 10,
           cancelLabel: "停止同步",
           runningHint: "角色任务执行过程中已完成的数据会保留",
         },

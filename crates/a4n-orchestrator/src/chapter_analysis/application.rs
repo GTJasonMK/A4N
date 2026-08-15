@@ -13,7 +13,7 @@ use crate::{
     OrchestratorContext,
     chapter_content::ChapterDerivedCleanupHostPort,
     character::{
-        CharacterDiscoveryInput, CharacterDiscoveryProgress, CharacterProfileBatchProgress,
+        CharacterDiscoveryInput, CharacterDiscoveryProgress, CharacterProfileSyncProgress,
         CharacterProfileSyncStageTracePort,
     },
     object_discovery::{ObjectDiscoveryInput, ObjectDiscoveryProgress},
@@ -815,7 +815,7 @@ impl OrchestratorContext {
                 chapter.analysis_data.as_ref(),
                 Some(discovery_result),
                 prompt_renderer,
-                CharacterProfileBatchProgress {
+                CharacterProfileSyncProgress {
                     reporter: Some(&reporter),
                     active_task_id: progress.active_task_id,
                 },

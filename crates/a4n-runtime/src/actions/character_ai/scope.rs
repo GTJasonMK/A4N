@@ -1,9 +1,6 @@
-use super::{
-    CHARACTER_PROFILE_SYNC_STEPS, CharacterAiTaskScope, SyncAllCharacterProfilesInput,
-    SyncCharacterProfileInput,
-};
+use super::{CharacterAiTaskScope, SyncAllCharacterProfilesInput, SyncCharacterProfileInput};
 use crate::{AppState, actions::access};
-use a4n_orchestrator::character::CharacterDiscoveryInput;
+use a4n_orchestrator::character::{CHARACTER_PROFILE_SYNC_STEPS, CharacterDiscoveryInput};
 
 pub async fn character_discovery_task_scope(
     state: &AppState,

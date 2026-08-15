@@ -1,6 +1,6 @@
 use a4n_api_contract::character::{
-    CharacterProfileProtectedAttribute, CharacterProfileSyncRange, CharacterProfileSyncSkipReason,
-    CharacterProfileSyncedResult, SyncCharacterProfileResult,
+    CharacterProfileProtectedAttribute, CharacterProfileSyncRange, CharacterProfileSyncedResult,
+    SyncCharacterProfileResult,
 };
 use a4n_core::error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -13,19 +13,16 @@ use crate::{
 
 use super::{
     super::{
-        AppliedCharacterSyncPersistenceRecord, CharacterImplicitClassificationInput,
-        CharacterProfileSyncChapterStateDraft, CharacterProfileSyncPreviewStep,
-        CharacterProfileSyncStageProgress, CharacterProfileSyncStageTracePort,
+        AppliedCharacterSyncPersistenceRecord, CHARACTER_PROFILE_SYNC_STEPS,
+        CharacterImplicitClassificationInput, CharacterProfileSyncChapterStateDraft,
+        CharacterProfileSyncPreviewStep, CharacterProfileSyncStageTracePort,
         CharacterSyncChapterStateRecordInput, CharacterSyncImplicitReviewInput,
-        CharacterSyncPersistenceInput, CharacterSyncRangeMode, RecordCompletedGenerationRunInput,
-        analysis_profile_sync_skip_reason, character_profile_skipped_result,
-        pending_character_sync_attribute_events, profile_sync_skip_reason,
+        CharacterSyncPersistenceInput, RecordCompletedGenerationRunInput,
+        character_profile_skipped_result, pending_character_sync_attribute_events,
+        sync_rules::profile_sync_skip_reason_for_mode,
     },
     context::PreparedCharacterProfileSync,
-    contracts::{
-        CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL, CharacterProfileSyncApplicationInput,
-        CharacterProfileSyncProgress,
-    },
+    contracts::{CharacterProfileSyncApplicationInput, CharacterProfileSyncProgress},
     write_steps::{BuildCharacterSyncWriteStepsInput, build_character_sync_write_step_records},
 };
 
@@ -34,31 +31,20 @@ impl OrchestratorContext {
         &self,
         input: CharacterProfileSyncApplicationInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError> {
+    ) -> Result<Option<CharacterProfileSyncPreviewStep>, AppError> {
         let range_mode = input.range_mode;
         let prepared = self.prepare_character_profile_sync_context(input).await?;
-        if let Some(reason) = profile_sync_skip_reason_for_mode(
-            &prepared.profile,
-            prepared.target_chapter,
-            range_mode,
-        ) {
-            return Ok(vec![CharacterProfileSyncPreviewStep {
-                id: format!("sync_{}", prepared.profile.id),
-                title: format!("{}：无需同步", prepared.profile.name),
-                prompt_name: "character_sync_evidence_events",
-                status: "reused",
-                note: Some(format!(
-                    "已同步到第 {} 章或目标章节无需处理（{reason}）",
-                    prepared.target_chapter
-                )),
-                request: None,
-            }]);
+        if profile_sync_skip_reason_for_mode(&prepared.profile, prepared.target_chapter, range_mode)
+            .is_some()
+        {
+            return Ok(None);
         }
-        self.prepare_character_profile_sync_stage_preview_validated(
+        self.prepare_character_profile_sync_initial_request_preview_validated(
             prepared.stage_input(None),
             prompt_renderer,
         )
         .await
+        .map(Some)
     }
 
     pub async fn run_character_profile_sync_validated(
@@ -78,7 +64,7 @@ impl OrchestratorContext {
         ) {
             report_progress(
                 progress,
-                CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL,
+                CHARACTER_PROFILE_SYNC_STEPS,
                 &format!("{name}：无需同步到第 {} 章，跳过", prepared.target_chapter),
             )?;
             return Ok(SyncCharacterProfileResult::Skipped(
@@ -132,9 +118,7 @@ impl OrchestratorContext {
             .run_character_profile_sync_stages_validated(
                 prepared.stage_input(Some(workflow_run_id)),
                 prompt_renderer,
-                progress.map(|progress| CharacterProfileSyncStageProgress {
-                    reporter: progress.reporter,
-                }),
+                progress,
                 trace_port,
             )
             .await?;
@@ -247,7 +231,7 @@ impl OrchestratorContext {
             .await;
         report_progress(
             progress,
-            CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL,
+            CHARACTER_PROFILE_SYNC_STEPS,
             &format!("{}：角色同步完成", prepared.profile.name),
         )?;
         Ok(SyncCharacterProfileResult::Synced(
@@ -260,19 +244,6 @@ impl OrchestratorContext {
                 staged.llm_trace_paths,
             ),
         ))
-    }
-}
-
-fn profile_sync_skip_reason_for_mode(
-    profile: &a4n_core::models::character::protagonist_profile::Model,
-    target_chapter: i32,
-    range_mode: CharacterSyncRangeMode,
-) -> Option<CharacterProfileSyncSkipReason> {
-    match range_mode {
-        CharacterSyncRangeMode::Incremental => profile_sync_skip_reason(profile, target_chapter),
-        CharacterSyncRangeMode::AnalysisResyncFromTarget => {
-            analysis_profile_sync_skip_reason(profile, target_chapter)
-        }
     }
 }
 

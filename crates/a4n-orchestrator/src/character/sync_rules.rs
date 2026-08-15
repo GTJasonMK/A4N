@@ -187,6 +187,19 @@ pub enum CharacterSyncRangeMode {
     AnalysisResyncFromTarget,
 }
 
+pub(crate) fn profile_sync_skip_reason_for_mode(
+    profile: &protagonist_profile::Model,
+    target_chapter: i32,
+    mode: CharacterSyncRangeMode,
+) -> Option<CharacterProfileSyncSkipReason> {
+    match mode {
+        CharacterSyncRangeMode::Incremental => profile_sync_skip_reason(profile, target_chapter),
+        CharacterSyncRangeMode::AnalysisResyncFromTarget => {
+            analysis_profile_sync_skip_reason(profile, target_chapter)
+        }
+    }
+}
+
 /// 同步起止章节（含 clear_to）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CharacterSyncRange {
@@ -330,16 +343,24 @@ mod tests {
     fn profile_sync_skip_when_already_at_or_past_target() {
         let p = profile(3, 1);
         assert_eq!(
-            profile_sync_skip_reason(&p, 3),
+            profile_sync_skip_reason_for_mode(&p, 3, CharacterSyncRangeMode::Incremental),
             Some(CharacterProfileSyncSkipReason::AlreadySyncedToTarget)
         );
         assert_eq!(
-            profile_sync_skip_reason(&p, 2),
+            profile_sync_skip_reason_for_mode(&p, 2, CharacterSyncRangeMode::Incremental),
             Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
         );
         assert_eq!(
-            profile_sync_skip_reason(&p, 1),
+            profile_sync_skip_reason_for_mode(&p, 1, CharacterSyncRangeMode::Incremental),
             Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
+        );
+        assert_eq!(
+            profile_sync_skip_reason_for_mode(
+                &p,
+                2,
+                CharacterSyncRangeMode::AnalysisResyncFromTarget,
+            ),
+            None
         );
     }
 

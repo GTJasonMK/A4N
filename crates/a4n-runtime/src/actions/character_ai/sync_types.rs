@@ -1,5 +1,4 @@
 use super::CharacterAiProgress;
-pub use a4n_orchestrator::character::CHARACTER_PROFILE_SYNC_STEPS;
 
 #[derive(Clone, Copy)]
 pub(super) struct CharacterProgressScope<'a> {

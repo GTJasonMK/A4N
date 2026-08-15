@@ -22,6 +22,8 @@ mod sync_projection;
 mod sync_rules;
 use a4n_core::error::AppError;
 
+pub const CHARACTER_PROFILE_SYNC_STEPS: u32 = 10;
+
 pub use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     AppliedCharacterSyncPersistenceRecord, CharacterAttributeDeletionExecutionInput,
@@ -112,17 +114,14 @@ pub use profile_sync::{
     CharacterProfileSyncProgress, CharacterProfileSyncSubject,
 };
 pub use profile_sync_batch::{
-    CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileBatchProgress,
-    CharacterProfileBatchProgressReporter, analysis_sync_character_names,
-    character_keys_from_names, character_names_from_chapter_analysis,
-    character_names_from_discovery_result,
+    analysis_sync_character_names, character_keys_from_names,
+    character_names_from_chapter_analysis, character_names_from_discovery_result,
 };
 pub use profile_sync_stages::{
     CharacterProfileSyncChapterStateDraft, CharacterProfileSyncExtraction,
     CharacterProfileSyncGenerationTrace, CharacterProfileSyncPreviewStep,
     CharacterProfileSyncStageInput, CharacterProfileSyncStageOutput,
-    CharacterProfileSyncStageProgress, CharacterProfileSyncStageTraceInput,
-    CharacterProfileSyncStageTracePort,
+    CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
 };
 pub use sync_projection::{
     CharacterSyncAttributeEventDraft, pending_character_sync_attribute_events,

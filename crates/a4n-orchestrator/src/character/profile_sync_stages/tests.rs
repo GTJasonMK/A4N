@@ -336,24 +336,22 @@ async fn stage_requests_share_cache_prefix_only_within_one_character_session() {
 }
 
 #[tokio::test]
-async fn preview_owns_stage_order_and_only_prepares_first_request() {
+async fn preview_only_prepares_the_real_initial_request() {
     let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(Vec::new()));
     let (_database, context) = setup_context(provider).await;
-    let steps = context
-        .prepare_character_profile_sync_stage_preview_validated(
+    let step = context
+        .prepare_character_profile_sync_initial_request_preview_validated(
             stage_input(None),
             &TestPromptRenderer,
         )
         .await
         .expect("stage preview should succeed");
 
-    assert_eq!(steps.len(), 7);
-    assert_eq!(steps[0].prompt_name, "character_sync_evidence_events");
-    assert_eq!(steps[0].status, "ready");
-    assert!(steps[0].request.is_some());
-    assert!(steps[1..].iter().all(|step| step.request.is_none()));
-    assert_eq!(steps[5].prompt_name, "implicit_classification");
-    assert_eq!(steps[6].prompt_name, "implicit_update");
+    assert_eq!(step.prompt_name, "character_sync_evidence_events");
+    assert_eq!(
+        step.request.trace_context.unwrap().step_key,
+        "character_sync_evidence_events"
+    );
 }
 
 #[tokio::test]

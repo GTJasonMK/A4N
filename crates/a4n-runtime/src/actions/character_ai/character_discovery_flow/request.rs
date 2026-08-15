@@ -2,7 +2,7 @@ use a4n_orchestrator::character::CharacterDiscoveryInput;
 
 use crate::{
     AppState,
-    actions::{access, character_ai::CharacterAiPreviewStep},
+    actions::{access, request_preview::ChatStatusPreviewStep},
 };
 
 pub(crate) async fn character_discovery_preview_steps(
@@ -10,9 +10,7 @@ pub(crate) async fn character_discovery_preview_steps(
     user_id: i64,
     project_id: i64,
     chapter_number: Option<i32>,
-    initial_state: &str,
-    initial_note: Option<String>,
-) -> Result<Vec<CharacterAiPreviewStep>, String> {
+) -> Result<Vec<ChatStatusPreviewStep>, String> {
     access::verify_project_editor(state, user_id, project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -28,16 +26,12 @@ pub(crate) async fn character_discovery_preview_steps(
         )
         .await
         .map_err(|error| error.to_string())?;
-    let note = match initial_note {
-        Some(note) => format!("{note}；分析章节数：{}", preview.analyzed_chapter_count),
-        None => format!("分析章节数：{}", preview.analyzed_chapter_count),
-    };
-    Ok(vec![CharacterAiPreviewStep::llm(
+    Ok(vec![ChatStatusPreviewStep::llm(
         "character_discovery",
         "角色发现初始 LLM 请求",
-        "character_discovery",
-        initial_state,
-        Some(note),
-        preview.request,
+        Some("character_discovery".to_string()),
+        "ready",
+        Some(format!("分析章节数：{}", preview.analyzed_chapter_count)),
+        Some(preview.request),
     )])
 }

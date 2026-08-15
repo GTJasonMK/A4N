@@ -13,8 +13,8 @@ mod sync_types;
 pub(crate) use character_discovery_flow::character_discovery_preview_steps;
 pub use character_discovery_flow::discover_character_profiles_for_chapters;
 pub use contracts::{
-    CharacterAiPreviewStep, CharacterAiTaskScope, SyncAllCharacterProfilesInput,
-    SyncAllCharacterProfilesResult, SyncCharacterProfileInput, SyncCharacterProfileResult,
+    CharacterAiTaskScope, SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult,
+    SyncCharacterProfileInput, SyncCharacterProfileResult,
 };
 pub use preview::{
     preview_discover_character_profiles_request, preview_sync_all_character_profiles_request,
@@ -27,10 +27,9 @@ pub use scope::{
 };
 pub(crate) use sync_batch::sync_all_character_profiles_preview_steps;
 pub use sync_batch::sync_all_character_profiles_to_chapter;
-pub(crate) use sync_profile::character_sync_preview_steps;
+pub(crate) use sync_profile::character_sync_preview_step;
 pub use sync_profile::sync_character_profile_from_chapters;
 pub(crate) use sync_trace::RuntimeCharacterProfileSyncStageTracePort;
-pub use sync_types::CHARACTER_PROFILE_SYNC_STEPS;
 
 #[cfg(test)]
 mod tests;

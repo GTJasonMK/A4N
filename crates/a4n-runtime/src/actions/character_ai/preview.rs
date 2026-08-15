@@ -1,7 +1,6 @@
 use super::{
-    CharacterAiPreviewStep, SyncAllCharacterProfilesInput, SyncCharacterProfileInput,
-    character_discovery_preview_steps, character_sync_preview_steps,
-    sync_all_character_profiles_preview_steps,
+    SyncAllCharacterProfilesInput, SyncCharacterProfileInput, character_discovery_preview_steps,
+    character_sync_preview_step, sync_all_character_profiles_preview_steps,
 };
 use crate::{
     AppState,
@@ -9,6 +8,7 @@ use crate::{
         ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
     },
 };
+use a4n_orchestrator::character::CharacterProfileSyncPreviewStep;
 
 pub async fn preview_discover_character_profiles_request(
     state: &AppState,
@@ -16,19 +16,12 @@ pub async fn preview_discover_character_profiles_request(
     project_id: i64,
     chapter_number: Option<i32>,
 ) -> Result<ModelRequestPreview, String> {
-    character_ai_preview(
+    chat_status_preview_for_state(
         state,
         "character_discovery",
         "角色发现 LLM 请求预览",
-        character_discovery_preview_steps(
-            state,
-            user_id,
-            project_id,
-            chapter_number,
-            "ready",
-            None,
-        )
-        .await?,
+        character_discovery_preview_steps(state, user_id, project_id, chapter_number).await?,
+        "llm_chat",
     )
     .await
 }
@@ -39,11 +32,15 @@ pub async fn preview_sync_character_from_chapters_request(
     input: SyncCharacterProfileInput,
 ) -> Result<ModelRequestPreview, String> {
     let title = format!("{} 角色同步 LLM 请求预览", input.name);
-    character_ai_preview(
+    chat_status_preview_for_state(
         state,
         "character_profile_sync",
         title,
-        character_sync_preview_steps(state, user_id, input).await?,
+        character_sync_preview_step(state, user_id, input)
+            .await?
+            .into_iter()
+            .map(profile_sync_preview_step),
+        "llm_chat",
     )
     .await
 }
@@ -53,36 +50,26 @@ pub async fn preview_sync_all_character_profiles_request(
     user_id: i64,
     input: SyncAllCharacterProfilesInput,
 ) -> Result<ModelRequestPreview, String> {
-    character_ai_preview(
+    chat_status_preview_for_state(
         state,
         "character_profile_sync_all",
         "批量角色同步 LLM 请求预览",
-        sync_all_character_profiles_preview_steps(state, user_id, input).await?,
+        sync_all_character_profiles_preview_steps(state, user_id, input)
+            .await?
+            .into_iter()
+            .map(profile_sync_preview_step),
+        "llm_chat",
     )
     .await
 }
 
-async fn character_ai_preview(
-    state: &AppState,
-    workflow: impl Into<String>,
-    title: impl Into<String>,
-    source_steps: Vec<CharacterAiPreviewStep>,
-) -> Result<ModelRequestPreview, String> {
-    chat_status_preview_for_state(
-        state,
-        workflow,
-        title,
-        source_steps.into_iter().map(|step| {
-            ChatStatusPreviewStep::llm(
-                step.key,
-                step.title,
-                step.prompt_name,
-                step.state,
-                step.note,
-                step.request,
-            )
-        }),
-        "llm_chat",
+fn profile_sync_preview_step(step: CharacterProfileSyncPreviewStep) -> ChatStatusPreviewStep {
+    ChatStatusPreviewStep::llm(
+        step.id,
+        step.title,
+        Some(step.prompt_name.to_string()),
+        "ready",
+        Some(step.note),
+        Some(step.request),
     )
-    .await
 }

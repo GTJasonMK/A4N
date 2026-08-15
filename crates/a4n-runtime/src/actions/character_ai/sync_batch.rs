@@ -1,10 +1,7 @@
 use a4n_core::error::AppError;
-use a4n_orchestrator::character::{CharacterProfileBatchProgress, CharacterProfileSyncPreviewStep};
+use a4n_orchestrator::character::{CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress};
 
-use super::{
-    CharacterAiPreviewStep, CharacterAiProgress, SyncAllCharacterProfilesInput,
-    SyncAllCharacterProfilesResult,
-};
+use super::{CharacterAiProgress, SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult};
 use crate::{
     AppState,
     actions::access,
@@ -45,7 +42,7 @@ pub async fn sync_all_character_profiles_to_chapter(
                 input.project_id,
                 input.chapter_number,
                 prompt_renderer,
-                CharacterProfileBatchProgress {
+                CharacterProfileSyncProgress {
                     reporter: Some(&report_progress),
                     active_task_id: progress.and_then(|progress| progress.task_id),
                 },
@@ -60,7 +57,7 @@ pub(crate) async fn sync_all_character_profiles_preview_steps(
     state: &AppState,
     user_id: i64,
     input: SyncAllCharacterProfilesInput,
-) -> Result<Vec<CharacterAiPreviewStep>, String> {
+) -> Result<Vec<CharacterProfileSyncPreviewStep>, String> {
     access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -74,27 +71,6 @@ pub(crate) async fn sync_all_character_profiles_preview_steps(
         )
         .await
         .map_err(|error| error.to_string())
-        .map(|steps| steps.into_iter().map(preview_step).collect())
-}
-
-fn preview_step(step: CharacterProfileSyncPreviewStep) -> CharacterAiPreviewStep {
-    match step.request {
-        Some(request) => CharacterAiPreviewStep::llm(
-            step.id,
-            step.title,
-            step.prompt_name,
-            step.status,
-            step.note,
-            request,
-        ),
-        None => CharacterAiPreviewStep::status(
-            step.id,
-            step.title,
-            step.prompt_name,
-            step.status,
-            step.note,
-        ),
-    }
 }
 
 fn batch_character_sync_trace_id(

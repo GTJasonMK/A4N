@@ -1,7 +1,6 @@
 use super::super::{
     CharacterAiProgress, SyncCharacterProfileInput, SyncCharacterProfileResult,
-    sync_trace::RuntimeCharacterProfileSyncStageTracePort,
-    sync_types::{CHARACTER_PROFILE_SYNC_STEPS, CharacterProgressScope},
+    sync_trace::RuntimeCharacterProfileSyncStageTracePort, sync_types::CharacterProgressScope,
 };
 use crate::{
     AppState,
@@ -10,7 +9,8 @@ use crate::{
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::character::{
-    CharacterProfileSyncApplicationInput, CharacterProfileSyncProgress, CharacterProfileSyncSubject,
+    CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileSyncApplicationInput,
+    CharacterProfileSyncProgress, CharacterProfileSyncSubject,
 };
 
 pub async fn sync_character_profile_from_chapters(

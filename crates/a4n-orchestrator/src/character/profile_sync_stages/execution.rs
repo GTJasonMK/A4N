@@ -6,9 +6,8 @@ use serde_json::{Value, json};
 use crate::{
     OrchestratorContext,
     character::{
-        IMPLICIT_CLASSIFICATION_PROMPT_NAME, IMPLICIT_UPDATE_PROMPT_NAME,
-        optional_character_sync_checkpoint_string, required_character_sync_checkpoint_string,
-        validate_contiguous_character_sync_range,
+        CharacterProfileSyncProgress, optional_character_sync_checkpoint_string,
+        required_character_sync_checkpoint_string, validate_contiguous_character_sync_range,
     },
     workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
 };
@@ -19,8 +18,7 @@ use super::{
         CharacterProfileSyncPreviewStep, CharacterProfileSyncStage,
         CharacterProfileSyncStageExchange, CharacterProfileSyncStageInput,
         CharacterProfileSyncStageOutput, CharacterProfileSyncStageOutputs,
-        CharacterProfileSyncStageProgress, CharacterProfileSyncStageTraceInput,
-        CharacterProfileSyncStageTracePort,
+        CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
     },
     output::{
         parse_character_profile_sync_stage_output, validate_character_profile_sync_extraction,
@@ -32,73 +30,33 @@ use super::{
 };
 
 impl OrchestratorContext {
-    pub(crate) async fn prepare_character_profile_sync_stage_preview_validated(
+    pub(crate) async fn prepare_character_profile_sync_initial_request_preview_validated(
         &self,
         input: CharacterProfileSyncStageInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError> {
+    ) -> Result<CharacterProfileSyncPreviewStep, AppError> {
         validate_stage_input(&input, false)?;
-        let mut previous_steps = json!({});
-        let mut steps = Vec::new();
-        for (index, stage) in CharacterProfileSyncStage::ALL.iter().copied().enumerate() {
-            let request = if index == 0 {
-                Some(
-                    build_character_profile_sync_stage_request(
-                        &input,
-                        stage,
-                        &previous_steps,
-                        prompt_renderer,
-                    )
-                    .await?,
-                )
-            } else {
-                None
-            };
-            steps.push(CharacterProfileSyncPreviewStep {
-                id: format!("sync_{}_{}", stage.key(), input.profile_id),
-                title: format!("{}：{}", input.profile_name, stage.title()),
-                prompt_name: stage.prompt_name(),
-                status: if request.is_some() {
-                    "ready"
-                } else {
-                    "blocked"
-                },
-                note: Some(if request.is_some() {
-                    format!(
-                        "同步第 {}-{} 章；后续阶段依赖该阶段输出",
-                        input.start_chapter, input.target_chapter
-                    )
-                } else {
-                    "该阶段依赖前序角色同步阶段的结构化输出".to_string()
-                }),
-                request,
-            });
-            previous_steps[stage.key()] = json!({ stage.root_field(): [] });
-        }
-        steps.push(CharacterProfileSyncPreviewStep {
-            id: format!("sync_implicit_classification_{}", input.profile_id),
-            title: format!("{}：行为隐性属性分类请求", input.profile_name),
-            prompt_name: IMPLICIT_CLASSIFICATION_PROMPT_NAME,
-            status: "blocked",
-            note: Some("该请求依赖角色同步 behavior_records 阶段输出".to_string()),
-            request: None,
-        });
-        steps.push(CharacterProfileSyncPreviewStep {
-            id: format!("sync_implicit_review_{}", input.profile_id),
-            title: format!("{}：隐性属性复审请求", input.profile_name),
-            prompt_name: IMPLICIT_UPDATE_PROMPT_NAME,
-            status: "blocked",
-            note: Some("该请求依赖角色同步阶段输出和行为分类结果".to_string()),
-            request: None,
-        });
-        Ok(steps)
+        let stage = CharacterProfileSyncStage::EvidenceEvents;
+        Ok(CharacterProfileSyncPreviewStep {
+            id: format!("sync_{}_{}", stage.key(), input.profile_id),
+            title: format!("{}：{}", input.profile_name, stage.title()),
+            prompt_name: stage.prompt_name(),
+            note: format!("同步第 {}-{} 章", input.start_chapter, input.target_chapter),
+            request: build_character_profile_sync_stage_request(
+                &input,
+                stage,
+                &json!({}),
+                prompt_renderer,
+            )
+            .await?,
+        })
     }
 
     pub(crate) async fn run_character_profile_sync_stages_validated(
         &self,
         input: CharacterProfileSyncStageInput,
         prompt_renderer: &dyn PromptRenderer,
-        progress: Option<CharacterProfileSyncStageProgress<'_>>,
+        progress: Option<CharacterProfileSyncProgress<'_>>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<CharacterProfileSyncStageOutput, AppError> {
         validate_stage_input(&input, true)?;
@@ -378,7 +336,7 @@ fn validate_stage_input(
 }
 
 fn report_progress(
-    progress: Option<CharacterProfileSyncStageProgress<'_>>,
+    progress: Option<CharacterProfileSyncProgress<'_>>,
     current: u32,
     message: &str,
 ) -> Result<(), AppError> {

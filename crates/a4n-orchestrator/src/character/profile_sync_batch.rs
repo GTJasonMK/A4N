@@ -12,32 +12,13 @@ use serde_json::Value;
 use crate::OrchestratorContext;
 
 use super::{
-    CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
-    CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress,
-    CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject, CharacterSyncRangeMode,
-    analysis_profile_sync_skip_reason, character_identity_key, character_profile_skipped_result,
-    profile_character_keys, profile_sync_skip_reason, validate_character_sync_target_chapter,
+    CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileSyncAnchorMode,
+    CharacterProfileSyncApplicationInput, CharacterProfileSyncPreviewStep,
+    CharacterProfileSyncProgress, CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject,
+    CharacterSyncRangeMode, character_identity_key, character_profile_skipped_result,
+    profile_character_keys, sync_rules::profile_sync_skip_reason_for_mode,
+    validate_character_sync_target_chapter,
 };
-
-pub const CHARACTER_PROFILE_SYNC_STEPS: u32 = 10;
-
-pub type CharacterProfileBatchProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-
-#[derive(Clone, Copy, Default)]
-pub struct CharacterProfileBatchProgress<'a> {
-    pub reporter: Option<CharacterProfileBatchProgressReporter<'a>>,
-    pub active_task_id: Option<&'a str>,
-}
-
-impl CharacterProfileBatchProgress<'_> {
-    fn report(&self, current: u32, total: u32, message: &str) -> Result<(), AppError> {
-        if let Some(reporter) = self.reporter {
-            reporter(current, total, message)?;
-        }
-        Ok(())
-    }
-}
 
 impl OrchestratorContext {
     pub async fn run_all_character_profile_sync_validated(
@@ -45,17 +26,17 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: i32,
         prompt_renderer: &dyn PromptRenderer,
-        progress: CharacterProfileBatchProgress<'_>,
+        progress: CharacterProfileSyncProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<SyncAllCharacterProfilesResult, AppError> {
-        progress.report(0, 1, "正在校验同步目标章节")?;
+        progress.report_with_total(0, 1, "正在校验同步目标章节")?;
         let target_chapter = self
             .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
             .await?;
         let profiles = self.protagonist_profiles_for_project(project_id).await?;
 
         if profiles.is_empty() {
-            progress.report(1, 1, "当前没有可同步的角色档案")?;
+            progress.report_with_total(1, 1, "当前没有可同步的角色档案")?;
             return Ok(character_profile_sync_batch_result(
                 target_chapter,
                 Vec::new(),
@@ -95,8 +76,8 @@ impl OrchestratorContext {
         let profiles = self.protagonist_profiles_for_project(project_id).await?;
         let mut steps = Vec::new();
         for profile in profiles {
-            steps.extend(
-                self.prepare_character_profile_sync_preview_validated(
+            if let Some(step) = self
+                .prepare_character_profile_sync_preview_validated(
                     CharacterProfileSyncApplicationInput {
                         subject: CharacterProfileSyncSubject::Profile(profile),
                         target_chapter,
@@ -105,8 +86,10 @@ impl OrchestratorContext {
                     },
                     prompt_renderer,
                 )
-                .await?,
-            );
+                .await?
+            {
+                steps.push(step);
+            }
         }
         Ok(steps)
     }
@@ -118,10 +101,10 @@ impl OrchestratorContext {
         analysis: Option<&Value>,
         discovery_result: Option<&Value>,
         prompt_renderer: &dyn PromptRenderer,
-        progress: CharacterProfileBatchProgress<'_>,
+        progress: CharacterProfileSyncProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<AnalysisCharacterProfileSyncResult, AppError> {
-        progress.report(0, 1, "正在按章节分析结果选择待同步角色")?;
+        progress.report_with_total(0, 1, "正在按章节分析结果选择待同步角色")?;
         let target_chapter = self
             .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
             .await?;
@@ -235,7 +218,7 @@ impl OrchestratorContext {
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,
         prompt_renderer: &dyn PromptRenderer,
-        progress: CharacterProfileBatchProgress<'_>,
+        progress: CharacterProfileSyncProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<
         (
@@ -253,26 +236,24 @@ impl OrchestratorContext {
         for (index, profile) in profiles.into_iter().enumerate() {
             let base = batch_progress_base(index)?;
             let name = profile.name.clone();
-            progress.report(
+            progress.report_with_total(
                 base,
                 total,
-                &format!("角色 {}/{} · {name}：准备同步", index + 1, total / 10),
+                &format!(
+                    "角色 {}/{} · {name}：准备同步",
+                    index + 1,
+                    total / CHARACTER_PROFILE_SYNC_STEPS
+                ),
             )?;
-            let skip_reason = match range_mode {
-                CharacterSyncRangeMode::Incremental => {
-                    profile_sync_skip_reason(&profile, target_chapter)
-                }
-                CharacterSyncRangeMode::AnalysisResyncFromTarget => {
-                    analysis_profile_sync_skip_reason(&profile, target_chapter)
-                }
-            };
+            let skip_reason =
+                profile_sync_skip_reason_for_mode(&profile, target_chapter, range_mode);
             if let Some(reason) = skip_reason {
                 skipped.push(character_profile_skipped_result(
                     &profile,
                     target_chapter,
                     reason,
                 ));
-                progress.report(
+                progress.report_with_total(
                     base + CHARACTER_PROFILE_SYNC_STEPS,
                     total,
                     &format!("角色 {} · {name}：无需同步，跳过", index + 1),
@@ -288,7 +269,7 @@ impl OrchestratorContext {
                     + u32::try_from(offset).map_err(|_| {
                         AppError::InvalidArgument("角色同步进度超出 u32 范围".to_string())
                     })?;
-                progress.report(mapped, total, message)
+                progress.report_with_total(mapped, total, message)
             };
             let result = self
                 .run_character_profile_sync_validated(
@@ -315,7 +296,7 @@ impl OrchestratorContext {
                     error: error.to_string(),
                 }),
             }
-            progress.report(
+            progress.report_with_total(
                 base + CHARACTER_PROFILE_SYNC_STEPS,
                 total,
                 &format!("角色 {} · {name}：处理完成", index + 1),

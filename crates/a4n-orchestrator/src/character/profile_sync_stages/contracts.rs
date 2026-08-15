@@ -1,25 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatRequest};
 use serde_json::Value;
-
-pub type CharacterProfileSyncStageProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-
-#[derive(Clone, Copy)]
-pub struct CharacterProfileSyncStageProgress<'a> {
-    pub reporter: Option<CharacterProfileSyncStageProgressReporter<'a>>,
-}
-
-impl CharacterProfileSyncStageProgress<'_> {
-    pub(super) fn report(&self, current: u32, message: &str) -> Result<(), AppError> {
-        if let Some(reporter) = self.reporter {
-            reporter(current, CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL, message)?;
-        }
-        Ok(())
-    }
-}
-
-pub(super) const CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL: u32 = 10;
 
 #[derive(Debug, Clone)]
 pub struct CharacterProfileSyncStageInput {
@@ -73,9 +53,8 @@ pub struct CharacterProfileSyncPreviewStep {
     pub id: String,
     pub title: String,
     pub prompt_name: &'static str,
-    pub status: &'static str,
-    pub note: Option<String>,
-    pub request: Option<ChatRequest>,
+    pub note: String,
+    pub request: ChatRequest,
 }
 
 #[derive(Debug, Clone)]

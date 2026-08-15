@@ -611,8 +611,7 @@ prompts:
     tags: ["protagonist", "sync", "session", "cache"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
-      - "character_ai::preview_sync_character_from_chapters_request"
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies: []
     description: "为同一角色和同步范围内的档案同步阶段提供稳定公共 System 前缀"
 
@@ -623,8 +622,7 @@ prompts:
     tags: ["protagonist", "sync", "staged", "evidence"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
-      - "character_ai::preview_sync_character_from_chapters_request"
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
     description: "从同步章节中抽取指定角色相关的证据事件，不生成档案变更"
@@ -636,8 +634,7 @@ prompts:
     tags: ["protagonist", "sync", "staged", "attributes"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
-      - "character_ai::preview_sync_character_from_chapters_request"
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
       - "character_sync_evidence_events"
@@ -650,8 +647,7 @@ prompts:
     tags: ["protagonist", "sync", "staged", "state"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
-      - "character_ai::preview_sync_character_from_chapters_request"
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
       - "character_sync_evidence_events"
@@ -665,8 +661,7 @@ prompts:
     tags: ["protagonist", "sync", "staged", "behavior"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
-      - "character_ai::preview_sync_character_from_chapters_request"
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
       - "character_sync_evidence_events"
@@ -679,8 +674,7 @@ prompts:
     tags: ["protagonist", "sync", "staged", "deletion"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
-      - "character_ai::preview_sync_character_from_chapters_request"
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
       - "character_sync_evidence_events"
@@ -694,7 +688,7 @@ prompts:
     tags: ["protagonist", "implicit", "classification"]
     version: "1.0"
     used_by:
-      - "character_ai::sync_character_from_chapters"
+      - "character::implicit_classification::request::prepare_implicit_classification_call"
     dependencies: []
     description: "根据角色行为判断是否符合已有隐性属性，并给出新隐性属性建议"
 
@@ -705,8 +699,7 @@ prompts:
     tags: ["protagonist", "implicit", "update"]
     version: "1.0"
     used_by:
-      - "character::check_implicit_update"
-      - "character_ai::sync_character_from_chapters"
+      - "character::implicit_review::request::build_implicit_update_request"
     dependencies:
       - "implicit_classification"
     description: "当隐性属性累计不符合证据达到阈值时，决策保持、修改或删除"

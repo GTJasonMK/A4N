@@ -7,8 +7,7 @@ pub use contracts::{
     CharacterProfileSyncChapterStateDraft, CharacterProfileSyncExtraction,
     CharacterProfileSyncGenerationTrace, CharacterProfileSyncPreviewStep,
     CharacterProfileSyncStageInput, CharacterProfileSyncStageOutput,
-    CharacterProfileSyncStageProgress, CharacterProfileSyncStageTraceInput,
-    CharacterProfileSyncStageTracePort,
+    CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
 };
 
 #[cfg(test)]
