@@ -67,7 +67,6 @@ where
                     "missing"
                 }
                 .to_string(),
-                generation_runs: Vec::new(),
                 generation_inputs: Vec::new(),
                 result: db_record_result("chapter_outline", &outline),
                 warnings: Vec::new(),

@@ -49,7 +49,6 @@ pub(in crate::project_dependency_graph) fn generic_node_detail_records(
         media_sources: Vec::new(),
         request_snapshot: None,
         input_status: "missing".to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: node.details.clone(),
         warnings: Vec::new(),

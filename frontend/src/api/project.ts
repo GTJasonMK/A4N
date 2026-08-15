@@ -47,7 +47,6 @@ export type {
   ExportVideoStudioProjectDataInput,
   ImportProjectPackageUploadInput,
   GenerationInputSource,
-  GenerationRunSnapshot,
   PromptSource,
   ProjectRollbackImpactSummary,
   ProjectRollbackPreview,

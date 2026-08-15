@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::error::AppError;
-use chrono::Utc;
 
 use super::{
     GraphBuilder,
@@ -50,7 +49,6 @@ impl GraphBuilder {
                     chapter_id: seed.chapter_id,
                     profile_id: seed.profile_id,
                     record_id: seed.record_id,
-                    editable: seed.editable,
                     mutable,
                     direct_downstream_count,
                     downstream_count,
@@ -82,7 +80,6 @@ impl GraphBuilder {
 
         Ok(AssetDependencyGraph {
             project_id,
-            generated_at: Utc::now().to_rfc3339(),
             nodes,
             edges,
             layers,

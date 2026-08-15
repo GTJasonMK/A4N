@@ -76,7 +76,6 @@ pub(in crate::project_dependency_graph) fn video_prompt_record(
             .as_ref()
             .and_then(|value| value.get("provider_request_snapshot").cloned()),
         input_status: "missing".to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: db_record_result("chapter_video_prompt", &prompt),
         warnings: Vec::new(),

@@ -21,7 +21,6 @@ fn lineage_record(asset_kind: &str, origin: &str) -> AssetLineageRecord {
         media_sources: Vec::new(),
         request_snapshot: None,
         input_status: "pending".to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: json!({}),
         warnings: Vec::new(),
@@ -100,16 +99,21 @@ fn generation_run_projection_preserves_input_order_and_five_statuses() {
     let mut complete = lineage_record("novel_blueprint", "llm_generated");
     apply_generation_runs(&mut complete, std::slice::from_ref(&run_with_inputs));
     assert_eq!(complete.input_status, "complete");
-    assert_eq!(complete.generation_runs.len(), 1);
-    assert_eq!(complete.generation_runs[0].id, Some(9));
     assert_eq!(complete.generation_inputs.len(), 2);
+    assert_eq!(complete.generation_inputs[0].kind, "rendered_messages");
+    assert_eq!(complete.generation_inputs[1].kind, "input_variables");
     assert_eq!(
-        complete.generation_inputs[0].id,
-        "9:prompt:rendered_messages"
+        complete.generation_inputs[1].value,
+        json!({"chapter_id": 1})
     );
     assert_eq!(
-        complete.generation_inputs[1].id,
-        "9:variables:input_variables"
+        serde_json::to_value(&complete.generation_inputs[0]).unwrap(),
+        json!({
+            "group": "prompt",
+            "kind": "rendered_messages",
+            "label": "渲染消息",
+            "value": [{"role": "user"}],
+        })
     );
     assert!(
         complete

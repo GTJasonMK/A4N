@@ -16,8 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub use a4n_domain::project::{
     AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
-    AssetLineageRecord, AssetLineageRef, GenerationInputSource, GenerationRunSnapshot,
-    PromptSource,
+    AssetLineageRecord, AssetLineageRef, GenerationInputSource, PromptSource,
 };
 
 mod builder;

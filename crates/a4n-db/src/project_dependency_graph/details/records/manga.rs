@@ -56,7 +56,6 @@ pub(in crate::project_dependency_graph) fn manga_prompt_record(
             .and_then(|image| image.metadata_json.as_ref())
             .and_then(|value| value.get("provider_request_snapshot").cloned()),
         input_status: "missing".to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: db_record_result_with_related(
             "chapter_manga_prompt",

@@ -85,7 +85,6 @@ where
         media_sources: Vec::new(),
         request_snapshot: None,
         input_status: "missing".to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: db_record_result("protagonist_profile", &profile),
         warnings: Vec::new(),

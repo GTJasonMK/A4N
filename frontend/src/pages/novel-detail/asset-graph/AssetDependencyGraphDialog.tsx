@@ -892,8 +892,8 @@ const PromptViewerModal: React.FC<{
               </div>
             </div>
             <div className="divide-y divide-book-border/35">
-              {inputs.map((input) => (
-                <GenerationInputCard key={input.id} input={input} />
+              {inputs.map((input, index) => (
+                <GenerationInputCard key={`${input.kind}:${index}`} input={input} />
               ))}
             </div>
           </section>
@@ -906,20 +906,14 @@ const PromptViewerModal: React.FC<{
 const GenerationInputCard: React.FC<{ input: GenerationInputSource }> = ({
   input,
 }) => {
-  const title = input.label || inputKindLabel(input.kind);
   return (
     <article className="px-3 py-3">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <h4
-          className="min-w-0 truncate text-small font-semibold text-book-text-main"
-          title={title}
-        >
-          {title}
-        </h4>
-        <span className="shrink-0 text-caption text-book-text-subtle">
-          {contentTypeLabel(input.content_type)}
-        </span>
-      </div>
+      <h4
+        className="truncate text-small font-semibold text-book-text-main"
+        title={input.label}
+      >
+        {input.label}
+      </h4>
       <div className="mt-2">
         <GenerationInputBody input={input} />
       </div>
@@ -930,38 +924,13 @@ const GenerationInputCard: React.FC<{ input: GenerationInputSource }> = ({
 const GenerationInputBody: React.FC<{ input: GenerationInputSource }> = ({
   input,
 }) => {
-  const value = generationInputValue(input);
   if (input.kind === "rendered_messages") {
-    return <RenderedMessagesView value={value} />;
+    return <MessageList value={input.value} />;
   }
-  if (input.kind === "rendered_prompts") {
-    return <RenderedPromptsView value={value} />;
+  if (typeof input.value === "string") {
+    return <TextBlock text={input.value} />;
   }
-  if (typeof value === "string") {
-    return <TextBlock text={value} />;
-  }
-  return <StructuredValueView value={value} />;
-};
-
-const RenderedMessagesView: React.FC<{ value: unknown }> = ({ value }) => {
-  if (Array.isArray(value) && value.every(isGenerationStageMessages)) {
-    return (
-      <div className="space-y-3">
-        {value.map((stage, index) => (
-          <section
-            key={`${String(stage.stage ?? index)}-${index}`}
-            className="space-y-2"
-          >
-            <div className="text-small font-semibold text-book-text-main">
-              第 {index + 1} 阶段
-            </div>
-            <MessageList value={stage.messages} />
-          </section>
-        ))}
-      </div>
-    );
-  }
-  return <MessageList value={value} />;
+  return <StructuredValueView value={input.value} />;
 };
 
 const MessageList: React.FC<{ value: unknown }> = ({ value }) => {
@@ -1010,7 +979,7 @@ const MessageBlock: React.FC<{
       </div>
       <div className="mt-2">
         {typeof content === "string" ? (
-          <TextBlock text={normalizeDisplayText(content)} />
+          <TextBlock text={content} />
         ) : (
           <StructuredValueView value={content} />
         )}
@@ -1023,57 +992,6 @@ const MessageBlock: React.FC<{
     </article>
   );
 };
-
-const RenderedPromptsView: React.FC<{ value: unknown }> = ({ value }) => {
-  if (typeof value === "string") {
-    return <TextBlock text={value} />;
-  }
-  if (Array.isArray(value)) {
-    return (
-      <div className="divide-y divide-book-border/30 border-y border-book-border/30">
-        {value.map((item, index) => (
-          <PromptValueBlock
-            key={index}
-            title={`提示词 ${index + 1}`}
-            value={item}
-          />
-        ))}
-      </div>
-    );
-  }
-  if (isRecord(value)) {
-    return (
-      <div className="divide-y divide-book-border/30 border-y border-book-border/30">
-        {Object.entries(value).map(([key, item]) => (
-          <PromptValueBlock
-            key={key}
-            title={key.replace(/_/g, " ")}
-            value={item}
-          />
-        ))}
-      </div>
-    );
-  }
-  return <StructuredValueView value={value} />;
-};
-
-const PromptValueBlock: React.FC<{ title: string; value: unknown }> = ({
-  title,
-  value,
-}) => (
-  <section className="py-2.5">
-    <div className="text-small font-semibold text-book-text-main">
-      {title}
-    </div>
-    <div className="mt-1.5">
-      {typeof value === "string" ? (
-        <TextBlock text={value} />
-      ) : (
-        <StructuredValueView value={value} />
-      )}
-    </div>
-  </section>
-);
 
 const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({
   value,
@@ -1147,28 +1065,7 @@ const StructuredValueItem: React.FC<{
   depth: number;
 }> = ({ title, value, depth }) => {
   if (typeof value === "string") {
-    const parsed = normalizeSerializedValue(value);
-    if (typeof parsed !== "string") {
-      const parsedSummary = structuredValueSummary(parsed);
-      return (
-        <details
-          open={shouldAutoOpenStructuredValue(parsed, depth)}
-        >
-          <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
-            <span>{title}</span>
-            {parsedSummary ? (
-              <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
-                {parsedSummary}
-              </span>
-            ) : null}
-          </summary>
-          <div className="border-l border-book-border/35 pb-2 pl-3">
-            <StructuredValueView value={parsed} depth={depth + 1} />
-          </div>
-        </details>
-      );
-    }
-    const text = parsed;
+    const text = value;
     const compact =
       !text.includes("\n") && text.length <= INLINE_TEXT_MAX_CHARS;
     return compact ? (
@@ -1280,7 +1177,7 @@ function textSummary(text: string): string {
 
 const TextBlock: React.FC<{ text: string }> = ({ text }) => (
   <pre className="m-0 whitespace-pre-wrap break-words text-body-sm leading-relaxed text-book-text-main">
-    {normalizeDisplayText(text)}
+    {text}
   </pre>
 );
 
@@ -1293,7 +1190,7 @@ const JsonBlock: React.FC<{ title: string; value: unknown }> = ({
       {title}
     </summary>
     <div className="border-l border-book-border/35 pb-2 pl-3">
-      <StructuredValueView value={normalizeSerializedValue(value)} />
+      <StructuredValueView value={value} />
     </div>
   </details>
 );
@@ -1343,7 +1240,6 @@ function groupGenerationInputs(
     "source_text",
     "media",
     "request",
-    "model",
     "response",
   ];
   const grouped = new Map<string, GenerationInputSource[]>();
@@ -1366,107 +1262,14 @@ function inputGroupLabel(group: string): string {
     source_text: "上游文本",
     media: "参考媒体",
     request: "模型请求",
-    model: "模型配置",
     response: "响应摘要",
   };
   return labels[group] ?? "其他输入";
 }
 
-function inputKindLabel(kind: string): string {
-  const labels: Record<string, string> = {
-    character_portrait_prompt: "立绘提示词",
-    dialogue_text: "对白",
-    image_generation_prompt: "图片提示词",
-    input_variables: "输入变量",
-    manga_image_prompt: "漫画提示词",
-    manual_description: "描述",
-    media_refs: "参考媒体",
-    prompt_artifact: "统一提示词",
-    rendered_messages: "渲染消息",
-    rendered_prompts: "渲染提示词",
-    request: "模型请求",
-    request_snapshot: "模型请求快照",
-    response_summary: "响应摘要",
-    source_refs: "上游引用",
-    stored_generated_video_prompt: "视频记录提示词",
-    video_motion_prompt: "运动提示词",
-    video_negative_prompt: "负面提示词",
-    video_visual_prompt: "视觉提示词",
-  };
-  return labels[kind] ?? "其他输入";
-}
-
-function contentTypeLabel(contentType: string): string {
-  const labels: Record<string, string> = {
-    text: "文本",
-    json: "结构化数据",
-    media_ref: "媒体引用",
-  };
-  return labels[contentType] ?? "其他内容";
-}
-
-function generationInputValue(input: GenerationInputSource): unknown {
-  if (input.value != null) return normalizeSerializedValue(input.value);
-  if (input.text != null && input.text.trim())
-    return normalizeSerializedValue(input.text);
-  return "";
-}
-
-function normalizeSerializedValue(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  let current: unknown = value;
-  for (let index = 0; index < 3 && typeof current === "string"; index += 1) {
-    const parsed = parseJsonLikeString(current);
-    if (parsed === undefined) break;
-    current = parsed;
-  }
-  if (typeof current === "string") return normalizeDisplayText(current);
-  return current;
-}
-
-function parseJsonLikeString(text: string): unknown | undefined {
-  const trimmed = text.trim();
-  if (!trimmed) return undefined;
-  const startsLikeJson =
-    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-    (trimmed.startsWith('"') && trimmed.endsWith('"'));
-  if (!startsLikeJson) return undefined;
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return undefined;
-  }
-}
-
-function normalizeDisplayText(text: string): string {
-  const parsed = parseJsonLikeString(text);
-  if (typeof parsed === "string") return normalizeDisplayText(parsed);
-  let next = text;
-  if (!next.includes("\n") && /\\r|\\n|\\t/.test(next)) {
-    next = next
-      .replace(/\\r\\n/g, "\n")
-      .replace(/\\n/g, "\n")
-      .replace(/\\r/g, "\n")
-      .replace(/\\t/g, "  ");
-  }
-  if (next.includes('\\"') && !next.includes('"')) {
-    next = next.replace(/\\"/g, '"');
-  }
-  return next;
-}
-
 function isChatMessageLike(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
   return "content" in value || "role" in value;
-}
-
-function isGenerationStageMessages(
-  value: unknown,
-): value is { stage?: unknown; messages: unknown } {
-  return (
-    isRecord(value) && "messages" in value && Array.isArray(value.messages)
-  );
 }
 
 function messageRoleLabel(role: string): string {

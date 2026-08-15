@@ -84,7 +84,6 @@ pub(super) fn prompt_artifact_record(
             "missing"
         }
         .to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: db_record_result_with_related(
             "prompt_artifact",

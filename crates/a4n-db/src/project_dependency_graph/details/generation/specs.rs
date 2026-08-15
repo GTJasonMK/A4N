@@ -57,7 +57,6 @@ pub(super) fn generation_spec_record(spec: generation_spec::Model) -> AssetLinea
             "missing"
         }
         .to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: db_record_result("generation_spec", &spec),
         warnings: if spec.source_chapter_id.is_some() && spec.source_snapshot_chapter_id.is_none() {

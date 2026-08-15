@@ -193,7 +193,6 @@ pub struct SourceSnapshotChapterSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AssetDependencyGraph {
     pub project_id: i64,
-    pub generated_at: String,
     pub nodes: Vec<AssetGraphNode>,
     pub edges: Vec<AssetGraphEdge>,
     pub layers: Vec<AssetGraphLayer>,
@@ -212,7 +211,6 @@ pub struct AssetGraphNode {
     pub chapter_id: Option<i64>,
     pub profile_id: Option<i64>,
     pub record_id: Option<i64>,
-    pub editable: bool,
     pub mutable: bool,
     pub direct_downstream_count: u64,
     pub downstream_count: u64,
@@ -262,7 +260,6 @@ pub struct AssetLineageRecord {
     pub media_sources: Vec<AssetLineageRef>,
     pub request_snapshot: Option<Value>,
     pub input_status: String,
-    pub generation_runs: Vec<GenerationRunSnapshot>,
     pub generation_inputs: Vec<GenerationInputSource>,
     pub result: Value,
     pub warnings: Vec<String>,
@@ -287,30 +284,11 @@ pub struct PromptSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct GenerationRunSnapshot {
-    pub id: Option<i64>,
-    pub workflow: String,
-    pub step_key: String,
-    pub title: String,
-    pub model_kind: String,
-    pub provider: Option<String>,
-    pub model: Option<String>,
-    pub status: String,
-    pub created_at: Option<String>,
-    pub completed_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GenerationInputSource {
-    pub id: String,
-    pub run_id: Option<i64>,
     pub group: String,
     pub kind: String,
     pub label: String,
-    pub content_type: String,
-    pub text: Option<String>,
-    pub value: Option<Value>,
-    pub source_record_id: Option<i64>,
+    pub value: Value,
 }
 
 #[cfg(test)]

@@ -2312,7 +2312,6 @@ export interface AssetGraphNode {
   details: unknown;
   direct_downstream_count: number;
   downstream_count: number;
-  editable: boolean;
   id: string;
   kind: string;
   label: string;
@@ -2342,7 +2341,6 @@ export interface AssetGraphLayer {
 
 export interface AssetDependencyGraph {
   edges: AssetGraphEdge[];
-  generated_at: string;
   layers: AssetGraphLayer[];
   nodes: AssetGraphNode[];
   project_id: number;
@@ -2365,28 +2363,10 @@ export interface PromptSource {
   text: string;
 }
 
-export interface GenerationRunSnapshot {
-  completed_at: string | null;
-  created_at: string | null;
-  id: number | null;
-  model: string | null;
-  model_kind: string;
-  provider: string | null;
-  status: string;
-  step_key: string;
-  title: string;
-  workflow: string;
-}
-
 export interface GenerationInputSource {
-  content_type: string;
   group: string;
-  id: string;
   kind: string;
   label: string;
-  run_id: number | null;
-  source_record_id: number | null;
-  text: string | null;
   value: unknown;
 }
 
@@ -2394,7 +2374,6 @@ export interface AssetLineageRecord {
   asset_id: number | null;
   asset_kind: string;
   generation_inputs: GenerationInputSource[];
-  generation_runs: GenerationRunSnapshot[];
   id: string;
   input_status: string;
   label: string;

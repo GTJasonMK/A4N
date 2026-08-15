@@ -53,7 +53,6 @@ pub(in crate::project_dependency_graph) fn generated_image_record(
             })
             .cloned(),
         input_status: "missing".to_string(),
-        generation_runs: Vec::new(),
         generation_inputs: Vec::new(),
         result: generated_image_result(&image),
         warnings: Vec::new(),
