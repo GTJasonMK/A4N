@@ -100,7 +100,7 @@ fn scene_profile_record_preserves_canonical_text_and_metadata() {
         record.metadata["data_type"],
         RagDataType::SceneProfile.as_str()
     );
-    assert_eq!(record.metadata["scene_profile_id"], 11);
+    assert_eq!(record.metadata["name"], "北城门");
 }
 
 #[test]
@@ -116,8 +116,7 @@ fn scene_occurrence_record_preserves_order_and_metadata() {
 
     assert_eq!(record.chunk_id, "scene_occurrence:9:21");
     assert!(record.text.contains("章节: 第3章"));
-    assert_eq!(record.metadata["scene_name"], "北城门");
-    assert_eq!(record.metadata["occurrence_order"], 2);
+    assert_eq!(record.metadata["chapter_number"], 3);
 }
 
 #[test]
@@ -133,5 +132,5 @@ fn scene_transition_record_preserves_default_source_target_and_metadata() {
         record.metadata["data_type"],
         RagDataType::SceneTransition.as_str()
     );
-    assert_eq!(record.metadata["to_scene_profile_id"], 11);
+    assert_eq!(record.metadata["chapter_number"], 3);
 }

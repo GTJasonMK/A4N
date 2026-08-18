@@ -3,13 +3,12 @@ use a4n_export_core::{
 };
 use a4n_service_protocol::{
     EXPORT_SERVICE_NAME, HealthStatus, ServiceError, ServiceErrorCode, ServiceHealth,
-    ServiceRequest, ServiceResponse, known_service_health_for_host, redact_sensitive_message,
+    SIDECAR_HEALTH_PATH, ServiceRequest, ServiceResponse, known_service_health,
+    redact_sensitive_message,
 };
 use axum::{
     Json, Router,
     extract::DefaultBodyLimit,
-    http::HeaderMap,
-    middleware,
     routing::{get, post},
 };
 
@@ -19,11 +18,11 @@ async fn main() -> anyhow::Result<()> {
         "A4N_EXPORT_SERVICE_LOG",
         "a4n_export_service=info,tower_http=warn",
     )?;
-    let addr = a4n_sidecar_bootstrap::socket_addr("A4N_EXPORT_SERVICE_ADDR", "127.0.0.1:47648")?;
-    let policy = a4n_service_protocol::sidecar_resource_policy("export")
+    let addr = a4n_sidecar_bootstrap::service_socket_addr(EXPORT_SERVICE_NAME)?;
+    let policy = a4n_service_protocol::sidecar_resource_policy(EXPORT_SERVICE_NAME)
         .expect("export sidecar must have a resource policy");
     let app = Router::new()
-        .route("/healthz", get(healthz))
+        .route(SIDECAR_HEALTH_PATH, get(healthz))
         .route(
             "/export/render_json",
             post(render_json_route).layer(DefaultBodyLimit::max(
@@ -38,17 +37,15 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
-        ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+        ));
     a4n_sidecar_bootstrap::serve_sidecar(app, addr, EXPORT_SERVICE_NAME).await
 }
 
-async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
-    Json(known_service_health_for_host(
+async fn healthz() -> Json<ServiceHealth> {
+    Json(known_service_health(
         EXPORT_SERVICE_NAME,
         env!("CARGO_PKG_VERSION"),
         HealthStatus::Healthy,
-        a4n_sidecar_bootstrap::host_protocol_version(&headers),
     ))
 }
 

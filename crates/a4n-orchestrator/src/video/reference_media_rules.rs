@@ -4,6 +4,7 @@ use a4n_core::{
     models::ai::video_gen_config,
     video_execution::{VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1},
 };
+use a4n_domain::VideoAspectRatio;
 use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 use base64::Engine as _;
 use sha2::{Digest, Sha256};
@@ -92,16 +93,23 @@ fn reference_media_dimensions_for_short_edge(
         return Err("参考媒体视频分辨率短边必须大于 0".to_string());
     }
     let short_edge = even_dimension(short_edge);
-    match aspect_ratio.trim() {
-        "21:9" => Ok((scaled_even_dimension(short_edge, 21, 9)?, short_edge)),
-        "16:9" => Ok((scaled_even_dimension(short_edge, 16, 9)?, short_edge)),
-        "4:3" => Ok((scaled_even_dimension(short_edge, 4, 3)?, short_edge)),
-        "1:1" => Ok((short_edge, short_edge)),
-        "3:4" => Ok((short_edge, scaled_even_dimension(short_edge, 4, 3)?)),
-        "9:16" => Ok((short_edge, scaled_even_dimension(short_edge, 16, 9)?)),
-        other => Err(format!(
-            "参考媒体视频模式不支持画幅 {other}，请选择 21:9、16:9、4:3、1:1、3:4 或 9:16"
-        )),
+    let ratio = aspect_ratio.parse::<VideoAspectRatio>().map_err(|_| {
+        format!(
+            "参考媒体视频模式不支持画幅 {aspect_ratio}，请选择 {}",
+            VideoAspectRatio::supported_values()
+        )
+    })?;
+    let (ratio_width, ratio_height) = ratio.components();
+    if ratio_width >= ratio_height {
+        Ok((
+            scaled_even_dimension(short_edge, ratio_width, ratio_height)?,
+            short_edge,
+        ))
+    } else {
+        Ok((
+            short_edge,
+            scaled_even_dimension(short_edge, ratio_height, ratio_width)?,
+        ))
     }
 }
 
@@ -141,7 +149,6 @@ pub fn validate_reference_media_import_options(
     if !(1..=60).contains(&duration_secs) {
         return Err("参考媒体视频时长必须在 1 到 60 秒之间".to_string());
     }
-    let aspect_ratio = aspect_ratio.trim();
     reference_media_dimensions_for_aspect_ratio(aspect_ratio)?;
     Ok(ReferenceMediaImportOptions {
         aspect_ratio: aspect_ratio.to_string(),
@@ -439,8 +446,9 @@ mod tests {
             (720, 720)
         );
         assert!(reference_media_dimensions_for_aspect_ratio("2:1").is_err());
-        let opts = validate_reference_media_import_options(8, " 16:9 ").unwrap();
+        let opts = validate_reference_media_import_options(8, "16:9").unwrap();
         assert_eq!(opts.aspect_ratio, "16:9");
+        assert!(validate_reference_media_import_options(8, " 16:9 ").is_err());
         assert!(validate_reference_media_import_options(0, "16:9").is_err());
         assert!(validate_reference_media_import_options(8, "2:1").is_err());
     }

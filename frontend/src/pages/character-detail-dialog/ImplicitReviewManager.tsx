@@ -25,6 +25,17 @@ import {
   listPreview,
 } from "./manageViewUtils";
 
+const IMPLICIT_REVIEW_EVIDENCE_LIMIT = 12;
+const IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS = 10;
+const IMPLICIT_REVIEW_DEFAULT_THRESHOLD = 5;
+const IMPLICIT_REVIEW_PARAMETER_MAX = 50;
+
+const parseReviewParameter = (value: string): number | null => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(1, Math.min(IMPLICIT_REVIEW_PARAMETER_MAX, Math.floor(parsed)));
+};
+
 const formatPercent = (value: number): string => {
   if (!Number.isFinite(value)) {
     throw new Error("隐性属性复审比例不是有效数字");
@@ -51,8 +62,8 @@ export const ImplicitReviewManager: React.FC<{
   const [decidingKey, setDecidingKey] = useState<string | null>(null);
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<Record<string, ImplicitUpdateDecision>>({});
-  const [windowChapters, setWindowChapters] = useState(10);
-  const [threshold, setThreshold] = useState(5);
+  const [windowChapters, setWindowChapters] = useState(IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS);
+  const [threshold, setThreshold] = useState(IMPLICIT_REVIEW_DEFAULT_THRESHOLD);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -146,7 +157,7 @@ export const ImplicitReviewManager: React.FC<{
         profile_id: requestProfileId,
         window_chapters: requestWindow,
         threshold: requestThreshold,
-        evidence_limit: 12,
+        evidence_limit: IMPLICIT_REVIEW_EVIDENCE_LIMIT,
       });
       if (
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
@@ -182,20 +193,6 @@ export const ImplicitReviewManager: React.FC<{
     void load();
   }, [invalidateReviewScope, load]);
 
-  useEffect(() => {
-    checkSeqRef.current += 1;
-    applySeqRef.current += 1;
-    previewSeqRef.current += 1;
-    setDecidingKey(null);
-    setApplyingKey(null);
-    setRequestPreviewOpen(false);
-    setRequestPreviewLoading(false);
-    setRequestPreviewData(null);
-    checkingRef.current = false;
-    applyingRef.current = false;
-    previewingRef.current = false;
-  }, [profileId]);
-
   const attrs = review ? review.attributes : [];
   const needsReviewCount = attrs.filter((attr) => attr.threshold_reached).length;
 
@@ -226,7 +223,7 @@ export const ImplicitReviewManager: React.FC<{
         attribute_key: attributeKey,
         window_chapters: requestWindow,
         threshold: requestThreshold,
-        evidence_limit: 12,
+        evidence_limit: IMPLICIT_REVIEW_EVIDENCE_LIMIT,
       });
       if (
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
@@ -274,7 +271,7 @@ export const ImplicitReviewManager: React.FC<{
         attribute_key: attributeKey,
         window_chapters: requestWindow,
         threshold: requestThreshold,
-        evidence_limit: 12,
+        evidence_limit: IMPLICIT_REVIEW_EVIDENCE_LIMIT,
       });
       if (
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
@@ -397,16 +394,14 @@ export const ImplicitReviewManager: React.FC<{
             <input
               type="number"
               min={1}
-              max={50}
+                max={IMPLICIT_REVIEW_PARAMETER_MAX}
               value={windowChapters}
               disabled={reviewOperationBusy}
               onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed) && parsed > 0) {
-                  const nextValue = Math.max(1, Math.min(50, Math.floor(parsed)));
-                  if (windowChaptersRef.current !== nextValue) invalidateReviewScope();
-                  setWindowChapters(nextValue);
-                }
+                const nextValue = parseReviewParameter(event.target.value);
+                if (nextValue == null) return;
+                if (windowChaptersRef.current !== nextValue) invalidateReviewScope();
+                setWindowChapters(nextValue);
               }}
               className="pyqt-input h-8 w-24 !px-2 !py-1"
             />
@@ -416,16 +411,14 @@ export const ImplicitReviewManager: React.FC<{
             <input
               type="number"
               min={1}
-              max={50}
+                max={IMPLICIT_REVIEW_PARAMETER_MAX}
               value={threshold}
               disabled={reviewOperationBusy}
               onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed) && parsed > 0) {
-                  const nextValue = Math.max(1, Math.min(50, Math.floor(parsed)));
-                  if (thresholdRef.current !== nextValue) invalidateReviewScope();
-                  setThreshold(nextValue);
-                }
+                const nextValue = parseReviewParameter(event.target.value);
+                if (nextValue == null) return;
+                if (thresholdRef.current !== nextValue) invalidateReviewScope();
+                setThreshold(nextValue);
               }}
               className="pyqt-input h-8 w-24 !px-2 !py-1"
             />

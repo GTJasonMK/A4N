@@ -5,9 +5,8 @@ mod application;
 
 pub use a4n_api_contract::character::ApplyImplicitUpdateDecisionResultSummary;
 pub use a4n_orchestrator::character::{
-    AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT, AUTO_IMPLICIT_REVIEW_THRESHOLD,
-    AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS, ApplyImplicitUpdateDecisionInput,
-    CheckImplicitUpdateInput, GetImplicitReviewInput, IMPLICIT_UPDATE_PROMPT_NAME,
+    ApplyImplicitUpdateDecisionInput, CheckImplicitUpdateInput, GetImplicitReviewInput,
+    IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND,
     ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary,
 };

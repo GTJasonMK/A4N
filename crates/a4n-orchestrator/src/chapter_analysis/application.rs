@@ -13,10 +13,13 @@ use crate::{
     OrchestratorContext,
     chapter_content::ChapterDerivedCleanupHostPort,
     character::{
-        CharacterDiscoveryInput, CharacterDiscoveryProgress, CharacterProfileSyncProgress,
-        CharacterProfileSyncStageTracePort,
+        CharacterDiscoveryProgress, CharacterProfileSyncProgress,
+        CharacterProfileSyncStageTracePort, DiscoverCharacterProfilesInput,
     },
-    object_discovery::{ObjectDiscoveryInput, ObjectDiscoveryProgress},
+    object_discovery::{
+        OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND, ObjectDiscoveryInput,
+        ObjectDiscoveryProgress,
+    },
     project::ChapterDerivedCleanupArtifacts,
     scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress},
     workflow::{
@@ -142,9 +145,9 @@ impl OrchestratorContext {
                 )
                 .await?;
             return Ok(vec![ChapterAnalysisRequestStep {
-                key: "object_discovery".to_string(),
+                key: OBJECT_DISCOVERY_CALL_KEY.to_string(),
                 title: "物体档案发现初始 LLM 请求".to_string(),
-                prompt_name: "object_discovery".to_string(),
+                prompt_name: OBJECT_DISCOVERY_KIND.to_string(),
                 request: preview.request,
             }]);
         }
@@ -160,7 +163,7 @@ impl OrchestratorContext {
         {
             let preview = self
                 .prepare_character_discovery_request_preview_validated(
-                    CharacterDiscoveryInput {
+                    DiscoverCharacterProfilesInput {
                         project_id: chapter.project_id,
                         chapter_number: Some(chapter.chapter_number),
                     },
@@ -168,9 +171,9 @@ impl OrchestratorContext {
                 )
                 .await?;
             return Ok(vec![ChapterAnalysisRequestStep {
-                key: "character_discovery".to_string(),
+                key: crate::character::CHARACTER_DISCOVERY_CALL_KEY.to_string(),
                 title: "角色发现初始 LLM 请求".to_string(),
-                prompt_name: "character_discovery".to_string(),
+                prompt_name: crate::character::CHARACTER_DISCOVERY_KIND.to_string(),
                 request: preview.request,
             }]);
         }
@@ -699,7 +702,7 @@ impl OrchestratorContext {
         };
         let result = self
             .discover_character_profiles_validated(
-                CharacterDiscoveryInput {
+                DiscoverCharacterProfilesInput {
                     project_id: chapter.project_id,
                     chapter_number: Some(chapter.chapter_number),
                 },
@@ -721,7 +724,7 @@ impl OrchestratorContext {
             json!({ "completed": true, "result": result.clone() }),
         )
         .await?;
-        Ok(result)
+        serde_json::to_value(result).map_err(AppError::from)
     }
 
     async fn sync_scene_profiles_phase(

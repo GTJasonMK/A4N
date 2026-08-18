@@ -121,7 +121,10 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_no_existi
         false,
     )
     .await?;
-    if let Some(row) = rows.iter().find(|row| row.status == "running") {
+    if let Some(row) = rows
+        .iter()
+        .find(|row| row.status == chapter_video_prompt::STATUS_RUNNING)
+    {
         return Err(AppError::InvalidArgument(format!(
             "当前章节已有{context} #{} 正在运行，不能续跑或重新规划",
             row.shot_number
@@ -165,7 +168,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_segment
     )
     .await?
     .into_iter()
-    .filter(|row| row.status != "running")
+    .filter(|row| row.status != chapter_video_prompt::STATUS_RUNNING)
     {
         match reusable_segment_plan_from_row(ReusableSegmentPlanFromRowInput {
             row,
@@ -363,7 +366,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_shared_
         project_id,
         chapter_id,
         workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
-        prompt_type: super::super::SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         source_metadata,
         source_spans,
         style,

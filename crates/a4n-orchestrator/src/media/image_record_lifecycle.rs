@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use a4n_api_contract::image::UploadImageInput;
 use a4n_core::{error::AppError, models::ai::generated_image};
 use a4n_db::video::{CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput};
+use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use chrono::Utc;
 use serde_json::{Map, Value, json};
 
@@ -17,7 +18,6 @@ use crate::{
     },
 };
 
-pub const IMPORTED_IMAGE_MODEL: &str = "external-import";
 const MAX_IMPORT_IMAGE_BYTES: usize = 50 * 1024 * 1024;
 
 pub struct PreparedImportedImageUpload {
@@ -113,7 +113,7 @@ impl OrchestratorContext {
             project_id,
             image_type,
             prompt,
-            model: IMPORTED_IMAGE_MODEL.to_string(),
+            model: EXTERNAL_IMPORT_MODEL.to_string(),
             chapter_id: input.chapter_id,
             panel_id: input.panel_id,
             metadata_json: input.metadata_json,
@@ -256,6 +256,7 @@ fn imported_image_metadata(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_domain::image::IMAGE_TYPE_SCENE_MATERIAL;
 
     #[test]
     fn video_reference_sort_prefers_primary_before_favorite() {
@@ -266,7 +267,7 @@ mod tests {
         let image = |id, favorite| generated_image::Model {
             id,
             project_id: 1,
-            image_type: "scene_material".to_string(),
+            image_type: IMAGE_TYPE_SCENE_MATERIAL.to_string(),
             file_path: format!("images/{id}.png"),
             prompt: "scene".to_string(),
             model: "test".to_string(),

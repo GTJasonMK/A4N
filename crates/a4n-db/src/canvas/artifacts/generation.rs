@@ -1,5 +1,5 @@
 use super::types::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput};
-use crate::canvas::{CanvasDbError, SOURCE_MODE_FREEFORM};
+use crate::canvas::CanvasDbError;
 use a4n_core::models::generation::{generation_spec, prompt_artifact};
 use chrono::Utc;
 use sea_orm::{
@@ -24,7 +24,10 @@ where
         })?;
     let existing = generation_spec::Entity::find()
         .filter(generation_spec::Column::ProjectId.eq(input.project_id))
-        .filter(generation_spec::Column::SourceContextKind.eq(SOURCE_MODE_FREEFORM))
+        .filter(
+            generation_spec::Column::SourceContextKind
+                .eq(generation_spec::SOURCE_CONTEXT_FREEFORM),
+        )
         .filter(generation_spec::Column::TargetEntityKind.eq(input.target_entity_kind.as_str()))
         .filter(generation_spec::Column::TargetEntityId.eq(input.target_entity_id))
         .order_by_asc(generation_spec::Column::Id)
@@ -34,7 +37,9 @@ where
     if let Some(existing) = existing {
         let mut active: generation_spec::ActiveModel = existing.into();
         active.root_project_id = Set(input.project_id);
-        active.source_context_kind = Set(Some(SOURCE_MODE_FREEFORM.to_string()));
+        active.source_context_kind = Set(Some(
+            generation_spec::SOURCE_CONTEXT_FREEFORM.to_string(),
+        ));
         active.source_snapshot_id = Set(None);
         active.source_chapter_id = Set(None);
         active.source_snapshot_chapter_id = Set(None);
@@ -52,7 +57,9 @@ where
     Ok(generation_spec::ActiveModel {
         project_id: Set(input.project_id),
         root_project_id: Set(input.project_id),
-        source_context_kind: Set(Some(SOURCE_MODE_FREEFORM.to_string())),
+        source_context_kind: Set(Some(
+            generation_spec::SOURCE_CONTEXT_FREEFORM.to_string(),
+        )),
         source_snapshot_id: Set(None),
         source_chapter_id: Set(None),
         source_snapshot_chapter_id: Set(None),

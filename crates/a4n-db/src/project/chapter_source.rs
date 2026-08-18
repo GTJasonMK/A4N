@@ -5,13 +5,11 @@ mod snapshot;
 mod tests;
 
 use a4n_core::models::project::novel_project;
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 use self::{live::resolve_live_source, snapshot::resolve_snapshot_source};
-use super::{
-    PROJECT_KIND_COMIC, PROJECT_KIND_GALGAME, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO,
-    validate_positive_i64,
-};
+use super::validate_positive_i64;
 
 pub use contracts::{ResolveChapterSourceError, ResolvedChapterSource, ResolvedChapterSourceKind};
 
@@ -35,13 +33,15 @@ where
         .await?
         .ok_or_else(|| ResolveChapterSourceError::NotFound(format!("项目不存在: {project_id}")))?;
 
-    match project.project_kind.as_str() {
-        PROJECT_KIND_TEXT => resolve_live_source(db, &project, source_chapter_id).await,
-        PROJECT_KIND_COMIC | PROJECT_KIND_VIDEO | PROJECT_KIND_GALGAME => {
+    match project.source_mode().map_err(|error| {
+        ResolveChapterSourceError::InvalidArgument(format!("项目 {project_id}: {error}"))
+    })? {
+        ProjectSourceMode::Self_ => resolve_live_source(db, &project, source_chapter_id).await,
+        ProjectSourceMode::Derived => {
             resolve_snapshot_source(db, &project, source_chapter_id).await
         }
-        other => Err(ResolveChapterSourceError::InvalidArgument(format!(
-            "项目 {project_id} 的 project_kind 不支持章节导演计划: {other}"
+        ProjectSourceMode::Freeform => Err(ResolveChapterSourceError::InvalidArgument(format!(
+            "自由视频项目 {project_id} 没有章节来源"
         ))),
     }
 }

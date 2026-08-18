@@ -1,16 +1,10 @@
-import type { GeneratedImage } from "../../../api/image";
 import type { ChapterVideoPrompt } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
-import { videoImageGenerationSource } from "./videoTabUtils";
 
 export const promptTitle = (prompt: ChapterVideoPrompt): string => {
   const title = prompt.title?.trim();
   return title ? title : `镜头 ${prompt.shot_number}`;
 };
-
-export const isVideoTailFrameImage = (image: GeneratedImage): boolean =>
-  videoImageGenerationSource(image) === "video_tail_frame_capture" ||
-  image.image_type === "video_tail_frame";
 
 const labelForKey = (key: string): string => {
   const labels: Record<string, string> = {

@@ -1,6 +1,7 @@
 use a4n_core::{
     error::AppError,
     models::ai::{generated_video, video_gen_config},
+    video_execution::VideoSegmentWorkflowModeV1,
 };
 use a4n_db::collaboration::ProjectAccessRole;
 use a4n_service_protocol::GenerationArtifactRef;
@@ -219,8 +220,12 @@ impl OrchestratorContext {
             .create_video_generation_record_validated(VideoGenerationRecordInput {
                 project_id: prepared.project_id,
                 chapter_id: Some(prepared.chapter_id),
-                video_type: "reference_media_video".into(),
-                workflow_mode: Some("reference_media".to_string()),
+                video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.into(),
+                workflow_mode: Some(
+                    VideoSegmentWorkflowModeV1::ReferenceMedia
+                        .as_str()
+                        .to_string(),
+                ),
                 prompt: prepared.request.prompt.clone(),
                 negative_prompt: None,
                 model: prepared.config.model.clone(),
@@ -360,7 +365,7 @@ impl OrchestratorContext {
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("当前规划缺少片段 {shot_number} 的执行方案"))
         })?;
-        if recipe.workflow_mode.as_str() != "reference_media" {
+        if recipe.workflow_mode != VideoSegmentWorkflowModeV1::ReferenceMedia {
             return Err(AppError::InvalidArgument(format!(
                 "片段 {shot_number} 当前未选择参考媒体方案"
             )));

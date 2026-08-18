@@ -2,9 +2,8 @@ use super::config::ManagedServiceConfig;
 use super::config::ServiceMode;
 use super::errors::ServiceManagerError;
 use a4n_service_protocol::{
-    PROTOCOL_VERSION, SIDECAR_AUTH_HEADER, SIDECAR_HOST_PROTOCOL_VERSION_HEADER, ServiceHealth,
-    ServiceHealthValidationError, expected_capability_version_for_service,
-    validate_service_health_envelope,
+    SIDECAR_AUTH_HEADER, SIDECAR_HEALTH_PATH, ServiceHealth, ServiceHealthValidationError,
+    expected_capability_version_for_service, validate_service_health_envelope,
 };
 
 pub(super) async fn http_health(
@@ -12,11 +11,8 @@ pub(super) async fn http_health(
     config: &ManagedServiceConfig,
     auth_token: Option<&str>,
 ) -> Result<ServiceHealth, ServiceManagerError> {
-    let url = config.health_url()?;
-    let mut request = client.get(&url).header(
-        SIDECAR_HOST_PROTOCOL_VERSION_HEADER,
-        PROTOCOL_VERSION.to_string(),
-    );
+    let url = config.endpoint_url(SIDECAR_HEALTH_PATH)?;
+    let mut request = client.get(&url);
     if let Some(token) = auth_token {
         request = request.header(SIDECAR_AUTH_HEADER, token);
     }
@@ -49,7 +45,7 @@ pub(super) fn validate_service_health(
 ) -> Result<(), ServiceManagerError> {
     validate_service_health_envelope(
         health,
-        Some(config.name.as_str()),
+        config.name.as_str(),
         expected_capability_version_for_service(&config.name),
     )
     .map_err(map_health_validation_error)?;

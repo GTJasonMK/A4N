@@ -1,4 +1,5 @@
 use a4n_core::models::project::novel_project;
+use a4n_domain::project::ProjectSourceMode;
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
@@ -10,7 +11,6 @@ use super::{
         update_freeform_generation_spec_deferred_targets_record,
         update_freeform_generation_spec_metadata_record,
     },
-    ensure_freeform_source_mode,
     media::{
         copy_freeform_media_provenance_record, copy_freeform_project_media_graph_record,
         update_freeform_assembly_timeline_cache_keys_record,
@@ -37,7 +37,14 @@ pub async fn duplicate_freeform_project_record<Copier>(
 where
     Copier: ProjectMediaFileCopier,
 {
-    ensure_freeform_source_mode(&original.source_mode)?;
+    if original.source_mode().map_err(|error| {
+        ProjectDuplicateError::InvalidArgument(format!("项目 {}: {error}", original.id))
+    })? != ProjectSourceMode::Freeform
+    {
+        return Err(ProjectDuplicateError::InvalidArgument(
+            "复制自由视频项目只能接收 freeform 项目".to_string(),
+        ));
+    }
     let txn = db.begin().await?;
     let now = Utc::now().naive_utc();
 

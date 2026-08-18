@@ -1,6 +1,6 @@
 use crate::AppState;
 use crate::actions::video_generation::media::append_secondary_error;
-use crate::actions::video_records::imports::delete_video_record_error;
+use crate::actions::video_records::delete_video_record_cleanup_error;
 use crate::file_utils::persist_created_media_file;
 use std::path::{Path, PathBuf};
 
@@ -32,7 +32,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => Err(append_secondary_error(
             error,
-            delete_video_record_error(state.orchestrator(), record_id).await,
+            delete_video_record_cleanup_error(state.orchestrator(), record_id).await,
         )),
     }
 }

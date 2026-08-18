@@ -113,8 +113,10 @@ async fn delete_video_marks_canvas_nodes_missing_without_deleting_them() {
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let service = crate::video::test_video_orchestrator(db.clone()).await;
     let mut input = video_record_input(project.id);
-    input.video_type = "canvas_video".to_string();
-    input.workflow_mode = Some("canvas_video".to_string());
+    input.video_type = generated_video::VIDEO_TYPE_CANVAS.to_string();
+    input.workflow_mode = Some(
+        a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
+    );
     let video = service.create_video_record(input).await.unwrap();
     let now = fixed_time(3);
     let graph = canvas_graph::ActiveModel {

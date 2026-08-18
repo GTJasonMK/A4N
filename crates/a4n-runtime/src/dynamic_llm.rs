@@ -15,10 +15,10 @@ use a4n_llm::context::{
 };
 use a4n_llm::provider::{
     ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, LlmTraceContext, MessageRole,
-    ModelCapabilities, UsageInfo,
+    ModelCapabilities,
 };
 use a4n_orchestrator::llm_context::RecordOrReuseContextPackInput;
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceError};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 use async_trait::async_trait;
 use futures::stream::Stream;
 use serde_json::json;
@@ -35,7 +35,7 @@ mod trace;
 #[cfg(all(feature = "embedded-llm-provider", not(test)))]
 use self::budget::ensure_max_tokens_within_model_cap;
 #[cfg(test)]
-use self::budget::{ensure_max_tokens_within_model_cap, llm_probe_succeeded};
+use self::budget::ensure_max_tokens_within_model_cap;
 #[cfg(feature = "embedded-llm-provider")]
 use self::streams::QueueTrackedLlmStream;
 pub use self::{

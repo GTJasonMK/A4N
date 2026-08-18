@@ -7,7 +7,6 @@ pub struct ProjectFamilyMetadataQuery {
     pub project_id: i64,
     pub root_project_id: Option<i64>,
     pub source_snapshot_id: Option<i64>,
-    pub source_mode: String,
 }
 
 impl ProjectFamilyMetadataQuery {
@@ -16,7 +15,6 @@ impl ProjectFamilyMetadataQuery {
             project_id: project.id,
             root_project_id: project.root_project_id,
             source_snapshot_id: project.source_snapshot_id,
-            source_mode: project.source_mode.clone(),
         }
     }
 }

@@ -58,6 +58,7 @@ pub async fn project_summaries_with_family_for_user(
             family_metadata,
             info,
             query.project_kind,
+            query.source_mode,
             query.status,
             progress,
         ));

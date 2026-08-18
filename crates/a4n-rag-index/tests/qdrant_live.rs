@@ -89,9 +89,6 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
             .metadata_by_filter(
                 collection,
                 DeleteFilter {
-                    project_id: 42,
-                    data_type: None,
-                    chapter_number: None,
                     ids: vec![],
                     id_prefixes: vec![],
                 },
@@ -150,7 +147,7 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
     );
 
     let hybrid = store
-        .hybrid_search(collection, "血契", vec![1.0, 0.0, 0.0], 5, None, Some(0.5))
+        .hybrid_search(collection, "血契", vec![1.0, 0.0, 0.0], 5, None)
         .await
         .expect("hybrid");
     assert!(!hybrid.is_empty());
@@ -196,15 +193,12 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
         .delete(
             collection,
             DeleteFilter {
-                project_id: 42,
-                data_type: None,
-                chapter_number: Some(2),
-                ids: vec![],
+                ids: vec!["doc-b".to_string()],
                 id_prefixes: vec![],
             },
         )
         .await
-        .expect("delete chapter 2");
+        .expect("delete exact record");
     assert_eq!(deleted, 1);
 
     store.drop_collection(collection).await.expect("drop");

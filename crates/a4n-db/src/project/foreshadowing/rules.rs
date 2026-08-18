@@ -1,4 +1,7 @@
-use a4n_core::models::character::foreshadowing_index;
+use a4n_core::{
+    json_contract::is_empty_json_value,
+    models::character::foreshadowing_index,
+};
 use a4n_domain::character::ForeshadowingStatus;
 
 use super::contracts::ForeshadowingAnalysisDraft;
@@ -24,18 +27,8 @@ pub(super) fn foreshadowing_related_characters_after_setup_resync(
     existing
         .related_characters
         .clone()
-        .filter(|value| !json_value_is_empty(value))
+        .filter(|value| !is_empty_json_value(value))
         .or_else(|| draft.related_characters.clone())
-}
-
-fn json_value_is_empty(value: &serde_json::Value) -> bool {
-    match value {
-        serde_json::Value::Null => true,
-        serde_json::Value::String(value) => value.trim().is_empty(),
-        serde_json::Value::Array(value) => value.is_empty(),
-        serde_json::Value::Object(value) => value.is_empty(),
-        _ => false,
-    }
 }
 
 pub(super) fn foreshadowing_resolution_action(

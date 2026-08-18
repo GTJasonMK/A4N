@@ -1,49 +1,52 @@
+use a4n_api_contract::import_reverse::ReverseEngineeringTarget;
 use a4n_core::error::AppError;
 use a4n_db::workflow;
 use a4n_llm::provider::ChatRequest;
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
-use crate::workflow::{workflow_checkpoint_contract_app_error, workflow_write_app_error};
+use crate::import_reverse::IMPORT_REVERSE_WORKFLOW_KIND;
+use crate::workflow::workflow_checkpoint_contract_app_error;
 
 use super::contracts::PreparedImportReverseCall;
 
 pub(super) async fn prepare_import_reverse_call(
     context: &OrchestratorContext,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     mut request: ChatRequest,
     workflow_run_id: Option<i64>,
 ) -> Result<PreparedImportReverseCall, AppError> {
+    let prompt_name = target.prompt_name();
     let call_key = prompt_name.to_string();
     let workflow_run_id = workflow::required_llm_call_workflow_run_id(workflow_run_id, &call_key)
         .map_err(workflow_checkpoint_contract_app_error)?;
-    let fingerprint_json = import_reverse_call_fingerprint_json(prompt_name, &request)?;
+    let fingerprint_json = import_reverse_call_fingerprint_json(target, &request)?;
     crate::workflow::attach_llm_call_checkpoint_trace(
         &mut request,
         workflow_run_id,
         &call_key,
         &fingerprint_json,
     )?;
-    workflow::mark_workflow_current_step(context.database.connection(), workflow_run_id, &call_key)
-        .await
-        .map_err(workflow_write_app_error)?;
+    context
+        .mark_workflow_current_step(workflow_run_id, &call_key)
+        .await?;
 
     Ok(PreparedImportReverseCall {
-        prompt_name: prompt_name.to_string(),
+        target,
         request,
         workflow_run_id,
-        call_key,
         fingerprint_json,
     })
 }
 
 fn import_reverse_call_fingerprint_json(
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     request: &ChatRequest,
 ) -> Result<Value, AppError> {
+    let prompt_name = target.prompt_name();
     Ok(json!({
         "schema_version": 1,
-        "workflow": "import_reverse_engineer",
+        "workflow": IMPORT_REVERSE_WORKFLOW_KIND,
         "call_key": prompt_name,
         "prompt_name": prompt_name,
         "messages": request.messages,

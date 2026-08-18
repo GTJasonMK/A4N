@@ -34,7 +34,7 @@ pub struct AssetLineageBackfillSummary {
 pub(super) struct ProjectLineageContext {
     pub(super) project_id: i64,
     pub(super) root_project_id: i64,
-    pub(super) source_mode: String,
+    pub(super) source_mode: a4n_domain::project::ProjectSourceMode,
     pub(super) snapshot: Option<project_source_snapshot::Model>,
     pub(super) snapshot_chapters_by_source: BTreeMap<i64, source_snapshot_chapter::Model>,
 }

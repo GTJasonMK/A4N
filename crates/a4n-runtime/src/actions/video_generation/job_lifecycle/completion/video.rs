@@ -16,7 +16,6 @@ use a4n_orchestrator::video::{
 pub(in crate::actions::video_generation) async fn persist_video_result(
     state: &AppState,
     video: &generated_video::Model,
-    prompt_id: Option<i64>,
     result: VideoGenerationResult,
 ) -> Result<PersistedVideoResult, String> {
     if result.bytes.is_empty() {
@@ -45,7 +44,7 @@ pub(in crate::actions::video_generation) async fn persist_video_result(
     );
     let mut tail_frame_capture_error = None;
     let tail_frame_metadata = if should_capture_video_tail_frame(video) {
-        match capture_video_tail_frame_asset(state, video, chapter_id, prompt_id, &path).await {
+        match capture_video_tail_frame_asset(state, video, chapter_id, &path).await {
             Ok(metadata) => Some(metadata),
             Err(msg) => {
                 if is_first_frame_chain_video(video) {

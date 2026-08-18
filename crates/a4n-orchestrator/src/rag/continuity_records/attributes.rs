@@ -65,13 +65,7 @@ pub fn character_attribute_event_rag_record(
         text,
         metadata: serde_json::json!({
             "data_type": RagDataType::CharacterAttributeEvent.as_str(),
-            "attribute_event_id": event.id,
-            "profile_id": event.profile_id,
-            "character_name": name,
             "chapter_number": event.chapter_number,
-            "category": event.category,
-            "attribute_key": event.key,
-            "operation": event.operation,
             "title": title,
         }),
     })

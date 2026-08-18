@@ -63,7 +63,7 @@ Last focused run: 2026-07-31
 
 ```text
 $ CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 timeout 60s \
-    cargo test -p a4n-cli --target-dir /tmp/a4n-cli-target -- --test-threads=1
+    cargo test -p a4n-cli -- --test-threads=1
 
 running 36 tests
 test client::tests::api_paths_cannot_escape_the_configured_api_root ... ok
@@ -123,14 +123,14 @@ test result: ok. 5 passed; 0 failed; 0 ignored
 - `a4n-server --no-default-features` check 通过。
 - `npm run check:web-api-parity`: 381 个共享 Host API 命令、33 个 Web/CLI 专用映射、
   13 个 Tauri-only 等价入口全部一致，Web/Desktop/CLI missing/stale 均为 0。
-- Bash/Ruby 语法、8 个 sidecar inventory、Linux/Windows/macOS release manifest 的
-  `9 binaries + 3 tools + 1 runtime` 清单及篡改检测全部通过。
+- Bash/Ruby 语法、catalog 驱动的 sidecar inventory、Linux/Windows/macOS release
+  manifest 清单及篡改检测全部通过。
 
 此前已完成且仍适用的真实环境验收：
 
 - `a4n-service-protocol`: 69 passed；`a4n-service-manager --lib`: 36 passed。
 - PostgreSQL local lifecycle 使用隔离端口、数据库和 CLI state 通过 core-only Server、
-  8 managed sidecar + 外部 Qdrant、CLI-owned Qdrant、embedded/full + 外部 Qdrant 四种模式。
+  catalog managed sidecar + 外部 Qdrant、CLI-owned Qdrant、embedded/full + 外部 Qdrant 四种模式。
 - 完整源码构建在显式取消 `ORT_LIB_PATH` 后通过；`a4n local` 为 Cargo 链接和 Server
   启动同时注入了安装的 ONNX Runtime。
 - 真实 PostgreSQL/Server 登录和媒体下载通过，access token 只位于 Authorization
@@ -147,3 +147,12 @@ Coverage gaps:
   仍以 macOS CI 为权威。
 - 本 Linux 主机没有重新生成完整三平台 release archive。
 - 商业 provider 的可用性、额度和网络行为仍属于外部系统检查。
+
+## GUI/CLI parity refinement (2026-08-16)
+
+- `cargo test -p a4n-api-contract --lib`: 75 passed.
+- `cargo test -p a4n-cli --bin a4n`: 39 passed.
+- `cargo test -p a4n-cli --test cli_e2e`: 6 passed.
+- `npm run check:web-api-parity`: passed.
+- Manifest v11 exposes 376 Host API commands and 13 desktop-runtime equivalents;
+  opaque argument/result schemas are both zero.

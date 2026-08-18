@@ -42,7 +42,6 @@ where
         description: Set(original.description.clone()),
         project_type: Set(original.project_type.clone()),
         project_kind: Set(original.project_kind.clone()),
-        source_mode: Set(original.source_mode.clone()),
         root_project_id: Set(values.root_project_id),
         source_snapshot_id: Set(values.source_snapshot_id),
         source_sync_status: Set(original.source_sync_status.clone()),

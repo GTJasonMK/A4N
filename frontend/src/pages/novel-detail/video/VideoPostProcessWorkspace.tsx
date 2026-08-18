@@ -12,6 +12,9 @@ import { extractErrorMessage } from "../../../api";
 import {
   applyAssemblyPostprocessEdit,
   updateAssemblyPushStatus,
+  VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT,
+  VIDEO_TYPE_ASSEMBLY_PUSH,
+  VIDEO_WORKFLOW_MODE_MIXED,
   type GeneratedVideo,
 } from "../../../api/video";
 import type { ToastType } from "../../../components/feedback/Toast";
@@ -26,7 +29,6 @@ import {
 import { EmptyHint, type ChapterRow } from "../shared";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
 import {
-  ASSEMBLY_WORKFLOW_MODE,
   assemblyPushIndex,
   assemblyPushSourceIds,
   assemblyPushStatus,
@@ -37,12 +39,10 @@ interface VideoPostProcessWorkspaceProps {
   projectId: number;
   chapter: ChapterRow;
   videos: GeneratedVideo[];
-  onToast: (message: unknown, type: ToastType) => void;
+  onToast: (message: string, type: ToastType) => void;
   onRefresh: () => Promise<void> | void;
 }
 
-const ASSEMBLY_PUSH_VIDEO_TYPE = "assembly_push";
-const POSTPROCESS_EDIT_VIDEO_TYPE = "assembly_postprocess_edit";
 const MARKER_MIN_GAP_SECS = 0.05;
 const VIDEO_SEEK_TOLERANCE_SECS = 0.05;
 const VIDEO_FRAME_PRESENTATION_TIMEOUT_MS = 750;
@@ -82,8 +82,8 @@ export const VideoPostProcessWorkspace: React.FC<
       videos
         .filter(
           (video) =>
-            video.video_type === ASSEMBLY_PUSH_VIDEO_TYPE &&
-            video.workflow_mode === ASSEMBLY_WORKFLOW_MODE &&
+            video.video_type === VIDEO_TYPE_ASSEMBLY_PUSH &&
+            video.workflow_mode === VIDEO_WORKFLOW_MODE_MIXED &&
             video.status === "completed",
         )
         .sort(
@@ -97,8 +97,8 @@ export const VideoPostProcessWorkspace: React.FC<
     const map = new Map<number, GeneratedVideo[]>();
     for (const video of videos) {
       if (
-        video.video_type !== POSTPROCESS_EDIT_VIDEO_TYPE ||
-        video.workflow_mode !== ASSEMBLY_WORKFLOW_MODE ||
+        video.video_type !== VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT ||
+        video.workflow_mode !== VIDEO_WORKFLOW_MODE_MIXED ||
         video.status !== "completed"
       ) {
         continue;

@@ -1,11 +1,14 @@
 use std::collections::{BTreeSet, HashMap};
 
+use a4n_api_contract::character::{
+    DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
+};
 use a4n_core::{error::AppError, structured_progress::StructuredJsonProgressSpec};
 use a4n_llm::{
     context::chat_request_with_workflow_run_id, structured_stream::StructuredLlmProgress,
 };
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::{
     OrchestratorContext,
@@ -14,21 +17,24 @@ use crate::{
             select_character_discovery_chapters, validate_discovered_character_chapter_scope,
         },
         discovery_workflow_rules::{
-            CHARACTER_DISCOVERY_CALL_KEY, character_discovery_call_fingerprint_json,
-            character_discovery_workflow_run_input,
+            character_discovery_call_fingerprint_json, character_discovery_workflow_run_input,
         },
     },
-    structured_llm::{ChatJsonStreamInput, stream_error_or_cancelled},
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
+    structured_llm::{
+        ChatJsonStreamInput, ensure_checkpoint_parsed_output_matches, stream_error_or_cancelled,
+    },
+    workflow::{
+        self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+        workflow_checkpoint_contract_app_error,
+    },
 };
 
 use super::{
+    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
     contracts::{
-        CHARACTER_DISCOVERY_FIELDS, CHARACTER_DISCOVERY_LLM_SPAN,
-        CHARACTER_DISCOVERY_PROGRESS_TOTAL, ChapterAnchorMode, CharacterDiscoveryCallCheckpoint,
-        CharacterDiscoveryCallResult, CharacterDiscoveryInput, CharacterDiscoveryProgress,
-        CharacterDiscoveryRequestContext, CharacterDiscoveryRequestPreview,
-        CharacterDiscoveryTaskScope, RequiredCharacterDiscoveryInput,
+        CHARACTER_DISCOVERY_FIELDS, CHARACTER_DISCOVERY_LLM_SPAN, ChapterAnchorMode,
+        CharacterDiscoveryCallResult, CharacterDiscoveryProgress, CharacterDiscoveryRequestContext,
+        CharacterDiscoveryRequestPreview,
     },
     identity::{existing_character_keys, profile_character_keys},
     output::{character_discovery_parsed_output_json, parse_character_discovery_output},
@@ -36,23 +42,13 @@ use super::{
 };
 
 impl OrchestratorContext {
-    pub async fn character_discovery_task_scope_validated(
-        &self,
-        input: &CharacterDiscoveryInput,
-    ) -> Result<CharacterDiscoveryTaskScope, AppError> {
-        let required = required_character_discovery_input(input)?;
-        Ok(CharacterDiscoveryTaskScope {
-            project_id: required.project_id,
-            total: CHARACTER_DISCOVERY_PROGRESS_TOTAL,
-        })
-    }
-
     pub async fn prepare_character_discovery_request_preview_validated(
         &self,
-        input: CharacterDiscoveryInput,
+        input: DiscoverCharacterProfilesInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<CharacterDiscoveryRequestPreview, AppError> {
-        let prepared = self
+        validate_character_discovery_input(&input)?;
+        let (prepared, request) = self
             .prepare_character_discovery_request(
                 input,
                 ChapterAnchorMode::RequireExistingCurrent,
@@ -61,19 +57,19 @@ impl OrchestratorContext {
             .await?;
         Ok(CharacterDiscoveryRequestPreview {
             analyzed_chapter_count: prepared.chapters.len(),
-            request: prepared.request,
+            request,
         })
     }
 
     pub async fn discover_character_profiles_validated(
         &self,
-        input: CharacterDiscoveryInput,
+        input: DiscoverCharacterProfilesInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: Option<CharacterDiscoveryProgress<'_>>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<DiscoverCharacterProfilesResult, AppError> {
         report_character_discovery_progress(progress, 0, "正在读取可分析章节和已有角色")?;
-        let required = required_character_discovery_input(&input)?;
-        let request_context = self
+        validate_character_discovery_input(&input)?;
+        let (request_context, request) = self
             .prepare_character_discovery_request(
                 input,
                 ChapterAnchorMode::EnsureCurrent,
@@ -81,11 +77,11 @@ impl OrchestratorContext {
             )
             .await?;
         let workflow_input = character_discovery_workflow_run_input(
-            required.project_id,
-            required.chapter_number,
+            input.project_id,
+            input.chapter_number,
             &request_context.chapters,
             &request_context.text_anchors,
-            &request_context.request,
+            &request,
             progress.and_then(|progress| progress.active_task_id),
         )
         .map_err(AppError::InvalidArgument)?;
@@ -94,9 +90,9 @@ impl OrchestratorContext {
             let call_result = self
                 .run_character_discovery_call(
                     workflow_run.id,
-                    required.project_id,
-                    required.chapter_number,
-                    &request_context.request,
+                    input.project_id,
+                    input.chapter_number,
+                    &request,
                     &request_context.chapters,
                     &request_context.text_anchors,
                     progress,
@@ -104,8 +100,8 @@ impl OrchestratorContext {
                 .await?;
             let result = self
                 .persist_discovered_character_profiles(
-                    required.project_id,
-                    required.chapter_number,
+                    input.project_id,
+                    input.chapter_number,
                     request_context,
                     call_result,
                     progress,
@@ -125,20 +121,25 @@ impl OrchestratorContext {
 
     async fn prepare_character_discovery_request(
         &self,
-        input: CharacterDiscoveryInput,
+        input: DiscoverCharacterProfilesInput,
         anchor_mode: ChapterAnchorMode,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<CharacterDiscoveryRequestContext, AppError> {
-        let required = required_character_discovery_input(&input)?;
-        let available_chapters = self.character_sync_chapters(required.project_id).await?;
+    ) -> Result<
+        (
+            CharacterDiscoveryRequestContext,
+            a4n_llm::provider::ChatRequest,
+        ),
+        AppError,
+    > {
+        let available_chapters = self.character_sync_chapters(input.project_id).await?;
         let chapters = select_character_discovery_chapters(
             available_chapters,
-            required.project_id,
-            required.chapter_number,
+            input.project_id,
+            input.chapter_number,
         )
         .map_err(AppError::InvalidArgument)?;
         let existing_profiles = self
-            .protagonist_profiles_for_project(required.project_id)
+            .protagonist_profiles_for_project(input.project_id)
             .await?;
         let existing_keys = existing_character_keys(&existing_profiles);
         let existing_key_profiles = existing_profiles
@@ -153,12 +154,12 @@ impl OrchestratorContext {
         for chapter in &chapters {
             let anchors = match anchor_mode {
                 ChapterAnchorMode::EnsureCurrent => {
-                    self.ensure_chapter_content_anchor_records(required.project_id, chapter.id)
+                    self.ensure_chapter_content_anchor_records(input.project_id, chapter.id)
                         .await?
                 }
                 ChapterAnchorMode::RequireExistingCurrent => {
                     self.require_current_chapter_content_anchors_for_preview(
-                        required.project_id,
+                        input.project_id,
                         chapter.id,
                     )
                     .await?
@@ -168,20 +169,22 @@ impl OrchestratorContext {
         }
         let request = build_character_discovery_request(
             prompt_renderer,
-            required.project_id,
-            required.chapter_number,
+            input.project_id,
+            input.chapter_number,
             &chapters,
             &text_anchors,
             &existing_profiles,
         )
         .await?;
-        Ok(CharacterDiscoveryRequestContext {
-            chapters,
-            text_anchors,
-            existing_keys,
-            existing_key_profiles,
+        Ok((
+            CharacterDiscoveryRequestContext {
+                chapters,
+                text_anchors,
+                existing_keys,
+                existing_key_profiles,
+            },
             request,
-        })
+        ))
     }
 
     async fn run_character_discovery_call(
@@ -217,7 +220,11 @@ impl OrchestratorContext {
         }
 
         let (discovered, response_content) = if let Some(checkpoint) = self
-            .load_character_discovery_checkpoint(workflow_run_id, &call_fingerprint_json)
+            .load_completed_llm_call_checkpoint(
+                workflow_run_id,
+                CHARACTER_DISCOVERY_CALL_KEY,
+                &call_fingerprint_json,
+            )
             .await?
         {
             report_character_discovery_progress(
@@ -232,11 +239,11 @@ impl OrchestratorContext {
                 text_anchors,
             )?;
             let parsed_output = character_discovery_parsed_output_json(&discovered);
-            if parsed_output != checkpoint.parsed_output {
-                return Err(AppError::InvalidArgument(format!(
-                    "{CHARACTER_DISCOVERY_CALL_KEY} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致"
-                )));
-            }
+            ensure_checkpoint_parsed_output_matches(
+                &checkpoint.parsed_output,
+                &parsed_output,
+                CHARACTER_DISCOVERY_CALL_KEY,
+            )?;
             (discovered, checkpoint.response_content)
         } else {
             // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
@@ -252,7 +259,7 @@ impl OrchestratorContext {
                 .chat_json_stream_result_with_sink(
                     ChatJsonStreamInput {
                         request: llm_request.clone(),
-                        prompt_name: "character_discovery",
+                        prompt_name: super::CHARACTER_DISCOVERY_KIND,
                         truncated_message: "角色发现输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色发现”输出档位，或减少本次章节上下文后重试",
                         structured_progress: Some(StructuredLlmProgress {
                             spec: StructuredJsonProgressSpec {
@@ -293,14 +300,13 @@ impl OrchestratorContext {
                 call_key: CHARACTER_DISCOVERY_CALL_KEY.to_string(),
                 call_order: 1,
                 input_fingerprint_json: call_fingerprint_json,
-                checkpoint_json: json!({
-                    "output": parsed_output.clone(),
-                    "parsed_output": parsed_output,
-                    "response_content": response_content.clone(),
-                    "usage": null,
-                    "finish_reason": null,
-                }),
-                artifacts_json: None,
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output,
+                    response_content: response_content.clone(),
+                    usage: None,
+                    finish_reason: None,
+                    artifacts_json: None,
+                },
             })
             .await?;
             (discovered, response_content)
@@ -313,52 +319,11 @@ impl OrchestratorContext {
             analyzed_chapters,
         })
     }
-
-    async fn load_character_discovery_checkpoint(
-        &self,
-        workflow_run_id: i64,
-        input_fingerprint_json: &Value,
-    ) -> Result<Option<CharacterDiscoveryCallCheckpoint>, AppError> {
-        let Some(checkpoint) = self
-            .load_completed_llm_call_checkpoint(
-                workflow_run_id,
-                CHARACTER_DISCOVERY_CALL_KEY,
-                input_fingerprint_json,
-            )
-            .await?
-        else {
-            return Ok(None);
-        };
-        let checkpoint_json =
-            workflow::required_llm_call_checkpoint_json(checkpoint, CHARACTER_DISCOVERY_CALL_KEY)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        let response_content = checkpoint_json
-            .get("response_content")
-            .and_then(Value::as_str)
-            .map(ToString::to_string)
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "{CHARACTER_DISCOVERY_CALL_KEY}.response_content 必须是字符串"
-                ))
-            })?;
-        let parsed_output = checkpoint_json
-            .get("parsed_output")
-            .cloned()
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "{CHARACTER_DISCOVERY_CALL_KEY}.parsed_output 缺失"
-                ))
-            })?;
-        Ok(Some(CharacterDiscoveryCallCheckpoint {
-            response_content,
-            parsed_output,
-        }))
-    }
 }
 
-pub(super) fn required_character_discovery_input(
-    input: &CharacterDiscoveryInput,
-) -> Result<RequiredCharacterDiscoveryInput, AppError> {
+pub fn validate_character_discovery_input(
+    input: &DiscoverCharacterProfilesInput,
+) -> Result<(), AppError> {
     if input.project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
     }
@@ -370,10 +335,7 @@ pub(super) fn required_character_discovery_input(
             "角色发现章节号必须大于 0".to_string(),
         ));
     }
-    Ok(RequiredCharacterDiscoveryInput {
-        project_id: input.project_id,
-        chapter_number: input.chapter_number,
-    })
+    Ok(())
 }
 
 pub(super) fn report_character_discovery_progress(

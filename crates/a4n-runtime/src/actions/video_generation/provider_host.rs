@@ -1,11 +1,14 @@
 use a4n_core::{
+    config::env::optional_non_empty_env_string,
     error::AppError,
+    media::video_mime_from_path,
     models::ai::{generated_video, video_gen_config},
 };
 use a4n_orchestrator::canvas::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoImageInput,
     CanvasVideoPersistedFile, CanvasVideoProviderInput, CanvasVideoResolvedImages,
 };
+use a4n_orchestrator::generation::GeneratedMediaArtifactFile;
 use a4n_orchestrator::video::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, PersistedVideoResult,
     ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort,
@@ -36,13 +39,13 @@ use crate::{
             delete_video_tail_frame_assets, media_bytes_to_remote_temp_media_url,
             persist_canvas_video_bytes, reference_image_provider_input_by_id,
             reference_image_provider_inputs_by_ids, reference_image_request_preview_url_by_id,
-            reference_image_request_preview_urls_by_ids, remote_temp_upload_configured,
+            reference_image_request_preview_urls_by_ids,
         },
         relay_video_sidecar_progress, resolve_video_config, run_queued_request_with_cancel,
         video_sidecar_root_project_id,
     },
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::canonicalize_data_file_path,
+    file_utils::inspect_generated_media_file,
 };
 
 pub(crate) struct RuntimeVideoProviderHostPort<'state> {
@@ -102,7 +105,11 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 })?;
             let request = video_provider_request_body_preview(
                 &input.config.backend,
-                input.config.base_url.as_deref().unwrap_or_default(),
+                input
+                    .config
+                    .base_url
+                    .as_deref()
+                    .ok_or_else(|| host_error("视频生成配置缺少 base_url".to_string()))?,
                 &input.request,
             )
             .map_err(|error| host_error(error.to_string()))?;
@@ -283,30 +290,14 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         relative_path: &str,
         label: &str,
-    ) -> Result<a4n_orchestrator::video::VideoArtifactFile, AppError> {
-        let path = canonicalize_data_file_path(self.state.data_dir(), relative_path, label)
-            .map_err(host_error)?;
-        let bytes = std::fs::read(&path)
-            .map_err(|error| host_error(format!("读取{}失败：{error}", path.display())))?;
-        let content_type = match path
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref()
-        {
-            Some("mp4") | Some("m4v") => "video/mp4",
-            Some("webm") => "video/webm",
-            Some("mov") => "video/quicktime",
-            Some(other) => {
-                return Err(host_error(format!("{label}格式不支持: {other}")));
-            }
-            None => return Err(host_error(format!("{label}缺少文件扩展名"))),
-        };
-        Ok(a4n_orchestrator::video::VideoArtifactFile {
-            content_type: content_type.to_string(),
-            sha256: format!("{:x}", Sha256::digest(&bytes)),
-            byte_size: bytes.len() as u64,
-        })
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        inspect_generated_media_file(
+            self.state.data_dir(),
+            relative_path,
+            label,
+            video_mime_from_path,
+        )
+        .map_err(host_error)
     }
 
     async fn poll_video_job(
@@ -339,7 +330,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
     async fn persist_video_result(
         &self,
         video: &generated_video::Model,
-        prompt_id: Option<i64>,
+        _prompt_id: Option<i64>,
         mut result: VideoGenerationResult,
     ) -> Result<PersistedVideoResult, AppError> {
         result.metadata = completed_video_artifact_metadata(&result);
@@ -364,7 +355,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
                 })),
             });
         }
-        super::job_lifecycle::persist_video_result(self.state, video, prompt_id, result)
+        super::job_lifecycle::persist_video_result(self.state, video, result)
             .await
             .map_err(host_error)
     }
@@ -478,11 +469,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         input: CanvasVideoImageInput,
     ) -> Result<CanvasVideoResolvedImages, AppError> {
-        let transport = if remote_temp_upload_configured().map_err(host_error)? {
-            ProviderImageInputTransport::RemoteTempUpload
-        } else {
-            ProviderImageInputTransport::InlineDataUrl
-        };
+        let transport = ChapterVideoGenerationHostPort::resolve_image_transport(self)?;
         let resolved = self
             .resolve_video_image_inputs(ChapterVideoImageInput {
                 user_id: input.user_id,
@@ -601,15 +588,7 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
     }
 
     fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError> {
-        let override_value = match std::env::var("A4N_VIDEO_IMAGE_INPUT_TRANSPORT") {
-            Ok(value) => Some(value),
-            Err(std::env::VarError::NotPresent) => None,
-            Err(error) => {
-                return Err(host_error(format!(
-                    "读取 A4N_VIDEO_IMAGE_INPUT_TRANSPORT 失败：{error}"
-                )));
-            }
-        };
+        let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
         provider_image_input_transport_with_override(override_value.as_deref()).map_err(host_error)
     }
 

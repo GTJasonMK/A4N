@@ -22,17 +22,18 @@ use a4n_core::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+
+use crate::workflow::WORKFLOW_STATUS_COMPLETED;
 use std::collections::HashMap;
 
-use crate::OrchestratorContext;
+use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 use crate::collaboration::ProjectAccessRole;
 use crate::video::prompt_json::InsertedSegmentDraft;
-use crate::workflow::{WORKFLOW_STATUS_COMPLETED, required_checkpoint_json};
 
-pub(crate) const SHARED_VIDEO_TIMELINE_MODE: &str = "shared_segment_plan";
 pub(crate) const INSERTED_SEGMENT_SOURCE_PROMPT_TYPE: &str = "inserted_segment";
 pub(crate) const INSERTED_SEGMENT_WORKFLOW_KIND: &str = "video_inserted_segment";
 pub(crate) const INSERTED_SEGMENT_CHECKPOINT_KEY: &str = "inserted_segment_draft";
+pub(crate) const VIDEO_TIMELINE_SCOPE_TABLE: &str = "chapter_video_timeline";
 
 pub(crate) struct InsertedSegmentNeighborContext {
     pub(crate) previous: Value,
@@ -47,7 +48,11 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
         let timeline = self
-            .ensure_chapter_video_timeline(project_id, chapter_id, SHARED_VIDEO_TIMELINE_MODE)
+            .ensure_chapter_video_timeline(
+                project_id,
+                chapter_id,
+                chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+            )
             .await?;
         let keys = self
             .native_keys_for_current_plan(project_id, chapter_id)
@@ -112,7 +117,9 @@ impl OrchestratorContext {
                 "插入片段草稿与时间线不属于同一项目章节".to_string(),
             ));
         }
-        if snapshot.timeline.workflow_mode != SHARED_VIDEO_TIMELINE_MODE {
+        if snapshot.timeline.workflow_mode
+            != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+        {
             return Err(AppError::InvalidArgument(
                 "插入片段只支持当前共享片段规划时间线".to_string(),
             ));
@@ -138,7 +145,13 @@ impl OrchestratorContext {
             ));
         }
 
-        let fingerprint = inserted_workflow_fingerprint(&run)?;
+        let input_fingerprint_json = run.input_fingerprint_json.as_ref().ok_or_else(|| {
+            AppError::InvalidState {
+                current: "inserted_segment_workflow_missing_fingerprint".to_string(),
+                operation: "提交插入片段草稿".to_string(),
+            }
+        })?;
+        let fingerprint = inserted_workflow_fingerprint(&run, input_fingerprint_json)?;
         if fingerprint.timeline_id != input.timeline_id
             || fingerprint.timeline_revision != input.expected_timeline_revision
         {
@@ -168,35 +181,27 @@ impl OrchestratorContext {
                 operation: "相邻片段、采用视频或尾帧已变化，请重新生成插入片段描述".to_string(),
             });
         }
-        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
-        let checkpoint = checkpoints
-            .iter()
-            .find(|checkpoint| {
-                checkpoint.step_key == INSERTED_SEGMENT_CHECKPOINT_KEY
-                    && checkpoint.status == WORKFLOW_STATUS_COMPLETED
-            })
+        let checkpoint = self
+            .load_completed_llm_call_checkpoint(
+                run.id,
+                INSERTED_SEGMENT_CHECKPOINT_KEY,
+                input_fingerprint_json,
+            )
+            .await?
             .ok_or_else(|| AppError::InvalidState {
                 current: "inserted_segment_draft_checkpoint_missing".to_string(),
                 operation: "提交插入片段草稿".to_string(),
             })?;
-        let checkpoint_json = required_checkpoint_json(checkpoint, INSERTED_SEGMENT_CHECKPOINT_KEY)
-            .map_err(|error| AppError::InvalidState {
-                current: "inserted_segment_draft_checkpoint_invalid".to_string(),
-                operation: error.to_string(),
-            })?;
-        let draft_value = checkpoint_json
-            .get("parsed_output")
-            .cloned()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "inserted_segment_draft_output_missing".to_string(),
-                operation: "提交插入片段草稿".to_string(),
-            })?;
-        let draft: InsertedSegmentDraft = serde_json::from_value(draft_value)
-            .map_err(|error| AppError::InvalidArgument(format!("插入片段草稿无效: {error}")))?;
-        let prompt_language = PromptOutputLanguage::from_optional_code(Some(
-            &fingerprint.payload.prompt_output_language,
-        ))?;
-        let draft = draft.validate(prompt_language)?;
+        let prompt_language =
+            PromptOutputLanguage::from_code(&fingerprint.payload.prompt_output_language)?;
+        let draft =
+            InsertedSegmentDraft::parse_and_validate(&checkpoint.response_content, prompt_language)?;
+        let reparsed_output = serde_json::to_value(&draft)?;
+        ensure_checkpoint_parsed_output_matches(
+            &checkpoint.parsed_output,
+            &reparsed_output,
+            "插入片段草稿",
+        )?;
 
         let gap = VideoTimelineGap {
             previous_item_id: fingerprint.gap.previous_item_id,
@@ -255,7 +260,7 @@ impl OrchestratorContext {
                 project_id,
                 chapter_id,
                 style: Some(fingerprint.payload.style.trim().to_string()),
-                prompt_type: "video_prompt".to_string(),
+                prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO.to_string(),
                 workflow_mode: recipe.workflow_mode.as_str().to_string(),
                 shot_number: segment_number,
                 title: Some(draft.title.trim().to_string()),
@@ -294,21 +299,21 @@ impl OrchestratorContext {
             ProjectAccessRole::Editor,
         )
         .await?;
-        let timeline = self
-            .move_inserted_video_timeline_item(
-                input.timeline_id,
-                input.expected_timeline_revision,
-                input.timeline_item_id,
-                a4n_core::video_execution::VideoTimelineGap {
-                    previous_item_id: input.previous_item_id,
-                    next_item_id: input.next_item_id,
-                },
-            )
-            .await?;
+        self.move_inserted_video_timeline_item(
+            input.timeline_id,
+            input.expected_timeline_revision,
+            input.timeline_item_id,
+            a4n_core::video_execution::VideoTimelineGap {
+                previous_item_id: input.previous_item_id,
+                next_item_id: input.next_item_id,
+            },
+        )
+        .await?;
         self.timeline_summary(
             before.timeline.project_id,
             before.timeline.chapter_id,
-            self.chapter_video_timeline_snapshot(timeline.id).await?,
+            self.chapter_video_timeline_snapshot(input.timeline_id)
+                .await?,
         )
         .await
     }
@@ -327,17 +332,17 @@ impl OrchestratorContext {
             ProjectAccessRole::Editor,
         )
         .await?;
-        let timeline = self
-            .delete_inserted_video_timeline_item(
-                input.timeline_id,
-                input.expected_timeline_revision,
-                input.timeline_item_id,
-            )
-            .await?;
+        self.delete_inserted_video_timeline_item(
+            input.timeline_id,
+            input.expected_timeline_revision,
+            input.timeline_item_id,
+        )
+        .await?;
         self.timeline_summary(
             before.timeline.project_id,
             before.timeline.chapter_id,
-            self.chapter_video_timeline_snapshot(timeline.id).await?,
+            self.chapter_video_timeline_snapshot(input.timeline_id)
+                .await?,
         )
         .await
     }
@@ -355,11 +360,6 @@ impl OrchestratorContext {
             return Ok(None);
         };
         let segments = shared_plan_segments(&plan)?;
-        if segments.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "当前共享片段规划不能是空规划".to_string(),
-            ));
-        }
         let keys = segments
             .into_iter()
             .map(|segment| {
@@ -497,7 +497,7 @@ impl OrchestratorContext {
                         })?;
                     if video.project_id != project_id
                         || video.chapter_id != Some(chapter_id)
-                        || video.status != "completed"
+                        || video.status != generated_video::STATUS_COMPLETED
                         || !video_matches_timeline_item(video, item)
                     {
                         return Err(AppError::InvalidState {
@@ -796,7 +796,8 @@ pub(crate) fn current_timeline_item_video_id(
             current: format!("timeline_selected_video_missing:{video_id}"),
             operation: format!("读取时间线项 {} 的当前视频", item.id),
         })?;
-    if video.status != "completed" || !video_matches_timeline_item(video, item) {
+    if video.status != generated_video::STATUS_COMPLETED || !video_matches_timeline_item(video, item)
+    {
         return Err(AppError::InvalidState {
             current: format!("timeline_selected_video_invalid:{video_id}"),
             operation: format!("读取时间线项 {} 的当前视频", item.id),
@@ -808,7 +809,7 @@ pub(crate) fn current_timeline_item_video_id(
 pub(crate) fn shared_plan_segments(
     plan: &a4n_core::models::chapter::chapter_video_prompt::Model,
 ) -> Result<Vec<VideoSegmentPlanV2>, AppError> {
-    serde_json::from_value(
+    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
         plan.metadata_json
             .as_ref()
             .and_then(|metadata| metadata.get("segments"))
@@ -817,7 +818,13 @@ pub(crate) fn shared_plan_segments(
                 AppError::InvalidArgument("当前共享片段规划缺少 segments".to_string())
             })?,
     )
-    .map_err(|error| AppError::InvalidArgument(format!("当前共享片段规划无效：{error}")))
+    .map_err(|error| AppError::InvalidArgument(format!("当前共享片段规划无效：{error}")))?;
+    if segments.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "当前共享片段规划不能是空规划".to_string(),
+        ));
+    }
+    Ok(segments)
 }
 
 #[derive(Debug, Deserialize)]
@@ -871,7 +878,7 @@ fn validate_inserted_workflow_scope(
             operation: "提交尚未完成的插入片段草稿".to_string(),
         });
     }
-    if run.scope_table.as_deref() != Some("chapter_video_timeline")
+    if run.scope_table.as_deref() != Some(VIDEO_TIMELINE_SCOPE_TABLE)
         || run.scope_id != Some(input.timeline_id)
     {
         return Err(AppError::InvalidArgument(
@@ -883,16 +890,10 @@ fn validate_inserted_workflow_scope(
 
 fn inserted_workflow_fingerprint(
     run: &a4n_core::models::generation::workflow_run::Model,
+    value: &Value,
 ) -> Result<InsertedSegmentWorkflowFingerprint, AppError> {
-    let value = run
-        .input_fingerprint_json
-        .clone()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "inserted_segment_workflow_missing_fingerprint".to_string(),
-            operation: "提交插入片段草稿".to_string(),
-        })?;
     let fingerprint: InsertedSegmentWorkflowFingerprint =
-        serde_json::from_value(value).map_err(|error| {
+        serde_json::from_value(value.clone()).map_err(|error| {
             AppError::InvalidArgument(format!("插入片段 workflow 指纹无效: {error}"))
         })?;
     if fingerprint.schema_version != 1
@@ -925,9 +926,6 @@ fn inserted_segment_recipe(
     let constraints = &fingerprint.payload.constraints;
     let guidance_mode = constraints.guidance_mode;
     let workflow_mode = inserted_segment_workflow_mode(guidance_mode)?;
-    let mut duration_options = constraints.duration_secs_options.clone();
-    duration_options.sort_unstable();
-    duration_options.dedup();
     let (reference_image_ids, guidance_reference_image_ids, continuity_source_video_id) =
         match guidance_mode {
             VideoSegmentGuidanceModeV1::Keyframes => {
@@ -949,8 +947,8 @@ fn inserted_segment_recipe(
         style: fingerprint.payload.style.trim().to_string(),
         prompt_output_language: prompt_language.as_str().to_string(),
         duration_secs: constraints.selected_duration_secs,
-        duration_secs_options: duration_options,
-        aspect_ratio: constraints.aspect_ratio.trim().to_string(),
+        duration_secs_options: constraints.duration_secs_options.clone(),
+        aspect_ratio: constraints.aspect_ratio.clone(),
         reference_image_ids,
         video_library_image_ids: Vec::new(),
         guidance_mode,
@@ -994,7 +992,9 @@ async fn validate_inserted_continuity_source(
         .await?;
     let video = videos
         .iter()
-        .find(|video| video.id == video_id && video.status == "completed")
+        .find(|video| {
+            video.id == video_id && video.status == generated_video::STATUS_COMPLETED
+        })
         .ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "插入片段续接来源视频 #{video_id} 已失效，请刷新时间线后重试"
@@ -1019,7 +1019,7 @@ async fn validate_inserted_continuity_source(
     Ok(())
 }
 
-fn timeline_revision_conflict(current: i64, expected: i64) -> AppError {
+pub(crate) fn timeline_revision_conflict(current: i64, expected: i64) -> AppError {
     AppError::InvalidState {
         current: format!("timeline_revision_conflict:current={current}"),
         operation: format!("expected={expected}"),
@@ -1120,7 +1120,7 @@ mod tests {
             id,
             project_id: 1,
             chapter_id: Some(1),
-            video_type: "chapter_video".to_string(),
+            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("boundary_frames".to_string()),
             file_path: Some(format!("{id}.mp4")),
             thumbnail_path: None,
@@ -1152,7 +1152,7 @@ mod tests {
                 id: 1,
                 project_id: 1,
                 chapter_id: 1,
-                workflow_mode: SHARED_VIDEO_TIMELINE_MODE.to_string(),
+                workflow_mode: chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string(),
                 revision: 1,
                 created_at: now,
                 updated_at: now,

@@ -18,13 +18,6 @@ pub fn snapshot_from_args(args: &Value) -> Result<Option<RuntimeConfigSnapshot>,
     }
     let snapshot: RuntimeConfigSnapshot = serde_json::from_value(value.clone())
         .map_err(|err| format!("runtime_config_snapshot 无效: {err}"))?;
-    if let Some(version) = snapshot.schema_version
-        && version != 1
-    {
-        return Err(format!(
-            "runtime_config_snapshot.schema_version 不支持: {version}"
-        ));
-    }
     Ok(Some(snapshot))
 }
 

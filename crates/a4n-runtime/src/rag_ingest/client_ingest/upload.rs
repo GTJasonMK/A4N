@@ -1,18 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use a4n_api_contract::rag::{ClientRagIngestUploadInput, RagIngestResult};
 use a4n_orchestrator::rag::{
     DeleteRagRecordsInput, RagEmbeddedInput, RagRecord, RagRecordSyncOutcome, classify_rag_record,
-    root_text_family_metadata,
 };
 use a4n_rag_core::{metadata::content_hash, validation::validate_embedding_batch};
 
-use super::super::sync::ExpectedSyncStats as IngestStats;
+use super::super::sync::ExpectedSyncStats;
 use super::context::{ClientIngestContext, load_client_ingest_context};
 use crate::state::AppState;
 
 struct PendingClientEmbedding {
-    record: RagRecord,
+    text: String,
+    metadata: serde_json::Value,
     content_hash: String,
     outcome: RagRecordSyncOutcome,
 }
@@ -52,20 +52,16 @@ async fn rag_upload_ingest_embeddings_inner(
         Some(&input.embedding_identity),
     )
     .await?;
-    let expected_ids = expected.ids;
+    let (expected_ids, expected_records) = expected.into_parts();
     let mut pending_by_id = HashMap::new();
-    let mut stats = IngestStats::default();
+    let mut stats = ExpectedSyncStats::default();
 
-    for mut record in expected.records {
-        record.metadata = root_text_family_metadata(project_id, record.metadata)
-            .map_err(|error| error.to_string())?;
+    for record in expected_records {
         let hash = content_hash(&record.text).map_err(|error| error.to_string())?;
         let outcome = classify_rag_record(
-            if input.rebuild {
-                None
-            } else {
-                stored_metadata.get(&record.chunk_id)
-            },
+            stored_metadata
+                .as_ref()
+                .and_then(|stored| stored.get(&record.chunk_id)),
             &hash,
             &embedding_identity,
         );
@@ -73,20 +69,20 @@ async fn rag_upload_ingest_embeddings_inner(
             stats.record_outcome(outcome)?;
             continue;
         }
-        let chunk_id = record.chunk_id.clone();
-        if pending_by_id
-            .insert(
-                chunk_id.clone(),
-                PendingClientEmbedding {
-                    record,
-                    content_hash: hash,
-                    outcome,
-                },
-            )
-            .is_some()
-        {
-            return Err(format!("RAG 上传失败：canonical chunk_id 重复：{chunk_id}"));
-        }
+        let RagRecord {
+            chunk_id,
+            text,
+            metadata,
+        } = record;
+        pending_by_id.insert(
+            chunk_id,
+            PendingClientEmbedding {
+                text,
+                metadata,
+                content_hash: hash,
+                outcome,
+            },
+        );
     }
 
     if input.embeddings.len() != pending_by_id.len() {
@@ -99,22 +95,15 @@ async fn rag_upload_ingest_embeddings_inner(
     let vectors = input
         .embeddings
         .iter()
-        .map(|uploaded| uploaded.embedding.clone())
+        .map(|uploaded| uploaded.embedding.as_slice())
         .collect::<Vec<_>>();
     validate_embedding_batch(&vectors, pending_by_id.len(), embedding_identity.dimension)
         .map_err(|error| error.to_string())?;
 
-    let mut seen = HashSet::new();
     let mut embedded_inputs = Vec::with_capacity(input.embeddings.len());
     for uploaded in input.embeddings {
         if uploaded.chunk_id.is_empty() || uploaded.chunk_id != uploaded.chunk_id.trim() {
             return Err("RAG 上传失败：chunk_id 必须是无首尾空白的非空字符串".to_string());
-        }
-        if !seen.insert(uploaded.chunk_id.clone()) {
-            return Err(format!(
-                "RAG 上传失败：chunk_id 重复：{}",
-                uploaded.chunk_id
-            ));
         }
         let pending = pending_by_id.remove(&uploaded.chunk_id).ok_or_else(|| {
             format!(
@@ -131,20 +120,11 @@ async fn rag_upload_ingest_embeddings_inner(
         stats.record_outcome(pending.outcome)?;
         embedded_inputs.push(RagEmbeddedInput {
             chunk_id: uploaded.chunk_id,
-            text: pending.record.text,
-            metadata: pending.record.metadata,
+            text: pending.text,
+            metadata: pending.metadata,
             embedding: uploaded.embedding,
         });
     }
-    if !pending_by_id.is_empty() {
-        let mut missing = pending_by_id.into_keys().collect::<Vec<_>>();
-        missing.sort();
-        return Err(format!(
-            "RAG 上传失败：缺少 prepare 记录：{}",
-            missing.into_iter().take(8).collect::<Vec<_>>().join(", ")
-        ));
-    }
-
     if input.rebuild {
         state
             .orchestrator()
@@ -158,28 +138,25 @@ async fn rag_upload_ingest_embeddings_inner(
         .await
         .map_err(|error| error.to_string())?;
 
-    if !input.rebuild {
+    if let Some(stored_metadata) = stored_metadata {
         let stale_ids = stored_metadata
             .keys()
             .filter(|id| !expected_ids.contains(*id))
             .cloned()
             .collect::<Vec<_>>();
-        if !stale_ids.is_empty() {
-            let deleted = state
-                .orchestrator()
-                .delete_rag_records(DeleteRagRecordsInput {
-                    project_id,
-                    data_type: None,
-                    ids: stale_ids,
-                    id_prefixes: Vec::new(),
-                })
-                .await
-                .map_err(|error| format!("清理过期 RAG 记录失败: {error}"))?;
-            stats.add_deleted(
-                u32::try_from(deleted)
-                    .map_err(|_| format!("清理过期 RAG 记录数量超过 u32 上限：{deleted}"))?,
-            )?;
-        }
+        let deleted = state
+            .orchestrator()
+            .delete_rag_records(DeleteRagRecordsInput {
+                project_id,
+                ids: stale_ids,
+                id_prefixes: Vec::new(),
+            })
+            .await
+            .map_err(|error| format!("清理过期 RAG 记录失败: {error}"))?;
+        stats.add_deleted(
+            u32::try_from(deleted)
+                .map_err(|_| format!("清理过期 RAG 记录数量超过 u32 上限：{deleted}"))?,
+        )?;
     }
 
     Ok(stats.into_result())

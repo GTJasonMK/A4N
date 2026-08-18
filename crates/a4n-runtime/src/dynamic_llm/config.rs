@@ -58,69 +58,54 @@ pub(super) fn make_provider(m: &llm_config::Model) -> Result<Box<dyn LlmProvider
 pub(super) async fn chat_via_sidecar(
     client: Arc<dyn LlmClient>,
     resolved_model: ResolvedLlmModel,
-    mut request: ChatRequest,
+    request: ChatRequest,
     trace_context: &LlmTraceContext,
 ) -> Result<ChatResponse, AppError> {
     // 业务完整结果只走 sidecar stream 再收集，禁止 capability /chat 完整响应。
-    request.stream_include_usage = true;
-    let payload = resolved_model.sidecar_payload(request);
-    let sidecar_context = crate::sidecar_clients::sidecar_context_for_llm_trace(trace_context)
-        .map_err(|err| AppError::ConfigError(format!("LLM sidecar 请求构造失败：{err}")))?;
     let sidecar_request =
-        crate::sidecar_clients::service_request_with_context_provider_secret_policy(
-            sidecar_context,
-            "llm",
-            a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
-            payload,
-        )
-        .map_err(|err| AppError::ConfigError(format!("LLM sidecar 请求构造失败：{err}")))?;
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(64);
+        sidecar_chat_request(resolved_model, request, trace_context, "LLM sidecar")?;
+    let (event_tx, mut event_rx) =
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let stream_task = client.stream(sidecar_request, event_tx);
     tokio::pin!(stream_task);
 
     let mut content = String::new();
     let mut usage = None;
     let mut finish_reason = None;
+    let mut transport_complete = false;
+    let mut completed = false;
     loop {
         tokio::select! {
-            stream_result = &mut stream_task => {
+            stream_result = &mut stream_task, if !transport_complete => {
                 stream_result.map_err(llm_sidecar_error)?;
-                break;
+                transport_complete = true;
             }
             event = event_rx.recv() => {
                 let Some(event) = event else { break; };
-                if event.error.is_some() {
-                    return Err(super::streams::sidecar_event_error(event));
-                }
-                let chunk = super::streams::chat_chunk_from_sidecar_event(event)
-                    .map_err(|err| AppError::LlmError(err.to_string()))?;
-                if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
-                    content.push_str(delta);
-                }
-                if chunk.usage.is_some() {
-                    usage = chunk.usage;
-                }
-                if let Some(reason) = chunk.finish_reason {
-                    finish_reason = Some(reason);
+                match super::streams::parse_sidecar_llm_event(event)? {
+                    super::streams::SidecarLlmEvent::Chunk(chunk) => {
+                        if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
+                            content.push_str(delta);
+                        }
+                        if chunk.usage.is_some() {
+                            usage = chunk.usage;
+                        }
+                        if let Some(reason) = chunk.finish_reason {
+                            finish_reason = Some(reason);
+                        }
+                    }
+                    super::streams::SidecarLlmEvent::Completed => {
+                        completed = true;
+                    }
+                    super::streams::SidecarLlmEvent::Progress => {}
                 }
             }
         }
     }
-    while let Some(event) = event_rx.recv().await {
-        if event.error.is_some() {
-            return Err(super::streams::sidecar_event_error(event));
-        }
-        let chunk = super::streams::chat_chunk_from_sidecar_event(event)
-            .map_err(|err| AppError::LlmError(err.to_string()))?;
-        if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
-            content.push_str(delta);
-        }
-        if chunk.usage.is_some() {
-            usage = chunk.usage;
-        }
-        if let Some(reason) = chunk.finish_reason {
-            finish_reason = Some(reason);
-        }
+    if !completed {
+        return Err(AppError::LlmError(
+            "LLM sidecar stream 在 Completed 前关闭".to_string(),
+        ));
     }
     if finish_reason.is_none() {
         return Err(AppError::LlmError(
@@ -132,6 +117,24 @@ pub(super) async fn chat_via_sidecar(
         usage,
         finish_reason,
     })
+}
+
+pub(super) fn sidecar_chat_request(
+    resolved_model: ResolvedLlmModel,
+    mut request: ChatRequest,
+    trace_context: &LlmTraceContext,
+    operation: &str,
+) -> Result<a4n_capabilities::JsonRequest, AppError> {
+    request.stream_include_usage = true;
+    let payload = resolved_model.sidecar_payload(request);
+    let sidecar_context = crate::sidecar_clients::sidecar_context_for_llm_trace(trace_context)
+        .map_err(|err| AppError::ConfigError(format!("{operation} 请求构造失败：{err}")))?;
+    crate::sidecar_clients::service_request_with_context_provider_secret_policy(
+        sidecar_context,
+        a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
+        payload,
+    )
+    .map_err(|err| AppError::ConfigError(format!("{operation} 请求构造失败：{err}")))
 }
 
 pub(super) fn require_sidecar_business_trace<'a>(
@@ -152,7 +155,6 @@ pub(super) async fn probe_llm_via_sidecar(
 ) -> Result<LlmProbeOutput, AppError> {
     let payload = resolved_model.probe_payload(request);
     let request = crate::sidecar_clients::global_provider_service_request(
-        "llm",
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         payload,
     )

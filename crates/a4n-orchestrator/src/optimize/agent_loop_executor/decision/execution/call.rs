@@ -2,12 +2,12 @@ use a4n_llm::provider::{ChatMessage, ChatRequest, ChatResponse};
 use serde_json::Value;
 
 use super::super::super::{
-    AgentLoopDecisionRequest, AgentLoopExecutionError, OrchestratorContext, workflow,
-    workflow_checkpoint_contract_app_error, workflow_read_app_error,
+    AgentLoopDecision, AgentLoopDecisionRequest, AgentLoopExecutionError, AppError,
+    EVENT_KIND_ERROR, EVENT_STATUS_FAILED, OrchestratorContext, json,
+    parse_agent_loop_decision_response,
 };
 use super::super::checkpoint::restored_agent_loop_decision;
 use super::contracts::AgentDecisionCallResult;
-use super::repair::repair_agent_loop_decision;
 use crate::generation::checkpoint::GenerationCheckpointMetadata;
 use crate::generation::generation_public_error;
 use crate::generation::stream::{
@@ -25,18 +25,21 @@ pub(super) async fn execute_agent_loop_decision_call(
     call_key: &str,
     input_fingerprint_json: &Value,
 ) -> Result<AgentDecisionCallResult, AgentLoopExecutionError> {
-    if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        context.database.connection(),
-        request.workflow_run_id,
-        call_key,
-        input_fingerprint_json,
-    )
-    .await
-    .map_err(workflow_read_app_error)?
+    if let Some(checkpoint) = context
+        .load_completed_llm_call_checkpoint(
+            request.workflow_run_id,
+            call_key,
+            input_fingerprint_json,
+        )
+        .await?
     {
-        let checkpoint_json = workflow::required_llm_call_checkpoint_json(checkpoint, call_key)
-            .map_err(workflow_checkpoint_contract_app_error)?;
-        let (response, decision) = restored_agent_loop_decision(checkpoint_json, call_key)?;
+        let (response, decision) = restored_agent_loop_decision(
+            checkpoint.parsed_output,
+            checkpoint.response_content,
+            checkpoint.usage,
+            checkpoint.finish_reason,
+            call_key,
+        )?;
         let generation = request.generation;
         let usage_base = generation.session.snapshot().usage.clone();
         generation
@@ -70,7 +73,6 @@ pub(super) async fn execute_agent_loop_decision_call(
         });
     }
 
-    let repair_request = chat_request.clone();
     let generation = request.generation;
     let usage_base = generation.session.snapshot().usage.clone();
     let output = execute_llm_generation(
@@ -102,14 +104,12 @@ pub(super) async fn execute_agent_loop_decision_call(
             GenerationFinishReason::ToolCallsComplete => "tool_calls".to_string(),
         }),
     };
-    let decision = repair_agent_loop_decision(
+    let decision = parse_agent_loop_decision(
         context,
         turn_id,
         session_id,
         request,
-        repair_request,
         &response.message.content,
-        call_key,
     )
     .await?;
     Ok(AgentDecisionCallResult {
@@ -117,4 +117,38 @@ pub(super) async fn execute_agent_loop_decision_call(
         decision,
         restored: false,
     })
+}
+
+async fn parse_agent_loop_decision(
+    context: &OrchestratorContext,
+    turn_id: i64,
+    session_id: i64,
+    request: &AgentLoopDecisionRequest<'_>,
+    raw_response: &str,
+) -> Result<AgentLoopDecision, AppError> {
+    let decision = parse_agent_loop_decision_response(raw_response);
+    match decision {
+        Ok(decision) => Ok(decision),
+        Err(err) => {
+            context
+                .append_turn_event(
+                    turn_id,
+                    EVENT_KIND_ERROR,
+                    EVENT_STATUS_FAILED,
+                    &format!("模型决策解析失败：{err}"),
+                    Some(json!({
+                        "step": request.step,
+                        "phase": request.phase,
+                    })),
+                )
+                .await?;
+            context
+                .save_agent_event(
+                    session_id,
+                    &format!("{} 决策解析失败：{err}", request.parse_error_label),
+                )
+                .await?;
+            Err(err)
+        }
+    }
 }

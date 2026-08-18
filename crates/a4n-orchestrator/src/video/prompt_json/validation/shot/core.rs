@@ -1,6 +1,7 @@
 use a4n_core::error::AppError;
 
 use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::VideoAspectRatio;
 
 use super::super::super::VideoPromptShot;
 use super::super::prompt_text::{
@@ -113,10 +114,12 @@ fn validate_shot_with_dialogue_policy(
             "视频提示词 duration_secs 必须在 1 到 60 秒之间".to_string(),
         ));
     }
-    if shot.aspect_ratio.trim().is_empty() {
-        return Err(AppError::InvalidArgument(
-            "视频提示词 aspect_ratio 不能为空".to_string(),
-        ));
+    if shot.aspect_ratio.parse::<VideoAspectRatio>().is_err() {
+        return Err(AppError::InvalidArgument(format!(
+            "视频提示词 aspect_ratio 无效：{}，必须是 {}",
+            shot.aspect_ratio,
+            VideoAspectRatio::supported_values()
+        )));
     }
     validate_reference_ids(&shot.reference_image_ids, "视频提示词 reference_image_ids")?;
     Ok(VideoPromptShot {
@@ -125,7 +128,6 @@ fn validate_shot_with_dialogue_policy(
         visual_prompt,
         motion_prompt,
         negative_prompt: shot.negative_prompt.trim().to_string(),
-        aspect_ratio: shot.aspect_ratio.trim().to_string(),
         dialogue_beats,
         ..shot
     })

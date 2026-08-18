@@ -21,14 +21,14 @@ import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { nonEmptyText } from "../../../utils/text";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { StyleTemplatePicker } from "../StyleTemplatePicker";
 import { imageTypeLabel } from "../images/imageTabUtils";
-import { DEFAULT_IMAGE_STYLE, IMAGE_STYLE_TEMPLATES } from "../styleTemplates";
+import { DEFAULT_IMAGE_STYLE, VISUAL_STYLE_TEMPLATES } from "../styleTemplates";
 import { firstProfileName } from "./characterUtils";
 import {
   isSupportedImageMime,
   MAX_UPLOAD_IMAGE_BYTES,
-  readFileAsBase64,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 
@@ -368,7 +368,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
             <StyleTemplatePicker
               label="风格"
               value={style}
-              templates={IMAGE_STYLE_TEMPLATES}
+              templates={VISUAL_STYLE_TEMPLATES}
               disabled={busy}
               rows={4}
               onChange={setStyle}

@@ -136,10 +136,10 @@ pub(super) fn validate_import_chapter_video_prompt_fields(
             prompt_id, chapter_id
         ));
     }
-    if prompt_type != IMPORT_VIDEO_PROMPT_TYPE {
+    if prompt_type != chapter_video_prompt::PROMPT_TYPE_VIDEO {
         return Err("请选择 video_prompt 类型的提示词导入视频".to_string());
     }
-    if status == "running" {
+    if status == chapter_video_prompt::STATUS_RUNNING {
         return Err(format!("视频提示词 #{} 正在运行，不能导入视频", prompt_id));
     }
     Ok(())

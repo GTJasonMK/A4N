@@ -48,7 +48,7 @@ impl ResolvedLlmModel {
     pub(in crate::dynamic_llm) fn probe_payload(self, request: ChatRequest) -> LlmProbePayload {
         LlmProbePayload {
             provider: self.provider_config(),
-            request: Some(request),
+            request,
         }
     }
 
@@ -77,12 +77,6 @@ impl LlmProvider for PlanningLlmProvider {
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         Err(AppError::ConfigError(
             "PlanningLlmProvider 只用于上下文规划，不能执行 chat_stream".to_string(),
-        ))
-    }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        Err(AppError::ConfigError(
-            "PlanningLlmProvider 只用于上下文规划，不能执行连接测试".to_string(),
         ))
     }
 

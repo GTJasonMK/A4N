@@ -1,6 +1,5 @@
 use super::FreeformGeneratedResetDbError;
 use crate::project::cleanup::ProjectCleanupDbError;
-use crate::project::{PROJECT_KIND_TEXT, SOURCE_MODE_SELF};
 use sea_orm::DbErr;
 use std::error::Error;
 
@@ -10,10 +9,7 @@ fn freeform_generated_reset_error_classifies_and_preserves_sources() {
     assert_eq!(missing.to_string(), "项目不存在: 17");
     assert!(missing.source().is_none());
 
-    let unsupported = FreeformGeneratedResetDbError::UnsupportedProject {
-        project_kind: PROJECT_KIND_TEXT.to_string(),
-        source_mode: SOURCE_MODE_SELF.to_string(),
-    };
+    let unsupported = FreeformGeneratedResetDbError::UnsupportedProject;
     assert_eq!(
         unsupported.to_string(),
         "仅自由画布视频项目支持该生成数据重置入口"

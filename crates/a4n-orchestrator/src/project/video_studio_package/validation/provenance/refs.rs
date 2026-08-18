@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::super::*;
+use std::collections::HashSet;
 
 pub(super) fn validate_snapshot_i64_ref(
     media_asset_id: i64,

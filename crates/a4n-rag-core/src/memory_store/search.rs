@@ -38,8 +38,6 @@ impl MemoryVectorStore {
                 id: record.id,
                 content: record.content,
                 score,
-                vector_score: Some(score),
-                bm25_score: None,
                 metadata: record.metadata,
             })
             .collect())
@@ -95,8 +93,6 @@ impl MemoryVectorStore {
                 metadata: record.metadata.clone(),
                 id,
                 score,
-                vector_score: None,
-                bm25_score: Some(score),
             });
         }
         Ok(search_results)
@@ -118,19 +114,16 @@ impl MemoryVectorStore {
             .get(collection)
             .ok_or_else(|| vector_store_error(format!("集合不存在：{collection}")))?;
         let mut results = Vec::with_capacity(top_k);
-        for fused in scoring::rrf_fuse_scores(&vector_results, &bm25_results, top_k, 60) {
-            let record = coll.get(&fused.id).ok_or_else(|| {
+        for (id, score) in scoring::rrf_fuse_scores(&vector_results, &bm25_results, top_k) {
+            let record = coll.get(&id).ok_or_else(|| {
                 vector_store_error(format!(
-                    "RRF 融合结果引用了不存在的记录：collection={collection}, id={}",
-                    fused.id
+                    "RRF 融合结果引用了不存在的记录：collection={collection}, id={id}"
                 ))
             })?;
             results.push(SearchResult {
-                id: fused.id,
+                id,
                 content: record.content.clone(),
-                score: fused.score,
-                vector_score: Some(fused.vector_score),
-                bm25_score: Some(fused.bm25_score),
+                score,
                 metadata: record.metadata.clone(),
             });
         }

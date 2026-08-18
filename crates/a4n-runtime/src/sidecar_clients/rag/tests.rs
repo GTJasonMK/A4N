@@ -9,9 +9,7 @@ use super::request::rag_service_request;
 use super::store::SidecarVectorStore;
 use a4n_core::error::AppError;
 use a4n_rag_core::vector_store::{EmbeddingRecord, VectorStore};
-use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, SecretForwardingPolicy, ServiceErrorCode,
-};
+use a4n_service_protocol::{CapabilityTaskEvent, SecretForwardingPolicy, ServiceErrorCode};
 use a4n_test_support::capability::RecordingRagClient;
 use serde_json::json;
 use std::sync::Arc;
@@ -19,13 +17,11 @@ use std::sync::Arc;
 use crate::rag_ingest::SceneRagSyncTraceSource;
 
 #[test]
-fn rag_service_request_extracts_nested_project_scope_without_changing_payload() {
+fn rag_service_request_uses_numeric_collection_scope_without_changing_payload() {
     let payload = json!({
-        "collection": "novel",
+        "collection": "42",
         "filters": {
             "equals": {
-                "project_id": 42,
-                "root_project_id": 3,
                 "data_type": "chapter"
             }
         }
@@ -33,76 +29,17 @@ fn rag_service_request_extracts_nested_project_scope_without_changing_payload() 
     let request = rag_service_request("rag.query", payload.clone()).expect("rag service request");
 
     assert_eq!(request.project_id, Some(42));
-    assert_eq!(request.root_project_id, Some(3));
+    assert_eq!(request.root_project_id, Some(42));
     assert_eq!(request.payload, payload);
     assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
 }
 
 #[test]
-fn rag_service_request_accepts_repeated_same_project_and_rejects_mixed_projects() {
-    let request = rag_service_request(
-        "rag.ingest",
-        json!({
-            "collection": "novel",
-            "records": [
-                {"metadata": {"project_id": 42, "root_project_id": 3}},
-                {"metadata": {"project_id": "42", "root_project_id": "3"}}
-            ]
-        }),
-    )
-    .expect("same project batch");
-    assert_eq!(request.project_id, Some(42));
-    assert_eq!(request.root_project_id, Some(3));
+fn rag_service_request_rejects_non_project_collection() {
+    let error = rag_service_request("rag.drop_collection", json!({ "collection": "novel" }))
+        .expect_err("non-project collection must fail");
 
-    let error = rag_service_request(
-        "rag.ingest",
-        json!({
-            "collection": "novel",
-            "records": [
-                {"metadata": {"project_id": 42}},
-                {"metadata": {"project_id": 43}}
-            ]
-        }),
-    )
-    .expect_err("mixed project batch must fail");
-    assert!(error.contains("多个 project_id"));
-    assert!(error.contains("42"));
-    assert!(error.contains("43"));
-
-    let error = rag_service_request(
-        "rag.ingest",
-        json!({
-            "collection": "novel",
-            "records": [
-                {"metadata": {"project_id": 42, "root_project_id": 3}},
-                {"metadata": {"project_id": 42, "root_project_id": 4}}
-            ]
-        }),
-    )
-    .expect_err("mixed root project batch must fail");
-    assert!(error.contains("多个 root_project_id"));
-    assert!(error.contains("3"));
-    assert!(error.contains("4"));
-
-    let error = rag_service_request(
-        "rag.query",
-        json!({
-            "collection": "novel",
-            "filters": {"equals": {"root_project_id": 3}}
-        }),
-    )
-    .expect_err("root project without project scope must fail");
-    assert!(error.contains("缺少 project_id"));
-}
-
-#[test]
-fn rag_service_request_keeps_global_operations_without_project_scope() {
-    let request = rag_service_request("rag.drop_collection", json!({ "collection": "novel" }))
-        .expect("global rag service request");
-
-    assert_eq!(request.project_id, None);
-    assert_eq!(request.root_project_id, None);
-    assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
+    assert!(error.contains("正整数项目 ID"));
 }
 
 #[test]
@@ -211,13 +148,11 @@ async fn rag_ingest_uses_typed_events_and_preserves_project_scope() {
     let written = scope_rag_operation_trace("task:rag-task-77".to_string(), async {
         store
             .add_embeddings(
-                "novel",
+                "42",
                 vec![EmbeddingRecord {
                     id: "chapter:42:1".to_string(),
                     embedding: vec![0.1, 0.2],
                     metadata: json!({
-                        "project_id": 42,
-                        "root_project_id": 3,
                         "data_type": "chapter"
                     }),
                     content: "chapter content".to_string(),
@@ -234,76 +169,47 @@ async fn rag_ingest_uses_typed_events_and_preserves_project_scope() {
         .last_ingest_events_request()
         .expect("recorded request");
     assert_eq!(request.project_id, Some(42));
-    assert_eq!(request.root_project_id, Some(3));
+    assert_eq!(request.root_project_id, Some(42));
     assert_eq!(request.trace_context.trace_id, "task:rag-task-77");
     assert_eq!(
         request.trace_context.parent_span_id.as_deref(),
         Some("rag.ingest")
     );
     assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
-    assert_eq!(request.payload["records"][0]["metadata"]["project_id"], 42);
+    assert!(
+        request.payload["records"][0]["metadata"]
+            .get("project_id")
+            .is_none()
+    );
 }
 
 fn successful_rag_ingest_events() -> Vec<CapabilityTaskEvent> {
     vec![
-        CapabilityTaskEvent {
-            task_id: "configured-task".to_string(),
-            event_kind: CapabilityTaskEventKind::Progress,
-            sequence: 1,
-            chunk_index: None,
-            chunk_delta: None,
-            usage_delta: None,
-            final_usage: None,
-            finish_reason: None,
-            is_truncated_finish_reason: None,
-            checkpoint_key: None,
-            artifact_refs: Vec::new(),
-            error: None,
-            payload: Some(json!({
-                "current": 0,
-                "total": 1,
-                "message": "rag sidecar 正在写入向量索引"
-            })),
-        },
-        CapabilityTaskEvent {
-            task_id: "configured-task".to_string(),
-            event_kind: CapabilityTaskEventKind::Completed,
-            sequence: 2,
-            chunk_index: None,
-            chunk_delta: None,
-            usage_delta: None,
-            final_usage: None,
-            finish_reason: None,
-            is_truncated_finish_reason: None,
-            checkpoint_key: None,
-            artifact_refs: Vec::new(),
-            error: None,
-            payload: Some(json!({ "written": 1 })),
-        },
+        CapabilityTaskEvent::progress_message(
+            "configured-task".to_string(),
+            1,
+            "rag sidecar 正在写入向量索引",
+        ),
+        CapabilityTaskEvent::completed_or_failed(
+            "configured-task".to_string(),
+            2,
+            1,
+            "test rag output serialization failed",
+        ),
     ]
 }
 
 #[test]
 fn rag_ingest_terminal_events_preserve_failure_and_cancel_semantics() {
-    let failed = CapabilityTaskEvent {
-        task_id: "rag-1".to_string(),
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(a4n_service_protocol::ServiceError {
+    let failed = CapabilityTaskEvent::failed(
+        "rag-1".to_string(),
+        1,
+        a4n_service_protocol::ServiceError {
             code: ServiceErrorCode::ProviderError,
             message: "vector index unavailable".to_string(),
             retryable: Some(false),
-        }),
-        payload: None,
-    };
+        },
+    );
     assert!(
         handle_rag_ingest_event(failed)
             .expect_err("failed event")
@@ -311,21 +217,15 @@ fn rag_ingest_terminal_events_preserve_failure_and_cancel_semantics() {
             .contains("vector index unavailable")
     );
 
-    let cancel = CapabilityTaskEvent {
-        task_id: "rag-1".to_string(),
-        event_kind: CapabilityTaskEventKind::CancelAck,
-        sequence: 2,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: None,
-        payload: None,
-    };
+    let cancel = CapabilityTaskEvent::failed(
+        "rag-1".to_string(),
+        2,
+        a4n_service_protocol::ServiceError {
+            code: ServiceErrorCode::Cancelled,
+            message: "cancelled".to_string(),
+            retryable: Some(false),
+        },
+    );
     assert!(matches!(
         handle_rag_ingest_event(cancel),
         Err(AppError::Cancelled)

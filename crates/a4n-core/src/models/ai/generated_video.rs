@@ -3,6 +3,15 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub const VIDEO_TYPE_CHAPTER: &str = "chapter_video";
+pub const VIDEO_TYPE_REFERENCE_MEDIA: &str = "reference_media_video";
+pub const VIDEO_TYPE_TRIMMED_CLIP: &str = "trimmed_clip";
+pub const VIDEO_TYPE_ASSEMBLY_INSERT: &str = "assembly_insert";
+pub const VIDEO_TYPE_ASSEMBLY_PUSH: &str = "assembly_push";
+pub const VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT: &str = "assembly_postprocess_edit";
+pub const VIDEO_TYPE_CANVAS: &str = "canvas_video";
+pub const VIDEO_TYPE_CANVAS_ASSEMBLY: &str = "canvas_assembly";
+
 pub const STATUS_PENDING: &str = "pending";
 pub const STATUS_RUNNING: &str = "running";
 pub const STATUS_FAILED: &str = "failed";
@@ -22,7 +31,7 @@ pub struct Model {
     pub project_id: i64,
     pub chapter_id: Option<i64>,
 
-    /// 视频类型：chapter_video / shot_video / trimmed_clip
+    /// 视频记录类型由本模块的 `VIDEO_TYPE_*` 常量定义。
     pub video_type: String,
 
     /// 视频工作流模式：boundary_frames / first_frame_chain / reference_media / chat_video

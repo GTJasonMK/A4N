@@ -9,10 +9,7 @@ use a4n_api_contract::{
 };
 use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
-use a4n_service_protocol::{
-    BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError, GenerationResultRef,
-};
-use sha2::{Digest, Sha256};
+use a4n_service_protocol::{BatchSummary, GenerationError, GenerationResultRef};
 use tokio::sync::mpsc;
 
 use crate::{
@@ -21,13 +18,13 @@ use crate::{
     generation::{
         GenerationProgressUpdate,
         artifacts::{GenerationArtifactCoordinator, PreparedArtifactEvent},
-        generation_public_error, publish_step_progress,
+        best_effort_batch_summary, generation_batch_result_ref, generation_public_error,
+        generation_result_ref, publish_step_progress,
     },
     media::{
-        BatchImageGenerationItem, BatchImageGenerationOutcome, GenerateBatchImagesInput,
-        GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageSummary,
-        ImageGenerationHostPort, ImageGenerationProgress, ObjectProfileImageInput,
-        SceneProfileImageInput,
+        BatchImageGenerationOutcome, GenerateBatchImagesInput, GeneratePageImageInput,
+        GenerateSceneImageInput, GeneratedImageSummary, ImageGenerationHostPort,
+        ImageGenerationProgress, ObjectProfileImageInput, SceneProfileImageInput,
     },
 };
 
@@ -363,7 +360,7 @@ fn single_image_result(
     summary: GeneratedImageSummary,
     message: &str,
 ) -> Result<ImageGenerationResult, AppError> {
-    let result_ref = image_result_ref("generated_image", summary.id, &summary)?;
+    let result_ref = image_result_ref(&summary)?;
     Ok(ImageGenerationResult {
         summary: message.to_string(),
         result_ref,
@@ -378,7 +375,14 @@ fn batch_image_result(
     project_id: i64,
     outcome: BatchImageGenerationOutcome,
 ) -> Result<ImageGenerationResult, AppError> {
-    let batch_summary = image_batch_summary(&outcome);
+    let batch_summary = best_effort_batch_summary(
+        outcome.total,
+        outcome.succeeded(),
+        outcome.failed(),
+        outcome.cancelled,
+        outcome.skipped,
+        &outcome.failed_item_keys,
+    );
     let artifacts = outcome
         .items
         .iter()
@@ -392,7 +396,11 @@ fn batch_image_result(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let result_ref = batch_result_ref(project_id, &outcome.items)?;
+    let result_ref = generation_batch_result_ref(
+        "generated_image_batch",
+        project_id,
+        outcome.items.iter().map(|item| item.summary.id).collect(),
+    )?;
     let failure = if outcome.interrupted {
         let message = outcome
             .first_error
@@ -435,63 +443,25 @@ fn batch_image_result(
     })
 }
 
-fn image_result_ref(
-    kind: &str,
-    id: i64,
-    summary: &GeneratedImageSummary,
-) -> Result<GenerationResultRef, AppError> {
-    Ok(GenerationResultRef {
-        kind: kind.to_string(),
-        id: id.to_string(),
-        revision: format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&[
-                serde_json::json!(summary.id),
-                serde_json::json!(summary.project_id),
-                serde_json::json!(&summary.image_type),
-                serde_json::json!(&summary.file_path),
-                serde_json::json!(&summary.prompt),
-                serde_json::json!(&summary.model),
-                serde_json::json!(summary.width),
-                serde_json::json!(summary.height),
-                serde_json::json!(summary.file_size),
-                serde_json::json!(summary.chapter_id),
-                serde_json::json!(&summary.panel_id),
-                serde_json::json!(&summary.created_at),
-            ])?)
-        ),
-    })
-}
-
-fn batch_result_ref(
-    project_id: i64,
-    items: &[BatchImageGenerationItem],
-) -> Result<GenerationResultRef, AppError> {
-    let mut ids = items.iter().map(|item| item.summary.id).collect::<Vec<_>>();
-    ids.sort_unstable();
-    Ok(GenerationResultRef {
-        kind: "generated_image_batch".to_string(),
-        id: project_id.to_string(),
-        revision: format!("{:x}", Sha256::digest(serde_json::to_vec(&ids)?)),
-    })
-}
-
-fn image_batch_summary(outcome: &BatchImageGenerationOutcome) -> BatchSummary {
-    let mut failed_item_keys = outcome.failed_item_keys.clone();
-    failed_item_keys.sort_unstable();
-    failed_item_keys.dedup();
-    let failed_item_keys_truncated = failed_item_keys.len() > 256;
-    failed_item_keys.truncate(256);
-    BatchSummary {
-        policy: BatchCommitPolicy::BestEffort,
-        total: outcome.total,
-        succeeded: outcome.succeeded(),
-        failed: outcome.failed(),
-        cancelled: outcome.cancelled,
-        skipped: outcome.skipped,
-        failed_item_keys,
-        failed_item_keys_truncated,
-    }
+fn image_result_ref(summary: &GeneratedImageSummary) -> Result<GenerationResultRef, AppError> {
+    generation_result_ref(
+        "generated_image",
+        summary.id,
+        &[
+            serde_json::json!(summary.id),
+            serde_json::json!(summary.project_id),
+            serde_json::json!(&summary.image_type),
+            serde_json::json!(&summary.file_path),
+            serde_json::json!(&summary.prompt),
+            serde_json::json!(&summary.model),
+            serde_json::json!(summary.width),
+            serde_json::json!(summary.height),
+            serde_json::json!(summary.file_size),
+            serde_json::json!(summary.chapter_id),
+            serde_json::json!(&summary.panel_id),
+            serde_json::json!(&summary.created_at),
+        ],
+    )
 }
 
 fn image_artifact_event(
@@ -502,17 +472,10 @@ fn image_artifact_event(
     item_total: Option<u32>,
 ) -> Result<PreparedArtifactEvent, AppError> {
     let file = host_port.inspect_generated_image_file(&summary.file_path, "正式图片文件")?;
-    Ok(GenerationArtifactCoordinator::available(
-        GenerationArtifactRef {
-            artifact_id: format!("generated-image:{}", summary.id),
-            artifact_kind: "generated_image".to_string(),
-            content_type: file.content_type,
-            sha256: file.sha256.clone(),
-            byte_size: file.byte_size,
-            revision: file.sha256,
-            temporary: false,
-            expires_at_ms: None,
-        },
+    Ok(GenerationArtifactCoordinator::generated_media_available(
+        format!("generated-image:{}", summary.id),
+        "generated_image",
+        file,
         item_key,
         item_index,
         item_total,

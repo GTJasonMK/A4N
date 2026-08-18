@@ -4,39 +4,31 @@ use a4n_rag_core::vector_store::SearchFilter;
 
 use super::{
     contracts::PreparedGenerationRagSearch,
-    query::{GenerationRagQueries, build_generation_rag_queries},
+    query::build_generation_rag_queries,
     rules::{generation_rag_search_data_types, previous_chapter_range},
 };
 use crate::{OrchestratorContext, rag};
 
 impl OrchestratorContext {
-    pub(crate) async fn prepare_chapter_generation_rag_queries(
+    pub(crate) async fn prepare_generation_rag_search(
         &self,
         project_id: i64,
         chapter_number: i32,
         outline: Option<&chapter_outline::Model>,
         outline_text: &str,
         writing_instruction: Option<&str>,
-    ) -> Result<GenerationRagQueries, String> {
+        embedding_identity: EmbeddingModelIdentity,
+    ) -> Result<PreparedGenerationRagSearch, String> {
         let pending_foreshadowing = self
             .pending_foreshadowing_before_chapter(project_id, chapter_number, 6)
             .await
             .map_err(|error| error.to_string())?;
-        Ok(build_generation_rag_queries(
+        let queries = build_generation_rag_queries(
             outline,
             outline_text,
             writing_instruction,
             &pending_foreshadowing,
-        ))
-    }
-
-    pub(crate) async fn prepare_chapter_generation_rag_search(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-        queries: GenerationRagQueries,
-        embedding_identity: EmbeddingModelIdentity,
-    ) -> Result<PreparedGenerationRagSearch, String> {
+        );
         let stored_metadata = self
             .project_rag_metadata(project_id)
             .await
@@ -44,7 +36,6 @@ impl OrchestratorContext {
         rag::ensure_project_embedding_identity_matches(&stored_metadata, &embedding_identity)
             .map_err(|error| error.to_string())?;
         let filter = build_chapter_generation_rag_search_filter(
-            project_id,
             chapter_number,
             embedding_identity.clone(),
         )?;
@@ -59,12 +50,10 @@ impl OrchestratorContext {
 }
 
 pub(super) fn build_chapter_generation_rag_search_filter(
-    project_id: i64,
     chapter_number: i32,
     embedding_identity: EmbeddingModelIdentity,
 ) -> Result<SearchFilter, String> {
     let mut filter = rag::identity_scoped_search_filter(
-        project_id,
         embedding_identity,
         Some(generation_rag_search_data_types()),
     );

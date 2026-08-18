@@ -100,18 +100,13 @@ pub fn protagonist_rag_records(
     let sections = protagonist_rag_sections(profile)?;
     Ok(sections
         .into_iter()
-        .enumerate()
-        .map(|(section_index, section)| {
+        .map(|section| {
             let title = format!("{name} 主角档案: {}", section.label);
             RagRecord {
                 chunk_id: protagonist_rag_chunk_id(project_id, profile.id, section.dimension),
                 text: section.text,
                 metadata: serde_json::json!({
                     "data_type": RagDataType::Protagonist.as_str(),
-                    "profile_id": profile.id,
-                    "character_name": name,
-                    "dimension": section.dimension,
-                    "section_index": section_index,
                     "title": title,
                 }),
             }

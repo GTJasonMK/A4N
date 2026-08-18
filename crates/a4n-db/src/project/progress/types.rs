@@ -1,15 +1,13 @@
 use a4n_core::models::project::novel_project;
 pub use a4n_domain::project::ProjectProgressSummary;
-use a4n_domain::project::{ProjectKind, ProjectStatus};
+use a4n_domain::project::{ProjectKind, ProjectSourceMode, ProjectSourceModeError, ProjectStatus};
 use sea_orm::DbErr;
-
-use crate::project::{SOURCE_MODE_DERIVED, SOURCE_MODE_FREEFORM, SOURCE_MODE_SELF};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProjectProgressQuery {
     pub project_id: i64,
     pub project_kind: ProjectKind,
-    pub source_mode: String,
+    pub source_mode: ProjectSourceMode,
     pub status: ProjectStatus,
     pub current_chapter: i32,
     pub target_chapters: i32,
@@ -29,30 +27,12 @@ impl ProjectProgressQuery {
                 value: project.status.clone(),
             }
         })?;
-        if !matches!(
-            project.source_mode.as_str(),
-            SOURCE_MODE_SELF | SOURCE_MODE_DERIVED | SOURCE_MODE_FREEFORM
-        ) {
-            return Err(ProjectProgressReadError::InvalidSourceMode {
+        let source_mode = project.source_mode().map_err(|source| {
+            ProjectProgressReadError::InvalidProjectSource {
                 project_id: project.id,
-                value: project.source_mode.clone(),
-            });
-        }
-        let source_mode_valid = match project_kind {
-            ProjectKind::Text => project.source_mode == SOURCE_MODE_SELF,
-            ProjectKind::Comic | ProjectKind::Galgame => project.source_mode == SOURCE_MODE_DERIVED,
-            ProjectKind::Video => matches!(
-                project.source_mode.as_str(),
-                SOURCE_MODE_DERIVED | SOURCE_MODE_FREEFORM
-            ),
-        };
-        if !source_mode_valid {
-            return Err(ProjectProgressReadError::InvalidProjectSource {
-                project_id: project.id,
-                project_kind: project_kind.as_str().to_string(),
-                source_mode: project.source_mode.clone(),
-            });
-        }
+                source,
+            }
+        })?;
         if project.current_chapter < 0 || project.target_chapters < 0 {
             return Err(ProjectProgressReadError::InvalidChapterProgress {
                 project_id: project.id,
@@ -63,7 +43,7 @@ impl ProjectProgressQuery {
         Ok(Self {
             project_id: project.id,
             project_kind,
-            source_mode: project.source_mode.clone(),
+            source_mode,
             status,
             current_chapter: project.current_chapter,
             target_chapters: project.target_chapters,
@@ -79,13 +59,11 @@ pub enum ProjectProgressReadError {
     InvalidProjectKind { project_id: i64, value: String },
     #[error("项目 #{project_id} 的状态无效: {value}")]
     InvalidProjectStatus { project_id: i64, value: String },
-    #[error("项目 #{project_id} 的来源模式无效: {value}")]
-    InvalidSourceMode { project_id: i64, value: String },
-    #[error("项目 #{project_id} 的项目族与来源模式不匹配: {project_kind}/{source_mode}")]
+    #[error("项目 #{project_id} 的来源身份无效: {source}")]
     InvalidProjectSource {
         project_id: i64,
-        project_kind: String,
-        source_mode: String,
+        #[source]
+        source: ProjectSourceModeError,
     },
     #[error("项目 #{project_id} 的章节进度无效: {current}/{target}")]
     InvalidChapterProgress {
@@ -148,7 +126,6 @@ mod tests {
             description: String::new(),
             project_type: "novel_long".to_string(),
             project_kind: "text".to_string(),
-            source_mode: "self".to_string(),
             root_project_id: None,
             source_snapshot_id: None,
             source_sync_status: "current".to_string(),
@@ -183,22 +160,17 @@ mod tests {
         ));
 
         let mut invalid = project();
-        invalid.source_mode = "legacy".to_string();
-        assert!(matches!(
-            ProjectProgressQuery::from_project(&invalid),
-            Err(ProjectProgressReadError::InvalidSourceMode { project_id: 17, value })
-                if value == "legacy"
-        ));
-
-        let mut invalid = project();
         invalid.project_kind = "comic".to_string();
         assert!(matches!(
             ProjectProgressQuery::from_project(&invalid),
             Err(ProjectProgressReadError::InvalidProjectSource {
                 project_id: 17,
-                project_kind,
-                source_mode,
-            }) if project_kind == "comic" && source_mode == "self"
+                source: ProjectSourceModeError::InvalidIdentity {
+                    project_kind: ProjectKind::Comic,
+                    root_project_id: None,
+                    source_snapshot_id: None,
+                },
+            })
         ));
 
         let mut invalid = project();

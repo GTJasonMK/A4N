@@ -36,7 +36,7 @@ where
     }
     if input.reset_video_binding_to_pending {
         active.generated_video_id = Set(None);
-        active.status = Set("pending".to_string());
+        active.status = Set(chapter_video_prompt::STATUS_PENDING.to_string());
     }
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(VideoDbError::Database)

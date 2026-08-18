@@ -1,7 +1,8 @@
 //! 上传图片解码与格式纯规则。
 
-use base64::Engine as _;
 use image::GenericImageView;
+
+use super::{decode_uploaded_bytes, required_upload_file_name};
 
 /// 解码后的上传图片事实。
 #[derive(Debug)]
@@ -14,7 +15,7 @@ pub struct DecodedUploadedImage {
     pub source_file_name: String,
 }
 
-/// 解码 base64/data URL 上传图片并校验 MIME/尺寸。
+/// 解码 base64 上传图片并校验 MIME/尺寸。
 pub fn decode_uploaded_image_data(
     file_name: &str,
     mime_type: &str,
@@ -22,19 +23,7 @@ pub fn decode_uploaded_image_data(
     max_bytes: usize,
 ) -> Result<DecodedUploadedImage, String> {
     let expected_mime = normalize_upload_mime(mime_type)?;
-    let raw = strip_data_url_prefix(data_base64).trim();
-    if raw.is_empty() {
-        return Err("上传图片数据不能为空".to_string());
-    }
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(raw)
-        .map_err(|err| format!("上传图片 base64 解码失败：{err}"))?;
-    if bytes.is_empty() {
-        return Err("上传图片不能为空".to_string());
-    }
-    if bytes.len() > max_bytes {
-        return Err(format!("上传图片超过 {}MB", max_bytes / 1024 / 1024));
-    }
+    let bytes = decode_uploaded_bytes(data_base64, "上传图片", max_bytes)?;
 
     let format = image::guess_format(&bytes).map_err(|_| "上传图片不是有效图片".to_string())?;
     let (actual_mime, extension) = supported_upload_image_format(format)?;
@@ -50,7 +39,7 @@ pub fn decode_uploaded_image_data(
     }
     let width = i32::try_from(width).map_err(|_| "上传图片宽度超过 i32 范围".to_string())?;
     let height = i32::try_from(height).map_err(|_| "上传图片高度超过 i32 范围".to_string())?;
-    let source_file_name = required_upload_text(file_name, "上传图片文件名")?;
+    let source_file_name = required_upload_file_name(file_name, "上传图片文件名")?;
 
     Ok(DecodedUploadedImage {
         bytes,
@@ -65,18 +54,10 @@ pub fn decode_uploaded_image_data(
 fn normalize_upload_mime(mime_type: &str) -> Result<&'static str, String> {
     match mime_type.trim().to_ascii_lowercase().as_str() {
         "image/png" => Ok("image/png"),
-        "image/jpeg" | "image/jpg" => Ok("image/jpeg"),
+        "image/jpeg" => Ok("image/jpeg"),
         "image/webp" => Ok("image/webp"),
         _ => Err("只支持 PNG/JPEG/WebP 图片".to_string()),
     }
-}
-
-/// 去掉 data URL 的 base64 前缀（若有）。
-pub fn strip_data_url_prefix(value: &str) -> &str {
-    value
-        .split_once(";base64,")
-        .map(|(_, body)| body)
-        .unwrap_or(value)
 }
 
 fn supported_upload_image_format(
@@ -90,14 +71,6 @@ fn supported_upload_image_format(
     }
 }
 
-fn required_upload_text(value: &str, field_name: &str) -> Result<String, String> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(format!("{field_name}不能为空"));
-    }
-    Ok(value.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::decode_uploaded_image_data;
@@ -105,19 +78,15 @@ mod tests {
     const PNG_1X1: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
     #[test]
-    fn uploaded_image_decode_accepts_base64_and_data_url() {
-        for data in [
-            PNG_1X1.to_string(),
-            format!("data:image/png;base64,{PNG_1X1}"),
-        ] {
-            let decoded = decode_uploaded_image_data(" ref.png ", "image/png", &data, 1024 * 1024)
+    fn uploaded_image_decode_accepts_raw_base64() {
+        let decoded =
+            decode_uploaded_image_data(" ref.png ", "image/png", PNG_1X1, 1024 * 1024)
                 .expect("valid uploaded png should decode");
 
-            assert_eq!(decoded.source_file_name, "ref.png");
-            assert_eq!(decoded.mime_type, "image/png");
-            assert_eq!(decoded.extension, "png");
-            assert_eq!((decoded.width, decoded.height), (1, 1));
-        }
+        assert_eq!(decoded.source_file_name, "ref.png");
+        assert_eq!(decoded.mime_type, "image/png");
+        assert_eq!(decoded.extension, "png");
+        assert_eq!((decoded.width, decoded.height), (1, 1));
     }
 
     #[test]

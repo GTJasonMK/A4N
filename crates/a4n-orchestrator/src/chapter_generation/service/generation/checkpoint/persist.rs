@@ -1,13 +1,11 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
-use serde_json::Value;
+use a4n_db::workflow::{
+    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+};
+use serde_json::{Value, json};
 
 use crate::chapter_generation::service::ChapterGenerationService;
 use crate::workflow::workflow_write_app_error;
-
-mod contract;
-
-use contract::completed_chapter_generation_checkpoint_json;
 
 pub(in crate::chapter_generation) struct ChapterGenerationCheckpointSaveInput<'a> {
     pub(in crate::chapter_generation) service: &'a ChapterGenerationService,
@@ -40,12 +38,13 @@ pub(in crate::chapter_generation) async fn save_completed_chapter_generation_che
             call_key,
             call_order: chapter_number,
             input_fingerprint_json,
-            checkpoint_json: completed_chapter_generation_checkpoint_json(
-                response_content,
-                parsed_content,
-                finish_reason,
-            ),
-            artifacts_json: None,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: json!({"content": parsed_content}),
+                response_content: response_content.to_string(),
+                usage: None,
+                finish_reason: finish_reason.map(str::to_owned),
+                artifacts_json: None,
+            },
         },
     )
     .await

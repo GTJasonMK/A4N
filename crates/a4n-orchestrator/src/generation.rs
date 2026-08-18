@@ -12,20 +12,26 @@ pub use a4n_db::generation::{
     is_valid_generation_spec_target_kind, is_valid_generation_text_anchor_role, render_prompt_text,
 };
 
-pub mod artifacts;
-pub mod checkpoint;
-pub mod events;
-pub mod stream;
-pub mod terminal;
+pub(crate) mod artifacts;
+pub(crate) mod checkpoint;
+pub(crate) mod events;
+pub(crate) mod stream;
+pub(crate) mod terminal;
+
+pub use artifacts::GeneratedMediaArtifactFile;
+pub use events::{GenerationReplay, GenerationSessionError, GenerationSubscription};
+pub use terminal::{GenerationTerminalError, GenerationTerminalWriteOutcome};
 
 use std::sync::Arc;
 
 use a4n_core::error::AppError;
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::{
-    GenerationError, GenerationErrorCode, GenerationFinishReason, GenerationTaskStatus,
-    ProgressEvent,
+    BatchCommitPolicy, BatchSummary, GenerationError, GenerationErrorCode, GenerationFinishReason,
+    GenerationResultRef, GenerationTaskStatus, ProgressEvent,
 };
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 
 use self::{
@@ -159,6 +165,52 @@ pub(crate) fn generation_public_error(
     }
 }
 
+pub(crate) fn generation_result_ref<T: Serialize + ?Sized>(
+    kind: &str,
+    id: i64,
+    value: &T,
+) -> Result<GenerationResultRef, AppError> {
+    Ok(GenerationResultRef {
+        kind: kind.to_string(),
+        id: id.to_string(),
+        revision: format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)),
+    })
+}
+
+pub(crate) fn generation_batch_result_ref(
+    kind: &str,
+    id: i64,
+    mut item_ids: Vec<i64>,
+) -> Result<GenerationResultRef, AppError> {
+    item_ids.sort_unstable();
+    generation_result_ref(kind, id, &item_ids)
+}
+
+pub(crate) fn best_effort_batch_summary(
+    total: u32,
+    succeeded: u32,
+    failed: u32,
+    cancelled: u32,
+    skipped: u32,
+    failed_item_keys: &[String],
+) -> BatchSummary {
+    let mut failed_item_keys = failed_item_keys.to_vec();
+    failed_item_keys.sort_unstable();
+    failed_item_keys.dedup();
+    let failed_item_keys_truncated = failed_item_keys.len() > 256;
+    failed_item_keys.truncate(256);
+    BatchSummary {
+        policy: BatchCommitPolicy::BestEffort,
+        total,
+        succeeded,
+        failed,
+        cancelled,
+        skipped,
+        failed_item_keys,
+        failed_item_keys_truncated,
+    }
+}
+
 pub(crate) fn generation_failure_is_cancelled_or_interrupted(
     session_status: GenerationTaskStatus,
     error: &GenerationError,
@@ -205,9 +257,31 @@ pub(crate) fn generation_finish_reason_text(reason: GenerationFinishReason) -> S
     .to_string()
 }
 
+pub(crate) fn generation_finish_reason_from_text(reason: &str) -> Option<GenerationFinishReason> {
+    match reason {
+        "stop" => Some(GenerationFinishReason::Stop),
+        "tool_calls" => Some(GenerationFinishReason::ToolCallsComplete),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finish_reason_text_round_trips() {
+        for reason in [
+            GenerationFinishReason::Stop,
+            GenerationFinishReason::ToolCallsComplete,
+        ] {
+            assert_eq!(
+                generation_finish_reason_from_text(&generation_finish_reason_text(reason)),
+                Some(reason)
+            );
+        }
+        assert_eq!(generation_finish_reason_from_text("length"), None);
+    }
 
     #[test]
     fn step_progress_preserves_active_phase_and_minimum_reported_total() {

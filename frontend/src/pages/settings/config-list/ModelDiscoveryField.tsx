@@ -10,9 +10,9 @@ interface ModelDiscoveryFieldProps {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  disabled?: boolean;
-  inputDisabled?: boolean;
-  discoveryKey?: string;
+  disabled: boolean;
+  inputDisabled: boolean;
+  discoveryKey: string;
   detectModels: () => Promise<ModelDiscoveryResult>;
 }
 
@@ -20,8 +20,8 @@ export function ModelDiscoveryField({
   value,
   onChange,
   placeholder,
-  disabled = false,
-  inputDisabled = disabled,
+  disabled,
+  inputDisabled,
   discoveryKey,
   detectModels,
 }: ModelDiscoveryFieldProps) {
@@ -40,11 +40,8 @@ export function ModelDiscoveryField({
     setModels([]);
     try {
       const result = await detectModels();
-      if (result.models.length === 0) {
-        throw new Error("模型探测响应没有返回可用模型");
-      }
       setModels(result.models);
-      if (!value.trim() && result.models[0]?.id) {
+      if (!value.trim()) {
         onChange(result.models[0].id);
       }
       addToast(`已发现 ${result.models.length} 个模型`, "success");
@@ -68,7 +65,7 @@ export function ModelDiscoveryField({
         <button
           type="button"
           className="pyqt-btn-secondary inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-          onClick={() => void handleDetect()}
+          onClick={handleDetect}
           disabled={disabled || detecting}
           title="检测模型列表"
         >
@@ -77,16 +74,18 @@ export function ModelDiscoveryField({
         </button>
       </div>
       {models.length > 0 ? (
-        <datalist id={datalistId}>
-          {models.map((model) => (
-            <option key={model.id} value={model.id}>
-              {modelOptionLabel(model)}
-            </option>
-          ))}
-        </datalist>
-      ) : null}
-      {models.length > 0 ? (
-        <div className="text-small text-book-text-muted">已加载 {models.length} 个模型</div>
+        <>
+          <datalist id={datalistId}>
+            {models.map((model) => (
+              <option key={model.id} value={model.id}>
+                {modelOptionLabel(model)}
+              </option>
+            ))}
+          </datalist>
+          <div className="text-small text-book-text-muted">
+            已加载 {models.length} 个模型
+          </div>
+        </>
       ) : null}
     </div>
   );
@@ -94,7 +93,7 @@ export function ModelDiscoveryField({
 
 function modelOptionLabel(model: DiscoveredModel): string {
   const parts = [model.name, model.owned_by].filter(
-    (part): part is string => typeof part === "string" && part.trim().length > 0,
+    (part): part is string => part !== null,
   );
   return parts.length > 0 ? parts.join(" · ") : model.id;
 }

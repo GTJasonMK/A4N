@@ -1,25 +1,29 @@
 use super::contracts::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, RagClient};
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_service_protocol::{CapabilityTaskEvent, RAG_SERVICE_NAME, ServiceHealth};
+use a4n_service_protocol::{
+    CapabilityTaskEvent, RAG_COMPLETENESS_REPORT_BY_IDS_PATH, RAG_DELETE_PATH,
+    RAG_DROP_COLLECTION_PATH, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_FILTER_PATH,
+    RAG_METADATA_BY_IDS_PATH, RAG_QUERY_PATH, RAG_SEARCH_PATH, RAG_SEARCH_TEXT_PATH,
+    RAG_SERVICE_NAME, ServiceHealth,
+};
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
 pub struct HttpRagClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpRagClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url).with_expected_service(RAG_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, RAG_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(RAG_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, RAG_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -57,11 +61,11 @@ impl CapabilityClient for HttpRagClient {
 #[async_trait]
 impl RagClient for HttpRagClient {
     async fn query(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/query", request).await
+        self.transport.post(RAG_QUERY_PATH, request).await
     }
 
     async fn search_text(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/search_text", request).await
+        self.transport.post(RAG_SEARCH_TEXT_PATH, request).await
     }
 
     async fn ingest_events(
@@ -70,33 +74,33 @@ impl RagClient for HttpRagClient {
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.transport
-            .post_event_stream("/rag/ingest/events", request, events)
+            .post_event_stream(RAG_INGEST_EVENTS_PATH, request, events)
             .await
     }
 
     async fn search(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/search", request).await
+        self.transport.post(RAG_SEARCH_PATH, request).await
     }
 
     async fn delete(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/delete", request).await
+        self.transport.post(RAG_DELETE_PATH, request).await
     }
 
     async fn drop_collection(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/rag/drop_collection", request)
+            .post(RAG_DROP_COLLECTION_PATH, request)
             .await
     }
 
     async fn metadata_by_ids(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/rag/metadata_by_ids", request)
+            .post(RAG_METADATA_BY_IDS_PATH, request)
             .await
     }
 
     async fn metadata_by_filter(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/rag/metadata_by_filter", request)
+            .post(RAG_METADATA_BY_FILTER_PATH, request)
             .await
     }
 
@@ -105,7 +109,7 @@ impl RagClient for HttpRagClient {
         request: JsonRequest,
     ) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/rag/completeness_report_by_ids", request)
+            .post(RAG_COMPLETENESS_REPORT_BY_IDS_PATH, request)
             .await
     }
 }

@@ -1,9 +1,9 @@
-use super::rules::metadata_i64;
+use a4n_rag_core::metadata::metadata_i64;
 use a4n_rag_core::fusion::fuse_weighted_rag_results;
 use a4n_rag_core::vector_store::SearchResult;
 use serde_json::Value;
 
-pub fn fuse_generation_rag_results(
+pub(super) fn fuse_generation_rag_results(
     batches: Vec<(f32, Vec<SearchResult>)>,
     chapter_number: i32,
 ) -> Vec<SearchResult> {

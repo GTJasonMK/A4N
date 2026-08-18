@@ -9,7 +9,6 @@ mod context;
 mod contracts;
 mod errors;
 mod media_application;
-mod media_rules;
 mod mutations;
 mod persistence;
 mod pipeline_json;

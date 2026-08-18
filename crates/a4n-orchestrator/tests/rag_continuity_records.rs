@@ -6,7 +6,7 @@ use a4n_orchestrator::rag::{
     character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,
 };
 use chrono::{NaiveDate, NaiveDateTime};
-use serde_json::{Value, json};
+use serde_json::json;
 
 fn ts() -> NaiveDateTime {
     NaiveDate::from_ymd_opt(2026, 1, 1)
@@ -89,7 +89,7 @@ fn attribute_event_contract_preserves_labels_values_and_metadata() {
         record.metadata["data_type"],
         RagDataType::CharacterAttributeEvent.as_str()
     );
-    assert_eq!(record.metadata["attribute_key"], "trust");
+    assert_eq!(record.metadata["chapter_number"], 3);
     assert!(record.text.contains("类别: 隐性属性"));
     assert!(record.text.contains("操作: 修改"));
     assert!(record.text.contains("原值: 低"));
@@ -109,7 +109,7 @@ fn foreshadowing_contract_preserves_text_id_and_searchable_metadata() {
         record.metadata["data_type"],
         RagDataType::Foreshadowing.as_str()
     );
-    assert_eq!(record.metadata["payoff_chapter"], Value::from(12));
+    assert_eq!(record.metadata["chapter_number"], 3);
     assert!(record.text.contains("埋设章节: 第3章"));
     assert!(record.text.contains("揭示章节: 第12章"));
     assert!(record.text.contains("林舟"));

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use super::contracts::{
-    ManagedServiceConfig, ServiceMode, default_health_path, default_startup_timeout_ms,
-};
+use super::contracts::{ManagedServiceConfig, ServiceMode};
 
 impl ManagedServiceConfig {
     pub fn embedded(name: impl Into<String>) -> Self {
@@ -11,11 +9,9 @@ impl ManagedServiceConfig {
             name: name.into(),
             mode: ServiceMode::Embedded,
             binary: None,
-            args: Vec::new(),
             url: None,
-            health_path: default_health_path(),
             env: HashMap::new(),
-            startup_timeout_ms: default_startup_timeout_ms(),
+            startup_timeout_ms: 5_000,
             restart_policy: Default::default(),
             remote_security: Default::default(),
         }

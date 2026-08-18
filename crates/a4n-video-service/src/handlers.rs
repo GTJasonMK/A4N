@@ -1,20 +1,19 @@
 use crate::contracts::*;
-use crate::events::{failed_generation_event, video_generation_event_stream};
+use crate::events::video_generation_event_stream;
 use crate::protocol::{
-    result_response, validate_model_discovery_request, validate_video_poll_request,
-    validate_video_provider_request,
+    result_response, service_error, validate_video_poll_request, validate_video_provider_request,
 };
 use crate::providers::{
-    video_delete_output, video_job_output, video_request_preview, video_status_output,
+    video_delete_output, video_job_output, video_status_output,
 };
 use a4n_core::error::AppError;
 use a4n_model_discovery::{
     ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
 };
-use a4n_service_protocol::{ServiceRequest, ServiceResponse};
-use a4n_sidecar_bootstrap::{service_event_ndjson_response, single_service_event_stream};
+use a4n_service_protocol::{ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME};
+use a4n_sidecar_bootstrap::{failed_service_event_response, service_event_ndjson_response};
 use a4n_video::VideoProvider;
-use a4n_video_providers::pick_video_provider;
+use a4n_video_providers::{pick_video_provider, video_provider_request_body_preview};
 use axum::{Json, response::IntoResponse};
 use serde_json::Value;
 use std::future::Future;
@@ -24,12 +23,9 @@ pub(crate) async fn generate_events(
 ) -> impl IntoResponse {
     let task_id = request.request_id.clone();
     if let Err(error) = validate_video_provider_request(&request) {
-        return service_event_ndjson_response(
-            single_service_event_stream(failed_generation_event(task_id, 1, error)),
-            "video generation",
-        );
+        return failed_service_event_response(task_id, error);
     }
-    service_event_ndjson_response(video_generation_event_stream(request), "video generation")
+    service_event_ndjson_response(video_generation_event_stream(request))
 }
 
 async fn execute_video_job_operation<T, F, Fut>(
@@ -88,18 +84,26 @@ pub(crate) async fn request_preview(
     if let Err(error) = validate_video_provider_request(&request) {
         return Json(request.error_response(error));
     }
-    let result = video_request_preview(&request.payload);
+    let result = video_provider_request_body_preview(
+        &request.payload.backend,
+        &request.payload.base_url,
+        &request.payload.request,
+    );
     Json(result_response(&request, result))
 }
 
 pub(crate) async fn discover_models(
     Json(request): Json<ServiceRequest<ModelDiscoveryRequest>>,
 ) -> Json<ServiceResponse<ModelDiscoveryResult>> {
-    if let Err(error) = validate_model_discovery_request(&request) {
+    if let Err(error) = request.validate_known_provider_request(
+        VIDEO_SERVICE_NAME,
+        request.payload.api_key.as_deref(),
+    ) {
         return Json(request.error_response(error));
     }
-    let result = discover_models_from_request(request.payload.clone())
+    let trace_id = request.trace_context.trace_id;
+    let result = discover_models_from_request(request.payload)
         .await
         .map_err(AppError::ConfigError);
-    Json(result_response(&request, result))
+    Json(ServiceResponse::from_result(trace_id, result, service_error))
 }

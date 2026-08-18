@@ -7,7 +7,6 @@ pub struct DefaultLlmOutputCapRow {
     pub max_output_tokens: i32,
 }
 
-#[derive(Clone, Debug)]
 pub struct LlmConfigRecordInput {
     pub name: String,
     pub provider: String,

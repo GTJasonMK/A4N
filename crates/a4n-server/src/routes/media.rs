@@ -1,6 +1,7 @@
 use super::auth::{authenticated_user, authenticated_user_from_access_token};
 use super::error::ApiError;
 use crate::state::ServerState;
+use a4n_core::error::AppError;
 use a4n_runtime::host_api::{auth_records, storage_paths};
 use a4n_runtime::{file_utils, media_file};
 use axum::body::Body;
@@ -82,7 +83,14 @@ pub(super) fn file_response(
         range_header.map(header::HeaderValue::to_str),
         label,
     )
-    .map_err(ApiError::bad_request)?;
+    .map_err(|error| match error {
+        media_file::MediaFileResponseError::UnsupportedMediaType(message) => {
+            ApiError::bad_request(message)
+        }
+        media_file::MediaFileResponseError::Read(message) => {
+            ApiError::from(AppError::Internal(anyhow::anyhow!(message)))
+        }
+    })?;
     let mut response = Response::builder()
         .status(
             StatusCode::from_u16(media.status.as_u16())

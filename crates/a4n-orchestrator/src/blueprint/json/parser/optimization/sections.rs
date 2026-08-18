@@ -1,4 +1,6 @@
-use a4n_core::blueprint::{ParsedBlueprintCharacter, ParsedBlueprintRelationship};
+use a4n_core::blueprint::{
+    BLUEPRINT_REFINEMENT_PROMPT, ParsedBlueprintCharacter, ParsedBlueprintRelationship,
+};
 use a4n_core::error::AppError;
 use serde_json::Value;
 
@@ -17,9 +19,9 @@ pub(super) fn parse_optimization_sections(value: &Value) -> Result<OptimizationS
     let world_setting = match value.get("world_setting") {
         Some(value) if !value.is_null() => {
             if !value.is_object() {
-                return Err(AppError::InvalidArgument(
-                    "blueprint_optimization.world_setting 必须是 JSON 对象".to_string(),
-                ));
+                return Err(AppError::InvalidArgument(format!(
+                    "{BLUEPRINT_REFINEMENT_PROMPT}.world_setting 必须是 JSON 对象"
+                )));
             }
             validate_world_setting(value)?;
             Some(value.clone())
@@ -29,9 +31,9 @@ pub(super) fn parse_optimization_sections(value: &Value) -> Result<OptimizationS
     let characters = match value.get("characters") {
         Some(value) if !value.is_null() => {
             Some(parse_characters(value.as_array().ok_or_else(|| {
-                AppError::InvalidArgument(
-                    "blueprint_optimization.characters 必须是数组".to_string(),
-                )
+                AppError::InvalidArgument(format!(
+                    "{BLUEPRINT_REFINEMENT_PROMPT}.characters 必须是数组"
+                ))
             })?)?)
         }
         _ => None,
@@ -39,9 +41,9 @@ pub(super) fn parse_optimization_sections(value: &Value) -> Result<OptimizationS
     let relationships = match value.get("relationships") {
         Some(value) if !value.is_null() => {
             Some(parse_relationships(value.as_array().ok_or_else(|| {
-                AppError::InvalidArgument(
-                    "blueprint_optimization.relationships 必须是数组".to_string(),
-                )
+                AppError::InvalidArgument(format!(
+                    "{BLUEPRINT_REFINEMENT_PROMPT}.relationships 必须是数组"
+                ))
             })?)?)
         }
         _ => None,

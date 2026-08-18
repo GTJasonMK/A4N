@@ -2,8 +2,8 @@ import { apiInvoke } from "./index";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import { generationClient } from "./generationTasks";
-import { generationTaskKey, useGenerationTasksStore } from "../store/generationTasks";
-import { sha256Hex } from "../utils/contentHash";
+import { verifyGeneratedMediaResult } from "./generationResultVerification";
+import { sha256Json } from "../utils/contentHash";
 import type { GenerationTaskViewState } from "../utils/generationEventReducer";
 import type {
   GenerationTaskHandle,
@@ -49,58 +49,34 @@ export async function startPortraitGeneration(
 export async function verifyPortraitGenerationResult(
   task: GenerationTaskViewState,
   projectId: Id,
-): Promise<Portrait[]> {
+): Promise<[Portrait, ...Portrait[]]> {
   const project = idNum(projectId);
-  const resultRef = task.resultRef;
   const portraits = await listPortraitsByProject(project);
-  let valid = false;
+  return verifyGeneratedMediaResult(task, portraits, {
+    projectId: project,
+    singleKind: "portrait",
+    batchKind: "portrait_batch",
+    artifactKind: "portrait_image",
+    artifactIdPrefix: "portrait:",
+    recordInScope: (portrait) => portrait.project_id === project,
+    recordRevision: portraitRevision,
+    errorMessage: "立绘生成已结束，但正式结果校验失败",
+  });
+}
 
-  if (resultRef?.kind === "portrait") {
-    const portraitId = Number(resultRef.id);
-    const portrait = portraits.find(
-      (item) => item.id === portraitId && item.project_id === project,
-    );
-    if (portrait) {
-      const revision = await sha256Hex(JSON.stringify([
-        portrait.id,
-        portrait.profile_id,
-        portrait.project_id,
-        portrait.portrait_type,
-        portrait.image_path,
-        portrait.prompt,
-        portrait.expression,
-        portrait.pose,
-        portrait.is_primary,
-        portrait.created_at,
-      ]));
-      valid = revision != null
-        && revision === resultRef.revision
-        && task.artifacts.some((artifact) => artifact.artifact_id === `portrait:${portrait.id}`);
-    }
-  } else if (resultRef?.kind === "portrait_batch" && Number(resultRef.id) === project) {
-    const ids = task.artifacts
-      .filter((artifact) => artifact.artifact_kind === "portrait_image")
-      .map((artifact) => artifact.artifact_id.match(/^portrait:(\d+)$/)?.[1])
-      .filter((id): id is string => id != null)
-      .map(Number);
-    const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
-    const revision = await sha256Hex(JSON.stringify(uniqueIds));
-    valid = uniqueIds.length > 0
-      && revision != null
-      && revision === resultRef.revision
-      && uniqueIds.every((id) => portraits.some(
-        (portrait) => portrait.id === id && portrait.project_id === project,
-      ));
-  }
-
-  if (!valid) {
-    useGenerationTasksStore.getState().dispatch(
-      generationTaskKey(task.taskId, task.attempt),
-      { type: "client_state", state: "consistency_error" },
-    );
-    throw new Error("立绘生成已结束，但正式结果校验失败");
-  }
-  return portraits;
+function portraitRevision(portrait: Portrait): Promise<string | null> {
+  return sha256Json([
+    portrait.id,
+    portrait.profile_id,
+    portrait.project_id,
+    portrait.portrait_type,
+    portrait.image_path,
+    portrait.prompt,
+    portrait.expression,
+    portrait.pose,
+    portrait.is_primary,
+    portrait.created_at,
+  ]);
 }
 
 // ============================================================================

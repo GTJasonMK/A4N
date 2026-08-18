@@ -19,7 +19,6 @@ pub struct SidecarResourcePolicy {
     pub request_timeout: Duration,
     pub stream_idle_timeout: Duration,
     pub health_timeout: Duration,
-    pub event_queue_capacity: usize,
 }
 
 impl SidecarResourcePolicy {
@@ -60,7 +59,6 @@ const fn policy(
         request_timeout: SIDECAR_REQUEST_TIMEOUT,
         stream_idle_timeout: SIDECAR_STREAM_IDLE_TIMEOUT,
         health_timeout: SIDECAR_HEALTH_TIMEOUT,
-        event_queue_capacity: SIDECAR_EVENT_QUEUE_CAPACITY,
     }
 }
 
@@ -100,7 +98,7 @@ pub fn sidecar_resource_policy(service: &str) -> Option<SidecarResourcePolicy> {
 #[cfg(test)]
 mod tests {
     use super::{BodyLimitKind, sidecar_resource_policy};
-    use crate::{SIDECAR_EVENT_QUEUE_CAPACITY, SIDECAR_REQUEST_TIMEOUT};
+    use crate::SIDECAR_REQUEST_TIMEOUT;
 
     #[test]
     fn every_registered_sidecar_has_one_resource_policy() {
@@ -115,7 +113,6 @@ mod tests {
             "export",
         ] {
             let policy = sidecar_resource_policy(service).expect("registered policy");
-            assert_eq!(policy.event_queue_capacity, SIDECAR_EVENT_QUEUE_CAPACITY);
             assert_eq!(policy.request_timeout, SIDECAR_REQUEST_TIMEOUT);
             assert!(policy.max_concurrent_requests > 0);
             assert!(policy.body_limit(BodyLimitKind::Json) > 0);

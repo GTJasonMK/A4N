@@ -7,11 +7,6 @@ use super::super::super::{
     VideoPromptProgress,
 };
 
-const MODE_BOUNDARY_FRAMES: &str = "boundary_frames";
-const MODE_FIRST_FRAME_CHAIN: &str = "first_frame_chain";
-const MODE_CHAT_VIDEO: &str = "chat_video";
-const MODE_STORYBOARD: &str = "storyboard";
-
 fn unsupported_workflow_mode(kind: &str, mode: &str) -> AppError {
     AppError::InvalidArgument(format!("不支持的{kind} workflow_mode: {mode}"))
 }
@@ -25,19 +20,19 @@ impl OrchestratorContext {
         progress: Option<VideoPromptProgress<'_>>,
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
         match input.workflow_mode {
-            MODE_BOUNDARY_FRAMES => {
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => {
                 self.generate_chapter_video_prompts(input, chunks, progress)
                     .await
             }
-            MODE_FIRST_FRAME_CHAIN => {
+            chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN => {
                 self.generate_chapter_first_frame_video_prompts(input, chunks, progress)
                     .await
             }
-            MODE_CHAT_VIDEO => {
+            chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO => {
                 self.generate_chapter_chat_video_prompts(input, chunks, progress)
                     .await
             }
-            MODE_STORYBOARD => {
+            chapter_video_prompt::WORKFLOW_MODE_STORYBOARD => {
                 self.generate_chapter_storyboard_video_prompts(input, chunks, progress)
                     .await
             }
@@ -53,18 +48,18 @@ impl OrchestratorContext {
         progress: Option<VideoPromptProgress<'_>>,
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
         match input.workflow_mode {
-            MODE_BOUNDARY_FRAMES => {
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => {
                 self.generate_chapter_boundary_frame_prompts(input, chunks, progress)
                     .await
             }
-            MODE_FIRST_FRAME_CHAIN => {
+            chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN => {
                 self.generate_chapter_first_frame_prompts(input, chunks, progress)
                     .await
             }
-            MODE_CHAT_VIDEO => Err(AppError::InvalidArgument(
+            chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO => Err(AppError::InvalidArgument(
                 "Chat 方案不生成帧提示词，请直接生成当前片段的最终提示词".to_string(),
             )),
-            MODE_STORYBOARD => {
+            chapter_video_prompt::WORKFLOW_MODE_STORYBOARD => {
                 self.generate_chapter_storyboard_prompts(input, chunks, progress)
                     .await
             }

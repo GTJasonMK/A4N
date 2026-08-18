@@ -1,16 +1,18 @@
 use std::io::{Cursor, Write};
 
 use a4n_core::models::{media::media_asset, project::novel_project};
+use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
+use a4n_domain::CanvasNodeRefKind;
 use a4n_orchestrator::media::MEDIA_STATUS_COMPLETED;
-use a4n_orchestrator::project::{PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM, SOURCE_SYNC_CURRENT};
+use a4n_orchestrator::project::{
+    PACKAGE_MODE, PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT, VIDEO_STUDIO_PACKAGE_VERSION,
+    VideoStudioMediaFileEntry,
+};
 use serde_json::json;
 use sha2::Digest;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-use super::super::{
-    MANIFEST_PATH, MEDIA_FIELD_FILE, MEDIA_OWNER_MEDIA_ASSET, PACKAGE_MODE,
-    VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry, VideoStudioProjectPackage,
-};
+use super::super::{MANIFEST_PATH, VideoStudioProjectPackage};
 use super::reader::read_video_studio_package_reader;
 
 fn now() -> chrono::NaiveDateTime {
@@ -25,7 +27,6 @@ fn freeform_project() -> novel_project::Model {
         description: String::new(),
         project_type: "script".to_string(),
         project_kind: PROJECT_KIND_VIDEO.to_string(),
-        source_mode: SOURCE_MODE_FREEFORM.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
         source_sync_status: SOURCE_SYNC_CURRENT.to_string(),
@@ -150,9 +151,9 @@ fn read_video_studio_package_accepts_declared_media_file() {
         updated_at: now(),
     });
     package.media_files.push(VideoStudioMediaFileEntry {
-        owner_kind: MEDIA_OWNER_MEDIA_ASSET.to_string(),
+        owner_kind: CanvasNodeRefKind::MediaAsset.as_str().to_string(),
         owner_id: 10,
-        field: MEDIA_FIELD_FILE.to_string(),
+        field: FILE_PATH_FIELD.to_string(),
         original_path: "projects/1/videos/asset.mp4".to_string(),
         package_path: "media/media_asset/10/file.mp4".to_string(),
     });

@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 #[test]
-fn rag_ingest_progress_reports_stage_and_advances() {
+fn rag_ingest_progress_reports_stage_and_advances_records() {
     let events = Arc::new(Mutex::new(Vec::<(u32, u32, String)>::new()));
     let captured = events.clone();
     let reporter = move |current: u32, total: u32, message: &str| {
@@ -12,21 +12,21 @@ fn rag_ingest_progress_reports_stage_and_advances() {
             .expect("progress events lock")
             .push((current, total, message.to_string()));
     };
-    let mut progress = RagIngestProgress::new(3, Some(&reporter), None);
+    let mut progress = RagIngestProgress::new(2, Some(&reporter), None);
 
     progress.stage("准备同步").expect("stage reports");
-    progress.advance(2, "已同步 2 条").expect("advance reports");
+    progress.advance("已同步 1 条").expect("advance reports");
+    progress.advance("同步完成").expect("reaches total");
     let error = progress
-        .advance(2, "不应静默截断")
+        .advance("不应静默截断")
         .expect_err("progress beyond the declared total must fail");
     assert!(error.contains("超过声明总量"));
-    progress.advance(1, "同步完成").expect("reaches total");
 
     let events = events.lock().expect("progress events lock");
     assert_eq!(events.len(), 3);
-    assert_eq!(events[0], (0, 3, "准备同步".to_string()));
-    assert_eq!(events[1], (2, 3, "已同步 2 条".to_string()));
-    assert_eq!(events[2], (3, 3, "同步完成".to_string()));
+    assert_eq!(events[0], (0, 2, "准备同步".to_string()));
+    assert_eq!(events[1], (1, 2, "已同步 1 条".to_string()));
+    assert_eq!(events[2], (2, 2, "同步完成".to_string()));
 }
 
 #[test]
@@ -43,20 +43,6 @@ fn rag_ingest_progress_rejects_after_cancellation() {
 }
 
 #[test]
-fn rag_ingest_progress_rejects_u32_overflow() {
-    let mut progress = RagIngestProgress::new(u32::MAX, None, None);
-    progress
-        .advance(u32::MAX, "推进到上限")
-        .expect("first advance reaches the declared total");
-
-    let err = progress
-        .advance(1, "不应饱和")
-        .expect_err("progress overflow must be visible");
-
-    assert!(err.contains("RAG 同步进度超过 u32 上限"));
-}
-
-#[test]
 fn rag_sync_stats_reject_outcome_count_overflow_without_partial_update() {
     let mut stats = ExpectedSyncStats {
         added_count: u32::MAX,
@@ -69,7 +55,6 @@ fn rag_sync_stats_reject_outcome_count_overflow_without_partial_update() {
 
     assert!(err.contains("新增记录数超过 u32 上限"));
     assert_eq!(stats.added_count, u32::MAX);
-    assert_eq!(stats.chunk_count, 0);
 }
 
 #[test]

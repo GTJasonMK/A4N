@@ -55,7 +55,6 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
         description: Set("派生视频".to_string()),
         project_type: Set(root.project_type.clone()),
         project_kind: Set("video".to_string()),
-        source_mode: Set("derived".to_string()),
         root_project_id: Set(Some(root.id)),
         source_snapshot_id: Set(Some(snapshot.id)),
         source_sync_status: Set("current".to_string()),

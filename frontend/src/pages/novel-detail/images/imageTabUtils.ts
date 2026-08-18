@@ -1,4 +1,14 @@
-import type { GeneratedImage } from "../../../api/image";
+import {
+  IMAGE_TYPE_CANVAS,
+  IMAGE_TYPE_CANVAS_FRAME,
+  IMAGE_TYPE_OBJECT_MATERIAL,
+  IMAGE_TYPE_SCENE_MATERIAL,
+  IMAGE_TYPE_VIDEO_KEY_FRAME,
+  IMAGE_TYPE_VIDEO_START_FRAME,
+  IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+  IMAGE_TYPE_VIDEO_TAIL_FRAME,
+  type GeneratedImage,
+} from "../../../api/image";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import type { ChapterRow } from "../shared";
 
@@ -15,15 +25,14 @@ const IMAGE_TYPE_LABELS: Record<string, string> = {
   portrait: "立绘",
   cover: "封面",
   illustration: "插图",
-  scene_material: "场景素材",
-  object_material: "物品素材",
-  video_key_frame: "视频关键帧",
-  video_start_frame: "视频首帧",
-  video_storyboard_frame: "视频分镜板",
-  video_end_frame: "视频尾帧",
-  video_tail_frame: "视频续接帧",
-  canvas_image: "画布图片",
-  canvas_frame: "画布帧",
+  [IMAGE_TYPE_SCENE_MATERIAL]: "场景素材",
+  [IMAGE_TYPE_OBJECT_MATERIAL]: "物品素材",
+  [IMAGE_TYPE_VIDEO_KEY_FRAME]: "视频关键帧",
+  [IMAGE_TYPE_VIDEO_START_FRAME]: "视频首帧",
+  [IMAGE_TYPE_VIDEO_STORYBOARD_FRAME]: "视频分镜板",
+  [IMAGE_TYPE_VIDEO_TAIL_FRAME]: "视频续接帧",
+  [IMAGE_TYPE_CANVAS]: "画布图片",
+  [IMAGE_TYPE_CANVAS_FRAME]: "画布帧",
   portrait_reference: "立绘参考",
   chapter_reference: "章节参考",
   project_reference: "项目参考",

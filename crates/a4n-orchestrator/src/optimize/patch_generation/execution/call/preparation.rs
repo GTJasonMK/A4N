@@ -4,7 +4,7 @@ use a4n_llm::{provider::ChatRequest, trace::context_aware_chat_request_trace_jso
 
 use crate::{
     optimize::{OrchestratorContext, optimize_llm_call_input_fingerprint_json},
-    workflow::{workflow_checkpoint_contract_app_error, workflow_write_app_error},
+    workflow::workflow_checkpoint_contract_app_error,
 };
 
 use super::contracts::PreparedPatchGenerationCall;
@@ -33,9 +33,9 @@ pub(super) async fn prepare_patch_generation_call(
     service
         .record_llm_request(session_id, "局部补丁生成", &llm_request_payload)
         .await?;
-    workflow::mark_workflow_current_step(service.database.connection(), workflow_run_id, &call_key)
-        .await
-        .map_err(workflow_write_app_error)?;
+    service
+        .mark_workflow_current_step(workflow_run_id, &call_key)
+        .await?;
     Ok(PreparedPatchGenerationCall {
         request,
         call_key,

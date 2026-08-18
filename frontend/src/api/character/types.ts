@@ -4,6 +4,7 @@ import type {
   BehaviorRecordSummary,
   CharacterProfileSummary,
   DeletionMarkSummary,
+  DiscoverCharacterProfilesResult as DiscoverCharacterProfilesResultContract,
   ImplicitAttributeReviewSummary,
   ImplicitReviewSummary,
   ImplicitUpdateDecisionSummary,
@@ -30,16 +31,5 @@ export type ImplicitUpdateDecision = ImplicitUpdateDecisionSummary;
 export type ApplyImplicitUpdateDecisionResult =
   ApplyImplicitUpdateDecisionResultSummary;
 export type RollbackToChapterResult = RollbackResultSummary;
-
-export interface DiscoverCharacterProfilesResult {
-  status: string;
-  chapters_analyzed: number;
-  chapter_numbers: number[];
-  discovered_count: number;
-  created: Array<{ id: number }>;
-  existing: Array<{
-    name: string;
-    aliases: unknown;
-    reason: string;
-  }>;
-}
+export type DiscoverCharacterProfilesResult =
+  DiscoverCharacterProfilesResultContract;

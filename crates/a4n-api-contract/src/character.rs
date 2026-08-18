@@ -54,6 +54,48 @@ pub struct SyncAllCharacterProfilesInput {
     pub chapter_number: i32,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DiscoverCharacterProfilesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_number: Option<i32>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CharacterConflictCheckInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1))]
+    pub name: String,
+    #[schemars(range(min = 1))]
+    pub start_chapter: Option<i32>,
+    #[schemars(range(min = 1))]
+    pub end_chapter: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CharacterConflictSeverity {
+    Minor,
+    Moderate,
+    Major,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CharacterConflictSummary {
+    pub chapter_number: i64,
+    pub field: String,
+    pub expected: Value,
+    pub actual: Value,
+    pub expected_source_id: String,
+    pub actual_source_id: String,
+    pub severity: CharacterConflictSeverity,
+}
+
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct AttributeCountsSummary {
     pub explicit: usize,
@@ -98,6 +140,43 @@ pub struct CharacterProfileMutationResult {
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct CharacterProfileDeleteResult {
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct DiscoverCharacterProfilesResult {
+    pub status: String,
+    pub chapters_analyzed: usize,
+    pub chapter_numbers: Vec<i32>,
+    pub discovered_count: usize,
+    pub created: Vec<DiscoveredCharacterProfileSummary>,
+    pub existing: Vec<ExistingCharacterProfileDiscovery>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct DiscoveredCharacterProfileSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub base_attributes: Value,
+    pub current_state: Value,
+    pub character_arc: Option<Value>,
+    pub voice_fingerprint: Option<Value>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+    pub last_synced_chapter: i32,
+    pub attribute_counts: AttributeCountsSummary,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct ExistingCharacterProfileDiscovery {
+    pub name: String,
+    pub aliases: Value,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, JsonSchema, PartialEq, Eq)]

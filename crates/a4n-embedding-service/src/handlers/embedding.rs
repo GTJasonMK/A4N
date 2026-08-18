@@ -7,11 +7,10 @@ use a4n_embedding::local::LocalEmbeddingProvider;
 use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "fastembed")]
 use a4n_embedding_fastembed::FastEmbedProvider;
-use a4n_service_protocol::{ServiceRequest, ServiceResponse};
+use a4n_service_protocol::{EmbedTextsOutput, EmbedTextsPayload, ServiceRequest, ServiceResponse};
 use axum::Json;
 
-use crate::contracts::{EmbedTextsOutput, EmbedTextsPayload};
-use crate::protocol::{result_response, validate_embedding_request};
+use crate::protocol::{service_error, validate_embedding_request};
 
 pub(crate) async fn embed_texts(
     Json(request): Json<ServiceRequest<EmbedTextsPayload>>,
@@ -19,15 +18,17 @@ pub(crate) async fn embed_texts(
     if let Err(error) = validate_embedding_request(&request) {
         return Json(request.error_response(error));
     }
+    let trace_id = request.trace_context.trace_id;
     let result = async {
         let provider = embedding_provider(&request.payload)?;
+        let (embeddings, identity) = provider.embed_with_identity(request.payload.texts).await?;
         Ok(EmbedTextsOutput {
-            identity: provider.model_identity().await?,
-            embeddings: provider.embed(request.payload.texts.clone()).await?,
+            identity,
+            embeddings,
         })
     }
     .await;
-    Json(result_response(&request, result))
+    Json(ServiceResponse::from_result(trace_id, result, service_error))
 }
 
 pub(crate) fn embedding_provider(

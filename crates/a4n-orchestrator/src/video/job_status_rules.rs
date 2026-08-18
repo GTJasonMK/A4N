@@ -1,15 +1,9 @@
 //! 视频生成 job 状态推进纯规则（poll / 失败 / submit 落库门禁）。
 
-use a4n_core::{error::AppError, models::ai::generated_video};
-
-pub use generated_video::{
-    STATUS_CANCELLED as GENERATED_VIDEO_STATUS_CANCELLED,
-    STATUS_COMPLETED as GENERATED_VIDEO_STATUS_COMPLETED,
-    STATUS_FAILED as GENERATED_VIDEO_ERROR_STATUS_FAILED,
-    STATUS_INTERRUPTED as GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED,
-    STATUS_PENDING as GENERATED_VIDEO_WAITING_STATUS_PENDING,
-    STATUS_RUNNING as GENERATED_VIDEO_WAITING_STATUS_RUNNING,
-    is_terminal_status as is_terminal_generated_video_status,
+use a4n_core::{
+    error::AppError,
+    models::ai::generated_video,
+    video_workflow::CANVAS_WORKFLOW_MODES,
 };
 
 pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
@@ -19,10 +13,10 @@ pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
             AppError::InvalidState { current, .. }
                 if matches!(
                     current.as_str(),
-                    GENERATED_VIDEO_STATUS_COMPLETED
-                        | GENERATED_VIDEO_ERROR_STATUS_FAILED
-                        | GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED
-                        | GENERATED_VIDEO_STATUS_CANCELLED
+                    generated_video::STATUS_COMPLETED
+                        | generated_video::STATUS_FAILED
+                        | generated_video::STATUS_INTERRUPTED
+                        | generated_video::STATUS_CANCELLED
                 )
         )
 }
@@ -30,14 +24,14 @@ pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
 /// 校验「等待中」状态仅允许 pending / running。
 pub fn validate_generated_video_waiting_status(status: &str) -> Result<(), String> {
     match status {
-        GENERATED_VIDEO_WAITING_STATUS_PENDING | GENERATED_VIDEO_WAITING_STATUS_RUNNING => Ok(()),
+        generated_video::STATUS_PENDING | generated_video::STATUS_RUNNING => Ok(()),
         _ => Err(format!("不支持的视频等待状态: {status}")),
     }
 }
 
 /// 校验中断状态字面量（仅 interrupted）。
 pub fn validate_generated_video_interrupted_status(status: &str) -> Result<(), String> {
-    if status == GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED {
+    if status == generated_video::STATUS_INTERRUPTED {
         Ok(())
     } else {
         Err(format!("不支持的视频中断状态: {status}"))
@@ -62,7 +56,7 @@ pub fn active_provider_job_id<'a>(
     provider_job_id: Option<&'a str>,
     status: &str,
 ) -> Option<&'a str> {
-    if is_terminal_generated_video_status(status) {
+    if generated_video::is_terminal_status(status) {
         return None;
     }
     normalized_provider_job_id(provider_job_id)
@@ -108,10 +102,10 @@ fn positive_provider_poll_config_id(
 
 pub fn is_canvas_video_record(video: &generated_video::Model) -> bool {
     video.chapter_id.is_none()
-        && matches!(
-            video.workflow_mode.as_deref(),
-            Some("canvas_video" | "canvas_reference_media" | "canvas_trim" | "canvas_assembly")
-        )
+        && video
+            .workflow_mode
+            .as_deref()
+            .is_some_and(|mode| CANVAS_WORKFLOW_MODES.contains(&mode))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,7 +237,10 @@ mod tests {
     }
 
     fn canvas_video(metadata_json: Option<serde_json::Value>) -> generated_video::Model {
-        let mut video = video("canvas_video", Some("canvas_video"));
+        let mut video = video(
+            generated_video::VIDEO_TYPE_CANVAS,
+            Some(a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO),
+        );
         video.chapter_id = None;
         video.metadata_json = metadata_json;
         video
@@ -290,11 +287,11 @@ mod tests {
         assert_eq!(required_provider_job_id("  j  ").unwrap(), "j");
         assert!(required_provider_job_id("  ").is_err());
 
-        assert!(is_terminal_generated_video_status("completed"));
-        assert!(is_terminal_generated_video_status("failed"));
-        assert!(is_terminal_generated_video_status("cancelled"));
-        assert!(!is_terminal_generated_video_status("interrupted"));
-        assert!(!is_terminal_generated_video_status("running"));
+        assert!(generated_video::is_terminal_status("completed"));
+        assert!(generated_video::is_terminal_status("failed"));
+        assert!(generated_video::is_terminal_status("cancelled"));
+        assert!(!generated_video::is_terminal_status("interrupted"));
+        assert!(!generated_video::is_terminal_status("running"));
 
         assert_eq!(
             active_provider_job_id(Some(" job-1 "), "running"),
@@ -333,7 +330,11 @@ mod tests {
     #[test]
     fn provider_poll_config_requires_valid_canvas_config() {
         assert_eq!(
-            provider_poll_config_id(&video("chapter_video", Some("boundary_frames"))).unwrap(),
+            provider_poll_config_id(&video(
+                generated_video::VIDEO_TYPE_CHAPTER,
+                Some("boundary_frames")
+            ))
+            .unwrap(),
             None
         );
         assert!(
@@ -357,8 +358,11 @@ mod tests {
     #[test]
     fn canvas_workflow_context_requires_positive_ids() {
         assert_eq!(
-            canvas_video_workflow_context(&video("chapter_video", Some("boundary_frames")))
-                .unwrap(),
+            canvas_video_workflow_context(&video(
+                generated_video::VIDEO_TYPE_CHAPTER,
+                Some("boundary_frames")
+            ))
+            .unwrap(),
             None
         );
         assert!(canvas_video_workflow_context(&canvas_video(None)).is_err());

@@ -12,8 +12,8 @@ use crate::video::prompt_generation::ProgressSpan;
 use crate::video::prompt_generation::frame_prompts::{
     PreparedVideoPromptInputs, ReusableSharedSegmentPlanQuery, SHARED_SEGMENT_PLAN_CONTEXT,
     SHARED_SEGMENT_PLAN_CONTRACT_VERSION, SHARED_SEGMENT_PLAN_PROGRESS,
-    SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE, VideoPromptChunk,
-    VideoPromptProgress, ensure_existing_segment_plans_can_regenerate,
+    SHARED_SEGMENT_PLAN_TITLE, VideoPromptChunk, VideoPromptProgress,
+    ensure_existing_segment_plans_can_regenerate,
     ensure_no_existing_segment_plan_before_new_planning, ensure_segment_plan_generation_can_start,
     load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
     load_video_segment_plan_draft_recipe_state, report_video_prompt_progress,
@@ -55,7 +55,7 @@ pub(in crate::video::prompt_generation::frame_prompts) fn segment_plan_draft(
         chapter_id: input.chapter_id,
         workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
         style: Some(input.style),
-        prompt_type: SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         shot_number: 0,
         title: Some(SHARED_SEGMENT_PLAN_TITLE),
         scene_summary: None,
@@ -112,7 +112,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         .await?;
 
     let segment_storage_workflow_mode = PromptWorkflowMode::SharedSegmentPlan;
-    let segment_storage_prompt_type = SHARED_SEGMENT_PLAN_PROMPT_TYPE;
+    let segment_storage_prompt_type = chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN;
     let segment_storage_context = SHARED_SEGMENT_PLAN_CONTEXT;
     let segment_storage_progress = SHARED_SEGMENT_PLAN_PROGRESS;
     let incremental_unit = target_narrative_unit_index.is_some();

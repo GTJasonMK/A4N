@@ -6,7 +6,7 @@ use serde_json::json;
 
 fn project(
     project_kind: &str,
-    source_mode: &str,
+    root_project_id: Option<i64>,
     source_snapshot_id: Option<i64>,
 ) -> novel_project::Model {
     novel_project::Model {
@@ -16,8 +16,7 @@ fn project(
         description: String::new(),
         project_type: "novel_long".to_string(),
         project_kind: project_kind.to_string(),
-        source_mode: source_mode.to_string(),
-        root_project_id: None,
+        root_project_id,
         source_snapshot_id,
         source_sync_status: "current".to_string(),
         status: "draft".to_string(),
@@ -45,7 +44,7 @@ fn naive_datetime() -> chrono::NaiveDateTime {
 
 #[test]
 fn source_snapshot_id_rejects_text_project() {
-    let err = source_snapshot_id_for_project(&project("text", "self", None))
+    let err = source_snapshot_id_for_project(&project("text", None, None))
         .expect_err("text project should not expose source snapshot chapters");
 
     assert!(matches!(
@@ -57,7 +56,7 @@ fn source_snapshot_id_rejects_text_project() {
 
 #[test]
 fn source_snapshot_id_rejects_freeform_project() {
-    let err = source_snapshot_id_for_project(&project("video", "freeform", None))
+    let err = source_snapshot_id_for_project(&project("video", None, None))
         .expect_err("freeform project should not expose source snapshot chapters");
 
     assert!(matches!(

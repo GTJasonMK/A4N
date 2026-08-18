@@ -1,4 +1,5 @@
 use a4n_core::models::{ai::generated_image, character::character_portrait};
+use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use chrono::Utc;
 use serde_json::json;
 
@@ -59,10 +60,10 @@ fn profile_asset_counts_group_portraits_and_filter_material_kind() {
     assert_eq!(portrait_counts.get(&8), Some(&1));
 
     let images = vec![
-        material_image(1, "object_material", "object", 7),
-        material_image(2, "object_material", "object", 7),
-        material_image(3, "scene_material", "scene", 7),
-        material_image(4, "object_material", "scene", 9),
+        material_image(1, IMAGE_TYPE_OBJECT_MATERIAL, "object", 7),
+        material_image(2, IMAGE_TYPE_OBJECT_MATERIAL, "object", 7),
+        material_image(3, IMAGE_TYPE_SCENE_MATERIAL, "scene", 7),
+        material_image(4, IMAGE_TYPE_OBJECT_MATERIAL, "scene", 9),
     ];
     let object_counts = material_image_counts_by_profile(&images, "object");
     let scene_counts = material_image_counts_by_profile(&images, "scene");

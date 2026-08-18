@@ -138,11 +138,12 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
     row: &chapter_video_prompt::Model,
     context: PromptGenerationContextForWorkflow<'_>,
 ) -> bool {
-    let expected_storage_workflow_mode = if context.prompt_type == "frame_segment_plan" {
-        "shared_segment_plan"
-    } else {
-        context.expected_workflow_mode
-    };
+    let expected_storage_workflow_mode =
+        if context.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
+            chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+        } else {
+            context.expected_workflow_mode
+        };
     if row.prompt_type != context.prompt_type
         || row.workflow_mode != expected_storage_workflow_mode
         || row.style.as_deref() != Some(context.style)
@@ -168,7 +169,7 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
     if metadata.get("contract_version").and_then(Value::as_str) != Some(expected_contract) {
         return false;
     }
-    if prompt_type_uses_prompt_output_language(context.prompt_type)
+    if a4n_core::prompt_language::prompt_type_uses_prompt_output_language(context.prompt_type)
         && !metadata_matches_prompt_output_language(
             row.metadata_json.as_ref(),
             context.prompt_output_language,
@@ -184,8 +185,8 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
             return false;
         }
     }
-    if context.prompt_type == "video_prompt"
-        && context.expected_workflow_mode == "chat_video"
+    if context.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && context.expected_workflow_mode == chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO
         && !reference_ids_match(
             metadata.get("generation_reference_image_ids"),
             context.reference_ids,
@@ -208,18 +209,14 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
     })
 }
 
-fn prompt_type_uses_prompt_output_language(prompt_type: &str) -> bool {
-    a4n_core::prompt_language::prompt_type_uses_prompt_output_language(prompt_type)
-}
-
 fn prompt_type_uses_generation_assets(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
-        "frame_prompt"
-            | "first_frame_prompt"
-            | "chat_video_frame_prompt"
-            | "storyboard_prompt"
-            | "video_prompt"
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_STORYBOARD
+            | chapter_video_prompt::PROMPT_TYPE_VIDEO
     )
 }
 
@@ -228,17 +225,42 @@ pub(in crate::video) fn expected_contract_version(
     prompt_type: &str,
 ) -> Option<&'static str> {
     match (expected_workflow_mode, prompt_type) {
-        ("shared_segment_plan", "frame_segment_plan") => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
-        ("boundary_frames", "video_prompt") => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
-        ("boundary_frames", "frame_prompt") | ("chat_video", "chat_video_frame_prompt") => {
+        (
+            chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+        )
+        | (
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        ) => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
+        (
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            chapter_video_prompt::PROMPT_TYPE_FRAME,
+        )
+        | (
+            chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME,
+        ) => {
             Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION)
         }
-        ("first_frame_chain", "first_frame_prompt" | "video_prompt") => {
+        (
+            chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+            chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME | chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        ) => {
             Some(FIRST_FRAME_CHAIN_CONTRACT_VERSION)
         }
-        ("chat_video", "video_prompt") => Some(CHAT_VIDEO_CONTRACT_VERSION),
-        ("storyboard", "storyboard_prompt") => Some(STORYBOARD_PROMPT_CONTRACT_VERSION),
-        ("storyboard", "video_prompt") => Some(STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION),
+        (
+            chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        ) => Some(CHAT_VIDEO_CONTRACT_VERSION),
+        (
+            chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+            chapter_video_prompt::PROMPT_TYPE_STORYBOARD,
+        ) => Some(STORYBOARD_PROMPT_CONTRACT_VERSION),
+        (
+            chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+            chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        ) => Some(STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION),
         _ => None,
     }
 }
@@ -248,12 +270,22 @@ pub(in crate::video::prompt_records) fn expected_prompt_workflow_mode(
     prompt_type: &str,
 ) -> Option<&'static str> {
     match prompt_type {
-        "frame_segment_plan" => Some("shared_segment_plan"),
-        "frame_prompt" => Some("boundary_frames"),
-        "first_frame_prompt" => Some("first_frame_chain"),
-        "chat_video_frame_prompt" => Some("chat_video"),
-        "storyboard_prompt" => Some("storyboard"),
-        "video_prompt" => None,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+        }
+        chapter_video_prompt::PROMPT_TYPE_FRAME => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES)
+        }
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
+        }
+        chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO)
+        }
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_STORYBOARD)
+        }
+        chapter_video_prompt::PROMPT_TYPE_VIDEO => None,
         _ => None,
     }
 }

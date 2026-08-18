@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
@@ -39,7 +38,6 @@ impl OrchestratorContext {
         db: DbHandle,
         capabilities: A4nCapabilities,
         service_manager: Arc<ServiceManager>,
-        service_pid_dir: Option<PathBuf>,
         config: a4n_core::config::app_config::AppConfig,
         event_bus: Arc<a4n_core::event::bridge::BroadcastEventBus>,
         task_manager: Arc<a4n_core::event::channel::TaskManager>,
@@ -127,7 +125,6 @@ impl OrchestratorContext {
             workflow,
             capabilities,
             service_manager,
-            service_pid_dir,
             config,
             event_bus,
             task_manager,
@@ -232,25 +229,25 @@ impl OrchestratorContext {
         &self.config.database_url
     }
 
-    /// FastEmbed 默认缓存目录。
-    pub fn default_fastembed_cache_dir(&self) -> std::path::PathBuf {
-        self.config.cache_dir.join("embedding-models")
+    /// Embedding 模型缓存目录。
+    pub fn embedding_models_dir(&self) -> std::path::PathBuf {
+        self.config.embedding_models_dir()
     }
 
     /// 注册任务句柄。
     pub fn register_task_handle(
         &self,
         handle: a4n_core::event::channel::TaskHandle,
-    ) -> std::sync::Arc<a4n_core::event::channel::TaskHandle> {
+    ) -> Result<std::sync::Arc<a4n_core::event::channel::TaskHandle>, AppError> {
         self.task_manager.register(handle)
     }
 
     /// 移除任务句柄。
     pub fn remove_task_handle(
         &self,
-        task_id: &str,
-    ) -> Option<std::sync::Arc<a4n_core::event::channel::TaskHandle>> {
-        self.task_manager.remove(task_id)
+        handle: &std::sync::Arc<a4n_core::event::channel::TaskHandle>,
+    ) -> Result<(), AppError> {
+        self.task_manager.remove(handle)
     }
 
     pub fn task_handle(
@@ -263,6 +260,10 @@ impl OrchestratorContext {
     /// 取消已注册任务句柄。
     pub fn cancel_task_handle(&self, task_id: &str) -> bool {
         self.task_manager.cancel(task_id)
+    }
+
+    pub fn cancel_owned_task_handle(&self, task_id: &str, user_id: i64) -> bool {
+        self.task_manager.cancel_owned(task_id, user_id)
     }
 
     /// 取消任务；任务尚未注册时保留短期取消意图。

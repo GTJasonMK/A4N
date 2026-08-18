@@ -1,9 +1,9 @@
 use super::file::create_imported_image_output;
 use crate::{
-    AppState, actions::image_generation::GeneratedImageSummary,
-    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::persist_created_media_file,
 };
+use a4n_core::models::ai::generated_image;
 use a4n_orchestrator::media::PreparedImportedImageUpload;
 use std::io::Write;
 
@@ -11,7 +11,7 @@ pub(super) async fn persist_imported_image(
     state: &AppState,
     user_id: i64,
     prepared: PreparedImportedImageUpload,
-) -> Result<GeneratedImageSummary, String> {
+) -> Result<generated_image::Model, String> {
     let project_id = prepared.project_id;
     let chapter_id = prepared.chapter_id;
     let extension = prepared.decoded.extension;
@@ -58,5 +58,5 @@ pub(super) async fn persist_imported_image(
             });
         }
     };
-    Ok(a4n_orchestrator::media::generated_image_summary(&record))
+    Ok(record)
 }

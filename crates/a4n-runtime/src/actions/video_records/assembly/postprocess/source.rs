@@ -11,13 +11,9 @@ pub(in crate::actions::video_records::assembly) async fn postprocess_edit_source
     plan: &AssemblyPostprocessPlan,
     input: &ApplyAssemblyPostprocessEditInput,
 ) -> Result<Option<PostprocessEditSource>, String> {
-    let has_uploaded_source = [
-        input.source_file_name.as_deref(),
-        input.source_mime_type.as_deref(),
-        input.source_data_base64.as_deref(),
-    ]
-    .iter()
-    .any(|value| value.map(str::trim).is_some_and(|value| !value.is_empty()));
+    let has_uploaded_source = input.source_file_name.is_some()
+        || input.source_mime_type.is_some()
+        || input.source_data_base64.is_some();
     match state
         .orchestrator()
         .prepare_assembly_postprocess_source_validated(

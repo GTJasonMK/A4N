@@ -1,13 +1,10 @@
 use super::shared::{ModelDiscoveryInput, require_config_admin};
-use crate::{AppState, actions::app_error_message};
+use crate::{
+    AppState,
+    actions::app_error_message,
+    sidecar_clients::{ModelDiscoveryKind, discover_models},
+};
 use a4n_model_discovery::ModelDiscoveryResult;
-
-#[derive(Clone, Copy)]
-enum ModelDiscoveryKind {
-    Llm,
-    Image,
-    Video,
-}
 
 pub async fn detect_llm_config_models(
     state: &AppState,
@@ -40,38 +37,15 @@ async fn detect_config_models(
     input: ModelDiscoveryInput,
 ) -> Result<ModelDiscoveryResult, String> {
     let api_key = resolve_model_discovery_api_key(state, user_id, kind, &input).await?;
-    match kind {
-        ModelDiscoveryKind::Llm => {
-            crate::sidecar_clients::discover_llm_models(
-                state.runtime_profile(),
-                state.capabilities(),
-                &input.provider,
-                &input.base_url,
-                api_key.as_deref(),
-            )
-            .await
-        }
-        ModelDiscoveryKind::Image => {
-            crate::sidecar_clients::discover_image_models(
-                state.runtime_profile(),
-                state.capabilities(),
-                &input.provider,
-                &input.base_url,
-                api_key.as_deref(),
-            )
-            .await
-        }
-        ModelDiscoveryKind::Video => {
-            crate::sidecar_clients::discover_video_models(
-                state.runtime_profile(),
-                state.capabilities(),
-                &input.provider,
-                &input.base_url,
-                api_key.as_deref(),
-            )
-            .await
-        }
-    }
+    discover_models(
+        state.runtime_profile(),
+        state.capabilities(),
+        kind,
+        &input.provider,
+        &input.base_url,
+        api_key.as_deref(),
+    )
+    .await
 }
 
 async fn resolve_model_discovery_api_key(
@@ -117,16 +91,17 @@ async fn resolve_model_discovery_api_key(
                 .api_key_encrypted
         }
     };
-    saved_api_key
-        .map(|value| value.trim().to_string())
+    let saved_api_key = saved_api_key
+        .as_deref()
+        .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(Some)
         .ok_or_else(|| {
             format!(
                 "{}模型探测请求使用已保存密钥，但配置 {config_id} 没有可用 API Key",
                 kind.label()
             )
-        })
+        })?;
+    Ok(Some(saved_api_key.to_string()))
 }
 
 fn normalized_explicit_api_key(input: &ModelDiscoveryInput) -> Result<Option<String>, String> {
@@ -140,16 +115,6 @@ fn normalized_explicit_api_key(input: &ModelDiscoveryInput) -> Result<Option<Str
         return Err("模型探测不能同时提供 api_key 并请求使用已保存密钥".to_string());
     }
     Ok(api_key)
-}
-
-impl ModelDiscoveryKind {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Llm => "LLM",
-            Self::Image => "图片",
-            Self::Video => "视频",
-        }
-    }
 }
 
 #[cfg(test)]

@@ -2,7 +2,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use a4n_domain::DownstreamConflictStrategy;
+use a4n_core::video_execution::VideoSegmentPlanV2;
+
+pub use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+pub use a4n_domain::{AssemblyPostprocessOperation, DownstreamConflictStrategy};
 
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
 
@@ -69,6 +72,28 @@ pub enum VideoGenerationOperation {
 }
 
 impl VideoGenerationOperation {
+    pub fn kind(&self) -> &'static str {
+        self.names().0
+    }
+
+    pub fn generation_task_key(&self) -> &'static str {
+        self.names().1
+    }
+
+    fn names(&self) -> (&'static str, &'static str) {
+        match self {
+            Self::Chapter { .. } => ("chapter", "video_chapter"),
+            Self::ChapterBatch { .. } => ("chapter_batch", "video_chapter_batch"),
+            Self::ReferenceMedia { .. } => ("reference_media", "video_reference_media"),
+            Self::PromptSegmentPlan { .. } => ("prompt_segment_plan", "video_prompt_segment_plan"),
+            Self::PromptInsertedSegment { .. } => {
+                ("prompt_inserted_segment", "video_prompt_inserted_segment")
+            }
+            Self::PromptFrames { .. } => ("prompt_frames", "video_prompt_frames"),
+            Self::PromptVideos { .. } => ("prompt_videos", "video_prompt_videos"),
+        }
+    }
+
     pub fn is_prompt_generation(&self) -> bool {
         matches!(
             self,
@@ -91,8 +116,7 @@ pub struct VideoPromptGenerationOptions {
     #[schemars(range(min = 1))]
     pub segment_plan_prompt_id: Option<i64>,
     pub style: String,
-    #[serde(default)]
-    pub prompt_output_language: Option<String>,
+    pub prompt_output_language: String,
     #[schemars(range(min = 1))]
     pub prompt_batch_size: i32,
     #[serde(default)]
@@ -140,8 +164,7 @@ pub struct VideoInsertedSegmentGenerationOptions {
     #[schemars(length(min = 1))]
     pub user_prompt: String,
     pub style: String,
-    #[serde(default)]
-    pub prompt_output_language: Option<String>,
+    pub prompt_output_language: String,
     #[schemars(range(min = 1, max = 60))]
     pub duration_secs: i32,
     pub duration_secs_options: Vec<i32>,
@@ -237,6 +260,42 @@ pub struct DeleteInsertedSegmentInput {
     pub expected_timeline_revision: i64,
     #[schemars(range(min = 1))]
     pub timeline_item_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateVideoSegmentPlanDraftRecipeInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+    #[schemars(length(min = 1))]
+    pub source_shot_id: String,
+    #[schemars(range(min = 1))]
+    pub segment_index_in_shot: i32,
+    pub recipe: VideoSegmentExecutionRecipeV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LoadVideoSegmentPlanDraftInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct VideoSegmentPlanDraftSummary {
+    pub run: crate::workflow::WorkflowRunSummary,
+    pub segments: Vec<VideoSegmentPlanV2>,
+    pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
+    pub completed_shot_count: usize,
+    pub total_shot_count: usize,
 }
 
 /// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
@@ -534,24 +593,6 @@ pub struct UpdateAssemblyPushStatusInput {
     pub action: AssemblyPushAction,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum AssemblyPostprocessOperation {
-    Insert,
-    Delete,
-    Replace,
-}
-
-impl AssemblyPostprocessOperation {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Insert => "insert",
-            Self::Delete => "delete",
-            Self::Replace => "replace",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ApplyAssemblyPostprocessEditInput {
@@ -600,21 +641,6 @@ pub struct UploadAssemblyInsertVideoInput {
     pub data_base64: String,
     #[serde(default)]
     pub insert_after_video_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct ImportCanvasVideoInput {
-    #[serde(default)]
-    pub file_path: Option<String>,
-    #[serde(default)]
-    pub file_name: Option<String>,
-    #[serde(default)]
-    pub mime_type: Option<String>,
-    #[serde(default)]
-    pub data_base64: Option<String>,
-    #[serde(default)]
-    pub prompt: Option<String>,
 }
 
 #[cfg(test)]

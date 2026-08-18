@@ -1,7 +1,7 @@
 use a4n_core::{models::scene::scene_transition, rag::RagDataType};
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn scene_transition_rag_text(
     transition: &scene_transition::Model,
@@ -43,16 +43,11 @@ pub fn scene_transition_rag_record(
     to_scene_name: &str,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("scene_transition:{project_id}:{}", transition.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::SceneTransition, transition.id),
         text: scene_transition_rag_text(transition, from_scene_name, to_scene_name)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::SceneTransition.as_str(),
-            "scene_transition_id": transition.id,
-            "from_scene_profile_id": transition.from_scene_profile_id,
-            "to_scene_profile_id": transition.to_scene_profile_id,
             "chapter_number": transition.chapter_number,
-            "transition_order": transition.transition_order,
-            "movement_type": transition.movement_type,
         }),
     })
 }

@@ -1,14 +1,11 @@
 use std::pin::Pin;
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{
-    ChatChunk, ChatMessage, ChatRequest, LlmProvider, MessageRole, ModelCapabilities,
-    collect_chat_stream,
-};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::Stream;
 
-use super::{CONNECTION_TEST_MAX_TOKENS, HttpLlmProvider, streaming};
+use super::{HttpLlmProvider, streaming};
 
 #[async_trait]
 impl LlmProvider for HttpLlmProvider {
@@ -17,35 +14,6 @@ impl LlmProvider for HttpLlmProvider {
         request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         streaming::execute_chat_stream(self, request).await
-    }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        let test_request = ChatRequest {
-            messages: vec![ChatMessage {
-                role: MessageRole::User,
-                content: "ping".into(),
-                tool_calls: None,
-                tool_call_id: None,
-            }],
-            temperature: Some(0.0),
-            max_tokens: Some(CONNECTION_TEST_MAX_TOKENS),
-            max_tokens_profile: None,
-            response_format: None,
-            stream_include_usage: false,
-            cache_scope_key: None,
-            cache_system_prefix: false,
-            cache_user_prefix_len: None,
-            trace_context: None,
-            context_manifest_json: None,
-            tools: None,
-            tool_choice: None,
-            stop_sequences: None,
-        };
-
-        // 连通性探测只走真实 chat_stream，禁止完整响应 chat()。
-        collect_chat_stream(self, test_request)
-            .await
-            .map(|response| !response.message.content.trim().is_empty())
     }
 
     fn model_name(&self) -> &str {

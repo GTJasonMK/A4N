@@ -36,10 +36,10 @@ jobs:
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Check server minimal host
-        run: timeout 600 ./scripts/build.sh --check -p a4n-server --no-default-features
+        run: timeout 600 ./scripts/build.sh --check --package a4n-server --no-default-features
 
       - name: Check tauri minimal host
-        run: timeout 600 ./scripts/build.sh --check -p a4n-tauri --no-default-features
+        run: timeout 600 ./scripts/build.sh --check --package a4n-tauri --no-default-features
 
       - name: Assert server minimal host excludes heavy providers
         run: |
@@ -88,8 +88,10 @@ jobs:
 
       - id: catalog
         run: |
-          ruby -rjson -e 'puts "packages=#{JSON.generate(JSON.parse(File.read(ARGV.fetch(0))).map { |entry| entry.fetch("binary") })}"' \
-            crates/a4n-service-protocol/service-catalog.json >> "$GITHUB_OUTPUT"
+          source scripts/lib/common.sh
+          sidecar_packages="$(sidecar_catalog_binaries)"
+          ruby -rjson -e 'puts "packages=#{JSON.generate(STDIN.each_line(chomp: true).to_a)}"' \
+            <<<"$sidecar_packages" >> "$GITHUB_OUTPUT"
 
   sidecars:
     name: Sidecar package ${{ matrix.package }}
@@ -147,12 +149,24 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
-      - name: Start Qdrant for RAG process test
-        if: matrix.package == 'a4n-rag-service'
-        run: docker run --detach --rm --publish 6334:6334 qdrant/qdrant:v1.18.3
-
       - name: Run independent sidecar process test
         run: |
+          qdrant_pid=""
+          cleanup() {
+            if [[ -n "$qdrant_pid" ]] && kill -0 "$qdrant_pid" 2>/dev/null; then
+              kill "$qdrant_pid"
+              wait "$qdrant_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+          if [ "${{ matrix.package }}" = "a4n-rag-service" ]; then
+            ./scripts/dev/setup-qdrant.sh
+            source scripts/lib/common.sh
+            qdrant_log="$CARGO_TARGET_DIR/tmp/rag-process-qdrant.log"
+            ./scripts/dev/run-qdrant.sh >"$qdrant_log" 2>&1 &
+            qdrant_pid=$!
+            wait_for_qdrant "$qdrant_pid" "$qdrant_log"
+          fi
           if [ "${{ matrix.package }}" = "a4n-embedding-service" ]; then
             ./scripts/dev/setup-onnxruntime.sh
             source scripts/lib/common.sh
@@ -252,7 +266,7 @@ jobs:
           --health-retries 20
     env:
       A4N_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
-      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
+      A4N_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -260,7 +274,7 @@ jobs:
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Run all migrations against PostgreSQL
-        run: timeout 300 cargo run -p a4n-migration -- "$DATABASE_URL"
+        run: timeout 300 cargo run -p a4n-migration
 
       - name: Run database integration tests
         run: timeout 900 cargo test -p a4n-db --lib --tests -- --nocapture
@@ -328,10 +342,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-      qdrant:
-        image: qdrant/qdrant:v1.18.3
-        ports:
-          - 6334:6334
     env:
       A4N_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
       A4N_QDRANT_URL: http://127.0.0.1:6334
@@ -364,9 +374,6 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Migrate PostgreSQL test database
-        run: cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
-
       - name: Build real Linux release archive
         run: |
           ./scripts/dev/setup-onnxruntime.sh
@@ -374,8 +381,16 @@ jobs:
           require_onnxruntime
           ./scripts/deploy.sh --target linux-x86_64
 
-      - name: Start installed host and eight sidecars
+      - name: Start installed Host and catalog sidecars
         run: |
+          ./scripts/dev/setup-qdrant.sh
+          source scripts/lib/common.sh
+          mkdir -p "$A4N_RELEASE_SMOKE_ARTIFACT_DIR"
+          qdrant_log="$A4N_RELEASE_SMOKE_ARTIFACT_DIR/qdrant.log"
+          ./scripts/dev/run-qdrant.sh >"$qdrant_log" 2>&1 &
+          qdrant_pid=$!
+          trap 'kill "$qdrant_pid" 2>/dev/null || true; wait "$qdrant_pid" 2>/dev/null || true' EXIT
+          wait_for_qdrant "$qdrant_pid" "$qdrant_log"
           A4N_JWT_SECRET="$(openssl rand -hex 32)" \
             xvfb-run -a timeout 180 \
             ./scripts/checks/smoke-linux-release-package.sh \
@@ -426,12 +441,6 @@ jobs:
           & "$env:PGBIN\createdb.exe" -h 127.0.0.1 -U postgres a4n_test
           if ($LASTEXITCODE -ne 0) { throw "unable to create a4n_test" }
 
-      - name: Migrate PostgreSQL test database
-        shell: pwsh
-        run: |
-          cargo run -p a4n-migration -- "$env:A4N_DATABASE_URL"
-          if ($LASTEXITCODE -ne 0) { throw "database migration failed" }
-
       - name: Build real Windows portable archive
         shell: bash
         run: |
@@ -444,14 +453,21 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts\qdrant | Out-Null
-          $archive = "$env:RUNNER_TEMP\qdrant.zip"
-          Invoke-WebRequest -Uri "https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-x86_64-pc-windows-msvc.zip" -OutFile $archive
+          $qdrantRoot = Join-Path $env:GITHUB_WORKSPACE "target\tmp\qdrant"
+          New-Item -ItemType Directory -Force -Path $qdrantRoot | Out-Null
+          $metadata = @(& bash -c 'source scripts/lib/common.sh; qdrant_release_metadata windows-x86_64')
+          if ($LASTEXITCODE -ne 0 -or $metadata.Count -ne 1) { throw "unable to load Qdrant release metadata" }
+          $release = $metadata[0].Split("`t")
+          if ($release.Count -ne 3) { throw "invalid Qdrant release metadata" }
+          $version, $asset, $expectedSha256 = $release
+          $archive = Join-Path $qdrantRoot $asset
+          Invoke-WebRequest -Uri "https://github.com/qdrant/qdrant/releases/download/$version/$asset" -OutFile $archive
           $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
-          if ($actual -ne "984619bbd4032ace578656174c465c5d6b71d1267ecad5b7b4c21cc6549ca833") {
+          if ($actual -ne $expectedSha256) {
             throw "Qdrant SHA-256 mismatch: $actual"
           }
-          Expand-Archive -LiteralPath $archive -DestinationPath "$env:RUNNER_TEMP\qdrant"
-          $qdrant = Start-Process -FilePath "$env:RUNNER_TEMP\qdrant\qdrant.exe" `
+          Expand-Archive -LiteralPath $archive -DestinationPath $qdrantRoot
+          $qdrant = Start-Process -FilePath (Join-Path $qdrantRoot "qdrant.exe") `
             -RedirectStandardOutput artifacts\qdrant\stdout.log `
             -RedirectStandardError artifacts\qdrant\stderr.log -PassThru
           $qdrant.Id | Out-File -FilePath artifacts\qdrant\pid -Encoding ascii
@@ -530,8 +546,6 @@ jobs:
           pg_isready -h 127.0.0.1 -d postgres
           psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='a4n'" | grep -q 1 || createuser -h 127.0.0.1 -s a4n
           psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='a4n_test'" | grep -q 1 || createdb -h 127.0.0.1 -O a4n a4n_test
-          cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
-
       - name: Build unsigned macOS arm64 Tauri app
         run: |
           ./scripts/dev/setup-onnxruntime.sh
@@ -540,30 +554,17 @@ jobs:
             --target aarch64-apple-darwin \
             --bundles app
 
-      - name: Start verified Qdrant 1.18.3
+      - name: Start verified Qdrant and bundled Host
         run: |
-          mkdir -p artifacts/qdrant "$RUNNER_TEMP/qdrant"
-          archive="$RUNNER_TEMP/qdrant.tar.gz"
-          curl -fL --retry 3 -o "$archive" \
-            https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-aarch64-apple-darwin.tar.gz
-          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
-          test "$actual" = "0cb040a261035c316779bd7b4cca2e6ab39faf62640d6918bbbe320e2a9a6547"
-          tar -xzf "$archive" -C "$RUNNER_TEMP/qdrant"
-          chmod +x "$RUNNER_TEMP/qdrant/qdrant"
-          pushd "$RUNNER_TEMP/qdrant"
-          ./qdrant >"$GITHUB_WORKSPACE/artifacts/qdrant/qdrant.log" 2>&1 &
-          echo $! >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
-          popd
-          for _ in {1..300}; do
-            if curl -fsS --max-time 1 http://127.0.0.1:6333/readyz && nc -z 127.0.0.1 6334; then
-              exit 0
-            fi
-            sleep 0.1
-          done
-          exit 1
-
-      - name: Start bundled Host and eight sidecars
-        run: |
+          ./scripts/dev/setup-qdrant.sh
+          source scripts/lib/common.sh
+          mkdir -p artifacts/qdrant
+          qdrant_log="$GITHUB_WORKSPACE/artifacts/qdrant/qdrant.log"
+          ./scripts/dev/run-qdrant.sh >"$qdrant_log" 2>&1 &
+          qdrant_pid=$!
+          echo "$qdrant_pid" >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
+          trap 'kill "$qdrant_pid" 2>/dev/null || true; wait "$qdrant_pid" 2>/dev/null || true' EXIT
+          wait_for_qdrant "$qdrant_pid" "$qdrant_log"
           A4N_JWT_SECRET="$(openssl rand -hex 32)" \
             ./scripts/checks/smoke-macos-tauri-bundle.sh \
             target/aarch64-apple-darwin/release/bundle/macos/A4N.app
@@ -575,22 +576,19 @@ jobs:
           version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
           archive="$output/A4N-${version}-macos-arm64-unsigned.zip"
           manifest="$output/A4N-${version}-macos-arm64-unsigned.manifest.json"
-          check="$RUNNER_TEMP/a4n-macos-package-check"
+          check="$GITHUB_WORKSPACE/target/tmp/a4n-macos-package-check"
           mkdir -p "$output" "$check"
           ruby scripts/release_manifest.rb generate \
             --package-root "$(dirname "$app")" \
             --target aarch64-apple-darwin \
             --package a4n-tauri \
-            --host a4n-tauri \
-            --catalog crates/a4n-service-protocol/service-catalog.json \
             --tauri-app "$app" \
             --output "$manifest"
           ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
           ditto -x -k "$archive" "$check"
           ruby scripts/release_manifest.rb verify \
             --package-root "$check" \
-            --manifest "$manifest" \
-            --catalog crates/a4n-service-protocol/service-catalog.json
+            --manifest "$manifest"
           (
             cd "$output"
             shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256"
@@ -721,7 +719,7 @@ jobs:
           cargo audit
           cargo deny check
 
-      - name: Generate Host and sidecar CycloneDX SBOMs
+      - name: Generate Host, tool, and sidecar CycloneDX SBOMs
         run: ./scripts/checks/generate-release-sbom.sh artifacts/supply-chain "ci-${GITHUB_SHA}"
 
       - name: Upload SBOM
@@ -808,23 +806,3 @@ jobs:
         run: |
           cargo test -p a4n-service-manager --lib remote_tls_fingerprint_detects_same_length_content_rotation -- --nocapture
           cargo test -p a4n-service-manager --lib remote_mtls_process_handshake_and_certificate_reload -- --nocapture
-
-  sidecar-version-matrix:
-    name: Historical sidecar version matrix
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-
-      - name: Install ripgrep
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ripgrep
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
-
-      - name: Run real old/new/rollback sidecar process matrix
-        run: timeout 1800 ./scripts/checks/check-sidecar-version-matrix.sh

@@ -24,7 +24,7 @@ crates/
   a4n-embedding* / a4n-rag*   Embedding 与 RAG 核心、索引和 sidecar
   a4n-image* / a4n-video*     图片/视频合同、provider 和 sidecar
   a4n-api-contract            Server/Tauri 共享 Host API 合同与 TS 生成
-  a4n-service-protocol        八个 sidecar 的协议、catalog 和发布合同
+  a4n-service-protocol        生产 sidecar 的协议、catalog 和发布合同
   a4n-db / a4n-domain         数据库边界与纯领域值对象
   a4n-orchestrator            业务规则、事务、工作流和能力编排唯一 owner
   a4n-runtime                 provider、文件、进程和 Host API 适配
@@ -62,21 +62,21 @@ scripts/         开发、构建、测试脚本
 
 ```bash
 cd frontend
-npm install
+npm ci
 ```
 
-安装本地 embedding 使用的共享 ONNX Runtime 1.24.2：
+安装本地 embedding 使用的共享 ONNX Runtime（版本由 `tools/onnxruntime/VERSION` 固定）：
 
 ```bash
 ./scripts/dev/setup-onnxruntime.sh
 ```
 
-运行库默认安装到 `~/.local/share/a4n/onnxruntime/1.24.2`，独立于 Cargo 的
+运行库默认安装到 `~/.local/share/a4n/onnxruntime/<version>`，独立于 Cargo 的
 `target/` 和构建缓存。项目构建脚本会动态链接该固定版本；缺失或版本不匹配时
 会明确失败，不会在 Cargo 构建阶段自动下载。
 
 部署目标机同样需要先运行该安装脚本，或通过 `A4N_ONNXRUNTIME_ROOT` 指向一套
-完整的 ONNX Runtime 1.24.2 动态库目录。
+版本匹配的完整 ONNX Runtime 动态库目录。
 
 启动开发环境：
 
@@ -134,13 +134,13 @@ npm run build
 JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察和本地
 Server 生命周期管理。完整说明见 [A4N CLI 手册](docs/CLI.md)。
 
-最小启动：
+本地启动：
 
 ```bash
 export A4N_DATABASE_URL='postgres://USER:PASSWORD@127.0.0.1:5432/a4n'
 export A4N_JWT_SECRET='replace-with-a-long-random-secret'
 
-cargo run -p a4n-cli -- local start --no-sidecars --no-qdrant
+cargo run -p a4n-cli -- local start
 cargo run -p a4n-cli -- --agent capabilities check
 ```
 
@@ -150,15 +150,20 @@ cargo run -p a4n-cli -- --agent capabilities check
 a4n local start
 a4n health
 a4n --agent capabilities export
+a4n config runtime set --input @runtime-config.json
 a4n local stop
 ```
+
+`config runtime show/set/clear` 管理与 GUI 本机 Provider 设置相同的运行时配置。
+`a4n call` 会按 manifest 的 `full`、`without_secrets` 或 `none` 策略自动注入；预览请求
+不会携带 Provider 密钥。
 
 发布包默认 sidecar profile 已包含完整 AI 能力。`a4n local start --full` 专用于源码
 workspace，会重新构建带 `embedded-capabilities` feature 的 Server。
 
 `a4n local` 会先运行独立 migration，再启动 Server；它不会自动启动 PostgreSQL
-或 Docker。默认 profile 使用 8 个 managed sidecar；源码 workspace 可用 `--full`
-运行 embedded capabilities。
+或 Docker。默认 profile 使用 catalog 声明的 managed sidecar；源码 workspace 可用
+`--full` 运行 embedded capabilities。
 
 ## 配置与本地数据
 
@@ -185,7 +190,6 @@ Web 运行常用变量：
 - `A4N_LOG_DIR`
 - `A4N_OPENAI_API_KEY`
 - `A4N_OPENAI_BASE_URL`
-- `DATABASE_URL`
 - `A4N_TEST_DATABASE_URL`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`

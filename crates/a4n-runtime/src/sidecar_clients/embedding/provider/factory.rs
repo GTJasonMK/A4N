@@ -5,10 +5,7 @@ use a4n_core::{config::app_config::AppConfig, error::AppError};
 use a4n_embedding::provider::EmbeddingProvider;
 use a4n_orchestrator::DynamicProviderFacade;
 
-use crate::{
-    dynamic_embedding::{self, DynamicEmbeddingProvider},
-    state::RuntimeProfile,
-};
+use crate::{dynamic_embedding::DynamicEmbeddingProvider, state::RuntimeProfile};
 
 use super::super::super::required_sidecar_client;
 use super::SidecarEmbeddingProvider;
@@ -32,7 +29,8 @@ pub(crate) fn create_embedding_provider(
     }
     Ok(Arc::new(DynamicEmbeddingProvider::new(
         facade,
-        config.embedding.clone(),
-        dynamic_embedding::default_fastembed_cache_dir(config),
+        config.embedding.dimension,
+        config.embedding.batch_size,
+        config.embedding_models_dir(),
     )))
 }

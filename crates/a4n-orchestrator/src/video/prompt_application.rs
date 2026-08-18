@@ -1,7 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 
 pub use a4n_api_contract::video::{
-    ChapterVideoPromptSummary, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
+    ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
+    UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
 };
 use a4n_core::{
     error::AppError,
@@ -12,7 +13,7 @@ use a4n_core::{
     prompt_language::PromptOutputLanguage,
     source_spans::source_text_hash as source_content_sha256,
     video_execution::{
-        VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2, resolve_video_segment_number,
+        VideoSegmentExecutionRecipeV1, VideoSegmentWorkflowModeV1, resolve_video_segment_number,
         video_segment_recipes_for_plan_from_metadata,
     },
 };
@@ -20,7 +21,7 @@ use a4n_db::video_prompt::ChapterVideoPromptPatch;
 use a4n_domain::DownstreamConflictStrategy;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -33,25 +34,14 @@ use crate::{
 use super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSource,
     ChapterVideoSourceContext, VideoPromptChunk, VideoPromptDownstreamDependencies,
-    VideoPromptOptimizationInput, VideoPromptProgress, VideoPromptProgressUpdate,
-    duration_capability_for_config, load_video_segment_plan_draft_checkpoints,
+    VideoPromptProgress, VideoPromptProgressUpdate, duration_capability_for_config,
+    load_video_segment_plan_draft_checkpoints,
     load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
     validate_prompt_options_with_reference_limit, validate_video_duration_for_config_secs,
     video_db_error,
 };
+use super::prompt_optimization::VideoPromptOptimizationInput;
 
-const VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES: &str = "boundary_frames";
-const VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN: &str = "first_frame_chain";
-const VIDEO_WORKFLOW_MODE_CHAT_VIDEO: &str = "chat_video";
-const VIDEO_WORKFLOW_MODE_STORYBOARD: &str = "storyboard";
-const VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN: &str = "shared_segment_plan";
-const WORKFLOW_MODES: &[&str] = &[
-    VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
-    VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
-    VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
-    VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
-    VIDEO_WORKFLOW_MODE_STORYBOARD,
-];
 const MAX_NON_CHAT_REFERENCE_IMAGE_IDS: usize = 4;
 const MAX_CHAT_REFERENCE_IMAGE_IDS: usize = 16;
 
@@ -71,32 +61,12 @@ pub struct GenerateChapterVideoPromptInput {
     pub options: GeneratePromptOptionsInput,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct VideoSegmentPlanDraftSummary {
+pub struct VideoSegmentPlanDraftState {
     pub run: WorkflowRunSummary,
-    pub segments: Vec<VideoSegmentPlanV2>,
+    pub segments: Vec<a4n_core::video_execution::VideoSegmentPlanV2>,
     pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
     pub completed_shot_count: usize,
     pub total_shot_count: usize,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LoadVideoSegmentPlanDraftInput {
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub workflow_run_id: i64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateVideoSegmentPlanDraftRecipeInput {
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub workflow_run_id: i64,
-    pub source_shot_id: String,
-    pub segment_index_in_shot: i32,
-    pub recipe: VideoSegmentExecutionRecipeV1,
 }
 
 pub struct VideoPromptApplicationContext<'a> {
@@ -277,7 +247,7 @@ impl OrchestratorContext {
         let mut options = validate_generate_prompt_options(options, &workflow_mode, None)?;
         options.target_shot_number = segment_recipe.as_ref().map(|recipe| recipe.segment_number);
         options.segment_recipe = segment_recipe;
-        if workflow_mode != VIDEO_WORKFLOW_MODE_CHAT_VIDEO {
+        if workflow_mode != chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO {
             let config = self.effective_video_config(runtime_video_config).await?;
             apply_duration_capability(&config, &mut options)?;
         }
@@ -370,13 +340,13 @@ impl OrchestratorContext {
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!("当前片段规划缺少片段 {target} 的执行方案"))
                 })?;
-        if recipe.workflow_mode.as_str() == "reference_media" {
+        if recipe.workflow_mode == VideoSegmentWorkflowModeV1::ReferenceMedia {
             return Err(AppError::InvalidArgument(
                 "参考媒体方案应直接使用参考媒体生成入口，不能生成普通帧或视频提示词".to_string(),
             ));
         }
         if matches!(stage, PromptGenerationStage::Frame)
-            && recipe.workflow_mode.as_str() == VIDEO_WORKFLOW_MODE_CHAT_VIDEO
+            && recipe.workflow_mode.as_str() == chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO
         {
             return Err(AppError::InvalidArgument(
                 "Chat 方案不需要帧提示词，请直接生成当前片段的最终提示词".to_string(),
@@ -389,9 +359,11 @@ impl OrchestratorContext {
         }
         options.workflow_mode = Some(recipe.workflow_mode.as_str().to_string());
         options.style.clone_from(&recipe.style);
-        options.prompt_output_language = Some(recipe.prompt_output_language.clone());
+        options
+            .prompt_output_language
+            .clone_from(&recipe.prompt_output_language);
         options.prompt_batch_size = if matches!(stage, PromptGenerationStage::Frame)
-            && recipe.workflow_mode.as_str() == VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
+            && recipe.workflow_mode.as_str() == chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
         {
             2
         } else {
@@ -480,7 +452,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         input: LoadVideoSegmentPlanDraftInput,
-    ) -> Result<VideoSegmentPlanDraftSummary, AppError> {
+    ) -> Result<VideoSegmentPlanDraftState, AppError> {
         let VideoSegmentPlanDraftContext { run, style } = self
             .video_segment_plan_draft_context(
                 user_id,
@@ -497,7 +469,7 @@ impl OrchestratorContext {
         } else {
             load_video_segment_plan_draft_recipe_state(&checkpoints, &style)?
         };
-        Ok(VideoSegmentPlanDraftSummary {
+        Ok(VideoSegmentPlanDraftState {
             run,
             segments,
             recipes,
@@ -545,7 +517,8 @@ impl OrchestratorContext {
         if run.workflow_kind != "video_segment_plan"
             || run.project_id != Some(project_id)
             || run.chapter_id != Some(chapter_id)
-            || run.mode.as_deref() != Some(VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+            || run.mode.as_deref()
+                != Some(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
         {
             return Err(AppError::InvalidArgument(format!(
                 "片段规划 workflow {workflow_run_id} 与当前项目或章节不一致"
@@ -571,7 +544,7 @@ impl OrchestratorContext {
             || fingerprint.get("project_id").and_then(Value::as_i64) != Some(project_id)
             || fingerprint.get("chapter_id").and_then(Value::as_i64) != Some(chapter_id)
             || fingerprint.get("workflow_mode").and_then(Value::as_str)
-                != Some(VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+                != Some(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
         {
             return Err(AppError::InvalidState {
                 current: "invalid_input_fingerprint_json".to_string(),
@@ -738,9 +711,10 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         if prompt.project_id != project_id
             || prompt.chapter_id != chapter_id
-            || prompt.prompt_type != "frame_segment_plan"
-            || prompt.workflow_mode != "shared_segment_plan"
-            || prompt.status != "completed"
+            || prompt.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+            || prompt.workflow_mode
+                != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+            || prompt.status != chapter_video_prompt::STATUS_COMPLETED
             || prompt
                 .metadata_json
                 .as_ref()
@@ -846,8 +820,12 @@ impl OrchestratorContext {
             )
             .await?;
         self.apply_downstream_cleanup(cleanup, &plan).await?;
-        self.delete_chapter_video_prompt_checked(prompt_id, plan.allow_downstream)
-            .await
+        self.delete_chapter_video_prompts_checked(
+            std::slice::from_ref(&prompt_id),
+            plan.allow_downstream,
+        )
+        .await
+        .map(|_| ())
     }
 
     pub async fn optimize_chapter_video_prompt_validated(
@@ -988,9 +966,9 @@ fn generation_prepare_message(workflow_mode: &str, stage: PromptGenerationStage)
         return "正在准备章节正文、素材和时长档位";
     }
     match workflow_mode {
-        VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN => "正在准备章节正文、首帧和素材",
-        VIDEO_WORKFLOW_MODE_CHAT_VIDEO => "正在准备章节正文和 Chat 上传素材",
-        VIDEO_WORKFLOW_MODE_STORYBOARD => "正在准备章节正文、分镜图和素材",
+        chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN => "正在准备章节正文、首帧和素材",
+        chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO => "正在准备章节正文和 Chat 上传素材",
+        chapter_video_prompt::WORKFLOW_MODE_STORYBOARD => "正在准备章节正文、分镜图和素材",
         _ => "正在准备章节正文、边界帧和素材",
     }
 }
@@ -1002,7 +980,7 @@ fn ensure_video_workflow_mode(input: &GeneratePromptOptionsInput) -> Result<Stri
         .map(str::trim)
         .filter(|mode| !mode.is_empty())
         .ok_or_else(|| AppError::InvalidArgument("视频提示词生成缺少 workflow_mode".to_string()))?;
-    if !WORKFLOW_MODES.contains(&mode) {
+    if !chapter_video_prompt::WORKFLOW_MODES.contains(&mode) {
         return Err(AppError::InvalidArgument(format!(
             "视频提示词生成 workflow_mode 无效: {mode}"
         )));
@@ -1016,13 +994,15 @@ fn ensure_video_workflow_mode_for_stage(
 ) -> Result<String, AppError> {
     let mode = ensure_video_workflow_mode(input)?;
     match stage {
-        PromptGenerationStage::Segment if mode != VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN => {
+        PromptGenerationStage::Segment
+            if mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN =>
+        {
             Err(AppError::InvalidArgument(
                 "共享片段规划 workflow_mode 必须为 shared_segment_plan".to_string(),
             ))
         }
         PromptGenerationStage::Frame | PromptGenerationStage::Video
-            if mode == VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN =>
+            if mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN =>
         {
             Err(AppError::InvalidArgument(
                 "片段卡片生成必须使用卡片执行模式，不能使用 shared_segment_plan".to_string(),
@@ -1086,10 +1066,8 @@ fn validate_generate_prompt_options(
             .ok_or_else(|| AppError::InvalidArgument("视频提示词生成缺少 style".to_string()))?
             .to_string();
     }
-    let prompt_output_language =
-        PromptOutputLanguage::from_optional_code(input.prompt_output_language.as_deref())
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-    let reference_limit = if workflow_mode == VIDEO_WORKFLOW_MODE_CHAT_VIDEO {
+    let prompt_output_language = PromptOutputLanguage::from_code(&input.prompt_output_language)?;
+    let reference_limit = if workflow_mode == chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO {
         MAX_CHAT_REFERENCE_IMAGE_IDS
     } else {
         MAX_NON_CHAT_REFERENCE_IMAGE_IDS
@@ -1306,7 +1284,7 @@ mod tests {
             workflow_mode: Some(workflow_mode.to_string()),
             segment_plan_prompt_id: None,
             style: "cinematic".to_string(),
-            prompt_output_language: Some("zh_cn".to_string()),
+            prompt_output_language: "zh_cn".to_string(),
             prompt_batch_size: 1,
             target_segment: None,
             target_narrative_unit_index: None,
@@ -1323,12 +1301,12 @@ mod tests {
     fn segment_plan_accepts_only_shared_mode_before_task_creation() {
         assert!(
             validate_video_segment_plan_generation_options(&segment_plan_options(
-                VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+                chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
             ))
             .is_ok()
         );
         let error = validate_video_segment_plan_generation_options(&segment_plan_options(
-            VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
         ))
         .unwrap_err();
         assert!(error.to_string().contains("必须为 shared_segment_plan"));
@@ -1336,7 +1314,8 @@ mod tests {
 
     #[test]
     fn stage_validation_accepts_stable_card_target_and_rejects_it_for_segment_plan() {
-        let mut options = segment_plan_options(VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES);
+        let mut options =
+            segment_plan_options(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES);
         options.segment_plan_prompt_id = Some(7);
         options.target_segment = Some(a4n_api_contract::video::VideoSegmentTarget {
             source_shot_id: "shot-1".to_string(),
@@ -1346,7 +1325,9 @@ mod tests {
         assert!(validate_video_frame_prompt_generation_options(&options).is_ok());
         assert!(validate_video_final_prompt_generation_options(&options).is_ok());
 
-        options.workflow_mode = Some(VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string());
+        options.workflow_mode = Some(
+            chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string(),
+        );
         options.segment_plan_prompt_id = None;
         let error = validate_video_segment_plan_generation_options(&options).unwrap_err();
         assert!(error.to_string().contains("不能指定片段规划 ID 或目标片段"));

@@ -45,6 +45,7 @@ import {
   listModelProviderCatalog,
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
+import type { ModelConfigScope } from "../../api/modelDiscovery";
 
 /**
  * Embedding 配置 Tab
@@ -55,10 +56,17 @@ import type { ModelProviderCatalog } from "../../api/generated/config";
  * - local_hash：本地确定性哈希向量，用于离线开发和基础检索验证
  */
 
-export const EmbeddingTab: React.FC = () => {
+interface EmbeddingTabProps {
+  scope?: ModelConfigScope;
+}
+
+export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
+  scope = "local",
+}) => {
   const { addToast } = useToast();
-  const usesRemoteBackend = shouldUseHttpBackend();
-  const usesLocalDesktopEmbedding = canUseLocalDesktopEmbedding();
+  const usesRemoteBackend = scope === "server" || shouldUseHttpBackend();
+  const usesLocalDesktopEmbedding =
+    scope === "local" && canUseLocalDesktopEmbedding();
   const modelHostLabel = usesRemoteBackend && !usesLocalDesktopEmbedding
     ? "远程服务器"
     : "本机";
@@ -106,8 +114,8 @@ export const EmbeddingTab: React.FC = () => {
     setLoading(true);
     try {
       const [list, models, providerCatalog] = await Promise.all([
-        listEmbeddingConfig(),
-        listLocalEmbeddingModels(),
+        listEmbeddingConfig(scope),
+        listLocalEmbeddingModels(scope),
         listModelProviderCatalog(),
       ]);
       if (!isCurrentRefresh(requestSeq)) return;
@@ -123,7 +131,7 @@ export const EmbeddingTab: React.FC = () => {
     } finally {
       if (isCurrentRefresh(requestSeq)) setLoading(false);
     }
-  }, [addToast, isCurrentRefresh]);
+  }, [addToast, isCurrentRefresh, scope]);
 
   useEffect(() => {
     void refresh();
@@ -142,7 +150,7 @@ export const EmbeddingTab: React.FC = () => {
       for (const model of models) {
         if (cancelled) return;
         try {
-          const info = await getEmbeddingModelDownloadInfo(model.name);
+          const info = await getEmbeddingModelDownloadInfo(model.name, scope);
           if (cancelled) return;
           rememberDownloadInfo(info);
         } catch (err) {
@@ -160,7 +168,7 @@ export const EmbeddingTab: React.FC = () => {
     };
     // 后台补齐模型大小；downloadInfoByModel 只用作本轮筛选，避免每次写入都重启循环。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localModels, busyModel]);
+  }, [localModels, busyModel, scope]);
 
   const pickFastembedModel = () => preferredFastembedModel(localModels);
 
@@ -225,7 +233,7 @@ export const EmbeddingTab: React.FC = () => {
   };
 
   const fetchDownloadInfo = async (model: string): Promise<EmbeddingModelDownloadInfo> => {
-    const info = await getEmbeddingModelDownloadInfo(model);
+    const info = await getEmbeddingModelDownloadInfo(model, scope);
     rememberDownloadInfo(info);
     return info;
   };
@@ -270,7 +278,7 @@ export const EmbeddingTab: React.FC = () => {
           cancelLabel: "停止下载",
           runningHint: "下载过程中请保持当前窗口打开",
           formatProgress: formatBytesProgress,
-          cancelTask: cancelEmbeddingModelDownload,
+          cancelTask: (taskId) => cancelEmbeddingModelDownload(taskId, scope),
         },
         async (control) => {
           if (cachedInfo) {
@@ -281,8 +289,8 @@ export const EmbeddingTab: React.FC = () => {
             );
           }
           await runTaskWithPolling(
-            downloadEmbeddingModel(model, taskId),
-            () => getEmbeddingModelDownloadInfo(model),
+            downloadEmbeddingModel(model, taskId, scope),
+            () => getEmbeddingModelDownloadInfo(model, scope),
             (info) => {
               if (!mountedRef.current || modelActionRef.current !== actionKey) return;
               rememberDownloadInfo(info);
@@ -334,7 +342,7 @@ export const EmbeddingTab: React.FC = () => {
       if (!ok) return;
 
       setBusyModel(model);
-      await deleteLocalEmbeddingModel(model);
+      await deleteLocalEmbeddingModel(model, scope);
       await fetchDownloadInfo(model);
       await refresh();
       addToast(`${modelHostLabel}模型缓存已删除`, "success");
@@ -412,36 +420,49 @@ export const EmbeddingTab: React.FC = () => {
           )}
           onCreate={async (f) => {
             const apiKey = f.api_key.trim();
-            await createEmbeddingConfig({
-              name: f.name,
-              backend: f.backend,
-              base_url: f.backend === "api" ? f.api_base_url : null,
-              api_key_encrypted: f.backend === "api" ? apiKey || null : null,
-              model: f.model,
-              dimension: f.dimension,
-              batch_size: f.batch_size,
-              local_model_path: f.backend === "fastembed" ? f.local_model_path || null : null,
-            });
+            await createEmbeddingConfig(
+              {
+                name: f.name,
+                backend: f.backend,
+                base_url: f.backend === "api" ? f.api_base_url : null,
+                api_key_encrypted: f.backend === "api" ? apiKey || null : null,
+                model: f.model,
+                dimension: f.dimension,
+                batch_size: f.batch_size,
+                local_model_path:
+                  f.backend === "fastembed" ? f.local_model_path || null : null,
+              },
+              scope,
+            );
           }}
           onUpdate={async (id, f) => {
             const apiKey = f.api_key.trim();
-            await updateEmbeddingConfig(id, {
-              name: f.name,
-              backend: f.backend,
-              base_url: f.backend === "api" ? f.api_base_url : null,
-              api_key_encrypted:
-                f.backend === "api" ? (f.clear_api_key ? null : apiKey || undefined) : null,
-              model: f.model,
-              dimension: f.dimension,
-              batch_size: f.batch_size,
-              local_model_path: f.backend === "fastembed" ? f.local_model_path || null : null,
-            });
+            await updateEmbeddingConfig(
+              id,
+              {
+                name: f.name,
+                backend: f.backend,
+                base_url: f.backend === "api" ? f.api_base_url : null,
+                api_key_encrypted:
+                  f.backend === "api"
+                    ? f.clear_api_key
+                      ? null
+                      : apiKey || undefined
+                    : null,
+                model: f.model,
+                dimension: f.dimension,
+                batch_size: f.batch_size,
+                local_model_path:
+                  f.backend === "fastembed" ? f.local_model_path || null : null,
+              },
+              scope,
+            );
           }}
-          onDelete={(id) => deleteEmbeddingConfig(id)}
-          onActivate={(id) => setDefaultEmbeddingConfig(id)}
+          onDelete={(id) => deleteEmbeddingConfig(id, scope)}
+          onActivate={(id) => setDefaultEmbeddingConfig(id, scope)}
           onTest={async (id) => {
             try {
-              await testEmbeddingConfig(id);
+              await testEmbeddingConfig(id, scope);
             } catch (err) {
               const message = extractErrorMessage(err, "连接测试失败");
               if (
@@ -458,7 +479,7 @@ export const EmbeddingTab: React.FC = () => {
               throw err;
             }
           }}
-          onPreviewTest={previewTestEmbeddingConfigRequest}
+          onPreviewTest={(id) => previewTestEmbeddingConfigRequest(id, scope)}
         />
       </div>
     </div>

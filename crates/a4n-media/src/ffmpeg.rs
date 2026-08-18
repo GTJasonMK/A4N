@@ -4,20 +4,10 @@ use std::{
     process::{Command, Output},
 };
 
+use a4n_domain::VIDEO_TAIL_FRAME_OFFSET_SECS;
 use thiserror::Error;
 
 const STDERR_PREVIEW_CHARS: usize = 500;
-
-#[derive(Debug, Error)]
-pub enum FfmpegAvailabilityError {
-    #[error("failed to start ffmpeg: {source}")]
-    Unavailable {
-        #[source]
-        source: io::Error,
-    },
-    #[error("ffmpeg version command returned a non-success status")]
-    Unhealthy,
-}
 
 #[derive(Debug, Error)]
 pub enum FfmpegCommandError {
@@ -31,33 +21,24 @@ pub enum FfmpegCommandError {
 }
 
 #[derive(Debug, Error)]
+pub enum FfmpegFrameError {
+    #[error("video frame timestamp is invalid")]
+    InvalidTimestamp,
+    #[error(transparent)]
+    Command(#[from] FfmpegCommandError),
+}
+
+#[derive(Debug, Error)]
 pub enum FfmpegTrimError {
     #[error("video trim range is invalid")]
     InvalidTimeRange,
-    #[error("failed to start ffmpeg stream-copy trim: {source}")]
-    CopyUnavailable {
-        #[source]
-        source: io::Error,
-    },
-    #[error("failed to start ffmpeg re-encode trim: {source}")]
-    RecodeUnavailable {
+    #[error("failed to start ffmpeg video trim: {source}")]
+    Unavailable {
         #[source]
         source: io::Error,
     },
     #[error("ffmpeg video trim failed: {stderr}")]
     Failed { stderr: String },
-}
-
-pub fn check_ffmpeg_available() -> Result<(), FfmpegAvailabilityError> {
-    let output = Command::new("ffmpeg")
-        .arg("-version")
-        .output()
-        .map_err(|source| FfmpegAvailabilityError::Unavailable { source })?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(FfmpegAvailabilityError::Unhealthy)
-    }
 }
 
 pub fn generate_video_thumbnail(input: &Path, output: &Path) -> Result<(), FfmpegCommandError> {
@@ -85,7 +66,7 @@ pub fn extract_video_tail_frame(input: &Path, output: &Path) -> Result<(), Ffmpe
     let command_output = Command::new("ffmpeg")
         .arg("-y")
         .arg("-sseof")
-        .arg("-0.08")
+        .arg(format!("-{VIDEO_TAIL_FRAME_OFFSET_SECS:.3}"))
         .arg("-i")
         .arg(input)
         .arg("-frames:v")
@@ -104,11 +85,14 @@ pub fn extract_video_frame(
     input: &Path,
     output: &Path,
     at_secs: f32,
-) -> Result<(), FfmpegCommandError> {
+) -> Result<(), FfmpegFrameError> {
+    if !at_secs.is_finite() || at_secs < 0.0 {
+        return Err(FfmpegFrameError::InvalidTimestamp);
+    }
     let command_output = Command::new("ffmpeg")
         .arg("-y")
         .arg("-ss")
-        .arg(format!("{:.3}", at_secs.max(0.0)))
+        .arg(seconds_literal(at_secs))
         .arg("-i")
         .arg(input)
         .arg("-frames:v")
@@ -120,7 +104,8 @@ pub fn extract_video_frame(
         .arg(output)
         .output()
         .map_err(|source| FfmpegCommandError::Unavailable { source })?;
-    require_success(command_output)
+    require_success(command_output)?;
+    Ok(())
 }
 
 pub fn trim_video_segment(
@@ -136,31 +121,20 @@ pub fn trim_video_segment(
     {
         return Err(FfmpegTrimError::InvalidTimeRange);
     }
-    let start = format!("{start_secs:.3}");
-    let end = format!("{end_secs:.3}");
-    let copy = Command::new("ffmpeg")
-        .args(["-y", "-ss", &start, "-to", &end, "-i"])
-        .arg(input)
-        .args(["-c", "copy"])
-        .arg(output)
-        .output()
-        .map_err(|source| FfmpegTrimError::CopyUnavailable { source })?;
-    if copy.status.success() {
-        return Ok(());
-    }
-
-    let recode = Command::new("ffmpeg")
+    let start = seconds_literal(start_secs);
+    let end = seconds_literal(end_secs);
+    let output = Command::new("ffmpeg")
         .args(["-y", "-ss", &start, "-to", &end, "-i"])
         .arg(input)
         .args(["-c:v", "libx264", "-c:a", "aac"])
         .arg(output)
         .output()
-        .map_err(|source| FfmpegTrimError::RecodeUnavailable { source })?;
-    if recode.status.success() {
+        .map_err(|source| FfmpegTrimError::Unavailable { source })?;
+    if output.status.success() {
         Ok(())
     } else {
         Err(FfmpegTrimError::Failed {
-            stderr: stderr_preview(&recode, STDERR_PREVIEW_CHARS),
+            stderr: stderr_preview(&output, STDERR_PREVIEW_CHARS),
         })
     }
 }
@@ -180,4 +154,8 @@ pub(crate) fn stderr_preview(output: &Output, limit: usize) -> String {
     let chars = stderr.chars().collect::<Vec<_>>();
     let start = chars.len().saturating_sub(limit);
     chars[start..].iter().collect()
+}
+
+pub(crate) fn seconds_literal(value: f32) -> String {
+    format!("{value:.3}")
 }

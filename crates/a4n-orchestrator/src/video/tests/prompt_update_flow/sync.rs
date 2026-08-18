@@ -23,7 +23,7 @@ async fn sync_prompts_rejects_regenerating_frame_prompt_with_generated_image() {
         Some(chapter.id),
         Some(json!({
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": frame.id
             }
         })),

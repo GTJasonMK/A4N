@@ -18,7 +18,9 @@ pub(in crate::video_prompt) fn validate_prompt_sync_draft(
 
 pub(in crate::video_prompt) fn generated_prompt_status(prompt_type: &str) -> String {
     match prompt_type {
-        "frame_segment_plan" => "completed".to_string(),
-        _ => "pending".to_string(),
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => {
+            chapter_video_prompt::STATUS_COMPLETED.to_string()
+        }
+        _ => chapter_video_prompt::STATUS_PENDING.to_string(),
     }
 }

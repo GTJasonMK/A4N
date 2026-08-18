@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn parses_valid_loop_decision() {
-    let decision = parse_agent_loop_decision(
+    let decision = parse_agent_loop_decision_response(
         r#"{"thought":"先读正文","public_update":"我会先读取当前章节，确认需要处理的内容。","action":"run_tool","arguments":{"tool":"get_project_information","arguments":{"mode":"read","source":"current_chapter"}}}"#,
     )
     .unwrap();
@@ -18,7 +18,7 @@ fn parses_valid_loop_decision() {
 
 #[test]
 fn parses_thinking_observation() {
-    let decision = parse_agent_loop_decision(
+    let decision = parse_agent_loop_decision_response(
         r#"{"thought":"先明确目标","public_update":"我需要先确认当前请求是否依赖章节正文。","action":"think","arguments":{"focus":"判断当前请求是否需要上下文","known_facts":["用户要求优化当前内容"],"information_gaps":["需要当前章节正文"],"next_step":"读取 current_chapter"}}"#,
     )
     .unwrap();
@@ -35,7 +35,7 @@ fn parses_thinking_observation() {
 
 #[test]
 fn rejects_invalid_thinking_arguments() {
-    let decision = parse_agent_loop_decision(
+    let decision = parse_agent_loop_decision_response(
         r#"{"thought":"x","public_update":"我已经完成本步判断。","action":"think","arguments":{"focus":"x","known_facts":[],"information_gaps":[]}}"#,
     )
     .unwrap();
@@ -46,13 +46,13 @@ fn rejects_invalid_thinking_arguments() {
 
 #[test]
 fn rejects_non_json_decision() {
-    let err = parse_agent_loop_decision("```json\n{}\n```").unwrap_err();
-    assert!(err.to_string().contains("严格 JSON 决策对象"));
+    let err = parse_agent_loop_decision_response("```json\n{}\n```").unwrap_err();
+    assert!(err.to_string().contains("严格 JSON 对象"));
 }
 
 #[test]
 fn rejects_unknown_action() {
-    let err = parse_agent_loop_decision(
+    let err = parse_agent_loop_decision_response(
         r#"{"thought":"x","public_update":"准备修改正文。","action":"edit_article","arguments":{}}"#,
     )
     .unwrap_err();
@@ -61,7 +61,7 @@ fn rejects_unknown_action() {
 
 #[test]
 fn rejects_unknown_decision_field() {
-    let err = parse_agent_loop_decision(
+    let err = parse_agent_loop_decision_response(
         r#"{"thought":"x","public_update":"我会继续。","action":"think","arguments":{"focus":"x","known_facts":[],"information_gaps":[],"next_step":"结束"},"legacy":true}"#,
     )
     .unwrap_err();
@@ -70,14 +70,16 @@ fn rejects_unknown_decision_field() {
 
 #[test]
 fn rejects_non_final_decision_without_public_update() {
-    let err = parse_agent_loop_decision(r#"{"thought":"x","action":"think","arguments":{}}"#)
-        .unwrap_err();
+    let err = parse_agent_loop_decision_response(
+        r#"{"thought":"x","action":"think","arguments":{}}"#,
+    )
+    .unwrap_err();
     assert!(err.to_string().contains("public_update"));
 }
 
 #[test]
 fn rejects_unknown_think_argument_field() {
-    let decision = parse_agent_loop_decision(
+    let decision = parse_agent_loop_decision_response(
         r#"{"thought":"x","public_update":"我会先整理判断。","action":"think","arguments":{"focus":"x","known_facts":[],"information_gaps":[],"next_step":"结束","extra":true}}"#,
     )
     .unwrap();

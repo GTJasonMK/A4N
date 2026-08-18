@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    future::Future,
+    sync::Arc,
+    time::Duration,
+};
 
 use a4n_core::error::AppError;
 use a4n_db::generation::{
@@ -6,7 +11,7 @@ use a4n_db::generation::{
     ProjectLifecycleOperation,
 };
 use a4n_orchestrator::{
-    generation::terminal::GenerationTerminalWriteOutcome,
+    generation::GenerationTerminalWriteOutcome,
     project::ProjectGeneratedDataResetApplicationResult,
 };
 use a4n_service_protocol::InterruptionReason;
@@ -26,7 +31,26 @@ enum DeleteProjectForwardError {
 pub(crate) struct DestructiveLifecycleCoordinator {
     // ponytail: target 数量受 user/project 数量约束；只有压测证明常驻 key 成本可见时再做弱引用清理。
     target_locks: std::sync::Mutex<BTreeMap<String, Arc<tokio::sync::Mutex<()>>>>,
-    continuations: std::sync::Mutex<BTreeMap<String, tokio::task::JoinHandle<()>>>,
+    active_continuations: std::sync::Mutex<BTreeSet<String>>,
+}
+
+struct ContinuationPermit {
+    coordinator: Arc<DestructiveLifecycleCoordinator>,
+    key: String,
+}
+
+impl Drop for ContinuationPermit {
+    fn drop(&mut self) {
+        assert!(
+            self.coordinator
+                .active_continuations
+                .lock()
+                .expect("destructive continuation mutex poisoned")
+                .remove(&self.key),
+            "destructive continuation key missing: {}",
+            self.key
+        );
+    }
 }
 
 impl DestructiveLifecycleCoordinator {
@@ -254,10 +278,8 @@ impl DestructiveLifecycleCoordinator {
         let coordinator = Arc::clone(self);
         let state = state.clone();
         let key = format!("project:{project_id}");
-        self.spawn_once(key, async move {
-            coordinator
-                .continue_project_forward(state, project_id, operation)
-                .await;
+        self.spawn_once(key, move |permit| {
+            coordinator.continue_project_forward(state, project_id, operation, permit)
         });
     }
 
@@ -265,24 +287,34 @@ impl DestructiveLifecycleCoordinator {
         let coordinator = Arc::clone(self);
         let state = state.clone();
         let key = format!("user:{user_id}");
-        self.spawn_once(key, async move {
-            coordinator.continue_user_forward(state, user_id).await;
+        self.spawn_once(key, move |permit| {
+            coordinator.continue_user_forward(state, user_id, permit)
         });
     }
 
-    fn spawn_once(&self, key: String, future: impl Future<Output = ()> + Send + 'static) {
-        let future = Box::pin(future);
-        let mut continuations = self
-            .continuations
+    fn spawn_once<F, Fut>(
+        self: &Arc<Self>,
+        key: String,
+        worker: F,
+    )
+    where
+        F: FnOnce(ContinuationPermit) -> Fut,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        let mut active = self
+            .active_continuations
             .lock()
             .expect("destructive continuation mutex poisoned");
-        if continuations
-            .get(&key)
-            .is_some_and(|handle| !handle.is_finished())
-        {
+        if !active.insert(key.clone()) {
             return;
         }
-        continuations.insert(key, tokio::spawn(future));
+        drop(active);
+
+        let permit = ContinuationPermit {
+            coordinator: Arc::clone(self),
+            key,
+        };
+        drop(tokio::spawn(worker(permit)));
     }
 
     async fn continue_project_forward(
@@ -290,8 +322,10 @@ impl DestructiveLifecycleCoordinator {
         state: AppState,
         project_id: i64,
         operation: ProjectLifecycleOperation,
+        permit: ContinuationPermit,
     ) {
         let _guard = self.lock(format!("project:{project_id}")).await;
+        let _permit = permit;
         loop {
             let mut durable_write = true;
             if let Err(error) = drain_project(&state, project_id, &mut durable_write).await {
@@ -329,8 +363,14 @@ impl DestructiveLifecycleCoordinator {
         }
     }
 
-    async fn continue_user_forward(self: Arc<Self>, state: AppState, user_id: i64) {
+    async fn continue_user_forward(
+        self: Arc<Self>,
+        state: AppState,
+        user_id: i64,
+        permit: ContinuationPermit,
+    ) {
         let _guard = self.lock(format!("user:{user_id}")).await;
+        let _permit = permit;
         loop {
             let mut durable_write = true;
             if let Err(error) = drain_user(&state, user_id, &mut durable_write).await {

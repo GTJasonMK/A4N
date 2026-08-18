@@ -18,7 +18,6 @@ fn project() -> novel_project::Model {
         description: String::new(),
         project_type: "script".to_string(),
         project_kind: "galgame".to_string(),
-        source_mode: "derived".to_string(),
         root_project_id: Some(3),
         source_snapshot_id: Some(5),
         source_sync_status: "current".to_string(),

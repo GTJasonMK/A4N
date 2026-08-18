@@ -43,14 +43,10 @@ mod validation;
 mod tests;
 
 pub use contracts::{
-    FamilyImportMediaPayload, MANIFEST_PATH, MEDIA_FILE_FIELD_FILE, MEDIA_FILE_FIELD_THUMBNAIL,
-    MEDIA_FILE_FIELDS, MediaFileEntry, PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage,
-    TextCorePackage,
+    FamilyImportMediaPayload, MANIFEST_PATH, MEDIA_FILE_FIELDS, MediaFileEntry,
+    PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage, TextCorePackage,
 };
 
-// 纯规则：与 package_rules 对齐，供校验子树 `use super::*` / 相对路径使用。
-#[cfg(test)]
-pub(crate) use crate::project::media_file_key;
 pub(crate) use crate::project::{hash_json, hash_text, sha256_bytes};
 
 pub use export_assembly::{

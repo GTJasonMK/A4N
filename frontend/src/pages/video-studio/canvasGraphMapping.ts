@@ -1,4 +1,10 @@
-import { saveCanvasTextAsset, type CanvasGraphDocument, type CanvasGraphInput } from "../../api/canvas";
+import {
+  CANVAS_PROMPT_KIND,
+  CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT,
+  saveCanvasTextAsset,
+  type CanvasGraphDocument,
+  type CanvasGraphInput,
+} from "../../api/canvas";
 import { edgeRoleLabel } from "./StudioCanvasNode";
 import {
   configText,
@@ -74,7 +80,7 @@ export function mergeStudioNodeRuntimeResults(
       node.data.refType === freshNode.ref_type &&
       node.data.refId === freshNode.ref_id &&
       node.data.state === freshNode.state &&
-      shallowRuntimeConfigEqual(node.data.config, config)
+      node.data.config === config
     ) {
       return node;
     }
@@ -108,17 +114,21 @@ function mergeRuntimeConfig(
   return changed ? next : current;
 }
 
-function shallowRuntimeConfigEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
-  if (left === right) return true;
-  for (const key of CANVAS_RUNTIME_CONFIG_KEYS) {
-    if (JSON.stringify(left[key]) !== JSON.stringify(right[key])) return false;
-  }
-  return true;
-}
-
 export function defaultConfigForNode(kind: string): Record<string, unknown> {
+  if (kind === "RenderTextNode") {
+    return { output_kind: CANVAS_PROMPT_KIND };
+  }
+  if (kind === "LlmTextNode") {
+    return { output_kind: CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT };
+  }
   if (kind === "GenerateVideoNode") {
     return { input_mode: "text_only" };
+  }
+  if (kind === "ExtractFrameNode") {
+    return { frame_kind: "first" };
+  }
+  if (kind === "TrimVideoNode") {
+    return { start_secs: 0 };
   }
   return {};
 }

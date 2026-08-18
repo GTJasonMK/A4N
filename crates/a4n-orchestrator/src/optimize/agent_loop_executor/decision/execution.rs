@@ -6,7 +6,6 @@ mod call;
 mod contracts;
 mod persistence;
 mod preparation;
-mod repair;
 mod rules;
 
 use call::execute_agent_loop_decision_call;

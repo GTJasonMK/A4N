@@ -28,36 +28,6 @@ impl LlmProvider for DynamicLlmProvider {
         }
     }
 
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        let request = ChatRequest {
-            messages: vec![ChatMessage {
-                role: MessageRole::User,
-                content: "ping".into(),
-                tool_calls: None,
-                tool_call_id: None,
-            }],
-            temperature: Some(0.0),
-            max_tokens: Some(8),
-            max_tokens_profile: None,
-            response_format: None,
-            stream_include_usage: false,
-            cache_scope_key: None,
-            cache_system_prefix: false,
-            cache_user_prefix_len: None,
-            trace_context: None,
-            context_manifest_json: None,
-            tools: None,
-            tool_choice: None,
-            stop_sequences: None,
-        };
-        if self.sidecar_client.is_some() {
-            return self.probe_with_config_id(None, request).await;
-        }
-        a4n_llm::provider::collect_chat_stream(self, request)
-            .await
-            .map(|response| !response.message.content.trim().is_empty())
-    }
-
     fn model_name(&self) -> &str {
         "dynamic-default-llm"
     }

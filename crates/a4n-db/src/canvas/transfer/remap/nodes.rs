@@ -3,6 +3,7 @@ use super::ids::{
     remap_video_studio_json_i64_array_field, remap_video_studio_json_i64_field,
     remap_video_studio_required_id,
 };
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 
@@ -39,7 +40,7 @@ pub(in crate::canvas::transfer) fn remap_video_studio_canvas_node_refs(
             let new_id =
                 remap_video_studio_required_id(&maps.image_ids, old_id, "canvas_node.ref_id")?;
             if let Some(file_path) = maps.image_file_paths.get(&old_id) {
-                set_video_studio_json_string(&mut config_json, "file_path", file_path);
+                set_video_studio_json_string(&mut config_json, FILE_PATH_FIELD, file_path);
             }
             Ok((ref_type, Some(new_id), config_json))
         }
@@ -52,14 +53,14 @@ pub(in crate::canvas::transfer) fn remap_video_studio_canvas_node_refs(
                 .get(&old_id)
                 .and_then(|value| value.as_ref())
             {
-                set_video_studio_json_string(&mut config_json, "file_path", file_path);
+                set_video_studio_json_string(&mut config_json, FILE_PATH_FIELD, file_path);
             }
             if let Some(thumbnail_path) = maps
                 .video_thumbnail_paths
                 .get(&old_id)
                 .and_then(|value| value.as_ref())
             {
-                set_video_studio_json_string(&mut config_json, "thumbnail_path", thumbnail_path);
+                set_video_studio_json_string(&mut config_json, THUMBNAIL_PATH_FIELD, thumbnail_path);
             }
             Ok((ref_type, Some(new_id), config_json))
         }

@@ -13,8 +13,6 @@ use crate::generation::step_progress_state;
 
 use super::duration::VideoDurationCapability;
 
-pub const IMPORT_VIDEO_PROMPT_TYPE: &str = "video_prompt";
-pub const FRAME_SEGMENT_PLAN_PROMPT_TYPE: &str = "frame_segment_plan";
 pub const FRAME_SEGMENT_PLAN_CONTRACT_VERSION: &str = "video_execution_contract_v5";
 pub const BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION: &str = "boundary_frame_segment_local_v4";
 pub const FIRST_FRAME_CHAIN_CONTRACT_VERSION: &str = "first_frame_chain_execution_v4";

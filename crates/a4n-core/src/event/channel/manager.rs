@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::AppError;
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
@@ -7,32 +8,25 @@ use std::time::{Duration, Instant};
 
 const PENDING_CANCELLATION_TTL: Duration = Duration::from_secs(30);
 
-#[derive(Clone, Copy)]
-struct PendingCancellation {
-    user_id: i64,
-    requested_at: Instant,
-}
-
 /// 任务管理器
 ///
 /// 全局注册和取消任务，管理活跃任务列表。
 /// 线程安全，支持多任务并发注册。
+#[derive(Default)]
 pub struct TaskManager {
-    tasks: Arc<DashMap<String, Arc<TaskHandle>>>,
-    pending_cancellations: Arc<Mutex<BTreeMap<String, PendingCancellation>>>,
+    tasks: DashMap<String, Arc<TaskHandle>>,
+    pending_cancellations: Mutex<BTreeMap<(String, i64), Instant>>,
 }
 
 impl TaskManager {
     /// 创建任务管理器
     pub fn new() -> Self {
-        Self {
-            tasks: Arc::new(DashMap::new()),
-            pending_cancellations: Arc::new(Mutex::new(BTreeMap::new())),
-        }
+        Self::default()
     }
 
     /// 注册新任务
-    pub fn register(&self, handle: TaskHandle) -> Arc<TaskHandle> {
+    pub fn register(&self, mut handle: TaskHandle) -> Result<Arc<TaskHandle>, AppError> {
+        handle.task_id = normalize_task_id(&handle.task_id)?;
         let handle = Arc::new(handle);
         {
             let progress = handle.progress.read().clone();
@@ -52,16 +46,34 @@ impl TaskManager {
                 });
             }
         }
-        self.tasks.insert(handle.task_id.clone(), handle.clone());
-        let pending = {
+        match self.tasks.entry(handle.task_id.clone()) {
+            dashmap::mapref::entry::Entry::Occupied(_) => {
+                return Err(AppError::InvalidState {
+                    current: format!("任务 {} 已注册", handle.task_id),
+                    operation: "重复注册任务".to_string(),
+                });
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(handle.clone());
+            }
+        }
+        let should_cancel = {
             let mut pending = self.pending_cancellations.lock();
             prune_pending_cancellations(&mut pending);
-            pending.remove(&handle.task_id)
+            let mut should_cancel = false;
+            pending.retain(|(task_id, user_id), _| {
+                if task_id != &handle.task_id {
+                    return true;
+                }
+                should_cancel |= handle.owner_user_id == Some(*user_id);
+                false
+            });
+            should_cancel
         };
-        if pending.is_some_and(|pending| Some(pending.user_id) == handle.owner_user_id) {
+        if should_cancel {
             handle.cancel();
         }
-        handle
+        Ok(handle)
     }
 
     /// 取消指定任务
@@ -81,21 +93,22 @@ impl TaskManager {
         if self.cancel_owned(task_id, user_id) {
             return true;
         }
+        if self.tasks.contains_key(task_id) {
+            return false;
+        }
+        let key = (task_id.to_string(), user_id);
         {
             let mut pending = self.pending_cancellations.lock();
             prune_pending_cancellations(&mut pending);
-            pending.insert(
-                task_id.to_string(),
-                PendingCancellation {
-                    user_id,
-                    requested_at: Instant::now(),
-                },
-            );
+            pending.insert(key.clone(), Instant::now());
         }
         if !self.cancel_owned(task_id, user_id) {
+            if self.tasks.contains_key(task_id) {
+                self.pending_cancellations.lock().remove(&key);
+            }
             return false;
         }
-        self.pending_cancellations.lock().remove(task_id);
+        self.pending_cancellations.lock().remove(&key);
         true
     }
 
@@ -109,20 +122,22 @@ impl TaskManager {
     }
 
     /// 移除已完成的任务
-    pub fn remove(&self, task_id: &str) -> Option<Arc<TaskHandle>> {
-        self.tasks.remove(task_id).map(|(_, handle)| handle)
+    pub fn remove(&self, handle: &Arc<TaskHandle>) -> Result<(), AppError> {
+        if self
+            .tasks
+            .remove_if(&handle.task_id, |_, current| Arc::ptr_eq(current, handle))
+            .is_some()
+        {
+            return Ok(());
+        }
+        Err(AppError::InvalidState {
+            current: format!("任务 {} 未注册或注册身份已改变", handle.task_id),
+            operation: "移除已完成任务".to_string(),
+        })
     }
 
     pub fn get(&self, task_id: &str) -> Option<Arc<TaskHandle>> {
         self.tasks.get(task_id).map(|entry| entry.value().clone())
-    }
-
-    /// 活跃任务总数
-    pub fn active_count(&self) -> usize {
-        self.tasks
-            .iter()
-            .filter(|entry| !entry.value().is_cancelled())
-            .count()
     }
 
     fn snapshot_from_handle(handle: &TaskHandle) -> TaskSnapshot {
@@ -137,7 +152,7 @@ impl TaskManager {
         }
     }
 
-    fn cancel_owned(&self, task_id: &str, user_id: i64) -> bool {
+    pub fn cancel_owned(&self, task_id: &str, user_id: i64) -> bool {
         let Some(handle) = self.tasks.get(task_id) else {
             return false;
         };
@@ -149,23 +164,9 @@ impl TaskManager {
     }
 }
 
-fn prune_pending_cancellations(pending: &mut BTreeMap<String, PendingCancellation>) {
+fn prune_pending_cancellations(pending: &mut BTreeMap<(String, i64), Instant>) {
     let now = Instant::now();
-    pending.retain(|_, request| {
-        now.saturating_duration_since(request.requested_at) <= PENDING_CANCELLATION_TTL
+    pending.retain(|_, requested_at| {
+        now.saturating_duration_since(*requested_at) <= PENDING_CANCELLATION_TTL
     });
-}
-
-impl Default for TaskManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::fmt::Debug for TaskManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TaskManager")
-            .field("active_count", &self.active_count())
-            .finish()
-    }
 }

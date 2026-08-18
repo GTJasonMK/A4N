@@ -13,7 +13,7 @@ pub(super) fn completed_video_write_is_idempotent(
     existing_file_path: Option<&str>,
     requested_file_path: &str,
 ) -> Result<bool, VideoDbError> {
-    if status != "completed" {
+    if status != generated_video::STATUS_COMPLETED {
         return Ok(false);
     }
     if existing_file_path == Some(requested_file_path) {
@@ -40,7 +40,8 @@ where
     let (video, prompt) = generated_video_with_prompt_record(db, video_id, prompt_id).await?;
     if completed_video_write_is_idempotent(&video.status, video.file_path.as_deref(), file_path)? {
         if let Some(prompt) = prompt.as_ref()
-            && (prompt.status != "completed" || prompt.generated_video_id != Some(video.id))
+            && (prompt.status != chapter_video_prompt::STATUS_COMPLETED
+                || prompt.generated_video_id != Some(video.id))
         {
             return Err(VideoDbError::InvalidArgument(format!(
                 "视频 #{} 已完成，但提示词 #{} 未关联该视频",
@@ -57,7 +58,7 @@ where
         active.thumbnail_path = Set(Some(path.to_string()));
     }
     active.file_size = Set(Some(file_size));
-    active.status = Set("completed".to_string());
+    active.status = Set(generated_video::STATUS_COMPLETED.to_string());
     active.error_message = Set(None);
     if metadata_json.is_some() {
         active.metadata_json = Set(merge_video_provider_response_metadata(
@@ -73,7 +74,7 @@ where
     if let Some(prompt) = prompt {
         let mut active: chapter_video_prompt::ActiveModel = prompt.into();
         active.generated_video_id = Set(Some(updated.id));
-        active.status = Set("completed".to_string());
+        active.status = Set(chapter_video_prompt::STATUS_COMPLETED.to_string());
         active.updated_at = Set(Utc::now().naive_utc());
         active.update(db).await?;
     }

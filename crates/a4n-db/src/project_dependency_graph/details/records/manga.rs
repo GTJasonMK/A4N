@@ -2,6 +2,7 @@ use super::generic::{lineage_ref, optional_prompt_sources, prompt_source};
 use super::json_records::{db_record_result_with_related, db_related_record};
 use crate::project_dependency_graph::AssetLineageRecord;
 use a4n_core::models::{ai::generated_image, chapter::chapter_manga_prompt};
+use a4n_domain::GeneratedMediaReference;
 
 pub(in crate::project_dependency_graph) fn manga_prompt_record(
     prompt: chapter_manga_prompt::Model,
@@ -44,7 +45,7 @@ pub(in crate::project_dependency_graph) fn manga_prompt_record(
         media_sources: image
             .map(|image| {
                 vec![lineage_ref(
-                    &format!("generated_image:{}", image.id),
+                    &GeneratedMediaReference::Image(image.id).to_string(),
                     "生成图片",
                     "image",
                     "generated_image",

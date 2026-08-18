@@ -3,8 +3,7 @@ use super::{
     ProjectProgressQuery, ProjectProgressReadError, project_progress_summaries,
     project_progress_summary,
 };
-use crate::project::SOURCE_MODE_SELF;
-use a4n_domain::project::{ProjectKind, ProjectStatus};
+use a4n_domain::project::{ProjectKind, ProjectSourceMode, ProjectStatus};
 use sea_orm::DatabaseConnection;
 
 #[tokio::test]
@@ -14,7 +13,7 @@ async fn project_progress_rejects_invalid_id_before_database_access() {
         ProjectProgressQuery {
             project_id: 0,
             project_kind: ProjectKind::Text,
-            source_mode: SOURCE_MODE_SELF.to_string(),
+            source_mode: ProjectSourceMode::Self_,
             status: ProjectStatus::Draft,
             current_chapter: 0,
             target_chapters: 10,
@@ -38,7 +37,7 @@ async fn project_progress_pure_kinds_and_empty_batch_do_not_access_database() {
         ProjectProgressQuery {
             project_id: 1,
             project_kind: ProjectKind::Text,
-            source_mode: SOURCE_MODE_SELF.to_string(),
+            source_mode: ProjectSourceMode::Self_,
             status: ProjectStatus::Completed,
             current_chapter: 10,
             target_chapters: 10,
@@ -64,7 +63,7 @@ async fn project_progress_batch_rejects_duplicate_project_ids() {
             ProjectProgressQuery {
                 project_id: 3,
                 project_kind: ProjectKind::Text,
-                source_mode: SOURCE_MODE_SELF.to_string(),
+                source_mode: ProjectSourceMode::Self_,
                 status: ProjectStatus::Draft,
                 current_chapter: 0,
                 target_chapters: 10,
@@ -72,7 +71,7 @@ async fn project_progress_batch_rejects_duplicate_project_ids() {
             ProjectProgressQuery {
                 project_id: 3,
                 project_kind: ProjectKind::Text,
-                source_mode: SOURCE_MODE_SELF.to_string(),
+                source_mode: ProjectSourceMode::Self_,
                 status: ProjectStatus::Completed,
                 current_chapter: 10,
                 target_chapters: 10,
@@ -94,7 +93,7 @@ fn project_progress_text_completed_from_query() {
     let progress = text_project_progress(&ProjectProgressQuery {
         project_id: 1,
         project_kind: ProjectKind::Text,
-        source_mode: "self".to_string(),
+        source_mode: ProjectSourceMode::Self_,
         status: ProjectStatus::Completed,
         current_chapter: 10,
         target_chapters: 10,

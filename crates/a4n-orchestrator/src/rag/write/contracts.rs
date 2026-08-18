@@ -1,8 +1,8 @@
 #[derive(Debug, Clone)]
-pub struct RagEmbeddingInput {
-    pub chunk_id: String,
-    pub text: String,
-    pub metadata: serde_json::Value,
+pub(crate) struct RagEmbeddingInput {
+    pub(crate) chunk_id: String,
+    pub(crate) text: String,
+    pub(crate) metadata: serde_json::Value,
 }
 
 #[derive(Debug, Clone)]

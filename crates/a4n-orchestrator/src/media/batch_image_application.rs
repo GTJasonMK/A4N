@@ -142,7 +142,7 @@ impl OrchestratorContext {
                     current: "batch_images_generated".to_string(),
                     operation: format!("批量图片生成完成，但工作流状态写入失败: {finalize_error}"),
                 }),
-                Err(error) => Err(append_secondary_error(
+                Err(error) => Err(crate::errors::app_error_with_secondary(
                     error,
                     format!("工作流失败状态写入失败: {finalize_error}"),
                 )),
@@ -368,11 +368,4 @@ fn batch_image_item_fingerprint(
         "metadata_json": item.metadata_json,
         "request": request_json,
     })
-}
-
-fn append_secondary_error(error: AppError, secondary: String) -> AppError {
-    AppError::InvalidState {
-        current: error.to_string(),
-        operation: secondary,
-    }
 }

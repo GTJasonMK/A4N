@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+cd "$PROJECT_ROOT"
 
 ROUTERS=(
     crates/a4n-prompt-service/src/app.rs
@@ -117,10 +119,6 @@ rg -q --fixed-strings 'validate_egress_scope' crates/a4n-service-protocol/src/eg
 }
 rg -q --fixed-strings 'a4n_sidecar_egress_audit' crates/a4n-runtime/src/sidecar_clients/request_context/requests.rs || {
     printf 'trusted-remote content egress must emit a metadata-only audit event\n' >&2
-    exit 1
-}
-rg -q --fixed-strings 'compatibility: Option<ServiceCompatibility>' crates/a4n-service-protocol/src/health/contracts.rs || {
-    printf 'health contract must advertise protocol/capability compatibility\n' >&2
     exit 1
 }
 rg -q --fixed-strings 'matches!(config.mode, ServiceMode::Sidecar)' crates/a4n-service-manager/src/health.rs || {

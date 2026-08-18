@@ -1,6 +1,5 @@
 use super::facts::video_progress_facts_from_rows;
 use super::status::video_project_progress_from_counts;
-use super::{CHAPTER_VIDEO_TYPE, VIDEO_PROMPT_TYPE};
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -28,7 +27,7 @@ fn video_prompt_row(
         project_id: 9,
         chapter_id: 3,
         style: None,
-        prompt_type: VIDEO_PROMPT_TYPE.to_string(),
+        prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO.to_string(),
         workflow_mode: "first_frame_chain".to_string(),
         shot_number,
         title: Some(format!("镜头 {shot_number}")),
@@ -59,7 +58,7 @@ fn generated_video_row(
         id,
         project_id: 9,
         chapter_id: Some(3),
-        video_type: CHAPTER_VIDEO_TYPE.to_string(),
+        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("first_frame_chain".to_string()),
         file_path: None,
         thumbnail_path: None,

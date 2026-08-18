@@ -49,8 +49,8 @@ mod tests {
         CreateGeneratedVideoRecordInput {
             project_id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: "canvas_video".to_string(),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
             prompt: "prompt".to_string(),
             negative_prompt: None,
             model: "test".to_string(),

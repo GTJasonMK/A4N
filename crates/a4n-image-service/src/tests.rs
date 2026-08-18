@@ -1,61 +1,11 @@
 use a4n_image::ImageGenerationRequest;
-use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind,
-    IMAGE_PROVIDER_CAPABILITY_VERSION as IMAGE_CAPABILITY_VERSION, PROTOCOL_VERSION, ServiceError,
+    IMAGE_PROVIDER_CAPABILITY_VERSION as IMAGE_CAPABILITY_VERSION, PROTOCOL_VERSION,
     ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
 };
 
-use crate::contracts::{ImageGenerationOutput, ImageProviderPayload};
-use crate::handlers::events::{
-    completed_generation_event, event_line, failed_generation_event, progress_generation_event,
-};
-use crate::protocol::{validate_image_request, validate_model_discovery_request};
-
-#[test]
-fn image_generation_events_keep_terminal_payload_and_error_contracts() {
-    let progress = progress_generation_event("task-1".to_string(), 1);
-    assert_eq!(progress.event_kind, CapabilityTaskEventKind::Progress);
-    assert_eq!(
-        progress.payload.as_ref().unwrap()["message"],
-        "image sidecar 正在调用 provider"
-    );
-    let completed = completed_generation_event(
-        "task-1".to_string(),
-        2,
-        ImageGenerationOutput {
-            bytes_base64: "aW1n".to_string(),
-            format: "png".to_string(),
-            model: "image-model".to_string(),
-        },
-    )
-    .expect("completed event");
-    assert_eq!(completed.event_kind, CapabilityTaskEventKind::Completed);
-    assert_eq!(completed.payload.as_ref().unwrap()["format"], "png");
-    assert!(completed.error.is_none());
-    let failed = failed_generation_event(
-        "task-1".to_string(),
-        2,
-        ServiceError {
-            code: ServiceErrorCode::ProviderError,
-            message: "provider failed".to_string(),
-            retryable: Some(false),
-        },
-    );
-    assert_eq!(failed.event_kind, CapabilityTaskEventKind::Failed);
-    assert_eq!(failed.error.unwrap().code, ServiceErrorCode::ProviderError);
-    assert!(failed.payload.is_none());
-}
-
-#[test]
-fn image_generation_event_line_is_newline_delimited_json() {
-    let line = event_line(progress_generation_event("task-1".to_string(), 1));
-    assert_eq!(line.last(), Some(&b'\n'));
-    let event: CapabilityTaskEvent =
-        serde_json::from_slice(&line[..line.len() - 1]).expect("event json");
-    assert_eq!(event.task_id, "task-1");
-    assert_eq!(event.event_kind, CapabilityTaskEventKind::Progress);
-}
+use crate::contracts::ImageProviderPayload;
+use crate::protocol::validate_image_request;
 
 #[test]
 fn rejects_incompatible_capability_version() {
@@ -94,27 +44,6 @@ fn rejects_api_key_when_secret_policy_is_trusted_remote() {
         trusted_remote_user_secret_policy(),
     );
     let error = validate_image_request(&request).expect_err("remote user secret denied");
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("local_sidecar_only"));
-}
-
-#[test]
-fn rejects_model_discovery_api_key_when_user_secret_forwarding_is_denied() {
-    let request = service_request(model_discovery_payload("sk-test"), false);
-    let error =
-        validate_model_discovery_request(&request).expect_err("model discovery user secret denied");
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("allow_user_secret"));
-}
-
-#[test]
-fn rejects_model_discovery_api_key_when_secret_policy_is_trusted_remote() {
-    let request = service_request_with_policy(
-        model_discovery_payload("sk-test"),
-        trusted_remote_user_secret_policy(),
-    );
-    let error = validate_model_discovery_request(&request)
-        .expect_err("model discovery remote user secret denied");
     assert_eq!(error.code, ServiceErrorCode::Unauthorized);
     assert!(error.message.contains("local_sidecar_only"));
 }
@@ -184,13 +113,5 @@ fn image_payload(api_key: &str) -> ImageProviderPayload {
             model: "test-model".to_string(),
             reference_images: Vec::new(),
         },
-    }
-}
-
-fn model_discovery_payload(api_key: &str) -> ModelDiscoveryRequest {
-    ModelDiscoveryRequest {
-        provider: "openai".to_string(),
-        base_url: "https://provider.example/v1".to_string(),
-        api_key: Some(api_key.to_string()),
     }
 }

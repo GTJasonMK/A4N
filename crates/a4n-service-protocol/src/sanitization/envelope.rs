@@ -14,12 +14,8 @@ pub fn sanitize_service_response<T>(
     Ok(())
 }
 
-pub fn sanitize_capability_task_event(
-    event: &mut CapabilityTaskEvent,
-) -> Result<(), ArtifactValidationError> {
-    validate_artifact_refs(&event.artifact_refs)?;
+pub fn sanitize_capability_task_event(event: &mut CapabilityTaskEvent) {
     if let Some(error) = event.error.as_mut() {
         error.message = redact_sensitive_message(&error.message);
     }
-    Ok(())
 }

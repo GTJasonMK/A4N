@@ -2,19 +2,17 @@ use a4n_core::{
     error::AppError,
     models::{ai::optimization_session, chapter::chapter},
 };
-use a4n_db::workflow;
 use a4n_llm::provider::{ChatMessage, ChatResponse};
 use serde_json::Value;
 
 use crate::{
     optimize::{
         OrchestratorContext,
-        patch::restore_content_optimization_patch_proposal,
-        response_content_from_checkpoint,
+        patch::parse_content_optimization_patch_response,
         turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED, TURN_STATUS_FAILED},
     },
-    workflow::{workflow_checkpoint_contract_app_error, workflow_read_app_error},
 };
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 
 use super::contracts::RestoredPatchGenerationCall;
 
@@ -28,36 +26,33 @@ pub(super) async fn restore_patch_generation_checkpoint(
     call_key: &str,
     input_fingerprint_json: &Value,
 ) -> Result<Option<RestoredPatchGenerationCall>, AppError> {
-    let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        service.database.connection(),
-        workflow_run_id,
-        call_key,
-        input_fingerprint_json,
-    )
-    .await
-    .map_err(workflow_read_app_error)?
+    let Some(checkpoint) = service
+        .load_completed_llm_call_checkpoint(workflow_run_id, call_key, input_fingerprint_json)
+        .await?
     else {
         return Ok(None);
     };
-    let checkpoint_json = workflow::required_llm_call_checkpoint_json(checkpoint, call_key)
-        .map_err(workflow_checkpoint_contract_app_error)?;
-    let (response_content, usage, finish_reason) =
-        response_content_from_checkpoint(&checkpoint_json, call_key)?;
-    let parsed_output = checkpoint_json
-        .get("parsed_output")
-        .cloned()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_parsed_output".to_string(),
-            operation: format!("读取内容优化 LLM 调用断点 {call_key}"),
-        })?;
-    let proposal = match restore_content_optimization_patch_proposal(
-        parsed_output,
-        session.id,
-        chapter.project_id,
-        chapter.id,
-        base_content_hash,
-        &chapter.content,
-    ) {
+    let response_content = checkpoint.response_content;
+    let usage = checkpoint.usage;
+    let finish_reason = checkpoint.finish_reason;
+    let parsed_output = checkpoint.parsed_output;
+    let proposal = match (|| {
+        let proposal = parse_content_optimization_patch_response(
+            session.id,
+            chapter.project_id,
+            chapter.id,
+            base_content_hash,
+            &chapter.content,
+            &response_content,
+        )?;
+        let reparsed_output = serde_json::to_value(&proposal)?;
+        ensure_checkpoint_parsed_output_matches(
+            &parsed_output,
+            &reparsed_output,
+            &format!("内容优化局部补丁 {call_key}"),
+        )?;
+        Ok::<_, AppError>(proposal)
+    })() {
         Ok(proposal) => proposal,
         Err(err) => {
             service

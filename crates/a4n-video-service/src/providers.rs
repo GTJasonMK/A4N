@@ -1,19 +1,9 @@
 use crate::contracts::{
-    VideoDeleteOutput, VideoGenerationOutput, VideoJobOutput, VideoProviderPayload,
-    VideoStatusOutput,
+    VideoDeleteOutput, VideoGenerationOutput, VideoJobOutput, VideoStatusOutput,
 };
-use a4n_core::error::AppError;
 use a4n_service_protocol::redact_sensitive_message;
 use a4n_video::{VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};
-use a4n_video_providers::video_provider_request_body_preview;
 use base64::Engine as _;
-use serde_json::{Value, json};
-
-pub(crate) fn video_request_preview(payload: &VideoProviderPayload) -> Result<Value, AppError> {
-    let body =
-        video_provider_request_body_preview(&payload.backend, &payload.base_url, &payload.request)?;
-    Ok(json!({ "request": body }))
-}
 
 pub(crate) fn video_generation_output(result: VideoGenerationResult) -> VideoGenerationOutput {
     VideoGenerationOutput {

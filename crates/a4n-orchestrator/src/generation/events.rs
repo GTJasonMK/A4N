@@ -21,17 +21,17 @@ const DEFAULT_CHECKPOINT_INTERVAL: Duration = Duration::from_secs(2);
 const DEFAULT_CHECKPOINT_BYTE_THRESHOLD: usize = 64 * 1024;
 
 #[derive(Debug, Clone)]
-pub struct GenerationSessionConfig {
-    pub replay_max_events: usize,
-    pub replay_max_bytes: usize,
-    pub active_session_max: usize,
-    pub session_admission_base_bytes: usize,
-    pub global_session_memory_bytes: usize,
-    pub subscriptions_per_task: usize,
-    pub subscriptions_per_host: usize,
-    pub terminal_memory_ttl: Duration,
-    pub checkpoint_interval: Duration,
-    pub checkpoint_byte_threshold: usize,
+pub(crate) struct GenerationSessionConfig {
+    replay_max_events: usize,
+    replay_max_bytes: usize,
+    active_session_max: usize,
+    session_admission_base_bytes: usize,
+    global_session_memory_bytes: usize,
+    subscriptions_per_task: usize,
+    subscriptions_per_host: usize,
+    terminal_memory_ttl: Duration,
+    checkpoint_interval: Duration,
+    checkpoint_byte_threshold: usize,
 }
 
 impl Default for GenerationSessionConfig {
@@ -52,7 +52,7 @@ impl Default for GenerationSessionConfig {
 }
 
 impl GenerationSessionConfig {
-    pub fn validate(&self) -> Result<(), GenerationSessionError> {
+    fn validate(&self) -> Result<(), GenerationSessionError> {
         if !(256..=8_192).contains(&self.replay_max_events) {
             return Err(GenerationSessionError::InvalidConfiguration(
                 "replay_max_events 必须在 256..=8192".to_string(),
@@ -111,14 +111,14 @@ impl GenerationSessionConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GenerationCapacitySnapshot {
-    pub active_sessions: usize,
-    pub session_memory_bytes: usize,
-    pub subscriptions: usize,
+struct GenerationCapacitySnapshot {
+    active_sessions: usize,
+    session_memory_bytes: usize,
+    subscriptions: usize,
 }
 
 #[derive(Clone)]
-pub struct GenerationAdmissionController {
+struct GenerationAdmissionController {
     inner: Arc<AdmissionInner>,
 }
 
@@ -134,7 +134,7 @@ struct AdmissionState {
     subscriptions: usize,
 }
 
-pub struct SessionAdmissionPermit {
+pub(crate) struct SessionAdmissionPermit {
     lease: Option<SessionCapacityLease>,
 }
 
@@ -163,7 +163,7 @@ struct HostSubscriptionPermit {
 }
 
 impl GenerationAdmissionController {
-    pub fn new(config: GenerationSessionConfig) -> Result<Self, GenerationSessionError> {
+    fn new(config: GenerationSessionConfig) -> Result<Self, GenerationSessionError> {
         config.validate()?;
         Ok(Self {
             inner: Arc::new(AdmissionInner {
@@ -173,7 +173,7 @@ impl GenerationAdmissionController {
         })
     }
 
-    pub fn try_admit(&self) -> Result<SessionAdmissionPermit, GenerationSessionError> {
+    fn try_admit(&self) -> Result<SessionAdmissionPermit, GenerationSessionError> {
         let base_bytes = self.inner.config.session_admission_base_bytes;
         let mut state = self
             .inner
@@ -206,7 +206,7 @@ impl GenerationAdmissionController {
         })
     }
 
-    pub fn snapshot(&self) -> GenerationCapacitySnapshot {
+    fn snapshot(&self) -> GenerationCapacitySnapshot {
         let state = self
             .inner
             .state
@@ -220,20 +220,20 @@ impl GenerationAdmissionController {
     }
 }
 
-pub struct GenerationSessionRegistry {
+pub(crate) struct GenerationSessionRegistry {
     admission: GenerationAdmissionController,
     sessions: Mutex<BTreeMap<String, Arc<GenerationTaskSession>>>,
 }
 
 impl GenerationSessionRegistry {
-    pub fn new(config: GenerationSessionConfig) -> Result<Self, GenerationSessionError> {
+    pub(crate) fn new(config: GenerationSessionConfig) -> Result<Self, GenerationSessionError> {
         Ok(Self {
             admission: GenerationAdmissionController::new(config)?,
             sessions: Mutex::new(BTreeMap::new()),
         })
     }
 
-    pub fn try_admit(&self) -> Result<SessionAdmissionPermit, GenerationSessionError> {
+    pub(crate) fn try_admit(&self) -> Result<SessionAdmissionPermit, GenerationSessionError> {
         self.cleanup_terminal_sessions_at(now_ms()?);
         loop {
             match self.admission.try_admit() {
@@ -247,34 +247,7 @@ impl GenerationSessionRegistry {
         }
     }
 
-    pub fn insert(
-        &self,
-        session: Arc<GenerationTaskSession>,
-    ) -> Result<(), GenerationSessionError> {
-        let (task_id, attempt) = session.identity();
-        let mut sessions = self
-            .sessions
-            .lock()
-            .expect("generation session registry mutex poisoned");
-        if let Some(existing) = sessions.get(&task_id) {
-            let (_, existing_attempt) = existing.identity();
-            if existing_attempt != attempt {
-                return Err(GenerationSessionError::InvalidSession(format!(
-                    "task {task_id} 已登记 attempt {existing_attempt}，不能插入 attempt {attempt}"
-                )));
-            }
-            if Arc::ptr_eq(existing, &session) {
-                return Ok(());
-            }
-            return Err(GenerationSessionError::InvalidSession(format!(
-                "task {task_id} attempt {attempt} 已有 session"
-            )));
-        }
-        sessions.insert(task_id, session);
-        Ok(())
-    }
-
-    pub(crate) fn insert_restored_or_get(
+    pub(crate) fn insert_or_get(
         &self,
         session: Arc<GenerationTaskSession>,
     ) -> Result<Arc<GenerationTaskSession>, GenerationSessionError> {
@@ -287,7 +260,7 @@ impl GenerationSessionRegistry {
             let (_, existing_attempt) = existing.identity();
             if existing_attempt != attempt {
                 return Err(GenerationSessionError::InvalidSession(format!(
-                    "task {task_id} 已登记 attempt {existing_attempt}，不能恢复 attempt {attempt}"
+                    "task {task_id} 已登记 attempt {existing_attempt}，不能插入 attempt {attempt}"
                 )));
             }
             return Ok(Arc::clone(existing));
@@ -296,7 +269,7 @@ impl GenerationSessionRegistry {
         Ok(session)
     }
 
-    pub fn get(
+    pub(crate) fn get(
         &self,
         task_id: &str,
         attempt: u32,
@@ -315,27 +288,6 @@ impl GenerationSessionRegistry {
             )));
         }
         Ok(Some(Arc::clone(session)))
-    }
-
-    pub fn remove(
-        &self,
-        task_id: &str,
-        attempt: u32,
-    ) -> Result<Option<Arc<GenerationTaskSession>>, GenerationSessionError> {
-        let mut sessions = self
-            .sessions
-            .lock()
-            .expect("generation session registry mutex poisoned");
-        let Some(session) = sessions.get(task_id) else {
-            return Ok(None);
-        };
-        let (_, actual_attempt) = session.identity();
-        if actual_attempt != attempt {
-            return Err(GenerationSessionError::InvalidSession(format!(
-                "task {task_id} 当前 attempt={actual_attempt}，不能移除 attempt={attempt}"
-            )));
-        }
-        Ok(sessions.remove(task_id))
     }
 
     #[cfg(test)]
@@ -597,17 +549,17 @@ impl GenerationSessionError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GenerationDurableCommit {
-    pub checkpoint_revision: i64,
-    pub covers_through_sequence: u64,
-    pub reserved_through_sequence: u64,
-    pub persisted_at_ms: i64,
+pub(crate) struct GenerationDurableCommit {
+    pub(crate) checkpoint_revision: i64,
+    pub(crate) covers_through_sequence: u64,
+    pub(crate) reserved_through_sequence: u64,
+    pub(crate) persisted_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GenerationSequenceLeaseUpdate {
-    pub checkpoint_revision: i64,
-    pub reserved_through_sequence: u64,
+pub(crate) struct GenerationSequenceLeaseUpdate {
+    pub(crate) checkpoint_revision: i64,
+    pub(crate) reserved_through_sequence: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -634,7 +586,7 @@ struct SessionState {
     subscriptions: usize,
 }
 
-pub struct GenerationTaskSession {
+pub(crate) struct GenerationTaskSession {
     config: GenerationSessionConfig,
     state: Mutex<SessionState>,
     latest_sequence: watch::Sender<u64>,
@@ -644,7 +596,8 @@ pub struct GenerationTaskSession {
 }
 
 impl GenerationTaskSession {
-    pub fn from_started_event(
+    #[cfg(test)]
+    fn from_started_event(
         started_event: GenerationTaskEvent,
         reserved_through_sequence: u64,
         admission: SessionAdmissionPermit,
@@ -684,7 +637,7 @@ impl GenerationTaskSession {
         )
     }
 
-    pub fn from_snapshot(
+    pub(crate) fn from_snapshot(
         snapshot: GenerationTaskSnapshot,
         replay: Vec<GenerationTaskEvent>,
         checkpoint_revision: i64,
@@ -754,7 +707,7 @@ impl GenerationTaskSession {
         }))
     }
 
-    pub fn from_snapshot_only(
+    pub(crate) fn from_snapshot_only(
         snapshot: GenerationTaskSnapshot,
         checkpoint_revision: i64,
         reserved_through_sequence: u64,
@@ -778,7 +731,7 @@ impl GenerationTaskSession {
         Ok(session)
     }
 
-    pub fn snapshot(&self) -> GenerationTaskSnapshot {
+    pub(crate) fn snapshot(&self) -> GenerationTaskSnapshot {
         self.state
             .lock()
             .expect("generation session mutex poisoned")
@@ -786,7 +739,8 @@ impl GenerationTaskSession {
             .clone()
     }
 
-    pub fn reserved_through_sequence(&self) -> u64 {
+    #[cfg(test)]
+    fn reserved_through_sequence(&self) -> u64 {
         self.state
             .lock()
             .expect("generation session mutex poisoned")
@@ -1004,7 +958,7 @@ impl Drop for GenerationSubscription {
 }
 
 #[async_trait]
-pub trait GenerationSequenceLeaseReplenisher: Send + Sync {
+pub(crate) trait GenerationSequenceLeaseReplenisher: Send + Sync {
     async fn replenish(
         &self,
         task_id: &str,
@@ -1029,15 +983,6 @@ enum ApplyMode {
 }
 
 impl GenerationTaskSession {
-    pub fn is_terminal(&self) -> bool {
-        self.state
-            .lock()
-            .expect("generation session mutex poisoned")
-            .snapshot
-            .status
-            .is_terminal()
-    }
-
     pub(crate) async fn checkpoint_write_guard(&self) -> tokio::sync::MutexGuard<'_, ()> {
         self.checkpoint_write_lock.lock().await
     }
@@ -1207,7 +1152,7 @@ impl GenerationTaskSession {
         Ok(())
     }
 
-    pub fn replay_after(&self, after_sequence: Option<u64>) -> GenerationReplay {
+    pub(crate) fn replay_after(&self, after_sequence: Option<u64>) -> GenerationReplay {
         let state = self
             .state
             .lock()
@@ -1215,7 +1160,7 @@ impl GenerationTaskSession {
         replay_after_locked(&state, after_sequence)
     }
 
-    pub fn subscribe(
+    pub(crate) fn subscribe(
         self: &Arc<Self>,
         after_sequence: Option<u64>,
     ) -> Result<GenerationSubscription, GenerationSessionError> {
@@ -1246,7 +1191,7 @@ impl GenerationTaskSession {
         })
     }
 
-    pub fn prepare_committed_events(
+    pub(crate) fn prepare_committed_events(
         self: &Arc<Self>,
         events: Vec<GenerationEvent>,
     ) -> Result<CommittedEventPermit, GenerationSessionError> {
@@ -1486,7 +1431,7 @@ impl GenerationTaskSession {
         state.ordinary_publisher_sealed = Some(reason);
     }
 
-    pub fn latest_sequence(&self) -> u64 {
+    pub(crate) fn latest_sequence(&self) -> u64 {
         self.state
             .lock()
             .expect("generation session mutex poisoned")
@@ -1968,7 +1913,7 @@ fn apply_artifact(
     Ok(())
 }
 
-pub struct CommittedEventPermit {
+pub(crate) struct CommittedEventPermit {
     session: Arc<GenerationTaskSession>,
     events: Vec<GenerationTaskEvent>,
     snapshot: Option<GenerationTaskSnapshot>,
@@ -1983,25 +1928,31 @@ pub struct CommittedEventPermit {
 }
 
 impl CommittedEventPermit {
-    pub fn events(&self) -> &[GenerationTaskEvent] {
+    #[cfg(test)]
+    fn events(&self) -> &[GenerationTaskEvent] {
         &self.events
     }
 
-    pub fn snapshot(&self) -> &GenerationTaskSnapshot {
+    pub(crate) fn snapshot(&self) -> &GenerationTaskSnapshot {
         self.snapshot
             .as_ref()
             .expect("committed event permit snapshot consumed")
     }
 
-    pub fn first_sequence(&self) -> u64 {
+    #[cfg(test)]
+    fn first_sequence(&self) -> u64 {
         self.first_sequence
     }
 
-    pub fn last_sequence(&self) -> u64 {
+    #[cfg(test)]
+    fn last_sequence(&self) -> u64 {
         self.last_sequence
     }
 
-    pub fn commit(mut self, commit: GenerationDurableCommit) -> Result<(), GenerationSessionError> {
+    pub(crate) fn commit(
+        mut self,
+        commit: GenerationDurableCommit,
+    ) -> Result<(), GenerationSessionError> {
         validate_durable_commit(commit)?;
         if commit.covers_through_sequence != self.last_sequence {
             return Err(GenerationSessionError::InvalidSession(format!(
@@ -2092,20 +2043,20 @@ impl Drop for CommittedEventPermit {
 }
 
 #[async_trait]
-pub trait GenerationEventPublisher: Send + Sync {
+pub(crate) trait GenerationEventPublisher: Send + Sync {
     async fn progress(&self, event: ProgressEvent) -> Result<(), GenerationSessionError>;
     async fn text_delta(&self, stream_id: &str, delta: &str) -> Result<(), GenerationSessionError>;
     async fn usage(&self, event: UsageEvent) -> Result<(), GenerationSessionError>;
 }
 
 #[derive(Clone)]
-pub struct SessionGenerationEventPublisher {
+pub(crate) struct SessionGenerationEventPublisher {
     session: Arc<GenerationTaskSession>,
     replenisher: Arc<dyn GenerationSequenceLeaseReplenisher>,
 }
 
 impl SessionGenerationEventPublisher {
-    pub fn new(
+    pub(crate) fn new(
         session: Arc<GenerationTaskSession>,
         replenisher: Arc<dyn GenerationSequenceLeaseReplenisher>,
     ) -> Self {
@@ -2685,7 +2636,7 @@ mod tests {
                 admission,
             )
             .unwrap();
-            registry.insert(session).unwrap();
+            registry.insert_or_get(session).unwrap();
         }
 
         let admission = registry.try_admit().unwrap();

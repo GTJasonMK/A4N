@@ -1,6 +1,7 @@
 use super::super::types::CanvasMediaSourceContext;
-use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO, SOURCE_MODE_DERIVED, SOURCE_MODE_FREEFORM};
+use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO};
 use a4n_core::models::project::{novel_project, project_source_snapshot, source_snapshot_chapter};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -22,8 +23,10 @@ where
             "画布媒体资产只支持视频项目: {project_id}"
         )));
     }
-    match project.source_mode.as_str() {
-        SOURCE_MODE_FREEFORM => {
+    match project.source_mode().map_err(|error| {
+        CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
+    })? {
+        ProjectSourceMode::Freeform => {
             if let Some(chapter_id) = source_chapter_id {
                 return Err(CanvasDbError::InvalidArgument(format!(
                     "freeform 视频项目媒体资产不能绑定源章节: project_id={project_id}, chapter_id={chapter_id}"
@@ -36,7 +39,7 @@ where
                 source_snapshot_chapter_id: None,
             })
         }
-        SOURCE_MODE_DERIVED => {
+        ProjectSourceMode::Derived => {
             let context = crate::project::derived_project_family_context(db, project_id)
                 .await
                 .map_err(project_family_error_to_canvas_error)?;
@@ -67,9 +70,9 @@ where
                 source_snapshot_chapter_id,
             })
         }
-        other => Err(CanvasDbError::InvalidArgument(format!(
-            "画布媒体资产只支持 source_mode=freeform/derived 的视频项目，当前 source_mode={other}"
-        ))),
+        ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(
+            "画布媒体资产不支持文本项目".to_string(),
+        )),
     }
 }
 

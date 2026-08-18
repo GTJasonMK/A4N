@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const screenshotDir = fileURLToPath(
+  new URL("../../../target/tmp/video-scrub/", import.meta.url),
+);
+mkdirSync(screenshotDir, { recursive: true });
+const screenshotPath = (name) => `${screenshotDir}${name}`;
 
 const openHarness = async (query = "") => {
   if (process.env.A4N_WDIO_APP_BINARY)
@@ -504,7 +511,9 @@ describe("video timeline scrubbing", () => {
         }
         dragSamples.push({
           ratio,
-          hash: await screenshotHash(`/tmp/a4n-webkit-drag-${index}.png`),
+          hash: await screenshotHash(
+            screenshotPath(`a4n-webkit-drag-${index}.png`),
+          ),
           state: await browser.execute(() => {
             const video = document.querySelector("video");
             return {
@@ -543,11 +552,13 @@ describe("video timeline scrubbing", () => {
           },
         ]);
         await waitForPreviewRatio(ratio, "rapid JPEG preview did not settle");
-        const screenshotPath = `/tmp/a4n-webkit-rapid-${index}.png`;
+        const rapidScreenshotPath = screenshotPath(
+          `a4n-webkit-rapid-${index}.png`,
+        );
         rapidVisualSamples.push({
           ratio,
-          hash: await screenshotHash(screenshotPath),
-          bytes: readFileSync(screenshotPath).length,
+          hash: await screenshotHash(rapidScreenshotPath),
+          bytes: readFileSync(rapidScreenshotPath).length,
           ...(await browser.execute(() => ({
             currentTime: document.querySelector("video")?.currentTime ?? null,
             frameIndex: document
@@ -621,7 +632,9 @@ describe("video timeline scrubbing", () => {
       }
       dragSamples.push({
         ratio: 0.18,
-        hash: await screenshotHash("/tmp/a4n-webkit-drag-stress.png"),
+        hash: await screenshotHash(
+          screenshotPath("a4n-webkit-drag-stress.png"),
+        ),
         state: await browser.execute(() => {
           const video = document.querySelector("video");
           return {
@@ -653,7 +666,7 @@ describe("video timeline scrubbing", () => {
       ]);
       await waitForPreviewRatio(0.76, "final held JPEG drag did not settle");
       forwardFrameHash = await screenshotHash(
-        "/tmp/a4n-webkit-drag-forward.png",
+        screenshotPath("a4n-webkit-drag-forward.png"),
       );
       const heldSeekedCount = await browser.execute(
         () => window.__A4N_NATIVE_DRAG_SEEKED__,
@@ -717,7 +730,9 @@ describe("video timeline scrubbing", () => {
         },
       ]);
       await waitForRatio(0.76, "native pointer drag did not settle");
-      forwardFrameHash = await screenshotHash("/tmp/a4n-chromium-forward.png");
+      forwardFrameHash = await screenshotHash(
+        screenshotPath("a4n-chromium-forward.png"),
+      );
     }
     await browser.performActions([
       {
@@ -752,7 +767,7 @@ describe("video timeline scrubbing", () => {
       { timeout: 10_000, timeoutMsg: "native reverse drag did not settle" },
     );
     const reverseFrameHash = await screenshotHash(
-      "/tmp/a4n-webkit-reverse.png",
+      screenshotPath("a4n-webkit-reverse.png"),
     );
     assert.notEqual(
       reverseFrameHash,

@@ -10,8 +10,8 @@ mod tests;
 pub use contracts::{
     DecodedPortraitImage, GenerateAgeVariantInput, GenerateMissingPortraitsInput,
     GeneratePortraitInput, GeneratePortraitPromptInput, GeneratedPortraitImage,
-    PersistPortraitFileInput, PersistedPortraitFile, PortraitArtifactFile, PortraitBatchItem,
-    PortraitBatchOutcome, PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
+    PersistPortraitFileInput, PersistedPortraitFile, PortraitBatchItem, PortraitBatchOutcome,
+    PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
     PortraitReferenceImageSource, PortraitSummary, PortraitType, RegeneratePortraitInput,
     UploadPortraitInput,
 };

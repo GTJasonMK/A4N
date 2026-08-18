@@ -12,11 +12,10 @@ pub(super) fn required_text(value: String, field: &str) -> Result<String, AppErr
     Ok(text.to_string())
 }
 
-pub(super) fn required_chat_prompt(
-    value: String,
+pub(in crate::video) fn validate_chat_video_prompt_text(
+    text: &str,
     prompt_output_language: PromptOutputLanguage,
-) -> Result<String, AppError> {
-    let text = required_text(value, "chat_prompt")?;
+) -> Result<(), AppError> {
     validate_direct_prompt_text(&text, "Chat 视频提示词 chat_prompt")?;
     validate_prompt_has_no_upload_status(&text, "Chat 视频提示词 chat_prompt")?;
     validate_chat_prompt_required_sections(&text, prompt_output_language)?;
@@ -36,7 +35,7 @@ pub(super) fn required_chat_prompt(
                 .to_string(),
         ));
     }
-    Ok(text)
+    Ok(())
 }
 
 pub(super) fn validate_chat_prompt_required_sections(

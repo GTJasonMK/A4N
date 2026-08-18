@@ -54,6 +54,7 @@ export type {
   ProjectStatusHistorySummary,
   ProjectStatusMachineSummary,
   ProjectKind,
+  ProjectSourceMode,
   SourceSnapshotChapterSummary,
 } from "./generated/host";
 
@@ -63,17 +64,14 @@ export type {
 
 export type NovelProject = Omit<
   ProjectSummary,
-  "lifecycle_gate" | "project_kind" | "source_mode" | "source_sync_status"
+  "lifecycle_gate" | "project_kind" | "source_sync_status"
 > & {
   lifecycle_gate: ProjectLifecycleGate;
   project_kind: ProjectKind;
-  source_mode: ProjectSourceMode;
   source_sync_status: SourceSyncStatus;
 };
 
 export type ProjectLifecycleGate = "active" | "deleting" | "resetting";
-type ProjectSourceMode = "self" | "derived" | "freeform";
-
 type SourceSyncStatus = "current" | "root_updated" | "conflict" | "detached";
 
 export type ProjectMemberRole = ApiProjectMemberRole;

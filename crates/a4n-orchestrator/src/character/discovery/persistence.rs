@@ -1,3 +1,6 @@
+use a4n_api_contract::character::{
+    DiscoverCharacterProfilesResult, ExistingCharacterProfileDiscovery,
+};
 use a4n_core::error::AppError;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
@@ -15,6 +18,7 @@ use crate::{
 };
 
 use super::{
+    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND,
     contracts::{CharacterDiscoveryCallResult, CharacterDiscoveryRequestContext},
     identity::{discovered_character_keys, profile_for_result},
     output::discovered_character_base_attributes,
@@ -28,13 +32,12 @@ impl OrchestratorContext {
         request_context: CharacterDiscoveryRequestContext,
         call_result: CharacterDiscoveryCallResult,
         progress: Option<super::contracts::CharacterDiscoveryProgress<'_>>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<DiscoverCharacterProfilesResult, AppError> {
         let CharacterDiscoveryRequestContext {
             chapters,
             text_anchors,
             mut existing_keys,
             mut existing_key_profiles,
-            request: _,
         } = request_context;
         let CharacterDiscoveryCallResult {
             discovered,
@@ -47,7 +50,7 @@ impl OrchestratorContext {
         let messages_json = serde_json::to_value(&llm_request.messages)?;
         let mut created = Vec::new();
         let mut existing = Vec::new();
-        let discovered_total = discovered.len().max(1);
+        let discovered_total = discovered.len();
         let source_chapters = chapters
             .iter()
             .map(a4n_db::project::ChapterSourceSnapshot::from)
@@ -87,13 +90,13 @@ impl OrchestratorContext {
                     bind_character_profile_evidence_in(&tx, project_id, profile_id, &character)
                         .await?;
                 }
-                existing.push(json!({
-                    "name": name,
-                    "aliases": required_value(&character, "aliases")
+                existing.push(ExistingCharacterProfileDiscovery {
+                    name,
+                    aliases: required_value(&character, "aliases")
                         .map_err(AppError::InvalidArgument)?
                         .clone(),
-                    "reason": "already_exists",
-                }));
+                    reason: "already_exists".into(),
+                });
                 for key in keys {
                     existing_keys.insert(key);
                 }
@@ -109,13 +112,13 @@ impl OrchestratorContext {
                 base_attributes,
                 RecordCompletedGenerationRunInput {
                     project_id,
-                    workflow: "character_discovery".to_string(),
-                    step_key: "discover_character_profiles_for_chapters".to_string(),
+                    workflow: CHARACTER_DISCOVERY_KIND.to_string(),
+                    step_key: CHARACTER_DISCOVERY_CALL_KEY.to_string(),
                     title: format!("角色发现: {name}"),
                     model_kind: "llm".to_string(),
                     provider: None,
                     model: None,
-                    prompt_template_names_json: Some(json!(["character_discovery"])),
+                    prompt_template_names_json: Some(json!([CHARACTER_DISCOVERY_KIND])),
                     prompt_template_hashes_json: None,
                     rendered_messages_json: Some(messages_json.clone()),
                     rendered_prompts_json: None,
@@ -170,13 +173,13 @@ impl OrchestratorContext {
                         existing_keys.insert(key.clone());
                         existing_key_profiles.insert(key, profile.id);
                     }
-                    existing.push(json!({
-                        "name": name,
-                        "aliases": required_value(&character, "aliases")
+                    existing.push(ExistingCharacterProfileDiscovery {
+                        name,
+                        aliases: required_value(&character, "aliases")
                             .map_err(AppError::InvalidArgument)?
                             .clone(),
-                        "reason": "already_exists",
-                    }));
+                        reason: "already_exists".into(),
+                    });
                 }
                 Err(error) => {
                     return Err(
@@ -187,14 +190,17 @@ impl OrchestratorContext {
         }
         tx.commit().await.map_err(AppError::Database)?;
 
-        Ok(json!({
-            "status": "discovered",
-            "chapters_analyzed": chapters.len(),
-            "chapter_numbers": chapters.iter().map(|chapter| chapter.chapter_number).collect::<Vec<_>>(),
-            "discovered_count": discovered_count,
-            "created": created,
-            "existing": existing,
-        }))
+        Ok(DiscoverCharacterProfilesResult {
+            status: "discovered".into(),
+            chapters_analyzed: chapters.len(),
+            chapter_numbers: chapters
+                .iter()
+                .map(|chapter| chapter.chapter_number)
+                .collect(),
+            discovered_count,
+            created,
+            existing,
+        })
     }
 }
 

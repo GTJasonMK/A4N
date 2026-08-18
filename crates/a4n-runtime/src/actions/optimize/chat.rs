@@ -19,36 +19,31 @@ pub async fn start_optimize_chat_generation_typed(
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
         .orchestrator()
-        .start_optimize_chat_generation_task(user_id, input.clone())
+        .start_optimize_chat_generation_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
     }
 
     let worker_state = state.clone();
-    let handle = start.handle.clone();
-    state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = &worker_state;
-        if let Err(error) = worker_state
-            .orchestrator()
-            .run_optimize_chat_generation_task(
-                a4n_orchestrator::optimize::OptimizeChatGenerationApplicationContext {
-                    prompt_renderer: prompt_renderer,
-                },
-                user_id,
-                input,
-                handle.clone(),
-            )
-            .await
-        {
-            tracing::error!(
-                task_id = %handle.task_id,
-                attempt = handle.attempt,
-                error = %error,
-                "内容优化 chat generation worker 失败"
-            );
-        }
-    });
+    state.spawn_generation_execution(
+        start.handle.clone(),
+        "optimize_chat",
+        move |handle| async move {
+            let prompt_renderer = &worker_state;
+            worker_state
+                .orchestrator()
+                .run_optimize_chat_generation_task(
+                    a4n_orchestrator::optimize::OptimizeChatGenerationApplicationContext {
+                        prompt_renderer: prompt_renderer,
+                    },
+                    user_id,
+                    input,
+                    handle,
+                )
+                .await
+        },
+    );
     Ok(start.handle)
 }
 

@@ -1,6 +1,22 @@
-use super::super::*;
 use super::contracts::ManifestIds;
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::canvas_transfer_runtime_identity_key;
+use a4n_domain::CanvasNodeRefKind;
+
+use a4n_core::models::ai::generated_video;
+
+use crate::media::{
+    MEDIA_STATUS_COMPLETED, is_valid_media_kind, is_valid_media_origin, is_valid_media_status,
+};
+use crate::project::video_studio_package::{
+    ImportMediaPayload, VideoStudioProjectPackage,
+};
+
+use super::super::media::{require_media_payload, validate_optional_file_size};
+use super::super::provenance::{
+    MediaProvenanceSnapshotRefs, validate_media_provenance_snapshot,
+    validate_media_provenance_source_external_path,
+};
 
 pub(super) fn validate_asset_records(
     package: &VideoStudioProjectPackage,
@@ -25,7 +41,12 @@ pub(super) fn validate_asset_records(
             ));
         }
         validate_optional_file_size(image.file_size, "generated_image", image.id)?;
-        require_media_payload(media_payload, MEDIA_OWNER_IMAGE, image.id, MEDIA_FIELD_FILE)?;
+        require_media_payload(
+            media_payload,
+            CanvasNodeRefKind::GeneratedImage.as_str(),
+            image.id,
+            FILE_PATH_FIELD,
+        )?;
     }
     for video in &package.generated_videos {
         if video.project_id != package.project.id || video.chapter_id.is_some() {
@@ -74,14 +95,19 @@ pub(super) fn validate_asset_records(
             ));
         }
         if video.file_path.is_some() {
-            require_media_payload(media_payload, MEDIA_OWNER_VIDEO, video.id, MEDIA_FIELD_FILE)?;
+            require_media_payload(
+                media_payload,
+                CanvasNodeRefKind::GeneratedVideo.as_str(),
+                video.id,
+                FILE_PATH_FIELD,
+            )?;
         }
         if video.thumbnail_path.is_some() {
             require_media_payload(
                 media_payload,
-                MEDIA_OWNER_VIDEO,
+                CanvasNodeRefKind::GeneratedVideo.as_str(),
                 video.id,
-                MEDIA_FIELD_THUMBNAIL,
+                THUMBNAIL_PATH_FIELD,
             )?;
         }
     }
@@ -123,17 +149,17 @@ pub(super) fn validate_asset_records(
         if asset.file_path.is_some() {
             require_media_payload(
                 media_payload,
-                MEDIA_OWNER_MEDIA_ASSET,
+                CanvasNodeRefKind::MediaAsset.as_str(),
                 asset.id,
-                MEDIA_FIELD_FILE,
+                FILE_PATH_FIELD,
             )?;
         }
         if asset.thumbnail_path.is_some() {
             require_media_payload(
                 media_payload,
-                MEDIA_OWNER_MEDIA_ASSET,
+                CanvasNodeRefKind::MediaAsset.as_str(),
                 asset.id,
-                MEDIA_FIELD_THUMBNAIL,
+                THUMBNAIL_PATH_FIELD,
             )?;
         }
     }

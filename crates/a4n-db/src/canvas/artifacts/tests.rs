@@ -4,6 +4,11 @@ use a4n_core::models::{
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
 };
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use crate::generation::{
+    GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+    GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 
@@ -28,7 +33,7 @@ async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
         &db,
         crate::video::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: format!("projects/{}/images/rollback.png", project.id),
             prompt: "rollback".to_string(),
             model: "test".to_string(),
@@ -99,8 +104,8 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
             project_id: project.id,
             target_entity_id: 21,
             canvas_text_asset_id: None,
-            target_kind: "canvas_video".to_string(),
-            target_entity_kind: "canvas_node".to_string(),
+            target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO.to_string(),
+            target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
             status: "running".to_string(),
             params_json: params_json.clone(),
         },

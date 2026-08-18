@@ -9,15 +9,28 @@ use super::contracts::{
     DeleteRagRecordsInput, PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, RagSyncError,
 };
 use super::identity::{classify_rag_record, current_embedding_identity};
-use super::keys::rag_id_prefix;
-use super::metadata::root_text_family_metadata;
-use crate::OrchestratorContext;
+use crate::{OrchestratorContext, rag::rag_project_prefix};
 
 pub struct RagSyncContext {
     pub(super) project_id: i64,
     pub(super) embedding_identity: EmbeddingModelIdentity,
     pub(super) stored_metadata: HashMap<String, Value>,
     pub(super) stale_ids: HashSet<String>,
+}
+
+fn rag_id_prefix(project_id: i64, data_type: RagDataType) -> Result<String, RagSyncError> {
+    match data_type {
+        RagDataType::Chapter
+        | RagDataType::ChapterSummary
+        | RagDataType::ChapterMetadata
+        | RagDataType::KeyEvent => Err(RagSyncError::InvalidRecord {
+            message: format!(
+                "{} 需要按具体章节清理，不能按共享章节前缀清理",
+                data_type.as_str()
+            ),
+        }),
+        _ => Ok(rag_project_prefix(project_id, data_type)),
+    }
 }
 
 impl RagSyncContext {
@@ -29,9 +42,6 @@ impl RagSyncContext {
             context,
             project_id,
             DeleteFilter {
-                project_id,
-                data_type: None,
-                chapter_number: None,
                 ids: Vec::new(),
                 id_prefixes: Vec::new(),
             },
@@ -39,7 +49,7 @@ impl RagSyncContext {
         .await
     }
 
-    pub async fn for_ids(
+    pub(crate) async fn for_ids(
         context: &OrchestratorContext,
         project_id: i64,
         ids: &[String],
@@ -59,7 +69,7 @@ impl RagSyncContext {
         })
     }
 
-    pub async fn for_id_prefixes(
+    pub(crate) async fn for_id_prefixes(
         context: &OrchestratorContext,
         project_id: i64,
         prefixes: Vec<String>,
@@ -68,9 +78,6 @@ impl RagSyncContext {
             context,
             project_id,
             DeleteFilter {
-                project_id,
-                data_type: None,
-                chapter_number: None,
                 ids: Vec::new(),
                 id_prefixes: prefixes,
             },
@@ -123,9 +130,8 @@ impl RagSyncContext {
 
     pub fn prepare_record(
         &mut self,
-        mut record: RagRecord,
+        record: RagRecord,
     ) -> Result<PreparedRagRecordSync, RagSyncError> {
-        record.metadata = root_text_family_metadata(self.project_id, record.metadata)?;
         let content_hash =
             content_hash(&record.text).map_err(|error| RagSyncError::InvalidRecord {
                 message: error.to_string(),
@@ -139,16 +145,16 @@ impl RagSyncContext {
         Ok(PreparedRagRecordSync { record, outcome })
     }
 
-    pub async fn sync_record(
+    pub(crate) async fn sync_record(
         &mut self,
         context: &OrchestratorContext,
-        record: &RagRecord,
+        record: RagRecord,
     ) -> Result<RagRecordSyncOutcome, RagSyncError> {
-        let prepared = self.prepare_record(record.clone())?;
+        let prepared = self.prepare_record(record)?;
         let outcome = prepared.outcome;
         if outcome != RagRecordSyncOutcome::Skipped {
             context
-                .embed_and_store_rag_record(
+                .rag_embed_and_store_record(
                     self.project_id,
                     &prepared.record.chunk_id,
                     &prepared.record.text,
@@ -162,19 +168,15 @@ impl RagSyncContext {
         Ok(outcome)
     }
 
-    pub async fn cleanup_stale(
-        &mut self,
-        context: &OrchestratorContext,
-    ) -> Result<u32, RagSyncError> {
+    pub async fn cleanup_stale(self, context: &OrchestratorContext) -> Result<u32, RagSyncError> {
         if self.stale_ids.is_empty() {
             return Ok(0);
         }
-        let mut ids = self.stale_ids.iter().cloned().collect::<Vec<_>>();
+        let mut ids = self.stale_ids.into_iter().collect::<Vec<_>>();
         ids.sort();
         let deleted = context
             .delete_rag_records(DeleteRagRecordsInput {
                 project_id: self.project_id,
-                data_type: None,
                 ids,
                 id_prefixes: Vec::new(),
             })
@@ -182,10 +184,6 @@ impl RagSyncContext {
             .map_err(|error| RagSyncError::DeleteStale {
                 message: error.to_string(),
             })?;
-        let deleted = u32::try_from(deleted).map_err(|_| RagSyncError::DeletedCountOverflow {
-            deleted: deleted.to_string(),
-        })?;
-        self.stale_ids.clear();
-        Ok(deleted)
+        u32::try_from(deleted).map_err(|_| RagSyncError::DeletedCountOverflow { deleted })
     }
 }

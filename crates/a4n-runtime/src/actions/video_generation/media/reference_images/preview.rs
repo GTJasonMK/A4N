@@ -1,6 +1,6 @@
 use super::records::validated_reference_images_for_ids;
-use a4n_core::models::ai::generated_image;
-use a4n_orchestrator::video::{ensure_reference_image_ids_valid, image_mime_from_path};
+use a4n_core::{media::image_mime_from_path, models::ai::generated_image};
+use a4n_orchestrator::video::ensure_reference_image_ids_valid;
 use std::path::Path;
 
 pub(crate) async fn reference_image_request_preview_urls_by_ids(

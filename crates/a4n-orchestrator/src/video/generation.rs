@@ -10,11 +10,9 @@ use a4n_api_contract::{
 use a4n_core::{error::AppError, models::ai::generated_video};
 use a4n_domain::progress::ProgressPhaseKind;
 use a4n_service_protocol::{
-    BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError,
-    GenerationFinishReason, GenerationResultRef,
+    BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
 };
 use futures::future::BoxFuture;
-use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 
 use crate::{
@@ -22,7 +20,8 @@ use crate::{
     generation::{
         GenerationProgressUpdate,
         artifacts::{GenerationArtifactCoordinator, PreparedArtifactEvent},
-        generation_public_error, publish_step_progress,
+        best_effort_batch_summary, generation_batch_result_ref, generation_public_error,
+        publish_step_progress,
         terminal::CompletionDescriptor,
     },
 };
@@ -74,7 +73,7 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let operation_key = video_operation_key(&input.operation);
+        let operation_key = input.operation.generation_task_key();
         let checkpoint_context = VideoGenerationCheckpointContext::new(
             session.clone(),
             self.database.shared_connection(),
@@ -360,7 +359,7 @@ impl OrchestratorContext {
                 .await;
             drop(child_progress);
             match result {
-                Ok(video) if video.status == super::GENERATED_VIDEO_STATUS_COMPLETED => {
+                Ok(video) if video.status == generated_video::STATUS_COMPLETED => {
                     let artifact = video_artifact_event(
                         ChapterVideoGenerationHostPort::video_provider_host_port(host_port),
                         &video,
@@ -373,7 +372,7 @@ impl OrchestratorContext {
                 }
                 Ok(video)
                     if has_active_provider_job(video.provider_job_id.as_deref(), &video.status)
-                        || video.status == super::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED =>
+                        || video.status == generated_video::STATUS_INTERRUPTED =>
                 {
                     batch.failed += 1;
                     batch.failed_item_keys.push(item_key);
@@ -431,7 +430,13 @@ impl OrchestratorContext {
                 batch.failed
             ),
             result_ref: (!batch.completed_ids.is_empty())
-                .then(|| batch_video_result_ref(project_id, &batch.completed_ids))
+                .then(|| {
+                    generation_batch_result_ref(
+                        "generated_video_batch",
+                        project_id,
+                        batch.completed_ids.clone(),
+                    )
+                })
                 .transpose()?,
             artifacts: batch.artifacts,
             batch_summary: Some(batch_summary),
@@ -442,22 +447,15 @@ impl OrchestratorContext {
 
 impl BatchAccumulator {
     fn summary(&self) -> BatchSummary {
-        let mut failed_item_keys = self.failed_item_keys.clone();
-        failed_item_keys.sort_unstable();
-        failed_item_keys.dedup();
-        let failed_item_keys_truncated = failed_item_keys.len() > 256;
-        failed_item_keys.truncate(256);
-        BatchSummary {
-            policy: BatchCommitPolicy::BestEffort,
-            total: self.total,
-            succeeded: u32::try_from(self.completed_ids.len())
+        best_effort_batch_summary(
+            self.total,
+            u32::try_from(self.completed_ids.len())
                 .expect("completed video count is bounded by total"),
-            failed: self.failed,
-            cancelled: self.cancelled,
-            skipped: self.skipped,
-            failed_item_keys,
-            failed_item_keys_truncated,
-        }
+            self.failed,
+            self.cancelled,
+            self.skipped,
+            &self.failed_item_keys,
+        )
     }
 }
 
@@ -466,7 +464,7 @@ fn single_video_result(
     video: generated_video::Model,
     summary: &str,
 ) -> Result<VideoTaskResult, AppError> {
-    if video.status == super::GENERATED_VIDEO_STATUS_COMPLETED {
+    if video.status == generated_video::STATUS_COMPLETED {
         let artifact = video_artifact_event(host_port, &video, None, None, None)?;
         return Ok(VideoTaskResult {
             summary: summary.to_string(),
@@ -481,7 +479,7 @@ fn single_video_result(
         });
     }
     let interrupted = has_active_provider_job(video.provider_job_id.as_deref(), &video.status)
-        || video.status == super::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED;
+        || video.status == generated_video::STATUS_INTERRUPTED;
     Ok(VideoTaskResult {
         summary: video
             .error_message
@@ -520,46 +518,14 @@ fn video_artifact_event(
             operation: "completed 视频缺少 file_path".to_string(),
         })?;
     let file = host_port.inspect_video_file(relative_path, "正式视频文件")?;
-    Ok(GenerationArtifactCoordinator::available(
-        GenerationArtifactRef {
-            artifact_id: format!("generated-video:{}", video.id),
-            artifact_kind: "generated_video".to_string(),
-            content_type: file.content_type,
-            sha256: file.sha256.clone(),
-            byte_size: file.byte_size,
-            revision: file.sha256,
-            temporary: false,
-            expires_at_ms: None,
-        },
+    Ok(GenerationArtifactCoordinator::generated_media_available(
+        format!("generated-video:{}", video.id),
+        "generated_video",
+        file,
         item_key,
         item_index,
         item_total,
     ))
-}
-
-fn batch_video_result_ref(
-    project_id: i64,
-    completed_ids: &[i64],
-) -> Result<GenerationResultRef, AppError> {
-    let mut ids = completed_ids.to_vec();
-    ids.sort_unstable();
-    Ok(GenerationResultRef {
-        kind: "generated_video_batch".to_string(),
-        id: project_id.to_string(),
-        revision: format!("{:x}", Sha256::digest(serde_json::to_vec(&ids)?)),
-    })
-}
-
-fn video_operation_key(operation: &VideoGenerationOperation) -> &'static str {
-    match operation {
-        VideoGenerationOperation::Chapter { .. } => "video_chapter",
-        VideoGenerationOperation::ChapterBatch { .. } => "video_chapter_batch",
-        VideoGenerationOperation::ReferenceMedia { .. } => "video_reference_media",
-        VideoGenerationOperation::PromptSegmentPlan { .. } => "video_prompt_segment_plan",
-        VideoGenerationOperation::PromptInsertedSegment { .. } => "video_prompt_inserted_segment",
-        VideoGenerationOperation::PromptFrames { .. } => "video_prompt_frames",
-        VideoGenerationOperation::PromptVideos { .. } => "video_prompt_videos",
-    }
 }
 
 fn video_app_error(error: AppError, stage_code: &str) -> GenerationError {
@@ -598,8 +564,8 @@ mod unit_tests {
             &self,
             _relative_path: &str,
             _label: &str,
-        ) -> Result<crate::video::VideoArtifactFile, AppError> {
-            Ok(crate::video::VideoArtifactFile {
+        ) -> Result<crate::generation::GeneratedMediaArtifactFile, AppError> {
+            Ok(crate::generation::GeneratedMediaArtifactFile {
                 content_type: self.content_type.to_string(),
                 sha256: self.sha256.to_string(),
                 byte_size: self.byte_size,
@@ -640,7 +606,7 @@ mod unit_tests {
             id,
             project_id: 1,
             chapter_id: Some(2),
-            video_type: "chapter_video".to_string(),
+            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("boundary_frames".to_string()),
             file_path: Some(path.to_string()),
             thumbnail_path: None,
@@ -654,7 +620,7 @@ mod unit_tests {
             file_size: Some(12),
             source_video_id: None,
             source_image_id: None,
-            status: crate::video::GENERATED_VIDEO_STATUS_COMPLETED.to_string(),
+            status: generated_video::STATUS_COMPLETED.to_string(),
             provider_job_id: None,
             error_message: None,
             timeline_item_id: None,
@@ -670,7 +636,7 @@ mod unit_tests {
             workflow_mode: Some("storyboard".to_string()),
             segment_plan_prompt_id: None,
             style: "电影感".to_string(),
-            prompt_output_language: Some("zh_cn".to_string()),
+            prompt_output_language: "zh_cn".to_string(),
             prompt_batch_size: 2,
             target_segment: None,
             target_narrative_unit_index: None,
@@ -684,25 +650,27 @@ mod unit_tests {
     }
 
     #[test]
-    fn video_operation_key_covers_all_start_kinds() {
+    fn video_generation_task_key_covers_all_start_kinds() {
         assert_eq!(
-            video_operation_key(&VideoGenerationOperation::Chapter {
+            VideoGenerationOperation::Chapter {
                 chapter_id: 1,
                 prompt_id: 2,
                 config_id: None,
-            }),
+            }
+            .generation_task_key(),
             "video_chapter"
         );
         assert_eq!(
-            video_operation_key(&VideoGenerationOperation::ChapterBatch {
+            VideoGenerationOperation::ChapterBatch {
                 chapter_id: 1,
                 prompt_ids: vec![1, 2],
                 config_id: None,
-            }),
+            }
+            .generation_task_key(),
             "video_chapter_batch"
         );
         assert_eq!(
-            video_operation_key(&VideoGenerationOperation::ReferenceMedia {
+            VideoGenerationOperation::ReferenceMedia {
                 chapter_id: 1,
                 input: a4n_api_contract::video::ReferenceMediaVideoInput {
                     segment_plan_prompt_id: 2,
@@ -715,28 +683,53 @@ mod unit_tests {
                     audio_uploads: Vec::new(),
                     config_id: None,
                 },
-            }),
+            }
+            .generation_task_key(),
             "video_reference_media"
         );
         assert_eq!(
-            video_operation_key(&VideoGenerationOperation::PromptSegmentPlan {
+            VideoGenerationOperation::PromptSegmentPlan {
                 chapter_id: 1,
                 options: prompt_options(),
-            }),
+            }
+            .generation_task_key(),
             "video_prompt_segment_plan"
         );
         assert_eq!(
-            video_operation_key(&VideoGenerationOperation::PromptFrames {
+            VideoGenerationOperation::PromptInsertedSegment {
+                chapter_id: 1,
+                options: a4n_api_contract::video::VideoInsertedSegmentGenerationOptions {
+                    timeline_id: 1,
+                    expected_timeline_revision: 1,
+                    previous_item_id: None,
+                    next_item_id: None,
+                    user_prompt: "补充过渡".to_string(),
+                    style: "电影感".to_string(),
+                    prompt_output_language: "zh_cn".to_string(),
+                    duration_secs: 6,
+                    duration_secs_options: vec![6],
+                    aspect_ratio: "16:9".to_string(),
+                    reference_image_ids: Vec::new(),
+                    allow_without_visual_anchor: true,
+                },
+            }
+            .generation_task_key(),
+            "video_prompt_inserted_segment"
+        );
+        assert_eq!(
+            VideoGenerationOperation::PromptFrames {
                 chapter_id: 1,
                 options: prompt_options(),
-            }),
+            }
+            .generation_task_key(),
             "video_prompt_frames"
         );
         assert_eq!(
-            video_operation_key(&VideoGenerationOperation::PromptVideos {
+            VideoGenerationOperation::PromptVideos {
                 chapter_id: 1,
                 options: prompt_options(),
-            }),
+            }
+            .generation_task_key(),
             "video_prompt_videos"
         );
     }
@@ -786,12 +779,15 @@ mod unit_tests {
 
     #[test]
     fn batch_result_revision_is_stable_for_sorted_ids() {
-        let left = batch_video_result_ref(10, &[3, 1, 2]).expect("left");
-        let right = batch_video_result_ref(10, &[2, 3, 1]).expect("right");
+        let left = generation_batch_result_ref("generated_video_batch", 10, vec![3, 1, 2])
+            .expect("left");
+        let right = generation_batch_result_ref("generated_video_batch", 10, vec![2, 3, 1])
+            .expect("right");
         assert_eq!(left.kind, "generated_video_batch");
         assert_eq!(left.id, "10");
         assert_eq!(left.revision, right.revision);
-        let different = batch_video_result_ref(10, &[1, 2]).expect("different");
+        let different = generation_batch_result_ref("generated_video_batch", 10, vec![1, 2])
+            .expect("different");
         assert_ne!(left.revision, different.revision);
     }
 }

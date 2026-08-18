@@ -10,14 +10,14 @@
 #     --ssh-key ~/.ssh/a4n-deploy \
 #     --public-origin https://app.example.com
 #   ./scripts/deploy/deploy-cloud.sh --online          # 容器内允许 cargo 联网拉取缺失依赖
-#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 target-noble/release/a4n-server 和 frontend/dist
+#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Server/Migration 二进制和 frontend/dist
 #   ./scripts/deploy/deploy-cloud.sh --rebuild-builder # 重建本地 Ubuntu 24 构建镜像
 #   ./scripts/deploy/deploy-cloud.sh --no-smoke        # 跳过公网 smoke test
 #   ./scripts/deploy/deploy-cloud.sh --help
 #
 # 约束:
 #   - 后端只在本地 Ubuntu 24 / glibc 2.39 Docker 容器中构建，不在 2G 云服务器上构建。
-#   - 只上传 bin/a4n-server、static 和 prompts，不覆盖远端 .env 与 data。
+#   - 只上传 bin/a4n-server、bin/a4n-migration、static 和 prompts，不覆盖远端 .env 与 data。
 #   - 部署 Host、SSH key 和公网 origin 必须显式提供，根路径默认期望 404。
 #
 # 常用环境变量覆盖:
@@ -43,19 +43,17 @@ SSH_KEY="${A4N_DEPLOY_SSH_KEY:-}"
 REMOTE_DIR="${A4N_DEPLOY_REMOTE_DIR:-}"
 REMOTE_PACKAGE="${A4N_DEPLOY_REMOTE_PACKAGE:-}"
 REMOTE_SERVICE="${A4N_DEPLOY_SERVICE:-a4n.service}"
-REMOTE_NGINX_CONF="${A4N_DEPLOY_NGINX_CONF:-/etc/nginx/conf.d/a4n.conf}"
 
 PUBLIC_BASE_PATH="${A4N_DEPLOY_BASE_PATH:-/a4n}"
 PUBLIC_ORIGIN="${A4N_DEPLOY_PUBLIC_ORIGIN:-}"
-API_BASE_URL="${A4N_DEPLOY_API_BASE_URL:-$PUBLIC_BASE_PATH/api}"
-TEMP_MEDIA_PUBLIC_BASE_URL="${A4N_DEPLOY_TEMP_MEDIA_PUBLIC_BASE_URL:-}"
+API_BASE_URL="${A4N_DEPLOY_API_BASE_URL:-}"
 ROOT_EXPECTED_STATUS="${A4N_DEPLOY_ROOT_EXPECTED_STATUS:-404}"
 
 BUILDER_IMAGE="${A4N_DEPLOY_BUILDER_IMAGE:-a4n-rust-noble:1.95}"
 RUST_BASE_IMAGE="${A4N_DEPLOY_RUST_BASE:-docker.m.daocloud.io/library/rust:1.95-bookworm}"
 UBUNTU_BASE_IMAGE="${A4N_DEPLOY_UBUNTU_BASE:-docker.m.daocloud.io/library/ubuntu:24.04}"
-TARGET_DIR_REL="${A4N_DEPLOY_TARGET_DIR:-target-noble}"
-BINARY_PATH="$PROJECT_ROOT/$TARGET_DIR_REL/release/a4n-server"
+BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-server"
+MIGRATION_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-migration"
 
 CARGO_OFFLINE="${A4N_DEPLOY_CARGO_OFFLINE:-true}"
 SKIP_BUILD=false
@@ -63,7 +61,7 @@ REBUILD_BUILDER=false
 RUN_SMOKE=true
 KEEP_PACKAGE=false
 
-CACHE_ROOT="${A4N_DEPLOY_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/a4n-deploy-cloud}"
+CACHE_ROOT="$CARGO_TARGET_DIR/deploy-cloud"
 PACKAGE_DIR="$CACHE_ROOT/package"
 PACKAGE_PATH="$CACHE_ROOT/a4n-deploy.tar.gz"
 
@@ -106,7 +104,6 @@ while [[ $# -gt 0 ]]; do
         --ssh-key)
             [[ $# -ge 2 && -n "${2:-}" ]] || die "--ssh-key 需要参数"
             SSH_KEY="$2"
-            SSH_OPTS[1]="$SSH_KEY"
             shift 2
             ;;
         --remote-dir)
@@ -122,7 +119,6 @@ while [[ $# -gt 0 ]]; do
         --base-path)
             [[ $# -ge 2 && -n "${2:-}" ]] || die "--base-path 需要参数"
             PUBLIC_BASE_PATH="$2"
-            API_BASE_URL="${A4N_DEPLOY_API_BASE_URL:-$PUBLIC_BASE_PATH/api}"
             shift 2
             ;;
         --api-base-url)
@@ -165,6 +161,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+$SKIP_BUILD && $REBUILD_BUILDER && die "--skip-build 与 --rebuild-builder 不能同时使用"
+$SKIP_BUILD && [[ "$CARGO_OFFLINE" == "false" ]] && die "--skip-build 与 --online/A4N_DEPLOY_CARGO_OFFLINE=false 不能同时使用"
+
 [[ -n "$DEPLOY_HOST" ]] || die "必须通过 --host 或 A4N_DEPLOY_HOST 指定部署 Host"
 [[ -n "$SSH_KEY" ]] || die "必须通过 --ssh-key 或 A4N_DEPLOY_SSH_KEY 指定 SSH 私钥"
 [[ -n "$PUBLIC_ORIGIN" ]] || die "必须通过 --public-origin 或 A4N_DEPLOY_PUBLIC_ORIGIN 指定公网 origin"
@@ -191,27 +190,20 @@ SSH_OPTS=(
 REMOTE="$DEPLOY_USER@$DEPLOY_HOST"
 PUBLIC_APP_URL="$PUBLIC_ORIGIN$PUBLIC_BASE_PATH"
 
-check_command() {
-    command -v "$1" >/dev/null 2>&1 || die "未找到命令: $1"
-}
-
 check_prerequisites() {
     log_section "前置检查"
-    check_command ssh
-    check_command scp
-    check_command curl
-    check_command tar
-    check_command sha256sum
-    check_command file
-    check_command strings
+    local command
+    for command in ssh scp curl tar sha256sum file strings; do
+        require_command "$command"
+    done
 
     [[ -f "$SSH_KEY" ]] || die "SSH 私钥不存在: $SSH_KEY"
     [[ -r "$SSH_KEY" ]] || die "SSH 私钥不可读: $SSH_KEY"
 
     if ! $SKIP_BUILD; then
-        check_command docker
-        check_command node
-        check_command npm
+        require_command docker
+        require_command node
+        require_command npm
     fi
 
     log_ok "目标: $REMOTE"
@@ -231,22 +223,16 @@ test -d "$app"
 test -d "$app/data"
 test -f "$app/.env"
 sudo -n true
+command -v python3 >/dev/null
 df -h "$app"
 systemctl is-active "$service"
 REMOTE
     log_ok "远端目录、数据目录、.env、sudo 和服务状态正常"
 }
 
-ensure_frontend_deps() {
-    if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-        log_warn "前端依赖未安装，执行 npm install"
-        (cd "$FRONTEND_DIR" && npm install --silent)
-    fi
-}
-
 build_frontend() {
     log_section "构建前端"
-    ensure_frontend_deps
+    ensure_frontend_dependencies
     (
         cd "$FRONTEND_DIR"
         VITE_A4N_BASE_PATH="$PUBLIC_BASE_PATH" \
@@ -320,37 +306,39 @@ build_backend() {
     docker run --rm \
         -e CARGO_HOME=/usr/local/cargo \
         -e RUSTUP_HOME=/usr/local/rustup \
-        -e CARGO_PROFILE_RELEASE_LTO=false \
-        -e CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
         -e CARGO_BUILD_JOBS="${A4N_DEPLOY_CARGO_JOBS:-2}" \
         "${docker_cache_mounts[@]}" \
         -v "$PROJECT_ROOT:/work" \
         -w /work \
         "$BUILDER_IMAGE" \
-        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release -p a4n-server --target-dir /work/$TARGET_DIR_REL --locked ${offline_flag[*]}"
+        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release -p a4n-server -p a4n-migration --target-dir /work/target --locked ${offline_flag[*]}"
 
     [[ -x "$BINARY_PATH" ]] || die "后端构建后未找到二进制: $BINARY_PATH"
+    [[ -x "$MIGRATION_BINARY_PATH" ]] || die "迁移构建后未找到二进制: $MIGRATION_BINARY_PATH"
     log_ok "后端二进制: $BINARY_PATH"
+    log_ok "迁移二进制: $MIGRATION_BINARY_PATH"
 }
 
-verify_backend_binary() {
+verify_backend_binaries() {
     log_section "校验后端二进制"
-    [[ -x "$BINARY_PATH" ]] || die "后端二进制不存在: $BINARY_PATH"
-    file "$BINARY_PATH"
-
-    local max_glibc
-    max_glibc=$(strings "$BINARY_PATH" | grep -E '^GLIBC_[0-9]' | sort -V | tail -1 || true)
-    [[ -n "$max_glibc" ]] || die "无法识别二进制 GLIBC 依赖"
-    log_ok "最高 GLIBC 依赖: $max_glibc"
-    if [[ "$(printf '%s\nGLIBC_2.39\n' "$max_glibc" | sort -V | tail -1)" != "GLIBC_2.39" ]]; then
-        die "二进制依赖 $max_glibc，高于线上 Ubuntu 24.04 的 GLIBC_2.39"
-    fi
+    local binary max_glibc
+    for binary in "$BINARY_PATH" "$MIGRATION_BINARY_PATH"; do
+        [[ -x "$binary" ]] || die "后端二进制不存在: $binary"
+        file "$binary"
+        max_glibc=$(strings "$binary" | grep -E '^GLIBC_[0-9]' | sort -V | tail -1 || true)
+        [[ -n "$max_glibc" ]] || die "无法识别二进制 GLIBC 依赖: $binary"
+        log_ok "$(basename "$binary") 最高 GLIBC 依赖: $max_glibc"
+        if [[ "$(printf '%s\nGLIBC_2.39\n' "$max_glibc" | sort -V | tail -1)" != "GLIBC_2.39" ]]; then
+            die "$(basename "$binary") 依赖 $max_glibc，高于线上 Ubuntu 24.04 的 GLIBC_2.39"
+        fi
+    done
 }
 
 build_all() {
     if $SKIP_BUILD; then
         log_warn "跳过构建，使用现有产物"
         [[ -x "$BINARY_PATH" ]] || die "未找到后端二进制: $BINARY_PATH"
+        [[ -x "$MIGRATION_BINARY_PATH" ]] || die "未找到迁移二进制: $MIGRATION_BINARY_PATH"
         [[ -f "$FRONTEND_DIST/index.html" ]] || die "未找到前端 dist: $FRONTEND_DIST"
         return
     fi
@@ -365,9 +353,10 @@ prepare_package() {
     mkdir -p "$PACKAGE_DIR/bin" "$PACKAGE_DIR/static" "$PACKAGE_DIR/prompts"
 
     cp "$BINARY_PATH" "$PACKAGE_DIR/bin/a4n-server"
+    cp "$MIGRATION_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-migration"
     cp -a "$FRONTEND_DIST/." "$PACKAGE_DIR/static/"
     cp -a "$PROMPTS_DIR/." "$PACKAGE_DIR/prompts/"
-    chmod 755 "$PACKAGE_DIR/bin/a4n-server"
+    chmod 755 "$PACKAGE_DIR/bin/a4n-server" "$PACKAGE_DIR/bin/a4n-migration"
 
     tar -C "$PACKAGE_DIR" -czf "$PACKAGE_PATH" .
     sha256sum "$PACKAGE_PATH" > "$PACKAGE_PATH.sha256"
@@ -390,31 +379,66 @@ upload_package() {
 }
 
 replace_remote_app() {
-    log_section "远端备份与替换"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_NGINX_CONF" <<'REMOTE'
+    log_section "远端预校验、停服、替换与迁移"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" <<'REMOTE'
 set -euo pipefail
 app="$1"
 package_path="$2"
-nginx_conf="$3"
+service="$3"
+database_url="$(python3 - "$app/.env" <<'PY'
+import pathlib
+import sys
+
+for raw_line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    if key.strip() != "A4N_DATABASE_URL":
+        continue
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    if not value:
+        raise SystemExit("A4N_DATABASE_URL is empty")
+    print(value)
+    break
+else:
+    raise SystemExit("A4N_DATABASE_URL is missing")
+PY
+)"
+case "$database_url" in
+    postgres://*|postgresql://*) ;;
+    *) echo "A4N_DATABASE_URL 必须使用 postgres:// 或 postgresql://" >&2; exit 1 ;;
+esac
+
+rm -rf "$app/.deploy-new"
+mkdir -p "$app/.deploy-new"
+tar -xzf "$package_path" -C "$app/.deploy-new"
+test -x "$app/.deploy-new/bin/a4n-server"
+test -x "$app/.deploy-new/bin/a4n-migration"
+test -f "$app/.deploy-new/static/index.html"
+test -d "$app/.deploy-new/prompts"
+
+sudo systemctl stop "$service"
+if systemctl is-active --quiet "$service"; then
+    echo "服务停止失败: $service" >&2
+    exit 1
+fi
+
 ts=$(date +%Y%m%d%H%M%S)
 backup="$app/backups/deploy-$ts"
 
 mkdir -p "$backup" "$app/bin"
 if [[ -f "$app/bin/a4n-server" ]]; then cp -a "$app/bin/a4n-server" "$backup/a4n-server"; fi
+if [[ -f "$app/bin/a4n-migration" ]]; then cp -a "$app/bin/a4n-migration" "$backup/a4n-migration"; fi
 if [[ -d "$app/static" ]]; then cp -a "$app/static" "$backup/static"; fi
 if [[ -d "$app/prompts" ]]; then cp -a "$app/prompts" "$backup/prompts"; fi
-if [[ -n "$nginx_conf" && -f "$nginx_conf" ]]; then sudo cp -a "$nginx_conf" "$backup/$(basename "$nginx_conf")" || true; fi
-
-rm -rf "$app/.deploy-new"
-mkdir -p "$app/.deploy-new"
-tar -xzf "$package_path" -C "$app/.deploy-new"
-
-test -x "$app/.deploy-new/bin/a4n-server"
-test -f "$app/.deploy-new/static/index.html"
-test -d "$app/.deploy-new/prompts"
 
 install -m 755 "$app/.deploy-new/bin/a4n-server" "$app/bin/a4n-server.new"
+install -m 755 "$app/.deploy-new/bin/a4n-migration" "$app/bin/a4n-migration.new"
 mv "$app/bin/a4n-server.new" "$app/bin/a4n-server"
+mv "$app/bin/a4n-migration.new" "$app/bin/a4n-migration"
 
 rm -rf "$app/static.new" "$app/prompts.new"
 cp -a "$app/.deploy-new/static" "$app/static.new"
@@ -425,80 +449,52 @@ rm -rf "$app/prompts"
 mv "$app/prompts.new" "$app/prompts"
 rm -rf "$app/.deploy-new"
 
+A4N_DATABASE_URL="$database_url" "$app/bin/a4n-migration"
+
 echo "backup=$backup"
 ls -lh "$app/bin/a4n-server"
+ls -lh "$app/bin/a4n-migration"
 find "$app/static" -maxdepth 2 -type f | wc -l
 du -sh "$app/static" "$app/prompts"
 REMOTE
-    log_ok "远端文件替换完成"
+    log_ok "远端文件替换与数据库迁移完成"
 }
 
-ensure_remote_public_app_env() {
-    log_section "更新远端公网与临时媒体入口"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$PUBLIC_APP_URL" "$TEMP_MEDIA_PUBLIC_BASE_URL" <<'REMOTE'
+update_remote_public_app_env() {
+    log_section "更新远端公网入口"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$PUBLIC_APP_URL" <<'REMOTE'
 set -euo pipefail
 app="$1"
 public_app_url="$2"
-explicit_temp_media_public_base_url="${3:-}"
 env_file="$app/.env"
 test -f "$env_file"
-python3 - "$env_file" "$public_app_url" "$explicit_temp_media_public_base_url" <<'PY'
+python3 - "$env_file" "$public_app_url" <<'PY'
 import pathlib
-import secrets
 import sys
 
 env_path = pathlib.Path(sys.argv[1])
 public_app_url = sys.argv[2].strip().rstrip("/")
-explicit_temp_media_public_base_url = sys.argv[3].strip().rstrip("/")
 lines = env_path.read_text().splitlines()
-values = {}
-for line in lines:
-    if "=" in line and not line.lstrip().startswith("#"):
-        key, value = line.split("=", 1)
-        values[key] = value.strip()
-
-temp_media_public_base_url = (
-    explicit_temp_media_public_base_url
-    or values.get("A4N_TEMP_MEDIA_PUBLIC_BASE_URL", "").strip().rstrip("/")
-    or f"{public_app_url}/api/temp-media"
-)
-
-required = {
-    "A4N_PUBLIC_APP_URL": public_app_url,
-    "A4N_TEMP_MEDIA_PUBLIC_BASE_URL": temp_media_public_base_url,
-    "A4N_TEMP_MEDIA_TTL_MINUTES": values.get("A4N_TEMP_MEDIA_TTL_MINUTES", "360"),
-    "A4N_TEMP_MEDIA_MAX_BYTES": values.get("A4N_TEMP_MEDIA_MAX_BYTES", str(20 * 1024 * 1024)),
-}
-required["A4N_TEMP_MEDIA_UPLOAD_TOKEN"] = values.get(
-    "A4N_TEMP_MEDIA_UPLOAD_TOKEN",
-    secrets.token_urlsafe(48),
-)
-
-written = set()
+key = "A4N_PUBLIC_APP_URL"
+written = False
 out = []
 for line in lines:
     if "=" in line and not line.lstrip().startswith("#"):
-        key, _ = line.split("=", 1)
-        if key in required:
-            out.append(f"{key}={required[key]}")
-            written.add(key)
+        current_key, _ = line.split("=", 1)
+        if current_key == key:
+            out.append(f"{key}={public_app_url}")
+            written = True
             continue
     out.append(line)
 
-for key, value in required.items():
-    if key not in written:
-        out.append(f"{key}={value}")
+if not written:
+    out.append(f"{key}={public_app_url}")
 
 env_path.write_text("\n".join(out) + "\n")
 PY
 grep '^A4N_PUBLIC_APP_URL=' "$env_file"
-grep '^A4N_TEMP_MEDIA_PUBLIC_BASE_URL=' "$env_file"
-grep '^A4N_TEMP_MEDIA_TTL_MINUTES=' "$env_file"
-if grep -q '^A4N_TEMP_MEDIA_UPLOAD_TOKEN=' "$env_file"; then
-    echo "A4N_TEMP_MEDIA_UPLOAD_TOKEN=<configured>"
-fi
 REMOTE
-    log_ok "远端 A4N_PUBLIC_APP_URL 与临时媒体入口已更新"
+    log_ok "远端 A4N_PUBLIC_APP_URL 已更新"
 }
 
 restart_remote_service() {
@@ -545,14 +541,11 @@ smoke_test() {
     [[ "$redirect_status" == "301" || "$redirect_status" == "308" || "$redirect_status" == "200" ]] || die "$PUBLIC_APP_URL 预期 301/308/200，实际 $redirect_status"
     log_ok "$PUBLIC_APP_URL -> $redirect_status"
 
-    asset_path="$(grep -o "$PUBLIC_BASE_PATH/assets/[^\" ]*\\.js" "$FRONTEND_DIST/index.html" | head -1 || true)"
-    if [[ -n "$asset_path" ]]; then
-        asset_status="$(http_status "$PUBLIC_ORIGIN$asset_path")"
-        [[ "$asset_status" == "200" ]] || die "$PUBLIC_ORIGIN$asset_path 预期 200，实际 $asset_status"
-        log_ok "$PUBLIC_ORIGIN$asset_path -> 200"
-    else
-        log_warn "未从 index.html 找到 JS asset 路径，跳过静态资源 smoke"
-    fi
+    asset_path="$(grep -m1 -o "$PUBLIC_BASE_PATH/assets/[^\" ]*\\.js" "$FRONTEND_DIST/index.html")" \
+        || die "未从 index.html 找到 JS asset 路径"
+    asset_status="$(http_status "$PUBLIC_ORIGIN$asset_path")"
+    [[ "$asset_status" == "200" ]] || die "$PUBLIC_ORIGIN$asset_path 预期 200，实际 $asset_status"
+    log_ok "$PUBLIC_ORIGIN$asset_path -> 200"
 
     if [[ "$ROOT_EXPECTED_STATUS" != "any" ]]; then
         root_status="$(http_status "$PUBLIC_ORIGIN/")"
@@ -565,11 +558,11 @@ cleanup() {
     log_section "清理临时文件"
     if ! $KEEP_PACKAGE; then
         rm -rf "$PACKAGE_DIR" "$PACKAGE_PATH" "$PACKAGE_PATH.sha256"
-        ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -f '$REMOTE_PACKAGE'" || true
+        ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -f '$REMOTE_PACKAGE'"
         log_ok "已清理本地部署包和远端上传包"
     else
         log_warn "保留本地部署包: $PACKAGE_PATH"
-        ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -f '$REMOTE_PACKAGE'" || true
+        ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -f '$REMOTE_PACKAGE'"
     fi
 }
 
@@ -577,16 +570,16 @@ main() {
     echo -e "${BOLD}${CYAN}A4N 云端一键部署${NC}"
     echo -e "  目标: ${CYAN}$REMOTE${NC}"
     echo -e "  入口: ${CYAN}$PUBLIC_APP_URL/${NC}"
-    echo -e "  后端: ${CYAN}本地 Docker 构建 a4n-server${NC}"
+    echo -e "  后端: ${CYAN}本地 Docker 构建 a4n-server + a4n-migration${NC}"
 
     check_prerequisites
     remote_preflight
     build_all
-    verify_backend_binary
+    verify_backend_binaries
     prepare_package
     upload_package
+    update_remote_public_app_env
     replace_remote_app
-    ensure_remote_public_app_env
     restart_remote_service
     smoke_test
     cleanup

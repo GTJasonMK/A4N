@@ -1,17 +1,17 @@
 use super::super::super::super::ProjectFamilyPackage;
-use super::super::super::common::validate_unique_ids;
+use crate::project::validate_import_unique_ids;
 
 macro_rules! validate_id_groups {
     ($(($records:expr, $field:ident, $label:literal)),+ $(,)?) => {
         $(
-            validate_unique_ids(($records).iter().map(|record| record.$field), $label)?;
+            validate_import_unique_ids(($records).iter().map(|record| record.$field), $label)?;
         )+
     };
 }
 
 pub(super) fn validate_primary_row_ids(package: &ProjectFamilyPackage) -> Result<(), String> {
     if let Some(blueprint) = &package.text_core.blueprint {
-        validate_unique_ids(std::iter::once(blueprint.id), "text_core.blueprint.id")?;
+        validate_import_unique_ids(std::iter::once(blueprint.id), "text_core.blueprint.id")?;
     }
     validate_id_groups!(
         (

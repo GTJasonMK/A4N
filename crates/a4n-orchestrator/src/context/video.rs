@@ -519,20 +519,6 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
-    pub(super) async fn delete_chapter_video_prompt_with_policy(
-        &self,
-        prompt_id: i64,
-        allow_downstream: bool,
-    ) -> Result<(), AppError> {
-        a4n_db::video_prompt::delete_chapter_video_prompt_with_policy(
-            self.connection(),
-            prompt_id,
-            allow_downstream,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
     pub(super) async fn delete_chapter_video_prompts_with_policy(
         &self,
         prompt_ids: &[i64],
@@ -694,7 +680,7 @@ impl VideoApplication {
         expected_revision: i64,
         item_id: i64,
         gap: VideoTimelineGap,
-    ) -> Result<chapter_video_timeline::Model, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::video::move_inserted_timeline_item_persisted(
             self.connection(),
             timeline_id,
@@ -711,7 +697,7 @@ impl VideoApplication {
         timeline_id: i64,
         expected_revision: i64,
         item_id: i64,
-    ) -> Result<chapter_video_timeline::Model, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::video::delete_inserted_timeline_item(
             self.connection(),
             timeline_id,
@@ -779,7 +765,7 @@ impl OrchestratorContext {
         expected_revision: i64,
         item_id: i64,
         gap: VideoTimelineGap,
-    ) -> Result<chapter_video_timeline::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.video
             .move_inserted_video_timeline_item(timeline_id, expected_revision, item_id, gap)
             .await
@@ -790,7 +776,7 @@ impl OrchestratorContext {
         timeline_id: i64,
         expected_revision: i64,
         item_id: i64,
-    ) -> Result<chapter_video_timeline::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.video
             .delete_inserted_video_timeline_item(timeline_id, expected_revision, item_id)
             .await
@@ -1309,7 +1295,7 @@ impl OrchestratorContext {
                 video_id, prompt_id, status, message,
             )
             .await?;
-        if status == "failed" {
+        if status == generated_video::STATUS_FAILED {
             self.sync_project_asset_lineage_after_commit(
                 updated.project_id,
                 "同步失败视频资产谱系",
@@ -1400,7 +1386,7 @@ impl OrchestratorContext {
             .mark_generated_video_error_status_and_prompt(
                 video_id,
                 prompt_id,
-                crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED,
+                generated_video::STATUS_FAILED,
                 message,
             )
             .await?;
@@ -1432,7 +1418,7 @@ impl OrchestratorContext {
             .mark_generated_video_error_status_and_prompt(
                 video_id,
                 prompt_id,
-                crate::video::GENERATED_VIDEO_STATUS_CANCELLED,
+                generated_video::STATUS_CANCELLED,
                 message,
             )
             .await?;
@@ -1480,7 +1466,7 @@ impl OrchestratorContext {
         self.mark_generated_video_error_status_and_prompt(
             video_id,
             prompt_id,
-            crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED,
+            generated_video::STATUS_INTERRUPTED,
             message,
         )
         .await
@@ -1583,16 +1569,6 @@ impl OrchestratorContext {
                 allow_downstream,
                 generation_run,
             )
-            .await
-    }
-
-    pub async fn delete_chapter_video_prompt_checked(
-        &self,
-        prompt_id: i64,
-        allow_downstream: bool,
-    ) -> Result<(), AppError> {
-        self.video
-            .delete_chapter_video_prompt_with_policy(prompt_id, allow_downstream)
             .await
     }
 
@@ -1757,7 +1733,7 @@ impl OrchestratorContext {
         total: u32,
         message: &str,
     ) -> Result<i64, AppError> {
-        if crate::video::is_terminal_generated_video_status(&video.status) {
+        if generated_video::is_terminal_status(&video.status) {
             return Err(AppError::InvalidState {
                 current: video.status.clone(),
                 operation: "记录已终态视频 provider 进度".to_string(),

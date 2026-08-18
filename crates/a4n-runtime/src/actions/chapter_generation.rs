@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+pub use a4n_api_contract::chapter::{
+    PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
+};
 use a4n_api_contract::chapter::StartChapterGenerationInput;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_embedding::provider::EmbeddingModelIdentity;
@@ -12,11 +15,6 @@ use crate::{
         ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
         model_request_preview,
     },
-};
-
-pub use a4n_orchestrator::chapter_generation::{
-    PreparedGenerationRagEmbeddingRequest,
-    PreviewChapterGenerationInput as PreviewChapterPromptInput,
 };
 
 pub async fn start_chapter_generation_typed(
@@ -34,39 +32,34 @@ pub async fn start_chapter_generation_typed(
     };
     let start = state
         .orchestrator()
-        .start_chapter_generation_task(user_id, input.clone())
+        .start_chapter_generation_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
     }
 
     let worker_state = state.clone();
-    let handle = start.handle.clone();
     let worker_input = input;
-    state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = &worker_state;
-        let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(&worker_state);
-        if let Err(error) = worker_state
-            .orchestrator()
-            .run_chapter_generation_task(
-                ChapterGenerationApplicationContext {
-                    prompt_renderer: prompt_renderer,
-                    runtime_embedding_identity,
-                },
-                worker_input,
-                handle.clone(),
-                Arc::new(host_port),
-            )
-            .await
-        {
-            tracing::error!(
-                task_id = %handle.task_id,
-                attempt = handle.attempt,
-                error = %error,
-                "章节 generation worker 失败"
-            );
-        }
-    });
+    state.spawn_generation_execution(
+        start.handle.clone(),
+        "chapter_generation",
+        move |handle| async move {
+            let prompt_renderer = &worker_state;
+            let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(&worker_state);
+            worker_state
+                .orchestrator()
+                .run_chapter_generation_task(
+                    ChapterGenerationApplicationContext {
+                        prompt_renderer: prompt_renderer,
+                        runtime_embedding_identity,
+                    },
+                    worker_input,
+                    handle,
+                    Arc::new(host_port),
+                )
+                .await
+        },
+    );
     Ok(start.handle)
 }
 

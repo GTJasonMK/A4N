@@ -7,6 +7,8 @@ use a4n_core::models::{
     character::character_portrait,
     media::{media_asset, media_provenance},
 };
+use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 
@@ -78,7 +80,7 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
         &db,
         crate::video::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: image_path.clone(),
             prompt: "path reference".to_string(),
             model: "test".to_string(),
@@ -98,8 +100,8 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "path reference".to_string(),
             negative_prompt: None,
             model: "test".to_string(),

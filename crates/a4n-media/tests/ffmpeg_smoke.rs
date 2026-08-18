@@ -4,18 +4,28 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use a4n_domain::AssemblyPostprocessOperation;
 use a4n_media::{
     VIDEO_SCRUB_FRAMES_PER_SECOND, VideoAssemblyClip, VideoAssemblyRequest,
-    VideoPostprocessOperation, VideoPostprocessRequest, assemble_videos, check_ffmpeg_available,
-    extract_video_frame, extract_video_tail_frame, generate_video_scrub_frames,
-    generate_video_scrub_proxy, generate_video_thumbnail, postprocess_video,
-    probe_audio_duration_secs, probe_video_has_audio, probe_video_properties, trim_video_segment,
+    VideoPostprocessRequest, assemble_videos, extract_video_frame, extract_video_tail_frame,
+    generate_video_scrub_frames, generate_video_scrub_proxy, generate_video_thumbnail,
+    postprocess_video, probe_audio_duration_secs, probe_video_has_audio, probe_video_properties,
+    trim_video_segment,
 };
+
+fn media_tools_available() -> bool {
+    ["ffmpeg", "ffprobe"].into_iter().all(|command| {
+        Command::new(command)
+            .arg("-version")
+            .status()
+            .is_ok_and(|status| status.success())
+    })
+}
 
 #[test]
 fn ffprobe_reports_real_audio_duration_when_available() {
-    if let Err(error) = check_ffmpeg_available() {
-        eprintln!("skipping real FFprobe audio test because FFmpeg is unavailable: {error}");
+    if !media_tools_available() {
+        eprintln!("skipping real FFprobe audio test because FFmpeg or FFprobe is unavailable");
         return;
     }
 
@@ -35,8 +45,8 @@ fn ffprobe_reports_real_audio_duration_when_available() {
 
 #[test]
 fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
-    if let Err(error) = check_ffmpeg_available() {
-        eprintln!("skipping real FFmpeg smoke test because FFmpeg is unavailable: {error}");
+    if !media_tools_available() {
+        eprintln!("skipping real FFmpeg smoke test because FFmpeg or FFprobe is unavailable");
         return;
     }
 
@@ -122,7 +132,7 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         &input,
         Some(&silent_input),
         &inserted,
-        VideoPostprocessOperation::Insert,
+        AssemblyPostprocessOperation::Insert,
         0.4,
         0.4,
     ))
@@ -131,7 +141,7 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         &input,
         None,
         &deleted,
-        VideoPostprocessOperation::Delete,
+        AssemblyPostprocessOperation::Delete,
         0.2,
         0.6,
     ))
@@ -140,7 +150,7 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         &input,
         Some(&silent_input),
         &replaced,
-        VideoPostprocessOperation::Replace,
+        AssemblyPostprocessOperation::Replace,
         0.2,
         0.6,
     ))
@@ -283,7 +293,7 @@ fn postprocess_request<'a>(
     base_path: &'a Path,
     source_path: Option<&'a Path>,
     output_path: &'a Path,
-    operation: VideoPostprocessOperation,
+    operation: AssemblyPostprocessOperation,
     start_secs: f32,
     end_secs: f32,
 ) -> VideoPostprocessRequest<'a> {

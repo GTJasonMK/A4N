@@ -1,13 +1,12 @@
 use super::disabled::DisabledVectorStore;
 use crate::state::profile::RuntimeProfile;
-use a4n_core::{config::app_config::AppConfig, error::AppError};
+use a4n_core::error::AppError;
 use a4n_rag_core::vector_store::VectorStore;
 #[cfg(feature = "embedded-rag-index")]
 use a4n_rag_index::QdrantVectorStore;
 use std::sync::Arc;
 
 pub(in crate::state) async fn create_rag_store(
-    config: &AppConfig,
     runtime_profile: RuntimeProfile,
     capabilities: &a4n_capabilities::A4nCapabilities,
 ) -> Result<Arc<dyn VectorStore>, AppError> {
@@ -23,7 +22,6 @@ pub(in crate::state) async fn create_rag_store(
         return Ok(Arc::new(DisabledVectorStore::new(runtime_profile)));
     }
 
-    let _ = config;
     create_embedded_rag_store().await
 }
 

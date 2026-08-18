@@ -91,6 +91,19 @@ pub struct RefreshTokenInput {
     pub session_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OAuth2AuthorizeInput {
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OAuth2CallbackInput {
+    pub provider: String,
+    pub code: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{LoginInput, RevokeSessionInput, UpdateProfileInput};

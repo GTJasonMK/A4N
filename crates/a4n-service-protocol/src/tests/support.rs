@@ -28,7 +28,6 @@ pub(super) fn service_health(
             service_version: "test".to_string(),
             protocol_version,
             capability_version: capability_version.to_string(),
-            compatibility: crate::service_compatibility(service),
         },
     }
 }

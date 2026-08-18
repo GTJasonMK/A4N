@@ -115,7 +115,7 @@ describe("video segment-plan generation actions", () => {
       projectId: 19,
       chapter: { id: 3 } as ChapterRow,
       options: DEFAULT_VIDEO_OPTIONS,
-      segmentPlanOptions: { ...DEFAULT_VIDEO_OPTIONS, style: "" },
+      segmentPlanOptions: null,
       durationLimits: videoDurationLimitsFromConfig(null),
       promptInputSelectionError: "当前表单无效",
       referenceIds: [],

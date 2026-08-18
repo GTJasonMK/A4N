@@ -47,13 +47,7 @@ pub fn foreshadowing_rag_record(
         text,
         metadata: serde_json::json!({
             "data_type": RagDataType::Foreshadowing.as_str(),
-            "foreshadowing_id": item.id,
             "chapter_number": item.setup_chapter,
-            "setup_chapter": item.setup_chapter,
-            "payoff_chapter": item.payoff_chapter,
-            "status": item.status,
-            "importance": item.importance,
-            "related_characters": item.related_characters,
             "title": title,
         }),
     })

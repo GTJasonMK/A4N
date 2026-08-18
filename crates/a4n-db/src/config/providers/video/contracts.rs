@@ -1,6 +1,5 @@
 use serde_json::Value;
 
-#[derive(Clone, Debug)]
 pub struct VideoConfigRecordInput {
     pub name: String,
     pub backend: String,

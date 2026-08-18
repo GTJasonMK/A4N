@@ -1,5 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use crate::config::env::optional_non_empty_env_path;
+use crate::error::AppError;
+
+use super::contracts::AppConfig;
+
 /// 返回应用旁的便携式根目录。
 ///
 /// 默认所有可写数据都会落到 `{portable_home}/data/`。解析顺序：
@@ -26,12 +31,50 @@ pub fn resolve_path_in_portable_home(path: impl AsRef<Path>, portable_home: &Pat
     }
 }
 
+pub fn apply_storage_env_overrides(
+    config: &mut AppConfig,
+    portable_home: &Path,
+) -> Result<(), AppError> {
+    let data_dir = optional_non_empty_env_path("A4N_DATA_DIR")?
+        .map(|path| resolve_path_in_portable_home(path, portable_home));
+    let cache_dir = optional_non_empty_env_path("A4N_CACHE_DIR")?
+        .map(|path| resolve_path_in_portable_home(path, portable_home));
+    let temp_dir = optional_non_empty_env_path("A4N_TEMP_DIR")?
+        .map(|path| resolve_path_in_portable_home(path, portable_home));
+    let log_dir = optional_non_empty_env_path("A4N_LOG_DIR")?
+        .map(|path| resolve_path_in_portable_home(path, portable_home));
+    let data_dir_overridden = data_dir.is_some();
+
+    if let Some(path) = data_dir {
+        config.data_dir = path;
+    }
+    if let Some(path) = cache_dir {
+        config.cache_dir = path;
+    } else if data_dir_overridden {
+        config.cache_dir = config.data_dir.join("cache");
+    }
+    if let Some(path) = temp_dir {
+        config.temp_dir = path;
+    } else if data_dir_overridden {
+        config.temp_dir = config.data_dir.join("tmp");
+    }
+    if let Some(path) = log_dir {
+        config.log_dir = path;
+    } else if data_dir_overridden {
+        config.log_dir = config.data_dir.join("logs");
+    }
+    Ok(())
+}
+
 fn resolve_portable_home_dir() -> std::io::Result<PathBuf> {
-    if let Some(path) = non_empty_env_path("A4N_PORTABLE_HOME") {
+    if let Some(path) = optional_non_empty_env_path("A4N_PORTABLE_HOME")
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error.to_string()))?
+    {
         return Ok(path);
     }
 
-    if let Some(parent) = non_empty_env_path("APPIMAGE")
+    if let Some(parent) = optional_non_empty_env_path("APPIMAGE")
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error.to_string()))?
         .and_then(|appimage| appimage.parent().map(std::path::Path::to_path_buf))
     {
         return Ok(parent);
@@ -80,12 +123,6 @@ fn portable_home_from_exe_parent(parent: &Path) -> std::io::Result<PathBuf> {
 
 fn looks_like_a4n_package_root(path: &Path) -> bool {
     path.join("data").is_dir() || path.join("prompts").is_dir() || path.join("static").is_dir()
-}
-
-pub(super) fn non_empty_env_path(key: &str) -> Option<PathBuf> {
-    std::env::var_os(key)
-        .map(PathBuf::from)
-        .filter(|path| !path.as_os_str().is_empty())
 }
 
 #[cfg(test)]

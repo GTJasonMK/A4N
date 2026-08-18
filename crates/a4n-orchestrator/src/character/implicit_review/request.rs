@@ -6,20 +6,30 @@ use a4n_llm::{
         ContextAwareJsonLlmRequestInput, PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT,
         context_aware_system_user_json_llm_request,
     },
-    provider::ChatRequest,
+    trace::context_aware_chat_request_trace_json,
 };
 use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_message};
 use serde_json::{Value, json};
 
 use super::{
-    IMPLICIT_UPDATE_PROMPT_NAME,
-    contracts::{ImplicitAttributeReviewSummary, ImplicitUpdateLlmRequestInput},
+    IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_STEP_KEY, IMPLICIT_UPDATE_WORKFLOW_KIND,
+    contracts::{
+        ImplicitAttributeReviewSummary, ImplicitUpdateLlmRequestInput,
+        PreparedImplicitUpdateRequest,
+    },
 };
+use crate::character::implicit_review_workflow_rules::implicit_update_call_key;
 
 pub(super) async fn build_implicit_update_request(
     prompt_renderer: &dyn PromptRenderer,
     input: ImplicitUpdateLlmRequestInput<'_>,
-) -> Result<ChatRequest, AppError> {
+) -> Result<PreparedImplicitUpdateRequest, AppError> {
+    let call_key = implicit_update_call_key(
+        input.profile_id,
+        input.attribute_key,
+        input.start_chapter,
+    )
+    .map_err(AppError::InvalidArgument)?;
     let system_prompt = prompt_renderer
         .render_prompt(
             IMPLICIT_UPDATE_PROMPT_NAME,
@@ -27,39 +37,46 @@ pub(super) async fn build_implicit_update_request(
             Some(input.project_id),
         )
         .await?;
-    let dynamic_user_prompt =
-        build_implicit_update_manifest_user_prompt(input.profile_name, input.attribute_key)?;
+    let dynamic_user_prompt = build_json_task_user_message(
+        "判断隐性属性是否需要更新",
+        "只返回 output_contract 要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段",
+        &implicit_update_payload(
+            input.profile_name,
+            input.attribute_key,
+            json!({
+                "context_refs": {
+                    "attribute_key": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.attribute_key"),
+                    "current_value": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.current_value"),
+                    "review_window": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.review_window"),
+                    "statistics": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.statistics"),
+                    "evidence": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.evidence"),
+                }
+            }),
+        ),
+    )?;
     let stable_context_json = implicit_update_stable_context(
         input.profile_name,
         input.attribute_key,
-        input.current_value,
         input.stats,
         input.threshold,
         input.window_chapters,
     );
-    let mut source_refs = input.source_refs_json;
-    let Some(source_refs_object) = source_refs.as_object_mut() else {
-        return Err(AppError::InvalidArgument(
-            "隐性属性复审 source_refs_json 必须是 JSON 对象".to_string(),
-        ));
-    };
-    source_refs_object.insert("profile_name".to_string(), json!(input.profile_name));
-    source_refs_object.insert("attribute_key".to_string(), json!(input.attribute_key));
-    source_refs_object.insert("profile_id".to_string(), json!(input.profile_id));
-    source_refs_object.insert(
-        "evidence_count".to_string(),
-        json!(input.stats.evidence.len()),
-    );
-    context_aware_system_user_json_llm_request(
+    let request = context_aware_system_user_json_llm_request(
         system_prompt,
         ContextAwareJsonLlmRequestInput {
             project_id: input.project_id,
             workflow_run_id: None,
-            workflow: "implicit_update_review".to_string(),
-            step_key: "implicit_update_decision".to_string(),
+            workflow: IMPLICIT_UPDATE_WORKFLOW_KIND.to_string(),
+            step_key: IMPLICIT_UPDATE_STEP_KEY.to_string(),
             scope_kind: "profile_sync".to_string(),
             pack_kind: PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT.to_string(),
-            source_refs_json: Some(source_refs),
+            source_refs_json: Some(json!({
+                "trigger": input.trigger,
+                "profile_id": input.profile_id,
+                "profile_name": input.profile_name,
+                "attribute_key": input.attribute_key,
+                "start_chapter": input.start_chapter,
+            })),
             config_json: json!({
                 "ledger_version": "implicit_update_review_context_v1",
                 "prompt_name": IMPLICIT_UPDATE_PROMPT_NAME,
@@ -70,35 +87,31 @@ pub(super) async fn build_implicit_update_request(
             dynamic_user_prompt,
             temperature: Some(0.2),
             max_tokens_profile: llm_token_profiles::JSON_STANDARD.to_string(),
-            call_key: Some(input.call_key),
+            call_key: Some(call_key.clone()),
         },
     )
     .map_err(AppError::InvalidArgument)
-}
-
-fn build_implicit_update_manifest_user_prompt(
-    profile_name: &str,
-    attribute_key: &str,
-) -> Result<String, AppError> {
-    build_implicit_update_prompt_from_payload(implicit_update_payload(
-        profile_name,
-        attribute_key,
-        json!({
-            "context_refs": {
-                "attribute_key": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.attribute_key"),
-                "current_value": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.current_value"),
-                "review_window": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.review_window"),
-                "statistics": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.statistics"),
-                "evidence": format!("稳定上下文包 {PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT}.evidence"),
-            }
+    ?;
+    let request_json = context_aware_chat_request_trace_json(&request)?;
+    Ok(PreparedImplicitUpdateRequest {
+        call_key,
+        input_fingerprint_json: json!({
+            "request": request_json,
+            "profile_id": input.profile_id,
+            "attribute_key": input.attribute_key,
+            "start_chapter": input.start_chapter,
+            "stats": input.stats,
+            "threshold": input.threshold,
+            "window_chapters": input.window_chapters,
+            "evidence_limit": input.evidence_limit,
         }),
-    ))
+        request,
+    })
 }
 
 fn implicit_update_stable_context(
     profile_name: &str,
     attribute_key: &str,
-    current_value: &Value,
     stats: &ImplicitAttributeReviewSummary,
     threshold: usize,
     window_chapters: usize,
@@ -106,7 +119,7 @@ fn implicit_update_stable_context(
     json!({
         "profile_name": profile_name,
         "attribute_key": attribute_key,
-        "current_value": current_value,
+        "current_value": stats.current_value,
         "review_window": {
             "window_chapters": window_chapters,
             "non_conform_threshold": threshold,
@@ -133,7 +146,7 @@ fn implicit_update_stable_context(
 fn implicit_update_payload(profile_name: &str, attribute_key: &str, input: Value) -> Value {
     json!({
         "task": {
-            "name": "implicit_attribute_update_review",
+            "name": IMPLICIT_UPDATE_WORKFLOW_KIND,
             "instruction": "判断隐性属性是否需要更新；只根据输入 evidence 和统计结果做 keep/modify/delete 决策",
         },
         "character": { "profile_name": profile_name },
@@ -150,7 +163,7 @@ fn implicit_update_payload(profile_name: &str, attribute_key: &str, input: Value
             "format": "json_object",
             "required_fields": {
                 "decision": "字符串，只能是 keep / modify / delete",
-                "reasoning": "字符串，100-200 字，引用章节号、行为描述或 behavior_id",
+                "reasoning": "非空字符串，说明判断依据并引用章节号、行为描述或 behavior_id",
                 "new_value": "modify 时为新隐性属性值；keep/delete 时为 null",
                 "supporting_behavior_ids": "整数数组，只能来自 evidence[].behavior_id",
             },
@@ -162,35 +175,4 @@ fn implicit_update_payload(profile_name: &str, attribute_key: &str, input: Value
             ],
         },
     })
-}
-
-fn build_implicit_update_prompt_from_payload(payload: Value) -> Result<String, AppError> {
-    build_json_task_user_message(
-        "判断隐性属性是否需要更新",
-        "只返回 output_contract 要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段",
-        &payload,
-    )
-}
-
-#[cfg(test)]
-pub(super) fn build_implicit_update_user_prompt(
-    profile_name: &str,
-    attribute_key: &str,
-    current_value: &Value,
-    stats: &ImplicitAttributeReviewSummary,
-    threshold: usize,
-    window_chapters: usize,
-) -> Result<String, AppError> {
-    build_implicit_update_prompt_from_payload(implicit_update_payload(
-        profile_name,
-        attribute_key,
-        implicit_update_stable_context(
-            profile_name,
-            attribute_key,
-            current_value,
-            stats,
-            threshold,
-            window_chapters,
-        ),
-    ))
 }

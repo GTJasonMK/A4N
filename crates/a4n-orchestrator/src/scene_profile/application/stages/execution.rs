@@ -5,7 +5,11 @@ use serde_json::{Value, json};
 
 use a4n_llm::provider::ChatRequest;
 
-use crate::{OrchestratorContext, workflow::llm_call_checkpoint_fingerprint_sha256};
+use crate::{
+    OrchestratorContext,
+    structured_llm::ensure_checkpoint_parsed_output_matches,
+    workflow::llm_call_checkpoint_fingerprint_sha256,
+};
 
 use self::call::chat_scene_profile_stage;
 use self::checkpoint::{
@@ -49,11 +53,12 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint(
         let output =
             parse_scene_stage_root_array(&checkpoint.response_content, prompt_name, root_field)?;
         let parsed_output = scene_profile_stage_parsed_output_json(root_field, &output);
-        if parsed_output != checkpoint.parsed_output {
-            return Err(format!(
-                "{step_key} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致"
-            ));
-        }
+        ensure_checkpoint_parsed_output_matches(
+            &checkpoint.parsed_output,
+            &parsed_output,
+            &format!("场景档案同步 {step_key}"),
+        )
+        .map_err(|error| error.to_string())?;
         let item_count = output.as_array().map_or(0, Vec::len);
         response_chars.push(json!({
             "prompt_name": prompt_name,

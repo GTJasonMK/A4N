@@ -2,13 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 RUNS=3
-METHOD="package-rebuild-v1"
-OUTPUT="$PROJECT_ROOT/target/build-feedback/measurements.tsv"
-ARTIFACT_DIR="$PROJECT_ROOT/target/build-feedback"
+BASELINE="$PROJECT_ROOT/scripts/checks/build-feedback-baseline.tsv"
+OUTPUT="$CARGO_TARGET_DIR/build-feedback/measurements.tsv"
+ARTIFACT_DIR="$CARGO_TARGET_DIR/build-feedback"
 BASELINE_OUTPUT=""
 SKIP_WORKSPACE=0
 SELECTED_PACKAGES=()
@@ -71,6 +72,36 @@ done
     echo "--runs 必须是不少于 3 的整数" >&2
     exit 2
 }
+[[ -r "$BASELINE" ]] || {
+    echo "缺少编译反馈基线: $BASELINE" >&2
+    exit 1
+}
+
+METHOD="$(awk -F '\t' '$1 == "# method" { print $2 }' "$BASELINE")"
+[[ -n "$METHOD" && "$METHOD" != *$'\n'* ]] || {
+    echo "编译反馈基线必须包含唯一 method" >&2
+    exit 1
+}
+
+BASELINE_PACKAGES=()
+declare -A MAX_REGRESSION_PERCENT=()
+while IFS=$'\t' read -r package _baseline_ms max_regression_percent extra; do
+    [[ -z "$package" || "$package" == \#* ]] && continue
+    [[ "$package" =~ ^[A-Za-z0-9_-]+$ && -n "$max_regression_percent" && -z "$extra" ]] || {
+        echo "编译反馈基线行无效: $package" >&2
+        exit 1
+    }
+    [[ -z "${MAX_REGRESSION_PERCENT[$package]+x}" ]] || {
+        echo "编译反馈基线包含重复 package: $package" >&2
+        exit 1
+    }
+    BASELINE_PACKAGES+=("$package")
+    MAX_REGRESSION_PERCENT["$package"]="$max_regression_percent"
+done < "$BASELINE"
+[[ "${#BASELINE_PACKAGES[@]}" -gt 0 ]] || {
+    echo "编译反馈基线没有 package" >&2
+    exit 1
+}
 
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 RUN_DIR="$ARTIFACT_DIR/runs/$RUN_ID"
@@ -112,7 +143,7 @@ run_timed() {
         printf 'command:'
         printf ' %q' "$@"
         printf '\n'
-        printf 'cargo_target_dir: %s\n' "${CARGO_TARGET_DIR:-<default>}"
+        printf 'cargo_target_dir: %s\n' "$CARGO_TARGET_DIR"
     } > "$log"
     start="$(now_ms)"
     if ! "$@" >>"$log" 2>&1; then
@@ -201,16 +232,7 @@ if (( ! SKIP_WORKSPACE )); then
     echo "workspace cold: ${cold_ms}ms"
 fi
 
-packages=(
-    a4n-prompt-service
-    a4n-llm-gateway
-    a4n-embedding-service
-    a4n-rag-service
-    a4n-image-service
-    a4n-video-service
-    a4n-server
-    a4n-tauri
-)
+packages=("${BASELINE_PACKAGES[@]}")
 if (( ${#SELECTED_PACKAGES[@]} > 0 )); then
     packages=("${SELECTED_PACKAGES[@]}")
 fi
@@ -255,7 +277,15 @@ if [[ -n "$BASELINE_OUTPUT" ]]; then
     {
         printf '# method\t%s\n' "$METHOD"
         printf '# package\tbaseline_ms\tmax_regression_percent\n'
-        awk -F '\t' 'NF >= 2 && $1 !~ /^#/ && $1 != "__workspace_cold__" { printf "%s\t%s\t20\n", $1, $2 }' "$OUTPUT"
+        while IFS=$'\t' read -r package median; do
+            [[ -z "$package" || "$package" == \#* || "$package" == "__workspace_cold__" ]] && continue
+            max_regression_percent="${MAX_REGRESSION_PERCENT[$package]-}"
+            [[ -n "$max_regression_percent" ]] || {
+                echo "编译反馈基线缺少 package 策略: $package" >&2
+                exit 1
+            }
+            printf '%s\t%s\t%s\n' "$package" "$median" "$max_regression_percent"
+        done < "$OUTPUT"
     } > "$BASELINE_OUTPUT"
     echo "baseline written: $BASELINE_OUTPUT"
 fi

@@ -1,26 +1,15 @@
+use super::owner::{MediaEntryOwner, resolve_media_entry_owner};
 use crate::project::sha256_bytes;
-use crate::project::video_studio_package::{
-    MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_IMAGE, MEDIA_OWNER_MEDIA_ASSET,
-    MEDIA_OWNER_VIDEO, VideoStudioMediaFileEntry, VideoStudioProjectPackage,
-};
+use crate::project::video_studio_package::{VideoStudioMediaFileEntry, VideoStudioProjectPackage};
+use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 
 pub(crate) fn validate_media_entry_bytes(
     package: &VideoStudioProjectPackage,
     entry: &VideoStudioMediaFileEntry,
     bytes: &[u8],
 ) -> Result<(), String> {
-    match (entry.owner_kind.as_str(), entry.field.as_str()) {
-        (MEDIA_OWNER_IMAGE, MEDIA_FIELD_FILE) => {
-            let image = package
-                .generated_images
-                .iter()
-                .find(|record| record.id == entry.owner_id)
-                .ok_or_else(|| {
-                    format!(
-                        "媒体清单引用了不存在的生成图片: generated_image_id={}",
-                        entry.owner_id
-                    )
-                })?;
+    match resolve_media_entry_owner(package, entry)? {
+        MediaEntryOwner::GeneratedImage(image) => {
             validate_payload_size(
                 image.file_size,
                 bytes,
@@ -29,17 +18,7 @@ pub(crate) fn validate_media_entry_bytes(
                 &entry.field,
             )
         }
-        (MEDIA_OWNER_VIDEO, MEDIA_FIELD_FILE) => {
-            let video = package
-                .generated_videos
-                .iter()
-                .find(|record| record.id == entry.owner_id)
-                .ok_or_else(|| {
-                    format!(
-                        "媒体清单引用了不存在的生成视频: generated_video_id={}",
-                        entry.owner_id
-                    )
-                })?;
+        MediaEntryOwner::GeneratedVideo(video) if entry.field == FILE_PATH_FIELD => {
             validate_payload_size(
                 video.file_size,
                 bytes,
@@ -48,17 +27,7 @@ pub(crate) fn validate_media_entry_bytes(
                 &entry.field,
             )
         }
-        (MEDIA_OWNER_MEDIA_ASSET, MEDIA_FIELD_FILE) => {
-            let asset = package
-                .media_assets
-                .iter()
-                .find(|record| record.id == entry.owner_id)
-                .ok_or_else(|| {
-                    format!(
-                        "媒体清单引用了不存在的媒体资产: media_asset_id={}",
-                        entry.owner_id
-                    )
-                })?;
+        MediaEntryOwner::MediaAsset(asset) if entry.field == FILE_PATH_FIELD => {
             validate_payload_size(
                 asset.file_size,
                 bytes,
@@ -81,12 +50,7 @@ pub(crate) fn validate_media_entry_bytes(
             }
             Ok(())
         }
-        (MEDIA_OWNER_VIDEO, MEDIA_FIELD_THUMBNAIL)
-        | (MEDIA_OWNER_MEDIA_ASSET, MEDIA_FIELD_THUMBNAIL) => Ok(()),
-        _ => Err(format!(
-            "媒体清单字段无效: owner_kind={}, field={}",
-            entry.owner_kind, entry.field
-        )),
+        MediaEntryOwner::GeneratedVideo(_) | MediaEntryOwner::MediaAsset(_) => Ok(()),
     }
 }
 

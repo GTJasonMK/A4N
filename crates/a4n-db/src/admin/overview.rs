@@ -9,21 +9,17 @@ use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde_json::{Value, json};
 
 use super::{AdminDbError, AdminOverviewSummary, ThemeInfo};
 
-pub async fn database_health(db: &DatabaseConnection) -> Result<Value, AdminDbError> {
+pub async fn check_database_health(db: &DatabaseConnection) -> Result<(), AdminDbError> {
     db.execute(sea_orm::Statement::from_string(
         db.get_database_backend(),
         "SELECT 1",
     ))
     .await?;
 
-    Ok(json!({
-        "database": true,
-        "backend": format!("{:?}", db.get_database_backend()),
-    }))
+    Ok(())
 }
 
 pub async fn admin_overview_summary(

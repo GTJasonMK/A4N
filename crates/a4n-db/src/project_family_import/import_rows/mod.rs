@@ -3,7 +3,7 @@ use super::*;
 macro_rules! insert_import_row {
     ($txn:expr, $record:expr, $active_ty:path, $err:literal, |$active:ident| $prepare:block) => {{
         let mut $active: $active_ty = ($record).clone().into();
-        $active.id = NotSet;
+        $active.id = sea_orm::NotSet;
         $prepare
         $active
             .insert($txn)
@@ -76,12 +76,11 @@ where
     insert_video_segments(txn, package, &mut maps).await?;
     insert_assembly_rows(txn, package, &mut maps).await?;
     update_generation_spec_deferred_targets(txn, package, &maps).await?;
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.media_bindings,
         binding,
         media_binding::ActiveModel,
-        maps.media_binding_ids,
         "导入媒体绑定失败",
         |active| {
             active.media_asset_id = Set(map_required(

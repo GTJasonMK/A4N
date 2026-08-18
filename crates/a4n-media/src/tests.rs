@@ -1,9 +1,9 @@
 use super::{
-    AudioProbeError, VideoAssemblyClip, VideoPostprocessError, VideoPostprocessOperation,
-    VideoPostprocessRequest, VideoProbeError, build_video_assembly_filter,
-    build_video_postprocess_filter, parse_audio_duration_secs, parse_frame_rate,
-    parse_video_probe_properties,
+    AudioProbeError, VideoAssemblyClip, VideoPostprocessError, VideoPostprocessRequest,
+    VideoProbeError, build_video_assembly_filter, build_video_postprocess_filter,
+    parse_audio_duration_secs, parse_frame_rate, parse_video_probe_properties,
 };
+use a4n_domain::AssemblyPostprocessOperation;
 use std::path::Path;
 
 #[test]
@@ -122,6 +122,18 @@ fn trim_video_segment_rejects_invalid_range_before_starting_ffmpeg() {
 }
 
 #[test]
+fn extract_video_frame_rejects_invalid_timestamp_before_starting_ffmpeg() {
+    let error = super::extract_video_frame(
+        Path::new("missing-input.mp4"),
+        Path::new("unused-output.jpg"),
+        -1.0,
+    )
+    .expect_err("negative frame timestamp should fail before starting ffmpeg");
+
+    assert!(matches!(error, super::FfmpegFrameError::InvalidTimestamp));
+}
+
+#[test]
 fn assembly_filter_normalizes_and_concats_video_streams() {
     let clips = [
         assembly_clip("clip-1.mp4", false),
@@ -161,6 +173,20 @@ fn assembly_filter_preserves_audio_and_pads_silent_clips() {
     assert!(filter.ends_with("[v0][a0][v1][a1]concat=n=2:v=1:a=1[outv][outa]"));
 }
 
+#[test]
+fn assembly_filter_rejects_invalid_clip_duration() {
+    let clips = [VideoAssemblyClip {
+        path: Path::new("clip.mp4"),
+        duration_secs: 0.0,
+        has_audio: false,
+    }];
+
+    assert!(matches!(
+        build_video_assembly_filter(&clips, 1280, 720, 24, true),
+        Err(super::VideoAssemblyError::InvalidClipDuration { .. })
+    ));
+}
+
 fn assembly_clip(path: &'static str, has_audio: bool) -> VideoAssemblyClip<'static> {
     VideoAssemblyClip {
         path: Path::new(path),
@@ -172,7 +198,7 @@ fn assembly_clip(path: &'static str, has_audio: bool) -> VideoAssemblyClip<'stat
 #[test]
 fn postprocess_insert_filter_keeps_prefix_source_and_tail() {
     let request = postprocess_request(
-        VideoPostprocessOperation::Insert,
+        AssemblyPostprocessOperation::Insert,
         Some("source.mp4"),
         2.0,
         2.0,
@@ -191,7 +217,7 @@ fn postprocess_insert_filter_keeps_prefix_source_and_tail() {
 
 #[test]
 fn postprocess_delete_filter_joins_prefix_and_tail_without_source() {
-    let request = postprocess_request(VideoPostprocessOperation::Delete, None, 2.0, 4.0);
+    let request = postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
 
     let filter = build_video_postprocess_filter(&request).expect("build delete filter");
 
@@ -203,14 +229,15 @@ fn postprocess_delete_filter_joins_prefix_and_tail_without_source() {
 
 #[test]
 fn postprocess_replace_filter_requires_and_inserts_source() {
-    let missing_source = postprocess_request(VideoPostprocessOperation::Replace, None, 2.0, 4.0);
+    let missing_source =
+        postprocess_request(AssemblyPostprocessOperation::Replace, None, 2.0, 4.0);
     assert!(matches!(
         build_video_postprocess_filter(&missing_source),
         Err(VideoPostprocessError::MissingSource)
     ));
 
     let request = postprocess_request(
-        VideoPostprocessOperation::Replace,
+        AssemblyPostprocessOperation::Replace,
         Some("source.mp4"),
         2.0,
         4.0,
@@ -221,18 +248,37 @@ fn postprocess_replace_filter_requires_and_inserts_source() {
 }
 
 #[test]
-fn postprocess_delete_rejects_an_empty_result() {
-    let request = postprocess_request(VideoPostprocessOperation::Delete, None, 0.0, 8.0);
+fn postprocess_delete_rejects_an_empty_result_range() {
+    let request = postprocess_request(AssemblyPostprocessOperation::Delete, None, 0.0, 8.0);
 
     assert!(matches!(
         build_video_postprocess_filter(&request),
-        Err(VideoPostprocessError::EmptyResult)
+        Err(VideoPostprocessError::InvalidTimeRange { .. })
+    ));
+}
+
+#[test]
+fn postprocess_filter_rejects_invalid_media_properties() {
+    let mut request =
+        postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
+    request.fps = 0;
+    assert!(matches!(
+        build_video_postprocess_filter(&request),
+        Err(VideoPostprocessError::InvalidFps { .. })
+    ));
+
+    request.fps = 24;
+    request.base_duration_secs = 0.0;
+    assert!(matches!(
+        build_video_postprocess_filter(&request),
+        Err(VideoPostprocessError::InvalidBaseDuration { .. })
     ));
 }
 
 #[test]
 fn postprocess_silent_inputs_keep_video_only_output() {
-    let mut request = postprocess_request(VideoPostprocessOperation::Delete, None, 2.0, 4.0);
+    let mut request =
+        postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
     request.base_has_audio = false;
 
     let filter = build_video_postprocess_filter(&request).expect("build silent delete filter");
@@ -242,7 +288,7 @@ fn postprocess_silent_inputs_keep_video_only_output() {
 }
 
 fn postprocess_request(
-    operation: VideoPostprocessOperation,
+    operation: AssemblyPostprocessOperation,
     source_path: Option<&'static str>,
     start_secs: f32,
     end_secs: f32,
@@ -260,6 +306,6 @@ fn postprocess_request(
         source_has_audio: false,
         width: 641,
         height: 359,
-        fps: 0,
+        fps: 24,
     }
 }

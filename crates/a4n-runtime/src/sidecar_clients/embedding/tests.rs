@@ -1,6 +1,6 @@
 use super::super::required_sidecar_client;
 use super::contracts::{
-    EmbeddingTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
+    EmbedTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
     validate_embedding_connectivity_output,
 };
 use super::download::{
@@ -134,7 +134,7 @@ fn embedding_connectivity_payload_omits_host_cache_path_and_keeps_explicit_model
 
 #[test]
 fn embedding_connectivity_response_checks_identity_count_and_vector_dimension() {
-    let matching = EmbeddingTextsOutput {
+    let matching = EmbedTextsOutput {
         identity: EmbeddingModelIdentity {
             backend: "FastEmbed".to_string(),
             model: "test-model".to_string(),
@@ -144,7 +144,7 @@ fn embedding_connectivity_response_checks_identity_count_and_vector_dimension() 
     };
     validate_embedding_connectivity_output(&matching, 3).expect("matching output");
 
-    let wrong_identity = EmbeddingTextsOutput {
+    let wrong_identity = EmbedTextsOutput {
         identity: EmbeddingModelIdentity {
             dimension: 4,
             ..matching.identity.clone()
@@ -153,13 +153,13 @@ fn embedding_connectivity_response_checks_identity_count_and_vector_dimension() 
     };
     assert!(validate_embedding_connectivity_output(&wrong_identity, 3).is_err());
 
-    let wrong_count = EmbeddingTextsOutput {
+    let wrong_count = EmbedTextsOutput {
         identity: matching.identity.clone(),
         embeddings: vec![vec![0.1, 0.2, 0.3], vec![0.1, 0.2, 0.3]],
     };
     assert!(validate_embedding_connectivity_output(&wrong_count, 3).is_err());
 
-    let wrong_vector = EmbeddingTextsOutput {
+    let wrong_vector = EmbedTextsOutput {
         identity: matching.identity,
         embeddings: vec![vec![0.1, 0.2]],
     };
@@ -231,13 +231,20 @@ fn embedding_download_events_map_progress_and_completed_payload() {
 
     let completed = embedding_download_event(
         CapabilityTaskEventKind::Completed,
-        Some(serde_json::json!({"models": [{"name": "model"}]})),
+        Some(serde_json::json!({
+            "name": "model",
+            "model_code": "owner/model",
+            "description": "test model",
+            "dimension": 384,
+            "downloaded": true,
+            "size_bytes": 42
+        })),
         None,
     );
-    let models = handle_embedding_download_event(completed, None)
+    let model = handle_embedding_download_event(completed, None)
         .expect("completed event")
-        .expect("completed models");
-    assert_eq!(models[0]["name"], "model");
+        .expect("completed model");
+    assert_eq!(model.name, "model");
 }
 
 #[test]
@@ -253,12 +260,6 @@ fn embedding_download_events_preserve_failure_and_cancel_semantics() {
     );
     let error = handle_embedding_download_event(failed, None).expect_err("failed event must fail");
     assert!(matches!(error, AppError::ConfigError(message) if message == "provider failed"));
-
-    let cancel = embedding_download_event(CapabilityTaskEventKind::CancelAck, None, None);
-    assert!(matches!(
-        handle_embedding_download_event(cancel, None),
-        Err(AppError::Cancelled)
-    ));
 
     let cancelled_failure = embedding_download_event(
         CapabilityTaskEventKind::Failed,
@@ -283,7 +284,7 @@ async fn host_cancel_drops_embedding_sidecar_event_stream() {
     let cancel_token = CancellationToken::new();
     let task_cancel_token = cancel_token.clone();
     let task = tokio::spawn(async move {
-        download_embedding_model_events(&capabilities, "test-model", None, Some(task_cancel_token))
+        download_embedding_model_events(&capabilities, "test-model", None, task_cancel_token)
             .await
     });
 
@@ -316,14 +317,6 @@ fn embedding_download_event(
         task_id: "download-task".to_string(),
         event_kind,
         sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
         error,
         payload,
     }

@@ -1,6 +1,6 @@
 use super::super::config::validate_positive_id;
 use super::super::{clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node};
-use super::scope::canvas_nodes_for_project;
+use super::scope::canvas_nodes_for_projects;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::canvas::canvas_node;
 use chrono::Utc;
@@ -25,7 +25,7 @@ where
         return Ok(());
     }
 
-    let nodes = canvas_nodes_for_project(db, project_id).await?;
+    let nodes = canvas_nodes_for_projects(db, std::slice::from_ref(&project_id)).await?;
     let now = Utc::now().naive_utc();
     for node in nodes {
         let Some(missing_ref) = reset_missing_canvas_ref_for_node(&node, targets) else {

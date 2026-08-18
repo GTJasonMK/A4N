@@ -7,13 +7,12 @@ mod providers;
 mod tests;
 
 use a4n_service_protocol::{
-    HealthStatus, ServiceHealth, VIDEO_SERVICE_NAME, known_service_health_for_host,
+    HealthStatus, SIDECAR_HEALTH_PATH, ServiceHealth, VIDEO_SERVICE_NAME,
+    known_service_health,
 };
 use axum::{
     Json, Router,
     extract::DefaultBodyLimit,
-    http::HeaderMap,
-    middleware,
     routing::{get, post},
 };
 
@@ -24,11 +23,11 @@ async fn main() -> anyhow::Result<()> {
         "a4n_video_service=info,tower_http=warn",
     )?;
 
-    let addr = a4n_sidecar_bootstrap::socket_addr("A4N_VIDEO_SERVICE_ADDR", "127.0.0.1:47646")?;
-    let policy = a4n_service_protocol::sidecar_resource_policy("video")
+    let addr = a4n_sidecar_bootstrap::service_socket_addr(VIDEO_SERVICE_NAME)?;
+    let policy = a4n_service_protocol::sidecar_resource_policy(VIDEO_SERVICE_NAME)
         .expect("video sidecar must have a resource policy");
     let app = Router::new()
-        .route("/healthz", get(healthz))
+        .route(SIDECAR_HEALTH_PATH, get(healthz))
         .route(
             "/video/generate/events",
             post(handlers::generate_events).layer(DefaultBodyLimit::max(
@@ -45,18 +44,16 @@ async fn main() -> anyhow::Result<()> {
         ))
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
-        ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+        ));
 
     tracing::info!(%addr, "starting video sidecar");
     a4n_sidecar_bootstrap::serve_sidecar(app, addr, VIDEO_SERVICE_NAME).await
 }
 
-async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
-    Json(known_service_health_for_host(
+async fn healthz() -> Json<ServiceHealth> {
+    Json(known_service_health(
         VIDEO_SERVICE_NAME,
         env!("CARGO_PKG_VERSION"),
         HealthStatus::Healthy,
-        a4n_sidecar_bootstrap::host_protocol_version(&headers),
     ))
 }

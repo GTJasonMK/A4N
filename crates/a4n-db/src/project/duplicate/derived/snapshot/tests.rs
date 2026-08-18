@@ -32,7 +32,6 @@ fn project(project_kind: &str) -> novel_project::Model {
         description: String::new(),
         project_type: "novel_long".to_string(),
         project_kind: project_kind.to_string(),
-        source_mode: "derived".to_string(),
         root_project_id: Some(1),
         source_snapshot_id: Some(2),
         source_sync_status: "current".to_string(),

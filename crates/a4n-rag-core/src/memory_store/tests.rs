@@ -140,7 +140,7 @@ async fn test_hybrid_search() {
         .unwrap();
 
     let results = store
-        .hybrid_search("test", "苹果", make_embedding(0.9, 0.1, 0.0), 3, None, None)
+        .hybrid_search("test", "苹果", make_embedding(0.9, 0.1, 0.0), 3, None)
         .await
         .unwrap();
     assert!(!results.is_empty());
@@ -165,9 +165,6 @@ async fn test_delete_with_filter() {
         .delete(
             "test",
             DeleteFilter {
-                project_id: 1,
-                data_type: None,
-                chapter_number: None,
                 ids: Vec::new(),
                 id_prefixes: Vec::new(),
             },
@@ -231,9 +228,6 @@ async fn test_delete_with_id_prefix_removes_metadata_mismatch_record() {
         .delete(
             "test",
             DeleteFilter {
-                project_id: 1,
-                data_type: Some("chapter".to_string()),
-                chapter_number: Some(3),
                 ids: Vec::new(),
                 id_prefixes: vec!["chapter:1:100:".to_string()],
             },

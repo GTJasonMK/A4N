@@ -20,12 +20,6 @@ impl a4n_llm::provider::LlmProvider for BootstrapUnavailableLlm {
         )))
     }
 
-    async fn test_connection(&self) -> Result<bool, a4n_core::error::AppError> {
-        Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
-            "OrchestratorContext bootstrap 占位 LLM，尚未完成 with_providers"
-        )))
-    }
-
     fn model_name(&self) -> &str {
         "bootstrap-unavailable"
     }

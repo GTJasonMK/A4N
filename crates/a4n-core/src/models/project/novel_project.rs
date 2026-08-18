@@ -3,6 +3,8 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use a4n_domain::project::{ProjectSourceMode, ProjectSourceModeError};
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "novel_project")]
 pub struct Model {
@@ -19,9 +21,6 @@ pub struct Model {
 
     /// 项目族类型：text / comic / video / galgame
     pub project_kind: String,
-
-    /// 来源模式：self / derived / freeform
-    pub source_mode: String,
 
     /// 派生项目指向文本根项目；文本项目为空
     pub root_project_id: Option<i64>,
@@ -75,6 +74,16 @@ pub enum Relation {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Model {
+    pub fn source_mode(&self) -> Result<ProjectSourceMode, ProjectSourceModeError> {
+        ProjectSourceMode::from_identity(
+            &self.project_kind,
+            self.root_project_id,
+            self.source_snapshot_id,
+        )
+    }
+}
 
 impl Related<super::novel_blueprint::Entity> for Entity {
     fn to() -> RelationDef {

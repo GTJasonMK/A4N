@@ -16,7 +16,10 @@ import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { EmptyHint, type ChapterRow } from "./novel-detail/shared";
 import { VideoTab } from "./novel-detail/VideoTab";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
-import { getDerivedProjectSubtitle } from "../utils/projectRouting";
+import {
+  getDerivedProjectSubtitle,
+  getProjectStudioRoute,
+} from "../utils/projectRouting";
 
 export const VideoProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -52,7 +55,7 @@ export const VideoProjectWorkspace: React.FC = () => {
         return;
       }
       if (item.source_mode === "freeform") {
-        navigate(`/video-project/${projectId}/studio`, { replace: true });
+        navigate(getProjectStudioRoute(projectId), { replace: true });
         return;
       }
       const snapshotChapters = await listSourceSnapshotChapters(projectId);
@@ -142,7 +145,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             <BookButton
               variant="primary"
               size="sm"
-              onClick={() => navigate(`/video-project/${projectId}/studio`)}
+              onClick={() => navigate(getProjectStudioRoute(projectId))}
               disabled={!project}
             >
               <Layers3 size={14} />

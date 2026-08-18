@@ -799,19 +799,12 @@ export const VideoStudioCanvas: React.FC = () => {
     if (!file) return;
     setImporting(true);
     try {
-      const fallbackMime =
-        mediaKind === "image"
-          ? "application/octet-stream"
-          : mediaKind === "video"
-            ? "video/mp4"
-            : "application/octet-stream";
       const imported = await importCanvasMedia({
         project_id: projectId,
         media_kind: mediaKind,
         file_name: file.name,
-        mime_type: file.type || fallbackMime,
+        mime_type: file.type,
         data_base64: await readFileAsBase64(file),
-        prompt: file.name,
       });
       const nextNodes = [
         ...nodes.map((node) => ({ ...node, selected: false })),

@@ -10,6 +10,5 @@ pub(crate) use self::provider::{
     reference_image_provider_input_by_id, reference_image_provider_inputs_by_ids,
 };
 pub(crate) use self::transport::remote_temp_upload_config;
-pub(crate) use self::transport::remote_temp_upload_configured;
 #[cfg(test)]
 pub(in crate::actions::video_generation) use a4n_orchestrator::video::reference_image_ids;

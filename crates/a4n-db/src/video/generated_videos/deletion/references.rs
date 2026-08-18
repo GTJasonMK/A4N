@@ -140,7 +140,9 @@ where
         let replacement = generated_video::Entity::find()
             .filter(generated_video::Column::ProjectId.eq(prompt.project_id))
             .filter(generated_video::Column::ChapterId.eq(prompt.chapter_id))
-            .filter(generated_video::Column::Status.eq("completed"))
+            .filter(
+                generated_video::Column::Status.eq(generated_video::STATUS_COMPLETED),
+            )
             .all(db)
             .await?
             .into_iter()
@@ -157,9 +159,9 @@ where
         let mut active: chapter_video_prompt::ActiveModel = prompt.into();
         active.generated_video_id = Set(replacement.as_ref().map(|video| video.id));
         active.status = Set(if replacement.is_some() {
-            "completed".to_string()
+            chapter_video_prompt::STATUS_COMPLETED.to_string()
         } else {
-            "pending".to_string()
+            chapter_video_prompt::STATUS_PENDING.to_string()
         });
         active.updated_at = Set(now);
         active.update(db).await?;

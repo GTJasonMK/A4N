@@ -28,8 +28,6 @@ pub enum WorkflowWriteError {
 pub enum WorkflowCheckpointContractError {
     #[error("{0}")]
     Invalid(String),
-    #[error("读取 LLM 调用断点 {call_key} 失败：missing_checkpoint_json")]
-    MissingCheckpointJson { call_key: String },
     #[error("工作流断点 JSON 序列化失败: {0}")]
     Serialization(#[source] serde_json::Error),
 }

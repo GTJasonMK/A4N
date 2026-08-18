@@ -2,6 +2,7 @@ use a4n_core::models::{
     media::media_asset,
     project::{novel_project, project_source_snapshot, source_snapshot_chapter},
 };
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     TransactionTrait,
@@ -77,7 +78,10 @@ where
         .await
         .map_err(MediaDbError::Database)?
         .ok_or_else(|| MediaDbError::NotFound(format!("项目不存在: {}", input.project_id)))?;
-    if project.source_mode != crate::project::SOURCE_MODE_FREEFORM {
+    if project.source_mode().map_err(|error| {
+        MediaDbError::InvalidArgument(format!("项目 {}: {error}", project.id))
+    })? != ProjectSourceMode::Freeform
+    {
         return Err(MediaDbError::InvalidArgument(
             "缺少 source_snapshot_id 的媒体资产只能创建在 freeform 项目中".to_string(),
         ));
@@ -85,11 +89,6 @@ where
     if input.root_project_id != project.id {
         return Err(MediaDbError::InvalidArgument(
             "freeform 媒体资产 root_project_id 必须等于项目自身".to_string(),
-        ));
-    }
-    if project.root_project_id.is_some() || project.source_snapshot_id.is_some() {
-        return Err(MediaDbError::InvalidArgument(
-            "freeform 媒体资产项目不能包含文本派生上下文字段".to_string(),
         ));
     }
     if input.source_snapshot_chapter_id.is_some() {

@@ -1,6 +1,7 @@
 //! 角色 AI JSON 字段纯规则（无 DB、无 Host IO）。
 
-use serde_json::{Value, json};
+use a4n_api_contract::character::AttributeCountsSummary;
+use serde_json::Value;
 
 pub fn required_i64(json: &Value, key: &str) -> Result<i64, String> {
     json.get(key)
@@ -147,12 +148,12 @@ pub fn category_attributes(value: &Value, category: &str) -> Result<Value, Strin
         .ok_or_else(|| format!("角色当前状态缺少或损坏 {storage_key}"))
 }
 
-pub fn attribute_counts(value: &Value) -> Result<Value, String> {
-    Ok(json!({
-        "explicit": category_count(value, "explicit")?,
-        "implicit": category_count(value, "implicit")?,
-        "social": category_count(value, "social")?,
-    }))
+pub fn attribute_counts(value: &Value) -> Result<AttributeCountsSummary, String> {
+    Ok(AttributeCountsSummary {
+        explicit: category_count(value, "explicit")?,
+        implicit: category_count(value, "implicit")?,
+        social: category_count(value, "social")?,
+    })
 }
 
 #[cfg(test)]
@@ -169,9 +170,9 @@ mod tests {
         }))
         .expect("complete attribute categories should count");
 
-        assert_eq!(counts["explicit"], json!(1));
-        assert_eq!(counts["implicit"], json!(0));
-        assert_eq!(counts["social"], json!(1));
+        assert_eq!(counts.explicit, 1);
+        assert_eq!(counts.implicit, 0);
+        assert_eq!(counts.social, 1);
 
         let missing = attribute_counts(&json!({
             "explicit_attributes": {},

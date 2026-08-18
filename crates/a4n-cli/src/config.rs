@@ -2,6 +2,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -15,6 +16,8 @@ pub(crate) struct StoredConfig {
     pub(crate) access_token: Option<String>,
     pub(crate) refresh_token: Option<String>,
     pub(crate) session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
 impl StoredConfig {
@@ -166,8 +169,14 @@ pub(crate) fn normalize_api_base(raw: &str) -> Result<String> {
     Ok(url.as_str().trim_end_matches('/').to_string())
 }
 
-fn non_empty_env_path(key: &str) -> Result<Option<PathBuf>> {
-    Ok(non_empty_env_string(key)?.map(PathBuf::from))
+pub(crate) fn non_empty_env_path(key: &str) -> Result<Option<PathBuf>> {
+    let Some(value) = std::env::var_os(key) else {
+        return Ok(None);
+    };
+    if value.to_string_lossy().trim().is_empty() {
+        bail!("{key} 不能为空");
+    }
+    Ok(Some(PathBuf::from(value)))
 }
 
 pub(crate) fn non_empty_env_string(key: &str) -> Result<Option<String>> {

@@ -13,15 +13,15 @@ use crate::proxy::ScopedHfHubEnv;
 const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) fn build_download_client(cache_dir: &Path) -> Result<Client, String> {
-    let _hf_env = ScopedHfHubEnv::set(cache_dir)?;
+    let _hf_env = ScopedHfHubEnv::set_for_download(cache_dir)?;
     Client::builder()
         .connect_timeout(DOWNLOAD_CONNECT_TIMEOUT)
         .build()
         .map_err(|err| format!("初始化模型下载 HTTP 客户端失败：{err}"))
 }
 
-pub(super) fn ensure_not_cancelled(cancel_token: Option<&CancellationToken>) -> Result<(), String> {
-    if cancel_token.is_some_and(CancellationToken::is_cancelled) {
+pub(super) fn ensure_not_cancelled(cancel_token: &CancellationToken) -> Result<(), String> {
+    if cancel_token.is_cancelled() {
         Err(DOWNLOAD_CANCELLED_MESSAGE.to_string())
     } else {
         Ok(())
@@ -29,10 +29,10 @@ pub(super) fn ensure_not_cancelled(cancel_token: Option<&CancellationToken>) -> 
 }
 
 pub(super) fn cancelled_or_error(
-    cancel_token: Option<&CancellationToken>,
+    cancel_token: &CancellationToken,
     error: impl FnOnce() -> String,
 ) -> String {
-    if cancel_token.is_some_and(CancellationToken::is_cancelled) {
+    if cancel_token.is_cancelled() {
         DOWNLOAD_CANCELLED_MESSAGE.to_string()
     } else {
         error()

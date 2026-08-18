@@ -8,6 +8,7 @@ pub mod auth;
 pub mod canvas;
 pub mod character;
 pub mod collaboration;
+pub mod embedding;
 pub mod galgame;
 pub mod image;
 pub mod import_review;
@@ -21,9 +22,10 @@ pub mod shooting_script;
 pub mod source_sync;
 
 pub use canvas::{
-    CanvasNodeRefKind, canvas_transfer_runtime_identity_key, clear_canvas_transfer_runtime_identity,
+    CanvasFrameKind, CanvasNodeRefKind, GeneratedMediaReference, GeneratedMediaReferenceParseError,
+    canvas_cache_key, canvas_transfer_runtime_identity_key, clear_canvas_transfer_runtime_identity,
+    parse_canvas_cache_key, parse_generated_media_reference,
 };
-pub use image::is_system_managed_image_type;
 pub use llm::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
     LLM_RESERVED_REQUEST_OPTION_KEYS, LlmMaxTokensConfig, llm_token_profiles,
@@ -31,6 +33,7 @@ pub use llm::{
 pub use model_discovery::{DiscoveredModel, ModelDiscoveryResult};
 
 pub const EXTERNAL_IMPORT_MODEL: &str = "external-import";
+pub const VIDEO_TAIL_FRAME_OFFSET_SECS: f32 = 0.08;
 
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
@@ -51,6 +54,24 @@ pub type ThemeCssVariables = BTreeMap<String, String>;
 pub enum VideoDurationMode {
     Range,
     Fixed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VideoAspectRatio {
+    Ratio21x9,
+    Ratio16x9,
+    Ratio4x3,
+    Ratio1x1,
+    Ratio3x4,
+    Ratio9x16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AssemblyPostprocessOperation {
+    Insert,
+    Delete,
+    Replace,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -82,12 +103,16 @@ pub enum DomainError {
     InvalidThemeMode { value: String },
     #[error("视频 duration_mode 无效：{value}，只支持 range、fixed")]
     InvalidVideoDurationMode { value: String },
+    #[error("视频画幅无效：{value}")]
+    InvalidVideoAspectRatio { value: String },
     #[error("未知项目协作角色: {value}")]
     InvalidProjectMemberRole { value: String },
     #[error("项目访问范围无效: {value}")]
     InvalidProjectAccessScope { value: String },
     #[error("未知画布节点引用类型: {value}")]
     InvalidCanvasNodeRefKind { value: String },
+    #[error("画布抽帧类型无效: {value}，只支持 first、tail、time")]
+    InvalidCanvasFrameKind { value: String },
 }
 
 impl ThemeMode {
@@ -128,6 +153,57 @@ impl VideoDurationMode {
     }
 }
 
+impl VideoAspectRatio {
+    pub const ALL: [Self; 6] = [
+        Self::Ratio21x9,
+        Self::Ratio16x9,
+        Self::Ratio4x3,
+        Self::Ratio1x1,
+        Self::Ratio3x4,
+        Self::Ratio9x16,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ratio21x9 => "21:9",
+            Self::Ratio16x9 => "16:9",
+            Self::Ratio4x3 => "4:3",
+            Self::Ratio1x1 => "1:1",
+            Self::Ratio3x4 => "3:4",
+            Self::Ratio9x16 => "9:16",
+        }
+    }
+
+    pub const fn components(self) -> (i32, i32) {
+        match self {
+            Self::Ratio21x9 => (21, 9),
+            Self::Ratio16x9 => (16, 9),
+            Self::Ratio4x3 => (4, 3),
+            Self::Ratio1x1 => (1, 1),
+            Self::Ratio3x4 => (3, 4),
+            Self::Ratio9x16 => (9, 16),
+        }
+    }
+
+    pub fn supported_values() -> String {
+        Self::ALL
+            .iter()
+            .map(|ratio| ratio.as_str())
+            .collect::<Vec<_>>()
+            .join("、")
+    }
+}
+
+impl AssemblyPostprocessOperation {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Insert => "insert",
+            Self::Delete => "delete",
+            Self::Replace => "replace",
+        }
+    }
+}
+
 impl fmt::Display for VideoDurationMode {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
@@ -145,6 +221,25 @@ impl FromStr for VideoDurationMode {
                 value: value.to_string(),
             }),
         }
+    }
+}
+
+impl fmt::Display for VideoAspectRatio {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for VideoAspectRatio {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|ratio| ratio.as_str() == value)
+            .ok_or_else(|| DomainError::InvalidVideoAspectRatio {
+                value: value.to_string(),
+            })
     }
 }
 
@@ -219,5 +314,17 @@ mod tests {
         );
         assert!(" fixed ".parse::<VideoDurationMode>().is_err());
         assert!("discrete".parse::<VideoDurationMode>().is_err());
+    }
+
+    #[test]
+    fn video_aspect_ratio_accepts_only_canonical_values() {
+        assert_eq!(
+            "16:9".parse::<VideoAspectRatio>().unwrap(),
+            VideoAspectRatio::Ratio16x9
+        );
+        assert_eq!(VideoAspectRatio::Ratio9x16.components(), (9, 16));
+        assert!(" 16:9 ".parse::<VideoAspectRatio>().is_err());
+        assert!("16/9".parse::<VideoAspectRatio>().is_err());
+        assert!("2:1".parse::<VideoAspectRatio>().is_err());
     }
 }

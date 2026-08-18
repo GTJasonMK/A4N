@@ -1,7 +1,7 @@
 use a4n_core::{models::project::novel_blueprint, rag::RagDataType};
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn blueprint_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, String> {
     let title = required_rag_text(
@@ -35,11 +35,10 @@ pub fn blueprint_rag_record(
     blueprint: &novel_blueprint::Model,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("blueprint:{project_id}:{}", blueprint.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::Blueprint, blueprint.id),
         text: blueprint_rag_text(blueprint)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::Blueprint.as_str(),
-            "blueprint_id": blueprint.id,
         }),
     })
 }
@@ -74,11 +73,10 @@ pub fn blueprint_metadata_rag_record(
     blueprint: &novel_blueprint::Model,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("blueprint_metadata:{project_id}:{}", blueprint.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::BlueprintMetadata, blueprint.id),
         text: blueprint_metadata_rag_text(blueprint)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::BlueprintMetadata.as_str(),
-            "blueprint_id": blueprint.id,
         }),
     })
 }

@@ -6,11 +6,36 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use a4n_core::error::AppError;
+pub use a4n_domain::embedding::EmbeddingModelIdentity;
 
 pub const EMBEDDING_CONNECTIVITY_TEST_TEXT: &str = "test";
 
+pub fn validate_embedding_connectivity_vectors(
+    embeddings: &[Vec<f32>],
+    expected_dimension: usize,
+) -> Result<(), AppError> {
+    if expected_dimension == 0 {
+        return Err(AppError::ConfigError(
+            "嵌入连接测试配置维度必须为正整数".to_string(),
+        ));
+    }
+    let [embedding] = embeddings else {
+        return Err(AppError::EmbeddingError(format!(
+            "嵌入连接测试返回 {} 个向量，期望 1 个",
+            embeddings.len()
+        )));
+    };
+    if embedding.len() != expected_dimension {
+        return Err(AppError::EmbeddingError(format!(
+            "嵌入连接测试向量维度不匹配：返回 {}，期望 {expected_dimension}",
+            embedding.len()
+        )));
+    }
+    Ok(())
+}
+
 /// 嵌入后端类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug)]
 pub enum EmbeddingBackend {
     /// OpenAI/Ollama 兼容 API
     Api,
@@ -22,26 +47,9 @@ pub enum EmbeddingBackend {
     FastEmbed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct EmbeddingModelIdentity {
-    pub backend: String,
-    pub model: String,
-    pub dimension: usize,
-}
-
-impl EmbeddingModelIdentity {
-    pub fn new(backend: EmbeddingBackend, model: impl AsRef<str>, dimension: usize) -> Self {
-        Self {
-            backend: format!("{backend:?}"),
-            model: model.as_ref().trim().to_string(),
-            dimension,
-        }
-    }
-}
-
 /// 模型下载进度
-#[derive(Debug, Clone, Serialize)]
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DownloadProgress {
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
@@ -72,11 +80,11 @@ pub trait EmbeddingProvider: Send + Sync {
 
     /// 当前实际用于嵌入的模型身份，用于判断已有向量是否需要重建。
     async fn model_identity(&self) -> Result<EmbeddingModelIdentity, AppError> {
-        Ok(EmbeddingModelIdentity::new(
-            self.backend(),
-            self.model_name(),
-            self.dimension(),
-        ))
+        Ok(EmbeddingModelIdentity {
+            backend: format!("{:?}", self.backend()),
+            model: self.model_name().trim().to_string(),
+            dimension: self.dimension(),
+        })
     }
 
     /// 批量嵌入并返回同一次调用使用的模型身份。
@@ -92,27 +100,10 @@ pub trait EmbeddingProvider: Send + Sync {
     /// 测试连接可用性，并校验单条测试输入的返回数量与向量维度。
     async fn test_connection(&self) -> Result<(), AppError> {
         let expected_dimension = self.dimension();
-        if expected_dimension == 0 {
-            return Err(AppError::ConfigError(
-                "嵌入连接测试配置维度必须为正整数".to_string(),
-            ));
-        }
         let embeddings = self
             .embed(vec![EMBEDDING_CONNECTIVITY_TEST_TEXT.to_string()])
             .await?;
-        let [embedding] = embeddings.as_slice() else {
-            return Err(AppError::EmbeddingError(format!(
-                "嵌入连接测试返回 {} 个向量，期望 1 个",
-                embeddings.len()
-            )));
-        };
-        if embedding.len() != expected_dimension {
-            return Err(AppError::EmbeddingError(format!(
-                "嵌入连接测试向量维度不匹配：返回 {}，期望 {expected_dimension}",
-                embedding.len()
-            )));
-        }
-        Ok(())
+        validate_embedding_connectivity_vectors(&embeddings, expected_dimension)
     }
 }
 
@@ -143,18 +134,6 @@ mod contract_tests {
         fn backend(&self) -> EmbeddingBackend {
             EmbeddingBackend::LocalHash
         }
-    }
-
-    #[test]
-    fn embedding_identity_rejects_unknown_fields() {
-        let error = serde_json::from_value::<EmbeddingModelIdentity>(serde_json::json!({
-            "backend": "FastEmbed",
-            "model": "model",
-            "dimension": 384,
-            "legacy_backend": "local"
-        }))
-        .expect_err("embedding identity must reject unknown fields");
-        assert!(error.to_string().contains("legacy_backend"));
     }
 
     #[tokio::test]

@@ -1,10 +1,5 @@
 {
   "bundle": {
-    "externalBin": [
-      "../../target/tauri-sidecars/a4n",
-      "../../target/tauri-sidecars/a4n-server",
-      "../../target/tauri-sidecars/a4n-migration"
-    ],
     "resources": {
       "../../target/tauri-sidecars/*onnxruntime*": "",
       "../../prompts": "prompts"

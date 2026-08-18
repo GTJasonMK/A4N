@@ -5,6 +5,7 @@ use crate::project_dependency_graph::{
     prompt_type_str_in,
 };
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_domain::GeneratedMediaReference;
 use serde_json::Value;
 
 pub(in crate::project_dependency_graph) fn video_prompt_sources(
@@ -61,7 +62,7 @@ pub(in crate::project_dependency_graph) fn video_prompt_record(
                     .filter_map(Value::as_i64)
                     .map(|id| {
                         lineage_ref(
-                            &format!("generated_image:{id}"),
+                            &GeneratedMediaReference::Image(id).to_string(),
                             "参考图片",
                             "image",
                             "generated_image",

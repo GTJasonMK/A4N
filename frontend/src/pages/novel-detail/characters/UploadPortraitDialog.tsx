@@ -8,10 +8,10 @@ import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
 import { Modal } from "../../../components/ui/Modal";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
   isSupportedImageMime,
   MAX_UPLOAD_IMAGE_BYTES,
-  readFileAsBase64,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 

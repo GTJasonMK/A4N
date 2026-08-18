@@ -5,7 +5,11 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::collections::HashMap;
 
 const FREEFORM_VIDEO_PROGRESS_TYPES: [&str; 3] =
-    ["canvas_video", "trimmed_clip", "canvas_assembly"];
+    [
+        generated_video::VIDEO_TYPE_CANVAS,
+        generated_video::VIDEO_TYPE_TRIMMED_CLIP,
+        generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY,
+    ];
 
 pub(super) async fn freeform_video_project_progress_by_project(
     db: &DatabaseConnection,
@@ -73,14 +77,6 @@ fn freeform_video_project_progress_from_counts(counts: ProgressCounts) -> Projec
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn freeform_video_progress_types_match_persisted_video_types() {
-        assert_eq!(
-            FREEFORM_VIDEO_PROGRESS_TYPES,
-            ["canvas_video", "trimmed_clip", "canvas_assembly"]
-        );
-    }
 
     #[test]
     fn freeform_video_progress_prioritizes_failures() {

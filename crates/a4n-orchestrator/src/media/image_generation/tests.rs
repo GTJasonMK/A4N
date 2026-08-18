@@ -239,8 +239,8 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
         &self,
         _relative_path: &str,
         _label: &str,
-    ) -> Result<super::GeneratedImageArtifactFile, AppError> {
-        Ok(super::GeneratedImageArtifactFile {
+    ) -> Result<crate::generation::GeneratedMediaArtifactFile, AppError> {
+        Ok(crate::generation::GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "test-sha256".to_string(),
             byte_size: png_1x1_bytes().len() as u64,

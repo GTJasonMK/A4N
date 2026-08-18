@@ -31,17 +31,12 @@ pub(crate) async fn preview_video_provider_request(
     let response = client
         .preview_request(service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
-            "video",
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)
         .await
         .map_err(service_error_string)?;
-    let preview: Value = response_payload(response, "video")?;
-    if preview.is_null() {
-        return Err("video sidecar request preview 为空".to_string());
-    }
-    Ok(preview)
+    response_payload(response, "video")
 }
 
 pub(super) async fn poll_video_via_sidecar(
@@ -71,7 +66,6 @@ pub(super) async fn poll_video_via_sidecar(
                 workflow_run_id,
                 "video.poll",
             )?,
-            "video",
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)
@@ -108,7 +102,6 @@ pub(super) async fn video_status_via_sidecar(
     let response = client
         .status(service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
-            "video",
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)
@@ -145,7 +138,6 @@ pub(super) async fn delete_video_via_sidecar(
     let response = client
         .delete(service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
-            "video",
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)

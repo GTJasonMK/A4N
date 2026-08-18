@@ -34,10 +34,10 @@ import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { sha256Hex } from "../../utils/contentHash";
+import { readFileAsBase64 } from "../../utils/fileUpload";
 import {
   isSupportedImageMime,
   MAX_UPLOAD_IMAGE_BYTES,
-  readFileAsBase64,
   supportedImageAccept,
 } from "../../utils/imageUpload";
 import { ImageActionDialog } from "./images/ImageActionDialog";

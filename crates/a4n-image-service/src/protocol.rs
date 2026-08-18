@@ -1,8 +1,7 @@
 use a4n_core::error::AppError;
-use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     IMAGE_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    redact_sensitive_message, validate_provider_api_key_secret_policy,
+    redact_sensitive_message,
 };
 
 use crate::contracts::ImageProviderPayload;
@@ -11,32 +10,13 @@ pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
     result: Result<T, AppError>,
 ) -> ServiceResponse<T> {
-    request.result_response(result, |error| service_error(&error))
+    request.result_response(result, service_error)
 }
 
 pub(crate) fn validate_image_request(
     request: &ServiceRequest<ImageProviderPayload>,
 ) -> Result<(), ServiceError> {
-    validate_service_request(request)?;
-    validate_optional_provider_secret_policy(Some(&request.payload.api_key), request)
-}
-
-pub(crate) fn validate_model_discovery_request(
-    request: &ServiceRequest<ModelDiscoveryRequest>,
-) -> Result<(), ServiceError> {
-    validate_service_request(request)?;
-    validate_optional_provider_secret_policy(request.payload.api_key.as_deref(), request)
-}
-
-fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    request.validate_known_service(IMAGE_SERVICE_NAME)
-}
-
-fn validate_optional_provider_secret_policy<T>(
-    api_key: Option<&str>,
-    request: &ServiceRequest<T>,
-) -> Result<(), ServiceError> {
-    validate_provider_api_key_secret_policy(api_key, &request.secret_policy, IMAGE_SERVICE_NAME)
+    request.validate_known_provider_request(IMAGE_SERVICE_NAME, Some(&request.payload.api_key))
 }
 
 fn service_error_code(error: &AppError) -> ServiceErrorCode {
@@ -50,9 +30,9 @@ fn service_error_code(error: &AppError) -> ServiceErrorCode {
     }
 }
 
-pub(crate) fn service_error(error: &AppError) -> ServiceError {
+pub(crate) fn service_error(error: AppError) -> ServiceError {
     ServiceError::non_retryable(
-        service_error_code(error),
+        service_error_code(&error),
         redact_sensitive_message(error.to_string()),
     )
 }

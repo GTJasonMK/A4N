@@ -346,10 +346,19 @@ describe("generation web transport", () => {
 });
 
 function hostErrorResponse(code: "generation_snapshot_required"): Response {
-  return new Response(JSON.stringify({ code, message: "snapshot required", retryable: true }), {
-    status: 409,
-    headers: { "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({
+      code,
+      message: "snapshot required",
+      retryable: true,
+      trace_id: null,
+      details: {},
+    }),
+    {
+      status: 409,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 
 function snapshotResponse(

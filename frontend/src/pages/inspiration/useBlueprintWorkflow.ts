@@ -23,6 +23,7 @@ import {
   generationTaskRecoveryIssue,
   resolveFormalResultRecovery,
 } from "../../utils/generationEventReducer";
+import { getProjectPrimaryRoute } from "../../utils/projectRouting";
 import {
   buildInspirationTranscript,
   createBlueprintProgressState,
@@ -31,7 +32,7 @@ import {
 } from "./inspirationChatUtils";
 import type { Message } from "./shared";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 type BlueprintOperation = "generation" | "refinement";
 
 interface UseBlueprintWorkflowOptions {
@@ -455,14 +456,16 @@ export const useBlueprintWorkflow = ({
   }, [addToast, project, projectId]);
 
   const handleConfirmBlueprint = useCallback(() => {
+    if (!project) return;
     const requestProjectId = projectId;
+    const targetRoute = getProjectPrimaryRoute(project);
     setStage("display");
     if (confirmTimeoutRef.current != null) window.clearTimeout(confirmTimeoutRef.current);
     confirmTimeoutRef.current = window.setTimeout(() => {
       confirmTimeoutRef.current = null;
-      if (isCurrentProject(requestProjectId)) navigate(`/novel/${requestProjectId}`, { replace: true });
+      if (isCurrentProject(requestProjectId)) navigate(targetRoute, { replace: true });
     }, 1200);
-  }, [isCurrentProject, navigate, projectId]);
+  }, [isCurrentProject, navigate, project, projectId]);
 
   return {
     stage,

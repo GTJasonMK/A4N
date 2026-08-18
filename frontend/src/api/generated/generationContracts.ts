@@ -465,9 +465,12 @@ export interface GenerationTaskHistoryQuery {
 }
 export interface HostErrorResponse {
   code: GenerationErrorCode;
+  details: {
+    [k: string]: unknown;
+  };
   message: string;
   retryable: boolean;
-  trace_id?: string | null;
+  trace_id: string | null;
 }
 export interface GenerationTaskSnapshot {
   /**
@@ -673,7 +676,7 @@ export interface VideoPromptGenerationOptions {
   duration_secs: number;
   duration_secs_options?: number[];
   prompt_batch_size: number;
-  prompt_output_language?: string | null;
+  prompt_output_language: string;
   reference_image_ids?: number[];
   regenerate_existing?: boolean;
   /**
@@ -700,7 +703,7 @@ export interface VideoInsertedSegmentGenerationOptions {
   expected_timeline_revision: number;
   next_item_id?: number | null;
   previous_item_id?: number | null;
-  prompt_output_language?: string | null;
+  prompt_output_language: string;
   reference_image_ids?: number[];
   style: string;
   timeline_id: number;

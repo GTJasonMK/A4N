@@ -17,16 +17,18 @@ pub fn current_llm_max_tokens() -> Option<LlmMaxTokensConfig> {
 }
 
 pub fn uses_client_desktop_embedding() -> bool {
-    current_snapshot()
-        .and_then(|snapshot| snapshot.client_context)
-        .is_some_and(|context| {
-            context
-                .get("frontend_kind")
-                .and_then(Value::as_str)
-                .is_some_and(|value| value == "tauri")
-                && context
-                    .get("backend_kind")
+    RUNTIME_CONFIG_SNAPSHOT
+        .try_with(|snapshot| {
+            snapshot.client_context.as_ref().is_some_and(|context| {
+                context
+                    .get("frontend_kind")
                     .and_then(Value::as_str)
-                    .is_some_and(|value| value == "remote_http")
+                    .is_some_and(|value| value == "tauri")
+                    && context
+                        .get("backend_kind")
+                        .and_then(Value::as_str)
+                        .is_some_and(|value| value == "remote_http")
+            })
         })
+        .unwrap_or(false)
 }

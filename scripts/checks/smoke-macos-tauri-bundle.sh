@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+
 source_app="${1:-}"
 [[ -n "$source_app" && -d "$source_app" ]] || {
     printf 'usage: %s <A4N.app>\n' "$0" >&2
@@ -17,19 +21,13 @@ for name in A4N_QDRANT_URL A4N_DATABASE_URL A4N_JWT_SECRET; do
         exit 2
     }
 done
-for command_name in curl ditto grep pgrep ruby; do
-    command -v "$command_name" >/dev/null 2>&1 || {
-        printf 'missing command: %s\n' "$command_name" >&2
-        exit 2
-    }
+for command_name in curl ditto grep pgrep; do
+    require_command "$command_name"
 done
 
-project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-catalog_rows="$(ruby -rjson -e '
-  JSON.parse(File.read(ARGV.fetch(0))).each do |entry|
-    puts [entry.fetch("name"), entry.fetch("binary"), entry.fetch("addr_env"), entry.fetch("url_env"), entry.fetch("health_path")].join("\t")
-  end
-' "$project_root/crates/a4n-service-protocol/service-catalog.json")"
+catalog_rows="$(sidecar_catalog_rows)"
+tool_binaries="$(release_tool_binaries)"
+cli_binary="$(release_tool_binary_for_package a4n-cli)"
 packages=()
 modules=()
 addr_envs=()
@@ -55,7 +53,7 @@ max_base_port=$((65535 - ${#packages[@]}))
     exit 2
 }
 
-tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/a4n-macos-smoke.XXXXXX")"
+tmp_root="$(make_target_temp_dir macos-release-smoke)"
 tmp_root="$(cd "$tmp_root" && pwd -P)"
 install_root="$tmp_root/安装 前缀"
 installed_app="$install_root/A4N.app"
@@ -98,7 +96,7 @@ ditto "$source_app" "$installed_app"
 macos_dir="$installed_app/Contents/MacOS"
 resources_dir="$installed_app/Contents/Resources"
 host="$macos_dir/a4n-tauri"
-local_cli="$macos_dir/a4n"
+local_cli="$macos_dir/$cli_binary"
 local_config="$tmp_root/cli.json"
 local_server="http://127.0.0.1:$((base_port + ${#packages[@]}))"
 for package in "${packages[@]}"; do
@@ -111,12 +109,12 @@ done
     printf 'Tauri bundle is missing executable Host: %s\n' "$host" >&2
     exit 1
 }
-for tool in a4n a4n-server a4n-migration; do
+while IFS= read -r tool; do
     [[ -x "$macos_dir/$tool" ]] || {
         printf 'Tauri bundle is missing executable tool: %s\n' "$tool" >&2
         exit 1
     }
-done
+done <<<"$tool_binaries"
 capabilities="$(cd "$tmp_root" && "$local_cli" --config "$local_config" --agent capabilities export)"
 ruby -rjson -e '
   data = JSON.parse(STDIN.read).fetch("data")
@@ -146,7 +144,6 @@ for index in "${!modules[@]}"; do
     fi
 done
 
-export A4N_PORTABLE_HOME="$tmp_root/用户 数据"
 export A4N_DATA_DIR="$tmp_root/data"
 export A4N_CACHE_DIR="$tmp_root/cache"
 export A4N_TEMP_DIR="$tmp_root/tmp"

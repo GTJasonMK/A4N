@@ -7,7 +7,6 @@
 #   ./scripts/deploy.sh --target linux  # 指定目标平台
 #   ./scripts/deploy.sh --no-build      # 跳过构建（使用已有二进制）
 #   ./scripts/deploy.sh --dry-run       # 预演（仅显示将打包的文件）
-#   ./scripts/deploy.sh --install       # 安装到系统路径
 #   ./scripts/deploy.sh --help          # 显示帮助
 #
 # 产物: deploy/a4n-{version}-{platform}.tar.gz
@@ -25,26 +24,22 @@ source "$SCRIPT_DIR/lib/common.sh"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 PACKAGE_NAME="a4n-tauri"
 VERSION=$(grep '^version' "$PROJECT_ROOT/crates/a4n-tauri/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
-SERVICE_CATALOG="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
 SIDECAR_PACKAGES=()
-TOOL_PACKAGES=(
-    "a4n-cli"
-    "a4n-server"
-    "a4n-migration"
-)
+TOOL_SPECS=()
 SKIP_BUILD=false
 DRY_RUN=false
-DO_INSTALL=false
 TARGET_PLATFORM=""
 
-load_sidecar_packages() {
-    local lines package
-    require_command ruby
-    lines="$(ruby -rjson -e 'JSON.parse(File.read(ARGV.fetch(0))).each { |entry| puts entry.fetch("binary") }' "$SERVICE_CATALOG")"
+load_release_inventory() {
+    local lines package binary
+    lines="$(sidecar_catalog_binaries)"
     while IFS= read -r package; do
         [[ -z "$package" ]] || SIDECAR_PACKAGES+=("$package")
     done <<<"$lines"
-    [[ "${#SIDECAR_PACKAGES[@]}" -gt 0 ]] || die "sidecar service catalog 为空"
+    lines="$(release_tool_rows)"
+    while IFS=$'\t' read -r package binary; do
+        TOOL_SPECS+=("$package:$binary")
+    done <<<"$lines"
 }
 
 # —— 检测平台 ——
@@ -84,10 +79,6 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
-        --install|-i)
-            DO_INSTALL=true
-            shift
-            ;;
         --help|-h)
             print_script_usage "$0" 15
             exit 0
@@ -116,15 +107,8 @@ PACKAGE_DIR="$DEPLOY_DIR/${PACKAGE_NAME}-${VERSION}-${TARGET_PLATFORM}"
 ARCHIVE_NAME="${PACKAGE_NAME}-${VERSION}-${TARGET_PLATFORM}.tar.gz"
 
 release_binary_path() {
-    local package="$1"
-    printf '%s/target/release/%s%s\n' "$PROJECT_ROOT" "$package" "$BINARY_EXT"
-}
-
-tool_binary_name() {
-    case "$1" in
-        a4n-cli) printf '%s\n' "a4n" ;;
-        *) printf '%s\n' "$1" ;;
-    esac
+    local binary="$1"
+    printf '%s/target/release/%s%s\n' "$PROJECT_ROOT" "$binary" "$BINARY_EXT"
 }
 
 onnxruntime_release_name() {
@@ -148,35 +132,19 @@ echo -e "  平台:   ${CYAN}${TARGET_PLATFORM}${NC}"
 echo -e "  产物:   ${CYAN}${ARCHIVE_NAME}${NC}"
 echo ""
 
-# —— 检查 Node.js ——
-check_node() {
-    require_command node
-    require_command npm
-}
-
 # —— 前置检查 ——
 check_prerequisites() {
     if ! $SKIP_BUILD; then
         require_command cargo
-        check_node
+        require_command node
+        require_command npm
         echo -e "${GREEN}✓ cargo $(cargo --version | cut -d' ' -f2)${NC}"
         echo -e "${GREEN}✓ node $(node --version)${NC}"
         echo -e "${GREEN}✓ npm $(npm --version)${NC}"
         require_onnxruntime
-        echo -e "${GREEN}✓ ONNX Runtime 1.24.2 ($A4N_ONNXRUNTIME_ROOT)${NC}"
+        echo -e "${GREEN}✓ ONNX Runtime $(onnxruntime_version) ($A4N_ONNXRUNTIME_ROOT)${NC}"
     else
         echo -e "${YELLOW}⚠ 跳过构建，前置检查不要求 cargo/node/npm${NC}"
-    fi
-}
-
-# —— 安装前端依赖 ——
-install_frontend_deps() {
-    if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-        echo -e "${YELLOW}⚠ 前端依赖未安装，正在安装...${NC}"
-        cd "$FRONTEND_DIR"
-        npm install --silent 2>&1
-        cd "$PROJECT_ROOT"
-        echo -e "${GREEN}✓ 前端依赖安装完成${NC}"
     fi
 }
 
@@ -198,9 +166,9 @@ do_build() {
                 exit 1
             fi
         done
-        for package in "${TOOL_PACKAGES[@]}"; do
-            local tool_binary
-            tool_binary="$(release_binary_path "$(tool_binary_name "$package")")"
+        for spec in "${TOOL_SPECS[@]}"; do
+            local package="${spec%%:*}" binary="${spec#*:}" tool_binary
+            tool_binary="$(release_binary_path "$binary")"
             if [[ ! -f "$tool_binary" ]]; then
                 echo -e "${RED}✗ 未找到工具 Release 二进制: ${tool_binary}${NC}"
                 echo "  请先运行 cargo build --release -p ${package}"
@@ -216,8 +184,7 @@ do_build() {
         return
     fi
 
-    # 安装前端依赖
-    install_frontend_deps
+    ensure_frontend_dependencies
 
     # 构建前端
     echo -e "${CYAN}━━━ 构建前端 ━━━${NC}"
@@ -231,7 +198,8 @@ do_build() {
     echo -e "${CYAN}━━━ 构建 Release ━━━${NC}"
     cd "$PROJECT_ROOT"
     cargo build --release -p "$PACKAGE_NAME" 2>&1
-    for package in "${TOOL_PACKAGES[@]}"; do
+    for spec in "${TOOL_SPECS[@]}"; do
+        local package="${spec%%:*}"
         echo -e "${CYAN}→ 构建工具: ${package}${NC}"
         cargo build --release -p "$package" 2>&1
     done
@@ -254,6 +222,8 @@ do_build() {
 
 # —— 准备打包目录 ——
 prepare_package() {
+    local release_manifest_schema
+    release_manifest_schema="$(release_manifest_schema_version)"
     echo -e "${CYAN}━━━ 准备打包 ━━━${NC}"
 
     # 清理旧产物
@@ -268,9 +238,8 @@ prepare_package() {
     cp "$RELEASE_BINARY" "$PACKAGE_DIR/bin/"
     echo -e "  ${GREEN}✓${NC} 二进制: bin/${PACKAGE_NAME}"
 
-    for package in "${TOOL_PACKAGES[@]}"; do
-        local tool_name tool_binary
-        tool_name="$(tool_binary_name "$package")"
+    for spec in "${TOOL_SPECS[@]}"; do
+        local tool_name="${spec#*:}" tool_binary
         tool_binary="$(release_binary_path "$tool_name")"
         [[ -f "$tool_binary" ]] || die "缺少工具二进制: $tool_binary"
         cp "$tool_binary" "$PACKAGE_DIR/bin/"
@@ -296,15 +265,12 @@ prepare_package() {
     cp -L "$runtime_source" "$PACKAGE_DIR/bin/services/$runtime_name"
     echo -e "  ${GREEN}✓${NC} runtime: bin/services/${runtime_name}"
 
-    require_command ruby
     ruby "$PROJECT_ROOT/scripts/release_manifest.rb" generate \
         --package-root "$PACKAGE_DIR" \
         --target "$TARGET_PLATFORM" \
         --package "$PACKAGE_NAME" \
-        --host "$PACKAGE_NAME" \
-        --catalog "$SERVICE_CATALOG" \
         --output "$PACKAGE_DIR/release-manifest.json"
-    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar + ${#TOOL_PACKAGES[@]} 个工具）"
+    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具）"
 
     # 复制前端产物
     if [[ -d "$FRONTEND_DIST" ]]; then
@@ -346,6 +312,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%start.ps1"
 exit /b %ERRORLEVEL%
 BATEOF
         printf '\xEF\xBB\xBF' > "$PACKAGE_DIR/start.ps1"
+        printf '$ReleaseManifestSchemaVersion = %s\n\n' "$release_manifest_schema" >> "$PACKAGE_DIR/start.ps1"
         cat >> "$PACKAGE_DIR/start.ps1" << 'PSEOF'
 $ErrorActionPreference = "Stop"
 
@@ -358,7 +325,7 @@ function Assert-ReleaseManifest {
         throw "缺少 release-manifest.json"
     }
     $manifest = Get-Content -Raw -Path $manifestPath | ConvertFrom-Json
-    if ($manifest.schema_version -ne 2) {
+    if ($manifest.schema_version -ne $ReleaseManifestSchemaVersion) {
         throw "release manifest schema 不兼容"
     }
     $seen = @{}
@@ -502,8 +469,8 @@ A4N - AI 辅助小说创作工具
   jwt_secret = "replace-with-a-long-random-secret"
 
 目录结构:
-  bin/         桌面 Host、a4n CLI、a4n-server、a4n-migration
-  bin/services/ prompt/LLM/embedding/RAG/image/video/import/export sidecar
+  bin/         桌面 Host 与 release tool catalog 声明的工具
+  bin/services/ service catalog 声明的 sidecar
   static/      前端页面（React SPA）
   prompts/     提示词模板
   data/        数据目录、配置、数据库、日志、缓存、生成素材
@@ -550,62 +517,8 @@ create_archive() {
     echo ""
 }
 
-# —— 安装到系统 ——
-install_to_system() {
-    local install_dir="/usr/local"
-    local runtime_name runtime_source
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        install_dir="/usr/local"
-    fi
-
-    echo -e "${CYAN}━━━ 安装到系统 ━━━${NC}"
-    echo -e "  目标: ${install_dir}/bin/${PACKAGE_NAME}"
-    require_onnxruntime
-    runtime_name="$(onnxruntime_release_name)"
-    runtime_source="$(onnxruntime_release_source)"
-    [[ -r "$runtime_source" ]] || die "缺少 ONNX Runtime 发布文件: $runtime_source"
-
-    if [[ "$(id -u)" -ne 0 ]]; then
-        echo -e "${YELLOW}⚠ 需要 sudo 权限${NC}"
-        sudo mkdir -p "${install_dir}/bin"
-        sudo cp "$RELEASE_BINARY" "${install_dir}/bin/"
-        for package in "${TOOL_PACKAGES[@]}"; do
-            sudo cp "$(release_binary_path "$(tool_binary_name "$package")")" "${install_dir}/bin/"
-        done
-        sudo mkdir -p "${install_dir}/lib/a4n/services"
-        for package in "${SIDECAR_PACKAGES[@]}"; do
-            sudo cp "$(release_binary_path "$package")" "${install_dir}/lib/a4n/services/"
-        done
-        sudo cp -L "$runtime_source" "${install_dir}/lib/a4n/services/$runtime_name"
-        sudo mkdir -p "${install_dir}/share/a4n/static"
-        sudo mkdir -p "${install_dir}/share/a4n/prompts"
-        sudo cp -R "$FRONTEND_DIST/." "${install_dir}/share/a4n/static/"
-        sudo cp -R "$PROJECT_ROOT/prompts/." "${install_dir}/share/a4n/prompts/"
-    else
-        mkdir -p "${install_dir}/bin"
-        cp "$RELEASE_BINARY" "${install_dir}/bin/"
-        for package in "${TOOL_PACKAGES[@]}"; do
-            cp "$(release_binary_path "$(tool_binary_name "$package")")" "${install_dir}/bin/"
-        done
-        mkdir -p "${install_dir}/lib/a4n/services"
-        for package in "${SIDECAR_PACKAGES[@]}"; do
-            cp "$(release_binary_path "$package")" "${install_dir}/lib/a4n/services/"
-        done
-        cp -L "$runtime_source" "${install_dir}/lib/a4n/services/$runtime_name"
-        mkdir -p "${install_dir}/share/a4n/static"
-        mkdir -p "${install_dir}/share/a4n/prompts"
-        cp -R "$FRONTEND_DIST/." "${install_dir}/share/a4n/static/"
-        cp -R "$PROJECT_ROOT/prompts/." "${install_dir}/share/a4n/prompts/"
-    fi
-
-    echo -e "${GREEN}✓ 安装完成${NC}"
-    echo -e "  运行桌面端: ${CYAN}${PACKAGE_NAME}${NC}"
-    echo -e "  运行 CLI:    ${CYAN}a4n --help${NC}"
-    echo ""
-}
-
 # —— 主流程 ——
-load_sidecar_packages
+load_release_inventory
 check_prerequisites
 
 if $DRY_RUN; then
@@ -613,7 +526,9 @@ if $DRY_RUN; then
     echo ""
     echo "将打包以下内容:"
     echo "  - bin/${PACKAGE_NAME}"
-    echo "  - bin/a4n, bin/a4n-server, bin/a4n-migration"
+    for spec in "${TOOL_SPECS[@]}"; do
+        echo "  - bin/${spec#*:}${BINARY_EXT}"
+    done
     echo "  - bin/services/ (${#SIDECAR_PACKAGES[@]} 个 sidecar 二进制)"
     echo "  - start.sh / start.bat / Windows start.ps1 (默认 sidecar profile，启动包内 sidecar)"
     if [[ -d "$FRONTEND_DIST" ]]; then
@@ -630,14 +545,6 @@ if $DRY_RUN; then
     echo "  - README.txt"
     echo ""
     echo "产物: ${DEPLOY_DIR}/${ARCHIVE_NAME}"
-    exit 0
-fi
-
-guard_build_cache
-
-if $DO_INSTALL; then
-    do_build
-    install_to_system
     exit 0
 fi
 

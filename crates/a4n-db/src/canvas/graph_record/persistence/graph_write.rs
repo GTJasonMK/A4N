@@ -42,12 +42,10 @@ where
             active.update(db).await.map_err(CanvasDbError::Database)
         }
         None => {
-            let graph_kind = input
-                .graph_kind
-                .as_deref()
-                .map(normalize_canvas_record_graph_kind)
-                .transpose()?
-                .unwrap_or(default_canvas_record_graph_kind(project));
+            let graph_kind = match input.graph_kind.as_deref() {
+                Some(value) => normalize_canvas_record_graph_kind(value)?,
+                None => default_canvas_record_graph_kind(project)?,
+            };
             canvas_graph::ActiveModel {
                 project_id: Set(project_id),
                 name: Set(input

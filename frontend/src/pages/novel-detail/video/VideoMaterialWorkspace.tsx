@@ -37,23 +37,23 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import {
   isSupportedImageMime,
-  readFileAsBase64,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import { ImageActionDialog } from "../images/ImageActionDialog";
 import { chapterRangeText } from "../shared";
 import {
-  IMAGE_STYLE_TEMPLATES,
+  VISUAL_STYLE_TEMPLATES,
   renderVisualStyleTemplate,
 } from "../styleTemplates";
 
 type LoadMaterialsOptions = { force?: boolean };
 
 const CUSTOM_STYLE_VALUE = "custom";
-const DEFAULT_STYLE_TEMPLATE_ID = IMAGE_STYLE_TEMPLATES[0]?.id ?? CUSTOM_STYLE_VALUE;
+const DEFAULT_STYLE_TEMPLATE_ID = VISUAL_STYLE_TEMPLATES[0].id;
 const STYLE_TEMPLATE_VERSION = "1";
 const MAX_UPLOAD_IMAGE_BYTES = 20 * 1024 * 1024;
 
@@ -179,7 +179,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
 
   const selectedStyleTemplate = useMemo(
     () =>
-      IMAGE_STYLE_TEMPLATES.find((template) => template.id === selectedStyleTemplateId) ??
+      VISUAL_STYLE_TEMPLATES.find((template) => template.id === selectedStyleTemplateId) ??
       null,
     [selectedStyleTemplateId],
   );
@@ -309,7 +309,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   const applyStyleTemplate = (templateId: string) => {
     setSelectedStyleTemplateId(
       templateId === CUSTOM_STYLE_VALUE ||
-        IMAGE_STYLE_TEMPLATES.some((item) => item.id === templateId)
+      VISUAL_STYLE_TEMPLATES.some((item) => item.id === templateId)
         ? templateId
         : CUSTOM_STYLE_VALUE,
     );
@@ -707,7 +707,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
               label="风格模板"
               value={selectedStyleTemplate?.id ?? CUSTOM_STYLE_VALUE}
               options={[
-                ...IMAGE_STYLE_TEMPLATES.map((template) => ({
+                ...VISUAL_STYLE_TEMPLATES.map((template) => ({
                   value: template.id,
                   label: template.name,
                 })),

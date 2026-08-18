@@ -1,5 +1,15 @@
 import React from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Eye } from "lucide-react";
+import {
+  CANVAS_PROMPT_KIND,
+  CANVAS_TEXT_OUTPUT_KIND_DIALOGUE,
+  CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT,
+  CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN,
+  CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT,
+  CANVAS_TEXT_OUTPUT_KIND_STORYBOARD,
+  CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION,
+  CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT,
+} from "../../api/canvas";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import {
   canvasDataTypeLabel,
@@ -426,14 +436,14 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         <label className="block text-caption text-book-text-muted">
           文本类型
           <select
-            value={configText(config, "output_kind") || "canvas_text"}
+            value={configText(config, "output_kind") || CANVAS_PROMPT_KIND}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            <option value="canvas_text">画布文本</option>
-            <option value="video_prompt">视频文本</option>
-            <option value="image_prompt">图片文本</option>
+            <option value={CANVAS_PROMPT_KIND}>画布提示词</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT}>视频文本</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT}>图片文本</option>
           </select>
         </label>
       </div>
@@ -460,16 +470,19 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         <label className="block text-caption text-book-text-muted">
           输出类型
           <select
-            value={configText(config, "output_kind") || "shot_script"}
+            value={
+              configText(config, "output_kind") ||
+              CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT
+            }
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            <option value="shot_script">镜头脚本</option>
-            <option value="storyboard">分镜</option>
-            <option value="visual_description">视觉描述</option>
-            <option value="dialogue">对白</option>
-            <option value="rhythm_plan">节奏计划</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT}>镜头脚本</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_STORYBOARD}>分镜</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION}>视觉描述</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_DIALOGUE}>对白</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN}>节奏计划</option>
           </select>
         </label>
       </div>
@@ -551,7 +564,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     );
   }
   if (node.data.nodeKind === "ExtractFrameNode") {
-    const frameKind = configText(config, "frame_kind") || "first";
+    const frameKind = configText(config, "frame_kind");
     return (
       <div className="space-y-3">
         <label className="block text-caption text-book-text-muted">

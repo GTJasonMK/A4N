@@ -1,22 +1,28 @@
 //! 视频尾帧归属与元数据纯规则（无 DB、无 Host）。
 
 use a4n_core::models::ai::{generated_image, generated_video};
+use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
+    image_generation_source,
+};
 use serde_json::Value;
 
 /// 尾帧图是否属于指定视频的采集产物。
 pub fn tail_frame_image_belongs_to_video(image: &generated_image::Model, video_id: i64) -> bool {
-    let Some(context) = image
+    if image.image_type != IMAGE_TYPE_VIDEO_TAIL_FRAME
+        || image_generation_source(image.metadata_json.as_ref())
+        != Some(IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
+    {
+        return false;
+    }
+    image
         .metadata_json
         .as_ref()
         .and_then(|metadata| metadata.get("generation_context"))
-    else {
-        return false;
-    };
-    context
-        .get("source")
-        .and_then(Value::as_str)
-        .is_some_and(|source| source.trim() == "video_tail_frame_capture")
-        && context.get("video_id").and_then(Value::as_i64) == Some(video_id)
+        .and_then(|context| context.get("video_id"))
+        .and_then(Value::as_i64)
+        == Some(video_id)
 }
 
 /// 从视频元数据读取镜头序号。
@@ -31,24 +37,20 @@ pub fn video_shot_number(video: &generated_video::Model) -> Result<i32, String> 
         .ok_or_else(|| format!("视频 #{} 缺少有效 shot_number，无法采集真实尾帧", video.id))
 }
 
-/// 从视频元数据读取源正文哈希。
-pub fn video_source_content_hash(metadata: Option<&Value>) -> Option<&str> {
-    metadata
-        .and_then(|metadata| metadata.get("source"))
-        .and_then(|source| source.get("content_sha256"))
-        .and_then(Value::as_str)
-        .filter(|value| !value.is_empty())
-}
-
 pub fn is_first_frame_chain_video(video: &generated_video::Model) -> bool {
-    video.workflow_mode.as_deref() == Some("first_frame_chain")
+    video.workflow_mode.as_deref()
+        == Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
 }
 
 pub fn should_capture_video_tail_frame(video: &generated_video::Model) -> bool {
-    video.video_type == "chapter_video"
+    video.video_type == generated_video::VIDEO_TYPE_CHAPTER
         && matches!(
             video.workflow_mode.as_deref(),
-            Some("boundary_frames" | "first_frame_chain" | "chat_video")
+            Some(
+                chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
+                    | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
+                    | chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO
+            )
         )
 }
 
@@ -81,6 +83,7 @@ pub fn completed_provider_metadata(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
     use chrono::Utc;
     use serde_json::json;
 
@@ -92,7 +95,7 @@ mod tests {
         generated_image::Model {
             id: 1,
             project_id: 1,
-            image_type: "video_tail_frame".into(),
+            image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.into(),
             file_path: "x.png".into(),
             prompt: String::new(),
             model: String::new(),
@@ -142,7 +145,7 @@ mod tests {
     #[test]
     fn belongs_to_video_requires_capture_source_and_id() {
         let ok = image_with_context(json!({
-            "source": "video_tail_frame_capture",
+            "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
             "video_id": 42
         }));
         assert!(tail_frame_image_belongs_to_video(&ok, 42));
@@ -156,27 +159,20 @@ mod tests {
     }
 
     #[test]
-    fn source_content_hash_reads_nested_source() {
-        let meta = json!({"source": {"content_sha256": "abc"}});
-        assert_eq!(video_source_content_hash(Some(&meta)), Some("abc"));
-        assert_eq!(video_source_content_hash(None), None);
-    }
-
-    #[test]
     fn provider_completion_rules_keep_chapter_and_tail_frame_contracts() {
         assert!(required_video_chapter_id(None, 42).is_err());
         for workflow in ["boundary_frames", "first_frame_chain", "chat_video"] {
             assert!(should_capture_video_tail_frame(&video(
-                "chapter_video",
+                generated_video::VIDEO_TYPE_CHAPTER,
                 Some(workflow),
             )));
         }
         assert!(!should_capture_video_tail_frame(&video(
-            "reference_media_video",
+            generated_video::VIDEO_TYPE_REFERENCE_MEDIA,
             Some("reference_media"),
         )));
         assert!(is_first_frame_chain_video(&video(
-            "chapter_video",
+            generated_video::VIDEO_TYPE_CHAPTER,
             Some("first_frame_chain"),
         )));
     }

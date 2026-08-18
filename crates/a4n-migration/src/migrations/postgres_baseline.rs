@@ -173,12 +173,6 @@ async fn create_baseline_indexes(manager: &SchemaManager<'_>) -> Result<(), DbEr
     );
     create_entity_index!(
         manager,
-        "idx_novel_project_source_mode",
-        novel_project::Entity,
-        [novel_project::Column::SourceMode]
-    );
-    create_entity_index!(
-        manager,
         "idx_novel_project_root",
         novel_project::Entity,
         [novel_project::Column::RootProjectId]

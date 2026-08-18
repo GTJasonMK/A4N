@@ -1,9 +1,7 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::mark_workflow_current_step;
 use serde_json::Value;
 
 use crate::galgame::OrchestratorContext;
-use crate::workflow::workflow_write_app_error;
 use a4n_prompt::rendering::PromptRenderer;
 
 mod execution;
@@ -42,13 +40,8 @@ impl OrchestratorContext {
         F: Fn(Value) -> Result<Value, AppError>,
     {
         let prepared = prepare_galgame_llm_once(&input).await?;
-        mark_workflow_current_step(
-            self.database.connection(),
-            input.workflow_run_id,
-            &input.step_key,
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
+        self.mark_workflow_current_step(input.workflow_run_id, &input.step_key)
+            .await?;
         if let Some(restored) = restore_galgame_llm_once(self, &input, &prepared, &validate).await?
         {
             return Ok(restored);

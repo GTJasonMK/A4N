@@ -1,6 +1,6 @@
 use super::super::canvas_node_references_generated_image;
 use super::super::config::{
-    IMAGE_REF_CONFIG_KEY, config_i64, remove_config_any_i64_ref, validate_positive_id,
+    IMAGE_REF_CONFIG_KEY, config_id_in, remove_config_any_i64_ref, validate_positive_id,
 };
 use super::scope::canvas_nodes_for_projects;
 use crate::canvas::CanvasDbError;
@@ -48,7 +48,7 @@ where
         let missing_ref_id = node
             .ref_id
             .filter(|id| image_ids.contains(id))
-            .or_else(|| config_i64(&node.config_json, IMAGE_REF_CONFIG_KEY));
+            .or_else(|| config_id_in(&node.config_json, IMAGE_REF_CONFIG_KEY, &image_ids));
         let mut config = node.config_json.clone();
         if let Some(object) = config.as_object_mut() {
             object.insert(

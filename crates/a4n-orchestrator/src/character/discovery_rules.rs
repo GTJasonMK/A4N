@@ -18,9 +18,6 @@ pub fn select_character_discovery_chapters(
     project_id: i64,
     chapter_number: Option<i32>,
 ) -> Result<Vec<chapter::Model>, String> {
-    if chapter_number.is_some_and(|chapter_number| chapter_number <= 0) {
-        return Err("角色发现章节号必须大于 0".to_string());
-    }
     if let Some(chapter_number) = chapter_number {
         let selected = chapters
             .into_iter()
@@ -73,12 +70,6 @@ pub fn validate_discovered_character_chapter_scope(
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn select_rejects_non_positive_chapter_number() {
-        let err = select_character_discovery_chapters(vec![], 1, Some(0)).unwrap_err();
-        assert!(err.contains("必须大于 0"));
-    }
 
     #[test]
     fn select_all_rejects_empty_project() {

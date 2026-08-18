@@ -17,7 +17,6 @@ use crate::OrchestratorContext;
 use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
 
-const DEFAULT_LLM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM 响应";
 const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM 流响应";
 const DEFAULT_EMBEDDING_ERROR: &str = "测试 OrchestratorContext 未配置 embedding 响应";
 
@@ -37,10 +36,7 @@ impl TestOrchestratorBuilder {
             capabilities: A4nCapabilities::empty(),
             config: AppConfig::default(),
             prompt_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts"),
-            llm: Arc::new(UnavailableLlmProvider::new(
-                DEFAULT_LLM_ERROR,
-                DEFAULT_LLM_STREAM_ERROR,
-            )),
+            llm: Arc::new(UnavailableLlmProvider::new(DEFAULT_LLM_STREAM_ERROR)),
             embedding: Arc::new(UnavailableEmbeddingProvider::new(DEFAULT_EMBEDDING_ERROR)),
         }
     }
@@ -93,7 +89,6 @@ impl TestOrchestratorBuilder {
             Arc::new(
                 ServiceManager::new(Vec::new()).expect("empty service manager should initialize"),
             ),
-            None,
             self.config,
             event_bus,
             task_manager,
@@ -116,7 +111,6 @@ mod tests {
     fn builder_keeps_explicit_test_overrides() {
         let db = Arc::new(DatabaseConnection::Disconnected);
         let llm: Arc<dyn LlmProvider> = Arc::new(UnavailableLlmProvider::new(
-            "configured chat failure",
             "configured stream failure",
         ));
         let embedding: Arc<dyn EmbeddingProvider> = Arc::new(UnavailableEmbeddingProvider::new(

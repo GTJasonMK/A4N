@@ -37,6 +37,7 @@ pub(in crate::actions::task_records) async fn verify_task_access(
         .await;
     }
     let handle = state
+        .orchestrator()
         .task_handle(task_id)
         .ok_or_else(|| format!("任务不存在: {task_id}"))?;
     verify_task_handle_access(state, user_id, &handle).await

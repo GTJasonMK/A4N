@@ -5,17 +5,15 @@ use std::{
     time::Duration,
 };
 
-use a4n_capabilities::{
-    CapabilityClient, EVENT_QUEUE_CAPACITY, HttpLlmClient, JsonRequest, LlmClient,
-};
+use a4n_capabilities::{CapabilityClient, HttpLlmClient, JsonRequest, LlmClient};
 use a4n_llm::provider::ChatRequest;
 use a4n_service_manager::{
     ManagedServiceConfig, ManagedSidecarState, ServiceManager, ServiceManagerError,
 };
 use a4n_service_protocol::{
     CapabilityTaskEvent, HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME,
-    PROTOCOL_VERSION, SIDECAR_AUTH_TOKEN_ENV, SecretForwardingPolicy, ServiceRequestContext,
-    TraceContext,
+    PROTOCOL_VERSION, SIDECAR_AUTH_TOKEN_ENV, SIDECAR_EVENT_QUEUE_CAPACITY, SecretForwardingPolicy,
+    ServiceRequestContext, TraceContext,
 };
 use a4n_test_support::process::SIDECAR_PROCESS_TEST_TOKEN;
 use axum::{
@@ -175,7 +173,7 @@ async fn fake_chat_completions(
     if body["stream"].as_bool() == Some(true) {
         if body["model"] == json!("process-burst-model") {
             let mut stream = String::new();
-            for _ in 0..(EVENT_QUEUE_CAPACITY + 8) {
+            for _ in 0..(SIDECAR_EVENT_QUEUE_CAPACITY + 8) {
                 stream.push_str(
                     "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":null}]}\n\n",
                 );
@@ -353,7 +351,7 @@ pub(crate) async fn collect_stream_events(
     client: &impl LlmClient,
     request: JsonRequest,
 ) -> Vec<CapabilityTaskEvent> {
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
         .stream(request, event_tx)
         .await

@@ -2,11 +2,11 @@ use super::config::ManagedServiceConfig;
 use super::errors::ServiceManagerError;
 use super::health::http_health;
 use super::integrity::BinaryIntegrityVerifier;
+use super::manager::configured_auth_token;
 use a4n_service_protocol::{
-    HealthStatus, SIDECAR_AUTH_HEADER, SIDECAR_AUTH_TOKEN_ENV, SIDECAR_LAST_ERROR_ENV,
-    SIDECAR_RESTART_COUNT_ENV, redact_sensitive_message,
+    HealthStatus, SIDECAR_AUTH_HEADER, SIDECAR_LAST_ERROR_ENV, SIDECAR_RESTART_COUNT_ENV,
+    SIDECAR_SHUTDOWN_PATH, redact_sensitive_message,
 };
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, watch};
@@ -15,8 +15,7 @@ use tokio::task::JoinHandle;
 const SHUTDOWN_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 const SIDECAR_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ManagedSidecarState {
     Starting,
     Running,
@@ -25,14 +24,10 @@ pub enum ManagedSidecarState {
     Stopped,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ManagedSidecarStatus {
-    pub service: String,
     pub state: ManagedSidecarState,
     pub pid: Option<u32>,
-    pub restart_count: u32,
-    pub next_restart_in_ms: Option<u64>,
-    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -68,12 +63,8 @@ impl ManagedSidecarProcess {
         }
 
         let status = ManagedSidecarStatus {
-            service: config.name.clone(),
             state: ManagedSidecarState::Running,
             pid: child.id(),
-            restart_count: 0,
-            next_restart_in_ms: None,
-            last_error: None,
         };
         let (status_tx, status_rx) = watch::channel(status);
         let (command_tx, command_rx) = mpsc::unbounded_channel();
@@ -98,14 +89,6 @@ impl ManagedSidecarProcess {
         &self.config.name
     }
 
-    pub fn id(&self) -> Option<u32> {
-        self.status.borrow().pid
-    }
-
-    pub fn status(&self) -> ManagedSidecarStatus {
-        self.status.borrow().clone()
-    }
-
     pub(super) fn status_receiver(&self) -> watch::Receiver<ManagedSidecarStatus> {
         self.status.clone()
     }
@@ -120,9 +103,10 @@ impl ManagedSidecarProcess {
 
     async fn finish(&mut self, command: SupervisorCommand) -> Result<(), ServiceManagerError> {
         let _ = self.command.send(command);
-        let Some(task) = self.task.take() else {
-            return Ok(());
-        };
+        let task = self
+            .task
+            .take()
+            .expect("managed sidecar supervisor task must exist until finish");
         task.await
             .map_err(|error| ServiceManagerError::SupervisorTaskFailed {
                 service: self.config.name.clone(),
@@ -151,8 +135,14 @@ async fn supervise(
     loop {
         let exit_error = tokio::select! {
             command = commands.recv() => {
-                stop_child(&config, &mut child, command.unwrap_or(SupervisorCommand::ForceStop)).await?;
-                set_status(&status, &config.name, ManagedSidecarState::Stopped, None, restart_count, None, None);
+                stop_child(
+                    &config,
+                    &mut child,
+                    &client,
+                    command.unwrap_or(SupervisorCommand::ForceStop),
+                )
+                .await?;
+                set_status(&status, ManagedSidecarState::Stopped, None);
                 return Ok(());
             }
             result = child.wait() => {
@@ -171,12 +161,8 @@ async fn supervise(
             if restart_count >= config.restart_policy.max_restarts {
                 set_status(
                     &status,
-                    &config.name,
                     ManagedSidecarState::CircuitOpen,
                     None,
-                    restart_count,
-                    None,
-                    Some(last_error.clone()),
                 );
                 return Err(ServiceManagerError::RestartLimitExceeded {
                     service: config.name.clone(),
@@ -189,30 +175,21 @@ async fn supervise(
             let backoff_ms = config.restart_policy.backoff_ms(restart_count);
             set_status(
                 &status,
-                &config.name,
                 ManagedSidecarState::BackingOff,
                 None,
-                restart_count,
-                Some(backoff_ms),
-                Some(last_error.clone()),
             );
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_millis(backoff_ms)) => {}
-                command = commands.recv() => {
-                    let _ = command;
-                    set_status(&status, &config.name, ManagedSidecarState::Stopped, None, restart_count, None, Some(last_error));
+                _ = commands.recv() => {
+                    set_status(&status, ManagedSidecarState::Stopped, None);
                     return Ok(());
                 }
             }
 
             set_status(
                 &status,
-                &config.name,
                 ManagedSidecarState::Starting,
                 None,
-                restart_count,
-                None,
-                Some(last_error.clone()),
             );
             let mut next = match spawn_child(
                 &config,
@@ -233,15 +210,11 @@ async fn supervise(
             };
             match startup_result {
                 Err(command) => {
-                    stop_child(&config, &mut next, command).await?;
+                    stop_child(&config, &mut next, &client, command).await?;
                     set_status(
                         &status,
-                        &config.name,
                         ManagedSidecarState::Stopped,
                         None,
-                        restart_count,
-                        None,
-                        Some(last_error),
                     );
                     return Ok(());
                 }
@@ -249,18 +222,21 @@ async fn supervise(
                     child = next;
                     set_status(
                         &status,
-                        &config.name,
                         ManagedSidecarState::Running,
                         child.id(),
-                        restart_count,
-                        None,
-                        Some(last_error),
                     );
                     break;
                 }
                 Ok(Err(error)) => {
-                    let _ = next.kill().await;
-                    last_error = status_error(&error);
+                    let next_last_error = status_error(&error);
+                    next.kill().await.map_err(|kill_source| {
+                        ServiceManagerError::StartupCleanupFailed {
+                            service: config.name.clone(),
+                            startup: Box::new(error),
+                            kill_source,
+                        }
+                    })?;
+                    last_error = next_last_error;
                 }
             }
         }
@@ -281,7 +257,6 @@ fn spawn_child(
         integrity.verify(&config.name, binary)?;
     }
     let mut command = Command::new(binary);
-    command.args(&config.args);
     command.env_clear();
     command.envs(config.env.clone());
     #[cfg(windows)]
@@ -304,9 +279,11 @@ fn spawn_child(
 async fn stop_child(
     config: &ManagedServiceConfig,
     child: &mut Child,
+    client: &reqwest::Client,
     command: SupervisorCommand,
 ) -> Result<(), ServiceManagerError> {
-    if matches!(command, SupervisorCommand::GracefulStop) && request_graceful_shutdown(config).await
+    if matches!(command, SupervisorCommand::GracefulStop)
+        && request_graceful_shutdown(config, client).await?
     {
         match tokio::time::timeout(SIDECAR_DRAIN_TIMEOUT, child.wait()).await {
             Ok(Ok(_)) => return Ok(()),
@@ -332,16 +309,15 @@ async fn stop_child(
         })
 }
 
-async fn request_graceful_shutdown(config: &ManagedServiceConfig) -> bool {
-    let Some(base_url) = config.url.as_deref() else {
-        return false;
-    };
-    let mut request =
-        reqwest::Client::new().post(format!("{}/shutdown", base_url.trim_end_matches('/')));
-    if let Some(token) = config.env.get(SIDECAR_AUTH_TOKEN_ENV) {
+async fn request_graceful_shutdown(
+    config: &ManagedServiceConfig,
+    client: &reqwest::Client,
+) -> Result<bool, ServiceManagerError> {
+    let mut request = client.post(config.endpoint_url(SIDECAR_SHUTDOWN_PATH)?);
+    if let Some(token) = configured_auth_token(config)? {
         request = request.header(SIDECAR_AUTH_HEADER, token);
     }
-    match tokio::time::timeout(SHUTDOWN_REQUEST_TIMEOUT, request.send()).await {
+    Ok(match tokio::time::timeout(SHUTDOWN_REQUEST_TIMEOUT, request.send()).await {
         Ok(Ok(response)) if response.status().is_success() => true,
         Ok(Ok(response)) => {
             tracing::warn!(
@@ -367,7 +343,7 @@ async fn request_graceful_shutdown(config: &ManagedServiceConfig) -> bool {
             );
             false
         }
-    }
+    })
 }
 
 async fn wait_until_healthy(
@@ -414,21 +390,10 @@ async fn wait_until_healthy(
 
 fn set_status(
     sender: &watch::Sender<ManagedSidecarStatus>,
-    service: &str,
     state: ManagedSidecarState,
     pid: Option<u32>,
-    restart_count: u32,
-    next_restart_in_ms: Option<u64>,
-    last_error: Option<String>,
 ) {
-    sender.send_replace(ManagedSidecarStatus {
-        service: service.to_string(),
-        state,
-        pid,
-        restart_count,
-        next_restart_in_ms,
-        last_error,
-    });
+    sender.send_replace(ManagedSidecarStatus { state, pid });
 }
 
 fn status_error(error: &ServiceManagerError) -> String {

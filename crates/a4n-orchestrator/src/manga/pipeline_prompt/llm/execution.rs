@@ -58,11 +58,10 @@ impl OrchestratorContext {
         let (response_text, usage, finish_reason, restored_parsed_output) =
             if restore_from_checkpoint
                 && let Some(restored) = load_manga_restored_llm_checkpoint(
-                    &self.database,
+                    self,
                     workflow_run_id,
                     &prepared.call_key,
                     &prepared.input_fingerprint_json,
-                    prompt_name,
                 )
                 .await?
             {

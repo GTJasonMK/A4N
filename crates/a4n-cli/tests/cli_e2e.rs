@@ -146,6 +146,11 @@ fn read_request(stream: &mut TcpStream) -> String {
     }
 }
 
+fn request_json_body(request: &str) -> Value {
+    let (_, body) = request.split_once("\r\n\r\n").unwrap();
+    serde_json::from_str(body).unwrap()
+}
+
 #[test]
 fn agent_capabilities_and_safety_gates_work_outside_repository() {
     let temp = TempDir::new().unwrap();
@@ -263,6 +268,108 @@ fn health_rejects_a_non_a4n_server() {
         "server_identity_invalid"
     );
     assert!(server_thread.join().unwrap().starts_with("GET /api/meta "));
+}
+
+#[test]
+fn runtime_config_is_persisted_and_injected_by_manifest_policy() {
+    let temp = TempDir::new().unwrap();
+    let config = temp.path().join("cli.json");
+    let snapshot = temp.path().join("runtime.json");
+    write_config(&config, "http://127.0.0.1:9");
+    write_json(
+        &snapshot,
+        &json!({
+            "schema_version": 1,
+            "llm": {
+                "id": 1,
+                "name": "local",
+                "provider": "openai",
+                "base_url": "https://example.test/v1",
+                "api_key_encrypted": "runtime-secret",
+                "model": "model",
+                "max_concurrent": 1,
+                "timeout_secs": 30,
+                "max_context_tokens": 4096,
+                "max_output_tokens": 1024
+            }
+        }),
+    );
+
+    let output = cli(&temp, &config)
+        .args(["config", "runtime", "set", "--input"])
+        .arg(format!("@{}", snapshot.display()))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("runtime-secret"));
+    assert!(
+        fs::read_to_string(&config)
+            .unwrap()
+            .contains("runtime-secret")
+    );
+
+    let (server, server_thread) = spawn_reply("200 OK", b"{}", None);
+    write_config_with_runtime(&config, &server, &snapshot);
+    let output = cli(&temp, &config)
+        .args([
+            "call",
+            "preview_check_character_conflict_request",
+            "--args",
+            r#"{"input":{"project_id":1,"name":"Alice","start_chapter":null,"end_chapter":null}}"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let request = server_thread.join().unwrap();
+    let body = request_json_body(&request);
+    assert!(
+        body["runtime_config_snapshot"]["llm"]
+            .get("api_key_encrypted")
+            .is_none_or(Value::is_null)
+    );
+
+    let (server, server_thread) = spawn_reply("200 OK", b"[]", None);
+    write_config_with_runtime(&config, &server, &snapshot);
+    let output = cli(&temp, &config)
+        .args([
+            "call",
+            "check_character_conflict",
+            "--args",
+            r#"{"input":{"project_id":1,"name":"Alice","start_chapter":null,"end_chapter":null},"taskId":"character-conflict-test"}"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let body = request_json_body(&server_thread.join().unwrap());
+    assert_eq!(
+        body["runtime_config_snapshot"]["llm"]["api_key_encrypted"],
+        "runtime-secret"
+    );
+}
+
+fn write_config_with_runtime(config: &Path, server: &str, snapshot: &Path) {
+    let runtime_config_snapshot: Value =
+        serde_json::from_slice(&fs::read(snapshot).unwrap()).unwrap();
+    write_json(
+        config,
+        &json!({
+            "server": server,
+            "access_token": "test-token",
+            "runtime_config_snapshot": runtime_config_snapshot,
+        }),
+    );
 }
 
 #[test]

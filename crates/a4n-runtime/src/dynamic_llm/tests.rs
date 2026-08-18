@@ -64,42 +64,13 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
     .await
     .expect("LLM probe");
 
-    assert!(output.ok);
-    assert_eq!(output.response_preview.as_deref(), Some("pong"));
+    assert_eq!(output.response_preview, "pong");
     assert_eq!(client.probe_call_count(), 1);
     let request = client.last_probe_request().expect("recorded probe request");
     assert!(request.secret_policy.is_local_user_secret_only());
     assert_eq!(request.payload["provider"]["model"], "test-model");
     assert_eq!(request.payload["provider"]["api_key"], "test-key");
     assert_eq!(request.payload["request"]["messages"][0]["content"], "ping");
-}
-
-#[test]
-fn llm_probe_requires_ok_and_non_empty_response_preview() {
-    assert!(llm_probe_succeeded(&LlmProbeOutput {
-        ok: true,
-        response_preview: Some("pong".to_string()),
-        usage: None,
-        finish_reason: None,
-    }));
-    assert!(!llm_probe_succeeded(&LlmProbeOutput {
-        ok: false,
-        response_preview: Some("pong".to_string()),
-        usage: None,
-        finish_reason: None,
-    }));
-    assert!(!llm_probe_succeeded(&LlmProbeOutput {
-        ok: true,
-        response_preview: Some("   ".to_string()),
-        usage: None,
-        finish_reason: None,
-    }));
-    assert!(!llm_probe_succeeded(&LlmProbeOutput {
-        ok: true,
-        response_preview: None,
-        usage: None,
-        finish_reason: None,
-    }));
 }
 
 #[test]
@@ -210,7 +181,6 @@ fn successful_probe_response() -> a4n_capabilities::JsonResponse {
         usage: None,
         artifact_refs: Vec::new(),
         payload: Some(serde_json::json!({
-            "ok": true,
             "response_preview": "pong",
             "usage": null,
             "finish_reason": "stop"

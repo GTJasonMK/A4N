@@ -1,12 +1,13 @@
 use a4n_core::models::ai::generated_video;
+use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 use crate::canvas::CanvasDbError;
 
 pub(super) fn canvas_video_media_origin(video: &generated_video::Model) -> &str {
-    if video.video_type == "canvas_assembly" {
+    if video.video_type == generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY {
         "assembled_preview"
-    } else if video.model == "external-import" {
+    } else if video.model == EXTERNAL_IMPORT_MODEL {
         "imported"
     } else {
         "generated"

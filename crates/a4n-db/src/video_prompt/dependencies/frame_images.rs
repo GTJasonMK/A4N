@@ -1,12 +1,17 @@
 use super::mutability::ensure_frame_prompt_has_no_generated_image;
 use super::rules::{
     ensure_frame_prompt_generation_source_matches, ensure_frame_prompt_workflow_matches_type,
-    frame_image_generation_source_for_prompt, image_generation_prompt_id,
-    image_generation_shot_number, image_generation_source, image_generation_source_hash,
-    prompt_same_frame_reference_chain, prompt_source_hash, prompt_stage_label,
+    frame_image_generation_source_for_prompt, prompt_same_frame_reference_chain,
+    prompt_stage_label,
 };
 use crate::video::{self, VideoDbError};
 use a4n_core::models::{ai::generated_image, chapter::chapter_video_prompt};
+use a4n_core::source_spans::metadata_source_content_sha256;
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+    IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, image_generation_prompt_id,
+    image_generation_shot_number, image_generation_source, image_generation_source_hash,
+};
 use sea_orm::ConnectionTrait;
 
 pub async fn ensure_frame_prompt_image_generation_allowed<C>(
@@ -20,7 +25,7 @@ where
     let prompt = video::frame_chapter_video_prompt_record(db, prompt_id).await?;
     ensure_frame_prompt_generation_source_matches(&prompt, generation_source)?;
     ensure_frame_prompt_workflow_matches_type(&prompt)?;
-    if prompt.status == "running" {
+    if prompt.status == chapter_video_prompt::STATUS_RUNNING {
         return Err(VideoDbError::InvalidState {
             current: prompt.status.clone(),
             operation: format!("生成{}", prompt_stage_label(&prompt)),
@@ -44,7 +49,9 @@ where
     let expected_source =
         ensure_frame_prompt_generation_source_matches(&prompt, generation_source)?;
     ensure_frame_prompt_workflow_matches_type(&prompt)?;
-    if expected_source != "video_boundary_frame_prompt" || prompt.shot_number <= 1 {
+    if expected_source != IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT
+        || prompt.shot_number <= 1
+    {
         return Ok(requested_reference_image_ids.to_vec());
     }
 
@@ -111,7 +118,8 @@ where
     else {
         return Ok(None);
     };
-    let previous_source_hash = prompt_source_hash(&previous_prompt);
+    let previous_source_hash =
+        metadata_source_content_sha256(previous_prompt.metadata_json.as_ref());
     let allowed_project_ids = video::video_asset_project_ids_record(db, prompt.project_id).await?;
     let images = video::generated_images_for_projects_chapter_by_id_desc(
         db,
@@ -123,12 +131,12 @@ where
     for image in images {
         let metadata = image.metadata_json.as_ref();
         match image_generation_source(metadata) {
-            Some("video_boundary_frame_prompt")
+            Some(IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT)
                 if image_generation_prompt_id(metadata) == Some(previous_prompt.id) =>
             {
                 return Ok(Some(image));
             }
-            Some("video_tail_frame_capture")
+            Some(IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
                 if image_generation_shot_number(metadata)
                     .and_then(|shot_number| shot_number.checked_add(1))
                     == Some(previous_frame_number)

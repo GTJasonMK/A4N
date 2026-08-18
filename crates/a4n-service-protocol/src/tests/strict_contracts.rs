@@ -1,7 +1,9 @@
+use serde::de::DeserializeOwned;
+
 use crate::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 
 #[test]
-fn protocol_envelopes_accept_additive_fields_but_security_contracts_stay_strict() {
+fn protocol_envelopes_reject_unknown_fields() {
     let request = serde_json::json!({
         "request_id": "request-1",
         "trace_context": {"trace_id": "trace-1", "parent_span_id": null},
@@ -16,34 +18,38 @@ fn protocol_envelopes_accept_additive_fields_but_security_contracts_stay_strict(
         "payload": {},
         "future_optional_field": true
     });
-    serde_json::from_value::<ServiceRequest<serde_json::Value>>(request)
-        .expect("old sidecar must ignore additive request envelope fields");
+    assert_unknown_field_rejected::<ServiceRequest<serde_json::Value>>(request);
 
     let response = serde_json::json!({
         "status": "ok",
         "payload": {},
         "future_optional_field": true
     });
-    serde_json::from_value::<ServiceResponse<serde_json::Value>>(response)
-        .expect("old host must ignore additive response envelope fields");
+    assert_unknown_field_rejected::<ServiceResponse<serde_json::Value>>(response);
 
-    let health = serde_json::json!({
+    let mut health = serde_json::json!({
         "service": "demo",
         "status": "healthy",
-        "future_optional_field": true,
         "version": {
             "service_version": "0.1.0",
             "protocol_version": crate::PROTOCOL_VERSION,
-            "capability_version": "demo-v2",
-            "compatibility": {
-                "protocol": {"min": crate::PROTOCOL_VERSION, "max": crate::PROTOCOL_VERSION},
-                "capability_major": {"min": 2, "max": 2}
-            },
-            "future_optional_field": true
+            "capability_version": "demo-v2"
         }
     });
-    serde_json::from_value::<ServiceHealth>(health)
-        .expect("old host must ignore additive health fields");
+    health["future_optional_field"] = serde_json::json!(true);
+    assert_unknown_field_rejected::<ServiceHealth>(health);
+
+    let mut health = serde_json::json!({
+        "service": "demo",
+        "status": "healthy",
+        "version": {
+            "service_version": "0.1.0",
+            "protocol_version": crate::PROTOCOL_VERSION,
+            "capability_version": "demo-v2"
+        }
+    });
+    health["version"]["future_optional_field"] = serde_json::json!(true);
+    assert_unknown_field_rejected::<ServiceHealth>(health);
 
     let event = serde_json::json!({
         "task_id": "task-1",
@@ -51,42 +57,18 @@ fn protocol_envelopes_accept_additive_fields_but_security_contracts_stay_strict(
         "sequence": 1,
         "future_optional_field": true
     });
-    serde_json::from_value::<CapabilityTaskEvent>(event)
-        .expect("old host must ignore additive event envelope fields");
+    assert_unknown_field_rejected::<CapabilityTaskEvent>(event);
+}
 
-    let strict_secret_policy = serde_json::json!({
-        "scope": "none",
-        "allow_system_secret": false,
-        "allow_user_secret": false,
-        "allow_upload_token": false,
-        "future_optional_field": true
-    });
-    let error = serde_json::from_value::<crate::SecretForwardingPolicy>(strict_secret_policy)
-        .expect_err("security contracts require an explicit major change");
+fn assert_unknown_field_rejected<T: DeserializeOwned>(value: serde_json::Value) {
+    let error = serde_json::from_value::<T>(value)
+        .err()
+        .expect("unknown protocol field must be rejected");
     assert!(
         error
             .to_string()
             .contains("unknown field `future_optional_field`")
     );
-}
-
-#[test]
-fn health_accepts_the_version_compatibility_extension() {
-    let health = serde_json::json!({
-        "service": "demo",
-        "status": "healthy",
-        "version": {
-            "service_version": "0.1.0",
-            "protocol_version": crate::PROTOCOL_VERSION,
-            "capability_version": "demo-v2",
-            "compatibility": {
-                "protocol": {"min": crate::PROTOCOL_VERSION, "max": crate::PROTOCOL_VERSION},
-                "capability_major": {"min": 2, "max": 2}
-            }
-        }
-    });
-    serde_json::from_value::<ServiceHealth>(health)
-        .expect("known compatibility extension should remain wire-compatible");
 }
 
 #[test]

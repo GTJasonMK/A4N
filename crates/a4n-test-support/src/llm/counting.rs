@@ -14,7 +14,6 @@ use futures::{Stream, stream};
 #[derive(Clone)]
 pub struct CountingLlmProvider {
     stream_calls: Arc<AtomicUsize>,
-    test_connection_calls: Arc<AtomicUsize>,
     response: ChatResponse,
 }
 
@@ -22,17 +21,12 @@ impl CountingLlmProvider {
     pub fn new(response: ChatResponse) -> Self {
         Self {
             stream_calls: Arc::new(AtomicUsize::new(0)),
-            test_connection_calls: Arc::new(AtomicUsize::new(0)),
             response,
         }
     }
 
     pub fn stream_call_count(&self) -> usize {
         self.stream_calls.load(Ordering::SeqCst)
-    }
-
-    pub fn test_connection_call_count(&self) -> usize {
-        self.test_connection_calls.load(Ordering::SeqCst)
     }
 }
 
@@ -68,11 +62,6 @@ impl LlmProvider for CountingLlmProvider {
             index: 0,
             usage: response.usage,
         })])))
-    }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        self.test_connection_calls.fetch_add(1, Ordering::SeqCst);
-        Ok(true)
     }
 
     fn model_name(&self) -> &str {

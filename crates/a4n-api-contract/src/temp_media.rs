@@ -2,11 +2,9 @@ use a4n_service_protocol::JS_SAFE_INTEGER_U64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const TEMP_MEDIA_MAX_TTL_SECONDS: i64 = 24 * 60 * 60;
+
 /// Host-to-relay request for a temporary provider input.
-///
-/// `expires_in_seconds` is an upper bound requested by the caller. The relay
-/// may apply a shorter server-side policy TTL, but must never exceed this
-/// value.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TempMediaUploadRequest {
@@ -14,15 +12,9 @@ pub struct TempMediaUploadRequest {
     pub owner_user_id: i64,
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    pub source_media_kind: String,
     #[schemars(range(min = 1))]
-    pub source_image_id: i64,
-    #[serde(default)]
-    pub source_media_kind: Option<String>,
-    #[serde(default)]
-    #[schemars(range(min = 1))]
-    pub source_media_id: Option<i64>,
-    #[schemars(range(min = 1, max = 86_400))]
-    pub expires_in_seconds: i64,
+    pub source_media_id: i64,
     pub file_name: String,
     pub mime_type: String,
     pub data_base64: String,
@@ -46,13 +38,9 @@ pub struct TempMediaUploadResponse {
     pub owner_user_id: i64,
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    pub source_media_kind: String,
     #[schemars(range(min = 1))]
-    pub source_image_id: i64,
-    #[serde(default)]
-    pub source_media_kind: Option<String>,
-    #[serde(default)]
-    #[schemars(range(min = 1))]
-    pub source_media_id: Option<i64>,
+    pub source_media_id: i64,
     #[schemars(length(min = 1, max = 128))]
     pub content_type: String,
     #[schemars(length(equal = 64))]
@@ -81,17 +69,14 @@ mod tests {
         let request = TempMediaUploadRequest {
             owner_user_id: 7,
             project_id: 11,
-            source_image_id: 13,
-            source_media_kind: None,
-            source_media_id: None,
-            expires_in_seconds: 86_400,
+            source_media_kind: "generated_image".into(),
+            source_media_id: 13,
             file_name: "reference.png".into(),
             mime_type: "image/png".into(),
             data_base64: "iVBORw0KGgo=".into(),
         };
         let value = serde_json::to_value(&request).unwrap();
         assert_eq!(value["owner_user_id"], 7);
-        assert_eq!(value["expires_in_seconds"], 86_400);
         assert!(serde_json::from_value::<TempMediaUploadRequest>(value).is_ok());
 
         let response = TempMediaUploadResponse {
@@ -100,9 +85,8 @@ mod tests {
             expires_at: "2026-07-27T00:00:00Z".into(),
             owner_user_id: 7,
             project_id: 11,
-            source_image_id: 13,
-            source_media_kind: None,
-            source_media_id: None,
+            source_media_kind: "generated_image".into(),
+            source_media_id: 13,
             content_type: "image/png".into(),
             sha256: "a".repeat(64),
             byte_size: 8,
@@ -120,12 +104,12 @@ mod tests {
         let value = serde_json::json!({
             "owner_user_id": 7,
             "project_id": 11,
+            "source_media_kind": "generated_image",
+            "source_media_id": 13,
             "source_image_id": 13,
-            "expires_in_seconds": 3600,
             "file_name": "reference.png",
             "mime_type": "image/png",
-            "data_base64": "iVBORw0KGgo=",
-            "path": "/tmp/reference.png"
+            "data_base64": "iVBORw0KGgo="
         });
         assert!(serde_json::from_value::<TempMediaUploadRequest>(value).is_err());
     }

@@ -1,26 +1,30 @@
-use super::super::contracts::{ImportCanvasVideoInput, ImportedVideoSource};
-use super::super::prelude::{AppState, GeneratedVideoSummary, Utc, access, video_to_summary};
+use super::super::contracts::ImportedVideoSource;
+use super::super::prelude::{generated_video, AppState, Utc};
 use super::super::source::{
-    import_project_video_output_path, import_video_source, mark_imported_video_completed,
-    persist_imported_video_file, probe_video_properties, uploaded_video_source,
+    import_video_source, persist_imported_video_file, probe_imported_video_properties,
+    uploaded_video_source,
 };
-use a4n_orchestrator::video::ImportedVideoProperties;
+use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use a4n_orchestrator::canvas::CanvasVideoImportHostInput;
 
-pub async fn import_canvas_video(
+pub(crate) async fn import_canvas_video(
     state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    input: ImportCanvasVideoInput,
-) -> Result<GeneratedVideoSummary, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
-    let source = match input
-        .file_path
-        .as_deref()
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-    {
-        Some(file_path) => import_video_source(file_path, "画布视频导入")?,
-        None => {
+    input: CanvasVideoImportHostInput,
+) -> Result<generated_video::Model, String> {
+    let project_id = input.project_id;
+    let source = match (input.file_path.as_deref(), input.data_base64.as_deref()) {
+        (Some(_), Some(_)) => {
+            return Err(
+                "导入画布视频只能提供 file_path 或 data_base64，不能同时提供".to_string(),
+            );
+        }
+        (Some(_), None) if input.file_name.is_some() || input.mime_type.is_some() => {
+            return Err(
+                "file_path 画布视频导入不能同时提供 file_name 或 mime_type".to_string(),
+            );
+        }
+        (Some(file_path), None) => import_video_source(file_path, "画布视频导入")?,
+        (None, Some(data_base64)) => {
             let file_name = input
                 .file_name
                 .as_deref()
@@ -29,10 +33,6 @@ pub async fn import_canvas_video(
                 .mime_type
                 .as_deref()
                 .ok_or_else(|| "上传画布视频缺少 mime_type".to_string())?;
-            let data_base64 = input
-                .data_base64
-                .as_deref()
-                .ok_or_else(|| "上传画布视频缺少 data_base64".to_string())?;
             uploaded_video_source(
                 state.temp_dir(),
                 file_name,
@@ -41,29 +41,23 @@ pub async fn import_canvas_video(
                 "画布视频导入",
             )?
         }
+        (None, None) => return Err("导入画布视频缺少 file_path 或 data_base64".to_string()),
     };
-    create_imported_canvas_video(state, project_id, input.prompt, source).await
+    create_imported_canvas_video(state, project_id, source).await
 }
 
 async fn create_imported_canvas_video(
     state: &AppState,
     project_id: i64,
-    prompt: Option<String>,
     source: ImportedVideoSource,
-) -> Result<GeneratedVideoSummary, String> {
-    let probed = probe_video_properties(&source.path, "画布导入视频")?;
+) -> Result<generated_video::Model, String> {
+    let properties = probe_imported_video_properties(&source, "画布导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
         .orchestrator()
         .create_imported_canvas_video_record_validated(
             project_id,
-            prompt.as_deref(),
-            ImportedVideoProperties {
-                width: probed.width,
-                height: probed.height,
-                duration_secs: probed.duration_secs,
-                fps: probed.fps,
-            },
+            properties,
             &source.file_name,
             source.extension,
             &imported_at,
@@ -77,9 +71,10 @@ async fn create_imported_canvas_video(
         record.id,
         &source.path,
         || {
-            import_project_video_output_path(
+            video_record_output_path(
                 state.data_dir(),
                 project_id,
+                None,
                 record.id,
                 "imported_canvas_video",
                 source.extension,
@@ -90,7 +85,7 @@ async fn create_imported_canvas_video(
         "画布导入视频文件",
     )
     .await?;
-    let updated = mark_imported_video_completed(
+    let updated = complete_video_record(
         state,
         record.id,
         &output_path_str,
@@ -101,5 +96,5 @@ async fn create_imported_canvas_video(
         "更新画布导入视频记录失败",
     )
     .await?;
-    Ok(video_to_summary(&updated))
+    Ok(updated)
 }

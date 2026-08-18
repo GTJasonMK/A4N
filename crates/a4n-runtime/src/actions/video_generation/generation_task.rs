@@ -10,55 +10,46 @@ pub async fn start_video_generation_typed(
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
         .orchestrator()
-        .start_video_generation_task(user_id, input.clone())
+        .start_video_generation_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
     }
 
-    let handle = start.handle.clone();
     let worker_state = state.clone();
     if input.operation.is_prompt_generation() {
-        state.spawn_generation_execution(handle.task_id.clone(), async move {
-            let runtime_video_config = crate::runtime_config::current_video_model();
-            let prompt_renderer = &worker_state;
-            if let Err(error) = worker_state
-                .orchestrator()
-                .run_video_prompt_generation_task(
-                    user_id,
-                    input,
-                    handle.clone(),
-                    a4n_orchestrator::video::VideoPromptApplicationContext {
-                        runtime_video_config: runtime_video_config.as_ref(),
-                        prompt_renderer: prompt_renderer,
-                    },
-                )
-                .await
-            {
-                tracing::error!(
-                    task_id = %handle.task_id,
-                    attempt = handle.attempt,
-                    error = %error,
-                    "视频提示词 generation worker 失败"
-                );
-            }
-        });
+        state.spawn_generation_execution(
+            start.handle.clone(),
+            "video_prompt_generation",
+            move |handle| async move {
+                let runtime_video_config = crate::runtime_config::current_video_model();
+                let prompt_renderer = &worker_state;
+                worker_state
+                    .orchestrator()
+                    .run_video_prompt_generation_task(
+                        user_id,
+                        input,
+                        handle,
+                        a4n_orchestrator::video::VideoPromptApplicationContext {
+                            runtime_video_config: runtime_video_config.as_ref(),
+                            prompt_renderer: prompt_renderer,
+                        },
+                    )
+                    .await
+            },
+        );
     } else {
-        state.spawn_video_generation_execution(handle.task_id.clone(), async move {
-            let host_port = RuntimeVideoProviderHostPort::new(&worker_state);
-            if let Err(error) = worker_state
-                .orchestrator()
-                .run_video_generation_task(user_id, input, handle.clone(), &host_port)
-                .await
-            {
-                tracing::error!(
-                    task_id = %handle.task_id,
-                    attempt = handle.attempt,
-                    error = %error,
-                    "视频 generation worker 失败"
-                );
-            }
-        });
+        state.spawn_video_generation_execution(
+            start.handle.clone(),
+            "video_generation",
+            move |handle| async move {
+                let host_port = RuntimeVideoProviderHostPort::new(&worker_state);
+                worker_state
+                    .orchestrator()
+                    .run_video_generation_task(user_id, input, handle, &host_port)
+                    .await
+            },
+        );
     }
     Ok(start.handle)
 }

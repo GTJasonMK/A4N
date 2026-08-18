@@ -102,7 +102,7 @@ where
         .await?;
     update_imported_generation_spec_metadata(db, &rows.generation_specs, &maps, now).await?;
     import_video_studio_media_provenance(db, &rows.media_provenance, &maps, now).await?;
-    import_video_studio_media_bindings(db, &rows.media_bindings, &mut maps, now).await?;
+    import_video_studio_media_bindings(db, &rows.media_bindings, &maps, now).await?;
     update_imported_canvas_node_refs(db, &rows, &maps, now).await?;
     update_imported_media_metadata(db, &rows, &maps, now).await?;
 

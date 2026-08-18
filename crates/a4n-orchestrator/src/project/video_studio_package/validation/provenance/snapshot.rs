@@ -2,8 +2,9 @@ use std::collections::HashSet;
 
 use serde_json::Value;
 
-use super::super::*;
 use super::refs::{validate_snapshot_i64_array_ref, validate_snapshot_i64_ref};
+
+use a4n_core::models::media::media_provenance;
 
 pub(in crate::project::video_studio_package::validation) struct MediaProvenanceSnapshotRefs<'a> {
     pub(in crate::project::video_studio_package::validation) graph_ids: &'a HashSet<i64>,

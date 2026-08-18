@@ -18,8 +18,7 @@ impl OrchestratorContext {
             summaries.push(service_health_summary(
                 config,
                 health,
-                self.service_pid_dir.as_deref(),
-                managed_status.as_ref(),
+                managed_status.and_then(|status| status.pid),
             ));
         }
         Ok(summaries)

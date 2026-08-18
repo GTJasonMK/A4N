@@ -7,6 +7,7 @@ use a4n_core::models::{
     ai::{generated_image, generated_video},
     media::{media_asset, media_binding, media_provenance},
 };
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 
 use super::super::{GeneratedImageDeleteScope, delete_chapter_generation_outputs};
 use super::support::{
@@ -107,7 +108,7 @@ async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
         &db,
         crate::video::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: generated.file_path.clone(),
             prompt: "imported canvas image".to_string(),
             model: "external-import".to_string(),

@@ -51,6 +51,11 @@ type ReferenceCandidate = {
   rank: number;
 };
 
+export const mangaReferenceAssetKey = (
+  assetKind: MangaReferenceAssetKind,
+  assetId: number,
+): string => `${assetKind}:${assetId}`;
+
 export const sumPipelinePrompts = (
   status: MangaPipelineStatusSummary | null | undefined,
 ): number => {
@@ -202,7 +207,7 @@ export const buildReferenceCandidates = (
   const names = profileNameById(profiles);
   const portraitCandidates = portraits
     .filter((portrait) => portrait.image_path.trim())
-    .map((portrait) => {
+    .map<ReferenceCandidate>((portrait) => {
       const name =
         names.get(portrait.profile_id) ?? `角色 #${portrait.profile_id}`;
       const text = [
@@ -215,8 +220,8 @@ export const buildReferenceCandidates = (
         .filter(Boolean)
         .join(" ");
       return {
-        key: `character_portrait:${portrait.id}`,
-        assetKind: "character_portrait" as MangaReferenceAssetKind,
+        key: mangaReferenceAssetKey("character_portrait", portrait.id),
+        assetKind: "character_portrait",
         assetId: portrait.id,
         label: name,
         subLabel: `${portrait.portrait_type || "角色立绘"}${portrait.is_primary ? " · 主图" : ""}`,
@@ -226,7 +231,7 @@ export const buildReferenceCandidates = (
 
   const imageCandidates = projectImages
     .filter((image) => image.file_path.trim())
-    .map((image) => {
+    .map<ReferenceCandidate>((image) => {
       const text = [
         image.image_type,
         image.prompt,
@@ -234,8 +239,8 @@ export const buildReferenceCandidates = (
         JSON.stringify(image.metadata_json ?? {}),
       ].join(" ");
       return {
-        key: `generated_image:${image.id}`,
-        assetKind: "generated_image" as MangaReferenceAssetKind,
+        key: mangaReferenceAssetKey("generated_image", image.id),
+        assetKind: "generated_image",
         assetId: image.id,
         label: imageTypeLabel(image.image_type),
         subLabel: image.is_favorite ? "项目图片 · 收藏" : "项目图片",

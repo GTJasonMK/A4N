@@ -57,7 +57,6 @@ pub(crate) fn project_progress_read_error_to_app_error(
         ProjectProgressReadError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ProjectProgressReadError::InvalidProjectKind { .. }
         | ProjectProgressReadError::InvalidProjectStatus { .. }
-        | ProjectProgressReadError::InvalidSourceMode { .. }
         | ProjectProgressReadError::InvalidProjectSource { .. }
         | ProjectProgressReadError::InvalidChapterProgress { .. }
         | ProjectProgressReadError::InvalidPersistedStatus { .. }

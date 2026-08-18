@@ -6,7 +6,6 @@ use super::{
         implicit_update_decision_output_json, implicit_update_review_checkpoint_response,
         parse_implicit_update_decision,
     },
-    request::build_implicit_update_user_prompt,
     stats::{build_implicit_attribute_review, build_implicit_review_summary},
 };
 fn behavior(
@@ -131,7 +130,7 @@ fn parse_decision_enforces_schema_and_evidence_ids() {
         &stats(),
     )
     .expect_err("legacy evidence summary must fail");
-    assert!(legacy.contains("evidence_summary 已废弃"));
+    assert!(legacy.contains("未支持字段 `evidence_summary`"));
 
     let missing_value = parse_implicit_update_decision(
         r#"{"decision":"modify","reasoning":"x","new_value":null,"supporting_behavior_ids":[11]}"#,
@@ -152,31 +151,22 @@ fn checkpoint_revalidates_response_content() {
         "finish_reason": "stop",
     });
     let restored = implicit_update_review_checkpoint_response(
-        &checkpoint,
+        &checkpoint["parsed_output"],
+        checkpoint["response_content"].as_str().unwrap(),
         "implicit_update_review:1:谨慎",
         &stats(),
     )
     .expect("valid checkpoint should restore");
-    assert!(restored.0.contains("\"decision\":\"modify\""));
+    assert_eq!(restored.decision.as_str(), "modify");
 
     let mut mismatched = checkpoint;
     mismatched["parsed_output"]["decision"] = json!("keep");
     let error = implicit_update_review_checkpoint_response(
-        &mismatched,
+        &mismatched["parsed_output"],
+        mismatched["response_content"].as_str().unwrap(),
         "implicit_update_review:1:谨慎",
         &stats(),
     )
     .expect_err("mismatched parsed output must fail");
-    assert!(error.contains("重新解析结果不一致"));
-}
-
-#[test]
-fn prompt_serializes_canonical_json_fields() {
-    let prompt =
-        build_implicit_update_user_prompt("林夏", "谨慎", &json!("遇事先观察"), &stats(), 5, 10)
-            .expect("valid JSON values should build prompt");
-    assert!(prompt.contains(r#""current_value": "遇事先观察""#));
-    assert!(prompt.contains(r#""classification": "non-conform""#));
-    assert!(prompt.contains(r#""behavior_id": 11"#));
-    assert!(!prompt.contains("created_at"));
+    assert!(error.contains("checkpoint_parsed_output_mismatch"));
 }

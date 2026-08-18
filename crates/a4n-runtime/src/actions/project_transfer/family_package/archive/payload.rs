@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use super::super::{FamilyImportMediaPayload, ProjectFamilyPackage};
+use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 use a4n_orchestrator::project::{
     media_asset_path, media_file_key, validate_family_media_bytes as validate_media_bytes,
 };
@@ -48,7 +49,7 @@ pub(super) fn read_media_payloads_from_entries(
         let file_bytes = bytes
             .get(&entry.package_path)
             .ok_or_else(|| format!("项目族导入包缺少媒体文件 {}", entry.package_path))?;
-        if entry.field == "file_path" {
+        if entry.field == FILE_PATH_FIELD {
             validate_media_bytes(asset, file_bytes)?;
         }
     }

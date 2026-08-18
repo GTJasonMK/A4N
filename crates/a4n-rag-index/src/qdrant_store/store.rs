@@ -2,7 +2,7 @@
 
 use super::config::QdrantStoreConfig;
 use super::filters::{
-    self, KEY_CHAPTER, KEY_CHUNK_ID, KEY_DATA_TYPE, KEY_ID_PREFIX, KEY_PROJECT_ID,
+    self, KEY_CHAPTER, KEY_CHUNK_ID, KEY_DATA_TYPE, KEY_ID_PREFIX,
 };
 use crate::point_id::chunk_id_to_point_uuid;
 use crate::sparse_text::{bm25_document, bm25_query};
@@ -84,10 +84,6 @@ impl QdrantVectorStore {
         PointId::from(chunk_id_to_point_uuid(chunk_id))
     }
 
-    fn extract_project_id(metadata: &Value) -> Option<i64> {
-        metadata.get("project_id").and_then(|v| v.as_i64())
-    }
-
     fn extract_data_type(metadata: &Value) -> Option<String> {
         metadata
             .get("data_type")
@@ -149,7 +145,6 @@ impl QdrantVectorStore {
             .map_err(|e| Self::map_err("create_collection", e))?;
 
         for (field, ty) in [
-            (KEY_PROJECT_ID, FieldType::Integer),
             (KEY_CHAPTER, FieldType::Integer),
             (KEY_DATA_TYPE, FieldType::Keyword),
             (KEY_CHUNK_ID, FieldType::Keyword),
@@ -174,11 +169,7 @@ impl QdrantVectorStore {
         Ok(physical)
     }
 
-    fn record_to_point(
-        &self,
-        logical_collection: &str,
-        record: &EmbeddingRecord,
-    ) -> Result<PointStruct, AppError> {
+    fn record_to_point(record: &EmbeddingRecord) -> Result<PointStruct, AppError> {
         if record.embedding.is_empty() {
             return Err(AppError::VectorStoreError(format!(
                 "空向量: id={}",
@@ -204,20 +195,14 @@ impl QdrantVectorStore {
         let data_type = Self::extract_data_type(&record.metadata);
         let chapter = Self::extract_chapter(&record.metadata);
         let prefixes = Self::id_prefixes_for_chunk(&record.id);
-        let project_id =
-            Self::extract_project_id(&record.metadata).or_else(|| logical_collection.parse().ok());
         let mut payload_json = json!({
             KEY_CHUNK_ID: record.id,
-            filters::KEY_LOGICAL_COLLECTION: logical_collection,
             "content": record.content,
             "metadata": record.metadata,
             "has_dense": true,
             "has_sparse": has_sparse,
             KEY_ID_PREFIX: prefixes,
         });
-        if let Some(pid) = project_id {
-            payload_json[KEY_PROJECT_ID] = json!(pid);
-        }
         if let Some(dt) = data_type {
             payload_json[KEY_DATA_TYPE] = json!(dt);
         }
@@ -278,8 +263,6 @@ impl QdrantVectorStore {
             id: chunk_id,
             content,
             score: point.score,
-            vector_score: Some(point.score),
-            bm25_score: None,
             metadata,
         })
     }
@@ -348,7 +331,7 @@ impl VectorStore for QdrantVectorStore {
         }
         let points: Result<Vec<_>, _> = records
             .iter()
-            .map(|r| self.record_to_point(collection, r))
+            .map(Self::record_to_point)
             .collect();
         let points = points?;
         let physical = self.ensure_collection(collection, dim).await?;
@@ -367,7 +350,7 @@ impl VectorStore for QdrantVectorStore {
         top_k: usize,
         search_filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
-        let filter = filters::search_filter(collection, search_filters.as_ref())?;
+        let filter = filters::search_filter(search_filters.as_ref())?;
         if top_k == 0 {
             return Ok(Vec::new());
         }
@@ -396,7 +379,7 @@ impl VectorStore for QdrantVectorStore {
         top_k: usize,
         search_filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
-        let filter = filters::search_filter(collection, search_filters.as_ref())?;
+        let filter = filters::search_filter(search_filters.as_ref())?;
         if top_k == 0 {
             return Ok(Vec::new());
         }
@@ -419,15 +402,11 @@ impl VectorStore for QdrantVectorStore {
             )
             .await
             .map_err(|e| Self::map_err("query sparse", e))?;
-        let mut results: Vec<SearchResult> = resp
+        resp
             .result
             .iter()
             .map(Self::scored_to_result)
-            .collect::<Result<_, _>>()?;
-        for r in &mut results {
-            r.bm25_score = r.vector_score.take();
-        }
-        Ok(results)
+            .collect()
     }
 
     async fn hybrid_search(
@@ -437,9 +416,8 @@ impl VectorStore for QdrantVectorStore {
         query_embedding: Vec<f32>,
         top_k: usize,
         search_filters: Option<SearchFilter>,
-        _vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError> {
-        let filter = filters::search_filter(collection, search_filters.as_ref())?;
+        let filter = filters::search_filter(search_filters.as_ref())?;
         if top_k == 0 {
             return Ok(Vec::new());
         }
@@ -481,14 +459,7 @@ impl VectorStore for QdrantVectorStore {
         let Some(physical) = self.existing_collection(collection).await? else {
             return Ok(0);
         };
-        let base = filters::delete_filter_base(collection, &filter);
-        let qfilter = if !filter.ids.is_empty() {
-            filters::with_chunk_ids(base, &filter.ids)
-        } else if !filter.id_prefixes.is_empty() {
-            filters::with_id_prefixes(base, &filter.id_prefixes)
-        } else {
-            base
-        };
+        let qfilter = filters::delete_filter(&filter.ids, &filter.id_prefixes);
         self.delete_by_filter(&physical, qfilter).await
     }
 
@@ -540,12 +511,7 @@ impl VectorStore for QdrantVectorStore {
         let Some(physical) = self.existing_collection(collection).await? else {
             return Ok(HashMap::new());
         };
-        let mut base = filters::delete_filter_base(collection, &filter);
-        if !filter.ids.is_empty() {
-            base = filters::with_chunk_ids(base, &filter.ids);
-        } else if !filter.id_prefixes.is_empty() {
-            base = filters::with_id_prefixes(base, &filter.id_prefixes);
-        }
+        let base = filters::delete_filter(&filter.ids, &filter.id_prefixes);
         let mut out = HashMap::new();
         let mut offset: Option<PointId> = None;
         loop {

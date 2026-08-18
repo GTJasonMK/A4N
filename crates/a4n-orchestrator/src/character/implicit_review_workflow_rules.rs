@@ -4,10 +4,12 @@ use serde_json::Value;
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
-/// 隐性属性复审 exclusive business key。
-pub(super) fn implicit_update_review_business_key(
+use super::IMPLICIT_UPDATE_WORKFLOW_KIND;
+
+pub(super) fn implicit_update_call_key(
     profile_id: i64,
     attribute_key: &str,
+    start_chapter: Option<i32>,
 ) -> Result<String, String> {
     if profile_id <= 0 {
         return Err("角色档案 ID 必须大于 0".to_string());
@@ -16,9 +18,15 @@ pub(super) fn implicit_update_review_business_key(
     if attribute_key.is_empty() {
         return Err("隐性属性 key 不能为空".to_string());
     }
-    Ok(format!(
-        "implicit_update_review:{profile_id}:{attribute_key}"
-    ))
+    if start_chapter.is_some_and(|chapter| chapter <= 0) {
+        return Err("隐性属性复审起始章节必须大于 0".to_string());
+    }
+    Ok(match start_chapter {
+        Some(chapter) => {
+            format!("{IMPLICIT_UPDATE_WORKFLOW_KIND}:{profile_id}:{chapter}:{attribute_key}")
+        }
+        None => format!("{IMPLICIT_UPDATE_WORKFLOW_KIND}:{profile_id}:{attribute_key}"),
+    })
 }
 
 /// 构造隐性属性复审 begin 输入（status=RUNNING）。
@@ -37,8 +45,8 @@ pub(super) fn implicit_update_review_workflow_run_input(
     }
     let attribute_key = attribute_key.trim();
     Ok(UpsertWorkflowRunInput {
-        business_key: implicit_update_review_business_key(profile_id, attribute_key)?,
-        workflow_kind: "implicit_update_review".to_string(),
+        business_key: implicit_update_call_key(profile_id, attribute_key, None)?,
+        workflow_kind: IMPLICIT_UPDATE_WORKFLOW_KIND.to_string(),
         project_id: Some(project_id),
         root_project_id: None,
         source_snapshot_id: None,
@@ -63,7 +71,19 @@ mod tests {
 
     #[test]
     fn rejects_empty_attribute_key() {
-        assert!(implicit_update_review_business_key(1, "  ").is_err());
+        assert!(implicit_update_call_key(1, "  ", None).is_err());
+    }
+
+    #[test]
+    fn call_key_keeps_sync_chapter_scope_distinct() {
+        assert_eq!(
+            implicit_update_call_key(3, "mood", None).unwrap(),
+            "implicit_update_review:3:mood"
+        );
+        assert_eq!(
+            implicit_update_call_key(3, "mood", Some(8)).unwrap(),
+            "implicit_update_review:3:8:mood"
+        );
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::rag::RagDataType;
 use serde_json::json;
 
 use super::{
@@ -87,5 +88,5 @@ fn projects_rag_items_in_metadata_event_foreshadowing_order() {
     assert_eq!(items[2].id_suffix, "foreshadow1");
     assert!(items[0].text.contains("角色: 林岚"));
     assert_eq!(items[1].text, "发现隐藏标记");
-    assert_eq!(items[2].metadata["status"], "pending");
+    assert_eq!(items[2].data_type, RagDataType::Foreshadowing);
 }

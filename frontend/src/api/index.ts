@@ -16,6 +16,7 @@ import {
   GENERATION_START_PATHS,
   type HostApiCommand,
 } from "./generated/host";
+import type { TokenPairSummary } from "./generated/auth";
 import { withRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 
 /**
@@ -78,28 +79,15 @@ export async function apiInvoke<T>(
   }
 }
 
-/** 提取后端错误消息 —— 支持多种响应格式 */
-export function extractErrorMessage(err: unknown, defaultMessage = "Unknown error"): string {
+/** 提取当前 Host 与浏览器错误消息。 */
+export function extractErrorMessage(err: unknown, defaultMessage: string): string {
   if (typeof err === "string") return err || defaultMessage;
   if (err instanceof Error) return err.message || defaultMessage;
   if (err && typeof err === "object") {
     const e = err as Record<string, unknown>;
-    // Tauri 错误格式
-    if (typeof e.detail === "string") return e.detail || defaultMessage;
     if (typeof e.message === "string") return e.message || defaultMessage;
-    // FastAPI 验证错误数组格式
-    if (Array.isArray(e.detail)) {
-      const items = e.detail.slice(0, 3) as Array<{ msg?: string; loc?: string[] }>;
-      const message = items.map((d) => {
-        const loc = Array.isArray(d.loc) ? d.loc.join(".") : "";
-        const msg = typeof d.msg === "string" && d.msg.trim() ? d.msg : "验证错误";
-        return loc ? `${loc}: ${msg}` : msg;
-      }).join("; ");
-      return message || defaultMessage;
-    }
   }
-  const message = err == null ? "" : String(err);
-  return message || defaultMessage;
+  return defaultMessage;
 }
 
 /** 全局未授权事件名；store/auth 订阅后统一清理登录状态 */
@@ -115,12 +103,6 @@ export class ApiUnauthorizedError extends Error {
 export function isUnauthorizedError(err: unknown): err is ApiUnauthorizedError {
   return err instanceof ApiUnauthorizedError;
 }
-
-type WebAuthTokenPair = {
-  access_token: string;
-  refresh_token: string;
-  session_id: string;
-};
 
 let webAuthRefreshPromise: Promise<boolean> | null = null;
 
@@ -268,8 +250,7 @@ async function readWebResponse<T>(response: Response): Promise<T> {
     throw new Error(await responseErrorMessage(response));
   }
   if (response.status === 204) return undefined as T;
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  return (await response.json()) as T;
 }
 
 async function refreshWebAuthTokenOnce(): Promise<boolean> {
@@ -294,12 +275,15 @@ async function refreshWebAuthToken(): Promise<boolean> {
     }),
   });
 
-  if (response.status === 401 || response.status === 403) return false;
+  if (response.status === 401 || response.status === 403) {
+    await responseErrorMessage(response);
+    return false;
+  }
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response));
   }
 
-  const pair = (await response.json()) as WebAuthTokenPair;
+  const pair = (await response.json()) as TokenPairSummary;
   writeCurrentSessionId(pair.session_id);
   writeCurrentAccessToken(pair.access_token);
   writeCurrentRefreshToken(pair.refresh_token);
@@ -307,13 +291,34 @@ async function refreshWebAuthToken(): Promise<boolean> {
 }
 
 async function responseErrorMessage(response: Response): Promise<string> {
-  const text = await response.text();
-  if (!text) return `${response.status} ${response.statusText}`;
+  let value: unknown;
   try {
-    const body = JSON.parse(text) as { message?: unknown };
-    if (typeof body.message === "string" && body.message.trim()) return body.message;
+    value = await response.json();
   } catch {
-    return text;
+    throw invalidServerErrorContract(response.status);
   }
-  return text;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw invalidServerErrorContract(response.status);
+  }
+  const body = value as Record<string, unknown>;
+  if (
+    Object.keys(body).length !== 5
+    || typeof body.code !== "string"
+    || !body.code.trim()
+    || typeof body.message !== "string"
+    || !body.message.trim()
+    || typeof body.retryable !== "boolean"
+    || (body.trace_id !== null
+      && (typeof body.trace_id !== "string" || !body.trace_id.trim()))
+    || !body.details
+    || typeof body.details !== "object"
+    || Array.isArray(body.details)
+  ) {
+    throw invalidServerErrorContract(response.status);
+  }
+  return body.message;
+}
+
+function invalidServerErrorContract(status: number): Error {
+  return new Error(`Server 返回的 HTTP ${status} 错误体不符合 A4N API 合同`);
 }

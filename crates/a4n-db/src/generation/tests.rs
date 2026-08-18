@@ -132,14 +132,14 @@ fn render_video_prompt_text_uses_current_main_sections() {
         "restrictions_and_avoidance": "不要配背景音乐，不要字幕、水印、空间跳变。"
     }));
 
-    let prompt = render_prompt_text(&spec, "video_prompt")
+    let prompt = render_prompt_text(&spec, GENERATION_PROMPT_KIND_VIDEO_PROMPT)
         .expect("video prompt should render from current schema");
 
     for section in VIDEO_PROMPT_REQUIRED_SECTIONS {
         assert!(prompt.contains(section), "missing section {section}");
     }
     assert!(!prompt.contains("[声音与对白]"));
-    validate_prompt_artifact_text("video_prompt", &prompt)
+    validate_prompt_artifact_text(GENERATION_PROMPT_KIND_VIDEO_PROMPT, &prompt)
         .expect("rendered video prompt should pass artifact validation");
 }
 
@@ -153,7 +153,7 @@ fn render_video_prompt_text_rejects_old_sound_only_schema() {
         "sound_and_dialogue": "无对白。"
     }));
 
-    let err = render_prompt_text(&spec, "video_prompt")
+    let err = render_prompt_text(&spec, GENERATION_PROMPT_KIND_VIDEO_PROMPT)
         .expect_err("old video prompt schema must fail explicitly");
 
     assert!(err.to_string().contains("continuity_and_end_state"));
@@ -172,7 +172,10 @@ fn validate_prompt_artifact_text_rejects_video_without_required_sections() {
 
 #[test]
 fn validate_prompt_artifact_text_allows_image_prompt_without_video_sections() {
-    validate_prompt_artifact_text("image_prompt", "清晰写实的单张角色立绘。")
+    validate_prompt_artifact_text(
+        GENERATION_PROMPT_KIND_IMAGE_PROMPT,
+        "清晰写实的单张角色立绘。",
+    )
         .expect("image prompt should not require video prompt sections");
 }
 

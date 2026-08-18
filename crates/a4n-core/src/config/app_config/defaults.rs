@@ -1,9 +1,11 @@
-use super::portable::non_empty_env_path;
 use super::*;
+use crate::config::env::optional_non_empty_env_path;
 use std::path::PathBuf;
 
 pub(super) fn default_data_dir() -> PathBuf {
-    if let Some(path) = non_empty_env_path("A4N_DATA_DIR") {
+    if let Some(path) = optional_non_empty_env_path("A4N_DATA_DIR")
+        .expect("A4N_DATA_DIR 配置无效")
+    {
         return resolve_portable_path(path);
     }
     portable_home_dir().join("data")
@@ -77,12 +79,13 @@ pub(super) fn default_event_bus_capacity() -> usize {
 
 impl Default for AppConfig {
     fn default() -> Self {
+        let data_dir = default_data_dir();
         Self {
             database_url: default_database_url(),
-            data_dir: default_data_dir(),
-            cache_dir: default_cache_dir(),
-            temp_dir: default_temp_dir(),
-            log_dir: default_log_dir(),
+            cache_dir: data_dir.join("cache"),
+            temp_dir: data_dir.join("tmp"),
+            log_dir: data_dir.join("logs"),
+            data_dir,
             llm: LlmConfig::default(),
             embedding: EmbeddingConfig::default(),
             image_gen: ImageGenConfig::default(),

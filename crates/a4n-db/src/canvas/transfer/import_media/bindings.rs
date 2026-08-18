@@ -6,7 +6,7 @@ use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 pub(in crate::canvas::transfer) async fn import_video_studio_media_bindings<C>(
     db: &C,
     bindings: &[media_binding::Model],
-    maps: &mut VideoStudioProjectImportIdMaps,
+    maps: &VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>
 where
@@ -35,7 +35,7 @@ where
                 )));
             }
         };
-        let row = media_binding::ActiveModel {
+        media_binding::ActiveModel {
             media_asset_id: Set(remap_video_studio_required_id(
                 &maps.media_asset_ids,
                 binding.media_asset_id,
@@ -50,7 +50,6 @@ where
         .insert(db)
         .await
         .map_err(VideoStudioProjectImportError::Database)?;
-        maps.media_binding_ids.insert(binding.id, row.id);
     }
     Ok(())
 }

@@ -21,6 +21,16 @@ import type {
   SaveCanvasTextAssetInput,
 } from "./generated/host";
 
+export const CANVAS_PROMPT_KIND = "canvas_prompt" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT = "image_prompt" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT = "video_prompt" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT = "shot_script" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_STORYBOARD = "storyboard" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION =
+  "visual_description" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_DIALOGUE = "dialogue" as const;
+export const CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN = "rhythm_plan" as const;
+
 export type {
   CanvasGraphDocument,
   CanvasGraphInput,
@@ -51,9 +61,28 @@ export interface MediaAssetRecord {
   updated_at: string;
 }
 
-export type ImportCanvasMediaInput = Omit<GeneratedImportCanvasMediaInput, "media_kind"> & {
-  media_kind: "image" | "video" | "audio";
+type CanvasMediaUploadSource = {
+  file_path?: never;
+  file_name: string;
+  mime_type: string;
+  data_base64: string;
 };
+
+type CanvasMediaPathSource = {
+  file_path: string;
+  file_name?: never;
+  mime_type?: never;
+  data_base64?: never;
+};
+
+type CanvasMediaImportProject = Pick<GeneratedImportCanvasMediaInput, "project_id">;
+
+export type ImportCanvasMediaInput = CanvasMediaImportProject &
+  (
+    | ({ media_kind: "image" } & CanvasMediaUploadSource)
+    | ({ media_kind: "video" | "audio" } &
+        (CanvasMediaUploadSource | CanvasMediaPathSource))
+  );
 export type ImportedCanvasMedia =
   | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
       media_kind: "image";

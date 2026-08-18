@@ -45,30 +45,6 @@ fn request_context_builds_request_without_implicit_project_defaults() {
 }
 
 #[test]
-fn request_can_be_split_back_into_context_and_payload() {
-    let request = ServiceRequestContext::local_user_secret(
-        "request-2",
-        TraceContext {
-            trace_id: "trace-2".to_string(),
-            parent_span_id: None,
-        },
-    )
-    .with_payload(
-        IMAGE_PROVIDER_CAPABILITY_VERSION,
-        json!({ "prompt": "test" }),
-    )
-    .expect("valid local user secret context should build payload envelope");
-
-    let (context, capability_version, payload) = request.into_context_and_payload();
-
-    assert_eq!(context.request_id, "request-2");
-    assert_eq!(context.trace_context.trace_id, "trace-2");
-    assert!(context.secret_policy.is_local_user_secret_only());
-    assert_eq!(capability_version, IMAGE_PROVIDER_CAPABILITY_VERSION);
-    assert_eq!(payload["prompt"], "test");
-}
-
-#[test]
 fn request_context_with_payload_rejects_invalid_context_at_construction() {
     let mut context = ServiceRequestContext::deny_all(
         "request-1",

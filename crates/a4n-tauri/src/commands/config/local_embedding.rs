@@ -1,4 +1,4 @@
-use a4n_core::config::app_config::AppConfig;
+use a4n_core::{config::app_config::AppConfig, event::channel::normalize_task_id};
 use a4n_runtime::host_api::embedding_model::{
     CancelEmbeddingModelDownloadInput, DownloadEmbeddingModelInput,
     EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, LocalEmbedTextsInput,
@@ -7,22 +7,20 @@ use a4n_runtime::host_api::embedding_model::{
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Clone)]
 pub struct LocalEmbeddingRuntimeState {
     provider_runtime: LocalEmbeddingProviderRuntime,
-    download_tasks: Arc<Mutex<HashMap<String, CancellationToken>>>,
+    download_tasks: Mutex<HashMap<String, CancellationToken>>,
 }
 
 impl LocalEmbeddingRuntimeState {
     pub fn new(config: &AppConfig) -> Self {
         Self {
             provider_runtime: LocalEmbeddingProviderRuntime::from_app_config(config),
-            download_tasks: Arc::new(Mutex::new(HashMap::new())),
+            download_tasks: Mutex::new(HashMap::new()),
         }
     }
 
@@ -61,22 +59,16 @@ pub async fn local_download_embedding_model(
     input: DownloadEmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
     let DownloadEmbeddingModelInput { model, task_id } = input;
-    let task_id =
-        a4n_runtime::host_api::embedding_model::normalize_optional_embedding_download_task_id(
-            task_id,
-        )
-        .map_err(|err| err.to_string())?;
-    let cancel_token = if let Some(task_id) = task_id.as_deref() {
-        let token = CancellationToken::new();
-        state
-            .download_tasks
-            .lock()
-            .await
-            .insert(task_id.to_string(), token.clone());
-        Some(token)
-    } else {
-        None
-    };
+    let task_id = normalize_task_id(&task_id).map_err(|err| err.to_string())?;
+    let cancel_token = CancellationToken::new();
+    match state.download_tasks.lock().await.entry(task_id.clone()) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(cancel_token.clone());
+        }
+        std::collections::hash_map::Entry::Occupied(_) => {
+            return Err(format!("模型下载任务已存在：{task_id}"));
+        }
+    }
     let result = a4n_runtime::host_api::embedding_model::download_embedding_model_to_cache(
         EmbeddingModelInput { model },
         state.fastembed_cache_dir(),
@@ -84,8 +76,8 @@ pub async fn local_download_embedding_model(
         cancel_token,
     )
     .await;
-    if let Some(task_id) = task_id.as_deref() {
-        state.download_tasks.lock().await.remove(task_id);
+    if state.download_tasks.lock().await.remove(&task_id).is_none() {
+        return Err(format!("模型下载任务注册丢失：{task_id}"));
     }
     match result {
         Ok(summary) => Ok(summary),
@@ -106,9 +98,8 @@ pub async fn local_cancel_embedding_model_download(
     state: State<'_, LocalEmbeddingRuntimeState>,
     input: CancelEmbeddingModelDownloadInput,
 ) -> Result<(), String> {
-    let task_id = a4n_runtime::host_api::embedding_model::required_task_id(input)
-        .map_err(|err| err.to_string())?;
-    let token = state.download_tasks.lock().await.remove(&task_id);
+    let task_id = normalize_task_id(&input.task_id).map_err(|err| err.to_string())?;
+    let token = state.download_tasks.lock().await.get(&task_id).cloned();
     let Some(token) = token else {
         return Err(format!("模型下载任务不存在或已结束：{task_id}"));
     };

@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_video;
+use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
 
@@ -24,13 +24,16 @@ where
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(db).await?;
     if let Some(prompt) = prompt {
-        update_prompt_status_record(db, prompt, "running").await?;
+        update_prompt_status_record(db, prompt, chapter_video_prompt::STATUS_RUNNING).await?;
     }
     Ok(updated)
 }
 
 pub(super) fn validate_generated_video_waiting_status(status: &str) -> Result<(), VideoDbError> {
-    if matches!(status, "pending" | "running") {
+    if matches!(
+        status,
+        generated_video::STATUS_PENDING | generated_video::STATUS_RUNNING
+    ) {
         Ok(())
     } else {
         Err(VideoDbError::InvalidArgument(format!(

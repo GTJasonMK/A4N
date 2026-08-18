@@ -1,11 +1,11 @@
 use a4n_core::{error::AppError, rag::RagDataType};
 use a4n_embedding::provider::EmbeddingModelIdentity;
 
-pub const MAX_RAG_TOP_K: usize = 50;
+pub(super) const MAX_RAG_TOP_K: usize = 50;
 const ENHANCED_RAG_PULL_MULTIPLIER: usize = 3;
 const ENHANCED_RAG_MIN_PULL_K: usize = 20;
 
-pub fn validate_embedding_identity_match(
+pub(crate) fn validate_embedding_identity_match(
     actual: &EmbeddingModelIdentity,
     expected: &EmbeddingModelIdentity,
 ) -> Result<(), AppError> {
@@ -23,7 +23,7 @@ pub fn validate_embedding_identity_match(
     )))
 }
 
-pub fn validate_query_vectors(
+pub(crate) fn validate_query_vectors(
     vectors: &[Vec<f32>],
     expected_count: usize,
     expected_dimension: usize,
@@ -50,24 +50,26 @@ pub fn validate_query_vectors(
     Ok(())
 }
 
-pub fn required_top_k(top_k: usize, command: &str) -> Result<usize, AppError> {
+pub fn required_top_k(top_k: usize) -> Result<usize, AppError> {
     if top_k == 0 {
-        return Err(AppError::InvalidArgument(format!(
-            "{command} top_k 必须大于 0"
-        )));
+        return Err(AppError::InvalidArgument(
+            "rag_enhanced_search top_k 必须大于 0".to_string(),
+        ));
     }
     if top_k > MAX_RAG_TOP_K {
         return Err(AppError::InvalidArgument(format!(
-            "{command} top_k 不能超过 {MAX_RAG_TOP_K}"
+            "rag_enhanced_search top_k 不能超过 {MAX_RAG_TOP_K}"
         )));
     }
     Ok(top_k)
 }
 
-pub fn required_nonblank(value: &str, field: &str) -> Result<String, AppError> {
+pub fn required_nonblank(value: &str) -> Result<String, AppError> {
     let value = value.trim();
     if value.is_empty() {
-        return Err(AppError::InvalidArgument(format!("{field} 不能为空")));
+        return Err(AppError::InvalidArgument(
+            "rag_enhanced_search query 不能为空".to_string(),
+        ));
     }
     Ok(value.to_string())
 }
@@ -112,6 +114,6 @@ pub fn normalize_search_data_types(
     Ok(Some(normalized))
 }
 
-pub fn enhanced_rag_pull_k(top_k: usize) -> usize {
+pub(super) fn enhanced_rag_pull_k(top_k: usize) -> usize {
     (top_k * ENHANCED_RAG_PULL_MULTIPLIER).max(ENHANCED_RAG_MIN_PULL_K)
 }

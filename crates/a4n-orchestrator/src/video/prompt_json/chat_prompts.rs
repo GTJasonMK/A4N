@@ -17,8 +17,5 @@ use self::validation::{validate_chat_video_input_images, validate_chat_video_sou
 pub(in crate::video) use parser::{
     parse_chat_video_prompt_shots, validate_chat_video_prompt_shot_against_segment,
 };
-use prompt_text::*;
-
-pub(super) fn chat_video_prompt_response_schema() -> schemars::Schema {
-    schemars::schema_for!(ChatVideoPromptResponse)
-}
+use prompt_text::required_text;
+pub(in crate::video) use prompt_text::validate_chat_video_prompt_text;

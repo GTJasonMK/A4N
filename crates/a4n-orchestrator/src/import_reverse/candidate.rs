@@ -19,7 +19,10 @@ use a4n_db::{
         apply_reverse_part_outline_records, reverse_context_rows,
     },
     outline::load_outline_generation_source_rows_for_update,
-    workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
+    workflow::{
+        WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING,
+        completed_llm_call_checkpoint_from_model,
+    },
 };
 use chrono::Utc;
 use sea_orm::{
@@ -29,9 +32,11 @@ use sea_orm::{
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
+use crate::workflow::workflow_checkpoint_contract_app_error;
 
 use super::{
-    ReverseEngineeringTarget, ReverseEngineeringTargetDomain,
+    IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE, ReverseEngineeringTarget,
+    ReverseEngineeringTargetDomain,
     application::{
         reverse_blueprint_apply_draft, reverse_blueprint_apply_result,
         reverse_outline_apply_result, reverse_outline_rows, reverse_part_outline_apply_result,
@@ -80,11 +85,10 @@ pub(crate) fn reverse_candidate_response(
 
 pub(crate) fn reverse_candidate_checkpoint_response(
     workflow_run_id: i64,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     result: Value,
     artifacts: Option<&Value>,
 ) -> Result<ReverseEngineeringCandidate, AppError> {
-    let target = reverse_target_from_prompt_name(prompt_name)?;
     let candidate = artifacts
         .and_then(Value::as_object)
         .and_then(|artifacts| artifacts.get(REVERSE_CANDIDATE_ARTIFACT_KEY))
@@ -150,7 +154,7 @@ async fn latest_reverse_engineering_candidate(
         ));
     }
     let prompt_name = target.prompt_name();
-    let business_key = super::import_reverse_business_key(project_id, prompt_name)
+    let business_key = super::import_reverse_business_key(project_id, target)
         .map_err(AppError::InvalidArgument)?;
     let Some(run) = workflow_run::Entity::find()
         .filter(workflow_run::Column::BusinessKey.eq(business_key))
@@ -163,7 +167,7 @@ async fn latest_reverse_engineering_candidate(
     else {
         return Ok(None);
     };
-    validate_reverse_candidate_run(&run, project_id, prompt_name, WORKFLOW_STATUS_COMPLETED)?;
+    validate_reverse_candidate_run(&run, project_id, target, WORKFLOW_STATUS_COMPLETED)?;
     let checkpoint = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(run.id))
         .filter(workflow_checkpoint::Column::StepKey.eq(prompt_name))
@@ -175,19 +179,17 @@ async fn latest_reverse_engineering_candidate(
                 run.id
             ))
         })?;
-    validate_reverse_candidate_checkpoint(&checkpoint, run.id, prompt_name)?;
-    let checkpoint_json =
-        checkpoint
-            .checkpoint_json
-            .clone()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_checkpoint_json".to_string(),
-                operation: "恢复项目资料归纳结果".to_string(),
-            })?;
-    let result = restored_import_reverse_checkpoint(checkpoint_json, prompt_name)?;
+    validate_reverse_candidate_checkpoint(&checkpoint, run.id, target)?;
+    let checkpoint = completed_llm_call_checkpoint_from_model(&checkpoint, prompt_name)
+        .map_err(workflow_checkpoint_contract_app_error)?;
+    let result = restored_import_reverse_checkpoint(
+        &checkpoint.parsed_output,
+        &checkpoint.response_content,
+        target,
+    )?;
     reverse_candidate_checkpoint_response(
         run.id,
-        prompt_name,
+        target,
         result,
         checkpoint.artifacts_json.as_ref(),
     )
@@ -265,7 +267,10 @@ async fn apply_reverse_engineering_checkpoint(
         .current_step_key
         .as_deref()
         .ok_or_else(|| AppError::InvalidState {
-            current: "missing_reverse_candidate_step".to_string(),
+            current: format!(
+                "workflow_run_id={}, status={}, business_key={}",
+                run.id, run.status, run.business_key
+            ),
             operation: "写入项目资料归纳结果".to_string(),
         })?;
     let target = reverse_target_from_prompt_name(prompt_name)?;
@@ -275,7 +280,7 @@ async fn apply_reverse_engineering_checkpoint(
             operation: "写入项目资料归纳结果".to_string(),
         });
     }
-    validate_reverse_candidate_run(&run, project_id, prompt_name, expected_run_status)?;
+    validate_reverse_candidate_run(&run, project_id, target, expected_run_status)?;
     let mut checkpoint_query = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(prompt_name));
@@ -287,23 +292,20 @@ async fn apply_reverse_engineering_checkpoint(
             "工作流 {workflow_run_id} 缺少反推 checkpoint {prompt_name}"
         ))
     })?;
-    validate_reverse_candidate_checkpoint(&checkpoint, workflow_run_id, prompt_name)?;
+    validate_reverse_candidate_checkpoint(&checkpoint, workflow_run_id, target)?;
 
-    let checkpoint_json =
-        checkpoint
-            .checkpoint_json
-            .clone()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_checkpoint_json".to_string(),
-                operation: "写入项目资料归纳结果".to_string(),
-            })?;
-    let parsed_output = restored_import_reverse_checkpoint(checkpoint_json, prompt_name)?;
-    validate_reverse_engineer_output(prompt_name, &parsed_output)?;
+    let completed_checkpoint = completed_llm_call_checkpoint_from_model(&checkpoint, prompt_name)
+        .map_err(workflow_checkpoint_contract_app_error)?;
+    let parsed_output = restored_import_reverse_checkpoint(
+        &completed_checkpoint.parsed_output,
+        &completed_checkpoint.response_content,
+        target,
+    )?;
+    validate_reverse_engineer_output(target, &parsed_output)?;
 
     let mut artifacts =
-        checkpoint
+        completed_checkpoint
             .artifacts_json
-            .clone()
             .ok_or_else(|| AppError::InvalidState {
                 current: "missing_reverse_candidate_artifacts".to_string(),
                 operation: "写入项目资料归纳结果".to_string(),
@@ -465,15 +467,16 @@ fn publish_reverse_blueprint_updated(
 fn validate_reverse_candidate_run(
     run: &workflow_run::Model,
     project_id: i64,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     expected_status: &str,
 ) -> Result<(), AppError> {
-    if run.workflow_kind != "import_reverse_engineer" {
+    let prompt_name = target.prompt_name();
+    if run.workflow_kind != IMPORT_REVERSE_WORKFLOW_KIND {
         return Err(AppError::InvalidArgument(
             "workflow_run_id 不是有效的项目资料归纳工作流".to_string(),
         ));
     }
-    if run.mode.as_deref() != Some("reverse") {
+    if run.mode.as_deref() != Some(IMPORT_REVERSE_WORKFLOW_MODE) {
         return Err(AppError::InvalidArgument(
             "只能写入 reverse 模式的项目资料归纳结果".to_string(),
         ));
@@ -503,9 +506,9 @@ fn validate_reverse_candidate_run(
                 current: "missing_reverse_candidate_input_fingerprint".to_string(),
                 operation: "写入项目资料归纳结果".to_string(),
             })?;
-    validate_reverse_candidate_run_fingerprint(fingerprint, project_id, prompt_name)?;
+    validate_reverse_candidate_run_fingerprint(fingerprint, project_id, target)?;
     let expected_business_key =
-        crate::import_reverse::import_reverse_business_key(project_id, prompt_name)
+        crate::import_reverse::import_reverse_business_key(project_id, target)
             .map_err(AppError::InvalidArgument)?;
     if run.business_key != expected_business_key {
         return Err(AppError::InvalidState {
@@ -519,13 +522,14 @@ fn validate_reverse_candidate_run(
 fn validate_reverse_candidate_run_fingerprint(
     fingerprint: &Value,
     project_id: i64,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
 ) -> Result<(), AppError> {
+    let prompt_name = target.prompt_name();
     let expected = serde_json::json!({
         "schema_version": 1,
-        "workflow": "import_reverse_engineer",
+        "workflow": IMPORT_REVERSE_WORKFLOW_KIND,
         "target": prompt_name,
-        "mode": "reverse",
+        "mode": IMPORT_REVERSE_WORKFLOW_MODE,
         "project_id": project_id,
     });
     for key in ["schema_version", "workflow", "target", "mode", "project_id"] {
@@ -652,8 +656,9 @@ fn valid_sha256(value: Option<&Value>) -> bool {
 fn validate_reverse_candidate_checkpoint(
     checkpoint: &workflow_checkpoint::Model,
     workflow_run_id: i64,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
 ) -> Result<(), AppError> {
+    let prompt_name = target.prompt_name();
     if checkpoint.workflow_run_id != workflow_run_id
         || checkpoint.step_key != prompt_name
         || checkpoint.step_order != 1
@@ -679,7 +684,7 @@ fn validate_reverse_candidate_checkpoint(
             })?;
     let expected = serde_json::json!({
         "schema_version": 1,
-        "workflow": "import_reverse_engineer",
+        "workflow": IMPORT_REVERSE_WORKFLOW_KIND,
         "call_key": prompt_name,
         "prompt_name": prompt_name,
     });
@@ -765,22 +770,24 @@ mod tests {
     }
 
     fn completed_run() -> workflow_run::Model {
+        let target = ReverseEngineeringTarget::Outline;
+        let prompt_name = target.prompt_name();
         workflow_run::Model {
             id: 42,
-            business_key: "import_reverse_engineer:project:7:reverse_outline:reverse".to_string(),
-            workflow_kind: "import_reverse_engineer".to_string(),
+            business_key: crate::import_reverse::import_reverse_business_key(7, target).unwrap(),
+            workflow_kind: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
             project_id: Some(7),
             root_project_id: Some(7),
             source_snapshot_id: None,
             scope_table: Some("project".to_string()),
             scope_id: Some(7),
             chapter_id: None,
-            mode: Some("reverse".to_string()),
+            mode: Some(IMPORT_REVERSE_WORKFLOW_MODE.to_string()),
             input_fingerprint_json: Some(json!({
                 "schema_version": 1,
-                "workflow": "import_reverse_engineer",
-                "target": "reverse_outline",
-                "mode": "reverse",
+                "workflow": IMPORT_REVERSE_WORKFLOW_KIND,
+                "target": prompt_name,
+                "mode": IMPORT_REVERSE_WORKFLOW_MODE,
                 "project_id": 7,
                 "content_sample_sha256": "a".repeat(64),
                 "auto_context": true,
@@ -789,7 +796,7 @@ mod tests {
                 "variables": {},
             })),
             status: WORKFLOW_STATUS_COMPLETED.to_string(),
-            current_step_key: Some("reverse_outline".to_string()),
+            current_step_key: Some(prompt_name.to_string()),
             progress_json: None,
             active_task_id: None,
             can_resume: false,
@@ -802,11 +809,12 @@ mod tests {
     }
 
     fn completed_checkpoint() -> workflow_checkpoint::Model {
+        let prompt_name = ReverseEngineeringTarget::Outline.prompt_name();
         let fingerprint = json!({
             "schema_version": 1,
-            "workflow": "import_reverse_engineer",
-            "call_key": "reverse_outline",
-            "prompt_name": "reverse_outline",
+            "workflow": IMPORT_REVERSE_WORKFLOW_KIND,
+            "call_key": prompt_name,
+            "prompt_name": prompt_name,
             "messages": [],
             "context_manifest": null,
             "max_tokens": 4096,
@@ -817,7 +825,7 @@ mod tests {
         workflow_checkpoint::Model {
             id: 9,
             workflow_run_id: 42,
-            step_key: "reverse_outline".to_string(),
+            step_key: prompt_name.to_string(),
             step_order: 1,
             status: WORKFLOW_STATUS_COMPLETED.to_string(),
             input_fingerprint_sha256: Some(hash),
@@ -863,7 +871,7 @@ mod tests {
 
         let response = reverse_candidate_checkpoint_response(
             42,
-            "reverse_outline",
+            ReverseEngineeringTarget::Outline,
             output.clone(),
             Some(&artifacts),
         )
@@ -884,9 +892,13 @@ mod tests {
         let mut run = completed_run();
         run.status = "running".to_string();
 
-        let error =
-            validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
-                .unwrap_err();
+        let error = validate_reverse_candidate_run(
+            &run,
+            7,
+            ReverseEngineeringTarget::Outline,
+            WORKFLOW_STATUS_COMPLETED,
+        )
+        .unwrap_err();
 
         assert_eq!(invalid_state(error), "running");
     }
@@ -896,9 +908,13 @@ mod tests {
         let mut run = completed_run();
         run.input_fingerprint_json.as_mut().unwrap()["workflow"] = json!("other_workflow");
 
-        let error =
-            validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
-                .unwrap_err();
+        let error = validate_reverse_candidate_run(
+            &run,
+            7,
+            ReverseEngineeringTarget::Outline,
+            WORKFLOW_STATUS_COMPLETED,
+        )
+        .unwrap_err();
 
         assert_eq!(
             invalid_state(error),
@@ -911,9 +927,13 @@ mod tests {
         let mut run = completed_run();
         run.input_fingerprint_json.as_mut().unwrap()["content_sample_sha256"] = json!("short");
 
-        let error =
-            validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
-                .unwrap_err();
+        let error = validate_reverse_candidate_run(
+            &run,
+            7,
+            ReverseEngineeringTarget::Outline,
+            WORKFLOW_STATUS_COMPLETED,
+        )
+        .unwrap_err();
 
         assert_eq!(
             invalid_state(error),
@@ -926,8 +946,12 @@ mod tests {
         let mut checkpoint = completed_checkpoint();
         checkpoint.input_fingerprint_json.as_mut().unwrap()["messages"] = json!([{"role": "user"}]);
 
-        let error =
-            validate_reverse_candidate_checkpoint(&checkpoint, 42, "reverse_outline").unwrap_err();
+        let error = validate_reverse_candidate_checkpoint(
+            &checkpoint,
+            42,
+            ReverseEngineeringTarget::Outline,
+        )
+        .unwrap_err();
 
         assert_eq!(
             invalid_state(error),
@@ -943,8 +967,12 @@ mod tests {
         checkpoint.input_fingerprint_sha256 =
             Some(a4n_db::workflow::llm_call_checkpoint_fingerprint_sha256(fingerprint).unwrap());
 
-        let error =
-            validate_reverse_candidate_checkpoint(&checkpoint, 42, "reverse_outline").unwrap_err();
+        let error = validate_reverse_candidate_checkpoint(
+            &checkpoint,
+            42,
+            ReverseEngineeringTarget::Outline,
+        )
+        .unwrap_err();
 
         assert_eq!(
             invalid_state(error),
@@ -1024,7 +1052,12 @@ mod tests {
         let fingerprint = run.input_fingerprint_json.as_mut().unwrap();
         fingerprint["auto_context"] = json!(false);
         fingerprint["auto_context_source_sha256"] = Value::Null;
-        validate_reverse_candidate_run(&run, 7, "reverse_outline", WORKFLOW_STATUS_COMPLETED)
-            .expect("manual samples use immutable checkpoint text only");
+        validate_reverse_candidate_run(
+            &run,
+            7,
+            ReverseEngineeringTarget::Outline,
+            WORKFLOW_STATUS_COMPLETED,
+        )
+        .expect("manual samples use immutable checkpoint text only");
     }
 }

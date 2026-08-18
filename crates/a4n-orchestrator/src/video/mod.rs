@@ -14,11 +14,9 @@ mod errors;
 mod first_frame_chain_rules;
 mod generation;
 mod generation_run_rules;
-mod image_generation_meta_rules;
 mod import_rules;
 mod job_status_rules;
 mod library;
-mod materials;
 mod prompt_application;
 mod prompt_chain_rules;
 mod prompt_context;
@@ -65,23 +63,20 @@ pub use a4n_db::video::{
 pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 
 pub use assembly_clip_rules::{
-    ASSEMBLY_INSERT_VIDEO_TYPE, AssemblyClipOrderAnchor, CHAPTER_VIDEO_TYPE,
-    assembly_clip_display_shot_number, assembly_clip_insert_after_video_id,
-    assembly_clip_sort_order, assembly_insert_metadata_with_position, is_assembly_clip_video_type,
-    next_assembly_insert_sort_order, normalized_assembly_dimensions, normalized_assembly_fps,
+    AssemblyClipOrderAnchor, assembly_clip_display_shot_number, assembly_clip_insert_after_video_id,
+    assembly_clip_sort_order, assembly_insert_metadata_with_position, assembly_media_properties,
+    is_assembly_clip_video_type, next_assembly_insert_sort_order,
 };
 pub use assembly_postprocess_rules::{
-    ASSEMBLY_POSTPROCESS_EDIT_VIDEO_TYPE, PostprocessEditMetadata, parse_postprocess_edit_metadata,
-    postprocess_edit_range_bounds, validate_postprocess_operation,
+    PostprocessEditMetadata, parse_postprocess_edit_metadata, postprocess_edit_timing,
 };
 pub use assembly_push_rules::{
     ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_PENDING, ASSEMBLY_PUSH_STATUS_REJECTED,
-    ASSEMBLY_PUSH_VIDEO_TYPE, AssemblyPushMetadata, AssemblyPushRecord,
-    active_assembly_push_source_ids, assembly_push_metadata_with_status, assembly_push_records,
-    ensure_active_pushes_match_clip_prefix, ensure_insert_position_not_inside_pushed_prefix,
-    is_active_assembly_push_status, is_completed_assembly_push_row, latest_non_rejected_push_index,
-    parse_assembly_push_metadata, selected_assembly_push_end_index,
-    validate_assembly_workflow_mode,
+    AssemblyPushMetadata, AssemblyPushRecord, active_assembly_push_source_ids,
+    assembly_push_metadata_with_status, assembly_push_records, ensure_active_pushes_match_clip_prefix,
+    ensure_insert_position_not_inside_pushed_prefix, is_active_assembly_push_status,
+    is_completed_assembly_push_row, latest_non_rejected_push_index, parse_assembly_push_metadata,
+    selected_assembly_push_end_index, validate_assembly_workflow_mode,
 };
 pub use boundary_frame_rules::{
     boundary_frame_numbers_for_prompt, frame_prompt_matches_video_prompt,
@@ -101,33 +96,23 @@ pub use contracts::{
     BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, CHAT_VIDEO_CONTRACT_VERSION, ChapterVideoPromptOptions,
     ChapterVideoPromptStageInput, ChapterVideoSource, ChapterVideoSourceContext,
     FIRST_FRAME_CHAIN_CONTRACT_VERSION, FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT,
-    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, FRAME_SEGMENT_PLAN_PROMPT_TYPE, IMPORT_VIDEO_PROMPT_TYPE,
-    ProjectChapterVideoSource, STORYBOARD_PROMPT_CONTRACT_VERSION,
-    STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION, VIDEO_PROMPT_CHECKPOINT_STAGE_CODE, VideoPromptChunk,
-    VideoPromptProgress, VideoPromptProgressUpdate,
+    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, ProjectChapterVideoSource,
+    STORYBOARD_PROMPT_CONTRACT_VERSION, STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,
+    VIDEO_PROMPT_CHECKPOINT_STAGE_CODE, VideoPromptChunk, VideoPromptProgress,
+    VideoPromptProgressUpdate,
 };
 pub use duration::VideoDurationCapability;
 pub use first_frame_chain_rules::first_frame_prompt_matches_video_prompt;
 pub use generation_run_rules::started_video_generation_run_input;
-pub use image_generation_meta_rules::{
-    VideoFrameImageGenerationContext, image_generation_prompt_id, image_generation_shot_number,
-    image_generation_source, image_generation_source_hash, video_frame_generation_label,
-    video_frame_image_generation_context,
-};
 pub use import_rules::{
     canvas_frame_timestamp, import_video_extension, imported_chapter_video_metadata,
-    normalize_canvas_frame_kind, required_upload_video_file_name, trimmed_video_metadata,
-    validate_upload_video_mime, validate_video_trim_range,
+    trimmed_video_metadata, validate_upload_video_mime, validate_video_trim_range,
 };
 pub use job_status_rules::{
-    CanvasVideoWorkflowContext, GENERATED_VIDEO_ERROR_STATUS_FAILED,
-    GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED, GENERATED_VIDEO_STATUS_CANCELLED,
-    GENERATED_VIDEO_STATUS_COMPLETED, GENERATED_VIDEO_WAITING_STATUS_PENDING,
-    GENERATED_VIDEO_WAITING_STATUS_RUNNING, active_provider_job_id,
-    can_adopt_authoritative_video_completion, canvas_video_workflow_context,
-    ensure_positive_generated_video_id, ensure_positive_project_id_for_video,
-    ensure_positive_video_prompt_id, ensure_provider_generation_run_updated,
-    has_active_provider_job, is_canvas_video_record, is_terminal_generated_video_status,
+    CanvasVideoWorkflowContext, active_provider_job_id, can_adopt_authoritative_video_completion,
+    canvas_video_workflow_context, ensure_positive_generated_video_id,
+    ensure_positive_project_id_for_video, ensure_positive_video_prompt_id,
+    ensure_provider_generation_run_updated, has_active_provider_job, is_canvas_video_record,
     normalized_provider_job_id, provider_poll_config_id, required_generated_video_failure_message,
     required_provider_job_id, validate_generated_video_interrupted_status,
     validate_generated_video_waiting_status,
@@ -136,13 +121,11 @@ pub use library::{
     image_type_rank, is_video_reference_image_candidate, resolve_video_reference_image_project_ids,
     video_reference_scope_rank,
 };
-pub use materials::is_project_reusable_video_material_image;
-pub(crate) use materials::is_video_frame_input_metadata;
 pub use prompt_application::{
     ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, GeneratePromptOptionsInput,
     LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
     UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
-    VideoPromptDownstreamCleanupPort, VideoSegmentPlanDraftSummary,
+    VideoPromptDownstreamCleanupPort, VideoSegmentPlanDraftState,
 };
 pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
@@ -156,14 +139,6 @@ pub(in crate::video) use prompt_generation::{
     load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
     update_video_segment_plan_draft_recipe_checkpoint,
 };
-pub use prompt_optimization::VideoPromptOptimizationInput;
-pub use prompt_optimization_checkpoint::{
-    OptimizedVideoPromptFields, video_prompt_optimization_checkpoint_output,
-};
-pub use prompt_optimization_rules::{
-    normalized_existing_optional_text, normalized_optimized_optional_text, optimized_motion_prompt,
-    required_optimized_text, validate_optimized_prompt_fields,
-};
 pub use prompt_workflow_rules::{
     video_prompt_optimization_business_key, video_prompt_optimization_workflow_run_input,
     video_prompt_workflow_business_key, video_prompt_workflow_fingerprint,
@@ -171,14 +146,13 @@ pub use prompt_workflow_rules::{
 };
 pub(crate) use provider_execution::VideoGenerationCheckpointContext;
 pub use provider_execution::{
-    PersistedVideoResult, VIDEO_GENERATION_PROGRESS_TOTAL, VideoArtifactFile,
-    VideoGenerationProgress, VideoProviderExecutionInput, VideoProviderHostPort,
-    VideoProviderRequestBody, VideoProviderRequestInput,
+    PersistedVideoResult, VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress,
+    VideoProviderExecutionInput, VideoProviderHostPort, VideoProviderRequestBody,
+    VideoProviderRequestInput,
 };
 pub use provider_image_rules::{
-    ProviderImageInputTransport, encode_query_component, image_mime_from_path,
-    is_provider_supported_image_content_type, provider_image_input_transport_with_override,
-    truncate_error_body, truncate_url_for_error,
+    ProviderImageInputTransport, encode_query_component, is_provider_supported_image_content_type,
+    provider_image_input_transport_with_override, truncate_error_body, truncate_url_for_error,
 };
 pub use provider_prompt_text_rules::{
     MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, ProviderPromptTextViolation,
@@ -218,7 +192,6 @@ pub use storyboard_frame_rules::{
 pub use tail_frame_rules::{
     completed_provider_metadata, is_first_frame_chain_video, required_video_chapter_id,
     should_capture_video_tail_frame, tail_frame_image_belongs_to_video, video_shot_number,
-    video_source_content_hash,
 };
 
 pub(crate) use crate::OrchestratorContext;

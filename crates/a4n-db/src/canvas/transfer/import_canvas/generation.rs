@@ -6,7 +6,6 @@ use super::super::types::{
     DeferredVideoStudioImportGenerationSpecTarget, VideoStudioProjectImportError,
     VideoStudioProjectImportIdMaps,
 };
-use crate::canvas::SOURCE_MODE_FREEFORM;
 use a4n_core::models::generation::{generation_spec, prompt_artifact};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
@@ -36,7 +35,9 @@ where
         let row = generation_spec::ActiveModel {
             project_id: Set(project_id),
             root_project_id: Set(project_id),
-            source_context_kind: Set(Some(SOURCE_MODE_FREEFORM.to_string())),
+            source_context_kind: Set(Some(
+                generation_spec::SOURCE_CONTEXT_FREEFORM.to_string(),
+            )),
             source_snapshot_id: Set(None),
             source_chapter_id: Set(None),
             source_snapshot_chapter_id: Set(None),

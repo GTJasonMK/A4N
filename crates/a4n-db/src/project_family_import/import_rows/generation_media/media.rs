@@ -2,7 +2,8 @@ use a4n_core::models::{
     generation::generation_spec_media_ref,
     media::{media_asset, media_provenance},
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage,
@@ -62,9 +63,10 @@ where
         );
         maps.media_asset_ids.insert(asset.id, inserted.id);
 
-        let file_path = media_importer.write_imported_media_field(asset, &inserted, "file_path")?;
+        let file_path =
+            media_importer.write_imported_media_field(asset, &inserted, FILE_PATH_FIELD)?;
         let thumbnail_path =
-            media_importer.write_imported_media_field(asset, &inserted, "thumbnail_path")?;
+            media_importer.write_imported_media_field(asset, &inserted, THUMBNAIL_PATH_FIELD)?;
         let mut update: media_asset::ActiveModel = inserted.into();
         update.file_path = Set(file_path);
         update.thumbnail_path = Set(thumbnail_path);

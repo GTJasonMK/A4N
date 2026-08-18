@@ -1,10 +1,11 @@
 use super::super::{
-    MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_IMAGE, MEDIA_OWNER_VIDEO,
     remap::remap_video_studio_optional_id,
     types::{VideoStudioProjectImportError, VideoStudioProjectImportMediaFileWriter},
 };
 use super::VideoStudioProjectImportMediaRowsContext;
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::ai::{generated_image, generated_video};
+use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use std::collections::HashMap;
 
@@ -21,9 +22,9 @@ where
             .media_file_writer
             .write_imported_media_file(
                 context.project_id,
-                MEDIA_OWNER_IMAGE,
+                CanvasNodeRefKind::GeneratedImage.as_str(),
                 image.id,
-                MEDIA_FIELD_FILE,
+                FILE_PATH_FIELD,
                 "images",
                 "imported_package_image",
             )
@@ -83,9 +84,9 @@ where
             .media_file_writer
             .write_imported_media_file(
                 context.project_id,
-                MEDIA_OWNER_VIDEO,
+                CanvasNodeRefKind::GeneratedVideo.as_str(),
                 video.id,
-                MEDIA_FIELD_FILE,
+                FILE_PATH_FIELD,
                 "videos",
                 "imported_package_video",
             )
@@ -94,9 +95,9 @@ where
             .media_file_writer
             .write_imported_media_file(
                 context.project_id,
-                MEDIA_OWNER_VIDEO,
+                CanvasNodeRefKind::GeneratedVideo.as_str(),
                 video.id,
-                MEDIA_FIELD_THUMBNAIL,
+                THUMBNAIL_PATH_FIELD,
                 "videos",
                 "imported_package_video_thumbnail",
             )

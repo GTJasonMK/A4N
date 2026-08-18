@@ -3,7 +3,7 @@ use a4n_test_support::{
     embedding::{
         MatchingEmbeddingProvider, ShortEmbeddingProvider, WrongDimensionEmbeddingProvider,
     },
-    rag::{ShortWriteVectorStore, root_text_metadata, test_embedding_identity},
+    rag::{ShortWriteVectorStore, test_embedding_identity},
 };
 
 use super::contracts::{RagEmbeddedInput, RagEmbeddingInput};
@@ -19,7 +19,7 @@ async fn direct_write_rejects_embedding_dimension_mismatch_without_writing_recor
         "rag:wrong-dimension",
         "正文",
         &WrongDimensionEmbeddingProvider,
-        root_text_metadata(1),
+        serde_json::json!({}),
     )
     .await
     .expect_err("wrong embedding dimension should reject");
@@ -43,7 +43,7 @@ async fn direct_write_rejects_vector_store_short_write() {
         "rag:1",
         "正文",
         &MatchingEmbeddingProvider,
-        root_text_metadata(1),
+        serde_json::json!({}),
     )
     .await
     .expect_err("short vector-store write should reject");
@@ -63,12 +63,12 @@ async fn batch_write_rejects_provider_count_mismatch_without_writing_records() {
             RagEmbeddingInput {
                 chunk_id: "rag:1".to_string(),
                 text: "第一条".to_string(),
-                metadata: root_text_metadata(1),
+                metadata: serde_json::json!({}),
             },
             RagEmbeddingInput {
                 chunk_id: "rag:2".to_string(),
                 text: "第二条".to_string(),
-                metadata: root_text_metadata(1),
+                metadata: serde_json::json!({}),
             },
         ],
         &ShortEmbeddingProvider,
@@ -96,12 +96,12 @@ async fn batch_write_rejects_vector_store_short_write() {
             RagEmbeddingInput {
                 chunk_id: "rag:1".to_string(),
                 text: "第一条".to_string(),
-                metadata: root_text_metadata(1),
+                metadata: serde_json::json!({}),
             },
             RagEmbeddingInput {
                 chunk_id: "rag:2".to_string(),
                 text: "第二条".to_string(),
-                metadata: root_text_metadata(1),
+                metadata: serde_json::json!({}),
             },
         ],
         &MatchingEmbeddingProvider,
@@ -124,11 +124,6 @@ async fn batch_write_preserves_per_record_metadata() {
             chunk_id: "outline:9:1".to_string(),
             text: "正文内容".to_string(),
             metadata: serde_json::json!({
-                "root_project_id": 9,
-                "source_snapshot_id": null,
-                "source_chapter_id": null,
-                "source_snapshot_chapter_id": null,
-                "derived_project_id": null,
                 "data_type": "outline",
                 "chapter_number": 1,
             }),
@@ -145,13 +140,10 @@ async fn batch_write_preserves_per_record_metadata() {
         .expect("stored records should be queryable");
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].content, "正文内容");
-    assert_eq!(records[0].metadata["project_id"], serde_json::json!(9));
-    assert_eq!(records[0].metadata["root_project_id"], serde_json::json!(9));
     assert_eq!(
         records[0].metadata["data_type"],
         serde_json::json!("outline")
     );
-    assert_eq!(records[0].metadata["content_length"], serde_json::json!(4));
     assert_eq!(
         records[0].metadata["embedding_dimension"],
         serde_json::json!(2)
@@ -167,7 +159,7 @@ async fn stored_embedding_write_validates_and_persists_caller_vectors() {
         vec![RagEmbeddedInput {
             chunk_id: "chapter:5:10:p1".to_string(),
             text: "客户端向量正文".to_string(),
-            metadata: root_text_metadata(5),
+            metadata: serde_json::json!({}),
             embedding: vec![1.0, 0.0],
         }],
         test_embedding_identity("client-test"),

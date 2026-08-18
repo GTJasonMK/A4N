@@ -34,8 +34,12 @@ pub(super) struct PreparedBlueprintStage<'a> {
     pub(super) cancel_token: CancellationToken,
     pub(super) request: ChatRequest,
     pub(super) workflow_run_id: i64,
-    pub(super) call_key: String,
     pub(super) fingerprint_json: Value,
+}
+
+pub(in crate::blueprint::generation) struct BlueprintStageExecution {
+    pub(in crate::blueprint::generation) output: Value,
+    pub(in crate::blueprint::generation) request: ChatRequest,
 }
 
 pub(super) struct BlueprintStageLlmOutput {

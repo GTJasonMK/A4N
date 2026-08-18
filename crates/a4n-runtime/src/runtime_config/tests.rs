@@ -3,7 +3,7 @@ use serde_json::json;
 
 fn test_llm_config(id: i64, is_default: bool) -> RuntimeLlmConfig {
     RuntimeLlmConfig {
-        id: Some(id),
+        id,
         name: format!("llm {id}"),
         provider: "openai".to_string(),
         base_url: "https://example.test/v1".to_string(),
@@ -20,7 +20,7 @@ fn test_llm_config(id: i64, is_default: bool) -> RuntimeLlmConfig {
 
 fn test_image_config(id: i64, is_default: bool) -> RuntimeImageConfig {
     RuntimeImageConfig {
-        id: Some(id),
+        id,
         name: format!("image {id}"),
         backend: "openai".to_string(),
         base_url: Some("https://example.test/v1".to_string()),
@@ -35,7 +35,7 @@ fn test_image_config(id: i64, is_default: bool) -> RuntimeImageConfig {
 
 fn test_video_config(id: i64, is_default: bool) -> RuntimeVideoConfig {
     RuntimeVideoConfig {
-        id: Some(id),
+        id,
         name: format!("video {id}"),
         backend: "openai".to_string(),
         base_url: Some("https://example.test/v1".to_string()),
@@ -57,7 +57,7 @@ fn test_video_config(id: i64, is_default: bool) -> RuntimeVideoConfig {
 #[tokio::test]
 async fn explicit_config_id_lookup_accepts_active_or_list_config() {
     let snapshot = RuntimeConfigSnapshot {
-        schema_version: Some(1),
+        schema_version: 1,
         llm: Some(test_llm_config(1, true)),
         llm_configs: vec![test_llm_config(2, false)],
         image: Some(test_image_config(1, true)),
@@ -115,7 +115,7 @@ async fn explicit_config_id_lookup_accepts_active_or_list_config() {
 #[tokio::test]
 async fn config_lists_do_not_define_runtime_defaults() {
     let snapshot = RuntimeConfigSnapshot {
-        schema_version: Some(1),
+        schema_version: 1,
         llm: None,
         llm_configs: vec![test_llm_config(2, true)],
         image: None,
@@ -158,13 +158,26 @@ fn snapshot_from_args_rejects_malformed_snapshot() {
             "schema_version": 1,
             "llm": {
                 "name": "local",
-                "provider": "openai"
+                "provider": "openai",
+                "base_url": "https://example.test/v1",
+                "model": "gpt-test",
+                "max_concurrent": 1,
+                "timeout_secs": 30,
+                "max_context_tokens": 128000,
+                "max_output_tokens": 8192
             }
         }
     });
 
     let err = snapshot_from_args(&args).expect_err("malformed snapshot must fail explicitly");
     assert!(err.contains("runtime_config_snapshot 无效"));
+    assert!(err.contains("missing field"), "{err}");
+    assert!(err.contains("id"), "{err}");
+
+    let mut invalid_id = args;
+    invalid_id["runtime_config_snapshot"]["llm"]["id"] = json!(0);
+    let err = snapshot_from_args(&invalid_id).expect_err("non-positive config ID must fail");
+    assert!(err.contains("运行时配置 ID 必须是正整数"));
 }
 
 #[test]
@@ -237,9 +250,9 @@ fn snapshot_from_args_rejects_unknown_nested_config_fields() {
 #[test]
 fn redacted_snapshot_value_uses_shared_sidecar_sensitive_field_policy() {
     let snapshot = RuntimeConfigSnapshot {
-        schema_version: Some(1),
+        schema_version: 1,
         llm: Some(RuntimeLlmConfig {
-            id: Some(1),
+            id: 1,
             name: "local llm".to_string(),
             provider: "openai".to_string(),
             base_url: "https://example.test".to_string(),

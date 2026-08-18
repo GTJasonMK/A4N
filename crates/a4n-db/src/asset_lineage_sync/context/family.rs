@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
 use a4n_core::models::project::{novel_project, project_source_snapshot, source_snapshot_chapter};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use crate::asset_lineage_sync::{
-    AssetLineageSyncError, PROJECT_KIND_TEXT, SOURCE_MODE_FREEFORM, SOURCE_MODE_SELF,
+    AssetLineageSyncError,
     types::{FamilyLineageContext, ProjectLineageContext},
 };
 
@@ -81,12 +82,13 @@ where
     let mut contexts_by_project_id = BTreeMap::new();
     for project in projects {
         project_ids.push(project.id);
-        let selected_snapshot = match project.source_mode.as_str() {
-            SOURCE_MODE_FREEFORM => None,
-            SOURCE_MODE_SELF if project.project_kind == PROJECT_KIND_TEXT => {
-                latest_snapshot.clone()
-            }
-            _ => project
+        let source_mode = project.source_mode().map_err(|error| {
+            AssetLineageSyncError::InvalidArgument(format!("项目 {}: {error}", project.id))
+        })?;
+        let selected_snapshot = match source_mode {
+            ProjectSourceMode::Freeform => None,
+            ProjectSourceMode::Self_ => latest_snapshot.clone(),
+            ProjectSourceMode::Derived => project
                 .source_snapshot_id
                 .and_then(|id| snapshots_by_id.get(&id).cloned()),
         };
@@ -99,7 +101,7 @@ where
             ProjectLineageContext {
                 project_id: project.id,
                 root_project_id,
-                source_mode: project.source_mode.clone(),
+                source_mode,
                 snapshot: selected_snapshot,
                 snapshot_chapters_by_source,
             },

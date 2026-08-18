@@ -1,49 +1,30 @@
 use super::super::*;
 
-pub(in crate::dynamic_llm) fn chat_chunk_from_sidecar_event(
+pub(in crate::dynamic_llm) enum SidecarLlmEvent {
+    Chunk(ChatChunk),
+    Progress,
+    Completed,
+}
+
+pub(in crate::dynamic_llm) fn parse_sidecar_llm_event(
     event: CapabilityTaskEvent,
-) -> Result<ChatChunk, AppError> {
-    if let Some(payload) = event.payload {
-        return serde_json::from_value(payload).map_err(AppError::Serialization);
+) -> Result<SidecarLlmEvent, AppError> {
+    match event.event_kind {
+        CapabilityTaskEventKind::Chunk => {
+            let payload = event.payload.ok_or_else(|| {
+                AppError::LlmError("LLM sidecar chunk 事件缺少 payload".to_string())
+            })?;
+            serde_json::from_value(payload)
+                .map(SidecarLlmEvent::Chunk)
+                .map_err(AppError::Serialization)
+        }
+        CapabilityTaskEventKind::Completed => Ok(SidecarLlmEvent::Completed),
+        CapabilityTaskEventKind::Failed => {
+            let error = event.error.ok_or_else(|| {
+                AppError::LlmError("LLM sidecar failed 事件缺少 error".to_string())
+            })?;
+            Err(llm_sidecar_error(error))
+        }
+        CapabilityTaskEventKind::Progress => Ok(SidecarLlmEvent::Progress),
     }
-
-    let index = match event.chunk_index {
-        Some(index) => u32::try_from(index).map_err(|_| {
-            AppError::Internal(anyhow::anyhow!(
-                "LLM sidecar chunk_index 超出 u32 范围: {index}"
-            ))
-        })?,
-        None => 0,
-    };
-    let usage = event
-        .usage_delta
-        .map(usage_from_sidecar_value)
-        .transpose()?;
-
-    Ok(ChatChunk {
-        content: event.chunk_delta,
-        reasoning_content: None,
-        tool_calls: None,
-        finish_reason: event.finish_reason,
-        index,
-        usage,
-    })
-}
-
-pub(super) fn usage_from_sidecar_value(value: serde_json::Value) -> Result<UsageInfo, AppError> {
-    serde_json::from_value(value).map_err(AppError::Serialization)
-}
-
-pub(in crate::dynamic_llm) fn sidecar_event_error(event: CapabilityTaskEvent) -> AppError {
-    event
-        .error
-        .map(llm_sidecar_error)
-        .unwrap_or_else(|| AppError::LlmError("LLM sidecar stream 返回失败事件".to_string()))
-}
-
-pub(in crate::dynamic_llm) fn sidecar_failed_event(
-    task_id: String,
-    error: ServiceError,
-) -> CapabilityTaskEvent {
-    CapabilityTaskEvent::failed(task_id, 0, error)
 }

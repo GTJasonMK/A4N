@@ -43,11 +43,17 @@ import {
   updateVideoSegmentPlanDraftRecipe,
   uploadReferenceMediaVideo,
   verifyVideoGenerationResult,
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
   type ChapterVideoPrompt,
   type GeneratedVideo,
   type ReferenceMediaVideoInput,
   type VideoGenConfig,
   type VideoSegmentExecutionRecipe,
+  type VideoSegmentWorkflowMode,
   type InsertedSegmentGenerationOptions,
   type VideoTimelineSummary,
 } from "../../api/video";
@@ -113,6 +119,7 @@ import {
   serializeVideoOptions,
   shiftReferenceLabels,
   VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
+  VIDEO_FINAL_PROMPT_TYPE,
   VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_FIRST_FRAME_PROMPT_TYPE,
   VIDEO_WORKFLOW_MODE_LABELS,
@@ -120,6 +127,7 @@ import {
   latestVideoSegmentPlanPrompt,
   readVideoSegmentRecipes,
   videoOptionsFromSegmentRecipe,
+  videoFrameImageContractForPromptType,
   videoSegmentCardsFromPlanPrompt,
   videoSegmentCardsFromSegments,
   videoSegmentRecipeFrameFingerprintJson,
@@ -133,7 +141,6 @@ import {
   videoTailFrameSourceVideoId,
   finalVideoExecutionIdentityIsComplete,
   videoOptionsValidationError,
-  type ChapterVideoWorkflowMode,
   type PromptDraft,
   type VideoSegmentCardPlan,
   type VideoGenOptions,
@@ -186,6 +193,10 @@ interface PersistedNullableIdState {
   id: number | null;
   storageError: string | null;
 }
+
+type PersistedVideoOptionsState =
+  | { options: VideoGenOptions }
+  | { options: null; storageError: string; raw: string };
 
 interface ReferenceMediaSegmentState {
   segmentPlanPromptId: number;
@@ -242,6 +253,31 @@ const serializePersistedNullableIdState = (
   state: PersistedNullableIdState,
 ): string => serializeNullableNumber(state.id);
 
+const validPersistedVideoOptionsState = (
+  options: VideoGenOptions,
+): PersistedVideoOptionsState => ({ options });
+
+const parsePersistedVideoOptionsState = (
+  raw: string,
+): PersistedVideoOptionsState => {
+  try {
+    return validPersistedVideoOptionsState(parseVideoOptions(raw));
+  } catch (err) {
+    return {
+      options: null,
+      storageError: `视频片段规划配置本地存储损坏：${extractErrorMessage(err, "")}`,
+      raw,
+    };
+  }
+};
+
+const serializePersistedVideoOptionsState = (
+  state: PersistedVideoOptionsState,
+): string => {
+  if (state.options) return serializeVideoOptions(state.options);
+  return state.raw;
+};
+
 export const VideoTab: React.FC<VideoTabProps> = ({
   projectId,
   fixedChapter,
@@ -269,19 +305,48 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       : null;
   const { currentContentHash, chapterContentReady, chapterContentHashError } =
     useChapterContentHash(chapter);
-  const planningOptionsInitialValue = useMemo<VideoGenOptions>(
-    () => ({
-      ...DEFAULT_VIDEO_OPTIONS,
-      durationOptions: [...DEFAULT_VIDEO_OPTIONS.durationOptions],
-    }),
+  const planningOptionsInitialValue = useMemo<PersistedVideoOptionsState>(
+    () =>
+      validPersistedVideoOptionsState({
+        ...DEFAULT_VIDEO_OPTIONS,
+        durationOptions: [...DEFAULT_VIDEO_OPTIONS.durationOptions],
+      }),
     [chapterStorageKey],
   );
-  const [planningOptions, setPlanningOptions] =
-    usePersistedState<VideoGenOptions>(
+  const [planningOptionsState, setPlanningOptionsState] =
+    usePersistedState<PersistedVideoOptionsState>(
       chapterStorageKey ? `${chapterStorageKey}:segment-plan-options` : null,
       planningOptionsInitialValue,
-      { parse: parseVideoOptions, serialize: serializeVideoOptions },
+      {
+        parse: parsePersistedVideoOptionsState,
+        serialize: serializePersistedVideoOptionsState,
+      },
     );
+  const planningOptions = planningOptionsState.options;
+  const setPlanningOptions = useCallback<
+    React.Dispatch<React.SetStateAction<VideoGenOptions>>
+  >(
+    (action) =>
+      setPlanningOptionsState((previous) => {
+        if (!previous.options) {
+          throw new Error("视频片段规划配置损坏时不能修改规划选项");
+        }
+        const options =
+          typeof action === "function" ? action(previous.options) : action;
+        return validPersistedVideoOptionsState(options);
+      }),
+    [setPlanningOptionsState],
+  );
+  const resetPlanningOptions = useCallback(
+    () =>
+      setPlanningOptionsState(
+        validPersistedVideoOptionsState({
+          ...DEFAULT_VIDEO_OPTIONS,
+          durationOptions: [...DEFAULT_VIDEO_OPTIONS.durationOptions],
+        }),
+      ),
+    [setPlanningOptionsState],
+  );
   const videoActionScopeKey = videoDataKey;
   const [acting, setActing] = useState<string | null>(null);
   const actionScopeRef = useRef(videoActionScopeKey);
@@ -1161,7 +1226,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           );
           return (
             segmentNumber != null &&
-            prompt.prompt_type === "video_prompt" &&
+            prompt.prompt_type === VIDEO_FINAL_PROMPT_TYPE &&
             videoExecutionSegmentIdentityMatchesPrompt(
               prompt,
               frameSegmentPlanPromptForCards,
@@ -1200,8 +1265,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     (invalidVideoLibraryImageIds.length > 0
       ? `视频素材库中有 ${invalidVideoLibraryImageIds.length} 张图片已不可用，请清除后重选`
       : null);
-  const videoOptionsStateError =
-    options.storageError ?? videoOptionsValidationError(options);
+  const videoOptionsStateError = videoOptionsValidationError(options);
   const videoPersistedStateError =
     chapterContentHashError ??
     segmentCardState.error ??
@@ -1216,7 +1280,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     pendingVideoState.storageError ??
     null;
   const effectiveDurationLimits = useMemo(() => {
-    if (workflowMode === "chat_video") return CHAT_VIDEO_DURATION_LIMITS;
+    if (workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO) {
+      return CHAT_VIDEO_DURATION_LIMITS;
+    }
     return videoOptionsStateError
       ? {
           ...durationLimits,
@@ -1256,7 +1322,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       }
       const hasCurrentPrompt = prompts.some(
         (prompt) =>
-          prompt.prompt_type === "video_prompt" &&
+          prompt.prompt_type === VIDEO_FINAL_PROMPT_TYPE &&
           videoExecutionSegmentIdentityMatchesPrompt(
             prompt,
             frameSegmentPlanPromptForCards,
@@ -1354,7 +1420,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     (segmentNumber: number): string | null => {
       const recipe = effectiveRecipeBySegmentRef.current.get(segmentNumber);
       if (!recipe) return `片段 ${segmentNumber} 缺少执行方案`;
-      if (recipe.workflow_mode === "reference_media") return null;
+      if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA) {
+        return null;
+      }
       const unavailableReferenceIds = [
         ...recipe.reference_image_ids,
         ...recipe.video_library_image_ids,
@@ -1362,7 +1430,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       if (unavailableReferenceIds.length > 0) {
         return `片段参考素材已失效：${[...new Set(unavailableReferenceIds)].join(", ")}`;
       }
-      if (recipe.workflow_mode === "chat_video") return null;
+      if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO) return null;
       const configurationError = videoGuidanceConfigurationError(
         recipe.workflow_mode,
         segmentNumber,
@@ -1393,14 +1461,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       const frameReady = (prompt: ChapterVideoPrompt | null): boolean =>
         prompt != null &&
         latestVideoFrameImageForPrompt(prompt, images) != null;
-      if (recipe.workflow_mode === "boundary_frames") {
+      if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES) {
         const first = framePrompt(VIDEO_FRAME_PROMPT_TYPE, 1);
         const last = framePrompt(VIDEO_FRAME_PROMPT_TYPE, 2);
         if (!first || !last) return "请先准备当前片段的首尾帧提示词";
         if (!frameReady(first) || !frameReady(last)) {
           return "请先生成当前片段的首尾帧图片";
         }
-      } else if (recipe.workflow_mode === "storyboard") {
+      } else if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_STORYBOARD) {
         const storyboard = framePrompt(
           VIDEO_STORYBOARD_PROMPT_TYPE,
           segmentNumber,
@@ -1410,7 +1478,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           return "请先生成当前片段的分镜板";
         }
       } else if (
-        recipe.workflow_mode === "first_frame_chain" &&
+        recipe.workflow_mode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
         recipe.guidance_mode === "system_frames"
       ) {
         const first = framePrompt(VIDEO_FIRST_FRAME_PROMPT_TYPE, 1);
@@ -1418,7 +1486,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         if (!frameReady(first)) {
           return "请先生成当前片段的首帧图片";
         }
-      } else if (recipe.workflow_mode !== "first_frame_chain") {
+      } else if (
+        recipe.workflow_mode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
+      ) {
         return "当前片段执行方案不支持帧提示词规划";
       }
       if (recipe.guidance_mode === "continuity") {
@@ -2154,7 +2224,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const recipe = recipeForSegmentAction(segmentNumber);
     const targetSegment = targetForSegmentAction(segmentNumber);
     if (!recipe || !targetSegment) return;
-    if (recipe.workflow_mode === "reference_media") {
+    if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA) {
       addToast("参考媒体方案直接生成视频，不生成最终提示词", "error");
       return;
     }
@@ -2222,7 +2292,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   };
 
   const handleSegmentWorkflowModeChange = async (
-    mode: ChapterVideoWorkflowMode,
+    mode: VideoSegmentWorkflowMode,
     segmentNumber: number,
   ): Promise<void> => {
     const currentRecipe =
@@ -2237,8 +2307,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       return;
     }
     const savesReferenceMediaDraft =
-      currentRecipe.workflow_mode === "reference_media" &&
-      mode !== "reference_media" &&
+      currentRecipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA &&
+      mode !== VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA &&
       segmentNumber === selectedSegmentNumber &&
       referenceMediaDraftScopeRef.current ===
         referenceMediaDraftScopeForSegment(segmentNumber) &&
@@ -2286,7 +2356,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       return;
     }
     if (
-      currentRecipe.workflow_mode !== "first_frame_chain" ||
+      currentRecipe.workflow_mode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
       segmentNumber <= 1
     ) {
       addToast("只有首帧续接的后续片段可以切换首帧来源", "error");
@@ -2358,8 +2428,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         chapter.id,
         input,
       );
-      let workflowRunId: number | null = null;
-      await runGenerationProgressTaskThen(
+      const workflowRunId = await runGenerationProgressTaskThen(
         runProgressTask,
         handle,
         {
@@ -2379,7 +2448,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           if (!Number.isSafeInteger(parsed) || parsed <= 0) {
             throw new Error("插入片段草稿 workflow ID 无效");
           }
-          workflowRunId = parsed;
+          return parsed;
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return null;
@@ -2611,19 +2680,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const buildFrameImageGenerationInput = (
     prompt: ChapterVideoPrompt,
-    extraPreviewNote: string | null = null,
   ): Record<string, unknown> => {
-    const firstFramePrompt = prompt.prompt_type === "first_frame_prompt";
-    const storyboardPrompt =
-      prompt.prompt_type === VIDEO_STORYBOARD_PROMPT_TYPE;
-    const label = firstFramePrompt
-      ? "首帧提示词"
-      : storyboardPrompt
-        ? "分镜提示词"
-        : "边界帧提示词";
+    const frameContract = videoFrameImageContractForPromptType(
+      prompt.prompt_type,
+    );
     const trimmedPrompt = prompt.visual_prompt.trim();
     const previewValidationError = promptLengthError(
-      label,
+      frameContract.promptLabel,
       trimmedPrompt,
       VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
     );
@@ -2649,29 +2712,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     if (referenceOrderError) {
       throw new Error(referenceOrderError);
     }
-    const requestPreviewNote = [extraPreviewNote].filter(Boolean).join(" ");
     return buildVideoFrameImageRequest(
-      firstFramePrompt
-        ? "start_frame"
-        : storyboardPrompt
-          ? "storyboard_frame"
-          : "key_frame",
+      frameContract.imageType,
       effectiveVisualPrompt,
       prompt.chapter_id || chapter?.id || 0,
-      buildVideoFrameImageTraceMetadata(
-        prompt,
-        firstFramePrompt
-          ? "video_first_frame_prompt"
-          : storyboardPrompt
-            ? "video_storyboard_prompt"
-            : "video_boundary_frame_prompt",
-        {
-          projectId,
-          chapter,
-          currentContentHash,
-          requestPreviewNote: requestPreviewNote || null,
-        },
-      ),
+      prompt.aspect_ratio,
+      buildVideoFrameImageTraceMetadata(prompt, frameContract.source),
       references.ids,
       references.note,
     );
@@ -2679,9 +2725,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const buildFrameImagePreviewInputs = (
     prompt: ChapterVideoPrompt,
-  ): Array<Record<string, unknown>> | null => {
+  ): {
+    requests: Array<Record<string, unknown>>;
+    note: string | null;
+  } | null => {
     if (!isBoundaryFramePrompt(prompt)) {
-      return [buildFrameImageGenerationInput(prompt)];
+      return {
+        requests: [buildFrameImageGenerationInput(prompt)],
+        note: null,
+      };
     }
     const chain = boundaryFramePromptChainTo(
       prompt,
@@ -2705,11 +2757,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       dynamicTailCount > 0
         ? `边界帧图片会顺序生成；当前只预览第 ${firstMissing.shot_number} 张缺失图片请求。后续 ${dynamicTailCount} 张请求依赖本次新生成的图片，暂时无法完整预览。`
         : null;
-    return [buildFrameImageGenerationInput(firstMissing, extraPreviewNote)];
+    return {
+      requests: [buildFrameImageGenerationInput(firstMissing)],
+      note: extraPreviewNote,
+    };
   };
 
   const previewImageRequests = async (
     requests: Array<Record<string, unknown>>,
+    note: string | null = null,
   ) => {
     if (!chapter) return;
     if (requests.length === 0) {
@@ -2723,7 +2779,24 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     try {
       const preview = await previewBatchImagesRequest(projectId, requests);
       if (imageRequestPreviewScopeRef.current !== previewScope) return;
-      setImageRequestPreviewData(preview);
+      const previewNote = note?.trim();
+      setImageRequestPreviewData(
+        previewNote && preview.steps[0]
+          ? {
+              ...preview,
+              steps: preview.steps.map((step, index) =>
+                index === 0
+                  ? {
+                      ...step,
+                      note: [step.note?.trim(), previewNote]
+                        .filter(Boolean)
+                        .join("\n"),
+                    }
+                  : step,
+              ),
+            }
+          : preview,
+      );
     } catch (err) {
       if (imageRequestPreviewScopeRef.current !== previewScope) return;
       addToast(extractErrorMessage(err, "查看成图请求失败"), "error");
@@ -2736,15 +2809,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   };
 
   const handlePreviewFrameImageRequest = async (prompt: ChapterVideoPrompt) => {
-    let requests: Array<Record<string, unknown>> | null;
+    let previewInput: ReturnType<typeof buildFrameImagePreviewInputs>;
     try {
-      requests = buildFrameImagePreviewInputs(prompt);
+      previewInput = buildFrameImagePreviewInputs(prompt);
     } catch (err) {
       addToast(extractErrorMessage(err, "预览成图请求失败"), "error");
       return;
     }
-    if (!requests) return;
-    await previewImageRequests(requests);
+    if (!previewInput) return;
+    await previewImageRequests(previewInput.requests, previewInput.note);
   };
 
   const buildReferenceMediaVideoInput = (
@@ -2777,7 +2850,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     if (
       !frameSegmentPlanPromptForCards ||
       selectedSegmentNumber == null ||
-      workflowMode !== "reference_media"
+      workflowMode !== VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
     ) {
       addToast("请从片段提示词卡片选择参考媒体方案", "error");
       return null;
@@ -2898,8 +2971,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             projectId,
             chapter.id,
           );
-          if (!row)
-            throw new Error("参考媒体视频生成已结束，但没有正式视频结果");
           if (!isCurrentVideoActionScope(requestScope)) return;
           setSelectedVideoId(row.id);
           setPendingVideoId(null);
@@ -2979,7 +3050,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   }
 
   const referenceMediaWorkspace =
-    workflowMode === "reference_media" ? (
+    workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? (
       <ReferenceMediaWorkspace
         prompt={referenceMediaDraft.prompt}
         imageRows={referenceMediaDraft.imageRows}
@@ -3007,7 +3078,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       />
     ) : null;
   const referenceInputs =
-    workflowMode == null || workflowMode === "reference_media" ? undefined : (
+    workflowMode == null || workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? undefined : (
       <VideoReferenceInputSlots
         images={selectableReferenceImages}
         chapter={chapter}
@@ -3026,8 +3097,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         onVideoLibraryImageIdsChange={setVideoLibraryImageIds}
         onReferenceLimit={() =>
           addToast(
-            `${workflowMode === "chat_video" ? "Chat上传" : "生成参考"}最多只能选择 ${
-              workflowMode === "chat_video"
+            `${workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO ? "Chat上传" : "生成参考"}最多只能选择 ${
+              workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO
                 ? MAX_CHAT_REFERENCE_IMAGES
                 : MAX_REFERENCE_IMAGES
             } 张`,
@@ -3078,7 +3149,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         >
           {workflowMode == null ? (
             <span>未选择片段执行方案</span>
-          ) : workflowMode === "reference_media" ? (
+          ) : workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? (
             <span>参考媒体 · 当前片段</span>
           ) : (
             <span>{VIDEO_WORKFLOW_MODE_LABELS[workflowMode]} · 当前片段</span>
@@ -3095,29 +3166,48 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             />
           </div>
         ) : workspaceTab === "frames" ? (
-          <VideoPlanningWorkspace
-            prompt={frameSegmentPlanPromptForCards}
-            previewSegments={segmentPlanPreview}
-            draft={segmentPlanDraft}
-            options={planningOptions}
-            durationLimits={durationLimits}
-            loading={segmentPlanDraftLoading}
-            loadError={segmentPlanDraftError}
-            dataReady={selectionValidationReady}
-            acting={acting}
-            shootingScenes={shootingScenes}
-            onGenerate={(targetNarrativeUnitIndex, regenerateExisting) =>
-              handleGenerateSegmentPlan({
-                targetNarrativeUnitIndex,
-                regenerateExisting,
-              })
-            }
-            onOptionsChange={setPlanningOptions}
-            onRetryLoad={() => {
-              void refreshSegmentPlanDraft().catch(() => undefined);
-            }}
-            onDelete={(prompt) => void handleDeletePromptRow(prompt)}
-          />
+          planningOptionsState.options ? (
+            <VideoPlanningWorkspace
+              prompt={frameSegmentPlanPromptForCards}
+              previewSegments={segmentPlanPreview}
+              draft={segmentPlanDraft}
+              options={planningOptionsState.options}
+              durationLimits={durationLimits}
+              loading={segmentPlanDraftLoading}
+              loadError={segmentPlanDraftError}
+              dataReady={selectionValidationReady}
+              acting={acting}
+              shootingScenes={shootingScenes}
+              onGenerate={(targetNarrativeUnitIndex, regenerateExisting) =>
+                handleGenerateSegmentPlan({
+                  targetNarrativeUnitIndex,
+                  regenerateExisting,
+                })
+              }
+              onOptionsChange={setPlanningOptions}
+              onRetryLoad={() => {
+                void refreshSegmentPlanDraft().catch(() => undefined);
+              }}
+              onDelete={(prompt) => void handleDeletePromptRow(prompt)}
+            />
+          ) : (
+            <div
+              role="alert"
+              className="flex min-h-0 flex-1 items-center justify-center"
+            >
+              <div className="flex max-w-xl flex-col gap-3 rounded-xl border border-error/40 bg-error-bg px-4 py-3 text-sm text-error">
+                <span>{planningOptionsState.storageError}</span>
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={resetPlanningOptions}
+                >
+                  <RotateCcw size={12} />
+                  重置规划配置
+                </BookButton>
+              </div>
+            </div>
+          )
         ) : workspaceTab === "assembly" ? (
           <VideoAssemblyWorkspace
             projectId={projectId}

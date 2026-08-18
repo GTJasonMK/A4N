@@ -6,8 +6,9 @@ use crate::error::AppError;
 use a4n_domain::project::ProjectStatus;
 
 use super::{
-    blueprint_stage_previous_context, build_blueprint_generation_payload,
-    increment_blueprint_version, project_status_after_blueprint_generation,
+    blueprint_refinement_business_key, blueprint_refinement_call_key,
+    build_blueprint_generation_payload, increment_blueprint_version,
+    normalized_blueprint_refinement_focus, project_status_after_blueprint_generation,
 };
 
 #[test]
@@ -48,44 +49,6 @@ fn blueprint_generation_status_never_rolls_project_back() {
 }
 
 #[test]
-fn builds_previous_context_for_each_blueprint_stage() {
-    let outputs = vec![
-        json!({"title": "星潮档案"}),
-        json!({"world_setting": {"premise": "潮汐城"}}),
-        json!({"characters": [{"name": "林烬"}]}),
-    ];
-
-    assert_eq!(blueprint_stage_previous_context(0, &outputs).unwrap(), None);
-    assert_eq!(
-        blueprint_stage_previous_context(1, &outputs).unwrap(),
-        Some(json!({"story_core": outputs[0]}))
-    );
-    assert_eq!(
-        blueprint_stage_previous_context(2, &outputs).unwrap(),
-        Some(json!({"story_core": outputs[0], "world": outputs[1]}))
-    );
-    assert_eq!(
-        blueprint_stage_previous_context(3, &outputs).unwrap(),
-        Some(json!({
-            "story_core": outputs[0],
-            "world": outputs[1],
-            "characters": outputs[2],
-        }))
-    );
-}
-
-#[test]
-fn rejects_missing_or_unknown_blueprint_stage_context() {
-    let missing = blueprint_stage_previous_context(2, &[json!({"title": "星潮档案"})])
-        .expect_err("characters stage requires world context");
-    assert_eq!(missing.to_string(), "参数无效：角色阶段缺少世界观上下文");
-
-    let unknown =
-        blueprint_stage_previous_context(4, &[]).expect_err("unknown stage index must fail");
-    assert_eq!(unknown.to_string(), "参数无效：未知蓝图生成阶段索引: 4");
-}
-
-#[test]
 fn builds_canonical_blueprint_generation_payload() {
     let variables = HashMap::from([
         (
@@ -115,4 +78,18 @@ fn rejects_blueprint_chapter_count_outside_contract() {
             "参数无效：requested_chapter_count 必须在 5 到 10000 之间"
         );
     }
+}
+
+#[test]
+fn canonicalizes_blueprint_refinement_identity_and_focus() {
+    assert_eq!(blueprint_refinement_business_key(42), "blueprint_refine:42");
+    assert_eq!(
+        blueprint_refinement_call_key(42),
+        "blueprint_refine:project:42"
+    );
+    assert_eq!(
+        normalized_blueprint_refinement_focus(Some(" 强化主角动机 ")),
+        Some("强化主角动机")
+    );
+    assert_eq!(normalized_blueprint_refinement_focus(Some(" \n\t ")), None);
 }

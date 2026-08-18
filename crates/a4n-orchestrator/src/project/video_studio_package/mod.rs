@@ -19,17 +19,11 @@ mod export_assembly;
 mod validation;
 
 /// 视频画布项目包版本号。
-pub const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v1";
+pub const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v2";
 /// 视频画布项目包 mode。
 pub const PACKAGE_MODE: &str = "video_studio_project";
 /// zip 内清单路径。
 pub const MANIFEST_PATH: &str = "a4n-video-studio-project.json";
-
-pub const MEDIA_OWNER_IMAGE: &str = "generated_image";
-pub const MEDIA_OWNER_VIDEO: &str = "generated_video";
-pub const MEDIA_OWNER_MEDIA_ASSET: &str = "media_asset";
-pub const MEDIA_FIELD_FILE: &str = "file_path";
-pub const MEDIA_FIELD_THUMBNAIL: &str = "thumbnail_path";
 
 /// 视频画布导出/导入包 manifest。
 #[derive(Debug, Clone, Serialize, Deserialize)]

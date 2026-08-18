@@ -9,14 +9,8 @@ use a4n_orchestrator::video::provider_poll_config_id;
 
 pub(in crate::actions::video_generation) async fn poll_video_job(
     state: &AppState,
-    video_id: i64,
+    video: a4n_core::models::ai::generated_video::Model,
 ) -> Result<GeneratedVideoSummary, String> {
-    let video = state
-        .orchestrator()
-        .generated_video_by_id(video_id)
-        .await
-        .map_err(crate::actions::app_error_message)?
-        .ok_or_else(|| "视频不存在".to_string())?;
     if !a4n_orchestrator::video::has_active_provider_job(
         video.provider_job_id.as_deref(),
         &video.status,

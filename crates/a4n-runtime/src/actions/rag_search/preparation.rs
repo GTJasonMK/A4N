@@ -1,19 +1,22 @@
 use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_orchestrator::rag::{
-    PreparedEnhancedRagSearch, enhanced_rag_pull_k, normalize_search_data_types, required_nonblank,
-    required_top_k,
+    PreparedEnhancedRagSearch, normalize_search_data_types, required_nonblank, required_top_k,
 };
 
+use crate::{actions::access, state::AppState};
 use super::EnhancedSearchInput;
 
 pub(super) async fn prepare_enhanced_rag_search(
-    rag: &a4n_orchestrator::OrchestratorContext,
+    state: &AppState,
+    user_id: i64,
     project_id: i64,
     input: EnhancedSearchInput,
 ) -> Result<PreparedEnhancedRagSearch, AppError> {
-    let query = required_nonblank(&input.query, "rag_enhanced_search query")?;
-    let top_k = required_top_k(input.top_k, "rag_enhanced_search")?;
+    access::verify_project_editor(state, user_id, project_id).await?;
+    let rag = state.orchestrator();
+    let query = required_nonblank(&input.query)?;
+    let top_k = required_top_k(input.top_k)?;
     let data_types = normalize_search_data_types(input.data_types)?;
     let chapter_number = match input.chapter_number {
         Some(value) if value <= 0 => {
@@ -31,10 +34,10 @@ pub(super) async fn prepare_enhanced_rag_search(
         .enhanced_rag_search_filter(project_id, &embedding_identity, data_types)
         .await?;
     Ok(PreparedEnhancedRagSearch {
+        project_id,
         queries,
         filter,
         top_k,
-        pull_k: enhanced_rag_pull_k(top_k),
         chapter_number,
         embedding_identity,
     })

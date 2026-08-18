@@ -1,7 +1,7 @@
 use a4n_core::{models::project::blueprint_relationship, rag::RagDataType};
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn relationship_rag_text(relationship: &blueprint_relationship::Model) -> Result<String, String> {
     let character_a = required_rag_text(
@@ -38,13 +38,10 @@ pub fn relationship_rag_record(
     relationship: &blueprint_relationship::Model,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("relationship:{project_id}:{}", relationship.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::Relationship, relationship.id),
         text: relationship_rag_text(relationship)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::Relationship.as_str(),
-            "relationship_id": relationship.id,
-            "character_a": relationship.character_a,
-            "character_b": relationship.character_b,
         }),
     })
 }

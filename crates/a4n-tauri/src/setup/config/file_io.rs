@@ -1,5 +1,5 @@
-use super::environment::env_path;
 use a4n_core::config::app_config::{AppConfig, resolve_path_in_portable_home};
+use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_core::error::AppError;
 use std::path::{Path, PathBuf};
 
@@ -26,8 +26,9 @@ pub(super) fn config_file_path(
     default_config: &AppConfig,
     portable_home: &Path,
 ) -> Result<PathBuf, AppError> {
-    let data_dir =
-        env_path("A4N_DATA_DIR", portable_home)?.unwrap_or_else(|| default_config.data_dir.clone());
+    let data_dir = optional_non_empty_env_path("A4N_DATA_DIR")?
+        .map(|path| resolve_path_in_portable_home(path, portable_home))
+        .unwrap_or_else(|| default_config.data_dir.clone());
     Ok(data_dir.join("config.toml"))
 }
 
@@ -44,16 +45,6 @@ pub(super) fn normalize_storage_paths(
             Some(resolve_path_in_portable_home(path, portable_home));
     }
     Ok(())
-}
-
-pub(super) fn validate_postgres_database_url(url: &str) -> Result<(), AppError> {
-    let url = url.trim();
-    if url.starts_with("postgres://") || url.starts_with("postgresql://") {
-        return Ok(());
-    }
-    Err(AppError::ConfigError(
-        "A4N_DATABASE_URL 必须是 postgres:// 或 postgresql:// 连接串".to_string(),
-    ))
 }
 
 pub(super) fn write_config_file(path: &Path, config: &AppConfig) -> Result<(), AppError> {

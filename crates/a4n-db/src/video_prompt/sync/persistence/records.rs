@@ -29,13 +29,15 @@ pub(in crate::video_prompt::sync) async fn replace_prompt_from_sync_draft<C>(
 where
     C: ConnectionTrait,
 {
-    if existing.prompt_type == "video_prompt" && existing.status == "running" {
+    if existing.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && existing.status == chapter_video_prompt::STATUS_RUNNING
+    {
         return Ok(existing);
     }
     if prompt_sync_draft_fields_match(&existing, &draft) {
         return Ok(existing);
     }
-    let is_video_prompt = draft.fields.prompt_type == "video_prompt";
+    let is_video_prompt = draft.fields.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO;
     let generation_fields_changed = prompt_sync_generation_fields_changed(&existing, &draft);
     if is_video_prompt && existing.generated_video_id.is_some() && generation_fields_changed {
         return Err(VideoDbError::InvalidArgument(
@@ -43,7 +45,7 @@ where
         ));
     }
     let status = if is_video_prompt && generation_fields_changed {
-        Some("pending".to_string())
+        Some(chapter_video_prompt::STATUS_PENDING.to_string())
     } else if !is_video_prompt {
         Some(generated_prompt_status(&draft.fields.prompt_type))
     } else {

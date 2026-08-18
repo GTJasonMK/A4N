@@ -1,15 +1,10 @@
-use a4n_core::error::AppError;
+use a4n_core::{
+    blueprint::{BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_PROMPT},
+    error::AppError,
+};
 use serde_json::Value;
 
 use super::super::super::fields::reject_unknown_keys;
-
-const APPLICABLE_FIELDS: &[&str] = &[
-    "style",
-    "full_synopsis",
-    "world_setting",
-    "characters",
-    "relationships",
-];
 
 pub(super) fn parse_optimization_top_level(content: &str) -> Result<Value, AppError> {
     let value: Value = serde_json::from_str(content.trim())
@@ -19,15 +14,19 @@ pub(super) fn parse_optimization_top_level(content: &str) -> Result<Value, AppEr
             "蓝图优化结果必须是 JSON 对象".to_string(),
         ));
     };
-    reject_unknown_keys(object, APPLICABLE_FIELDS, "blueprint_optimization")?;
-    if !APPLICABLE_FIELDS
+    reject_unknown_keys(
+        object,
+        BLUEPRINT_REFINEMENT_FIELDS,
+        BLUEPRINT_REFINEMENT_PROMPT,
+    )?;
+    if !BLUEPRINT_REFINEMENT_FIELDS
         .iter()
         .any(|key| object.contains_key(*key))
     {
-        return Err(AppError::InvalidArgument(
-            "蓝图优化结果缺少可应用字段：style、full_synopsis、world_setting、characters 或 relationships"
-                .to_string(),
-        ));
+        return Err(AppError::InvalidArgument(format!(
+            "蓝图优化结果缺少可应用字段：{}",
+            BLUEPRINT_REFINEMENT_FIELDS.join("、")
+        )));
     }
     Ok(value)
 }

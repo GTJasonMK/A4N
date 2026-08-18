@@ -723,7 +723,9 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if is_freeform_video_generated_data_reset_project(&project) {
+        if is_freeform_video_generated_data_reset_project(&project)
+            .map_err(AppError::InvalidArgument)?
+        {
             let result = self
                 .project_family
                 .reset_freeform_video_generated_data_records(project_id)

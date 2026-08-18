@@ -1,6 +1,11 @@
-use super::super::*;
 use super::contracts::ManifestIds;
 use a4n_domain::canvas_transfer_runtime_identity_key;
+
+use a4n_core::models::generation::generation_spec;
+
+use crate::project::video_studio_package::VideoStudioProjectPackage;
+
+use super::super::canvas::validate_generation_spec_target;
 
 pub(super) fn validate_generation_records(
     package: &VideoStudioProjectPackage,
@@ -13,11 +18,7 @@ pub(super) fn validate_generation_records(
                 spec.id
             ));
         }
-        if spec
-            .source_context_kind
-            .as_deref()
-            .unwrap_or("snapshot_backed")
-            != SOURCE_MODE_FREEFORM
+        if spec.source_context_kind.as_deref() != Some(generation_spec::SOURCE_CONTEXT_FREEFORM)
             || spec.source_snapshot_id.is_some()
             || spec.source_chapter_id.is_some()
             || spec.source_snapshot_chapter_id.is_some()

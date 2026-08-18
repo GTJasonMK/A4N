@@ -19,14 +19,17 @@ pub async fn sync_scene_rag_records(
         crate::sidecar_clients::scene_rag_sync_operation_trace_id(project_id, trace_source)?;
     crate::sidecar_clients::scope_rag_operation_trace(
         trace_id,
-        sync_scene_rag_records_inner(state, project_id),
+        async move {
+            let expected = expected_scene_rag_records(state, project_id).await?;
+            sync_data_type_records(
+                state,
+                project_id,
+                SCENE_RAG_DATA_TYPES,
+                expected.into_records(),
+            )
+            .await
+            .map(|_| ())
+        },
     )
     .await
-}
-
-async fn sync_scene_rag_records_inner(state: &AppState, project_id: i64) -> Result<(), String> {
-    let expected = expected_scene_rag_records(state, project_id).await?;
-    sync_data_type_records(state, project_id, SCENE_RAG_DATA_TYPES, expected.records)
-        .await
-        .map(|_| ())
 }

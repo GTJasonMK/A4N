@@ -2,36 +2,27 @@ use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 
-use super::super::super::part_contract::validate_materialized_part_outline;
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
+
+use super::super::super::part_contract::parse_part_outline_single_response;
 use super::super::contracts::GeneratedPartOutline;
 
 pub(in crate::outline::parts) fn restored_part_outline_checkpoint(
-    checkpoint_json: Value,
+    parsed_output: Value,
+    response_content: String,
+    finish_reason: Option<String>,
     request: ChatRequest,
     part_num: i32,
     start_ch: i32,
     end_ch: i32,
 ) -> Result<GeneratedPartOutline, AppError> {
-    let parsed_output = checkpoint_json
-        .get("parsed_output")
-        .cloned()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_checkpoint_parsed_output".to_string(),
-            operation: format!("读取第 {part_num} 部分部大纲调用级断点"),
-        })?;
-    let response_content = checkpoint_json
-        .get("response_content")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_checkpoint_response_content".to_string(),
-            operation: format!("读取第 {part_num} 部分部大纲调用级断点"),
-        })?
-        .to_string();
-    let finish_reason = checkpoint_json
-        .get("finish_reason")
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let parsed = validate_materialized_part_outline(&parsed_output, part_num, start_ch, end_ch)?;
+    let parsed =
+        parse_part_outline_single_response(&response_content, part_num, start_ch, end_ch)?;
+    ensure_checkpoint_parsed_output_matches(
+        &parsed_output,
+        &parsed,
+        &format!("第 {part_num} 部分部大纲"),
+    )?;
     Ok(GeneratedPartOutline {
         data: parsed,
         request,

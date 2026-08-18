@@ -6,7 +6,6 @@ mod factory;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use a4n_core::config::app_config;
 use a4n_core::error::AppError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
 use a4n_orchestrator::DynamicProviderFacade;
@@ -17,30 +16,29 @@ use crate::runtime_config;
 
 #[cfg(feature = "local-embedding")]
 pub(crate) use contracts::resolve_fastembed_cache_dir;
-pub(crate) use contracts::{
-    contract_identity_to_provider, positive_usize, provider_identity_to_contract, required_text,
-};
-pub use contracts::{
-    default_fastembed_cache_dir, effective_fastembed_cache_dir, model_identity_from_config,
-};
+pub(crate) use contracts::{positive_usize, required_text};
+pub use contracts::model_identity_from_config;
 use factory::make_provider_from_default_model;
 pub use factory::make_provider_from_model;
 
 pub struct DynamicEmbeddingProvider {
     facade: DynamicProviderFacade,
-    metadata_config: app_config::EmbeddingConfig,
+    metadata_dimension: usize,
+    metadata_batch_size: usize,
     fastembed_cache_dir: PathBuf,
 }
 
 impl DynamicEmbeddingProvider {
     pub fn new(
         facade: DynamicProviderFacade,
-        metadata_config: app_config::EmbeddingConfig,
+        metadata_dimension: usize,
+        metadata_batch_size: usize,
         fastembed_cache_dir: PathBuf,
     ) -> Self {
         Self {
             facade,
-            metadata_config,
+            metadata_dimension,
+            metadata_batch_size,
             fastembed_cache_dir,
         }
     }
@@ -59,19 +57,13 @@ impl DynamicEmbeddingProvider {
 #[async_trait]
 impl EmbeddingProvider for DynamicEmbeddingProvider {
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
-        let provider = self.resolve_default().await?;
-        self.facade
-            .queue_run_tracked(
-                TaskKind::EmbeddingCall,
-                TaskPriority::Low,
-                None,
-                || async move { provider.embed(texts).await },
-            )
+        self.embed_with_identity(texts)
             .await
+            .map(|(embeddings, _)| embeddings)
     }
 
     fn dimension(&self) -> usize {
-        self.metadata_config.dimension
+        self.metadata_dimension
     }
 
     fn model_name(&self) -> &str {
@@ -83,7 +75,7 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
     }
 
     fn batch_size(&self) -> usize {
-        self.metadata_config.batch_size
+        self.metadata_batch_size
     }
 
     async fn model_identity(&self) -> Result<EmbeddingModelIdentity, AppError> {
@@ -100,26 +92,11 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
                 TaskKind::EmbeddingCall,
                 TaskPriority::Low,
                 None,
-                || async move {
-                    let identity = provider.model_identity().await?;
-                    let embeddings = provider.embed(texts).await?;
-                    Ok((embeddings, identity))
-                },
+                || async move { provider.embed_with_identity(texts).await },
             )
             .await
     }
 
-    async fn test_connection(&self) -> Result<(), AppError> {
-        let provider = self.resolve_default().await?;
-        self.facade
-            .queue_run_tracked(
-                TaskKind::EmbeddingCall,
-                TaskPriority::High,
-                None,
-                || async move { provider.test_connection().await },
-            )
-            .await
-    }
 }
 
 #[cfg(test)]

@@ -88,8 +88,10 @@ export interface InsertedSegmentTimelinePanelHandle {
   openEdit: (timelineItemId: number) => void;
 }
 
-const gapKey = (gap: InsertedSegmentGap): string =>
-  `${gap.previous_item_id ?? 0}:${gap.next_item_id ?? 0}`;
+export const insertedSegmentGapKey = (gap: InsertedSegmentGap): string =>
+  `${gap.previous_item_id == null ? "head" : gap.previous_item_id}:${
+    gap.next_item_id == null ? "tail" : gap.next_item_id
+  }`;
 
 export const gapLabel = (
   gap: InsertedSegmentGap,
@@ -575,7 +577,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     disabled={acting != null}
                     onChange={(event) => {
                       const selected = editingMoveGaps.find(
-                        (candidate) => gapKey(candidate) === event.target.value,
+                        (candidate) =>
+                          insertedSegmentGapKey(candidate) === event.target.value,
                       );
                       if (!selected) return;
                       void onMove({
@@ -592,8 +595,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                       .filter((candidate) => !gapUsesReanchorItem(candidate))
                       .map((candidate) => (
                         <option
-                          key={gapKey(candidate)}
-                          value={gapKey(candidate)}
+                          key={insertedSegmentGapKey(candidate)}
+                          value={insertedSegmentGapKey(candidate)}
                         >
                           {gapLabel(candidate, items)}
                         </option>

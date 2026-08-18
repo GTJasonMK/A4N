@@ -78,7 +78,13 @@ pub fn assemble_video_studio_export_package(
 mod tests {
     use super::*;
     use a4n_core::models::generation::generation_spec;
-    use a4n_db::canvas::VideoStudioProjectExportRows;
+    use a4n_db::{
+        canvas::VideoStudioProjectExportRows,
+        generation::{
+            GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+            GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+        },
+    };
     use serde_json::json;
 
     fn now() -> chrono::NaiveDateTime {
@@ -93,7 +99,6 @@ mod tests {
             description: String::new(),
             project_type: "script".to_string(),
             project_kind: "video".to_string(),
-            source_mode: "freeform".to_string(),
             root_project_id: None,
             source_snapshot_id: None,
             source_sync_status: "current".to_string(),
@@ -138,13 +143,13 @@ mod tests {
             id: 10,
             project_id: 1,
             root_project_id: 1,
-            source_context_kind: Some("freeform".to_string()),
+            source_context_kind: Some(generation_spec::SOURCE_CONTEXT_FREEFORM.to_string()),
             source_snapshot_id: None,
             source_chapter_id: None,
             source_snapshot_chapter_id: None,
             canvas_text_asset_id: None,
-            target_kind: "canvas_video".to_string(),
-            target_entity_kind: "canvas_node".to_string(),
+            target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO.to_string(),
+            target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
             target_entity_id: Some(20),
             status: "completed".to_string(),
             source_version_hash: "stale".to_string(),

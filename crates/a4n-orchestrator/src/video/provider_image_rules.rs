@@ -1,6 +1,4 @@
-//! 视频 provider 参考图：MIME / 内容类型 / URL 编码 / 传输模式纯规则（无 DB、无 Host）。
-
-use std::path::Path;
+//! 视频 provider 参考图：内容类型 / URL 编码 / 传输模式纯规则（无 DB、无 Host）。
 
 /// 视频 provider 参考图输入传输模式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +17,7 @@ pub fn provider_image_input_transport_with_override(
             let value = value.trim();
             if value.is_empty() {
                 return Err(
-                    "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 不能为空；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
+                    "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 不能为空；允许值为 inline_data_url、public_url 或 remote_temp_upload"
                         .to_string(),
                 );
             }
@@ -29,9 +27,9 @@ pub fn provider_image_input_transport_with_override(
     match override_value.as_deref() {
         Some("public_url") => Ok(ProviderImageInputTransport::PublicUrl),
         Some("remote_temp_upload") => Ok(ProviderImageInputTransport::RemoteTempUpload),
-        Some("inline_data_url" | "auto") | None => Ok(ProviderImageInputTransport::InlineDataUrl),
+        Some("inline_data_url") | None => Ok(ProviderImageInputTransport::InlineDataUrl),
         Some(other) => Err(format!(
-            "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
+            "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 inline_data_url、public_url 或 remote_temp_upload"
         )),
     }
 }
@@ -82,27 +80,6 @@ pub fn encode_query_component(value: &str) -> String {
     out
 }
 
-/// 由文件路径扩展名推断视频参考图 MIME。
-pub fn image_mime_from_path(path: &Path) -> Result<&'static str, String> {
-    let extension = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| {
-            format!(
-                "参考图片缺少文件扩展名，无法判断 MIME 类型：{}",
-                path.display()
-            )
-        })?;
-    match extension.to_ascii_lowercase().as_str() {
-        "png" => Ok("image/png"),
-        "jpg" | "jpeg" => Ok("image/jpeg"),
-        "webp" => Ok("image/webp"),
-        _ => Err(format!("参考图片扩展名不支持作为视频参考图：{}", extension)),
-    }
-}
-
 pub fn truncate_error_body(value: &str) -> String {
     const MAX_LEN: usize = 600;
     let trimmed = value.trim();
@@ -118,7 +95,6 @@ pub fn truncate_error_body(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn content_type_accepts_jpeg_and_png() {
@@ -127,19 +103,6 @@ mod tests {
         ));
         assert!(is_provider_supported_image_content_type("IMAGE/PNG"));
         assert!(!is_provider_supported_image_content_type("image/gif"));
-    }
-
-    #[test]
-    fn mime_from_path_maps_common_extensions() {
-        assert_eq!(
-            image_mime_from_path(Path::new("a/b/c.PNG")).unwrap(),
-            "image/png"
-        );
-        assert_eq!(
-            image_mime_from_path(&PathBuf::from("x.webp")).unwrap(),
-            "image/webp"
-        );
-        assert!(image_mime_from_path(Path::new("noext")).is_err());
     }
 
     #[test]

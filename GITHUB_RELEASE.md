@@ -90,7 +90,7 @@ git push origin "v$version"
 supply-chain -> Linux x86_64 -> macOS arm64 -> Windows x86_64
 ```
 
-全部成功后，GitHub Release 应包含 CycloneDX 归档、Linux archive、macOS ZIP/DMG/manifest/CMS、Windows archive 及相应 SHA-256。CycloneDX 归档内固定为 Host 和八个 sidecar 共 9 份跨目标 SBOM；workflow 会重新下载这些资产复验，不要手工上传同名资产绕过验证。
+全部成功后，GitHub Release 应包含 CycloneDX 归档、Linux archive、macOS ZIP/DMG/manifest/CMS、Windows archive 及相应 SHA-256。CycloneDX 归档包含 Host、release tool catalog 声明的工具与 service catalog 声明的 sidecar 对应的跨目标 SBOM；workflow 会重新下载这些资产复验，不要手工上传同名资产绕过验证。
 
 macOS job 只创建私有 draft 并暂存已验证的 Linux/macOS/SBOM 资产；Windows 签名、manifest、smoke 和下载复验全部成功后，最终 job 会核对恰好 12 个资产，再把 draft 转为公开 Release。任一平台失败时 draft 保持未发布，不会暴露缺少 Windows 资产的不完整版本。
 

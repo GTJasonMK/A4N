@@ -5,14 +5,13 @@ use std::{
     time::Instant,
 };
 
-use a4n_capabilities::{
-    CapabilityClient, EVENT_QUEUE_CAPACITY, HttpLlmClient, JsonRequest, LlmClient,
-};
+use a4n_capabilities::{CapabilityClient, HttpLlmClient, JsonRequest, LlmClient};
 use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
-use a4n_llm::provider::ChatRequest;
+use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, HealthStatus, LLM_CHAT_CAPABILITY_VERSION,
-    LLM_SERVICE_NAME, PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest,
+    LLM_SERVICE_NAME, PROTOCOL_VERSION, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+    ServiceRequest,
 };
 use axum::{
     Json, Router,
@@ -89,7 +88,7 @@ async fn collect_stream_events(
     client: &impl LlmClient,
     request: JsonRequest,
 ) -> Vec<CapabilityTaskEvent> {
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
         .stream(request, event_tx)
         .await
@@ -118,6 +117,11 @@ fn json_request<T: Serialize>(request: ServiceRequest<T>) -> JsonRequest {
         serde_json::to_value(request).expect("typed service request should serialize"),
     )
     .expect("typed service request should preserve the generic JSON envelope")
+}
+
+fn event_chunk(event: &CapabilityTaskEvent) -> ChatChunk {
+    serde_json::from_value(event.payload.clone().expect("chunk payload"))
+        .expect("typed chunk payload")
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -335,7 +339,7 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
 }
 
 #[tokio::test]
-async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
+async fn typed_stream_client_roundtrips_fake_provider_chunks() {
     let provider_observation = Arc::new(Mutex::new(None));
     let provider = TestHttpServer::start(fake_provider_router(provider_observation.clone())).await;
     let provider_base_url = provider.base_url();
@@ -354,7 +358,7 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
         request: ChatRequest::system_user("system", "stream ping", None, Some(16), None)
             .with_stream_usage(),
     });
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     client
         .stream(json_request(request), event_tx)
@@ -392,36 +396,25 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
     assert_eq!(events[0].task_id, "test-request");
     assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].sequence, 1);
-    assert_eq!(events[0].chunk_index, Some(0));
-    assert_eq!(events[0].chunk_delta.as_deref(), Some("hel"));
-    assert_eq!(events[0].usage_delta, None);
+    let first = event_chunk(&events[0]);
+    assert_eq!(first.index, 0);
+    assert_eq!(first.content.as_deref(), Some("hel"));
+    assert!(first.usage.is_none());
 
     assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[1].sequence, 2);
-    assert_eq!(events[1].chunk_index, Some(1));
-    assert_eq!(events[1].chunk_delta.as_deref(), Some("lo"));
-    assert_eq!(events[1].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[1].is_truncated_finish_reason, Some(false));
+    let second = event_chunk(&events[1]);
+    assert_eq!(second.index, 1);
+    assert_eq!(second.content.as_deref(), Some("lo"));
+    assert_eq!(second.finish_reason.as_deref(), Some("stop"));
     assert_eq!(
-        events[1]
-            .usage_delta
-            .as_ref()
-            .map(|usage| usage["total_tokens"].clone()),
-        Some(json!(5))
+        second.usage.as_ref().map(|usage| usage.total_tokens),
+        Some(5)
     );
 
     assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(events[2].sequence, 3);
-    assert_eq!(events[2].chunk_delta, None);
-    assert_eq!(events[2].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[2].is_truncated_finish_reason, Some(false));
-    assert_eq!(
-        events[2]
-            .final_usage
-            .as_ref()
-            .map(|usage| usage["total_tokens"].clone()),
-        Some(json!(5))
-    );
+    assert_eq!(events[2].payload, None);
     assert_eq!(events[2].error, None);
 }
 
@@ -447,7 +440,7 @@ async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
         },
         request: ChatRequest::system_user("system", "cancel ping", None, Some(16), None),
     });
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     drop(event_rx);
 
     let error = timeout(
@@ -590,7 +583,8 @@ async fn reports_stage_0_streaming_baseline() {
         run_stream_baseline(small_chunks).await;
     let observed_small = small_events
         .iter()
-        .filter_map(|event| event.chunk_delta.as_deref())
+        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
+        .map(|event| event_chunk(event).content.expect("content chunk"))
         .collect::<String>();
     let small_chunk_events = small_events
         .iter()
@@ -621,7 +615,8 @@ async fn reports_stage_0_streaming_baseline() {
         run_stream_baseline(one_mib_chunks).await;
     let observed_one_mib = one_mib_events
         .iter()
-        .filter_map(|event| event.chunk_delta.as_deref())
+        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
+        .map(|event| event_chunk(event).content.expect("content chunk"))
         .collect::<String>();
     let one_mib_chunk_events = one_mib_events
         .iter()

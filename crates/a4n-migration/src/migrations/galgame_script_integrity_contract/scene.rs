@@ -5,16 +5,13 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     project_kind_value TEXT;
-    source_mode_value TEXT;
     project_root_project_id BIGINT;
     project_source_snapshot_id BIGINT;
 BEGIN
     SELECT project_row.project_kind,
-           project_row.source_mode,
            project_row.root_project_id,
            project_row.source_snapshot_id
       INTO project_kind_value,
-           source_mode_value,
            project_root_project_id,
            project_source_snapshot_id
     FROM novel_project project_row
@@ -23,7 +20,9 @@ BEGIN
     IF project_kind_value IS NULL THEN
         RAISE EXCEPTION 'Galgame 剧本 project_id 不存在';
     END IF;
-    IF project_kind_value <> 'galgame' OR source_mode_value <> 'derived' THEN
+    IF project_kind_value <> 'galgame'
+       OR project_root_project_id IS NULL
+       OR project_source_snapshot_id IS NULL THEN
         RAISE EXCEPTION 'Galgame 剧本 project_id 必须指向 galgame 派生项目';
     END IF;
     IF project_root_project_id IS DISTINCT FROM NEW.root_project_id

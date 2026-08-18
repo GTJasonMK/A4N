@@ -46,6 +46,11 @@ impl ProjectPaths {
     pub fn portraits_dir(&self) -> PathBuf {
         self.root.join("portraits")
     }
+
+    /// 项目音频目录
+    pub fn audio_dir(&self) -> PathBuf {
+        self.root.join("audio")
+    }
 }
 
 fn chapter_asset_dir_name(chapter_id: i64) -> String {

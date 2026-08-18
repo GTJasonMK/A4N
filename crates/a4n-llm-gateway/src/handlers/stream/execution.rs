@@ -6,33 +6,31 @@ use std::time::Duration;
 use a4n_core::error::AppError;
 use a4n_llm::gateway::LlmGatewayPayload;
 use a4n_llm::provider::ChatChunk;
-use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, SIDECAR_STREAM_IDLE_TIMEOUT, ServiceRequest,
-};
+use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_STREAM_IDLE_TIMEOUT, ServiceRequest};
 use a4n_sidecar_bootstrap::service_event_line;
 use axum::body::Bytes;
 use futures::{Stream, StreamExt, stream};
 use tokio::time::{Instant, Interval, MissedTickBehavior};
 
 use super::super::provider_from_config;
-use super::projection::{chunk_event, completed_event, failed_event};
 use crate::protocol::service_error;
 
-pub(super) type EventLineStream = Pin<Box<dyn Stream<Item = Result<Bytes, Infallible>> + Send>>;
 type ChatChunkStream = Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>;
 type ProviderStreamFuture = Pin<Box<dyn Future<Output = Result<ChatChunkStream, AppError>> + Send>>;
 
-pub(super) fn stream_with_provider(request: ServiceRequest<LlmGatewayPayload>) -> EventLineStream {
+pub(super) fn stream_with_provider(
+    request: ServiceRequest<LlmGatewayPayload>,
+) -> impl Stream<Item = Result<Bytes, Infallible>> + Send {
     let task_id = request.request_id.clone();
     let provider_stream = Box::pin(async move {
         let provider = provider_from_config(request.payload.provider)?;
         provider.chat_stream(request.payload.request).await
     });
-    Box::pin(llm_event_stream_from_source(
+    llm_event_stream_from_source(
         task_id,
         LlmEventSource::Connecting(provider_stream),
         stream_heartbeat_interval(),
-    ))
+    )
 }
 
 #[cfg(test)]
@@ -57,8 +55,6 @@ fn llm_event_stream_from_source(
             task_id,
             sequence: 0,
             completed_sent: false,
-            final_usage: None,
-            finish_reason: None,
             source,
             heartbeat: heartbeat_timer(heartbeat_interval),
         },
@@ -93,7 +89,7 @@ fn llm_event_stream_from_source(
                     LlmEventStreamStep::Connected(Err(error)) => {
                         state.sequence += 1;
                         state.completed_sent = true;
-                        break failed_event(
+                        break CapabilityTaskEvent::failed(
                             state.task_id.clone(),
                             state.sequence,
                             service_error(error),
@@ -101,34 +97,31 @@ fn llm_event_stream_from_source(
                     }
                     LlmEventStreamStep::Heartbeat => {
                         state.sequence += 1;
-                        break CapabilityTaskEvent::new(
-                            state.task_id.clone(),
-                            CapabilityTaskEventKind::Progress,
-                            state.sequence,
-                        );
+                        break CapabilityTaskEvent::progress(state.task_id.clone(), state.sequence);
                     }
                     LlmEventStreamStep::Chunk(Some(Ok(chunk))) => {
                         state.sequence += 1;
-                        match chunk_event(state.task_id.clone(), state.sequence, chunk) {
-                            Ok(event) => {
-                                if let Some(usage) = event.usage_delta.clone() {
-                                    state.final_usage = Some(usage);
-                                }
-                                if let Some(finish_reason) = event.finish_reason.clone() {
-                                    state.finish_reason = Some(finish_reason);
-                                }
-                                break event;
-                            }
+                        match CapabilityTaskEvent::chunk(
+                            state.task_id.clone(),
+                            state.sequence,
+                            chunk,
+                            "LLM chunk serialization failed",
+                        ) {
+                            Ok(event) => break event,
                             Err(error) => {
                                 state.completed_sent = true;
-                                break failed_event(state.task_id.clone(), state.sequence, error);
+                                break CapabilityTaskEvent::failed(
+                                    state.task_id.clone(),
+                                    state.sequence,
+                                    error,
+                                );
                             }
                         }
                     }
                     LlmEventStreamStep::Chunk(Some(Err(error))) => {
                         state.sequence += 1;
                         state.completed_sent = true;
-                        break failed_event(
+                        break CapabilityTaskEvent::failed(
                             state.task_id.clone(),
                             state.sequence,
                             service_error(error),
@@ -137,11 +130,9 @@ fn llm_event_stream_from_source(
                     LlmEventStreamStep::Chunk(None) => {
                         state.sequence += 1;
                         state.completed_sent = true;
-                        break completed_event(
+                        break CapabilityTaskEvent::completed_empty(
                             state.task_id.clone(),
                             state.sequence,
-                            state.final_usage.clone(),
-                            state.finish_reason.clone(),
                         );
                     }
                 }
@@ -156,8 +147,6 @@ struct LlmEventStreamState {
     task_id: String,
     sequence: u64,
     completed_sent: bool,
-    final_usage: Option<serde_json::Value>,
-    finish_reason: Option<String>,
     source: LlmEventSource,
     heartbeat: Interval,
 }
@@ -174,7 +163,7 @@ enum LlmEventStreamStep {
 }
 
 fn stream_heartbeat_interval() -> Duration {
-    Duration::from_secs((SIDECAR_STREAM_IDLE_TIMEOUT.as_secs() / 3).max(1))
+    SIDECAR_STREAM_IDLE_TIMEOUT / 3
 }
 
 fn heartbeat_timer(interval: Duration) -> Interval {
@@ -186,6 +175,7 @@ fn heartbeat_timer(interval: Duration) -> Interval {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_service_protocol::CapabilityTaskEventKind;
     use futures::stream;
 
     #[tokio::test]
@@ -232,11 +222,11 @@ mod tests {
 
         let first_chunk = events
             .iter()
-            .position(|event| event.chunk_delta.as_deref() == Some("first"))
+            .position(|event| chunk_content(event) == Some("first"))
             .expect("first chunk event");
         let second_chunk = events
             .iter()
-            .position(|event| event.chunk_delta.as_deref() == Some("second"))
+            .position(|event| chunk_content(event) == Some("second"))
             .expect("second chunk event");
         assert!(
             events[..first_chunk]
@@ -252,5 +242,13 @@ mod tests {
             events.last().map(|event| event.event_kind),
             Some(CapabilityTaskEventKind::Completed)
         );
+    }
+
+    fn chunk_content(event: &CapabilityTaskEvent) -> Option<&str> {
+        event
+            .payload
+            .as_ref()
+            .and_then(|payload| payload.get("content"))
+            .and_then(serde_json::Value::as_str)
     }
 }

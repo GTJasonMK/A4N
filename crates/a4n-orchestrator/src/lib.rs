@@ -57,9 +57,7 @@ pub use context::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
     OrchestratorContext,
 };
-pub use service_health::{
-    CapabilityHealthSnapshot, ManagedServiceHealthSummary, ManagedServicePidStatus,
-};
+pub use service_health::ManagedServiceHealthSummary;
 
 pub(crate) use errors::{
     chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,

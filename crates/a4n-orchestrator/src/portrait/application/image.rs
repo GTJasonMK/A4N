@@ -628,10 +628,10 @@ async fn cleanup_created_file_after_error(
 }
 
 fn combined_error(original: AppError, cleanup: AppError) -> AppError {
-    AppError::InvalidState {
-        current: original.to_string(),
-        operation: format!("失败后的回滚/文件清理也失败: {cleanup}"),
-    }
+    crate::errors::app_error_with_secondary(
+        original,
+        format!("失败后的回滚/文件清理也失败: {cleanup}"),
+    )
 }
 
 fn required_text(value: &str, field_name: &str) -> Result<String, AppError> {

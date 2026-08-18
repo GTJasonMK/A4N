@@ -11,19 +11,19 @@ mod probe;
 
 pub use assembly::{
     VideoAssemblyClip, VideoAssemblyError, VideoAssemblyRequest, assemble_videos,
-    build_video_assembly_filter, ffmpeg_duration_literal,
+    build_video_assembly_filter,
 };
 pub use ffmpeg::{
-    FfmpegAvailabilityError, FfmpegCommandError, FfmpegTrimError, check_ffmpeg_available,
-    extract_video_frame, extract_video_tail_frame, generate_video_thumbnail, trim_video_segment,
+    FfmpegCommandError, FfmpegFrameError, FfmpegTrimError, extract_video_frame,
+    extract_video_tail_frame, generate_video_thumbnail, trim_video_segment,
 };
 pub use playback::{
     VIDEO_SCRUB_FRAMES_PER_SECOND, VideoScrubProxyError, generate_video_scrub_frames,
     generate_video_scrub_proxy,
 };
 pub use postprocess::{
-    VideoPostprocessError, VideoPostprocessOperation, VideoPostprocessRequest,
-    build_video_postprocess_filter, postprocess_video,
+    VideoPostprocessError, VideoPostprocessRequest, build_video_postprocess_filter,
+    postprocess_video,
 };
 pub use probe::{
     AudioProbeError, FfprobeCommandError, VideoProbeError, VideoProbeProperties,

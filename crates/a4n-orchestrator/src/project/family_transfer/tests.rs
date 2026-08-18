@@ -268,7 +268,13 @@ fn media_index_and_import_path_preserve_field_and_extension() {
             .any(|entry| entry.package_path == "media/10/thumbnail.png")
     );
     assert_eq!(
-        imported_project_family_media_path(20, "video", 30, "thumbnail_path", "media/x.png")
+        imported_project_family_media_path(
+            20,
+            "video",
+            30,
+            a4n_core::models::media::media_asset::THUMBNAIL_PATH_FIELD,
+            "media/x.png",
+        )
             .expect("导入路径应可生成"),
         "projects/20/media/video/imported_package_30_thumbnail.png"
     );
@@ -340,11 +346,6 @@ async fn insert_project(
         description: Set("project family transfer application test".to_string()),
         project_type: Set("novel_long".to_string()),
         project_kind: Set(project_kind.to_string()),
-        source_mode: Set(if root_project_id.is_some() {
-            "derived".to_string()
-        } else {
-            "self".to_string()
-        }),
         root_project_id: Set(root_project_id),
         source_snapshot_id: Set(source_snapshot_id),
         source_sync_status: Set("current".to_string()),
@@ -374,13 +375,8 @@ fn project_model(
         description: String::new(),
         project_type: "novel_long".to_string(),
         project_kind: project_kind.to_string(),
-        source_mode: if root_project_id.is_some() {
-            "derived".to_string()
-        } else {
-            "self".to_string()
-        },
         root_project_id,
-        source_snapshot_id: None,
+        source_snapshot_id: root_project_id.map(|_| 901),
         source_sync_status: "current".to_string(),
         status: "draft".to_string(),
         lifecycle_gate: "active".to_string(),

@@ -7,6 +7,7 @@ mod image_generation;
 mod image_record_lifecycle;
 mod image_workflow_rules;
 mod rules;
+mod upload_rules;
 mod uploaded_image_rules;
 
 pub use batch_image_application::{
@@ -16,24 +17,25 @@ pub use batch_image_application::{
 pub use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
     GenerateBatchImagesInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
-    GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageArtifactFile,
-    GeneratedImageSummary, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
-    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-    ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
-    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
-    PersistedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,
-    SceneProfileImagePromptOutput, generated_image_summary, image_generation_request_trace_json,
-    normalize_image_metadata,
+    GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageSummary,
+    ImageGenerationExecutionInput, ImageGenerationExecutionOutcome, ImageGenerationHostPort,
+    ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationProviderInput,
+    ImageGenerationProviderOutput, ImageGenerationWorkflowBinding, ObjectProfileImageInput,
+    ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
+    generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
 };
-pub use image_record_lifecycle::{IMPORTED_IMAGE_MODEL, PreparedImportedImageUpload};
+pub use image_record_lifecycle::PreparedImportedImageUpload;
 pub use image_workflow_rules::{
     batch_image_item_step_key, batch_image_workflow_business_key, batch_image_workflow_fingerprint,
     batch_image_workflow_run_input, image_generation_step_key,
     image_generation_workflow_business_key, image_generation_workflow_fingerprint,
     image_generation_workflow_run_input,
 };
-pub use uploaded_image_rules::{
-    DecodedUploadedImage, decode_uploaded_image_data, strip_data_url_prefix,
+pub use uploaded_image_rules::{DecodedUploadedImage, decode_uploaded_image_data};
+pub use upload_rules::{
+    DecodedUploadedAudio, MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data,
+    decode_uploaded_bytes, required_upload_file_name,
 };
 
 pub use rules::{

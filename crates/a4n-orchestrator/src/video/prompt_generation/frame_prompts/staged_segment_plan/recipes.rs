@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 
+use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_core::video_execution::{
     VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     carry_forward_video_segment_recipes, default_video_segment_recipes,
@@ -8,13 +9,12 @@ use a4n_core::video_execution::{
 };
 use a4n_db::{
     video::VideoSegmentPlanDraftCheckpoint,
-    workflow::{WORKFLOW_STATUS_COMPLETED, WorkflowWriteError},
+    workflow::WorkflowWriteError,
 };
 use serde_json::{Value, json};
 
 use super::super::{
-    AppError, OrchestratorContext, PromptWorkflowMode, SHARED_SEGMENT_PLAN_PROMPT_TYPE,
-    VideoSegmentPlan, segment_plan_rows,
+    AppError, OrchestratorContext, PromptWorkflowMode, VideoSegmentPlan, segment_plan_rows,
 };
 
 use crate::{video::video_db_error, workflow::workflow_write_app_error};
@@ -36,12 +36,12 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_previous_sh
         project_id,
         chapter_id,
         PromptWorkflowMode::SharedSegmentPlan,
-        SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         false,
     )
     .await?
     .into_iter()
-    .filter(|row| row.status == WORKFLOW_STATUS_COMPLETED)
+    .filter(|row| row.status == chapter_video_prompt::STATUS_COMPLETED)
     .max_by_key(|row| row.id);
     previous
         .map(|row| {

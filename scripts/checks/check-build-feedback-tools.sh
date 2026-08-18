@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 workflow="$PROJECT_ROOT/.github/workflows/module-checks.yml"
@@ -46,7 +47,7 @@ rg -Fq -- '-e normal,build' "$SCRIPT_DIR/measure-build-feedback.sh" || {
     exit 1
 }
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/a4n-build-feedback-tools.XXXXXX")"
+tmp_dir="$(make_target_temp_dir build-feedback-tools)"
 cleanup() { rm -rf -- "$tmp_dir"; }
 trap cleanup EXIT
 
@@ -81,8 +82,9 @@ export -f cargo rustc
 artifact_dir="$tmp_dir/artifacts"
 measurements="$tmp_dir/measurements.tsv"
 baseline="$tmp_dir/baseline.tsv"
+runs=3
 "$SCRIPT_DIR/measure-build-feedback.sh" \
-    --runs 3 \
+    --runs "$runs" \
     --artifact-dir "$artifact_dir" \
     --output "$measurements" \
     --write-baseline "$baseline" >/dev/null
@@ -92,20 +94,28 @@ run_dir="$(find "$artifact_dir/runs" -mindepth 1 -maxdepth 1 -type d -print -qui
     echo "build-feedback run metadata or raw samples are missing" >&2
     exit 1
 }
-[[ "$(find "$run_dir/timings" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 33 ]] || {
-    echo "build-feedback self-test expected cold + eight warmups + 24 measured timing directories" >&2
+package_count="$(awk -F '\t' '$0 !~ /^#/ && NF { count++ } END { print count + 0 }' "$baseline")"
+first_package="$(awk -F '\t' '$0 !~ /^#/ && NF { print $1; exit }' "$baseline")"
+[[ "$package_count" -gt 0 && -n "$first_package" ]] || {
+    echo "build-feedback self-test baseline has no packages" >&2
     exit 1
 }
-[[ "$(find "$run_dir/logs" -maxdepth 1 -type f -name '*-reset.log' | wc -l)" -eq 24 ]] || {
-    echo "build-feedback self-test expected one package reset before every measured warm sample" >&2
+expected_timing_dirs=$((1 + package_count * (runs + 1)))
+expected_reset_logs=$((package_count * runs))
+[[ "$(find "$run_dir/timings" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq "$expected_timing_dirs" ]] || {
+    echo "build-feedback self-test expected $expected_timing_dirs timing directories" >&2
     exit 1
 }
-[[ "$(find "$run_dir/dependencies" -maxdepth 1 -type f -name '*.txt' | wc -l)" -eq 8 ]] || {
-    echo "build-feedback self-test expected one direct dependency inventory per package" >&2
+[[ "$(find "$run_dir/logs" -maxdepth 1 -type f -name '*-reset.log' | wc -l)" -eq "$expected_reset_logs" ]] || {
+    echo "build-feedback self-test expected $expected_reset_logs package reset logs" >&2
     exit 1
 }
-[[ "$(awk -F '\t' '$1 == "a4n-prompt-service" && $2 ~ /^[1-3]$/ { count++ } END { print count + 0 }' "$run_dir/samples.tsv")" -eq 3 ]] || {
-    echo "build-feedback self-test expected three raw warm samples" >&2
+[[ "$(find "$run_dir/dependencies" -maxdepth 1 -type f -name '*.txt' | wc -l)" -eq "$package_count" ]] || {
+    echo "build-feedback self-test expected $package_count dependency inventories" >&2
+    exit 1
+}
+[[ "$(awk -F '\t' -v package="$first_package" '$1 == package && $2 ~ /^[0-9]+$/ { count++ } END { print count + 0 }' "$run_dir/samples.tsv")" -eq "$runs" ]] || {
+    echo "build-feedback self-test expected $runs raw warm samples for $first_package" >&2
     exit 1
 }
 rg -q '^__workspace_cold__\t1\t[1-9][0-9]*$' "$run_dir/samples.tsv" || {
@@ -134,7 +144,7 @@ if "$SCRIPT_DIR/check-build-feedback-budget.sh" \
     exit 1
 fi
 
-sed 's/package-rebuild-v1/noop-v0/' "$baseline" > "$tmp_dir/wrong-method.tsv"
+sed 's/^# method.*/# method\tinvalid-method/' "$baseline" > "$tmp_dir/wrong-method.tsv"
 if "$SCRIPT_DIR/check-build-feedback-budget.sh" \
     --baseline "$tmp_dir/wrong-method.tsv" \
     --measurements "$measurements" >/dev/null 2>&1; then

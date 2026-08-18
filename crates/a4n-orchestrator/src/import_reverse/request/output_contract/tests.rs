@@ -1,10 +1,11 @@
 //! 反推输出合同测试。
 
 use super::reverse_output_contract;
+use crate::import_reverse::ReverseEngineeringTarget;
 
 #[test]
 fn blueprint_optional_fields_are_not_required_or_forbidden() {
-    let contract = reverse_output_contract("reverse_blueprint");
+    let contract = reverse_output_contract(ReverseEngineeringTarget::Blueprint);
     let required = contract["required_top_level_fields"]
         .as_array()
         .expect("required fields should be an array");
@@ -24,7 +25,7 @@ fn blueprint_optional_fields_are_not_required_or_forbidden() {
 
 #[test]
 fn outline_word_count_target_is_optional_positive_number() {
-    let contract = reverse_output_contract("reverse_outline");
+    let contract = reverse_output_contract(ReverseEngineeringTarget::Outline);
     let item_fields = contract["item_fields"]
         .as_array()
         .expect("item fields should be an array");

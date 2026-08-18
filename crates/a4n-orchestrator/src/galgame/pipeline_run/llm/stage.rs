@@ -1,10 +1,8 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::mark_workflow_current_step;
 use a4n_llm::provider::ChatMessage;
 use serde_json::Value;
 
 use crate::galgame::{GalgamePipelineStartStage, OrchestratorContext};
-use crate::workflow::workflow_write_app_error;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::progress::ensure_galgame_pipeline_not_cancelled;
@@ -47,14 +45,9 @@ impl OrchestratorContext {
     where
         F: Fn(Value) -> Result<Value, AppError>,
     {
-        ensure_galgame_pipeline_not_cancelled(&self.database, input.workflow_run_id).await?;
-        mark_workflow_current_step(
-            self.database.connection(),
-            input.workflow_run_id,
-            input.stage.key(),
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
+        ensure_galgame_pipeline_not_cancelled(self, input.workflow_run_id).await?;
+        self.mark_workflow_current_step(input.workflow_run_id, input.stage.key())
+            .await?;
 
         let prepared = prepare_galgame_llm_stage(&input).await?;
         if let Some(restored) =

@@ -1,7 +1,14 @@
 use a4n_service_protocol::{ArtifactEvent, ArtifactOperation, GenerationArtifactRef};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedMediaArtifactFile {
+    pub content_type: String,
+    pub sha256: String,
+    pub byte_size: u64,
+}
+
 #[derive(Debug, Clone)]
-pub struct PreparedArtifactEvent(ArtifactEvent);
+pub(crate) struct PreparedArtifactEvent(ArtifactEvent);
 
 impl PreparedArtifactEvent {
     pub(crate) fn artifact_ref(&self) -> &GenerationArtifactRef {
@@ -14,10 +21,10 @@ impl PreparedArtifactEvent {
 }
 
 /// generation artifact 事件的唯一构造入口。
-pub struct GenerationArtifactCoordinator;
+pub(crate) struct GenerationArtifactCoordinator;
 
 impl GenerationArtifactCoordinator {
-    pub fn available(
+    pub(crate) fn available(
         artifact: GenerationArtifactRef,
         item_key: Option<String>,
         item_index: Option<u32>,
@@ -31,6 +38,32 @@ impl GenerationArtifactCoordinator {
             item_index,
             item_total,
         })
+    }
+
+    pub(crate) fn generated_media_available(
+        artifact_id: String,
+        artifact_kind: &str,
+        file: GeneratedMediaArtifactFile,
+        item_key: Option<String>,
+        item_index: Option<u32>,
+        item_total: Option<u32>,
+    ) -> PreparedArtifactEvent {
+        let revision = file.sha256.clone();
+        Self::available(
+            GenerationArtifactRef {
+                artifact_id,
+                artifact_kind: artifact_kind.to_string(),
+                content_type: file.content_type,
+                sha256: file.sha256,
+                byte_size: file.byte_size,
+                revision,
+                temporary: false,
+                expires_at_ms: None,
+            },
+            item_key,
+            item_index,
+            item_total,
+        )
     }
 }
 

@@ -4,9 +4,8 @@ use a4n_core::{
 };
 use sea_orm::{ConnectionTrait, EntityTrait};
 
-use super::{
-    super::SOURCE_MODE_FREEFORM,
-    contracts::{ResolveChapterSourceError, ResolvedChapterSource, ResolvedChapterSourceKind},
+use super::contracts::{
+    ResolveChapterSourceError, ResolvedChapterSource, ResolvedChapterSourceKind,
 };
 
 pub(super) async fn resolve_live_source<C>(
@@ -17,12 +16,6 @@ pub(super) async fn resolve_live_source<C>(
 where
     C: ConnectionTrait,
 {
-    if project.source_mode == SOURCE_MODE_FREEFORM {
-        return Err(ResolveChapterSourceError::InvalidState(format!(
-            "文本项目 {} 不能使用 freeform 来源模式",
-            project.id
-        )));
-    }
     let chapter = chapter::Entity::find_by_id(source_chapter_id)
         .one(db)
         .await?

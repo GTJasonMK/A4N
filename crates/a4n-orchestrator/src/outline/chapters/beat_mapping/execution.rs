@@ -1,17 +1,15 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_outline;
-use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
-use chrono::Utc;
-use serde_json::json;
-
-use crate::structured_llm::{StructuredRepairCheckpointContext, StructuredValueRepairInput};
-use crate::workflow::{
-    workflow_checkpoint_contract_app_error, workflow_read_app_error, workflow_write_app_error,
+use a4n_db::workflow::{
+    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
 };
+use chrono::Utc;
+use serde_json::Value;
+
+use crate::workflow::workflow_checkpoint_contract_app_error;
 
 use super::super::super::chapter_contract::{
-    chapter_outline_batch_response_schema, parse_chapter_outline_batch, required_i32,
-    sync_chapter_outlines_by_number_in,
+    parse_chapter_outline_batch, required_i32, sync_chapter_outlines_by_number_in,
 };
 use super::super::super::context::lock_outline_generation_sources;
 use super::super::super::{
@@ -60,26 +58,17 @@ impl OrchestratorContext {
             &call_key,
             &fingerprint_json,
         )?;
-        workflow::mark_workflow_current_step(
-            self.database.connection(),
-            workflow_run_id,
-            &call_key,
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
-        let chapters = if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-            self.database.connection(),
-            workflow_run_id,
-            &call_key,
-            &fingerprint_json,
-        )
-        .await
-        .map_err(workflow_read_app_error)?
+        self.mark_workflow_current_step(workflow_run_id, &call_key)
+            .await?;
+        let chapters = if let Some(checkpoint) = self
+            .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &fingerprint_json)
+            .await?
         {
-            let checkpoint_json =
-                workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
-                    .map_err(workflow_checkpoint_contract_app_error)?;
-            restored_beat_mapping_checkpoint(checkpoint_json, &prepared)?
+            restored_beat_mapping_checkpoint(
+                &checkpoint.parsed_output,
+                &checkpoint.response_content,
+                &prepared,
+            )?
         } else {
             let response =
                 crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
@@ -88,54 +77,29 @@ impl OrchestratorContext {
                 response.finish_reason.as_deref(),
                 &format!("第 {} 部节拍映射", prepared.part.part_number),
             )?;
-            let parse_output = |value: &serde_json::Value| {
-                parse_chapter_outline_batch(
-                    &serde_json::to_string(value)?,
-                    prepared.part.start_chapter,
-                    prepared.count,
-                )
-            };
-            let repair_progress =
-                |message: &str| report_progress(progress, 0, prepared.count, message);
-            let repaired = self
-                .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
-                    request: request.clone(),
-                    raw_response: &content,
-                    label: "章节节拍映射",
-                    schema: chapter_outline_batch_response_schema(),
-                    checkpoint: Some(StructuredRepairCheckpointContext {
-                        workflow_run_id,
-                        base_call_key: call_key.clone(),
-                        call_order: prepared.part.part_number,
-                    }),
-                    cancel_token: None,
-                    progress: Some(&repair_progress),
-                    parse_output: &parse_output,
-                })
-                .await?;
-            let repair_artifact = repaired.artifact_summary();
-            let chapters = repaired.output;
-            workflow::save_completed_llm_call_checkpoint(
-                self.database.connection(),
-                CompletedLlmCallCheckpointInput {
+            let chapters = parse_chapter_outline_batch(
+                &content,
+                prepared.part.start_chapter,
+                prepared.count,
+            )?;
+            self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                     workflow_run_id,
                     call_key,
                     call_order: prepared.part.part_number,
                     input_fingerprint_json: fingerprint_json,
-                    checkpoint_json: json!({
-                        "output": chapters.clone(),
-                        "parsed_output": chapters.clone(),
-                        "response_content": content,
-                        "usage": response.usage.as_ref().map(serde_json::to_value).transpose()?,
-                        "finish_reason": response.finish_reason,
-                    }),
-                    artifacts_json: Some(json!({
-                        "structured_repair": repair_artifact,
-                    })),
-                },
-            )
-            .await
-            .map_err(workflow_write_app_error)?;
+                    checkpoint: CompletedLlmCallCheckpoint {
+                        parsed_output: Value::Array(chapters.clone()),
+                        response_content: content,
+                        usage: response
+                            .usage
+                            .as_ref()
+                            .map(serde_json::to_value)
+                            .transpose()?,
+                        finish_reason: response.finish_reason,
+                        artifacts_json: None,
+                    },
+            })
+            .await?;
             chapters
         };
         let now = Utc::now().naive_utc();

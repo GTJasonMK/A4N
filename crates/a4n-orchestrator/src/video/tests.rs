@@ -4,6 +4,10 @@ use a4n_core::models::chapter::{chapter, chapter_video_prompt};
 use a4n_core::models::character::protagonist_profile;
 use a4n_core::models::generation::{generation_run, generation_run_target, workflow_run};
 use a4n_core::models::project::novel_project;
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+    IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
+};
 use a4n_llm::provider::LlmProvider;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::{
@@ -277,7 +281,7 @@ fn video_record_input(project_id: i64) -> a4n_db::video::CreateGeneratedVideoRec
     a4n_db::video::CreateGeneratedVideoRecordDraftInput {
         project_id,
         chapter_id: None,
-        video_type: "chapter_video".to_string(),
+        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("boundary_frames".to_string()),
         prompt: "雨夜街巷，人物对峙".to_string(),
         negative_prompt: None,
@@ -291,32 +295,6 @@ fn video_record_input(project_id: i64) -> a4n_db::video::CreateGeneratedVideoRec
         provider_job_id: None,
         metadata_json: None,
     }
-}
-
-#[test]
-fn object_profile_material_is_project_reusable_video_material() {
-    assert!(is_project_reusable_video_material_image(
-        "object_material",
-        Some(&json!({
-            "profile_kind": "object",
-            "profile_id": 7,
-            "chapter_video_material": true
-        })),
-    ));
-}
-
-#[test]
-fn video_frame_metadata_is_not_project_reusable_video_material() {
-    assert!(!is_project_reusable_video_material_image(
-        "object_material",
-        Some(&json!({
-            "generation_context": {
-                "source": "video_boundary_frame_prompt"
-            },
-            "profile_kind": "object",
-            "profile_id": 7
-        })),
-    ));
 }
 
 async fn generated_video_count(db: &DatabaseConnection) -> u64 {

@@ -4,31 +4,37 @@ use a4n_core::source_spans::source_text_hash as source_content_sha256;
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 
+use super::ReverseEngineeringTarget;
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
+pub(crate) const IMPORT_REVERSE_WORKFLOW_KIND: &str = "import_reverse_engineer";
+pub(crate) const IMPORT_REVERSE_WORKFLOW_MODE: &str = "reverse";
+
 /// import_reverse exclusive business key。
-pub fn import_reverse_business_key(project_id: i64, prompt_name: &str) -> Result<String, String> {
+pub fn import_reverse_business_key(
+    project_id: i64,
+    target: ReverseEngineeringTarget,
+) -> Result<String, String> {
     if project_id <= 0 {
         return Err("项目 ID 必须大于 0".to_string());
     }
-    if prompt_name.trim().is_empty() {
-        return Err("逆向 prompt_name 不能为空".to_string());
-    }
+    let prompt_name = target.prompt_name();
     Ok(format!(
-        "import_reverse_engineer:project:{project_id}:{prompt_name}:reverse"
+        "{IMPORT_REVERSE_WORKFLOW_KIND}:project:{project_id}:{prompt_name}:{IMPORT_REVERSE_WORKFLOW_MODE}"
     ))
 }
 
 /// import_reverse 工作流输入指纹。
 pub fn import_reverse_workflow_fingerprint(
     project_id: i64,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     content_sample: &str,
     auto_context: bool,
     context_limit: Option<i64>,
     auto_context_source_sha256: Option<&str>,
     variables: &HashMap<String, Value>,
 ) -> Value {
+    let prompt_name = target.prompt_name();
     let variables_json = Value::Object(
         variables
             .iter()
@@ -37,9 +43,9 @@ pub fn import_reverse_workflow_fingerprint(
     );
     json!({
         "schema_version": 1,
-        "workflow": "import_reverse_engineer",
+        "workflow": IMPORT_REVERSE_WORKFLOW_KIND,
         "target": prompt_name,
-        "mode": "reverse",
+        "mode": IMPORT_REVERSE_WORKFLOW_MODE,
         "project_id": project_id,
         "content_sample_sha256": source_content_sha256(content_sample),
         "auto_context": auto_context,
@@ -52,7 +58,7 @@ pub fn import_reverse_workflow_fingerprint(
 /// 构造 import_reverse begin 输入（status=RUNNING）。
 pub fn import_reverse_workflow_run_input(
     project_id: i64,
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     content_sample: &str,
     auto_context: bool,
     context_limit: Option<i64>,
@@ -60,6 +66,7 @@ pub fn import_reverse_workflow_run_input(
     variables: &HashMap<String, Value>,
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
+    let prompt_name = target.prompt_name();
     let valid_source_fingerprint = auto_context_source_sha256.is_some_and(|value| {
         value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
     });
@@ -73,18 +80,18 @@ pub fn import_reverse_workflow_run_input(
         });
     }
     Ok(UpsertWorkflowRunInput {
-        business_key: import_reverse_business_key(project_id, prompt_name)?,
-        workflow_kind: "import_reverse_engineer".to_string(),
+        business_key: import_reverse_business_key(project_id, target)?,
+        workflow_kind: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
         project_id: Some(project_id),
         root_project_id: Some(project_id),
         source_snapshot_id: None,
         scope_table: Some("project".to_string()),
         scope_id: Some(project_id),
         chapter_id: None,
-        mode: Some("reverse".to_string()),
+        mode: Some(IMPORT_REVERSE_WORKFLOW_MODE.to_string()),
         input_fingerprint_json: Some(import_reverse_workflow_fingerprint(
             project_id,
-            prompt_name,
+            target,
             content_sample,
             auto_context,
             context_limit,
@@ -105,8 +112,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rejects_empty_prompt() {
-        assert!(import_reverse_business_key(1, "  ").is_err());
+    fn rejects_non_positive_project_id() {
+        assert!(import_reverse_business_key(0, ReverseEngineeringTarget::Outline).is_err());
     }
 
     #[test]
@@ -115,7 +122,7 @@ mod tests {
         let source_fingerprint = "a".repeat(64);
         let input = import_reverse_workflow_run_input(
             2,
-            "outline",
+            ReverseEngineeringTarget::Outline,
             "sample",
             true,
             Some(3),
@@ -135,7 +142,7 @@ mod tests {
         assert!(
             import_reverse_workflow_run_input(
                 2,
-                "outline",
+                ReverseEngineeringTarget::Outline,
                 "sample",
                 true,
                 Some(3),

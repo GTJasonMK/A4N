@@ -45,7 +45,6 @@ pub use patch::{
 pub use patch_generation::OptimizePatchGenerationApplicationContext;
 pub(in crate::optimize) use patch_request::{
     build_content_optimization_patch_request, optimize_llm_call_input_fingerprint_json,
-    response_content_from_checkpoint,
 };
 pub use permissions::{
     OptimizeAgentPermissions, optimization_agent_variables, optimization_analysis_variables,

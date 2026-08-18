@@ -8,7 +8,7 @@ pub use a4n_domain::{
     DiscoveredModel, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(extend(
     "required" = ["provider", "base_url", "config_id", "use_saved_api_key"]

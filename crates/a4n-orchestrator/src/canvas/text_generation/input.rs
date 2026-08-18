@@ -1,5 +1,8 @@
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db::generation::{
+    GENERATION_PROMPT_KIND_CANVAS_PROMPT, GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
+};
 
 use crate::canvas::{
     canvas_config_f32, canvas_config_i64, canvas_config_string,
@@ -23,7 +26,7 @@ pub(super) fn build_canvas_llm_text_input(
         return Err("LlmTextNode 缺少输入文本".to_string());
     }
     let output_kind = canvas_config_string(&node.config_json, &["output_kind", "text_kind"])
-        .unwrap_or_else(|| "shot_script".to_string());
+        .unwrap_or_else(|| GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT.to_string());
     let system_prompt = format!(
         "你是 A4N 视频画布的文本转换节点。请根据用户指令转换输入文本，输出类型为 {output_kind}。只返回转换后的正文，不要解释过程。"
     );
@@ -63,7 +66,7 @@ pub(super) fn build_canvas_rendered_prompt(
         return Err("RenderTextNode 缺少可渲染的文本内容".to_string());
     }
     let prompt_kind = canvas_config_string(&node.config_json, &["output_kind", "prompt_kind"])
-        .unwrap_or_else(|| "canvas_prompt".to_string());
+        .unwrap_or_else(|| GENERATION_PROMPT_KIND_CANVAS_PROMPT.to_string());
     Ok(CanvasRenderedPrompt {
         prompt_kind,
         prompt_text,

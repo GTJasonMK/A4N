@@ -12,7 +12,7 @@ fn now() -> chrono::NaiveDateTime {
 pub(super) fn llm_model_from_runtime(cfg: RuntimeLlmConfig) -> llm_config::Model {
     let timestamp = now();
     llm_config::Model {
-        id: cfg.id.unwrap_or(-1),
+        id: cfg.id,
         name: cfg.name,
         provider: cfg.provider,
         base_url: cfg.base_url,
@@ -32,7 +32,7 @@ pub(super) fn llm_model_from_runtime(cfg: RuntimeLlmConfig) -> llm_config::Model
 pub(super) fn image_model_from_runtime(cfg: RuntimeImageConfig) -> image_gen_config::Model {
     let timestamp = now();
     image_gen_config::Model {
-        id: cfg.id.unwrap_or(-1),
+        id: cfg.id,
         name: cfg.name,
         backend: cfg.backend,
         base_url: cfg.base_url,
@@ -50,7 +50,7 @@ pub(super) fn image_model_from_runtime(cfg: RuntimeImageConfig) -> image_gen_con
 pub(super) fn video_model_from_runtime(cfg: RuntimeVideoConfig) -> video_gen_config::Model {
     let timestamp = now();
     video_gen_config::Model {
-        id: cfg.id.unwrap_or(-1),
+        id: cfg.id,
         name: cfg.name,
         backend: cfg.backend,
         base_url: cfg.base_url,
@@ -74,7 +74,7 @@ pub(super) fn video_model_from_runtime(cfg: RuntimeVideoConfig) -> video_gen_con
 pub(super) fn embedding_model_from_runtime(cfg: RuntimeEmbeddingConfig) -> embedding_config::Model {
     let timestamp = now();
     embedding_config::Model {
-        id: cfg.id.unwrap_or(-1),
+        id: cfg.id,
         name: cfg.name,
         backend: cfg.backend,
         base_url: cfg.base_url,

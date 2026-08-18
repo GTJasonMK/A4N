@@ -3,9 +3,9 @@ use super::assembly::{
     build_assembly_cache_manifest_with_audio_probe, expired_assembly_cache_files,
     write_assembly_cache_manifest,
 };
-use super::imports::{
-    import_video_source_path, video_probe_error_message,
-};
+use super::imports::import_video_source_path;
+use super::probe::video_probe_error_message;
+use a4n_core::models::ai::generated_video;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -20,7 +20,7 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
 fn assembly_clip(video_id: i64, width: i32, height: i32, fps: i32) -> AssemblyClip {
     AssemblyClip {
         video_id,
-        video_type: "chapter_video".to_string(),
+        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
         shot_number: video_id as i32,
         sort_order: video_id as f64 * 1000.0,
         insert_after_video_id: None,

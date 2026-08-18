@@ -6,10 +6,8 @@ use a4n_core::config::app_config::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_M
 use a4n_core::error::AppError;
 use a4n_llm::gateway::LlmGatewayProviderConfig;
 use a4n_llm::provider::{LlmProvider, ModelCapabilities};
-use a4n_service_protocol::{
-    HealthStatus, LLM_SERVICE_NAME, ServiceHealth, known_service_health_for_host,
-};
-use axum::{Json, http::HeaderMap};
+use a4n_service_protocol::{HealthStatus, LLM_SERVICE_NAME, ServiceHealth, known_service_health};
+use axum::Json;
 
 pub(crate) use discovery::discover_models;
 pub(crate) use probe::probe;
@@ -19,12 +17,11 @@ pub(crate) use probe::probe_existing_provider;
 pub(crate) use stream::llm_event_stream;
 pub(crate) use stream::stream_chat;
 
-pub(crate) async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
-    Json(known_service_health_for_host(
+pub(crate) async fn healthz() -> Json<ServiceHealth> {
+    Json(known_service_health(
         LLM_SERVICE_NAME,
         env!("CARGO_PKG_VERSION"),
         HealthStatus::Healthy,
-        a4n_sidecar_bootstrap::host_protocol_version(&headers),
     ))
 }
 

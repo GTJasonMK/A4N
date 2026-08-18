@@ -5,7 +5,7 @@ use a4n_core::{
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 use super::{
-    super::{SOURCE_MODE_DERIVED, derived_project_family_context},
+    super::derived_project_family_context,
     contracts::{ResolveChapterSourceError, ResolvedChapterSource, ResolvedChapterSourceKind},
 };
 
@@ -17,12 +17,6 @@ pub(super) async fn resolve_snapshot_source<C>(
 where
     C: ConnectionTrait,
 {
-    if project.source_mode != SOURCE_MODE_DERIVED {
-        return Err(ResolveChapterSourceError::InvalidState(format!(
-            "媒体项目 {} 没有派生章节来源: source_mode={}",
-            project.id, project.source_mode
-        )));
-    }
     let context = derived_project_family_context(db, project.id)
         .await
         .map_err(map_family_error)?;

@@ -107,7 +107,7 @@ async fn video_provider_preview_uses_typed_capability_request() {
     assert_eq!(client.preview_call_count(), 1);
     assert_eq!(client.generate_call_count(), 0);
     assert_eq!(client.poll_call_count(), 0);
-    assert_eq!(preview["request"]["model"], "video-model");
+    assert_eq!(preview["model"], "video-model");
     let request = client
         .last_preview_request()
         .expect("recorded preview request");
@@ -162,51 +162,6 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
         request.payload["provider_idempotency_key_sha256"],
         "a".repeat(64)
     );
-}
-
-#[test]
-fn video_generation_terminal_events_preserve_failure_and_cancel_semantics() {
-    let failed = CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(a4n_service_protocol::ServiceError {
-            code: ServiceErrorCode::ProviderError,
-            message: "provider failed".to_string(),
-            retryable: Some(false),
-        }),
-        payload: None,
-    };
-    let error = handle_video_generation_event(failed, None)
-        .expect_err("provider failure must terminate generation");
-    assert!(error.contains("provider failed"));
-
-    let cancelled = CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::CancelAck,
-        sequence: 2,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: None,
-        payload: None,
-    };
-    let error = handle_video_generation_event(cancelled, None)
-        .expect_err("cancel ack must terminate generation");
-    assert_eq!(error, AppError::Cancelled.to_string());
 }
 
 #[tokio::test]
@@ -324,8 +279,6 @@ fn successful_video_generation_events() -> Vec<CapabilityTaskEvent> {
             CapabilityTaskEventKind::Progress,
             1,
             json!({
-                "current": 1,
-                "total": 2,
                 "message": "video sidecar 正在提交 provider 请求"
             }),
         ),
@@ -347,9 +300,7 @@ fn successful_video_poll_response() -> JsonResponse {
 }
 
 fn successful_video_preview_response() -> JsonResponse {
-    video_response(json!({
-        "request": {"model": "video-model", "prompt": "test video"}
-    }))
+    video_response(json!({"model": "video-model", "prompt": "test video"}))
 }
 
 fn video_response(payload: serde_json::Value) -> JsonResponse {
@@ -372,14 +323,6 @@ fn video_event(
         task_id: "configured-task".to_string(),
         event_kind,
         sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
         error: None,
         payload: Some(payload),
     }

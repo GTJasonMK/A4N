@@ -35,8 +35,6 @@ pub trait VectorStore: Send + Sync {
     ) -> Result<Vec<SearchResult>, AppError>;
 
     /// 混合搜索（向量 + BM25，使用 RRF 融合排序）
-    ///
-    /// `vector_weight` 控制向量搜索结果在融合中的权重，默认 0.5。
     async fn hybrid_search(
         &self,
         collection: &str,
@@ -44,7 +42,6 @@ pub trait VectorStore: Send + Sync {
         query_embedding: Vec<f32>,
         top_k: usize,
         filters: Option<SearchFilter>,
-        vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError>;
 
     /// 条件删除（同时清理 BM25 索引）

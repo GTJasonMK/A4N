@@ -4,18 +4,8 @@ use super::{
     is_video_reference_image_candidate, profile_relevance,
     resolve_video_reference_image_project_ids, video_library_image_entry,
 };
+use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use serde_json::json;
-
-#[test]
-fn chapter_video_material_excludes_generated_frame_inputs() {
-    let metadata = json!({
-        "chapter_video_material": true,
-        "video_frame_role": "start_frame",
-        "generation_context": { "source": "video_first_frame_prompt" }
-    });
-
-    assert!(!is_chapter_video_material(Some(&metadata)));
-}
 
 #[test]
 fn chapter_video_material_accepts_explicit_material_image() {
@@ -111,7 +101,7 @@ fn video_reference_candidate_keeps_original_scope_rules() {
         &reference_test_image(None, "scene"),
         7
     ));
-    let mut reusable = reference_test_image(Some(9), "scene_material");
+    let mut reusable = reference_test_image(Some(9), IMAGE_TYPE_SCENE_MATERIAL);
     reusable.metadata_json = Some(json!({"profile_kind": "scene", "profile_id": 3}));
     assert!(is_video_reference_image_candidate(&reusable, 7));
     assert!(!is_video_reference_image_candidate(
@@ -147,7 +137,7 @@ fn fixed_test_image(id: i64, is_favorite: bool) -> a4n_core::models::ai::generat
     a4n_core::models::ai::generated_image::Model {
         id,
         project_id: 1,
-        image_type: "object_material".to_string(),
+        image_type: IMAGE_TYPE_OBJECT_MATERIAL.to_string(),
         file_path: "images/material.png".to_string(),
         prompt: "material".to_string(),
         model: "image-model".to_string(),

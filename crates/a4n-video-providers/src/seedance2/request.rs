@@ -9,7 +9,7 @@ use a4n_video::{
 use super::Seedance2VideoProvider;
 
 impl Seedance2VideoProvider {
-    pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+    pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
         req.validate_dimensions()?;
         let VideoMediaInput::References {
             images,
@@ -46,10 +46,6 @@ impl Seedance2VideoProvider {
             "model_id": req.model,
             "parameters": Value::Object(parameters),
         }))
-    }
-
-    pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        Self::request_body(req)
     }
 }
 fn ratio_from_size(width: i32, height: i32) -> &'static str {

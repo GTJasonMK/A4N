@@ -2,10 +2,10 @@ use std::collections::HashSet;
 
 use super::super::sync::RagRecord;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub(crate) struct ExpectedRagRecords {
-    pub(crate) ids: HashSet<String>,
-    pub(crate) records: Vec<RagRecord>,
+    ids: HashSet<String>,
+    records: Vec<RagRecord>,
 }
 
 impl ExpectedRagRecords {
@@ -14,9 +14,11 @@ impl ExpectedRagRecords {
     }
 
     pub(super) fn add_rag_record(&mut self, record: RagRecord) -> Result<(), String> {
-        let chunk_id = record.chunk_id.clone();
-        if !self.ids.insert(chunk_id.clone()) {
-            return Err(format!("RAG 预期记录 chunk_id 重复: {chunk_id}"));
+        if !self.ids.insert(record.chunk_id.clone()) {
+            return Err(format!(
+                "RAG 预期记录 chunk_id 重复: {}",
+                record.chunk_id
+            ));
         }
         self.records.push(record);
         Ok(())
@@ -27,6 +29,14 @@ impl ExpectedRagRecords {
             self.add_rag_record(record)?;
         }
         Ok(())
+    }
+
+    pub(in crate::rag_ingest) fn into_records(self) -> Vec<RagRecord> {
+        self.records
+    }
+
+    pub(in crate::rag_ingest) fn into_parts(self) -> (HashSet<String>, Vec<RagRecord>) {
+        (self.ids, self.records)
     }
 }
 

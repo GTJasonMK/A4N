@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_core::models::galgame::{galgame_line, galgame_scene};
-use a4n_db::project::{ProjectFamilyContext, ProjectFamilyDbError};
+use a4n_db::project::ProjectFamilyContext;
 
 use super::{
     OrchestratorContext, PROJECT_KIND_GALGAME, galgame_context_record_error,
@@ -13,10 +13,7 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<ProjectFamilyContext, AppError> {
         validate_positive_id(project_id, "project_id")?;
-        let context =
-            a4n_db::project::derived_project_family_context(self.database.connection(), project_id)
-                .await
-                .map_err(project_family_app_error)?;
+        let context = self.derived_project_family_context(project_id).await?;
         if context.project.project_kind != PROJECT_KIND_GALGAME {
             return Err(AppError::InvalidArgument(format!(
                 "项目不是 Galgame 派生项目: {project_id}"
@@ -90,13 +87,5 @@ impl OrchestratorContext {
         .await
         .map(|_| ())
         .map_err(galgame_context_record_error)
-    }
-}
-
-fn project_family_app_error(error: ProjectFamilyDbError) -> AppError {
-    match error {
-        ProjectFamilyDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        ProjectFamilyDbError::NotFound(message) => AppError::NotFound(message),
-        ProjectFamilyDbError::Database(error) => AppError::Database(error),
     }
 }

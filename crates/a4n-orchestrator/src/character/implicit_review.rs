@@ -9,12 +9,15 @@ mod request;
 mod stats;
 
 pub use contracts::{
-    ApplyImplicitUpdateDecisionInput, CharacterSyncImplicitReviewInput, CheckImplicitUpdateInput,
-    GetImplicitReviewInput, ImplicitAttributeReviewSummary, ImplicitEvidenceSummary,
-    ImplicitReviewSummary, ImplicitUpdateDecisionSummary, ImplicitUpdateReviewRequestPreview,
+    ApplyImplicitUpdateDecisionInput, CheckImplicitUpdateInput, GetImplicitReviewInput,
+    ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ImplicitReviewSummary,
+    ImplicitUpdateDecisionSummary,
 };
+pub(crate) use contracts::CharacterSyncImplicitReviewInput;
 
 pub const IMPLICIT_UPDATE_PROMPT_NAME: &str = "implicit_update";
+pub const IMPLICIT_UPDATE_WORKFLOW_KIND: &str = "implicit_update_review";
+const IMPLICIT_UPDATE_STEP_KEY: &str = "implicit_update_decision";
 
 #[cfg(test)]
 mod tests;

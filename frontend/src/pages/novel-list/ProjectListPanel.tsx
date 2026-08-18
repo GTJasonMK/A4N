@@ -5,6 +5,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
 import {
   AllProjectList,
   RecentProjectList,
@@ -14,7 +15,6 @@ import type { ProjectFamily, ProjectKindFilter, ProjectTab } from "./novelListUt
 import {
   PROJECT_KIND_FILTER_LABELS,
   PROJECT_KIND_FILTERS,
-  PROJECT_ROLE_LABELS,
   PROJECT_TAB_LABELS,
 } from "./novelListUtils";
 
@@ -192,7 +192,7 @@ const ProjectInviteRow: React.FC<{
         {invite.project_title}
       </div>
       <div className="mt-1 truncate text-small text-book-text-muted">
-        {invite.inviter_username} 邀请 · {PROJECT_ROLE_LABELS[invite.role]}
+        {invite.inviter_username} 邀请 · {PROJECT_ACCESS_ROLE_LABELS[invite.role]}
       </div>
     </div>
     {!busy ? (

@@ -250,7 +250,7 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
         .await
         .expect("image preview should cross the independent process");
     assert_eq!(preview.status, ServiceStatus::Ok);
-    assert!(preview.payload.expect("image preview payload")["request"].is_object());
+    assert!(preview.payload.expect("image preview payload").is_object());
     let failed_provider_addr = unused_local_addr();
     let failed_events_request = provider_request_context(
         "image-process-provider-failure",

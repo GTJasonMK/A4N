@@ -1,11 +1,17 @@
-use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
+use a4n_service_protocol::{
+    CapabilityTaskEvent, CapabilityTaskEventKind, SIDECAR_EVENT_CONTENT_TYPE, ServiceError,
+    ServiceErrorCode,
+};
 use axum::http::header;
 
-use super::{service_event_line, service_event_ndjson_response, single_service_event_stream};
+use super::{failed_service_event_response, service_event_line};
 
 #[test]
 fn service_event_line_is_newline_delimited_json() {
-    let line = service_event_line(test_event());
+    let line = service_event_line(CapabilityTaskEvent::completed_empty(
+        "task-1".to_string(),
+        1,
+    ));
     assert_eq!(line.last(), Some(&b'\n'));
     let event: CapabilityTaskEvent =
         serde_json::from_slice(&line[..line.len() - 1]).expect("event JSON");
@@ -15,28 +21,14 @@ fn service_event_line_is_newline_delimited_json() {
 
 #[test]
 fn service_event_response_uses_ndjson_content_type() {
-    let response =
-        service_event_ndjson_response(single_service_event_stream(test_event()), "test service");
+    let response = failed_service_event_response(
+        "task-1".to_string(),
+        ServiceError::non_retryable(ServiceErrorCode::Internal, "failed"),
+    );
     assert_eq!(
         response.headers().get(header::CONTENT_TYPE),
-        Some(&header::HeaderValue::from_static("application/x-ndjson"))
+        Some(&header::HeaderValue::from_static(
+            SIDECAR_EVENT_CONTENT_TYPE
+        ))
     );
-}
-
-fn test_event() -> CapabilityTaskEvent {
-    CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::Completed,
-        sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: None,
-        payload: None,
-    }
 }

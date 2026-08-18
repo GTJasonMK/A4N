@@ -1,4 +1,6 @@
 use super::range::requested_byte_range_header;
+use a4n_core::media::media_mime_from_path;
+use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
@@ -28,28 +30,66 @@ pub struct MediaFileResponse {
     pub body: Vec<u8>,
 }
 
+#[derive(Debug)]
+pub enum MediaFileResponseError {
+    UnsupportedMediaType(String),
+    Read(String),
+}
+
+impl fmt::Display for MediaFileResponseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedMediaType(message) | Self::Read(message) => {
+                formatter.write_str(message)
+            }
+        }
+    }
+}
+
+impl std::error::Error for MediaFileResponseError {}
+
 pub fn read_media_file_response<E>(
     path: &Path,
     range_header: Option<Result<&str, E>>,
     label: &str,
-) -> Result<MediaFileResponse, String> {
-    let mut file = std::fs::File::open(path)
-        .map_err(|err| format!("无法打开{label}：{}：{err}", path.display()))?;
+) -> Result<MediaFileResponse, MediaFileResponseError> {
+    let content_type = media_mime_from_path(path)
+        .map_err(MediaFileResponseError::UnsupportedMediaType)?;
+    let mut file = std::fs::File::open(path).map_err(|err| {
+        MediaFileResponseError::Read(format!(
+            "无法打开{label}：{}：{err}",
+            path.display()
+        ))
+    })?;
     let size = file
         .metadata()
-        .map_err(|err| format!("无法读取{label}信息：{}：{err}", path.display()))?
+        .map_err(|err| {
+            MediaFileResponseError::Read(format!(
+                "无法读取{label}信息：{}：{err}",
+                path.display()
+            ))
+        })?
         .len();
-    let content_type = content_type_for_path(path);
 
     if let Some(range) = requested_byte_range_header(range_header, size) {
         return match range {
             Ok((start, end)) => {
                 let len = end - start + 1;
                 file.seek(SeekFrom::Start(start))
-                    .map_err(|err| format!("无法定位{label}：{}：{err}", path.display()))?;
+                    .map_err(|err| {
+                        MediaFileResponseError::Read(format!(
+                            "无法定位{label}：{}：{err}",
+                            path.display()
+                        ))
+                    })?;
                 let mut body = vec![0; len as usize];
                 file.read_exact(&mut body)
-                    .map_err(|err| format!("无法读取{label}：{}：{err}", path.display()))?;
+                    .map_err(|err| {
+                        MediaFileResponseError::Read(format!(
+                            "无法读取{label}：{}：{err}",
+                            path.display()
+                        ))
+                    })?;
                 Ok(MediaFileResponse {
                     status: MediaResponseStatus::PartialContent,
                     content_type,
@@ -70,7 +110,12 @@ pub fn read_media_file_response<E>(
 
     let mut body = Vec::new();
     file.read_to_end(&mut body)
-        .map_err(|err| format!("无法读取{label}：{}：{err}", path.display()))?;
+        .map_err(|err| {
+            MediaFileResponseError::Read(format!(
+                "无法读取{label}：{}：{err}",
+                path.display()
+            ))
+        })?;
     Ok(MediaFileResponse {
         status: MediaResponseStatus::Ok,
         content_type,
@@ -78,29 +123,4 @@ pub fn read_media_file_response<E>(
         content_range: None,
         body,
     })
-}
-
-pub fn content_type_for_path(path: &Path) -> &'static str {
-    match path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("apng") => "image/apng",
-        Some("avif") => "image/avif",
-        Some("gif") => "image/gif",
-        Some("jpg" | "jpeg") => "image/jpeg",
-        Some("png") => "image/png",
-        Some("svg") => "image/svg+xml",
-        Some("webp") => "image/webp",
-        Some("mp4" | "m4v") => "video/mp4",
-        Some("webm") => "video/webm",
-        Some("mov") => "video/quicktime",
-        Some("mp3") => "audio/mpeg",
-        Some("m4a") => "audio/mp4",
-        Some("wav") => "audio/wav",
-        Some("ogg") => "audio/ogg",
-        _ => "application/octet-stream",
-    }
 }

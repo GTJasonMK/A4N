@@ -142,39 +142,25 @@ pub async fn assert_route_rejects_unknown_payload_field(
 ) {
     let mut body = serde_json::to_value(request).expect("typed request should serialize");
     body["payload"]["process_unknown_field"] = serde_json::json!(true);
-    let response = reqwest::Client::new()
-        .post(format!("{base_url}{path}"))
-        .header(
-            a4n_service_protocol::SIDECAR_AUTH_HEADER,
-            SIDECAR_PROCESS_TEST_TOKEN,
-        )
-        .json(&body)
-        .send()
-        .await
-        .expect("independent sidecar should answer an unknown payload field");
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .expect("unknown payload field error body should be readable");
-    assert!(
-        status.is_client_error()
-            || (status.is_success()
-                && serde_json::from_str::<serde_json::Value>(&body)
-                    .ok()
-                    .is_some_and(|value| value["error"].is_object())),
-        "unknown payload field should be rejected: status={status}, body={body}"
-    );
-    assert!(!body.contains(SIDECAR_PROCESS_TEST_TOKEN));
+    assert_route_rejects_unknown_json_field(base_url, path, body, "payload").await;
 }
 
-pub async fn assert_route_accepts_unknown_envelope_field(
+pub async fn assert_route_rejects_unknown_envelope_field(
     base_url: &str,
     path: &str,
     request: &impl serde::Serialize,
 ) {
     let mut body = serde_json::to_value(request).expect("typed request should serialize");
-    body["process_future_optional_field"] = serde_json::json!({"ignored": true});
+    body["process_unknown_field"] = serde_json::json!(true);
+    assert_route_rejects_unknown_json_field(base_url, path, body, "envelope").await;
+}
+
+async fn assert_route_rejects_unknown_json_field(
+    base_url: &str,
+    path: &str,
+    body: serde_json::Value,
+    location: &str,
+) {
     let response = reqwest::Client::new()
         .post(format!("{base_url}{path}"))
         .header(
@@ -184,13 +170,17 @@ pub async fn assert_route_accepts_unknown_envelope_field(
         .json(&body)
         .send()
         .await
-        .expect("independent sidecar should answer an additive envelope field");
-    assert!(response.status().is_success());
-    let response: a4n_service_protocol::ServiceResponse<serde_json::Value> = response
-        .json()
+        .unwrap_or_else(|error| panic!("sidecar did not answer unknown {location} field: {error}"));
+    let status = response.status();
+    let body = response
+        .text()
         .await
-        .expect("additive envelope field should preserve the response contract");
-    assert_eq!(response.status, a4n_service_protocol::ServiceStatus::Ok);
+        .unwrap_or_else(|error| panic!("unknown {location} field body is unreadable: {error}"));
+    assert!(
+        status.is_client_error(),
+        "unknown {location} field should be rejected: status={status}, body={body}"
+    );
+    assert!(!body.contains(SIDECAR_PROCESS_TEST_TOKEN));
 }
 
 pub async fn disconnect_during_request_body(addr: SocketAddr, path: &str) {
@@ -262,7 +252,7 @@ pub async fn assert_process_concurrency_saturation(addr: SocketAddr, service: &s
         .expect("process test service should have a resource policy");
     let held = hold_partial_requests(addr, path, policy.max_concurrent_requests).await;
     let client = reqwest::Client::new();
-    let health_url = format!("http://{addr}/healthz");
+    let health_url = format!("http://{addr}{}", a4n_service_protocol::SIDECAR_HEALTH_PATH);
 
     assert!(
         timeout(Duration::from_millis(250), client.get(&health_url).send())
@@ -382,7 +372,14 @@ pub async fn start_sidecar(manager: &ServiceManager, service_name: &str) -> Mana
         .start_sidecar(service_name)
         .await
         .expect("manager should start the independent sidecar binary");
-    assert!(process.id().is_some_and(|pid| pid > 0));
+    assert!(
+        manager
+            .process_status(service_name)
+            .await
+            .unwrap()
+            .and_then(|status| status.pid)
+            .is_some_and(|pid| pid > 0)
+    );
     let health = manager
         .health(service_name)
         .await

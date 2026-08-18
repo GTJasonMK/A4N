@@ -1,12 +1,13 @@
 use a4n_core::error::AppError;
-use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::Value;
+
+use crate::structured_llm::parse_strict_json_response;
 
 use super::contracts::{OptimizationPatch, OptimizationPatchProposal};
 use super::validation::{normalize_optimization_patch, validate_optimization_patches};
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct OptimizationPatchLlmResponse {
     summary: String,
@@ -21,11 +22,7 @@ pub(in crate::optimize) fn parse_content_optimization_patch_response(
     chapter_content: &str,
     raw: &str,
 ) -> Result<OptimizationPatchProposal, AppError> {
-    let value: Value = serde_json::from_str(raw.trim()).map_err(|e| {
-        AppError::InvalidArgument(format!(
-            "content_optimization_patch 必须返回严格 JSON 对象: {e}"
-        ))
-    })?;
+    let value = parse_strict_json_response(raw, "content_optimization_patch")?;
     parse_content_optimization_patch_value(
         session_id,
         project_id,
@@ -36,12 +33,7 @@ pub(in crate::optimize) fn parse_content_optimization_patch_response(
     )
 }
 
-pub(in crate::optimize) fn content_optimization_patch_schema() -> Result<Value, AppError> {
-    serde_json::to_value(schemars::schema_for!(OptimizationPatchLlmResponse))
-        .map_err(AppError::Serialization)
-}
-
-pub(in crate::optimize) fn parse_content_optimization_patch_value(
+fn parse_content_optimization_patch_value(
     session_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -76,32 +68,4 @@ pub(in crate::optimize) fn parse_content_optimization_patch_value(
             .map(normalize_optimization_patch)
             .collect(),
     })
-}
-
-pub(in crate::optimize) fn restore_content_optimization_patch_proposal(
-    value: Value,
-    session_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-    base_content_hash: &str,
-    chapter_content: &str,
-) -> Result<OptimizationPatchProposal, AppError> {
-    let proposal: OptimizationPatchProposal = serde_json::from_value(value)?;
-    if proposal.session_id != session_id
-        || proposal.project_id != project_id
-        || proposal.chapter_id != chapter_id
-        || proposal.base_content_hash != base_content_hash
-    {
-        return Err(AppError::InvalidState {
-            current: "optimization_patch_checkpoint_identity_mismatch".to_string(),
-            operation: "恢复内容优化局部补丁断点".to_string(),
-        });
-    }
-    if proposal.summary.trim().is_empty() {
-        return Err(AppError::InvalidArgument(
-            "content_optimization_patch.summary 不能为空".to_string(),
-        ));
-    }
-    validate_optimization_patches(chapter_content, &proposal.patches)?;
-    Ok(proposal)
 }

@@ -1,3 +1,4 @@
+import { CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT } from "../../api/canvas";
 import {
   defaultRefTypeForNode,
   nodeKindMeta,
@@ -150,15 +151,15 @@ function dragPreviewBodyText(kind: string): string {
     case "RenderTextNode":
       return "按模板生成文本";
     case "LlmTextNode":
-      return "输出类型：shot_script";
+      return `输出类型：${CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT}`;
     case "GenerateImageNode":
       return "接收上游提示词生成图片";
     case "GenerateVideoNode":
       return "输入模式：仅提示词";
     case "ExtractFrameNode":
-      return "抽帧：first";
+      return "抽取视频帧";
     case "TrimVideoNode":
-      return "裁剪：0s - ?";
+      return "设置裁剪起止时间";
     case "AssembleVideoNode":
       return "接收视频片段并输出视频";
     default:

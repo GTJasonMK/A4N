@@ -1,4 +1,4 @@
-import { apiInvoke, extractErrorMessage } from "./index";
+import { apiInvoke } from "./index";
 import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type {
   GenerationTaskHandle,
@@ -99,27 +99,6 @@ export function chapterGenerationNumber(
     : null;
 }
 
-/** RAG 是可选增强，但合同/权限/身份错误不能被预取 fallback 静默掩盖。 */
-export function shouldPropagateGenerationRagPrefetchError(error: unknown): boolean {
-  const message = extractErrorMessage(error, "").toLowerCase();
-  return (
-    [
-      "参数无效",
-      "invalid argument",
-      "identity",
-      "身份",
-      "权限不足",
-      "未找到",
-      "状态无效",
-      "未认证",
-    ].some((fragment) => message.includes(fragment))
-    || /query vector|向量.*(?:不匹配|非有限|数量|维度)|embedding.*(?:mismatch|不匹配)/i.test(
-      message,
-    )
-    || message.includes("返回数量不匹配")
-  );
-}
-
 export async function startChapterGeneration(
   input: StartChapterGenerationInput,
 ): Promise<GenerationTaskHandle> {
@@ -134,24 +113,16 @@ export async function startChapterGeneration(
     && clientRagQueryFingerprint === null
     && clientRagQueryVectors === null
   ) {
-    try {
-      const preparedQuery = await prepareClientGenerationRagQuery(
-        projectId,
-        input.chapter_number,
-        input.writing_notes,
-        input.min_word_count,
-        input.max_word_count,
-      );
-      clientRagEmbeddingIdentity = preparedQuery?.embeddingIdentity ?? null;
-      clientRagQueryFingerprint = preparedQuery?.queryFingerprint ?? null;
-      clientRagQueryVectors = preparedQuery?.queryVectors ?? null;
-    } catch (error) {
-      // RAG is an optional generation enhancement; apiInvoke has already logged the detail.
-      if (shouldPropagateGenerationRagPrefetchError(error)) throw error;
-      clientRagEmbeddingIdentity = null;
-      clientRagQueryFingerprint = null;
-      clientRagQueryVectors = null;
-    }
+    const preparedQuery = await prepareClientGenerationRagQuery(
+      projectId,
+      input.chapter_number,
+      input.writing_notes,
+      input.min_word_count,
+      input.max_word_count,
+    );
+    clientRagEmbeddingIdentity = preparedQuery.embeddingIdentity;
+    clientRagQueryFingerprint = preparedQuery.queryFingerprint;
+    clientRagQueryVectors = preparedQuery.queryVectors;
   }
   return apiInvoke<GenerationTaskHandle>("start_chapter_generation", {
     input: {
@@ -170,11 +141,8 @@ async function prepareClientGenerationRagQuery(
   writingNotes?: string | null,
   minWordCount?: number | null,
   maxWordCount?: number | null,
-): Promise<PreparedClientGenerationRagQuery | null> {
+): Promise<PreparedClientGenerationRagQuery> {
   const embeddingConfig = activeLocalEmbeddingConfig();
-  // 本机没有默认 Embedding 时，RAG 只是可选增强；正文生成继续走服务端
-  // 主链，避免在启动前把用户挡在“必须先配置资料检索”之外。
-  if (!embeddingConfig) return null;
   const prepared = await apiInvoke<PreparedGenerationRagEmbeddingRequest>(
     "prepare_chapter_generation_rag_embedding",
     {
@@ -185,14 +153,9 @@ async function prepareClientGenerationRagQuery(
       maxWordCount: maxWordCount ?? null,
     },
   );
-  const embedded = prepared.query_texts.length === 0
-    ? { identity: prepared.embedding_identity, embeddings: [] }
-    : await embedTextsLocally(embeddingConfig, prepared.query_texts);
+  const embedded = await embedTextsLocally(embeddingConfig, prepared.query_texts);
   ensureEmbeddingIdentityMatches(embedded.identity, prepared.embedding_identity);
   ensureEmbeddingVectorCount(embedded.embeddings, prepared.query_texts.length);
-  if (embedded.embeddings.length > 7) {
-    throw new Error("章节生成 RAG 查询向量最多允许 7 组");
-  }
   return {
     embeddingIdentity: embedded.identity,
     queryFingerprint: prepared.query_fingerprint,

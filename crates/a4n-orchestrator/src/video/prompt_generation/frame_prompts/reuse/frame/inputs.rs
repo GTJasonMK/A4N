@@ -7,10 +7,7 @@ use serde_json::Value;
 
 use crate::video::prompt_json::{VideoFramePrompt, VideoSegmentPlan};
 use crate::video::prompt_store::PromptWorkflowMode;
-use crate::video::{
-    BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, FIRST_FRAME_CHAIN_CONTRACT_VERSION,
-    OrchestratorContext, PromptOutputLanguage, STORYBOARD_PROMPT_CONTRACT_VERSION,
-};
+use crate::video::{OrchestratorContext, PromptOutputLanguage};
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_frame_rows_for_video_prompt_inputs(
     service: &OrchestratorContext,
@@ -80,7 +77,10 @@ pub(super) fn frame_prompt_row_matches_video_input_contract(
     let Some(metadata) = row.metadata_json.as_ref() else {
         return false;
     };
-    let Some(expected_contract) = frame_prompt_contract_version(workflow_mode, prompt_type) else {
+    let Some(expected_contract) = crate::video::prompt_records::expected_contract_version(
+        workflow_mode.as_str(),
+        prompt_type,
+    ) else {
         return false;
     };
     if metadata.get("contract_version").and_then(Value::as_str) != Some(expected_contract) {
@@ -93,24 +93,6 @@ pub(super) fn frame_prompt_row_matches_video_input_contract(
         return false;
     }
     metadata.get("source_prompt_type").and_then(Value::as_str) == Some(source_prompt_type)
-}
-
-fn frame_prompt_contract_version(
-    workflow_mode: PromptWorkflowMode,
-    prompt_type: &str,
-) -> Option<&'static str> {
-    match (workflow_mode, prompt_type) {
-        (PromptWorkflowMode::BoundaryFrames, "frame_prompt") => {
-            Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION)
-        }
-        (PromptWorkflowMode::FirstFrameChain, "first_frame_prompt") => {
-            Some(FIRST_FRAME_CHAIN_CONTRACT_VERSION)
-        }
-        (PromptWorkflowMode::Storyboard, "storyboard_prompt") => {
-            Some(STORYBOARD_PROMPT_CONTRACT_VERSION)
-        }
-        _ => None,
-    }
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) fn validate_frame_prompts_for_video_prompt_inputs(

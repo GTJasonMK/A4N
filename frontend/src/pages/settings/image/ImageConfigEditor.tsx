@@ -1,8 +1,5 @@
 import React from "react";
-import {
-  detectImageConfigModels,
-  detectServerImageConfigModels,
-} from "../../../api/image";
+import { detectImageConfigModels } from "../../../api/image";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
@@ -10,13 +7,14 @@ import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import { IMAGE_SIZE_OPTIONS } from "./imageConfigUtils";
 import type { ImageProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
+import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import type { ImageForm } from "./types";
 
 interface ImageConfigEditorProps {
   form: ImageForm;
   setForm: (form: ImageForm) => void;
   configId?: number | null;
-  serverScope?: boolean;
+  scope: ModelConfigScope;
   readonly?: boolean;
   templateLocked?: boolean;
   providers: ImageProviderDescriptor[];
@@ -28,14 +26,11 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
   form,
   setForm,
   configId = null,
-  serverScope = false,
+  scope,
   readonly = false,
   templateLocked = false,
   providers,
 }) => {
-  const detectModels = serverScope
-    ? detectServerImageConfigModels
-    : detectImageConfigModels;
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const selectedProvider = providers.find(
@@ -49,7 +44,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
     configId,
     hasApiKey: form.has_api_key,
     readonly,
-    scope: serverScope ? "server" : "local",
+    scope,
   });
 
   return (
@@ -88,7 +83,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
-            detectModels={() => detectModels(modelDiscovery.input)}
+            detectModels={() => detectImageConfigModels(modelDiscovery.input, scope)}
           />
         </FormField>
       </div>

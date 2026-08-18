@@ -1,5 +1,12 @@
 use serde::{Deserialize, Deserializer};
 
+pub(crate) fn nullable_trace_id_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": ["string", "null"],
+        "maxLength": 128
+    })
+}
+
 pub(crate) fn deserialize_required_nullable_field<'de, D, T>(
     deserializer: D,
 ) -> Result<Option<T>, D::Error>

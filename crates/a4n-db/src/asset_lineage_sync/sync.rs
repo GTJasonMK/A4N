@@ -1,3 +1,5 @@
+use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
+
 use super::*;
 
 pub async fn sync_project_asset_lineage_record(
@@ -121,7 +123,7 @@ where
     }
 
     for image in &generated_images {
-        if image.image_type != "video_tail_frame" {
+        if image.image_type != IMAGE_TYPE_VIDEO_TAIL_FRAME {
             continue;
         }
         let Some(source_video_id) = image

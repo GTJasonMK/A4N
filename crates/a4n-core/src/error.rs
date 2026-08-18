@@ -2,6 +2,13 @@
 
 use thiserror::Error;
 
+pub fn append_secondary_message(primary: String, secondary: Option<String>) -> String {
+    match secondary.filter(|message| !message.trim().is_empty()) {
+        Some(secondary) => format!("{primary}；{secondary}"),
+        None => primary,
+    }
+}
+
 /// 应用全局错误类型
 #[derive(Debug, Error)]
 pub enum AppError {

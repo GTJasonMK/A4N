@@ -10,7 +10,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn video_prompt_row
         service.database.connection(),
         project_id,
         chapter_id,
-        "video_prompt",
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
         workflow_mode.as_str(),
         false,
     )

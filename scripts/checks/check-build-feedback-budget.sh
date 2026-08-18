@@ -2,11 +2,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 BASELINE="$PROJECT_ROOT/scripts/checks/build-feedback-baseline.tsv"
-MEASUREMENTS="$PROJECT_ROOT/target/build-feedback/measurements.tsv"
+MEASUREMENTS="$CARGO_TARGET_DIR/build-feedback/measurements.tsv"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -95,30 +96,14 @@ def rows(path: Path, expected_fields: int):
 
 baseline = rows(baseline_path, 3)
 measurements = rows(measurement_path, 2)
+if not baseline:
+    raise SystemExit("build feedback baseline has no packages")
 baseline_method = method(baseline_path)
 measurement_method = method(measurement_path)
 if baseline_method != measurement_method:
     raise SystemExit(
         "build feedback method mismatch: "
         f"baseline={baseline_method}, measurement={measurement_method}"
-    )
-required = {
-    "a4n-prompt-service",
-    "a4n-llm-gateway",
-    "a4n-embedding-service",
-    "a4n-rag-service",
-    "a4n-image-service",
-    "a4n-video-service",
-    "a4n-server",
-    "a4n-tauri",
-}
-missing_baselines = sorted(required - set(baseline))
-if missing_baselines:
-    raise SystemExit("missing build feedback baselines: " + ", ".join(missing_baselines))
-unexpected_baselines = sorted(set(baseline) - required)
-if unexpected_baselines:
-    raise SystemExit(
-        "unexpected build feedback baselines: " + ", ".join(unexpected_baselines)
     )
 missing = sorted(set(baseline) - set(measurements))
 if missing:

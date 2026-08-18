@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use a4n_db::project::ProjectFamilyExportRows;
 use async_trait::async_trait;
+use a4n_core::models::media::media_asset::THUMBNAIL_PATH_FIELD;
 
 use super::{
     FamilyImportMediaPayload, MEDIA_FILE_FIELDS, MediaFileEntry, ProjectFamilyPackage,
@@ -73,7 +74,7 @@ pub(crate) fn imported_project_family_media_path(
     package_path: &str,
 ) -> Result<String, String> {
     let extension = required_path_extension(package_path, "媒体文件")?;
-    let suffix = if field == super::MEDIA_FILE_FIELD_THUMBNAIL {
+    let suffix = if field == THUMBNAIL_PATH_FIELD {
         "_thumbnail"
     } else {
         ""

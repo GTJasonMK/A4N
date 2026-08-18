@@ -6,6 +6,7 @@ use a4n_core::{
     error::AppError,
     models::{ai::generated_image, character::character_portrait},
 };
+use a4n_domain::GeneratedMediaReference;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
 
@@ -81,7 +82,7 @@ where
                 media_sources: mirror
                     .map(|image| {
                         vec![lineage_ref(
-                            &format!("generated_image:{}", image.id),
+                            &GeneratedMediaReference::Image(image.id).to_string(),
                             "镜像图片记录",
                             "image",
                             "generated_image",

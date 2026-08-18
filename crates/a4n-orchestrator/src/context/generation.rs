@@ -17,10 +17,15 @@ use a4n_api_contract::{
     },
     outline::{OutlineGenerationOperation, StartOutlineGenerationInput},
     portrait::{PortraitGenerationOperation, StartPortraitGenerationInput},
-    video::{StartVideoGenerationInput, VideoGenerationOperation},
+    video::{StartVideoGenerationInput, VideoGenerationOperation, VideoPromptGenerationOptions},
+};
+use a4n_core::blueprint::{
+    BLUEPRINT_GENERATION_KIND, BLUEPRINT_REFINEMENT_TASK_KIND,
+    normalized_blueprint_refinement_focus,
 };
 use a4n_core::error::AppError;
 use a4n_core::models::generation::{generation_run, llm_call_trace};
+use a4n_core::video_execution::{TimelineError, VideoTimelineGap};
 use a4n_db::DbHandle;
 use a4n_db::generation::{
     AttachGenerationRunsToWorkflowInput, GenerationLifecycleGateError, GenerationLifecycleTask,
@@ -32,9 +37,10 @@ use a4n_db::generation::{
 };
 use a4n_queue::priority::{TaskKind, TaskPermit, TaskPriority, TaskStatus};
 use a4n_service_protocol::{
-    BatchSummary, GENERATION_EVENT_SCHEMA_VERSION, GenerationError, GenerationEvent,
-    GenerationFinishReason, GenerationResultRef, GenerationTaskEvent, GenerationTaskSnapshot,
-    GenerationTaskStatus, InterruptionReason, StreamTextHash, TextStreamSnapshot,
+    BatchCommitPolicy, BatchSummary, GENERATION_EVENT_SCHEMA_VERSION, GenerationDeliveryMode,
+    GenerationError, GenerationEvent, GenerationFinishReason, GenerationResultRef,
+    GenerationTargetRef, GenerationTaskEvent, GenerationTaskSnapshot, GenerationTaskStatus,
+    InterruptionReason, StreamTextHash, TextStreamSnapshot,
 };
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
@@ -64,6 +70,20 @@ pub(crate) struct GenerationApplication {
     database: DbHandle,
     task_queue: Arc<PersistentTaskQueue>,
     terminal: GenerationTerminalCoordinator,
+}
+
+struct RootGenerationTaskReservationInput<'a> {
+    requested_by_user_id: i64,
+    meta: &'a GenerationStartRequestMeta,
+    business_key_json: Value,
+    input_fingerprint_json: Value,
+    task_kind: TaskKind,
+    priority: TaskPriority,
+    delivery_mode: GenerationDeliveryMode,
+    batch_policy: Option<BatchCommitPolicy>,
+    project_id: i64,
+    task_scope: &'static str,
+    target: GenerationTargetRef,
 }
 
 #[derive(Debug, Clone)]
@@ -486,15 +506,24 @@ impl GenerationApplication {
                 return Err(GenerationTaskAccessError::Session(error));
             }
         };
-        if let Err(error) = self.terminal.registry().insert(session) {
-            self.terminate_start_failure(
-                &task.checkpoint.task_id,
-                task.checkpoint.attempt,
-                queue_pending,
-                error.to_string(),
-            )
-            .await;
-            return Err(GenerationTaskAccessError::Session(error));
+        let registered = match self.terminal.registry().insert_or_get(Arc::clone(&session)) {
+            Ok(registered) => registered,
+            Err(error) => {
+                self.terminate_start_failure(
+                    &task.checkpoint.task_id,
+                    task.checkpoint.attempt,
+                    queue_pending,
+                    error.to_string(),
+                )
+                .await;
+                return Err(GenerationTaskAccessError::Session(error));
+            }
+        };
+        if !Arc::ptr_eq(&registered, &session) {
+            return Ok(GenerationTaskStart {
+                handle,
+                should_run: false,
+            });
         }
 
         Ok(GenerationTaskStart {
@@ -532,318 +561,287 @@ impl GenerationApplication {
         }
     }
 
-    pub(crate) async fn start_chapter_generation_task(
+    async fn reserve_root_generation_task(
         &self,
-        user_id: i64,
-        input: StartChapterGenerationInput,
+        input: RootGenerationTaskReservationInput<'_>,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let fingerprint = chapter_generation_input_fingerprint(&input);
+        let RootGenerationTaskReservationInput {
+            requested_by_user_id,
+            meta,
+            business_key_json,
+            input_fingerprint_json,
+            task_kind,
+            priority,
+            delivery_mode,
+            batch_policy,
+            project_id,
+            task_scope,
+            target,
+        } = input;
         let reservation = a4n_db::generation::reserve_generation_task(
             self.connection(),
             ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "chapter_generation",
-                    "project_id": input.project_id,
-                    "chapter_number": input.chapter_number,
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(input.project_id),
+                requested_by_user_id,
+                start_request_id: meta.start_request_id.clone(),
+                business_key_json,
+                input_fingerprint_json,
+                task_kind,
+                priority,
+                delivery_mode,
+                batch_policy,
+                project_id: Some(project_id),
                 root_project_id: None,
                 source_snapshot_id: None,
-                task_scope: Some("chapter_generation".to_string()),
+                task_scope: Some(task_scope.to_string()),
                 workflow_run_id: None,
                 generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "chapter".to_string(),
-                    id: format!("{}:{}", input.project_id, input.chapter_number),
-                    revision: None,
-                }),
+                target: Some(target),
                 root_task_id: None,
                 parent_task_id: None,
                 item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+                retry_of_task_id: meta.retry_of_task_id.clone(),
             },
         )
         .await
         .map_err(GenerationTaskAccessError::Persistence)?;
         self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_chapter_generation_task(
+        &self,
+        user_id: i64,
+        input: &StartChapterGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let fingerprint = chapter_generation_input_fingerprint(input);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "chapter_generation",
+                "project_id": input.project_id,
+                "chapter_number": input.chapter_number,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: input.project_id,
+            task_scope: "chapter_generation",
+            target: GenerationTargetRef {
+                kind: "chapter".to_string(),
+                id: format!("{}:{}", input.project_id, input.chapter_number),
+                revision: None,
+            },
+        })
+        .await
     }
 
     pub(crate) async fn start_inspiration_generation_task(
         &self,
         user_id: i64,
-        input: StartInspirationGenerationInput,
+        input: &StartInspirationGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let fingerprint = inspiration_generation_input_fingerprint(&input);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "inspiration_generation",
-                    "project_id": input.project_id,
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(input.project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("inspiration_generation".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "inspiration_conversation".to_string(),
-                    id: input.project_id.to_string(),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        let fingerprint = inspiration_generation_input_fingerprint(input);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "inspiration_generation",
+                "project_id": input.project_id,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: input.project_id,
+            task_scope: "inspiration_generation",
+            target: GenerationTargetRef {
+                kind: "inspiration_conversation".to_string(),
+                id: input.project_id.to_string(),
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_outline_generation_task(
         &self,
         user_id: i64,
-        input: StartOutlineGenerationInput,
+        input: &StartOutlineGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let operation_kind = outline_generation_operation_kind(&input.operation);
         let target_id = outline_generation_target_id(input.project_id, &input.operation);
-        let fingerprint = outline_generation_input_fingerprint(&input);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "outline_generation",
-                    "project_id": input.project_id,
-                    "operation_kind": operation_kind,
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(input.project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("outline_generation".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: format!("outline_{operation_kind}"),
-                    id: target_id,
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        let fingerprint = outline_generation_input_fingerprint(input);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "outline_generation",
+                "project_id": input.project_id,
+                "operation_kind": operation_kind,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: input.project_id,
+            task_scope: "outline_generation",
+            target: GenerationTargetRef {
+                kind: format!("outline_{operation_kind}"),
+                id: target_id,
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_portrait_generation_task(
         &self,
         user_id: i64,
-        input: StartPortraitGenerationInput,
+        input: &StartPortraitGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let operation_kind = portrait_generation_operation_kind(&input.operation);
-        let fingerprint = portrait_generation_input_fingerprint(&input);
+        let fingerprint = portrait_generation_input_fingerprint(input);
         let batch_policy = matches!(
             &input.operation,
             PortraitGenerationOperation::GenerateMissing
         )
-        .then_some(a4n_service_protocol::BatchCommitPolicy::BestEffort);
+        .then_some(BatchCommitPolicy::BestEffort);
         let target_id = portrait_generation_target_id(input.project_id, &input.operation);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "portrait_generation",
-                    "project_id": input.project_id,
-                    "operation_kind": operation_kind,
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::ImageGeneration,
-                priority: TaskPriority::Medium,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::StageOnly,
-                batch_policy,
-                project_id: Some(input.project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("portrait_generation".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: format!("portrait_{operation_kind}"),
-                    id: target_id,
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "portrait_generation",
+                "project_id": input.project_id,
+                "operation_kind": operation_kind,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::ImageGeneration,
+            priority: TaskPriority::Medium,
+            delivery_mode: GenerationDeliveryMode::StageOnly,
+            batch_policy,
+            project_id: input.project_id,
+            task_scope: "portrait_generation",
+            target: GenerationTargetRef {
+                kind: format!("portrait_{operation_kind}"),
+                id: target_id,
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_image_generation_task(
         &self,
         user_id: i64,
-        input: StartImageGenerationInput,
+        input: &StartImageGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let operation_kind = image_generation_operation_kind(&input.operation);
-        let fingerprint = image_generation_input_fingerprint(&input);
+        let fingerprint = image_generation_input_fingerprint(input);
         let batch_policy = matches!(&input.operation, ImageGenerationOperation::Batch { .. })
-            .then_some(a4n_service_protocol::BatchCommitPolicy::BestEffort);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "image_generation",
-                    "project_id": input.project_id,
-                    "operation_kind": operation_kind,
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::ImageGeneration,
-                priority: TaskPriority::Medium,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::StageOnly,
-                batch_policy,
-                project_id: Some(input.project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("image_generation".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: format!("image_{operation_kind}"),
-                    id: image_generation_target_id(input.project_id, &input.operation),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+            .then_some(BatchCommitPolicy::BestEffort);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "image_generation",
+                "project_id": input.project_id,
+                "operation_kind": operation_kind,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::ImageGeneration,
+            priority: TaskPriority::Medium,
+            delivery_mode: GenerationDeliveryMode::StageOnly,
+            batch_policy,
+            project_id: input.project_id,
+            task_scope: "image_generation",
+            target: GenerationTargetRef {
+                kind: format!("image_{operation_kind}"),
+                id: image_generation_target_id(input.project_id, &input.operation),
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_video_generation_task(
         &self,
         user_id: i64,
-        input: StartVideoGenerationInput,
+        input: &StartVideoGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let operation_kind = video_generation_operation_kind(&input.operation);
-        let target_id = video_generation_target_id(input.project_id, &input.operation);
-        let fingerprint = video_generation_input_fingerprint(&input);
+        let operation_kind = input.operation.kind();
+        let target_id = video_generation_target_id(input.project_id, &input.operation)
+            .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
+        let fingerprint = video_generation_input_fingerprint(input);
         let prompt_operation = input.operation.is_prompt_generation();
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: video_generation_business_key(
-                    input.project_id,
-                    operation_kind,
-                    &target_id,
-                ),
-                input_fingerprint_json: fingerprint,
-                task_kind: if prompt_operation {
-                    TaskKind::LlmCall
-                } else {
-                    TaskKind::VideoGeneration
-                },
-                priority: if prompt_operation {
-                    TaskPriority::High
-                } else {
-                    TaskPriority::Medium
-                },
-                delivery_mode: if prompt_operation {
-                    a4n_service_protocol::GenerationDeliveryMode::Stream
-                } else {
-                    a4n_service_protocol::GenerationDeliveryMode::StageOnly
-                },
-                batch_policy: match &input.operation {
-                    VideoGenerationOperation::ChapterBatch { .. }
-                    | VideoGenerationOperation::PromptFrames { .. }
-                    | VideoGenerationOperation::PromptVideos { .. } => {
-                        Some(a4n_service_protocol::BatchCommitPolicy::BestEffort)
-                    }
-                    _ => None,
-                },
-                project_id: Some(input.project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some(if prompt_operation {
-                    "video_prompt_generation".to_string()
-                } else {
-                    "video_generation".to_string()
-                }),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: format!("video_{operation_kind}"),
-                    id: target_id,
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: video_generation_business_key(
+                input.project_id,
+                operation_kind,
+                &target_id,
+            ),
+            input_fingerprint_json: fingerprint,
+            task_kind: if prompt_operation {
+                TaskKind::LlmCall
+            } else {
+                TaskKind::VideoGeneration
             },
-        )
+            priority: if prompt_operation {
+                TaskPriority::High
+            } else {
+                TaskPriority::Medium
+            },
+            delivery_mode: if prompt_operation {
+                GenerationDeliveryMode::Stream
+            } else {
+                GenerationDeliveryMode::StageOnly
+            },
+            batch_policy: match &input.operation {
+                VideoGenerationOperation::ChapterBatch { .. }
+                | VideoGenerationOperation::PromptFrames { .. }
+                | VideoGenerationOperation::PromptVideos { .. } => {
+                    Some(BatchCommitPolicy::BestEffort)
+                }
+                _ => None,
+            },
+            project_id: input.project_id,
+            task_scope: if prompt_operation {
+                "video_prompt_generation"
+            } else {
+                "video_generation"
+            },
+            target: GenerationTargetRef {
+                kind: format!("video_{operation_kind}"),
+                id: target_id,
+                revision: None,
+            },
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_blueprint_generation_task(
         &self,
         user_id: i64,
-        input: StartBlueprintGenerationInput,
+        input: &StartBlueprintGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let fingerprint = blueprint_generation_input_fingerprint(&input);
+        let fingerprint = blueprint_generation_input_fingerprint(input);
         self.start_blueprint_mutation_task(
             user_id,
-            input.meta,
+            &input.meta,
             input.project_id,
             fingerprint,
-            "blueprint_generation",
+            BLUEPRINT_GENERATION_KIND,
         )
         .await
     }
@@ -851,15 +849,15 @@ impl GenerationApplication {
     pub(crate) async fn start_blueprint_refinement_task(
         &self,
         user_id: i64,
-        input: StartBlueprintRefinementInput,
+        input: &StartBlueprintRefinementInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let fingerprint = blueprint_refinement_input_fingerprint(&input);
+        let fingerprint = blueprint_refinement_input_fingerprint(input);
         self.start_blueprint_mutation_task(
             user_id,
-            input.meta,
+            &input.meta,
             input.project_id,
             fingerprint,
-            "blueprint_refinement",
+            BLUEPRINT_REFINEMENT_TASK_KIND,
         )
         .await
     }
@@ -867,179 +865,127 @@ impl GenerationApplication {
     async fn start_blueprint_mutation_task(
         &self,
         user_id: i64,
-        meta: GenerationStartRequestMeta,
+        meta: &GenerationStartRequestMeta,
         project_id: i64,
         fingerprint: Value,
-        task_scope: &str,
+        task_scope: &'static str,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "blueprint_mutation",
-                    "project_id": project_id,
-                    "operation_mode": "blueprint",
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some(task_scope.to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: task_scope.to_string(),
-                    id: project_id.to_string(),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: meta.retry_of_task_id,
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "blueprint_mutation",
+                "project_id": project_id,
+                "operation_mode": "blueprint",
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id,
+            task_scope,
+            target: GenerationTargetRef {
+                kind: task_scope.to_string(),
+                id: project_id.to_string(),
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_optimize_chat_generation_task(
         &self,
         user_id: i64,
-        input: StartOptimizeChatGenerationInput,
+        input: &StartOptimizeChatGenerationInput,
         project_id: i64,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let fingerprint = optimize_chat_generation_input_fingerprint(&input);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "optimization_chat",
-                    "session_id": input.request.session_id,
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("optimization_chat".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "optimization_chat".to_string(),
-                    id: input.request.session_id.to_string(),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        let fingerprint = optimize_chat_generation_input_fingerprint(input);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "optimization_chat",
+                "session_id": input.request.session_id,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id,
+            task_scope: "optimization_chat",
+            target: GenerationTargetRef {
+                kind: "optimization_chat".to_string(),
+                id: input.request.session_id.to_string(),
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_optimize_analysis_generation_task(
         &self,
         user_id: i64,
-        input: StartOptimizeAnalysisGenerationInput,
+        input: &StartOptimizeAnalysisGenerationInput,
         project_id: i64,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let input_fingerprint_json = optimize_analysis_generation_input_fingerprint(&input);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "optimization_analysis",
-                    "session_id": input.session_id,
-                }),
-                input_fingerprint_json,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("optimization_analysis".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "optimization_analysis".to_string(),
-                    id: input.session_id.to_string(),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        let input_fingerprint_json = optimize_analysis_generation_input_fingerprint(input);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "optimization_analysis",
+                "session_id": input.session_id,
+            }),
+            input_fingerprint_json,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id,
+            task_scope: "optimization_analysis",
+            target: GenerationTargetRef {
+                kind: "optimization_analysis".to_string(),
+                id: input.session_id.to_string(),
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_optimize_patch_generation_task(
         &self,
         user_id: i64,
-        input: StartOptimizePatchGenerationInput,
+        input: &StartOptimizePatchGenerationInput,
         project_id: i64,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        let input_fingerprint_json = optimize_patch_generation_input_fingerprint(&input);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "optimization_patch",
-                    "session_id": input.request.session_id,
-                }),
-                input_fingerprint_json,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("optimization_patch".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "optimization_patch".to_string(),
-                    id: input.request.session_id.to_string(),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+        let input_fingerprint_json = optimize_patch_generation_input_fingerprint(input);
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "optimization_patch",
+                "session_id": input.request.session_id,
+            }),
+            input_fingerprint_json,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id,
+            task_scope: "optimization_patch",
+            target: GenerationTargetRef {
+                kind: "optimization_patch".to_string(),
+                id: input.request.session_id.to_string(),
+                revision: None,
             },
-        )
+        })
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn acquire_task_execution(
@@ -1645,7 +1591,7 @@ impl OrchestratorContext {
     pub async fn start_chapter_generation_task(
         &self,
         user_id: i64,
-        input: StartChapterGenerationInput,
+        input: &StartChapterGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         self.validate_chapter_generation_application_access(
             user_id,
@@ -1662,7 +1608,7 @@ impl OrchestratorContext {
         )
         .await
         .map_err(GenerationTaskAccessError::InvalidArgument)?;
-        self.validate_chapter_generation_client_rag_input(&input)
+        self.validate_chapter_generation_client_rag_input(input)
             .await
             .map_err(GenerationTaskAccessError::InvalidArgument)?;
         self.generation
@@ -1673,7 +1619,7 @@ impl OrchestratorContext {
     pub async fn start_inspiration_generation_task(
         &self,
         user_id: i64,
-        input: StartInspirationGenerationInput,
+        input: &StartInspirationGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         crate::inspiration::required_message_content(&input.message)
             .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
@@ -1695,9 +1641,9 @@ impl OrchestratorContext {
     pub async fn start_outline_generation_task(
         &self,
         user_id: i64,
-        input: StartOutlineGenerationInput,
+        input: &StartOutlineGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        self.validate_outline_generation_start(user_id, &input)
+        self.validate_outline_generation_start(user_id, input)
             .await
             .map_err(map_outline_generation_start_error)?;
         self.generation
@@ -1708,9 +1654,9 @@ impl OrchestratorContext {
     pub async fn start_portrait_generation_task(
         &self,
         user_id: i64,
-        input: StartPortraitGenerationInput,
+        input: &StartPortraitGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        self.validate_portrait_generation_start(user_id, &input)
+        self.validate_portrait_generation_start(user_id, input)
             .await
             .map_err(map_portrait_generation_start_error)?;
         self.generation
@@ -1721,9 +1667,9 @@ impl OrchestratorContext {
     pub async fn start_image_generation_task(
         &self,
         user_id: i64,
-        input: StartImageGenerationInput,
+        input: &StartImageGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        self.validate_image_generation_start(user_id, &input)
+        self.validate_image_generation_start(user_id, input)
             .await
             .map_err(map_image_generation_start_error)?;
         self.generation
@@ -1734,9 +1680,9 @@ impl OrchestratorContext {
     pub async fn start_video_generation_task(
         &self,
         user_id: i64,
-        input: StartVideoGenerationInput,
+        input: &StartVideoGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        self.validate_video_generation_start(user_id, &input)
+        self.validate_video_generation_start(user_id, input)
             .await
             .map_err(map_video_generation_start_error)?;
         self.generation
@@ -1747,7 +1693,7 @@ impl OrchestratorContext {
     pub async fn start_blueprint_generation_task(
         &self,
         user_id: i64,
-        input: StartBlueprintGenerationInput,
+        input: &StartBlueprintGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         if input.title.trim().is_empty() || input.genre.trim().is_empty() {
             return Err(GenerationTaskAccessError::InvalidArgument(
@@ -1774,7 +1720,7 @@ impl OrchestratorContext {
     pub async fn start_blueprint_refinement_task(
         &self,
         user_id: i64,
-        input: StartBlueprintRefinementInput,
+        input: &StartBlueprintRefinementInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         self.verify_project_permission(
             input.project_id,
@@ -1801,7 +1747,7 @@ impl OrchestratorContext {
     pub async fn start_optimize_chat_generation_task(
         &self,
         user_id: i64,
-        input: StartOptimizeChatGenerationInput,
+        input: &StartOptimizeChatGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let session = self
             .validated_optimize_chat_generation_session(
@@ -1819,7 +1765,7 @@ impl OrchestratorContext {
     pub async fn start_optimize_analysis_generation_task(
         &self,
         user_id: i64,
-        input: StartOptimizeAnalysisGenerationInput,
+        input: &StartOptimizeAnalysisGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let session = self
             .optimize_session_for_user(user_id, input.session_id)
@@ -1833,7 +1779,7 @@ impl OrchestratorContext {
     pub async fn start_optimize_patch_generation_task(
         &self,
         user_id: i64,
-        input: StartOptimizePatchGenerationInput,
+        input: &StartOptimizePatchGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let session = self
             .optimize_session_for_user(user_id, input.request.session_id)
@@ -2422,20 +2368,11 @@ fn video_generation_business_key(project_id: i64, operation_kind: &str, target_i
     })
 }
 
-fn video_generation_operation_kind(operation: &VideoGenerationOperation) -> &'static str {
-    match operation {
-        VideoGenerationOperation::Chapter { .. } => "chapter",
-        VideoGenerationOperation::ChapterBatch { .. } => "chapter_batch",
-        VideoGenerationOperation::ReferenceMedia { .. } => "reference_media",
-        VideoGenerationOperation::PromptSegmentPlan { .. } => "prompt_segment_plan",
-        VideoGenerationOperation::PromptInsertedSegment { .. } => "prompt_inserted_segment",
-        VideoGenerationOperation::PromptFrames { .. } => "prompt_frames",
-        VideoGenerationOperation::PromptVideos { .. } => "prompt_videos",
-    }
-}
-
-fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperation) -> String {
-    match operation {
+fn video_generation_target_id(
+    project_id: i64,
+    operation: &VideoGenerationOperation,
+) -> Result<String, TimelineError> {
+    Ok(match operation {
         VideoGenerationOperation::Chapter {
             chapter_id,
             prompt_id,
@@ -2458,59 +2395,51 @@ fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperat
         VideoGenerationOperation::PromptInsertedSegment {
             chapter_id,
             options,
-        } => format!(
-            "{project_id}:chapter:{chapter_id}:prompt_inserted_segment:timeline:{}:gap:{}:{}",
-            options.timeline_id,
-            options.previous_item_id.unwrap_or(0),
-            options.next_item_id.unwrap_or(0),
-        ),
+        } => {
+            let gap_key = VideoTimelineGap {
+                previous_item_id: options.previous_item_id,
+                next_item_id: options.next_item_id,
+            }
+            .canonical_key()?;
+            format!(
+                "{project_id}:chapter:{chapter_id}:prompt_inserted_segment:timeline:{}:gap:{gap_key}",
+                options.timeline_id,
+            )
+        }
         VideoGenerationOperation::PromptFrames {
             chapter_id,
             options,
-        } => format!(
-            "{project_id}:chapter:{chapter_id}:prompt_frames:plan:{}:shot:{}:index:{}",
-            options
-                .segment_plan_prompt_id
-                .expect("video frame prompt start validation requires segment plan"),
-            options
-                .target_segment
-                .as_ref()
-                .expect("video frame prompt start validation requires target segment")
-                .source_shot_id,
-            options
-                .target_segment
-                .as_ref()
-                .expect("video frame prompt start validation requires target segment")
-                .segment_index_in_shot,
-        ),
-        VideoGenerationOperation::PromptVideos {
+        }
+        | VideoGenerationOperation::PromptVideos {
             chapter_id,
             options,
-        } => format!(
-            "{project_id}:chapter:{chapter_id}:prompt_videos:plan:{}:shot:{}:index:{}",
-            options
-                .segment_plan_prompt_id
-                .expect("video final prompt start validation requires segment plan"),
-            options
-                .target_segment
-                .as_ref()
-                .expect("video final prompt start validation requires target segment")
-                .source_shot_id,
-            options
-                .target_segment
-                .as_ref()
-                .expect("video final prompt start validation requires target segment")
-                .segment_index_in_shot,
-        ),
-    }
+        } => video_prompt_unit_target_id(project_id, *chapter_id, operation.kind(), options),
+    })
+}
+
+fn video_prompt_unit_target_id(
+    project_id: i64,
+    chapter_id: i64,
+    operation_kind: &str,
+    options: &VideoPromptGenerationOptions,
+) -> String {
+    let segment_plan_prompt_id = options
+        .segment_plan_prompt_id
+        .expect("video prompt start validation requires segment plan");
+    let target_segment = options
+        .target_segment
+        .as_ref()
+        .expect("video prompt start validation requires target segment");
+    format!(
+        "{project_id}:chapter:{chapter_id}:{operation_kind}:plan:{segment_plan_prompt_id}:shot:{}:index:{}",
+        target_segment.source_shot_id, target_segment.segment_index_in_shot,
+    )
 }
 
 fn validate_video_prompt_generation_start(
     chapter_id: i64,
-    options: &a4n_api_contract::video::VideoPromptGenerationOptions,
-    validate_options: fn(
-        &a4n_api_contract::video::VideoPromptGenerationOptions,
-    ) -> Result<(), AppError>,
+    options: &VideoPromptGenerationOptions,
+    validate_options: fn(&VideoPromptGenerationOptions) -> Result<(), AppError>,
 ) -> Result<(), AppError> {
     if chapter_id <= 0 {
         return Err(AppError::InvalidArgument(
@@ -2523,7 +2452,7 @@ fn validate_video_prompt_generation_start(
 fn blueprint_generation_input_fingerprint(input: &StartBlueprintGenerationInput) -> Value {
     serde_json::json!({
         "version": 1,
-        "task_kind": "blueprint_generation",
+        "task_kind": BLUEPRINT_GENERATION_KIND,
         "project_id": input.project_id,
         "title": input.title,
         "genre": input.genre,
@@ -2535,10 +2464,10 @@ fn blueprint_generation_input_fingerprint(input: &StartBlueprintGenerationInput)
 fn blueprint_refinement_input_fingerprint(input: &StartBlueprintRefinementInput) -> Value {
     serde_json::json!({
         "version": 1,
-        "task_kind": "blueprint_refinement",
+        "task_kind": BLUEPRINT_REFINEMENT_TASK_KIND,
         "project_id": input.project_id,
-        "focus": input.focus,
-        "variables": input.variables,
+        "focus": normalized_blueprint_refinement_focus(input.focus.as_deref()),
+        "variables": input.variables.clone().unwrap_or_default(),
     })
 }
 
@@ -2642,7 +2571,7 @@ mod video_prompt_generation_tests {
             workflow_mode: Some("storyboard".to_string()),
             segment_plan_prompt_id: Some(11),
             style: "电影感".to_string(),
-            prompt_output_language: Some("zh_cn".to_string()),
+            prompt_output_language: "zh_cn".to_string(),
             prompt_batch_size: 2,
             target_segment: Some(VideoSegmentTarget {
                 source_shot_id: "shot-4".to_string(),
@@ -2684,7 +2613,7 @@ mod video_prompt_generation_tests {
     fn prompt_target_contains_chapter_operation_and_workflow() {
         let operation = input(options()).operation;
         assert_eq!(
-            video_generation_target_id(19, &operation),
+            video_generation_target_id(19, &operation).unwrap(),
             "19:chapter:3:prompt_frames:plan:11:shot:shot-4:index:1"
         );
     }
@@ -2692,13 +2621,9 @@ mod video_prompt_generation_tests {
     #[test]
     fn prompt_business_key_uses_canonical_target() {
         let input = input(options());
-        let target_id = video_generation_target_id(input.project_id, &input.operation);
+        let target_id = video_generation_target_id(input.project_id, &input.operation).unwrap();
         assert_eq!(
-            video_generation_business_key(
-                input.project_id,
-                video_generation_operation_kind(&input.operation),
-                &target_id,
-            ),
+            video_generation_business_key(input.project_id, input.operation.kind(), &target_id,),
             serde_json::json!({
                 "version": 1,
                 "task_kind": "video_generation",
@@ -2726,7 +2651,7 @@ mod video_prompt_generation_tests {
             },
         };
         assert_eq!(
-            video_generation_target_id(19, &operation),
+            video_generation_target_id(19, &operation).unwrap(),
             "19:chapter:3:reference_media:plan:11:shot:shot-4:index:1"
         );
     }

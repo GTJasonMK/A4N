@@ -1,7 +1,6 @@
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    middleware,
     routing::{get, post},
 };
 
@@ -13,11 +12,14 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         "a4n_image_service=info,tower_http=warn",
     )?;
 
-    let addr = a4n_sidecar_bootstrap::socket_addr("A4N_IMAGE_SERVICE_ADDR", "127.0.0.1:47645")?;
-    let policy = a4n_service_protocol::sidecar_resource_policy("image")
+    let addr =
+        a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::IMAGE_SERVICE_NAME)?;
+    let policy = a4n_service_protocol::sidecar_resource_policy(
+        a4n_service_protocol::IMAGE_SERVICE_NAME,
+    )
         .expect("image sidecar must have a resource policy");
     let app = Router::new()
-        .route("/healthz", get(healthz))
+        .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route(
             "/image/generate/events",
             post(events::generate_events).layer(DefaultBodyLimit::max(
@@ -31,8 +33,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         ))
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
-        ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+        ));
 
     tracing::info!(%addr, "starting image sidecar");
     a4n_sidecar_bootstrap::serve_sidecar(app, addr, a4n_service_protocol::IMAGE_SERVICE_NAME).await

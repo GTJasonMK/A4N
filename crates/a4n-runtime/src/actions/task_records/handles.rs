@@ -1,19 +1,21 @@
-use crate::AppState;
-use a4n_core::event::channel::TaskHandle;
 use std::sync::Arc;
 
-pub fn register_task_handle(state: &AppState, handle: TaskHandle) -> Arc<TaskHandle> {
-    state.register_task_handle(handle)
+use crate::AppState;
+use a4n_core::{error::AppError, event::channel::TaskHandle};
+
+pub fn register_task_handle(
+    state: &AppState,
+    handle: TaskHandle,
+) -> Result<Arc<TaskHandle>, AppError> {
+    state.orchestrator().register_task_handle(handle)
 }
 
-pub fn remove_task_handle(state: &AppState, task_id: &str) -> Option<Arc<TaskHandle>> {
-    state.remove_task_handle(task_id)
+pub fn remove_task_handle(state: &AppState, handle: &Arc<TaskHandle>) -> Result<(), AppError> {
+    state.orchestrator().remove_task_handle(handle)
 }
 
-pub fn get_task_handle(state: &AppState, task_id: &str) -> Option<Arc<TaskHandle>> {
-    state.task_handle(task_id)
-}
-
-pub fn cancel_registered_task(state: &AppState, task_id: &str) -> bool {
-    state.cancel_task_handle(task_id)
+pub fn cancel_owned_task_handle(state: &AppState, task_id: &str, user_id: i64) -> bool {
+    state
+        .orchestrator()
+        .cancel_owned_task_handle(task_id, user_id)
 }

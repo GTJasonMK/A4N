@@ -5,9 +5,8 @@ use crate::project::cleanup::{
     delete_project_generation_runs, delete_project_task_queue_records,
     delete_project_workflow_runs,
 };
-use crate::project::{
-    PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM, project_by_id_for_update, validate_positive_i64,
-};
+use crate::project::{project_by_id_for_update, validate_positive_i64};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn reset_freeform_video_generated_data_records<C>(
@@ -33,11 +32,11 @@ where
     .map_err(|error| FreeformGeneratedResetDbError::Database {
         source: sea_orm::DbErr::Custom(error.to_string()),
     })?;
-    if project.project_kind != PROJECT_KIND_VIDEO || project.source_mode != SOURCE_MODE_FREEFORM {
-        return Err(FreeformGeneratedResetDbError::UnsupportedProject {
-            project_kind: project.project_kind,
-            source_mode: project.source_mode,
-        });
+    if project.source_mode().map_err(|error| {
+        FreeformGeneratedResetDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
+    })? != ProjectSourceMode::Freeform
+    {
+        return Err(FreeformGeneratedResetDbError::UnsupportedProject);
     }
 
     let targets = freeform_generated_reset_targets_in(&txn, project_id, true).await?;

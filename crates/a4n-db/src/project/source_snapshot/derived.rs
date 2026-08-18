@@ -1,7 +1,7 @@
 use super::{
     super::{
-        PROJECT_KIND_TEXT, ProjectMutationError, SOURCE_MODE_DERIVED, SOURCE_SYNC_CURRENT,
-        normalize_derived_project_kind, project_by_id_for_update, required_project_title,
+        PROJECT_KIND_TEXT, ProjectMutationError, SOURCE_SYNC_CURRENT, normalize_derived_project_kind,
+        project_by_id_for_update, required_project_title,
     },
     creation::{create_source_snapshot_in_record, normalize_chapter_scope},
     types::CreateDerivedProjectParams,
@@ -45,7 +45,6 @@ pub async fn create_derived_project_record(
         description: Set(description),
         project_type: Set(root.project_type.clone()),
         project_kind: Set(derived_kind.clone()),
-        source_mode: Set(SOURCE_MODE_DERIVED.to_string()),
         root_project_id: Set(Some(root.id)),
         source_snapshot_id: Set(Some(snapshot.id)),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),

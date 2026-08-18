@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::json_contract::reject_unknown_fields;
-use a4n_llm::provider::is_truncated_finish_reason;
+use a4n_domain::character::ImplicitUpdateDecision;
 use serde_json::{Map, Value, json};
+
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 
 use super::contracts::{
     ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ParsedImplicitDecision,
@@ -17,16 +19,13 @@ pub(super) fn parse_implicit_update_decision(
     let object = value
         .as_object()
         .ok_or_else(|| "隐性属性复审结果必须是 JSON 对象".to_string())?;
-    let decision = required_json_string(object, "decision")?;
-    if !matches!(decision.as_str(), "keep" | "modify" | "delete") {
-        return Err("隐性属性复审 decision 必须是 keep/modify/delete".to_string());
-    }
+    let decision = match required_json_string(object, "decision")?.as_str() {
+        "keep" => ImplicitUpdateDecision::Keep,
+        "modify" => ImplicitUpdateDecision::Modify,
+        "delete" => ImplicitUpdateDecision::Delete,
+        _ => return Err("隐性属性复审 decision 必须是 keep/modify/delete".to_string()),
+    };
     let reasoning = required_json_string(object, "reasoning")?;
-    if object.contains_key("evidence_summary") {
-        return Err(
-            "隐性属性复审 evidence_summary 已废弃；必须输出 supporting_behavior_ids".to_string(),
-        );
-    }
     reject_unknown_fields(
         &value,
         "implicit_update",
@@ -42,10 +41,14 @@ pub(super) fn parse_implicit_update_decision(
     let new_value = object
         .get("new_value")
         .ok_or_else(|| "隐性属性复审结果缺少字段: new_value".to_string())?;
-    if matches!(decision.as_str(), "keep" | "delete") && !new_value.is_null() {
+    if matches!(
+        decision,
+        ImplicitUpdateDecision::Keep | ImplicitUpdateDecision::Delete
+    ) && !new_value.is_null()
+    {
         return Err("keep/delete 决策的 new_value 必须为 null".to_string());
     }
-    if decision == "modify" && new_value.is_null() {
+    if decision == ImplicitUpdateDecision::Modify && new_value.is_null() {
         return Err("modify 决策的 new_value 不能为空".to_string());
     }
     Ok(ParsedImplicitDecision {
@@ -58,7 +61,7 @@ pub(super) fn parse_implicit_update_decision(
 
 pub(super) fn implicit_update_decision_output_json(parsed: &ParsedImplicitDecision) -> Value {
     json!({
-        "decision": parsed.decision,
+        "decision": parsed.decision.as_str(),
         "reasoning": parsed.reasoning,
         "suggested_new_value": parsed.suggested_new_value,
         "evidence_summary": parsed.evidence_summary,
@@ -66,44 +69,20 @@ pub(super) fn implicit_update_decision_output_json(parsed: &ParsedImplicitDecisi
 }
 
 pub(super) fn implicit_update_review_checkpoint_response(
-    checkpoint_json: &Value,
+    parsed_output: &Value,
+    response_text: &str,
     call_key: &str,
     stats: &ImplicitAttributeReviewSummary,
-) -> Result<(String, Option<Value>, Option<String>), String> {
-    let response_text = checkpoint_json
-        .get("response_content")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| format!("{call_key}.response_content 必须是字符串"))?;
-    let parsed = parse_implicit_update_decision(&response_text, stats)?;
+) -> Result<ParsedImplicitDecision, String> {
+    let parsed = parse_implicit_update_decision(response_text, stats)?;
     let reparsed_output = implicit_update_decision_output_json(&parsed);
-    let parsed_output = checkpoint_json
-        .get("parsed_output")
-        .ok_or_else(|| format!("{call_key}.parsed_output 缺失"))?;
-    if parsed_output != &reparsed_output {
-        return Err(format!(
-            "{call_key} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致"
-        ));
-    }
-    let usage = checkpoint_json
-        .get("usage")
-        .filter(|value| !value.is_null())
-        .cloned();
-    let finish_reason = match checkpoint_json.get("finish_reason") {
-        Some(Value::Null) | None => None,
-        Some(value) => Some(
-            value
-                .as_str()
-                .map(ToString::to_string)
-                .ok_or_else(|| format!("{call_key}.finish_reason 必须是字符串或 null"))?,
-        ),
-    };
-    if is_truncated_finish_reason(finish_reason.as_deref()) {
-        return Err(format!(
-            "{call_key} checkpoint 标记为截断响应，不能用于恢复"
-        ));
-    }
-    Ok((response_text, usage, finish_reason))
+    ensure_checkpoint_parsed_output_matches(
+        parsed_output,
+        &reparsed_output,
+        &format!("隐性属性复审 {call_key}"),
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(parsed)
 }
 
 fn required_supporting_behavior_ids(

@@ -1,11 +1,15 @@
-use crate::profile_material::generated_image_profile_material_identity;
+use crate::profile_material::{
+    generated_image_profile_material_identity, is_project_reusable_video_material_image,
+};
 use a4n_core::models::ai::generated_image;
 use a4n_db::profile_material::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE};
+use a4n_domain::image::{
+    IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_VIDEO_START_FRAME,
+    IMAGE_TYPE_VIDEO_TAIL_FRAME,
+};
 use std::collections::HashSet;
 
-use super::{
-    ChapterVideoSourceContext, OrchestratorContext, is_project_reusable_video_material_image,
-};
+use super::{ChapterVideoSourceContext, OrchestratorContext};
 
 mod candidates;
 mod context;
@@ -73,10 +77,10 @@ pub fn is_video_reference_image_candidate(image: &generated_image::Model, chapte
 
 pub fn image_type_rank(image_type: &str) -> i32 {
     match image_type.trim() {
-        "video_start_frame" | "video_end_frame" | "video_tail_frame" => 0,
+        IMAGE_TYPE_VIDEO_START_FRAME | IMAGE_TYPE_VIDEO_TAIL_FRAME => 0,
         "manga_page" | "manga_panel" | "comic_panel" => 1,
-        "scene_material" => 2,
-        "object_material" => 3,
+        IMAGE_TYPE_SCENE_MATERIAL => 2,
+        IMAGE_TYPE_OBJECT_MATERIAL => 3,
         "portrait" | "character_portrait" => 4,
         _ => 99,
     }

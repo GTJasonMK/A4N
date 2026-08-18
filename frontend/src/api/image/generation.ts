@@ -6,8 +6,8 @@ import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 import { normalizeImageConfigId } from "./configs";
 import { generationClient } from "../generationTasks";
-import { generationTaskKey, useGenerationTasksStore } from "../../store/generationTasks";
-import { sha256Hex } from "../../utils/contentHash";
+import { verifyGeneratedMediaResult } from "../generationResultVerification";
+import { sha256Json } from "../../utils/contentHash";
 import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
 import type {
   GenerationTaskHandle,
@@ -42,50 +42,19 @@ export async function startImageGeneration(
 export async function verifyImageGenerationResult(
   task: GenerationTaskViewState,
   projectId: Id,
-): Promise<GeneratedImage[]> {
+): Promise<[GeneratedImage, ...GeneratedImage[]]> {
   const project = idNum(projectId, "项目 ID");
   const images = await listImagesByProject(project);
-  const resultRef = task.resultRef;
-  let generated: GeneratedImage[] = [];
-  let valid = false;
-
-  if (resultRef?.kind === "generated_image") {
-    const imageId = Number(resultRef.id);
-    const image = images.find((item) => item.id === imageId && item.project_id === project);
-    if (image) {
-      const revision = await imageRevision(image);
-      valid = revision != null
-        && revision === resultRef.revision
-        && task.artifacts.some(
-          (artifact) => artifact.artifact_id === `generated-image:${image.id}`,
-        );
-      if (valid) generated = [image];
-    }
-  } else if (resultRef?.kind === "generated_image_batch" && Number(resultRef.id) === project) {
-    const ids = task.artifacts
-      .filter((artifact) => artifact.artifact_kind === "generated_image")
-      .map((artifact) => artifact.artifact_id.match(/^generated-image:(\d+)$/)?.[1])
-      .filter((id): id is string => id != null)
-      .map(Number);
-    const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
-    const revision = await sha256Hex(JSON.stringify(uniqueIds));
-    generated = uniqueIds
-      .map((id) => images.find((image) => image.id === id && image.project_id === project))
-      .filter((image): image is GeneratedImage => image != null);
-    valid = uniqueIds.length > 0
-      && revision != null
-      && revision === resultRef.revision
-      && generated.length === uniqueIds.length;
-  }
-
-  if (!valid) {
-    useGenerationTasksStore.getState().dispatch(
-      generationTaskKey(task.taskId, task.attempt),
-      { type: "client_state", state: "consistency_error" },
-    );
-    throw new Error("图片生成已结束，但正式结果校验失败");
-  }
-  return generated;
+  return verifyGeneratedMediaResult(task, images, {
+    projectId: project,
+    singleKind: "generated_image",
+    batchKind: "generated_image_batch",
+    artifactKind: "generated_image",
+    artifactIdPrefix: "generated-image:",
+    recordInScope: (image) => image.project_id === project,
+    recordRevision: imageRevision,
+    errorMessage: "图片生成已结束，但正式结果校验失败",
+  });
 }
 
 export async function previewSceneImageRequest(
@@ -177,7 +146,7 @@ function normalizeGenerationOperation(
 }
 
 async function imageRevision(image: GeneratedImage): Promise<string | null> {
-  return sha256Hex(JSON.stringify([
+  return sha256Json([
     image.id,
     image.project_id,
     image.image_type,
@@ -190,5 +159,5 @@ async function imageRevision(image: GeneratedImage): Promise<string | null> {
     image.chapter_id,
     image.panel_id,
     image.created_at,
-  ]));
+  ]);
 }

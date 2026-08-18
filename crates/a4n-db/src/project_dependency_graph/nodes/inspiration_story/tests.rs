@@ -197,7 +197,10 @@ fn story_nodes_preserve_outline_fallback_word_count_and_analysis_count() {
         graph_node(&graph, "chapters").details,
         json!({ "word_count": 120 })
     );
-    assert_eq!(graph_node(&graph, "chapter_analysis").count, 1);
+    let chapter_analysis = graph_node(&graph, "chapter_analysis");
+    assert_eq!(chapter_analysis.count, 1);
+    assert!(!chapter_analysis.mutable);
+    assert_eq!(chapter_analysis.mutation_policy, "readonly_aggregate");
     assert!(graph.edges.iter().any(|edge| {
         edge.from == "blueprint"
             && edge.to == "chapter_outlines"

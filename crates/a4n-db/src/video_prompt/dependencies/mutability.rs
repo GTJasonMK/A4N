@@ -99,9 +99,9 @@ where
     {
         let current_label = prompt_stage_label(prompt);
         let image_label = match prompt.prompt_type.as_str() {
-            "first_frame_prompt" => "首帧图片",
-            "chat_video_frame_prompt" => "Chat 首尾帧图片",
-            "storyboard_prompt" => "分镜板图片",
+            chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => "首帧图片",
+            chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => "Chat 首尾帧图片",
+            chapter_video_prompt::PROMPT_TYPE_STORYBOARD => "分镜板图片",
             _ => "边界帧图片",
         };
         return Err(VideoDbError::InvalidArgument(format!(

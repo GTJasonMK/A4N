@@ -5,8 +5,6 @@ use a4n_core::{
 use super::contracts::EnhancedRagQuery;
 use crate::OrchestratorContext;
 
-const ENHANCED_RAG_MAX_QUERIES: usize = 8;
-
 pub(super) async fn matched_blueprint_character_names(
     context: &OrchestratorContext,
     project_id: i64,
@@ -69,11 +67,11 @@ pub(super) fn build_enhanced_rag_queries(
     foreshadowing: &[foreshadowing_index::Model],
 ) -> Vec<EnhancedRagQuery> {
     let mut queries = Vec::new();
-    push_enhanced_query(&mut queries, "main", base_query, 1.0);
+    push_enhanced_query(&mut queries, "主查询", base_query, 1.0);
     for name in character_names.iter().take(3) {
         push_enhanced_query(
             &mut queries,
-            "character",
+            "角色",
             format!("角色 {name} 的行动、状态、关系和立场变化"),
             0.85,
         );
@@ -81,7 +79,7 @@ pub(super) fn build_enhanced_rag_queries(
     for item in foreshadowing.iter().take(3) {
         push_enhanced_query(
             &mut queries,
-            "foreshadowing",
+            "伏笔",
             format!("伏笔: {}", item.description.trim()),
             0.95,
         );
@@ -89,12 +87,11 @@ pub(super) fn build_enhanced_rag_queries(
     if let Some(location) = extract_scene_location(base_query) {
         push_enhanced_query(
             &mut queries,
-            "location",
+            "场景",
             format!("场景 {location} 中发生的事件和相关设定"),
             0.75,
         );
     }
-    queries.truncate(ENHANCED_RAG_MAX_QUERIES);
     queries
 }
 
@@ -103,7 +100,7 @@ pub(super) fn filter_relevant_foreshadowing(
     query: &str,
     character_names: &[String],
 ) -> Vec<foreshadowing_index::Model> {
-    let mut selected = items
+    items
         .into_iter()
         .filter(|item| {
             item.importance >= 4
@@ -113,14 +110,12 @@ pub(super) fn filter_relevant_foreshadowing(
                     .as_ref()
                     .is_some_and(|value| json_contains_any_character_name(value, character_names))
         })
-        .collect::<Vec<_>>();
-    selected.truncate(3);
-    selected
+        .collect()
 }
 
 fn push_enhanced_query(
     queries: &mut Vec<EnhancedRagQuery>,
-    kind: &'static str,
+    label: &'static str,
     query: impl Into<String>,
     weight: f32,
 ) {
@@ -129,7 +124,7 @@ fn push_enhanced_query(
         return;
     }
     queries.push(EnhancedRagQuery {
-        kind,
+        label,
         query,
         weight,
     });

@@ -22,14 +22,18 @@ impl<'a> ScopedHfHubEnv<'a> {
         // 内临时固定 HF_HOME，确保模型写入应用数据目录，而不是用户系统缓存。
         vars.push(ScopedEnvVar::set("HF_HOME", cache_dir.as_os_str()));
 
-        // hf-hub 会从标准代理环境变量读取代理。这里把桌面系统代理和显式
-        // 代理环境统一成稳定的 HTTP(S) 下载代理。
-        vars.extend(download_proxy_env_vars());
-
         Ok(Self {
             _guard: guard,
             _vars: vars,
         })
+    }
+
+    pub(crate) fn set_for_download(cache_dir: &Path) -> Result<Self, String> {
+        let mut env = Self::set(cache_dir)?;
+        // hf-hub 会从标准代理环境变量读取代理。仅网络下载边界需要把
+        // 桌面系统代理临时投影为环境变量；缓存模型初始化不访问网络。
+        env._vars.extend(download_proxy_env_vars());
+        Ok(env)
     }
 }
 
@@ -39,7 +43,7 @@ pub(crate) struct ScopedEnvVar {
 }
 
 impl ScopedEnvVar {
-    pub(super) fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+    pub(crate) fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
         let previous = std::env::var_os(key);
         unsafe {
             std::env::set_var(key, value);

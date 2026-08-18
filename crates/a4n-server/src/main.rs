@@ -21,15 +21,22 @@ async fn async_main() -> anyhow::Result<()> {
     let config = ServerConfig::from_env()?;
     let bind_addr = config.bind_addr;
     let frontend_dist = config.frontend_dist.clone();
+    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
     let state = ServerState::new(config).await?;
+    let shutdown_state = state.clone();
     let app = router(state, frontend_dist);
 
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
     tracing::info!("A4N Web server listening on http://{bind_addr}");
-    axum::serve(listener, app)
+    let serve_result = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
-        .await?;
-    Ok(())
+        .await
+        .map_err(anyhow::Error::from);
+    let shutdown_result = shutdown_state
+        .runtime()
+        .shutdown_managed_sidecars()
+        .await
+        .map_err(anyhow::Error::msg);
+    serve_result.and(shutdown_result)
 }
 
 async fn shutdown_signal() {

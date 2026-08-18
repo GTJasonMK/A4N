@@ -1,7 +1,7 @@
 use super::super::super::{
     AgentLoopDecisionRequest, AppError, OrchestratorContext, agent_loop_request_payload,
     build_agent_loop_chat_request, optimize_llm_call_input_fingerprint_json, workflow,
-    workflow_checkpoint_contract_app_error, workflow_write_app_error,
+    workflow_checkpoint_contract_app_error,
 };
 
 use super::contracts::PreparedAgentDecisionCall;
@@ -63,13 +63,9 @@ pub(super) async fn prepare_agent_loop_decision_call(
     context
         .record_llm_request(session_id, request.phase, &llm_request_payload)
         .await?;
-    workflow::mark_workflow_current_step(
-        context.database.connection(),
-        request.workflow_run_id,
-        &call_key,
-    )
-    .await
-    .map_err(workflow_write_app_error)?;
+    context
+        .mark_workflow_current_step(request.workflow_run_id, &call_key)
+        .await?;
     Ok(PreparedAgentDecisionCall {
         chat_request,
         call_key,

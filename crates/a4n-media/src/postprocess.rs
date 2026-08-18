@@ -1,24 +1,18 @@
 use std::{io, path::Path, process::Command};
 
+use a4n_domain::AssemblyPostprocessOperation;
 use thiserror::Error;
 
-use crate::{assembly::ffmpeg_duration_literal, ffmpeg::stderr_preview};
+use crate::ffmpeg::{seconds_literal, stderr_preview};
 
 const POSTPROCESS_STDERR_PREVIEW_CHARS: usize = 800;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VideoPostprocessOperation {
-    Insert,
-    Delete,
-    Replace,
-}
 
 #[derive(Debug)]
 pub struct VideoPostprocessRequest<'a> {
     pub base_path: &'a Path,
     pub source_path: Option<&'a Path>,
     pub output_path: &'a Path,
-    pub operation: VideoPostprocessOperation,
+    pub operation: AssemblyPostprocessOperation,
     pub start_secs: f32,
     pub end_secs: f32,
     pub base_duration_secs: f32,
@@ -32,12 +26,26 @@ pub struct VideoPostprocessRequest<'a> {
 
 #[derive(Debug, Error)]
 pub enum VideoPostprocessError {
+    #[error("video postprocess base duration must be positive and finite: {duration_secs}")]
+    InvalidBaseDuration { duration_secs: f32 },
+    #[error(
+        "video postprocess range is invalid: start={start_secs}, end={end_secs}, base={base_duration_secs}"
+    )]
+    InvalidTimeRange {
+        start_secs: f32,
+        end_secs: f32,
+        base_duration_secs: f32,
+    },
+    #[error("video postprocess dimensions must be positive: {width}x{height}")]
+    InvalidDimensions { width: i32, height: i32 },
+    #[error("video postprocess fps must be positive: {fps}")]
+    InvalidFps { fps: i32 },
     #[error("insert or replace video postprocess requires a source video")]
     MissingSource,
+    #[error("delete video postprocess does not accept a source video")]
+    UnexpectedSource,
     #[error("video postprocess source is not a file")]
     SourceNotFile,
-    #[error("video postprocess result would be empty")]
-    EmptyResult,
     #[error("insert or replace video postprocess requires a valid source duration")]
     InvalidSourceDuration,
     #[error("failed to start ffmpeg video postprocess: {source}")]
@@ -52,33 +60,83 @@ pub enum VideoPostprocessError {
 pub fn build_video_postprocess_filter(
     request: &VideoPostprocessRequest<'_>,
 ) -> Result<String, VideoPostprocessError> {
-    let width = even_positive_dimension(request.width, 1280);
-    let height = even_positive_dimension(request.height, 720);
-    let fps = if request.fps > 0 { request.fps } else { 24 };
-    let base_duration_secs = request.base_duration_secs.max(0.1);
-    let start_secs = request.start_secs.clamp(0.0, base_duration_secs);
-    let end_secs = request.end_secs.clamp(start_secs, base_duration_secs);
+    if request.width <= 0 || request.height <= 0 {
+        return Err(VideoPostprocessError::InvalidDimensions {
+            width: request.width,
+            height: request.height,
+        });
+    }
+    let width = even_dimension(request.width).ok_or(
+        VideoPostprocessError::InvalidDimensions {
+            width: request.width,
+            height: request.height,
+        },
+    )?;
+    let height = even_dimension(request.height).ok_or(
+        VideoPostprocessError::InvalidDimensions {
+            width: request.width,
+            height: request.height,
+        },
+    )?;
+    if request.fps <= 0 {
+        return Err(VideoPostprocessError::InvalidFps { fps: request.fps });
+    }
+    if !request.base_duration_secs.is_finite() || request.base_duration_secs <= 0.0 {
+        return Err(VideoPostprocessError::InvalidBaseDuration {
+            duration_secs: request.base_duration_secs,
+        });
+    }
+    let base_duration_secs = request.base_duration_secs;
+    let start_secs = request.start_secs;
+    let end_secs = request.end_secs;
     let uses_source = matches!(
         request.operation,
-        VideoPostprocessOperation::Insert | VideoPostprocessOperation::Replace
+        AssemblyPostprocessOperation::Insert | AssemblyPostprocessOperation::Replace
     );
+    let valid_range = start_secs.is_finite()
+        && end_secs.is_finite()
+        && start_secs >= 0.0
+        && end_secs <= base_duration_secs
+        && match request.operation {
+            AssemblyPostprocessOperation::Insert => start_secs == end_secs,
+            AssemblyPostprocessOperation::Delete | AssemblyPostprocessOperation::Replace => {
+                end_secs > start_secs
+                    && (request.operation != AssemblyPostprocessOperation::Delete
+                        || end_secs - start_secs < base_duration_secs)
+            }
+        };
+    if !valid_range {
+        return Err(VideoPostprocessError::InvalidTimeRange {
+            start_secs,
+            end_secs,
+            base_duration_secs,
+        });
+    }
     if uses_source && request.source_path.is_none() {
         return Err(VideoPostprocessError::MissingSource);
+    }
+    if !uses_source
+        && (request.source_path.is_some()
+            || request.source_duration_secs.is_some()
+            || request.source_has_audio)
+    {
+        return Err(VideoPostprocessError::UnexpectedSource);
     }
     let audio_enabled = request.base_has_audio || (uses_source && request.source_has_audio);
     let source_duration_secs = request
         .source_duration_secs
         .filter(|value| value.is_finite() && *value > 0.0);
-    if uses_source && audio_enabled && source_duration_secs.is_none() {
+    if uses_source && source_duration_secs.is_none() {
         return Err(VideoPostprocessError::InvalidSourceDuration);
     }
     let mut filter = String::new();
     let mut labels = Vec::new();
 
-    if start_secs > 0.01 {
+    if start_secs > 0.0 {
         filter.push_str(&format!(
             "[0:v:0]trim=start=0:end={},setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[v0];",
-            ffmpeg_duration_literal(start_secs)
+            seconds_literal(start_secs),
+            fps = request.fps,
         ));
         if audio_enabled {
             append_audio_segment(
@@ -95,31 +153,35 @@ pub fn build_video_postprocess_filter(
 
     if uses_source {
         filter.push_str(&format!(
-            "[1:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[vsrc];"
+            "[1:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[vsrc];",
+            fps = request.fps,
         ));
         if audio_enabled {
+            let source_duration_secs =
+                source_duration_secs.ok_or(VideoPostprocessError::InvalidSourceDuration)?;
             append_audio_segment(
                 &mut filter,
                 1,
                 request.source_has_audio,
                 0.0,
-                source_duration_secs.expect("audio source duration was validated"),
+                source_duration_secs,
                 "asrc",
             );
         }
         labels.push(("vsrc", "asrc"));
     }
 
-    let tail_start = if request.operation == VideoPostprocessOperation::Insert {
+    let tail_start = if request.operation == AssemblyPostprocessOperation::Insert {
         start_secs
     } else {
         end_secs
     };
-    if tail_start < base_duration_secs - 0.01 {
+    if tail_start < base_duration_secs {
         filter.push_str(&format!(
             "[0:v:0]trim=start={}:end={},setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[vtail];",
-            ffmpeg_duration_literal(tail_start),
-            ffmpeg_duration_literal(base_duration_secs)
+            seconds_literal(tail_start),
+            seconds_literal(base_duration_secs),
+            fps = request.fps,
         ));
         if audio_enabled {
             append_audio_segment(
@@ -134,9 +196,6 @@ pub fn build_video_postprocess_filter(
         labels.push(("vtail", "atail"));
     }
 
-    if labels.is_empty() {
-        return Err(VideoPostprocessError::EmptyResult);
-    }
     for (video_label, audio_label) in &labels {
         filter.push_str(&format!("[{video_label}]"));
         if audio_enabled {
@@ -155,10 +214,9 @@ pub fn postprocess_video(
     request: VideoPostprocessRequest<'_>,
 ) -> Result<(), VideoPostprocessError> {
     let filter = build_video_postprocess_filter(&request)?;
-    let output_fps = if request.fps > 0 { request.fps } else { 24 };
     let uses_source = matches!(
         request.operation,
-        VideoPostprocessOperation::Insert | VideoPostprocessOperation::Replace
+        AssemblyPostprocessOperation::Insert | AssemblyPostprocessOperation::Replace
     );
     let source_path = if uses_source {
         let source_path = request
@@ -197,7 +255,7 @@ pub fn postprocess_video(
         .arg("-pix_fmt")
         .arg("yuv420p")
         .arg("-g")
-        .arg(output_fps.to_string());
+        .arg(request.fps.to_string());
     let audio_enabled = request.base_has_audio || (uses_source && request.source_has_audio);
     if audio_enabled {
         command
@@ -233,13 +291,12 @@ fn append_audio_segment(
     end_secs: f32,
     label: &str,
 ) {
-    let duration_secs = (end_secs - start_secs).max(0.1);
-    let duration = ffmpeg_duration_literal(duration_secs);
+    let duration = seconds_literal(end_secs - start_secs);
     if has_audio {
         filter.push_str(&format!(
             "[{input_index}:a:0]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=duration={duration},asetpts=N/SR/TB[{label}];",
-            ffmpeg_timestamp_literal(start_secs),
-            ffmpeg_duration_literal(end_secs),
+            seconds_literal(start_secs),
+            seconds_literal(end_secs),
         ));
     } else {
         filter.push_str(&format!(
@@ -248,16 +305,10 @@ fn append_audio_segment(
     }
 }
 
-fn ffmpeg_timestamp_literal(value: f32) -> String {
-    let value = if value.is_finite() && value >= 0.0 {
-        value
+fn even_dimension(value: i32) -> Option<i32> {
+    if value % 2 == 0 {
+        Some(value)
     } else {
-        0.0
-    };
-    format!("{value:.3}")
-}
-
-fn even_positive_dimension(value: i32, default_value: i32) -> i32 {
-    let value = if value > 0 { value } else { default_value };
-    if value % 2 == 0 { value } else { value + 1 }
+        value.checked_add(1)
+    }
 }

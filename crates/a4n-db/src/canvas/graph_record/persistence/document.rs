@@ -22,7 +22,7 @@ where
     let graph = match graph_id {
         Some(graph_id) => load_canvas_graph_record(db, project_id, graph_id).await?,
         None => {
-            let graph_kind = default_canvas_record_graph_kind(&project);
+            let graph_kind = default_canvas_record_graph_kind(&project)?;
             match canvas_graph::Entity::find()
                 .filter(canvas_graph::Column::ProjectId.eq(project_id))
                 .filter(canvas_graph::Column::GraphKind.eq(graph_kind))
@@ -49,7 +49,7 @@ where
     canvas_graph::ActiveModel {
         project_id: Set(project.id),
         name: Set("视频画布".to_string()),
-        graph_kind: Set(default_canvas_record_graph_kind(project).to_string()),
+        graph_kind: Set(default_canvas_record_graph_kind(project)?.to_string()),
         version: Set(1),
         viewport_json: Set(None),
         created_at: Set(now),

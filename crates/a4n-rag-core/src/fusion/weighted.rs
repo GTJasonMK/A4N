@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
 use a4n_core::rag::RagDataType;
 
 use crate::vector_store::SearchResult;
@@ -10,21 +9,6 @@ const RAG_RRF_K: f32 = 60.0;
 struct FusionEntry {
     result: SearchResult,
     fused_score: f32,
-    best_source_score: f32,
-}
-
-pub fn ensure_rag_scores_finite(batches: &[(f32, Vec<SearchResult>)]) -> Result<(), AppError> {
-    for (_, results) in batches {
-        for result in results {
-            if !result.score.is_finite() {
-                return Err(AppError::InvalidArgument(format!(
-                    "RAG 结果 {} score 必须是有限数",
-                    result.id
-                )));
-            }
-        }
-    }
-    Ok(())
 }
 
 pub fn fuse_weighted_rag_results<F>(
@@ -40,23 +24,13 @@ where
             let contribution =
                 query_weight * temporal_multiplier(&result) * rag_data_type_weight(&result)
                     / (RAG_RRF_K + rank as f32 + 1.0);
-            let source_score = if result.score.is_finite() {
-                result.score
-            } else {
-                0.0
-            };
             let entry = fused
                 .entry(result.id.clone())
                 .or_insert_with(|| FusionEntry {
-                    result: result.clone(),
+                    result,
                     fused_score: 0.0,
-                    best_source_score: source_score,
                 });
             entry.fused_score += contribution;
-            if source_score > entry.best_source_score {
-                entry.result = result;
-                entry.best_source_score = source_score;
-            }
         }
     }
 
@@ -91,21 +65,12 @@ mod tests {
             id: id.to_string(),
             content: format!("content-{id}"),
             score,
-            vector_score: None,
-            bm25_score: None,
             metadata: data_type.map_or_else(|| json!({}), |value| json!({"data_type": value})),
         }
     }
 
     #[test]
-    fn rejects_non_finite_source_scores_before_fusion() {
-        let error = ensure_rag_scores_finite(&[(1.0, vec![result("bad", f32::NAN, None)])])
-            .expect_err("NaN score must be rejected");
-        assert!(error.to_string().contains("bad"));
-    }
-
-    #[test]
-    fn fuses_duplicate_ids_and_keeps_highest_source_result() {
+    fn fuses_duplicate_ids() {
         let fused = fuse_weighted_rag_results(
             vec![
                 (1.0, vec![result("same", 0.2, None)]),

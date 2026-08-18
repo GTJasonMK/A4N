@@ -3,11 +3,7 @@
 use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::Value;
 
-use super::{
-    BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, CHAT_VIDEO_CONTRACT_VERSION,
-    FIRST_FRAME_CHAIN_CONTRACT_VERSION, FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
-    STORYBOARD_PROMPT_CONTRACT_VERSION, STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,
-};
+use super::prompt_records::expected_contract_version;
 
 pub fn prompt_chain_matches(
     workflow_mode: &str,
@@ -25,8 +21,9 @@ fn prompt_workflow_matches_chain(
     workflow_mode: &str,
 ) -> bool {
     prompt.workflow_mode == workflow_mode
-        || (prompt.prompt_type == "frame_segment_plan"
-            && prompt.workflow_mode == "shared_segment_plan")
+        || (prompt.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+            && prompt.workflow_mode
+                == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
 }
 
 pub fn prompt_source_type_matches(prompt: &chapter_video_prompt::Model, expected: &str) -> bool {
@@ -85,11 +82,11 @@ fn segment_execution_scope_matches(
     let right_plan = right_identity
         .get("segment_plan_prompt_id")
         .and_then(Value::as_i64);
-    if left.prompt_type == "frame_segment_plan" {
+    if left.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
         return right_plan == Some(left.id)
             && segment_identity_exists_in_plan(left_identity, right_identity);
     }
-    if right.prompt_type == "frame_segment_plan" {
+    if right.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
         return left_plan == Some(right.id)
             && segment_identity_exists_in_plan(right_identity, left_identity);
     }
@@ -142,14 +139,19 @@ fn video_and_frame_prompt_pair(
     left: &chapter_video_prompt::Model,
     right: &chapter_video_prompt::Model,
 ) -> bool {
-    (left.prompt_type == "video_prompt" && is_frame_prompt(&right.prompt_type))
-        || (right.prompt_type == "video_prompt" && is_frame_prompt(&left.prompt_type))
+    (left.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && is_frame_prompt(&right.prompt_type))
+        || (right.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+            && is_frame_prompt(&left.prompt_type))
 }
 
 fn is_frame_prompt(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
-        "frame_prompt" | "first_frame_prompt" | "storyboard_prompt" | "chat_video_frame_prompt"
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_STORYBOARD
+            | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
     )
 }
 
@@ -166,30 +168,12 @@ fn current_chain_contract_versions_match(
     left: &chapter_video_prompt::Model,
     right: &chapter_video_prompt::Model,
 ) -> bool {
-    let Some(left_expected) = expected_chain_contract_version(workflow_mode, &left.prompt_type)
-    else {
+    let Some(left_expected) = expected_contract_version(workflow_mode, &left.prompt_type) else {
         return false;
     };
-    let Some(right_expected) = expected_chain_contract_version(workflow_mode, &right.prompt_type)
-    else {
+    let Some(right_expected) = expected_contract_version(workflow_mode, &right.prompt_type) else {
         return false;
     };
     metadata_text(left.metadata_json.as_ref(), "contract_version") == Some(left_expected)
         && metadata_text(right.metadata_json.as_ref(), "contract_version") == Some(right_expected)
-}
-
-fn expected_chain_contract_version(workflow_mode: &str, prompt_type: &str) -> Option<&'static str> {
-    match (workflow_mode, prompt_type) {
-        ("boundary_frames", "video_prompt") => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
-        ("shared_segment_plan", "frame_segment_plan") => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
-        ("boundary_frames", "frame_prompt") => Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION),
-        ("first_frame_chain", "video_prompt" | "first_frame_prompt") => {
-            Some(FIRST_FRAME_CHAIN_CONTRACT_VERSION)
-        }
-        ("storyboard", "storyboard_prompt") => Some(STORYBOARD_PROMPT_CONTRACT_VERSION),
-        ("storyboard", "video_prompt") => Some(STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION),
-        ("chat_video", "chat_video_frame_prompt") => Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION),
-        ("chat_video", "video_prompt") => Some(CHAT_VIDEO_CONTRACT_VERSION),
-        _ => None,
-    }
 }

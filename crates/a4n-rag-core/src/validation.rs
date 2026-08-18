@@ -30,26 +30,36 @@ pub fn ensure_embedding_write_count(expected: usize, actual: usize) -> Result<()
     }
 }
 
-pub fn validate_embedding_count(embeddings: &[Vec<f32>], expected: usize) -> Result<(), AppError> {
+pub fn validate_embedding_count<T: AsRef<[f32]>>(
+    embeddings: &[T],
+    expected: usize,
+) -> Result<(), AppError> {
     if embeddings.len() != expected {
         return Err(AppError::EmbeddingError(format!(
             "嵌入返回数量不匹配：expected={expected}, actual={}",
             embeddings.len()
         )));
     }
-    if embeddings.iter().any(Vec::is_empty) {
+    if embeddings
+        .iter()
+        .any(|embedding| embedding.as_ref().is_empty())
+    {
         return Err(AppError::EmbeddingError("嵌入返回空向量".to_string()));
     }
     Ok(())
 }
 
-pub fn validate_embedding_batch(
-    embeddings: &[Vec<f32>],
+pub fn validate_embedding_batch<T: AsRef<[f32]>>(
+    embeddings: &[T],
     expected_count: usize,
     expected_dimension: usize,
 ) -> Result<(), AppError> {
     validate_embedding_count(embeddings, expected_count)?;
-    for (index, embedding) in embeddings.iter().enumerate() {
+    for (index, embedding) in embeddings
+        .iter()
+        .map(|embedding| embedding.as_ref())
+        .enumerate()
+    {
         if embedding.len() != expected_dimension {
             return Err(AppError::EmbeddingError(format!(
                 "嵌入返回维度不匹配：index={index}, expected={expected_dimension}, actual={}",

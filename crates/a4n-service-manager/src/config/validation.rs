@@ -9,12 +9,6 @@ impl ManagedServiceConfig {
                 "service name cannot be blank".to_string(),
             ));
         }
-        if !self.health_path.starts_with('/') {
-            return Err(ServiceManagerError::InvalidConfig(format!(
-                "service {} health_path must start with /",
-                self.name
-            )));
-        }
         if self.restart_policy.initial_backoff_ms == 0
             || self.restart_policy.max_backoff_ms < self.restart_policy.initial_backoff_ms
         {
@@ -43,32 +37,10 @@ impl ManagedServiceConfig {
     }
 
     fn validate_remote(&self) -> Result<(), ServiceManagerError> {
-        let configured_url = self.url.as_deref().map(str::trim).unwrap_or("");
-        if configured_url.is_empty() {
-            return Err(ServiceManagerError::InvalidConfig(format!(
-                "remote service {} requires url",
-                self.name
-            )));
-        }
-        let url = reqwest::Url::parse(configured_url).map_err(|_| {
-            ServiceManagerError::InvalidConfig(format!(
-                "remote service {} has invalid url",
-                self.name
-            ))
+        let url = parse_remote_service_url(self.url.as_deref().unwrap_or("")).map_err(|reason| {
+            ServiceManagerError::InvalidConfig(format!("remote service {} {reason}", self.name))
         })?;
-        if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
-            return Err(ServiceManagerError::InvalidConfig(format!(
-                "remote service {} url must not contain credentials or fragment",
-                self.name
-            )));
-        }
         let loopback = is_loopback_url(&url);
-        if url.scheme() != "https" && !loopback {
-            return Err(ServiceManagerError::InvalidConfig(format!(
-                "remote service {} must use HTTPS outside loopback",
-                self.name
-            )));
-        }
         validate_remote_security(&self.remote_security, &self.name, !loopback)?;
         if !loopback && !self.remote_security.has_deployment_credential() {
             return Err(ServiceManagerError::InvalidConfig(format!(
@@ -86,12 +58,9 @@ impl ManagedServiceConfig {
                 self.name
             )));
         }
-        if self.url.as_deref().map(str::trim).unwrap_or("").is_empty() {
-            return Err(ServiceManagerError::InvalidConfig(format!(
-                "sidecar service {} requires url",
-                self.name
-            )));
-        }
+        parse_remote_service_url(self.url.as_deref().unwrap_or("")).map_err(|reason| {
+            ServiceManagerError::InvalidConfig(format!("sidecar service {} {reason}", self.name))
+        })?;
         validate_sidecar_environment(&self.env, &self.name)?;
         Ok(())
     }
@@ -114,12 +83,46 @@ fn validate_sidecar_environment(
     Ok(())
 }
 
+pub fn normalize_remote_service_url(value: &str) -> Result<String, String> {
+    parse_remote_service_url(value)
+        .map(|url| url.as_str().trim_end_matches('/').to_string())
+}
+
+pub fn is_loopback_http_url(value: &str) -> bool {
+    parse_remote_service_url(value).is_ok_and(|url| is_loopback_url(&url))
+}
+
+fn parse_remote_service_url(value: &str) -> Result<reqwest::Url, String> {
+    let value = value.trim().trim_end_matches('/');
+    if value.is_empty() {
+        return Err("requires url".to_string());
+    }
+    let url = reqwest::Url::parse(value).map_err(|_| "has invalid url".to_string())?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err("url must use http or https".to_string());
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("url must not contain credentials".to_string());
+    }
+    if url.query().is_some() || url.fragment().is_some() {
+        return Err("url must not contain query or fragment".to_string());
+    }
+    if url.scheme() != "https" && !is_loopback_url(&url) {
+        return Err("must use HTTPS outside loopback".to_string());
+    }
+    Ok(url)
+}
+
 fn is_loopback_url(url: &reqwest::Url) -> bool {
     let Some(host) = url.host_str() else {
         return false;
     };
+    let host = host.trim_end_matches('.');
     host.eq_ignore_ascii_case("localhost")
+        || host.to_ascii_lowercase().ends_with(".localhost")
         || host
+            .trim_start_matches('[')
+            .trim_end_matches(']')
             .parse::<std::net::IpAddr>()
             .is_ok_and(|address| address.is_loopback())
 }

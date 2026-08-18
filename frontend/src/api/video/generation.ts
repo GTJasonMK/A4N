@@ -2,11 +2,7 @@ import { apiInvoke } from "../index";
 import { requireCurrentUserId as currentUserId } from "../authStorage";
 import { idNum, type ApiId as Id } from "../shared";
 import { generationClient } from "../generationTasks";
-import {
-  generationTaskKey,
-  useGenerationTasksStore,
-} from "../../store/generationTasks";
-import { sha256Hex } from "../../utils/contentHash";
+import { verifyGeneratedMediaResult } from "../generationResultVerification";
 import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
 import type {
   GenerationTaskHandle,
@@ -41,81 +37,22 @@ export async function verifyVideoGenerationResult(
   task: GenerationTaskViewState,
   projectId: Id,
   chapterId: Id,
-): Promise<GeneratedVideo[]> {
+): Promise<[GeneratedVideo, ...GeneratedVideo[]]> {
   const project = idNum(projectId, "项目 ID");
   const chapter = idNum(chapterId, "章节 ID");
   const videos = await listVideosByChapter(project, chapter);
-  const resultRef = task.resultRef;
-  let generated: GeneratedVideo[] = [];
-  let valid = false;
-
-  if (resultRef?.kind === "generated_video") {
-    const videoId = Number(resultRef.id);
-    const video = videos.find(
-      (item) =>
-        item.id === videoId &&
-        item.project_id === project &&
-        item.chapter_id === chapter &&
-        item.status === "completed",
-    );
-    const artifact = task.artifacts.find(
-      (item) =>
-        item.artifact_id === `generated-video:${videoId}` &&
-        item.artifact_kind === "generated_video",
-    );
-    valid =
-      video != null &&
-      artifact != null &&
-      !artifact.temporary &&
-      artifact.revision === resultRef.revision &&
-      artifact.sha256 === resultRef.revision;
-    if (valid && video) generated = [video];
-  } else if (
-    resultRef?.kind === "generated_video_batch" &&
-    Number(resultRef.id) === project
-  ) {
-    const artifacts = task.artifacts.filter(
-      (item) => item.artifact_kind === "generated_video" && !item.temporary,
-    );
-    const ids = artifacts
-      .map(
-        (artifact) =>
-          artifact.artifact_id.match(/^generated-video:(\d+)$/)?.[1],
-      )
-      .filter((id): id is string => id != null)
-      .map(Number);
-    const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
-    const revision = await sha256Hex(JSON.stringify(uniqueIds));
-    generated = uniqueIds
-      .map((id) =>
-        videos.find(
-          (video) =>
-            video.id === id &&
-            video.project_id === project &&
-            video.chapter_id === chapter &&
-            video.status === "completed",
-        ),
-      )
-      .filter((video): video is GeneratedVideo => video != null);
-    valid =
-      uniqueIds.length > 0 &&
-      uniqueIds.length === artifacts.length &&
-      artifacts.every((artifact) => artifact.revision === artifact.sha256) &&
-      generated.length === uniqueIds.length &&
-      revision != null &&
-      revision === resultRef.revision;
-  }
-
-  if (!valid) {
-    useGenerationTasksStore
-      .getState()
-      .dispatch(generationTaskKey(task.taskId, task.attempt), {
-        type: "client_state",
-        state: "consistency_error",
-      });
-    throw new Error("视频生成已结束，但正式结果校验失败");
-  }
-  return generated;
+  return verifyGeneratedMediaResult(task, videos, {
+    projectId: project,
+    singleKind: "generated_video",
+    batchKind: "generated_video_batch",
+    artifactKind: "generated_video",
+    artifactIdPrefix: "generated-video:",
+    recordInScope: (video) =>
+      video.project_id === project
+      && video.chapter_id === chapter
+      && video.status === "completed",
+    errorMessage: "视频生成已结束，但正式结果校验失败",
+  });
 }
 
 export async function pollVideoJob(videoId: Id): Promise<GeneratedVideo> {

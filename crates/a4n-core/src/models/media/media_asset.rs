@@ -3,6 +3,9 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub const FILE_PATH_FIELD: &str = "file_path";
+pub const THUMBNAIL_PATH_FIELD: &str = "thumbnail_path";
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "media_asset")]
 pub struct Model {

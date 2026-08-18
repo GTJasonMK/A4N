@@ -1,4 +1,3 @@
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -52,7 +51,7 @@ pub(in crate::video) struct VideoFramePrompt {
     pub segment_numbers: Vec<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StoryboardPanel {
     pub panel_index: i32,
@@ -62,7 +61,7 @@ pub(in crate::video) struct StoryboardPanel {
     pub continuity_note: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoPromptShotInput {
     pub title: String,
@@ -73,7 +72,7 @@ pub(in crate::video) struct VideoPromptShotInput {
     pub dialogue_cues: Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct InsertedSegmentDraft {
     pub title: String,
@@ -84,6 +83,18 @@ pub(in crate::video) struct InsertedSegmentDraft {
 }
 
 impl InsertedSegmentDraft {
+    pub(in crate::video) fn parse_and_validate(
+        raw: &str,
+        prompt_output_language: a4n_core::prompt_language::PromptOutputLanguage,
+    ) -> Result<Self, a4n_core::error::AppError> {
+        let draft: Self = serde_json::from_str(raw.trim()).map_err(|error| {
+            a4n_core::error::AppError::InvalidArgument(format!(
+                "插入片段草稿 JSON 无效: {error}"
+            ))
+        })?;
+        draft.validate(prompt_output_language)
+    }
+
     pub(in crate::video) fn validate(
         self,
         prompt_output_language: a4n_core::prompt_language::PromptOutputLanguage,
@@ -92,7 +103,7 @@ impl InsertedSegmentDraft {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoSegmentPlanInput {
     pub source_shot_id: String,
@@ -126,7 +137,7 @@ impl From<&VideoSegmentPlan> for VideoSegmentPlanInput {
     }
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StaticVideoFramePromptInput {
     pub title: String,
@@ -137,7 +148,7 @@ pub(in crate::video) struct StaticVideoFramePromptInput {
     pub negative_prompt: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StoryboardVideoFramePromptInput {
     pub title: String,
@@ -149,13 +160,13 @@ pub(in crate::video) struct StoryboardVideoFramePromptInput {
     pub negative_prompt: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoPromptResponse {
     pub(in crate::video) shots: Vec<VideoPromptShotInput>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoSegmentPlanResponse {
     pub(in crate::video) segments: Vec<VideoSegmentPlanInput>,
@@ -167,13 +178,13 @@ pub(in crate::video) struct StoredVideoSegmentPlanResponse {
     pub(in crate::video) segments: Vec<VideoSegmentPlan>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StaticVideoFramePromptResponse {
     pub(in crate::video) frames: Vec<StaticVideoFramePromptInput>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StoryboardVideoFramePromptResponse {
     pub(in crate::video) frames: Vec<StoryboardVideoFramePromptInput>,
@@ -191,30 +202,4 @@ pub(in crate::video) struct VideoSegmentPlanDefaults<'a> {
     pub(in crate::video) shooting_script_projection: &'a VideoShootingScriptProjection,
     pub(in crate::video) duration_secs: i32,
     pub(in crate::video) aspect_ratio: &'a str,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(in crate::video) struct VideoPromptTargetedRepairResponse {
-    pub schema_version: String,
-    pub repairs: VideoPromptTargetedRepairFields,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(in crate::video) struct VideoPromptTargetedRepairFields {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scene_summary: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub visual_prompt: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub motion_prompt: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub negative_prompt: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dialogue_cues: Option<Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub chat_prompt: Option<String>,
 }

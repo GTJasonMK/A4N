@@ -17,8 +17,10 @@ use a4n_db::{
         CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
         CanvasNodeRecordInput,
     },
+    generation::GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use async_trait::async_trait;
 use base64::Engine as _;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -129,8 +131,8 @@ impl ImageGenerationHostPort for TestImageHost {
         &self,
         _relative_path: &str,
         _label: &str,
-    ) -> Result<crate::media::GeneratedImageArtifactFile, AppError> {
-        Ok(crate::media::GeneratedImageArtifactFile {
+    ) -> Result<crate::generation::GeneratedMediaArtifactFile, AppError> {
+        Ok(crate::generation::GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "test-sha256".to_string(),
             byte_size: png_1x1_bytes().len() as u64,
@@ -431,8 +433,11 @@ async fn canvas_image_application_persists_complete_artifact_chain() {
     assert_eq!(summary.status, "completed");
     assert_eq!(host.calls.load(Ordering::SeqCst), 1);
     assert_eq!(spec.status, "completed");
-    assert_eq!(spec.target_kind, "canvas_image");
-    assert_eq!(image.image_type, "canvas_image");
+    assert_eq!(
+        spec.target_kind,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE
+    );
+    assert_eq!(image.image_type, IMAGE_TYPE_CANVAS);
     assert_eq!(generation_runs.len(), 1);
     assert_eq!(assets.len(), 1);
     assert_eq!(run.status, "completed");

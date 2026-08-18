@@ -9,10 +9,10 @@ use super::super::push::assembly_request_context;
 use crate::AppState;
 use crate::actions::video_generation::media::{
     append_secondary_error, combine_optional_errors, remove_partial_video_file,
-    video_mime_from_path,
 };
 use crate::actions::video_records::MAX_INLINE_PLAYBACK_VIDEO_BYTES;
-use crate::file_utils::data_dir_relative_file_path;
+use crate::file_utils::data_file_record_facts;
+use a4n_core::media::video_mime_from_path;
 use base64::Engine;
 use chrono::Utc;
 use std::path::Path;
@@ -27,7 +27,13 @@ impl AssemblyRequestContext {
         data_dir: &Path,
         cached: bool,
     ) -> Result<AssembledChapterVideoPreview, String> {
-        read_assembled_video_preview(data_dir, &self.output_path, &self.clips, cached)
+        read_assembled_video_preview(
+            data_dir,
+            &self.output_path,
+            &self.clips,
+            self.duration_secs,
+            cached,
+        )
     }
 }
 
@@ -46,67 +52,25 @@ pub async fn assemble_chapter_videos(
         workflow_mode,
         "拼接成片",
     )
-    .await?;
-    if context.clips.is_empty() {
-        return Err("当前视频生成流程还没有可拼接的已完成视频".to_string());
-    }
+    .await?
+    .ok_or_else(|| "当前视频生成流程还没有可拼接的已完成视频".to_string())?;
 
     if context.cache_matches()? {
         return context.preview(state.data_dir(), true);
     }
 
-    let result =
-        persist_assembly_preview_cache(&context.output_path, &context.manifest_path, || {
-            run_ffmpeg_assemble_videos(
-                &context.clips,
-                &context.output_path,
-                context.manifest.width,
-                context.manifest.height,
-                context.manifest.fps,
-                &context.manifest,
-            )?;
-            write_assembly_cache_manifest(&context.manifest_path, &context.manifest)?;
-            context.preview(state.data_dir(), false)
-        });
-    match result {
-        Ok(value) => Ok(value),
-        Err(error) => {
-            let paths = [
-                data_dir_relative_file_path(state.data_dir(), &context.output_path, "成片预览文件"),
-                data_dir_relative_file_path(
-                    state.data_dir(),
-                    &context.manifest_path,
-                    "成片预览缓存清单",
-                ),
-            ]
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>();
-            match paths {
-                Ok(paths) => {
-                    if let Err(cleanup_error) = state
-                        .orchestrator()
-                        .insert_file_artifact_cleanup_intent(
-                            project_id,
-                            format!(
-                                "assembly-cache:{}:{}:{}",
-                                project_id, chapter_id, context.manifest.workflow_mode
-                            ),
-                            paths,
-                        )
-                        .await
-                    {
-                        return Err(format!(
-                            "{error}；写入 assembly cache cleanup intent 失败：{cleanup_error}"
-                        ));
-                    }
-                    Err(error)
-                }
-                Err(path_error) => Err(format!(
-                    "{error}；记录 assembly cache cleanup 路径失败：{path_error}"
-                )),
-            }
-        }
-    }
+    persist_assembly_preview_cache(&context.output_path, &context.manifest_path, || {
+        run_ffmpeg_assemble_videos(
+            &context.clips,
+            &context.output_path,
+            context.manifest.width,
+            context.manifest.height,
+            context.manifest.fps,
+            &context.manifest,
+        )?;
+        write_assembly_cache_manifest(&context.manifest_path, &context.manifest)?;
+        context.preview(state.data_dir(), false)
+    })
 }
 
 pub async fn load_cached_assembled_chapter_video_preview(
@@ -116,7 +80,7 @@ pub async fn load_cached_assembled_chapter_video_preview(
     chapter_id: i64,
     workflow_mode: String,
 ) -> Result<Option<AssembledChapterVideoPreview>, String> {
-    let context = assembly_request_context(
+    let Some(context) = assembly_request_context(
         state,
         user_id,
         project_id,
@@ -124,10 +88,10 @@ pub async fn load_cached_assembled_chapter_video_preview(
         workflow_mode,
         "加载成片缓存",
     )
-    .await?;
-    if context.clips.is_empty() {
+    .await?
+    else {
         return Ok(None);
-    }
+    };
     if !context.cache_matches()? {
         return Ok(None);
     }
@@ -138,18 +102,18 @@ fn read_assembled_video_preview(
     data_dir: &Path,
     output_path: &Path,
     clips: &[AssemblyClip],
+    duration_secs: f32,
     cached: bool,
 ) -> Result<AssembledChapterVideoPreview, String> {
-    let metadata =
-        std::fs::metadata(output_path).map_err(|e| format!("无法读取成片文件元数据：{e}"))?;
-    if metadata.len() > MAX_INLINE_PLAYBACK_VIDEO_BYTES {
+    let (file_path, file_size) =
+        data_file_record_facts(data_dir, output_path, "成片文件", "成片文件")?;
+    if file_size > MAX_INLINE_PLAYBACK_VIDEO_BYTES as i64 {
         return Err(format!(
             "成片文件超过 {}MB，无法以内置播放器 Blob 方式加载",
             MAX_INLINE_PLAYBACK_VIDEO_BYTES / 1024 / 1024
         ));
     }
     let bytes = std::fs::read(output_path).map_err(|e| format!("无法读取成片文件：{e}"))?;
-    let duration_secs = clips.iter().map(|clip| clip.duration_secs.max(0.0)).sum();
     let video_ids = clips.iter().map(|clip| clip.video_id).collect();
     let clip_summaries = clips
         .iter()
@@ -166,12 +130,11 @@ fn read_assembled_video_preview(
     Ok(AssembledChapterVideoPreview {
         mime_type: video_mime_from_path(output_path)?.to_string(),
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
-        file_path: data_dir_relative_file_path(data_dir, output_path, "成片文件")?,
+        file_path,
         video_ids,
         clips: clip_summaries,
         duration_secs,
-        file_size: i64::try_from(metadata.len())
-            .map_err(|_| "成片文件过大，无法记录文件大小".to_string())?,
+        file_size,
         updated_at: Some(Utc::now().to_rfc3339()),
         cached,
     })

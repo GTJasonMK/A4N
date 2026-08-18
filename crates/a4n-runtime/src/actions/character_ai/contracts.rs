@@ -1,6 +1,6 @@
 pub use a4n_api_contract::character::{
-    SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult, SyncCharacterProfileInput,
-    SyncCharacterProfileResult,
+    DiscoverCharacterProfilesInput, SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult,
+    SyncCharacterProfileInput, SyncCharacterProfileResult,
 };
 
 #[derive(Debug, Clone, Copy)]

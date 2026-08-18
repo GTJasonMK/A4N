@@ -75,7 +75,7 @@ async fn update_prompt_rejects_frame_prompt_when_generated_frame_image_exists() 
         Some(chapter.id),
         Some(json!({
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": frame.id
             }
         })),
@@ -136,9 +136,9 @@ async fn delete_prompt_rejects_segment_plan_when_frame_prompts_exist() {
         }),
     )
     .await;
-    let err = a4n_db::video_prompt::delete_chapter_video_prompt_with_policy(
+    let err = a4n_db::video_prompt::delete_chapter_video_prompts_with_policy(
         db.as_ref(),
-        segment.id,
+        std::slice::from_ref(&segment.id),
         false,
     )
     .await
@@ -183,15 +183,15 @@ async fn delete_prompt_rejects_first_frame_prompt_when_generated_first_frame_ima
         Some(chapter.id),
         Some(json!({
             "generation_context": {
-                "source": "video_first_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
                 "prompt_id": first_frame.id
             }
         })),
     )
     .await;
-    let err = a4n_db::video_prompt::delete_chapter_video_prompt_with_policy(
+    let err = a4n_db::video_prompt::delete_chapter_video_prompts_with_policy(
         db.as_ref(),
-        first_frame.id,
+        std::slice::from_ref(&first_frame.id),
         false,
     )
     .await

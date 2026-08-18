@@ -1,8 +1,11 @@
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    middleware,
     routing::{get, post},
+};
+use a4n_service_protocol::{
+    EMBEDDING_EMBED_TEXTS_PATH, EMBEDDING_MODELS_PATH, EMBEDDING_MODEL_DELETE_PATH,
+    EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH, EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
 };
 
 use crate::handlers::{embedding, healthz};
@@ -30,40 +33,41 @@ pub(crate) async fn run() -> anyhow::Result<()> {
             tracing::warn!(?removed, "removed incomplete fastembed model caches");
         }
     }
-    let addr = a4n_sidecar_bootstrap::socket_addr("A4N_EMBEDDING_SERVICE_ADDR", "127.0.0.1:47643")?;
-    let policy = a4n_service_protocol::sidecar_resource_policy("embedding")
+    let addr = a4n_sidecar_bootstrap::service_socket_addr(
+        a4n_service_protocol::EMBEDDING_SERVICE_NAME,
+    )?;
+    let policy = a4n_service_protocol::sidecar_resource_policy(
+        a4n_service_protocol::EMBEDDING_SERVICE_NAME,
+    )
         .expect("embedding sidecar must have a resource policy");
     let app = Router::new()
-        .route("/healthz", get(healthz))
-        .route("/embedding/embed_texts", post(embedding::embed_texts));
+        .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
+        .route(EMBEDDING_EMBED_TEXTS_PATH, post(embedding::embed_texts));
     #[cfg(feature = "fastembed")]
     let app = app
         .route(
-            "/embedding/models",
+            EMBEDDING_MODELS_PATH,
             post(crate::handlers::models::list_models),
         )
         .route(
-            "/embedding/model/download_info",
+            EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
             post(crate::handlers::models::model_download_info),
         )
         .route(
-            "/embedding/model/download/events",
+            EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH,
             post(crate::handlers::events::download_model_events),
         )
         .route(
-            "/embedding/model/delete",
+            EMBEDDING_MODEL_DELETE_PATH,
             post(crate::handlers::models::delete_model),
         );
-    #[cfg(not(feature = "fastembed"))]
-    let app = app;
     let app = app
         .layer(DefaultBodyLimit::max(
             policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),
         ))
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
-        ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+        ));
     tracing::info!(%addr, "starting embedding sidecar");
     a4n_sidecar_bootstrap::serve_sidecar(app, addr, a4n_service_protocol::EMBEDDING_SERVICE_NAME)
         .await

@@ -1,4 +1,3 @@
-#[derive(Clone, Debug)]
 pub struct ImageConfigRecordInput {
     pub name: String,
     pub backend: String,

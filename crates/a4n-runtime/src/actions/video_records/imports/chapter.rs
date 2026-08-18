@@ -1,8 +1,10 @@
 use super::prelude::*;
 use super::*;
+use crate::actions::video_records::{
+    complete_video_record, delete_video_record_cleanup_error, video_record_output_path,
+};
 use a4n_orchestrator::video::{
-    ImportedVideoProperties, completed_provider_metadata, is_first_frame_chain_video,
-    should_capture_video_tail_frame,
+    completed_provider_metadata, is_first_frame_chain_video, should_capture_video_tail_frame,
 };
 
 pub async fn upload_chapter_video(
@@ -39,7 +41,7 @@ async fn create_imported_chapter_video(
     source: ImportedVideoSource,
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let properties = probe_video_properties(&source.path, "导入视频")?;
+    let properties = probe_imported_video_properties(&source, "导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let prepared = state
         .orchestrator()
@@ -47,12 +49,7 @@ async fn create_imported_chapter_video(
             project_id,
             chapter_id,
             prompt_id,
-            ImportedVideoProperties {
-                width: properties.width,
-                height: properties.height,
-                duration_secs: properties.duration_secs,
-                fps: properties.fps,
-            },
+            properties,
             &source.file_name,
             source.extension,
             &imported_at,
@@ -68,10 +65,10 @@ async fn create_imported_chapter_video(
         record.id,
         &source.path,
         || {
-            import_video_output_path(
+            video_record_output_path(
                 state.data_dir(),
                 project_id,
-                chapter_id,
+                Some(chapter_id),
                 record.id,
                 "imported_video",
                 source.extension,
@@ -91,9 +88,7 @@ async fn create_imported_chapter_video(
     );
     let mut tail_frame_capture_error = None;
     let tail_frame_metadata = if should_capture_video_tail_frame(&record) {
-        match capture_video_tail_frame_asset(state, &record, chapter_id, Some(prompt.id), &output)
-            .await
-        {
+        match capture_video_tail_frame_asset(state, &record, chapter_id, &output).await {
             Ok(metadata) => Some(metadata),
             Err(err) => {
                 if is_first_frame_chain_video(&record) {
@@ -106,7 +101,7 @@ async fn create_imported_chapter_video(
                         )
                         .await;
                     let delete_error =
-                        delete_video_record_error(state.orchestrator(), record.id).await;
+                        delete_video_record_cleanup_error(state.orchestrator(), record.id).await;
                     return Err(append_secondary_error(
                         append_secondary_error(
                             format!("导入视频已复制但首帧串联尾帧采集失败：{err}"),
@@ -122,7 +117,7 @@ async fn create_imported_chapter_video(
     } else {
         None
     };
-    let updated = mark_imported_video_completed(
+    let updated = complete_video_record(
         state,
         record.id,
         &output_path_str,

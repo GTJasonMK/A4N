@@ -11,7 +11,6 @@ use a4n_core::models::{
     project::novel_project,
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
-use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use a4n_domain::project::{
@@ -27,13 +26,14 @@ use self::builder::{GraphBuilder, NodeSeedMetadata, node};
 use self::details::*;
 use self::scope::load_asset_graph_scope;
 
-const VIDEO_SEGMENT_PLAN_PROMPT_TYPES: &[&str] = &["frame_segment_plan"];
+const VIDEO_SEGMENT_PLAN_PROMPT_TYPES: &[&str] =
+    &[chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN];
 const VIDEO_FRAME_PROMPT_TYPES: &[&str] = &[
-    "frame_prompt",
-    "first_frame_prompt",
-    "chat_video_frame_prompt",
+    chapter_video_prompt::PROMPT_TYPE_FRAME,
+    chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME,
+    chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME,
 ];
-const CHAPTER_VIDEO_PROMPT_TYPES: &[&str] = &["video_prompt"];
+const CHAPTER_VIDEO_PROMPT_TYPES: &[&str] = &[chapter_video_prompt::PROMPT_TYPE_VIDEO];
 
 mod helpers;
 use self::helpers::*;

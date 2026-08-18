@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+
 archive="${1:-}"
 [[ -n "$archive" && -f "$archive" ]] || {
     printf 'usage: %s <linux release archive>\n' "$0" >&2
@@ -23,20 +27,37 @@ export A4N_DATABASE_URL="${A4N_DATABASE_URL:-${A4N_TEST_DATABASE_URL:-}}"
     exit 2
 }
 
-for command_name in curl rg ruby tar; do
-    command -v "$command_name" >/dev/null 2>&1 || {
-        printf 'missing command: %s\n' "$command_name" >&2
-        exit 2
-    }
+for command_name in curl rg tar; do
+    require_command "$command_name"
 done
 
+catalog_rows="$(sidecar_catalog_rows)"
+tool_binaries="$(release_tool_binaries)"
+cli_binary="$(release_tool_binary_for_package a4n-cli)"
+modules=()
+addr_envs=()
+url_envs=()
+health_paths=()
+while IFS=$'\t' read -r module _package addr_env url_env health_path; do
+    [[ -n "$module" ]] || continue
+    modules+=("$module")
+    addr_envs+=("$addr_env")
+    url_envs+=("$url_env")
+    health_paths+=("$health_path")
+done <<<"$catalog_rows"
+[[ "${#modules[@]}" -gt 0 ]] || {
+    printf 'sidecar service catalog is empty\n' >&2
+    exit 2
+}
+
 base_port="${A4N_RELEASE_SMOKE_BASE_PORT:-48641}"
-[[ "$base_port" =~ ^[0-9]+$ && "$base_port" -ge 1024 && "$base_port" -le 65528 ]] || {
+max_base_port=$((65535 - ${#modules[@]}))
+[[ "$base_port" =~ ^[0-9]+$ && "$base_port" -ge 1024 && "$base_port" -le "$max_base_port" ]] || {
     printf 'invalid A4N_RELEASE_SMOKE_BASE_PORT: %s\n' "$base_port" >&2
     exit 2
 }
 
-tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/a4n-release-smoke.XXXXXX")"
+tmp_root="$(make_target_temp_dir linux-release-smoke)"
 install_root="$tmp_root/安装 前缀"
 launcher_log="$tmp_root/launcher.log"
 launcher_pid=""
@@ -92,43 +113,21 @@ package_root="${package_roots[0]}"
     printf 'release package is missing executable start.sh\n' >&2
     exit 1
 }
-for tool in a4n a4n-server a4n-migration; do
+while IFS= read -r tool; do
     [[ -x "$package_root/bin/$tool" ]] || {
         printf 'release package is missing executable tool: %s\n' "$tool" >&2
         exit 1
     }
-done
-local_cli="$package_root/bin/a4n"
+done <<<"$tool_binaries"
+local_cli="$package_root/bin/$cli_binary"
 local_config="$tmp_root/cli.json"
-local_server="http://127.0.0.1:$((base_port + 8))"
+local_server="http://127.0.0.1:$((base_port + ${#modules[@]}))"
 capabilities="$(cd "$tmp_root" && "$local_cli" --config "$local_config" --agent capabilities export)"
 ruby -rjson -e '
   data = JSON.parse(STDIN.read).fetch("data")
   commands = data.fetch("commands")
   abort "capability manifest is inconsistent" unless data.fetch("total_commands") == data.fetch("matched_commands") && data.fetch("total_commands") == commands.length
 ' <<<"$capabilities"
-
-modules=(prompt llm embedding rag image video import export)
-addr_envs=(
-    A4N_PROMPT_SERVICE_ADDR
-    A4N_LLM_GATEWAY_ADDR
-    A4N_EMBEDDING_SERVICE_ADDR
-    A4N_RAG_SERVICE_ADDR
-    A4N_IMAGE_SERVICE_ADDR
-    A4N_VIDEO_SERVICE_ADDR
-    A4N_IMPORT_SERVICE_ADDR
-    A4N_EXPORT_SERVICE_ADDR
-)
-url_envs=(
-    A4N_PROMPT_SERVICE_URL
-    A4N_LLM_GATEWAY_URL
-    A4N_EMBEDDING_SERVICE_URL
-    A4N_RAG_SERVICE_URL
-    A4N_IMAGE_SERVICE_URL
-    A4N_VIDEO_SERVICE_URL
-    A4N_IMPORT_SERVICE_URL
-    A4N_EXPORT_SERVICE_URL
-)
 
 urls=()
 for index in "${!modules[@]}"; do
@@ -138,14 +137,11 @@ for index in "${!modules[@]}"; do
     printf -v "${url_envs[index]}" '%s' "$url"
     export "${addr_envs[index]}" "${url_envs[index]}"
     urls+=("$url")
-    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
+    if curl -fsS --max-time 1 "$url${health_paths[index]}" >/dev/null 2>&1; then
         printf 'release smoke port is already in use: %s\n' "$port" >&2
         exit 1
     fi
 done
-
-mkdir -p "$package_root/data/services"
-printf '999999\n' >"$package_root/data/services/prompt.pid"
 
 "$package_root/start.sh" >"$launcher_log" 2>&1 &
 launcher_pid=$!
@@ -153,7 +149,7 @@ launcher_pid=$!
 for _ in {1..300}; do
     all_healthy=true
     for index in "${!modules[@]}"; do
-        payload="$(curl -fsS --max-time 1 "${urls[index]}/healthz" 2>/dev/null || true)"
+        payload="$(curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" 2>/dev/null || true)"
         if ! rg -q '"service"[[:space:]]*:[[:space:]]*"'"${modules[index]}"'"' <<<"$payload" ||
             ! rg -q '"status"[[:space:]]*:[[:space:]]*"healthy"' <<<"$payload"; then
             all_healthy=false
@@ -171,27 +167,12 @@ for _ in {1..300}; do
 done
 
 for index in "${!modules[@]}"; do
-    payload="$(curl -fsS --max-time 2 "${urls[index]}/healthz")"
+    payload="$(curl -fsS --max-time 2 "${urls[index]}${health_paths[index]}")"
     rg -q '"service"[[:space:]]*:[[:space:]]*"'"${modules[index]}"'"' <<<"$payload"
     rg -q '"status"[[:space:]]*:[[:space:]]*"healthy"' <<<"$payload"
 done
 rg -q 'A4N 应用启动完成' "$launcher_log"
 
-pid_files=("$package_root"/data/services/*.pid)
-[[ "${#pid_files[@]}" -eq 8 ]] || {
-    printf 'expected 8 sidecar PID files, found %s\n' "${#pid_files[@]}" >&2
-    exit 1
-}
-sidecar_pids=()
-for pid_file in "${pid_files[@]}"; do
-    pid="$(<"$pid_file")"
-    [[ "$pid" =~ ^[0-9]+$ && "$pid" != 999999 ]] || {
-        printf 'invalid or stale sidecar PID: %s\n' "$pid" >&2
-        exit 1
-    }
-    kill -0 "$pid"
-    sidecar_pids+=("$pid")
-done
 find "$package_root/data/logs/services" -type f -size +0c -print -quit | rg -q .
 
 kill -TERM "$launcher_pid"
@@ -205,19 +186,9 @@ launcher_pid=""
     exit 1
 }
 
-for pid in "${sidecar_pids[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-        printf 'sidecar process survived host shutdown: %s\n' "$pid" >&2
-        exit 1
-    fi
-done
-if compgen -G "$package_root/data/services/*.pid" >/dev/null; then
-    printf 'sidecar PID files survived host shutdown\n' >&2
-    exit 1
-fi
-for url in "${urls[@]}"; do
-    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
-        printf 'sidecar port survived host shutdown: %s\n' "$url" >&2
+for index in "${!urls[@]}"; do
+    if curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" >/dev/null 2>&1; then
+        printf 'sidecar port survived host shutdown: %s\n' "${urls[index]}" >&2
         exit 1
     fi
 done
@@ -229,9 +200,9 @@ done
     "$local_cli" --config "$local_config" --server "$local_server" --agent capabilities check
     "$local_cli" --config "$local_config" --server "$local_server" --agent local stop
 ) >>"$launcher_log" 2>&1
-for url in "${urls[@]}"; do
-    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
-        printf 'local managed sidecar survived local stop: %s\n' "$url" >&2
+for index in "${!urls[@]}"; do
+    if curl -fsS --max-time 1 "${urls[index]}${health_paths[index]}" >/dev/null 2>&1; then
+        printf 'local managed sidecar survived local stop: %s\n' "${urls[index]}" >&2
         exit 1
     fi
 done
@@ -240,4 +211,4 @@ if curl -sS --max-time 1 "$local_server/api/health" >/dev/null 2>&1; then
     exit 1
 fi
 
-printf 'linux release package smoke passed: host + CLI tools + local Server + 8 sidecars, logs, stale PID, cleanup, non-ASCII path\n'
+printf 'linux release package smoke passed: host + CLI tools + local Server + %s sidecars, logs, cleanup, non-ASCII path\n' "${#modules[@]}"

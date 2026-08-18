@@ -1,8 +1,9 @@
 use super::super::prelude::{
     AppState, GeneratedImageSummary, access, append_secondary_error, canonicalize_data_file_path,
-    ensure_ffmpeg, persist_created_media_file, to_summary,
+    persist_created_media_file, to_summary,
 };
 use super::super::processing::{canvas_frame_output_path, run_ffmpeg_extract_frame};
+use a4n_domain::CanvasFrameKind;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 
 pub async fn extract_canvas_video_frame(
@@ -10,13 +11,13 @@ pub async fn extract_canvas_video_frame(
     user_id: i64,
     project_id: i64,
     video_id: i64,
-    frame_kind: String,
+    frame_kind: CanvasFrameKind,
     at_secs: Option<f32>,
 ) -> Result<GeneratedImageSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let plan = state
         .orchestrator()
-        .prepare_canvas_frame_validated(project_id, video_id, &frame_kind, at_secs)
+        .prepare_canvas_frame_validated(project_id, video_id, frame_kind, at_secs)
         .await
         .map_err(crate::actions::app_error_message)?;
     let source_path = plan
@@ -29,13 +30,11 @@ pub async fn extract_canvas_video_frame(
         source_path,
         &format!("源视频 #{}", plan.video.id),
     )?;
-    ensure_ffmpeg()?;
-
     let output = canvas_frame_output_path(
         state.data_dir(),
         project_id,
         plan.video.id,
-        &plan.frame_kind,
+        plan.frame_kind.as_str(),
     )?;
     let (output_path_str, file_size) = persist_created_media_file(
         state.data_dir(),

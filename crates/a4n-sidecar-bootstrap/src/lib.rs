@@ -1,37 +1,40 @@
 //! Shared process bootstrap rules for A4N sidecar binaries.
 
 mod data_manifest;
+mod environment;
 mod event_stream;
 mod logging;
 mod metrics;
 
 use std::{
-    env::VarError,
     future::Future,
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
 
 use a4n_service_protocol::{
-    SIDECAR_AUTH_HEADER, SIDECAR_AUTH_TOKEN_ENV, SIDECAR_HOST_PROTOCOL_VERSION_HEADER,
+    SIDECAR_AUTH_HEADER, SIDECAR_AUTH_TOKEN_ENV, SIDECAR_HEALTH_PATH, SIDECAR_SHUTDOWN_PATH,
 };
 use anyhow::anyhow;
 use axum::{
     Router,
-    extract::{Extension, Request},
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, Request, State},
+    http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
     routing::post,
 };
 pub use data_manifest::{ensure_data_directory_manifest, require_data_directory_manifest};
 pub use event_stream::{
-    service_event_line, service_event_ndjson_response, single_service_event_stream,
+    failed_service_event_response, service_event_channel, service_event_line,
+    service_event_ndjson_response,
 };
 use futures::channel::oneshot;
 use metrics::with_runtime_metrics;
 use subtle::ConstantTimeEq;
 use tower::limit::concurrency::GlobalConcurrencyLimitLayer;
+
+use crate::environment::{optional_non_empty_string, string_or_default};
 
 /// Apply one concurrency budget to the whole sidecar, including all routes.
 ///
@@ -40,15 +43,6 @@ use tower::limit::concurrency::GlobalConcurrencyLimitLayer;
 /// budget.
 pub fn concurrency_limit(max_concurrent: usize) -> GlobalConcurrencyLimitLayer {
     GlobalConcurrencyLimitLayer::new(max_concurrent)
-}
-
-pub fn host_protocol_version(headers: &HeaderMap) -> Option<u32> {
-    headers
-        .get(SIDECAR_HOST_PROTOCOL_VERSION_HEADER)?
-        .to_str()
-        .ok()?
-        .parse()
-        .ok()
 }
 
 #[derive(Clone)]
@@ -85,14 +79,19 @@ async fn request_shutdown(Extension(signal): Extension<SidecarShutdownSignal>) -
 
 fn shutdown_router(signal: SidecarShutdownSignal) -> Router {
     Router::new()
-        .route("/shutdown", post(request_shutdown))
-        .route_layer(axum::middleware::from_fn(require_auth))
+        .route(SIDECAR_SHUTDOWN_PATH, post(request_shutdown))
         .layer(Extension(signal))
 }
 
 pub async fn serve_sidecar(router: Router, addr: SocketAddr, service: &str) -> anyhow::Result<()> {
+    let auth_token = optional_non_empty_string(SIDECAR_AUTH_TOKEN_ENV)?.map(Arc::<str>::from);
+    validate_bind_addr(addr, auth_token.is_some())?;
     let (shutdown_signal, shutdown) = sidecar_shutdown();
-    let app = with_runtime_metrics(router.merge(shutdown_router(shutdown_signal)), service)?;
+    let app = with_runtime_metrics(
+        router.merge(shutdown_router(shutdown_signal)),
+        service,
+        auth_token,
+    )?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
@@ -101,44 +100,36 @@ pub async fn serve_sidecar(router: Router, addr: SocketAddr, service: &str) -> a
 }
 
 pub fn init_tracing(log_env: &str, default_filter: &str) -> anyhow::Result<()> {
-    let filter_text = env_value_or_default(log_env, default_filter)?;
+    let filter_text = string_or_default(log_env, default_filter)?;
     logging::init(log_env, &filter_text)
 }
 
 pub fn socket_addr(addr_env: &str, default_addr: &str) -> anyhow::Result<SocketAddr> {
-    let value = env_value_or_default(addr_env, default_addr)?;
-    let addr = parse_socket_addr(addr_env, &value)?;
-    let has_auth = std::env::var(SIDECAR_AUTH_TOKEN_ENV)
-        .ok()
-        .is_some_and(|token| !token.trim().is_empty());
-    validate_bind_addr(addr_env, addr, has_auth)?;
-    Ok(addr)
+    let value = string_or_default(addr_env, default_addr)?;
+    a4n_service_protocol::parse_service_socket_addr(addr_env, &value).map_err(anyhow::Error::msg)
 }
 
-fn parse_socket_addr(addr_env: &str, value: &str) -> anyhow::Result<SocketAddr> {
-    value
-        .parse()
-        .map_err(|error| anyhow!("{addr_env} 不是有效监听地址: {error}"))
+pub fn service_socket_addr(service: &str) -> anyhow::Result<SocketAddr> {
+    let entry = a4n_service_protocol::service_catalog_entry(service)
+        .ok_or_else(|| anyhow!("未知 sidecar service: {service}"))?;
+    socket_addr(&entry.addr_env, &entry.default_addr)
 }
 
-fn validate_bind_addr(addr_env: &str, addr: SocketAddr, has_auth: bool) -> anyhow::Result<()> {
+fn validate_bind_addr(addr: SocketAddr, has_auth: bool) -> anyhow::Result<()> {
     if !addr.ip().is_loopback() && !has_auth {
         return Err(anyhow!(
-            "{addr_env} 只能在配置 sidecar authentication 后绑定非 loopback 地址"
+            "sidecar 只能在配置 authentication 后绑定非 loopback 地址"
         ));
     }
     Ok(())
 }
 
 /// Require the manager-issued token on every non-health endpoint.
-/// Unit-test routers are allowed to omit the token; real sidecar binaries are
-/// compiled without `cfg(test)` and fail closed when the token is absent.
-pub async fn require_auth(request: Request, next: Next) -> Response {
-    if cfg!(test) {
-        return next.run(request).await;
-    }
-
-    let expected = std::env::var(SIDECAR_AUTH_TOKEN_ENV).ok();
+async fn require_auth(
+    State(expected): State<Option<Arc<str>>>,
+    request: Request,
+    next: Next,
+) -> Response {
     let actual = request
         .headers()
         .get(SIDECAR_AUTH_HEADER)
@@ -156,10 +147,10 @@ fn auth_rejection(
     expected: Option<&str>,
     actual: Option<&[u8]>,
 ) -> Option<(StatusCode, &'static str)> {
-    if path == "/healthz" {
+    if path == SIDECAR_HEALTH_PATH {
         return None;
     }
-    let Some(expected) = expected.filter(|value| !value.trim().is_empty()) else {
+    let Some(expected) = expected else {
         return Some((
             StatusCode::SERVICE_UNAVAILABLE,
             "sidecar authentication is not configured",
@@ -174,94 +165,26 @@ fn auth_rejection(
     None
 }
 
-fn env_value_or_default(key: &str, default_value: &str) -> anyhow::Result<String> {
-    resolve_env_value(key, std::env::var(key), default_value).map_err(anyhow::Error::msg)
-}
-
-fn resolve_env_value(
-    key: &str,
-    configured: Result<String, VarError>,
-    default_value: &str,
-) -> Result<String, String> {
-    let value = match configured {
-        Ok(value) => value,
-        Err(VarError::NotPresent) => default_value.to_string(),
-        Err(error) => return Err(format!("读取 {key} 失败: {error}")),
-    };
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(format!("{key} 不能为空"));
-    }
-    Ok(value.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn missing_value_uses_default() {
-        assert_eq!(
-            resolve_env_value("A4N_SERVICE_ADDR", Err(VarError::NotPresent), "127.0.0.1:1")
-                .unwrap(),
-            "127.0.0.1:1"
-        );
-    }
-
-    #[test]
-    fn configured_value_is_trimmed() {
-        assert_eq!(
-            resolve_env_value("A4N_SERVICE_ADDR", Ok(" 127.0.0.1:2 ".into()), "unused").unwrap(),
-            "127.0.0.1:2"
-        );
-    }
-
-    #[test]
-    fn configured_blank_value_is_rejected() {
-        let error = resolve_env_value("A4N_SERVICE_ADDR", Ok("  ".into()), "127.0.0.1:1")
-            .expect_err("configured blank value must fail");
-        assert!(error.contains("不能为空"));
-    }
-
-    #[test]
-    fn invalid_socket_addr_is_rejected() {
-        let error = parse_socket_addr("A4N_SERVICE_ADDR", "token=sidecar-secret")
-            .expect_err("invalid address must fail")
-            .to_string();
-        assert!(error.contains("A4N_SERVICE_ADDR 不是有效监听地址"));
-        assert!(!error.contains("sidecar-secret"));
-    }
-
-    #[test]
     fn non_loopback_bind_requires_authentication() {
         let addr: SocketAddr = "0.0.0.0:47641".parse().unwrap();
-        assert!(validate_bind_addr("A4N_SERVICE_ADDR", addr, false).is_err());
-        assert!(validate_bind_addr("A4N_SERVICE_ADDR", addr, true).is_ok());
+        assert!(validate_bind_addr(addr, false).is_err());
+        assert!(validate_bind_addr(addr, true).is_ok());
     }
 
     #[test]
     fn loopback_bind_is_allowed_without_authentication() {
         let addr: SocketAddr = "127.0.0.1:47641".parse().unwrap();
-        assert!(validate_bind_addr("A4N_SERVICE_ADDR", addr, false).is_ok());
+        assert!(validate_bind_addr(addr, false).is_ok());
     }
 
     #[test]
     fn health_endpoint_bypasses_authentication() {
-        assert_eq!(auth_rejection("/healthz", None, None), None);
-    }
-
-    #[test]
-    fn host_protocol_version_is_read_from_the_health_header() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            SIDECAR_HOST_PROTOCOL_VERSION_HEADER,
-            a4n_service_protocol::PROTOCOL_VERSION.into(),
-        );
-        assert_eq!(
-            host_protocol_version(&headers),
-            Some(a4n_service_protocol::PROTOCOL_VERSION)
-        );
-        assert_eq!(host_protocol_version(&HeaderMap::new()), None);
+        assert_eq!(auth_rejection(SIDECAR_HEALTH_PATH, None, None), None);
     }
 
     #[test]
@@ -269,9 +192,6 @@ mod tests {
         let rejection = auth_rejection("/v1/generate", None, None).unwrap();
         assert_eq!(rejection.0, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(rejection.1, "sidecar authentication is not configured");
-
-        let blank_rejection = auth_rejection("/v1/generate", Some("   "), None).unwrap();
-        assert_eq!(blank_rejection, rejection);
     }
 
     #[test]

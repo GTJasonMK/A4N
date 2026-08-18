@@ -1,13 +1,13 @@
 import React from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { ImportReview } from "../../../api/import";
+import type { ImportReviewSummary } from "../../../api/import";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookCard } from "../../../components/ui/BookCard";
 import { asJsonRecord } from "../../../utils/jsonRecord";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 
 interface ImportReviewDetailPanelProps {
-  activeReview: ImportReview | null;
+  activeReview: ImportReviewSummary | null;
   activeReviewJson: string;
   activeReviewJsonError: string | null;
   activeReviewJsonDirty: boolean;

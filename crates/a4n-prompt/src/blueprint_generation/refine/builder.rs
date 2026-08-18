@@ -1,13 +1,42 @@
-use super::*;
+use std::collections::HashMap;
 
-pub fn build_blueprint_refine_request(
+use a4n_core::{
+    blueprint::{
+        BLUEPRINT_REFINEMENT_PROMPT, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
+        blueprint_refinement_call_key,
+    },
+    config::app_config::llm_token_profiles,
+    error::AppError,
+    source_spans::source_text_hash as source_content_sha256,
+};
+use a4n_llm::{
+    context::context_aware_system_user_request,
+    provider::{ChatRequest, LlmTraceContext},
+};
+use serde_json::{Value, json};
+
+use crate::rendering::PromptRenderer;
+
+use super::{
+    context::build_blueprint_refine_context_manifest,
+    user_message::blueprint_refine_manifest_user_message,
+};
+
+pub async fn build_blueprint_refine_request(
+    prompt_renderer: &dyn PromptRenderer,
     project_id: i64,
-    system_prompt: String,
-    user_prompt: String,
+    focus: Option<&str>,
+    variables: &HashMap<String, Value>,
     blueprint_context: &Value,
 ) -> Result<ChatRequest, AppError> {
+    let system_prompt = prompt_renderer
+        .render_prompt(BLUEPRINT_REFINEMENT_PROMPT, variables, Some(project_id))
+        .await?;
+    let user_prompt =
+        blueprint_refine_manifest_user_message(prompt_renderer, Some(project_id), focus).await?;
     let dynamic_user_content_sha256 = source_content_sha256(&user_prompt);
     let manifest = build_blueprint_refine_context_manifest(blueprint_context, user_prompt)?;
+    let call_key = blueprint_refinement_call_key(project_id);
     Ok(context_aware_system_user_request(
         system_prompt,
         manifest,
@@ -19,11 +48,11 @@ pub fn build_blueprint_refine_request(
     .with_trace_context(LlmTraceContext {
         project_id: Some(project_id),
         root_project_id: None,
-        workflow: "blueprint_refine".to_string(),
-        step_key: "blueprint_refine".to_string(),
+        workflow: BLUEPRINT_REFINEMENT_WORKFLOW_KIND.to_string(),
+        step_key: BLUEPRINT_REFINEMENT_WORKFLOW_KIND.to_string(),
         generation_run_id: None,
         workflow_run_id: None,
-        call_key: Some("blueprint_refine".to_string()),
+        call_key: Some(call_key),
         input_fingerprint_sha256: Some(source_content_sha256(&serde_json::to_string(&json!({
             "blueprint_context": blueprint_context,
             "dynamic_user_content_sha256": dynamic_user_content_sha256,

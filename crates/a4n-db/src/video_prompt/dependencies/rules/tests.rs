@@ -3,12 +3,13 @@ use super::frame_generation::{
     ensure_frame_prompt_generation_source_matches, ensure_frame_prompt_workflow_matches_type,
     frame_image_generation_source_for_prompt,
 };
-use super::image_metadata::{
-    image_generation_prompt_id, image_generation_shot_number, image_generation_source,
-    image_generation_source_hash,
-};
 use crate::video_prompt::PromptStage;
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+    IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, image_generation_prompt_id,
+    image_generation_shot_number, image_generation_source, image_generation_source_hash,
+};
 use serde_json::{Value, json};
 
 fn prompt(
@@ -224,19 +225,25 @@ fn frame_generation_contract_matches_prompt_type_and_workflow() {
     let frame_prompt = prompt(1, "frame_prompt", "boundary_frames", None);
     assert_eq!(
         frame_image_generation_source_for_prompt(&frame_prompt),
-        Some("video_boundary_frame_prompt")
+        Some(IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT)
     );
     assert_eq!(
-        ensure_frame_prompt_generation_source_matches(&frame_prompt, "video_boundary_frame_prompt")
+        ensure_frame_prompt_generation_source_matches(
+            &frame_prompt,
+            IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        )
             .expect("matching source must pass"),
-        "video_boundary_frame_prompt"
+        IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT
     );
     ensure_frame_prompt_workflow_matches_type(&frame_prompt).expect("matching workflow must pass");
 
     let wrong_workflow = prompt(2, "frame_prompt", "chat_video", None);
     assert!(ensure_frame_prompt_workflow_matches_type(&wrong_workflow).is_err());
     assert!(
-        ensure_frame_prompt_generation_source_matches(&frame_prompt, "video_first_frame_prompt")
+        ensure_frame_prompt_generation_source_matches(
+            &frame_prompt,
+            IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
+        )
             .is_err()
     );
 }
@@ -246,7 +253,7 @@ fn image_generation_metadata_requires_positive_typed_fields() {
     let metadata = json!({
         "generation_context": {
             "prompt_id": 12,
-            "source": "video_boundary_frame_prompt",
+            "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
             "shot_number": 3,
             "source_content_sha256": " source-hash "
         }
@@ -254,7 +261,7 @@ fn image_generation_metadata_requires_positive_typed_fields() {
     assert_eq!(image_generation_prompt_id(Some(&metadata)), Some(12));
     assert_eq!(
         image_generation_source(Some(&metadata)),
-        Some("video_boundary_frame_prompt")
+        Some(IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT)
     );
     assert_eq!(image_generation_shot_number(Some(&metadata)), Some(3));
     assert_eq!(

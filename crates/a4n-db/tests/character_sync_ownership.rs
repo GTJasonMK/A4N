@@ -389,7 +389,7 @@ async fn initial_profile_update_replaces_baseline_and_claims_user_ownership() {
     });
     let mut discovery_run = generation_run(project.id);
     discovery_run.workflow = "character_discovery".to_string();
-    discovery_run.step_key = "discover_character_profiles".to_string();
+    discovery_run.step_key = "character_discovery.llm".to_string();
     let profile = create_profile_with_generation_run(
         &db,
         project.id,

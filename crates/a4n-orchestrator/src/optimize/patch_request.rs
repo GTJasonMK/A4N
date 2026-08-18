@@ -53,26 +53,6 @@ pub(in crate::optimize) fn optimize_llm_call_input_fingerprint_json(
     context_aware_chat_request_trace_json(request)
 }
 
-pub(in crate::optimize) fn response_content_from_checkpoint(
-    checkpoint_json: &serde_json::Value,
-    call_key: &str,
-) -> Result<(String, Option<serde_json::Value>, Option<String>), AppError> {
-    let response_content = checkpoint_json
-        .get("response_content")
-        .and_then(serde_json::Value::as_str)
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_response_content".to_string(),
-            operation: format!("读取内容优化 LLM 调用断点 {call_key}"),
-        })?;
-    let usage = checkpoint_json.get("usage").cloned();
-    let finish_reason = checkpoint_json
-        .get("finish_reason")
-        .and_then(serde_json::Value::as_str)
-        .map(ToOwned::to_owned);
-    Ok((response_content, usage, finish_reason))
-}
-
 fn build_content_optimization_patch_context_manifest(
     chapter_content: &str,
     project_context: &serde_json::Value,

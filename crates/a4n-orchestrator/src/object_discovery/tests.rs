@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::{
     output::parse_and_validate_object_discovery_content,
-    request::build_object_discovery_user_prompt,
+    request::build_object_discovery_manifest_user_prompt,
 };
 
 fn chapter_for_test() -> chapter::Model {
@@ -259,12 +259,10 @@ fn reports_truncated_json_explicitly() {
 
 #[test]
 fn user_prompt_is_json_contract_and_names_canonical_fields() {
-    let chapters = vec![chapter_for_test()];
-    let anchors = anchors_for_test(&chapters);
-    let prompt = build_object_discovery_user_prompt(&[], &[], &chapters, &anchors)
-        .expect("prompt should build");
+    let prompt = build_object_discovery_manifest_user_prompt().expect("prompt should build");
     assert!(prompt.contains("\"required_root_field\": \"objects\""));
     assert!(prompt.contains("\"evidence_anchor_ids\""));
     assert!(prompt.contains("\"object_type_values\""));
-    assert!(!prompt.contains("\"first_seen_chapter\": 3"));
+    assert!(prompt.contains("profile_sync_source_context"));
+    assert!(!prompt.contains("\"existing_object_profiles\""));
 }

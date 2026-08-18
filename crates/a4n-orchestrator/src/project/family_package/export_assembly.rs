@@ -125,14 +125,13 @@ mod tests {
             title: format!("p{id}"),
             description: String::new(),
             project_type: "novel_long".to_string(),
-            project_kind: "text".to_string(),
-            source_mode: if root.is_some() {
-                "derived".to_string()
+            project_kind: if root.is_some() {
+                "video".to_string()
             } else {
-                "self".to_string()
+                "text".to_string()
             },
             root_project_id: root,
-            source_snapshot_id: None,
+            source_snapshot_id: root.map(|_| 1000 + id),
             source_sync_status: "current".to_string(),
             status: "draft".to_string(),
             lifecycle_gate: "active".to_string(),

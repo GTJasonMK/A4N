@@ -9,7 +9,7 @@ fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> generate
         id: 42,
         project_id: 1,
         chapter_id: Some(2),
-        video_type: "reference_media_video".to_string(),
+        video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
         workflow_mode: Some("reference_media".to_string()),
         file_path: None,
         thumbnail_path: None,
@@ -58,6 +58,5 @@ fn completed_video_metadata_discards_provider_media_payload() {
     assert!(!metadata.to_string().contains("large-media-base64"));
 }
 
-mod reference_media;
 mod results;
 mod snapshot;

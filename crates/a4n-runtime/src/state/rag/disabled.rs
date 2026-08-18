@@ -60,7 +60,6 @@ impl VectorStore for DisabledVectorStore {
         _query_embedding: Vec<f32>,
         _top_k: usize,
         _filters: Option<SearchFilter>,
-        _vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError> {
         Err(self.disabled_error())
     }

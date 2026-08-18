@@ -1,14 +1,6 @@
 use a4n_core::error::AppError;
-use a4n_db::{
-    DbHandle,
-    workflow::{
-        WORKFLOW_STATUS_CANCELLED, WorkflowProgressEventInput, record_workflow_progress_event,
-        workflow_run_model_by_id,
-    },
-};
+use a4n_db::workflow::{WORKFLOW_STATUS_CANCELLED, WorkflowProgressEventInput};
 use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind};
-
-use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
 
 use super::super::{GALGAME_PIPELINE_TOTAL_STEPS, GalgamePipelineStartStage, OrchestratorContext};
 use super::contracts::{GalgamePipelineProgressUpdate, GalgameProgressReporter};
@@ -23,21 +15,17 @@ impl OrchestratorContext {
         current: u32,
         message: &str,
     ) -> Result<(), AppError> {
-        ensure_galgame_pipeline_not_cancelled(&self.database, workflow_run_id).await?;
+        ensure_galgame_pipeline_not_cancelled(self, workflow_run_id).await?;
         let update = galgame_progress_update(stage, current, message)?;
-        record_workflow_progress_event(
-            self.database.connection(),
-            WorkflowProgressEventInput {
-                workflow_run_id,
-                task_id,
-                current: update.current,
-                total: update.total,
-                message,
-                meta: Some(update.meta.clone()),
-            },
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
+        self.record_workflow_progress_event(WorkflowProgressEventInput {
+            workflow_run_id,
+            task_id,
+            current: update.current,
+            total: update.total,
+            message,
+            meta: Some(update.meta.clone()),
+        })
+        .await?;
         if let Some(reporter) = progress_reporter {
             reporter(update)?;
         }
@@ -96,12 +84,10 @@ fn galgame_stage_label(stage: GalgamePipelineStartStage) -> &'static str {
 }
 
 pub(super) async fn ensure_galgame_pipeline_not_cancelled(
-    db: &DbHandle,
+    service: &OrchestratorContext,
     workflow_run_id: i64,
 ) -> Result<(), AppError> {
-    let run = workflow_run_model_by_id(db.connection(), workflow_run_id)
-        .await
-        .map_err(workflow_read_app_error)?;
+    let run = service.workflow_run_model_by_id(workflow_run_id).await?;
     if run.status == WORKFLOW_STATUS_CANCELLED {
         return Err(AppError::Cancelled);
     }

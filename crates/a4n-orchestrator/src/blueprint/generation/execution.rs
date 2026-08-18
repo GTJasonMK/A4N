@@ -5,26 +5,26 @@ use a4n_api_contract::{
     blueprint::StartBlueprintGenerationInput, generation_tasks::GenerationTaskHandle,
 };
 use a4n_core::blueprint::{
-    BLUEPRINT_GENERATE_PROGRESS_TOTAL, blueprint_stage_previous_context,
+    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_RAW_JSON_STREAM_ID,
     build_blueprint_generation_payload,
 };
 use a4n_core::error::AppError;
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
+use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
+use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, ProgressEvent, StreamTextHash,
 };
 use futures::future::BoxFuture;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use crate::blueprint::generation::assembly::assemble_staged_blueprint_json;
+use crate::blueprint::OrchestratorContext;
 use crate::blueprint::generation::completion::{
     BlueprintCompletionOutcome, BlueprintGenerationCompletionInput,
     persist_generated_blueprint_in_transaction,
 };
 use crate::blueprint::generation::stage::{BlueprintStageRunInput, ensure_not_cancelled};
-use crate::blueprint::generation::trace::blueprint_stage_trace_requests;
 use crate::blueprint::json::parse_blueprint_json;
-use crate::blueprint::{BlueprintGenerationApplicationContext, OrchestratorContext};
 use crate::context::fail_generation_workflow_execution;
 use crate::generation::{
     events::GenerationEventPublisher, generation_public_error, terminal::CompletionDescriptor,
@@ -34,8 +34,7 @@ impl OrchestratorContext {
     /// 在唯一 generation worker/session/terminal owner 中执行蓝图生成。
     pub async fn run_blueprint_generation_task(
         &self,
-        context: BlueprintGenerationApplicationContext<'_>,
-        _user_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
         input: StartBlueprintGenerationInput,
         handle: GenerationTaskHandle,
     ) -> Result<(), String> {
@@ -50,10 +49,15 @@ impl OrchestratorContext {
         let cancel_token = execution.permit.cancellation_token();
         let publisher = execution.publisher.clone();
         let checkpoint_writer = execution.checkpoint_writer.clone();
-        let project_id = input.project_id;
-        let variables = input
-            .variables
-            .clone()
+        let StartBlueprintGenerationInput {
+            meta: _,
+            project_id,
+            title,
+            genre,
+            target_length,
+            variables,
+        } = input;
+        let variables = variables
             .unwrap_or_default()
             .into_iter()
             .collect::<HashMap<_, _>>();
@@ -76,9 +80,9 @@ impl OrchestratorContext {
         let workflow = match self
             .begin_blueprint_generation_workflow_validated(
                 project_id,
-                &input.title,
-                &input.genre,
-                input.target_length,
+                &title,
+                &genre,
+                target_length,
                 &variables_json,
                 Some(handle.task_id.clone()),
             )
@@ -144,9 +148,8 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let prompt_content = match context
-            .prompt_renderer
-            .render_prompt("blueprint", &variables, Some(project_id))
+        let prompt_content = match prompt_renderer
+            .render_prompt(BLUEPRINT_BASE_PROMPT, &variables, Some(project_id))
             .await
         {
             Ok(prompt) => prompt,
@@ -164,27 +167,23 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let user_payload = match build_blueprint_generation_payload(
-            &input.title,
-            &input.genre,
-            input.target_length,
-            &variables,
-        ) {
-            Ok(payload) => payload,
-            Err(error) => {
-                return fail_generation_workflow_execution(
-                    self,
-                    execution,
-                    Some(workflow_run_id),
-                    generation_public_error(
-                        "generation_request_invalid",
-                        "blueprint_prepare",
-                        error,
-                    ),
-                )
-                .await;
-            }
-        };
+        let user_payload =
+            match build_blueprint_generation_payload(&title, &genre, target_length, &variables) {
+                Ok(payload) => payload,
+                Err(error) => {
+                    return fail_generation_workflow_execution(
+                        self,
+                        execution,
+                        Some(workflow_run_id),
+                        generation_public_error(
+                            "generation_request_invalid",
+                            "blueprint_prepare",
+                            error,
+                        ),
+                    )
+                    .await;
+                }
+            };
         let user_payload_json = match serde_json::to_string_pretty(&user_payload) {
             Ok(payload) => payload,
             Err(error) => {
@@ -202,16 +201,16 @@ impl OrchestratorContext {
             }
         };
 
-        let mut stage_outputs = Vec::with_capacity(BLUEPRINT_GENERATE_PROGRESS_TOTAL as usize);
-        for (stage_index, spec) in crate::blueprint::BLUEPRINT_GENERATION_STAGES
-            .iter()
-            .enumerate()
-        {
+        let mut previous_stage_outputs = Map::new();
+        let mut assembled = Map::new();
+        let mut trace_requests =
+            Vec::with_capacity(crate::blueprint::BLUEPRINT_GENERATION_STAGES.len());
+        for spec in &crate::blueprint::BLUEPRINT_GENERATION_STAGES {
             if let Err(error) = publish_blueprint_progress(
                 &publisher,
                 spec.key,
                 ProgressPhaseKind::Prepare,
-                spec.progress_current,
+                u64::from(spec.progress_current),
                 spec.progress_message,
             )
             .await
@@ -224,24 +223,9 @@ impl OrchestratorContext {
                 )
                 .await;
             }
-            let previous_context =
-                match blueprint_stage_previous_context(stage_index, &stage_outputs) {
-                    Ok(value) => value,
-                    Err(error) => {
-                        return fail_generation_workflow_execution(
-                            self,
-                            execution,
-                            Some(workflow_run_id),
-                            generation_public_error(
-                                "generation_validation_failed",
-                                spec.key,
-                                error,
-                            ),
-                        )
-                        .await;
-                    }
-                };
-            let value = match self
+            let previous_context = (!previous_stage_outputs.is_empty())
+                .then(|| Value::Object(previous_stage_outputs.clone()));
+            let stage = match self
                 .generate_or_resume_blueprint_stage(BlueprintStageRunInput {
                     project_id,
                     spec,
@@ -249,7 +233,7 @@ impl OrchestratorContext {
                     session: &session,
                     checkpoint_writer: &checkpoint_writer,
                     cancel_token: cancel_token.clone(),
-                    prompt_renderer: context.prompt_renderer,
+                    prompt_renderer,
                     base_prompt: &prompt_content,
                     user_payload_json: &user_payload_json,
                     previous_context: previous_context.as_ref(),
@@ -257,7 +241,7 @@ impl OrchestratorContext {
                 })
                 .await
             {
-                Ok(value) => value,
+                Ok(stage) => stage,
                 Err(error) => {
                     let code = if matches!(error, AppError::Cancelled) {
                         "generation_interrupted"
@@ -273,30 +257,16 @@ impl OrchestratorContext {
                     .await;
                 }
             };
-            stage_outputs.push(value);
+            assembled.extend(
+                stage
+                    .output
+                    .as_object()
+                    .expect("validated blueprint stage output must be an object")
+                    .clone(),
+            );
+            previous_stage_outputs.insert(spec.key.to_string(), stage.output);
+            trace_requests.push((spec.key, stage.request));
         }
-
-        let [
-            core_output,
-            world_output,
-            characters_output,
-            relationships_output,
-        ]: [Value; 4] = match stage_outputs.try_into() {
-            Ok(outputs) => outputs,
-            Err(_) => {
-                return fail_generation_workflow_execution(
-                    self,
-                    execution,
-                    Some(workflow_run_id),
-                    generation_public_error(
-                        "generation_validation_failed",
-                        "blueprint_assemble",
-                        "蓝图生成阶段输出数量不完整",
-                    ),
-                )
-                .await;
-            }
-        };
         if let Err(error) = publish_blueprint_progress(
             &publisher,
             "blueprint_assemble",
@@ -314,15 +284,17 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let assembled = assemble_staged_blueprint_json(
-            &input.title,
-            &input.genre,
-            input.target_length,
-            &core_output,
-            &world_output,
-            &characters_output,
-            &relationships_output,
+        assembled.insert("chapter_outline".to_string(), Value::Array(Vec::new()));
+        assembled.insert(
+            "needs_part_outlines".to_string(),
+            Value::Bool(needs_part_outlines_for_chapters(target_length)),
         );
+        assembled.insert("total_chapters".to_string(), Value::from(target_length));
+        assembled.insert(
+            "chapters_per_part".to_string(),
+            Value::from(CHAPTERS_PER_PART),
+        );
+        let assembled = Value::Object(assembled);
         let assembled_content = match serde_json::to_string(&assembled) {
             Ok(value) => value,
             Err(error) => {
@@ -339,7 +311,7 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let parsed = match parse_blueprint_json(&assembled_content, input.target_length) {
+        let parsed = match parse_blueprint_json(&assembled_content, target_length) {
             Ok(value) => value,
             Err(error) => {
                 return fail_generation_workflow_execution(
@@ -355,40 +327,11 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let trace_requests = match blueprint_stage_trace_requests(
-            context.prompt_renderer,
-            project_id,
-            &prompt_content,
-            &user_payload_json,
-            &[
-                core_output,
-                world_output,
-                characters_output,
-                relationships_output,
-            ],
-        )
-        .await
-        {
-            Ok(requests) => requests,
-            Err(error) => {
-                return fail_generation_workflow_execution(
-                    self,
-                    execution,
-                    Some(workflow_run_id),
-                    generation_public_error("generation_request_invalid", "blueprint_trace", error),
-                )
-                .await;
-            }
-        };
-
         let completion_slot: Arc<Mutex<Option<BlueprintCompletionOutcome>>> =
             Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
         let completion_input = BlueprintGenerationCompletionInput {
             project_id,
-            novel_title: input.title.clone(),
-            genre: input.genre.clone(),
-            target_length: input.target_length,
             user_payload,
             trace_requests,
             assembled_content,
@@ -400,7 +343,7 @@ impl OrchestratorContext {
         let raw_stream = snapshot
             .streams
             .iter()
-            .find(|stream| stream.stream_id == "raw_json")
+            .find(|stream| stream.stream_id == BLUEPRINT_RAW_JSON_STREAM_ID)
             .cloned();
         let final_text_hashes = raw_stream
             .as_ref()
@@ -501,7 +444,7 @@ async fn publish_blueprint_progress(
     publisher: &dyn GenerationEventPublisher,
     stage_code: &str,
     phase_kind: ProgressPhaseKind,
-    current: u32,
+    current: u64,
     message: &str,
 ) -> Result<(), GenerationError> {
     publisher
@@ -509,7 +452,7 @@ async fn publish_blueprint_progress(
             stage_code: stage_code.to_string(),
             phase_kind,
             message: message.to_string(),
-            current: Some(current as u64),
+            current: Some(current),
             total: Some(BLUEPRINT_GENERATE_PROGRESS_TOTAL as u64),
             unit_label: None,
             item_key: None,

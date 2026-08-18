@@ -16,9 +16,10 @@ use a4n_llm::{
 use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_message};
 use serde_json::{Value, json};
 
-use crate::character::discovery_workflow_rules::character_discovery_business_key;
-
-use super::{context::character_llm_chapter_context, identity::existing_profile_for_prompt};
+use super::{
+    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, context::character_llm_chapter_context,
+    identity::existing_profile_for_prompt,
+};
 
 pub(super) async fn build_character_discovery_request(
     prompt_renderer: &dyn PromptRenderer,
@@ -38,7 +39,7 @@ pub(super) async fn build_character_discovery_request(
         .map(character_llm_chapter_context)
         .collect::<Vec<_>>();
     let system_prompt = prompt_renderer
-        .render_prompt("character_discovery", &HashMap::new(), Some(project_id))
+        .render_prompt(CHARACTER_DISCOVERY_KIND, &HashMap::new(), Some(project_id))
         .await?;
     let stable_context = character_discovery_stable_context(
         &existing_prompt_profiles,
@@ -60,8 +61,8 @@ pub(super) async fn build_character_discovery_request(
         ContextAwareJsonLlmRequestInput {
             project_id,
             workflow_run_id: None,
-            workflow: "character_discovery".to_string(),
-            step_key: "character_discovery.parsed".to_string(),
+            workflow: CHARACTER_DISCOVERY_KIND.to_string(),
+            step_key: CHARACTER_DISCOVERY_CALL_KEY.to_string(),
             scope_kind: "profile_sync".to_string(),
             pack_kind: PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT.to_string(),
             source_refs_json: Some(json!({
@@ -71,19 +72,19 @@ pub(super) async fn build_character_discovery_request(
             })),
             config_json: json!({
                 "ledger_version": "character_discovery_context_v1",
-                "prompt_name": "character_discovery",
+                "prompt_name": CHARACTER_DISCOVERY_KIND,
             }),
             stable_context_json: stable_context,
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.2),
             max_tokens_profile: llm_token_profiles::CHARACTER_DISCOVERY.to_string(),
-            call_key: Some(character_discovery_business_key(project_id, chapter_number)),
+            call_key: Some(CHARACTER_DISCOVERY_CALL_KEY.to_string()),
         },
     )
     .map_err(AppError::InvalidArgument)
 }
 
-fn build_character_discovery_manifest_user_prompt() -> Result<String, AppError> {
+pub(super) fn build_character_discovery_manifest_user_prompt() -> Result<String, AppError> {
     let payload = character_discovery_payload(json!({
         "context_refs": {
             "source": format!("稳定上下文包 {PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT}")
@@ -108,7 +109,7 @@ pub(super) fn character_discovery_stable_context(
 fn character_discovery_payload(input: Value) -> Value {
     json!({
         "task": {
-            "name": "character_discovery",
+            "name": CHARACTER_DISCOVERY_KIND,
             "instruction": "从本次输入章节中识别真实人物角色；已有角色档案只用于同一人物判定，不要求模型自行过滤已存在角色"
         },
         "input": input,
@@ -117,13 +118,6 @@ fn character_discovery_payload(input: Value) -> Value {
             "required_root_field": "characters",
             "character_scope": "返回本次输入章节中识别出的角色。已有角色也可以返回，后端会归入 existing，不会重复创建。",
             "characters": "array",
-            "size_limits": {
-                "max_characters": 24,
-                "aliases_max_items": 4,
-                "attribute_object_max_keys_each": 4,
-                "role_max_chars": 12,
-                "evidence_anchor_id_count": 1
-            },
             "character_required_fields": [
                 "name", "aliases", "importance", "role", "explicit_attributes",
                 "implicit_attributes", "social_attributes", "evidence_anchor_id"
@@ -137,7 +131,7 @@ fn character_discovery_payload(input: Value) -> Value {
             "strict_rules": [
                 "只返回可解析的完整 JSON 对象，不要 Markdown 或解释文字",
                 "字段要短，属性只保留身份、关系、关键状态等最能区分角色的信息",
-                "不要输出 evidence 或 evidence_span_id 字段；必须输出 evidence_anchor_id，并且 ID 必须来自 input.text_anchors[].id",
+                "不要输出 evidence 或 evidence_span_id 字段；必须输出 evidence_anchor_id，并且 ID 必须来自稳定上下文包的 text_anchors[].id",
                 "不要输出 first_seen_chapter 或 latest_seen_chapter；系统会从 evidence_anchor_id 推导",
                 "不要输出 appearance、background、personality；系统会从三类属性对象中提炼摘要",
                 "evidence_anchor_id 只选择最能证明角色首次出场或身份的一个 text_anchor；不要自己抄写原文，不要输出省略号证据",
@@ -156,18 +150,4 @@ fn build_character_discovery_prompt_from_payload(payload: Value) -> Result<Strin
     .map_err(|err| {
         AppError::Internal(anyhow::anyhow!("角色发现上下文序列化失败: {err}"))
     })
-}
-
-#[cfg(test)]
-pub(super) fn build_character_discovery_user_prompt(
-    existing_profiles: &[Value],
-    chapter_data: &[Value],
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
-) -> Result<String, AppError> {
-    build_character_discovery_prompt_from_payload(character_discovery_payload(json!({
-        "existing_profiles": existing_profiles,
-        "chapters": chapter_data,
-        "text_anchors": text_anchor_prompt_values(chapters, text_anchors),
-    })))
 }

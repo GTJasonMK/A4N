@@ -18,7 +18,6 @@ impl OrchestratorContext {
         rag::ensure_project_embedding_identity_matches(&stored_metadata, embedding_identity)
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
         Ok(rag::identity_scoped_search_filter(
-            project_id,
             embedding_identity.clone(),
             data_types,
         ))

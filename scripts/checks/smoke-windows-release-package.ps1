@@ -15,13 +15,38 @@ if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) {
 }
 
 $Archive = (Resolve-Path -LiteralPath $Archive).Path
-$TempRoot = Join-Path ([IO.Path]::GetTempPath()) ("a4n-release-smoke-" + [guid]::NewGuid().ToString("N"))
+$ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$ManifestTool = Join-Path $ProjectRoot "scripts\release_manifest.rb"
+$ServiceRows = @(& ruby $ManifestTool service-rows)
+if ($LASTEXITCODE -ne 0) { throw "unable to read sidecar service catalog" }
+$Services = @($ServiceRows | ForEach-Object {
+    $fields = $_ -split "`t", 5
+    [pscustomobject]@{
+        name = $fields[0]
+        binary = $fields[1]
+        addr_env = $fields[2]
+        url_env = $fields[3]
+        health_path = $fields[4]
+    }
+})
+$ToolRows = @(& ruby $ManifestTool tool-rows)
+if ($LASTEXITCODE -ne 0) { throw "unable to read release tool catalog" }
+$ReleaseTools = @($ToolRows | ForEach-Object {
+    $fields = $_ -split "`t", 2
+    [pscustomobject]@{ package = $fields[0]; binary = $fields[1] }
+})
+$CliBinary = [string]($ReleaseTools | Where-Object package -eq "a4n-cli" | Select-Object -ExpandProperty binary)
+if ([string]::IsNullOrWhiteSpace($CliBinary)) {
+    throw "release tool catalog is missing a4n-cli"
+}
+$TempParent = Join-Path $ProjectRoot "target\tmp"
+New-Item -ItemType Directory -Force -Path $TempParent | Out-Null
+$TempRoot = Join-Path $TempParent ("a4n-release-smoke-" + [guid]::NewGuid().ToString("N"))
 $InstallRoot = Join-Path $TempRoot "安装 前缀"
 $LauncherOut = Join-Path $TempRoot "launcher.out.log"
 $LauncherErr = Join-Path $TempRoot "launcher.err.log"
 $Launcher = $null
 $PackageRoot = $null
-$SidecarPids = @()
 $LocalCli = $null
 $LocalConfig = $null
 $LocalServer = $null
@@ -33,14 +58,6 @@ function Stop-SmokeProcesses {
     if ($null -ne $Launcher -and -not $Launcher.HasExited) {
         Stop-Process -Id $Launcher.Id -Force -ErrorAction SilentlyContinue
         $Launcher.WaitForExit(5000) | Out-Null
-    }
-    if ($null -ne $PackageRoot) {
-        Get-ChildItem -LiteralPath (Join-Path $PackageRoot "data\services") -Filter "*.pid" -ErrorAction SilentlyContinue | ForEach-Object {
-            $pidValue = 0
-            if ([int]::TryParse((Get-Content -LiteralPath $_.FullName -Raw).Trim(), [ref]$pidValue)) {
-                Stop-Process -Id $pidValue -Force -ErrorAction SilentlyContinue
-            }
-        }
     }
 }
 
@@ -74,29 +91,26 @@ try {
     if (-not (Test-Path -LiteralPath $StartScript -PathType Leaf)) {
         throw "release package is missing start.ps1"
     }
-    foreach ($tool in "a4n.exe", "a4n-server.exe", "a4n-migration.exe") {
+    foreach ($entry in $ReleaseTools) {
+        $tool = "$($entry.binary).exe"
         $toolPath = Join-Path $PackageRoot "bin\$tool"
         if (-not (Test-Path -LiteralPath $toolPath -PathType Leaf)) {
             throw "release package is missing executable tool: $tool"
         }
     }
-    $LocalCli = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\a4n.exe")).Path
+    $LocalCli = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\$($CliBinary).exe")).Path
     $LocalConfig = Join-Path $TempRoot "cli.json"
 
-    $modules = @("prompt", "llm", "embedding", "rag", "image", "video", "import", "export")
-    $addrNames = @(
-        "A4N_PROMPT_SERVICE_ADDR", "A4N_LLM_GATEWAY_ADDR", "A4N_EMBEDDING_SERVICE_ADDR", "A4N_RAG_SERVICE_ADDR",
-        "A4N_IMAGE_SERVICE_ADDR", "A4N_VIDEO_SERVICE_ADDR", "A4N_IMPORT_SERVICE_ADDR", "A4N_EXPORT_SERVICE_ADDR"
-    )
-    $urlNames = @(
-        "A4N_PROMPT_SERVICE_URL", "A4N_LLM_GATEWAY_URL", "A4N_EMBEDDING_SERVICE_URL", "A4N_RAG_SERVICE_URL",
-        "A4N_IMAGE_SERVICE_URL", "A4N_VIDEO_SERVICE_URL", "A4N_IMPORT_SERVICE_URL", "A4N_EXPORT_SERVICE_URL"
-    )
+    $modules = @($Services | ForEach-Object { $_.name })
+    $addrNames = @($Services | ForEach-Object { $_.addr_env })
+    $urlNames = @($Services | ForEach-Object { $_.url_env })
+    $healthPaths = @($Services | ForEach-Object { $_.health_path })
     $basePort = if ($env:A4N_RELEASE_SMOKE_BASE_PORT) { [int]$env:A4N_RELEASE_SMOKE_BASE_PORT } else { 48641 }
-    if ($basePort -lt 1024 -or $basePort -gt 65528) {
+    $maxBasePort = 65535 - $Services.Count
+    if ($basePort -lt 1024 -or $basePort -gt $maxBasePort) {
         throw "invalid A4N_RELEASE_SMOKE_BASE_PORT: $basePort"
     }
-    $LocalServer = "http://127.0.0.1:$($basePort + 8)"
+    $LocalServer = "http://127.0.0.1:$($basePort + $Services.Count)"
     Push-Location -LiteralPath $TempRoot
     try {
         $capabilities = (& $LocalCli --config $LocalConfig --agent capabilities export) | ConvertFrom-Json
@@ -118,7 +132,7 @@ try {
         $urls += $url
         $portInUse = $false
         try {
-            Invoke-RestMethod -Uri "$url/healthz" -TimeoutSec 1 | Out-Null
+            Invoke-RestMethod -Uri "$url$($healthPaths[$index])" -TimeoutSec 1 | Out-Null
             $portInUse = $true
         } catch {
         }
@@ -126,10 +140,6 @@ try {
             throw "release smoke port is already in use: $port"
         }
     }
-
-    $pidDirectory = Join-Path $PackageRoot "data\services"
-    New-Item -ItemType Directory -Force -Path $pidDirectory | Out-Null
-    Set-Content -LiteralPath (Join-Path $pidDirectory "prompt.pid") -Value "999999" -Encoding ascii
 
     $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$StartScript`""
     $Launcher = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -WorkingDirectory $PackageRoot `
@@ -140,7 +150,7 @@ try {
         $ready = $true
         for ($index = 0; $index -lt $modules.Count; $index++) {
             try {
-                $health = Invoke-RestMethod -Uri "$($urls[$index])/healthz" -TimeoutSec 1
+                $health = Invoke-RestMethod -Uri "$($urls[$index])$($healthPaths[$index])" -TimeoutSec 1
                 if ($health.service -ne $modules[$index] -or $health.status -ne "healthy") {
                     $ready = $false
                     break
@@ -175,18 +185,6 @@ try {
         throw "release host did not start"
     }
 
-    $pidFiles = @(Get-ChildItem -LiteralPath $pidDirectory -Filter "*.pid")
-    if ($pidFiles.Count -ne 8) {
-        throw "expected 8 sidecar PID files, found $($pidFiles.Count)"
-    }
-    foreach ($pidFile in $pidFiles) {
-        $pidValue = 0
-        if (-not [int]::TryParse((Get-Content -LiteralPath $pidFile.FullName -Raw).Trim(), [ref]$pidValue) -or $pidValue -eq 999999) {
-            throw "invalid or stale sidecar PID in $($pidFile.Name)"
-        }
-        Get-Process -Id $pidValue -ErrorAction Stop | Out-Null
-        $SidecarPids += $pidValue
-    }
     $serviceLogs = @()
     for ($attempt = 0; $attempt -lt 300 -and $serviceLogs.Count -eq 0; $attempt++) {
         $serviceLogs = @(Get-ChildItem -LiteralPath (Join-Path $PackageRoot "data\logs\services") -File -Filter "*.log.*" -ErrorAction SilentlyContinue | Where-Object {
@@ -210,23 +208,15 @@ try {
     }
     $Launcher = $null
 
-    foreach ($pidValue in $SidecarPids) {
-        if (Get-Process -Id $pidValue -ErrorAction SilentlyContinue) {
-            throw "sidecar process survived host shutdown: $pidValue"
-        }
-    }
-    if (Get-ChildItem -LiteralPath $pidDirectory -Filter "*.pid" -ErrorAction SilentlyContinue) {
-        throw "sidecar PID files survived host shutdown"
-    }
-    foreach ($url in $urls) {
+    for ($index = 0; $index -lt $urls.Count; $index++) {
         $portAlive = $false
         try {
-            Invoke-RestMethod -Uri "$url/healthz" -TimeoutSec 1 | Out-Null
+            Invoke-RestMethod -Uri "$($urls[$index])$($healthPaths[$index])" -TimeoutSec 1 | Out-Null
             $portAlive = $true
         } catch {
         }
         if ($portAlive) {
-            throw "sidecar port survived host shutdown: $url"
+            throw "sidecar port survived host shutdown: $($urls[$index])"
         }
     }
 
@@ -243,15 +233,15 @@ try {
     } finally {
         Pop-Location
     }
-    foreach ($url in $urls) {
+    for ($index = 0; $index -lt $urls.Count; $index++) {
         $portAlive = $false
         try {
-            Invoke-RestMethod -Uri "$url/healthz" -TimeoutSec 1 | Out-Null
+            Invoke-RestMethod -Uri "$($urls[$index])$($healthPaths[$index])" -TimeoutSec 1 | Out-Null
             $portAlive = $true
         } catch {
         }
         if ($portAlive) {
-            throw "local managed sidecar survived local stop: $url"
+            throw "local managed sidecar survived local stop: $($urls[$index])"
         }
     }
     $serverAlive = $false
@@ -264,7 +254,7 @@ try {
         throw "local Server port survived local stop: $LocalServer"
     }
 
-    Write-Host "windows release package smoke passed: host + CLI tools + local Server + 8 sidecars, logs, stale PID, cleanup, non-ASCII path"
+    Write-Host "windows release package smoke passed: host + CLI tools + local Server + $($Services.Count) sidecars, logs, cleanup, non-ASCII path"
 } catch {
     if (Test-Path -LiteralPath $LauncherOut) { Get-Content -LiteralPath $LauncherOut -Tail 200 -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $LauncherErr) { Get-Content -LiteralPath $LauncherErr -Tail 200 -ErrorAction SilentlyContinue }

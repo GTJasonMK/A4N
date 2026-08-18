@@ -58,7 +58,7 @@ fn chapter_for_sync(status: &str, content: &str) -> chapter::Model {
 }
 
 #[tokio::test]
-async fn chapter_rag_chunks_use_semantic_dp_without_overlap() {
+async fn chapter_rag_chunks_use_semantic_topic_boundaries() {
     let chapter = chapter_for_sync(
         "completed",
         "星门亮起。星门震动。星门关闭。厨房起火。厨房冒烟。厨房沉寂。",
@@ -72,52 +72,9 @@ async fn chapter_rag_chunks_use_semantic_dp_without_overlap() {
     .expect("chapter chunks");
 
     assert_eq!(chunks.len(), 2);
-    assert!(chunks[0].content.contains("星门亮起"));
-    assert!(!chunks[0].content.contains("厨房起火"));
-    assert!(chunks[1].content.contains("厨房起火"));
-    assert!(!chunks[1].content.starts_with("[...]"));
-    assert_eq!(chunks[0].sentence_count, 3);
-    assert!(chunks[0].density_score > 0.0);
-}
-
-#[tokio::test]
-async fn chapter_rag_records_include_semantic_chunk_metadata() {
-    let chapter = chapter_for_sync(
-        "completed",
-        "星门亮起。星门震动。星门关闭。厨房起火。厨房冒烟。厨房沉寂。",
-    );
-    let records = chapter_rag_records_with_provider(
-        &chapter,
-        &TopicEmbeddingProvider,
-        ChapterRagChunkingMode::Semantic,
-    )
-    .await
-    .expect("chapter records");
-    let paragraph_records = records
-        .iter()
-        .filter(|record| {
-            record
-                .metadata
-                .get("content_kind")
-                .and_then(serde_json::Value::as_str)
-                == Some("paragraph")
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(paragraph_records.len(), 2);
-    assert_eq!(paragraph_records[0].metadata["semantic_chunked"], true);
-    assert_eq!(paragraph_records[0].metadata["chunk_count"], 2);
-    assert_eq!(paragraph_records[0].metadata["sentence_count"], 3);
-    assert_eq!(paragraph_records[0].metadata["start_sentence_idx"], 0);
-    assert_eq!(paragraph_records[0].metadata["end_sentence_idx"], 3);
-    assert_eq!(
-        paragraph_records[0].metadata["source_chapter_content_sha256"],
-        a4n_core::source_spans::source_text_hash(&chapter.content)
-    );
-    assert_eq!(
-        paragraph_records[0].metadata["source_chapter_updated_at"],
-        chapter.updated_at.to_string()
-    );
+    assert!(chunks[0].contains("星门亮起"));
+    assert!(!chunks[0].contains("厨房起火"));
+    assert!(chunks[1].contains("厨房起火"));
 }
 
 #[tokio::test]
@@ -132,11 +89,10 @@ async fn client_desktop_chunks_do_not_call_server_embedding_provider() {
     .expect("client desktop records");
 
     assert!(!records.is_empty());
-    assert_eq!(records[0].metadata["semantic_chunked"], false);
 }
 
 #[tokio::test]
-async fn chapter_rag_record_ids_match_strategy_chunk_count() {
+async fn chapter_rag_record_ids_match_generated_chunks() {
     let mut chapter = chapter_for_sync(
         "completed",
         "星门亮起。星门震动。星门关闭。厨房起火。厨房冒烟。厨房沉寂。",

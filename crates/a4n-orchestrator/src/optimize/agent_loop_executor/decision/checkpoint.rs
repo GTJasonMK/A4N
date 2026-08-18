@@ -1,7 +1,8 @@
 use super::super::{
     AgentLoopDecision, AppError, ChatMessage, ChatResponse, Value, json,
-    parse_agent_loop_decision_value, response_content_from_checkpoint,
+    parse_agent_loop_decision_response,
 };
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 
 pub(super) fn agent_loop_decision_json(decision: &AgentLoopDecision) -> Value {
     json!({
@@ -13,19 +14,18 @@ pub(super) fn agent_loop_decision_json(decision: &AgentLoopDecision) -> Value {
 }
 
 pub(super) fn restored_agent_loop_decision(
-    checkpoint_json: Value,
+    parsed_output: Value,
+    response_content: String,
+    usage: Option<Value>,
+    finish_reason: Option<String>,
     call_key: &str,
 ) -> Result<(ChatResponse, AgentLoopDecision), AppError> {
-    let (response_content, usage, finish_reason) =
-        response_content_from_checkpoint(&checkpoint_json, call_key)?;
-    let parsed_output = checkpoint_json
-        .get("parsed_output")
-        .cloned()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_parsed_output".to_string(),
-            operation: format!("读取内容优化 Agent Loop 调用断点 {call_key}"),
-        })?;
-    let decision = parse_agent_loop_decision_value(&parsed_output)?;
+    let decision = parse_agent_loop_decision_response(&response_content)?;
+    ensure_checkpoint_parsed_output_matches(
+        &parsed_output,
+        &agent_loop_decision_json(&decision),
+        &format!("内容优化 Agent Loop {call_key}"),
+    )?;
     Ok((
         ChatResponse {
             message: ChatMessage::assistant(response_content),
@@ -53,18 +53,17 @@ mod tests {
         let response_content = r#"{"thought":"读取正文","public_update":"正在读取正文。","action":"run_tool","arguments":{"tool":"get_project_information","arguments":{"mode":"read","source":"current_chapter"}}}"#;
         let (_, parsed) = restored_agent_loop_decision(
             json!({
-                "response_content": response_content,
-                "parsed_output": {
-                    "thought": "读取正文",
-                    "public_update": "正在读取正文。",
-                    "action": "run_tool",
-                    "arguments": {
-                        "tool": "get_project_information",
-                        "arguments": {"mode": "read", "source": "current_chapter"}
-                    }
-                },
-                "finish_reason": "stop"
+                "thought": "读取正文",
+                "public_update": "正在读取正文。",
+                "action": "run_tool",
+                "arguments": {
+                    "tool": "get_project_information",
+                    "arguments": {"mode": "read", "source": "current_chapter"}
+                }
             }),
+            response_content.to_string(),
+            None,
+            Some("stop".to_string()),
             "test-call",
         )
         .expect("matching checkpoint should restore");
@@ -77,23 +76,28 @@ mod tests {
     }
 
     #[test]
-    fn restores_repaired_agent_loop_checkpoint_from_parsed_output() {
+    fn rejects_mismatched_agent_loop_checkpoint() {
         let response_content =
             r#"{"thought":"完成","public_update":null,"action":"final","arguments":{"issues":[]}}"#;
-        let (_, decision) = restored_agent_loop_decision(
+        let error = restored_agent_loop_decision(
             json!({
-                "response_content": response_content,
-                "parsed_output": {
-                    "thought": "完成",
-                    "public_update": null,
-                    "action": "final",
-                    "arguments": {"issues": [{"drifted": true}]}
-                }
+                "thought": "完成",
+                "public_update": null,
+                "action": "final",
+                "arguments": {"issues": [{"drifted": true}]}
             }),
+            response_content.to_string(),
+            None,
+            None,
             "test-call",
         )
-        .expect("repaired checkpoint should restore its validated parsed output");
+        .err()
+        .expect("mismatched checkpoint must fail");
 
-        assert_eq!(decision.arguments["issues"][0]["drifted"], json!(true));
+        assert!(
+            error
+                .to_string()
+                .contains("checkpoint_parsed_output_mismatch")
+        );
     }
 }

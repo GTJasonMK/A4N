@@ -115,7 +115,7 @@ fn world_setting_records_preserve_sections_ids_and_metadata() {
 
     let premise = records
         .iter()
-        .find(|record| record.metadata["field"] == "premise")
+        .find(|record| record.chunk_id == "world_setting:9:30:premise")
         .expect("premise record");
     assert_eq!(premise.chunk_id, "world_setting:9:30:premise");
     assert!(premise.text.contains("[世界观-世界前提]"));

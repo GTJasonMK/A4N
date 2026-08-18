@@ -45,22 +45,19 @@ pub struct ReverseEngineerPreviewInput<'a> {
 }
 
 pub(in crate::import_reverse) fn validate_reverse_engineer_output(
-    prompt_name: &str,
+    target: ReverseEngineeringTarget,
     data: &Value,
 ) -> Result<(), AppError> {
-    match prompt_name {
-        "reverse_blueprint" => reverse_blueprint_apply_draft(data)
+    match target {
+        ReverseEngineeringTarget::Blueprint => reverse_blueprint_apply_draft(data)
             .map(|_| ())
             .map_err(AppError::InvalidArgument),
-        "reverse_outline" => reverse_outline_rows(data)
+        ReverseEngineeringTarget::Outline => reverse_outline_rows(data)
             .map(|_| ())
             .map_err(AppError::InvalidArgument),
-        "reverse_part_outline" => reverse_part_outline_rows(data)
+        ReverseEngineeringTarget::PartOutline => reverse_part_outline_rows(data)
             .map(|_| ())
             .map_err(AppError::InvalidArgument),
-        other => Err(AppError::InvalidArgument(format!(
-            "未注册的导入反推结构化输出合同: {other}"
-        ))),
     }
 }
 
@@ -80,12 +77,10 @@ impl OrchestratorContext {
             .await?;
         build_reverse_engineer_request(ReverseEngineerRequestInput {
             project_id: input.project_id,
-            prompt_name: input.target.prompt_name(),
-            user_prefix: input.target.user_instruction(),
+            target: input.target,
             content_sample: &content_sample,
             prompt_renderer: input.prompt_renderer,
             variables: input.variables,
-            max_tokens_profile: input.target.max_tokens_profile(),
         })
         .await
     }
@@ -113,7 +108,7 @@ impl OrchestratorContext {
         let workflow = self
             .begin_import_reverse_workflow_validated(
                 input.project_id,
-                input.target.prompt_name(),
+                input.target,
                 &content_sample,
                 input.auto_context,
                 context_limit,
@@ -139,16 +134,14 @@ impl OrchestratorContext {
         (input.progress)(1, total, input.target.calling_model_message())?;
         let request = build_reverse_engineer_request(ReverseEngineerRequestInput {
             project_id: input.project_id,
-            prompt_name: input.target.prompt_name(),
-            user_prefix: input.target.user_instruction(),
+            target: input.target,
             content_sample,
             prompt_renderer: input.prompt_renderer,
             variables: input.variables,
-            max_tokens_profile: input.target.max_tokens_profile(),
         })
         .await?;
         let result = self
-            .reverse_engineer_request(input.target.prompt_name(), request, Some(workflow_run_id))
+            .reverse_engineer_request(input.target, request, Some(workflow_run_id))
             .await?;
         (input.progress)(2, total, input.target.organizing_message())?;
         let result = if input.target == ReverseEngineeringTarget::Blueprint {

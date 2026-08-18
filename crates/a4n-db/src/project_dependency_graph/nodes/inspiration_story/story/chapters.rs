@@ -52,7 +52,7 @@ pub(super) fn add_chapter_nodes(graph: &mut GraphBuilder, chapters: &[chapter::M
         6,
         NodeSeedMetadata {
             status: None,
-            editable: true,
+            editable: false,
             needs_visualization: true,
             visualized: true,
             summary: Some(

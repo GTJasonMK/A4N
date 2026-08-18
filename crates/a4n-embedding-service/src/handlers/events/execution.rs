@@ -1,17 +1,13 @@
 use std::{convert::Infallible, path::PathBuf};
 
-use a4n_core::error::AppError;
 use a4n_embedding::provider::DownloadProgress;
-use a4n_embedding_fastembed::{download_fastembed_model, list_fastembed_local_models};
-use a4n_service_protocol::{
-    CapabilityTaskEvent, ServiceError, ServiceErrorCode, redact_sensitive_message,
-};
-use a4n_sidecar_bootstrap::service_event_line;
+use a4n_embedding_fastembed::download_fastembed_model;
+use a4n_service_protocol::CapabilityTaskEvent;
+use a4n_sidecar_bootstrap::service_event_channel;
 use axum::body::Bytes;
-use futures::{Stream, stream};
+use futures::Stream;
 use tokio_util::sync::CancellationToken;
 
-use super::projection::{completed_download_event, download_progress_event, failed_download_event};
 use crate::protocol::service_error;
 
 pub(super) fn embedding_download_event_stream(
@@ -19,26 +15,22 @@ pub(super) fn embedding_download_event_stream(
     model: String,
     cache_dir: PathBuf,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel::<CapabilityTaskEvent>(
-        a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY,
-    );
+    let (event_tx, event_stream) = service_event_channel();
     tokio::spawn(async move {
         let (progress_tx, mut progress_rx) =
             tokio::sync::mpsc::unbounded_channel::<DownloadProgress>();
-        let download_cache_dir = cache_dir.clone();
         let cancel_token = CancellationToken::new();
         let download_cancel_token = cancel_token.clone();
-        let mut download_task = tokio::spawn(async move {
+        let download_task = async move {
             download_fastembed_model(
                 &model,
-                download_cache_dir.clone(),
+                cache_dir,
                 Some(progress_tx),
-                Some(download_cancel_token),
+                download_cancel_token,
             )
-            .await?;
-            let models = list_fastembed_local_models(&download_cache_dir)?;
-            serde_json::to_value(models).map_err(AppError::from)
-        });
+            .await
+        };
+        tokio::pin!(download_task);
         let mut sequence = 0;
         let mut progress_open = true;
         loop {
@@ -51,14 +43,22 @@ pub(super) fn embedding_download_event_stream(
                 progress = progress_rx.recv(), if progress_open => match progress {
                     Some(progress) => {
                         sequence += 1;
-                        let event = match download_progress_event(task_id.clone(), sequence, progress) {
+                        let event = match CapabilityTaskEvent::progress_with_payload(
+                            task_id.clone(),
+                            sequence,
+                            progress,
+                            "embedding download progress serialization failed",
+                        ) {
                             Ok(event) => event,
                             Err(error) => {
                                 cancel_token.cancel();
-                                if event_tx.send(failed_download_event(task_id.clone(), sequence, error)).await.is_err() {
-                                    let _ = download_task.await;
-                                    break;
-                                }
+                                let _ = event_tx
+                                    .send(CapabilityTaskEvent::failed(
+                                        task_id.clone(),
+                                        sequence,
+                                        error,
+                                    ))
+                                    .await;
                                 let _ = download_task.await;
                                 break;
                             }
@@ -74,12 +74,21 @@ pub(super) fn embedding_download_event_stream(
                 result = &mut download_task => {
                     while let Ok(progress) = progress_rx.try_recv() {
                         sequence += 1;
-                        let event = match download_progress_event(task_id.clone(), sequence, progress) {
+                        let event = match CapabilityTaskEvent::progress_with_payload(
+                            task_id.clone(),
+                            sequence,
+                            progress,
+                            "embedding download progress serialization failed",
+                        ) {
                             Ok(event) => event,
                             Err(error) => {
-                                    if event_tx.send(failed_download_event(task_id.clone(), sequence, error)).await.is_err() {
-                                    return;
-                                }
+                                let _ = event_tx
+                                    .send(CapabilityTaskEvent::failed(
+                                        task_id.clone(),
+                                        sequence,
+                                        error,
+                                    ))
+                                    .await;
                                 return;
                             }
                         };
@@ -89,31 +98,23 @@ pub(super) fn embedding_download_event_stream(
                     }
                     sequence += 1;
                     let event = match result {
-                        Ok(Ok(models)) => completed_download_event(task_id.clone(), sequence, models),
-                        Ok(Err(error)) => failed_download_event(task_id.clone(), sequence, service_error(&error)),
-                        Err(error) => failed_download_event(
+                        Ok(model) => CapabilityTaskEvent::completed_or_failed(
                             task_id.clone(),
                             sequence,
-                            ServiceError::non_retryable(
-                                ServiceErrorCode::Internal,
-                                redact_sensitive_message(format!(
-                                    "embedding download task failed: {error}"
-                                )),
-                            ),
+                            model,
+                            "embedding model serialization failed",
+                        ),
+                        Err(error) => CapabilityTaskEvent::failed(
+                            task_id.clone(),
+                            sequence,
+                            service_error(error),
                         ),
                     };
-                    if event_tx.send(event).await.is_err() {
-                        break;
-                    }
+                    let _ = event_tx.send(event).await;
                     break;
                 }
             }
         }
     });
-    stream::unfold(event_rx, |mut event_rx| async move {
-        event_rx
-            .recv()
-            .await
-            .map(|event| (Ok(service_event_line(event)), event_rx))
-    })
+    event_stream
 }

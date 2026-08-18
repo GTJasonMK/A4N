@@ -4,12 +4,12 @@ use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_rag_core::metadata::{
     metadata_content_hash, metadata_matches_current_index_format,
     metadata_matches_current_text_index, metadata_matches_embedding_identity,
-    metadata_matches_source_generation,
 };
 use serde_json::Value;
 
 use super::contracts::{RagRecordSyncOutcome, RagSyncError};
 use crate::OrchestratorContext;
+use crate::rag::search::enhanced::validate_embedding_identity_match;
 
 pub fn classify_rag_record(
     stored: Option<&Value>,
@@ -18,7 +18,6 @@ pub fn classify_rag_record(
 ) -> RagRecordSyncOutcome {
     let already_synced = stored.is_some_and(|metadata| {
         metadata_content_hash(metadata).is_some_and(|stored_hash| stored_hash == content_hash)
-            && metadata_matches_source_generation(metadata, content_hash)
             && metadata_matches_current_index_format(metadata)
             && metadata_matches_current_text_index(metadata)
             && metadata_matches_embedding_identity(metadata, embedding_identity)
@@ -61,19 +60,10 @@ pub fn ensure_embedding_identity_matches(
     actual: &EmbeddingModelIdentity,
     expected: &EmbeddingModelIdentity,
 ) -> Result<(), RagSyncError> {
-    if actual == expected {
-        return Ok(());
-    }
-    Err(RagSyncError::EmbeddingIdentityMismatch {
-        message: format!(
-            "Embedding identity 不匹配：服务器期望 {} / {} / {} 维，客户端提交 {} / {} / {} 维",
-            expected.backend,
-            expected.model,
-            expected.dimension,
-            actual.backend,
-            actual.model,
-            actual.dimension
-        ),
+    validate_embedding_identity_match(actual, expected).map_err(|error| {
+        RagSyncError::EmbeddingIdentityMismatch {
+            message: error.to_string(),
+        }
     })
 }
 

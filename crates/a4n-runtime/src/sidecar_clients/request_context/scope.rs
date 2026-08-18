@@ -63,7 +63,7 @@ pub(super) fn merge_project_scope(
     }
 }
 
-pub(in crate::sidecar_clients) fn value_as_i64(value: &Value) -> Option<i64> {
+fn value_as_i64(value: &Value) -> Option<i64> {
     match value {
         Value::Number(number) => number.as_i64(),
         Value::String(value) => value.trim().parse().ok(),

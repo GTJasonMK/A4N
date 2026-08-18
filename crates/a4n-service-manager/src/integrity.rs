@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
-use std::env::VarError;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use a4n_service_protocol::{
-    PROTOCOL_VERSION, RELEASE_MANIFEST_ENV, ReleaseBinaryManifest, ReleaseManifest,
-    ReleaseRuntimeFileManifest, service_catalog,
+    PROTOCOL_VERSION, RELEASE_MANIFEST_ENV, RELEASE_MANIFEST_SCHEMA_VERSION,
+    ReleaseBinaryManifest, ReleaseManifest, ReleaseRuntimeFileManifest, release_tool_catalog,
+    service_catalog,
 };
 use sha2::{Digest, Sha256};
 
@@ -21,27 +21,25 @@ pub(super) struct BinaryIntegrityVerifier {
 
 impl BinaryIntegrityVerifier {
     pub(super) fn from_env() -> Result<Option<Self>, ServiceManagerError> {
-        let path = match std::env::var(RELEASE_MANIFEST_ENV) {
-            Ok(path) if path.trim().is_empty() => {
-                return Err(ServiceManagerError::ReleaseManifestInvalid(
-                    "manifest path is blank".to_string(),
-                ));
-            }
-            Ok(path) => PathBuf::from(path),
-            Err(VarError::NotPresent) => return Ok(None),
-            Err(_) => {
-                return Err(ServiceManagerError::ReleaseManifestInvalid(
-                    "manifest path is unreadable".to_string(),
-                ));
-            }
+        let Some(path) = std::env::var_os(RELEASE_MANIFEST_ENV).map(PathBuf::from) else {
+            return Ok(None);
         };
-        let package_root = path
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .to_path_buf();
+        if path.as_os_str().to_string_lossy().trim().is_empty() {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "manifest path is blank".to_string(),
+            ));
+        }
         let bytes = std::fs::read(&path).map_err(|_| {
             ServiceManagerError::ReleaseManifestInvalid("manifest is unavailable".to_string())
         })?;
+        let package_root = path
+            .parent()
+            .ok_or_else(|| {
+                ServiceManagerError::ReleaseManifestInvalid(
+                    "manifest path has no parent directory".to_string(),
+                )
+            })?
+            .to_path_buf();
         let manifest: ReleaseManifest = serde_json::from_slice(&bytes).map_err(|_| {
             ServiceManagerError::ReleaseManifestInvalid("manifest JSON is invalid".to_string())
         })?;
@@ -54,9 +52,9 @@ impl BinaryIntegrityVerifier {
         manifest: ReleaseManifest,
         package_root: Option<PathBuf>,
     ) -> Result<Self, ServiceManagerError> {
-        if manifest.schema_version != 2
+        if manifest.schema_version != RELEASE_MANIFEST_SCHEMA_VERSION
             || manifest.protocol_version != PROTOCOL_VERSION
-            || manifest.package.trim().is_empty()
+            || !valid_catalog_identifier(&manifest.package)
             || manifest.version.trim().is_empty()
             || manifest.target.trim().is_empty()
         {
@@ -108,10 +106,62 @@ impl BinaryIntegrityVerifier {
         } else {
             ""
         };
+        let expected_host_name = format!("{}{extension}", manifest.package);
+        let tool_catalog = release_tool_catalog().map_err(|_| {
+            ServiceManagerError::ReleaseManifestInvalid(
+                "release tool catalog is invalid".to_string(),
+            )
+        })?;
+        if tool_catalog.iter().any(|entry| {
+            !valid_catalog_identifier(&entry.package)
+                || !valid_catalog_identifier(&entry.binary)
+        }) {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "release tool catalog is invalid".to_string(),
+            ));
+        }
+        let expected_tool_names = tool_catalog
+            .iter()
+            .map(|entry| format!("{}{extension}", entry.binary))
+            .collect::<HashSet<_>>();
+        let expected_tool_packages = tool_catalog
+            .iter()
+            .map(|entry| entry.package.as_str())
+            .collect::<HashSet<_>>();
+        if tool_catalog.is_empty()
+            || expected_tool_names.len() != tool_catalog.len()
+            || expected_tool_packages.len() != tool_catalog.len()
+        {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "release tool catalog is invalid".to_string(),
+            ));
+        }
+        let mut tool_names = HashSet::new();
+        for tool in &manifest.tools {
+            if tool.name.trim().is_empty()
+                || tool.path != format!("bin/{}", tool.name)
+                || !valid_manifest_path(&tool.path)
+                || manifest_file_name(&tool.path) != Some(tool.name.as_str())
+                || tool.version.trim().is_empty()
+                || tool.target != manifest.target
+                || !is_sha256(&tool.sha256)
+                || !tool_names.insert(tool.name.clone())
+            {
+                return Err(ServiceManagerError::ReleaseManifestInvalid(
+                    "manifest tool entries are inconsistent".to_string(),
+                ));
+            }
+        }
+        if tool_names != expected_tool_names {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "manifest tools do not match release tool catalog".to_string(),
+            ));
+        }
         let host = by_service.get("host").expect("host is checked above");
-        if host.capability_version.is_some()
-            || !host.path.starts_with("bin/")
-            || manifest_file_name(&host.path) != Some(host.name.as_str())
+        if host.name != expected_host_name
+            || host.version != manifest.version
+            || host.capability_version.is_some()
+            || host.path != format!("bin/{}", host.name)
         {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
                 "manifest host entry is invalid".to_string(),
@@ -154,6 +204,19 @@ impl BinaryIntegrityVerifier {
                 "manifest runtime file is inconsistent".to_string(),
             ));
         }
+        if let Some(package_root) = &package_root {
+            verify_manifest_files(
+                package_root,
+                "tool",
+                manifest.tools.iter().map(|entry| {
+                    (
+                        entry.name.as_str(),
+                        entry.path.as_str(),
+                        entry.sha256.as_str(),
+                    )
+                }),
+            )?;
+        }
         Ok(Self {
             by_service,
             runtime_files: manifest.runtime_files,
@@ -192,25 +255,53 @@ impl BinaryIntegrityVerifier {
         let Some(package_root) = &self.package_root else {
             return Ok(());
         };
-        for entry in &self.runtime_files {
-            let path = package_root.join(&entry.path);
-            let actual = sha256(&path).map_err(|_| ServiceManagerError::BinaryIntegrityFailed {
-                service: entry.name.clone(),
-                reason: "runtime file cannot be hashed".to_string(),
-            })?;
-            if !actual.eq_ignore_ascii_case(&entry.sha256) {
-                return Err(ServiceManagerError::BinaryIntegrityFailed {
-                    service: entry.name.clone(),
-                    reason: "runtime file SHA-256 mismatch".to_string(),
-                });
-            }
-        }
-        Ok(())
+        verify_manifest_files(
+            package_root,
+            "runtime",
+            self.runtime_files.iter().map(|entry| {
+                (
+                    entry.name.as_str(),
+                    entry.path.as_str(),
+                    entry.sha256.as_str(),
+                )
+            }),
+        )
     }
+}
+
+fn verify_manifest_files<'a>(
+    package_root: &Path,
+    kind: &str,
+    entries: impl IntoIterator<Item = (&'a str, &'a str, &'a str)>,
+) -> Result<(), ServiceManagerError> {
+    for (name, relative_path, expected_sha256) in entries {
+        let path = package_root.join(relative_path);
+        let actual = sha256(&path).map_err(|_| ServiceManagerError::BinaryIntegrityFailed {
+            service: name.to_string(),
+            reason: format!("{kind} file cannot be hashed"),
+        })?;
+        if !actual.eq_ignore_ascii_case(expected_sha256) {
+            return Err(ServiceManagerError::BinaryIntegrityFailed {
+                service: name.to_string(),
+                reason: format!("{kind} file SHA-256 mismatch"),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn is_sha256(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn valid_catalog_identifier(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    matches!(bytes.next(), Some(b'a'..=b'z' | b'0'..=b'9'))
+        && bytes.all(|byte| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b'-' | b'_')
+        })
 }
 
 fn valid_manifest_path(path: &str) -> bool {
@@ -242,8 +333,8 @@ fn sha256(path: &Path) -> std::io::Result<String> {
 mod tests {
     use super::{BinaryIntegrityVerifier, is_sha256, sha256};
     use a4n_service_protocol::{
-        PROTOCOL_VERSION, ReleaseBinaryManifest, ReleaseManifest, ReleaseRuntimeFileManifest,
-        service_catalog,
+        PROTOCOL_VERSION, RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
+        ReleaseRuntimeFileManifest, ReleaseToolManifest, release_tool_catalog, service_catalog,
     };
 
     fn valid_manifest(prompt_sha256: String) -> ReleaseManifest {
@@ -275,14 +366,25 @@ mod tests {
                 capability_version: Some(entry.capability_version),
             });
         }
+        let tools = release_tool_catalog()
+            .unwrap()
+            .into_iter()
+            .map(|entry| ReleaseToolManifest {
+                name: entry.binary.clone(),
+                path: format!("bin/{}", entry.binary),
+                version: "0.1.0".to_string(),
+                target: "linux-x86_64".to_string(),
+                sha256: "c".repeat(64),
+            })
+            .collect();
         ReleaseManifest {
-            schema_version: 2,
+            schema_version: RELEASE_MANIFEST_SCHEMA_VERSION,
             package: "a4n-tauri".to_string(),
             version: "0.1.0".to_string(),
             target: "linux-x86_64".to_string(),
             protocol_version: PROTOCOL_VERSION,
             binaries,
-            tools: Vec::new(),
+            tools,
             runtime_files: vec![ReleaseRuntimeFileManifest {
                 name: "libonnxruntime.so.1".to_string(),
                 path: "bin/services/libonnxruntime.so.1".to_string(),
@@ -347,6 +449,15 @@ mod tests {
     }
 
     #[test]
+    fn manifest_requires_every_release_tool() {
+        let mut manifest = valid_manifest("a".repeat(64));
+        manifest.tools.pop();
+        let error = BinaryIntegrityVerifier::new(manifest, None)
+            .expect_err("manifest must include every release tool");
+        assert!(error.to_string().contains("release tool catalog"));
+    }
+
+    #[test]
     fn runtime_file_tampering_is_rejected_before_spawn() {
         let directory = std::env::temp_dir().join(format!(
             "a4n-runtime-integrity-{}-{}",
@@ -360,6 +471,12 @@ mod tests {
         std::fs::create_dir_all(runtime.parent().unwrap()).unwrap();
         std::fs::write(&runtime, b"runtime").unwrap();
         let mut manifest = valid_manifest("a".repeat(64));
+        for tool in &mut manifest.tools {
+            let path = directory.join(&tool.path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, tool.name.as_bytes()).unwrap();
+            tool.sha256 = sha256(&path).unwrap();
+        }
         manifest.runtime_files[0].sha256 = sha256(&runtime).unwrap();
         let verifier = BinaryIntegrityVerifier::new(manifest, Some(directory.clone())).unwrap();
         verifier.verify_runtime_files().unwrap();

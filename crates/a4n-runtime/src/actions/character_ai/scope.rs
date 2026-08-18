@@ -1,28 +1,26 @@
-use super::{CharacterAiTaskScope, SyncAllCharacterProfilesInput, SyncCharacterProfileInput};
+use super::{
+    CharacterAiTaskScope, DiscoverCharacterProfilesInput, SyncAllCharacterProfilesInput,
+    SyncCharacterProfileInput,
+};
 use crate::{AppState, actions::access};
-use a4n_orchestrator::character::{CHARACTER_PROFILE_SYNC_STEPS, CharacterDiscoveryInput};
+use a4n_orchestrator::character::{
+    CHARACTER_DISCOVERY_PROGRESS_TOTAL, CHARACTER_PROFILE_SYNC_STEPS,
+    validate_character_discovery_input,
+};
 
 pub async fn character_discovery_task_scope(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: Option<i32>,
+    input: &DiscoverCharacterProfilesInput,
 ) -> Result<CharacterAiTaskScope, String> {
-    access::verify_project_editor(state, user_id, project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    let scope = state
-        .orchestrator()
-        .character_discovery_task_scope_validated(&CharacterDiscoveryInput {
-            project_id,
-            chapter_number,
-        })
-        .await
-        .map_err(|error| error.to_string())?;
-    Ok(CharacterAiTaskScope {
-        project_id: scope.project_id,
-        total: scope.total,
-    })
+    validate_character_discovery_input(input).map_err(|error| error.to_string())?;
+    character_ai_project_task_scope(
+        state,
+        user_id,
+        input.project_id,
+        CHARACTER_DISCOVERY_PROGRESS_TOTAL,
+    )
+    .await
 }
 
 pub async fn character_profile_sync_task_scope(

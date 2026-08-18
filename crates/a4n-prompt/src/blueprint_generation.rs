@@ -7,7 +7,7 @@ mod refine;
 mod stage_request;
 mod stage_response;
 
-pub use refine::{blueprint_refine_manifest_user_message, build_blueprint_refine_request};
+pub use refine::build_blueprint_refine_request;
 pub use stage_request::{BlueprintStageRequestInput, build_blueprint_stage_request};
 pub use stage_response::parse_blueprint_stage_json_object;
 
@@ -15,9 +15,7 @@ pub struct BlueprintGenerationPreviewStep {
     pub key: String,
     pub title: String,
     pub prompt_name: String,
-    pub state: String,
-    pub note: Option<String>,
-    pub request: Option<ChatRequest>,
+    pub request: ChatRequest,
 }
 
 pub fn ensure_blueprint_response_not_truncated(

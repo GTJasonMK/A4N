@@ -7,6 +7,19 @@ use a4n_core::{
         chapter::chapter_video_prompt,
     },
     source_spans::{metadata_source_content_sha256, source_text_hash},
+    video_execution::VideoSegmentWorkflowModeV1,
+    video_workflow::{
+        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM,
+        WORKFLOW_MODE_CANVAS_VIDEO, WORKFLOW_MODE_MIXED, is_assembly_video_workflow_mode,
+        is_generated_video_workflow_mode,
+    },
+};
+use a4n_domain::{
+    AssemblyPostprocessOperation, CanvasFrameKind, EXTERNAL_IMPORT_MODEL,
+    image::{
+        IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_CANVAS_FRAME,
+        IMAGE_TYPE_VIDEO_TAIL_FRAME,
+    },
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -17,19 +30,17 @@ pub use a4n_api_contract::video::{
 };
 
 use super::{
-    ASSEMBLY_INSERT_VIDEO_TYPE, ASSEMBLY_POSTPROCESS_EDIT_VIDEO_TYPE,
     ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_PENDING, ASSEMBLY_PUSH_STATUS_REJECTED,
-    ASSEMBLY_PUSH_VIDEO_TYPE, AssemblyClipOrderAnchor, active_assembly_push_source_ids,
-    assembly_clip_display_shot_number, assembly_clip_insert_after_video_id,
-    assembly_clip_sort_order, assembly_insert_metadata_with_position,
+    AssemblyClipOrderAnchor, active_assembly_push_source_ids, assembly_clip_display_shot_number,
+    assembly_clip_insert_after_video_id, assembly_clip_sort_order,
+    assembly_insert_metadata_with_position, assembly_media_properties,
     assembly_push_metadata_with_status, assembly_push_records,
     ensure_insert_position_not_inside_pushed_prefix, is_assembly_clip_video_type,
+    is_canvas_video_record,
     latest_non_rejected_push_index, next_assembly_insert_sort_order,
-    normalized_assembly_dimensions, normalized_assembly_fps, parse_assembly_push_metadata,
-    parse_postprocess_edit_metadata, postprocess_edit_range_bounds,
+    parse_assembly_push_metadata, parse_postprocess_edit_metadata, postprocess_edit_timing,
     selected_assembly_push_end_index, validate_assembly_workflow_mode,
-    validate_postprocess_operation, validate_reference_media_import_options,
-    validate_video_trim_range, video_shot_number, video_source_content_hash,
+    validate_reference_media_import_options, validate_video_trim_range, video_shot_number,
 };
 
 #[async_trait]
@@ -101,7 +112,7 @@ pub struct CanvasAssemblyPlan {
 #[derive(Debug, Clone)]
 pub struct CanvasFramePlan {
     pub video: generated_video::Model,
-    pub frame_kind: String,
+    pub frame_kind: CanvasFrameKind,
     pub timestamp: f32,
 }
 
@@ -117,7 +128,7 @@ pub struct VideoTrimPlan {
 pub struct AssemblyPostprocessPlan {
     pub push: generated_video::Model,
     pub base: generated_video::Model,
-    pub operation: &'static str,
+    pub operation: AssemblyPostprocessOperation,
 }
 
 #[derive(Debug, Clone)]
@@ -131,7 +142,7 @@ pub enum AssemblyPostprocessSourcePlan {
 pub struct PreparedAssemblyPostprocessEditRecord {
     pub video: generated_video::Model,
     pub base: generated_video::Model,
-    pub operation: &'static str,
+    pub operation: AssemblyPostprocessOperation,
     pub start_secs: f32,
     pub end_secs: f32,
 }
@@ -268,7 +279,7 @@ impl crate::OrchestratorContext {
         )?;
         if selected.project_id != project_id
             || selected.chapter_id != Some(chapter_id)
-            || selected.status != "completed"
+            || selected.status != generated_video::STATUS_COMPLETED
             || selected
                 .file_path
                 .as_deref()
@@ -363,7 +374,7 @@ impl crate::OrchestratorContext {
         input: UpdateAssemblyPushStatusInput,
     ) -> Result<generated_video::Model, AppError> {
         let existing = self.required_video_record(video_id).await?;
-        if existing.video_type != ASSEMBLY_PUSH_VIDEO_TYPE {
+        if existing.video_type != generated_video::VIDEO_TYPE_ASSEMBLY_PUSH {
             return Err(AppError::InvalidArgument(format!(
                 "视频 #{} 不是成片后处理推送批次",
                 existing.id
@@ -500,7 +511,7 @@ impl crate::OrchestratorContext {
             };
             if video.project_id == project_id
                 && video.chapter_id == Some(chapter_id)
-                && video.status == "completed"
+                && video.status == generated_video::STATUS_COMPLETED
                 && video
                     .file_path
                     .as_deref()
@@ -557,7 +568,7 @@ impl crate::OrchestratorContext {
         ),
         AppError,
     > {
-        if workflow_mode != "mixed" {
+        if workflow_mode != WORKFLOW_MODE_MIXED {
             return Ok((None, None));
         }
         let snapshot = self
@@ -635,11 +646,11 @@ impl crate::OrchestratorContext {
         self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
-            video_type: ASSEMBLY_INSERT_VIDEO_TYPE.to_string(),
+            video_type: generated_video::VIDEO_TYPE_ASSEMBLY_INSERT.to_string(),
             workflow_mode: Some(workflow_mode.to_string()),
             prompt: format!("成片衔接片段，插入位置：{anchor_label}。"),
             negative_prompt: None,
-            model: "external-assembly-insert".to_string(),
+            model: EXTERNAL_IMPORT_MODEL.to_string(),
             width: properties.width,
             height: properties.height,
             duration_secs: properties.duration_secs,
@@ -655,10 +666,10 @@ impl crate::OrchestratorContext {
     pub async fn prepare_assembly_postprocess_edit_validated(
         &self,
         push_video_id: i64,
-        operation: &str,
+        operation: AssemblyPostprocessOperation,
     ) -> Result<AssemblyPostprocessPlan, AppError> {
         let push = self.required_video_record(push_video_id).await?;
-        if push.video_type != ASSEMBLY_PUSH_VIDEO_TYPE {
+        if push.video_type != generated_video::VIDEO_TYPE_ASSEMBLY_PUSH {
             return Err(AppError::InvalidArgument(format!(
                 "视频 #{} 不是后处理推送批次",
                 push.id
@@ -694,8 +705,6 @@ impl crate::OrchestratorContext {
         let base = self
             .latest_assembly_postprocess_version_for_push(&push)
             .await?;
-        let operation =
-            validate_postprocess_operation(operation).map_err(AppError::InvalidArgument)?;
         Ok(AssemblyPostprocessPlan {
             push,
             base,
@@ -708,7 +717,19 @@ impl crate::OrchestratorContext {
         plan: AssemblyPostprocessPlan,
         input: AssemblyPostprocessEditRecordInput,
     ) -> Result<PreparedAssemblyPostprocessEditRecord, AppError> {
-        let (start_secs, end_secs, source_duration_secs) = postprocess_edit_range_bounds(
+        if plan.base.width <= 0 || plan.base.height <= 0 {
+            return Err(AppError::InvalidArgument(format!(
+                "后处理基底视频尺寸无效：{}x{}",
+                plan.base.width, plan.base.height
+            )));
+        }
+        if plan.base.fps <= 0 {
+            return Err(AppError::InvalidArgument(format!(
+                "后处理基底视频帧率无效：{}",
+                plan.base.fps
+            )));
+        }
+        let (start_secs, end_secs, output_duration) = postprocess_edit_timing(
             plan.base.duration_secs,
             plan.operation,
             input.at_secs,
@@ -717,21 +738,17 @@ impl crate::OrchestratorContext {
             input.source_duration_secs,
         )
         .map_err(AppError::InvalidArgument)?;
-        let output_duration = match plan.operation {
-            "insert" => plan.base.duration_secs.max(0.0) + source_duration_secs.unwrap_or(0.0),
-            "delete" => (plan.base.duration_secs - (end_secs - start_secs)).max(0.1),
-            "replace" => (plan.base.duration_secs - (end_secs - start_secs)
-                + source_duration_secs.unwrap_or(0.0))
-            .max(0.1),
-            _ => plan.base.duration_secs,
-        };
         let video = self
             .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
                 project_id: plan.push.project_id,
                 chapter_id: plan.push.chapter_id,
-                video_type: ASSEMBLY_POSTPROCESS_EDIT_VIDEO_TYPE.to_string(),
+                video_type: generated_video::VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT.to_string(),
                 workflow_mode: plan.push.workflow_mode.clone(),
-                prompt: format!("后处理编辑：推送批次 #{} {}", plan.push.id, plan.operation),
+                prompt: format!(
+                    "后处理编辑：推送批次 #{} {}",
+                    plan.push.id,
+                    plan.operation.as_str()
+                ),
                 negative_prompt: None,
                 model: "a4n-postprocess-edit".to_string(),
                 width: plan.base.width,
@@ -771,7 +788,12 @@ impl crate::OrchestratorContext {
         source_video_id: Option<i64>,
         has_uploaded_source: bool,
     ) -> Result<AssemblyPostprocessSourcePlan, AppError> {
-        if plan.operation == "delete" {
+        if plan.operation == AssemblyPostprocessOperation::Delete {
+            if source_video_id.is_some() || has_uploaded_source {
+                return Err(AppError::InvalidArgument(
+                    "删除后处理片段不接受来源视频".to_string(),
+                ));
+            }
             return Ok(AssemblyPostprocessSourcePlan::None);
         }
         if source_video_id.is_some() && has_uploaded_source {
@@ -787,7 +809,7 @@ impl crate::OrchestratorContext {
                     video.id
                 )));
             }
-            if video.status != "completed" {
+            if video.status != generated_video::STATUS_COMPLETED {
                 return Err(AppError::InvalidArgument(format!(
                     "替换/插入来源视频 #{} 尚未完成",
                     video.id
@@ -826,7 +848,9 @@ impl crate::OrchestratorContext {
             .generated_videos_for_chapter(push.project_id, chapter_id)
             .await?
         {
-            if row.video_type != ASSEMBLY_POSTPROCESS_EDIT_VIDEO_TYPE || row.status != "completed" {
+            if row.video_type != generated_video::VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT
+                || row.status != generated_video::STATUS_COMPLETED
+            {
                 continue;
             }
             let metadata = parse_postprocess_edit_metadata(row.id, row.metadata_json.as_ref())
@@ -906,16 +930,18 @@ impl crate::OrchestratorContext {
             .ok_or_else(|| {
                 AppError::InvalidArgument("成片推送批次序号超过 i32 上限".to_string())
             })?;
-        let first = source_clips.first();
-        let (width, height) = normalized_assembly_dimensions(
-            first.map(|clip| clip.width),
-            first.map(|clip| clip.height),
-        );
-        let fps = normalized_assembly_fps(first.map(|clip| clip.fps));
-        let duration_secs = source_clips
-            .iter()
-            .map(|clip| clip.duration_secs.max(0.0))
-            .sum::<f32>();
+        let (width, height, fps, duration_secs) = assembly_media_properties(
+            source_clips.iter().map(|clip| {
+                (
+                    clip.video_id,
+                    clip.duration_secs,
+                    clip.width,
+                    clip.height,
+                    clip.fps,
+                )
+            }),
+        )
+        .map_err(AppError::InvalidArgument)?;
         let source_video_ids = source_clips
             .iter()
             .map(|clip| clip.video_id)
@@ -928,7 +954,7 @@ impl crate::OrchestratorContext {
             .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: Some(chapter_id),
-                video_type: ASSEMBLY_PUSH_VIDEO_TYPE.to_string(),
+                video_type: generated_video::VIDEO_TYPE_ASSEMBLY_PUSH.to_string(),
                 workflow_mode: Some(workflow_mode.to_string()),
                 prompt: format!("成片后处理推送批次 {push_index}"),
                 negative_prompt: None,
@@ -987,11 +1013,11 @@ impl crate::OrchestratorContext {
             .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: Some(chapter_id),
-                video_type: super::CHAPTER_VIDEO_TYPE.to_string(),
+                video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
                 workflow_mode: Some(prompt.workflow_mode.clone()),
                 prompt: imported_video_prompt_text(&prompt),
                 negative_prompt: prompt.negative_prompt.clone(),
-                model: "external-import".to_string(),
+                model: EXTERNAL_IMPORT_MODEL.to_string(),
                 width: properties.width,
                 height: properties.height,
                 duration_secs: properties.duration_secs,
@@ -1043,7 +1069,7 @@ impl crate::OrchestratorContext {
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("当前规划缺少片段 {shot_number} 的执行方案"))
         })?;
-        if recipe.workflow_mode.as_str() != "reference_media" {
+        if recipe.workflow_mode != VideoSegmentWorkflowModeV1::ReferenceMedia {
             return Err(AppError::InvalidArgument(format!(
                 "片段 {shot_number} 当前未选择参考媒体方案"
             )));
@@ -1076,11 +1102,15 @@ impl crate::OrchestratorContext {
         self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
-            video_type: "reference_media_video".to_string(),
-            workflow_mode: Some("reference_media".to_string()),
+            video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
+            workflow_mode: Some(
+                VideoSegmentWorkflowModeV1::ReferenceMedia
+                    .as_str()
+                    .to_string(),
+            ),
             prompt,
             negative_prompt: None,
-            model: "external-reference-media-import".to_string(),
+            model: EXTERNAL_IMPORT_MODEL.to_string(),
             width: properties.width,
             height: properties.height,
             duration_secs: properties.duration_secs,
@@ -1111,33 +1141,19 @@ impl crate::OrchestratorContext {
     pub async fn create_imported_canvas_video_record_validated(
         &self,
         project_id: i64,
-        prompt: Option<&str>,
         properties: ImportedVideoProperties,
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,
     ) -> Result<generated_video::Model, AppError> {
-        let project = self
-            .project_by_id(project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if project.project_kind != "video" {
-            return Err(AppError::InvalidArgument(
-                "画布视频导入只支持视频项目".to_string(),
-            ));
-        }
         self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
-            prompt: prompt
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .unwrap_or("导入画布视频")
-                .to_string(),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
+            prompt: source_file_name.to_string(),
             negative_prompt: None,
-            model: "external-import".to_string(),
+            model: EXTERNAL_IMPORT_MODEL.to_string(),
             width: properties.width,
             height: properties.height,
             duration_secs: properties.duration_secs,
@@ -1187,7 +1203,7 @@ impl crate::OrchestratorContext {
                     "AssembleNode 只支持项目级画布视频: {video_id}"
                 )));
             }
-            if video.status != "completed" {
+            if video.status != generated_video::STATUS_COMPLETED {
                 return Err(AppError::InvalidArgument(format!(
                     "视频 #{video_id} 尚未完成，不能成片"
                 )));
@@ -1204,15 +1220,23 @@ impl crate::OrchestratorContext {
             }
             sources.push(video);
         }
-        let first = &sources[0];
+        let (width, height, fps, duration_secs) = assembly_media_properties(
+            sources.iter().map(|video| {
+                (
+                    video.id,
+                    video.duration_secs,
+                    video.width,
+                    video.height,
+                    video.fps,
+                )
+            }),
+        )
+        .map_err(AppError::InvalidArgument)?;
         Ok(CanvasAssemblyPlan {
-            width: first.width.max(1),
-            height: first.height.max(1),
-            fps: first.fps.max(1),
-            duration_secs: sources
-                .iter()
-                .map(|video| video.duration_secs.max(0.0))
-                .sum(),
+            width,
+            height,
+            fps,
+            duration_secs,
             sources,
             title: title
                 .map(str::trim)
@@ -1226,7 +1250,7 @@ impl crate::OrchestratorContext {
         &self,
         project_id: i64,
         video_id: i64,
-        frame_kind: &str,
+        frame_kind: CanvasFrameKind,
         at_secs: Option<f32>,
     ) -> Result<CanvasFramePlan, AppError> {
         let video = self.required_video_record(video_id).await?;
@@ -1250,9 +1274,13 @@ impl crate::OrchestratorContext {
                 "源视频还没有可抽帧的本地文件".to_string(),
             ));
         }
-        let frame_kind =
-            super::normalize_canvas_frame_kind(frame_kind).map_err(AppError::InvalidArgument)?;
-        let timestamp = super::canvas_frame_timestamp(video.duration_secs, &frame_kind, at_secs)
+        if video.width <= 0 || video.height <= 0 {
+            return Err(AppError::InvalidArgument(format!(
+                "源视频尺寸无效：{}x{}",
+                video.width, video.height
+            )));
+        }
+        let timestamp = super::canvas_frame_timestamp(video.duration_secs, frame_kind, at_secs)
             .map_err(AppError::InvalidArgument)?;
         Ok(CanvasFramePlan {
             video,
@@ -1269,12 +1297,12 @@ impl crate::OrchestratorContext {
     ) -> Result<generated_image::Model, AppError> {
         self.create_generated_image_record(a4n_db::video::CreateGeneratedImageRecordDraftInput {
             project_id: plan.video.project_id,
-            image_type: "canvas_frame".to_string(),
+            image_type: IMAGE_TYPE_CANVAS_FRAME.to_string(),
             file_path,
             prompt: format!("视频 #{} 画布抽帧 {}", plan.video.id, plan.frame_kind),
             model: "ffmpeg".to_string(),
-            width: plan.video.width.max(1),
-            height: plan.video.height.max(1),
+            width: plan.video.width,
+            height: plan.video.height,
             file_size: Some(file_size),
             chapter_id: None,
             panel_id: None,
@@ -1299,7 +1327,6 @@ impl crate::OrchestratorContext {
         &self,
         video: &generated_video::Model,
         chapter_id: i64,
-        prompt_id: Option<i64>,
         file_path: String,
         file_size: i64,
     ) -> Result<generated_image::Model, AppError> {
@@ -1327,7 +1354,7 @@ impl crate::OrchestratorContext {
             .cloned();
         self.create_generated_image_record(a4n_db::video::CreateGeneratedImageRecordDraftInput {
             project_id: video.project_id,
-            image_type: "video_tail_frame".to_string(),
+            image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.to_string(),
             file_path,
             prompt: format!("视频 #{} 第 {} 段真实尾帧采集", video.id, shot_number),
             model: "ffmpeg".to_string(),
@@ -1338,15 +1365,10 @@ impl crate::OrchestratorContext {
             panel_id: None,
             metadata_json: Some(serde_json::json!({
                 "generation_context": {
-                    "source": "video_tail_frame_capture",
-                    "surface": "novel_detail.video",
-                    "frame_kind": "actual_tail_frame",
-                    "project_id": video.project_id,
-                    "chapter_id": chapter_id,
+                    "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
                     "video_id": video.id,
-                    "prompt_id": prompt_id,
                     "shot_number": shot_number,
-                    "source_content_sha256": video_source_content_hash(
+                    "source_content_sha256": metadata_source_content_sha256(
                         video.metadata_json.as_ref()
                     ),
                 },
@@ -1370,8 +1392,8 @@ impl crate::OrchestratorContext {
         self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
-            video_type: "canvas_assembly".to_string(),
-            workflow_mode: Some("canvas_assembly".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_ASSEMBLY.to_string()),
             prompt: plan.title,
             negative_prompt: None,
             model: "ffmpeg".to_string(),
@@ -1394,31 +1416,62 @@ impl crate::OrchestratorContext {
         .await
     }
 
-    pub async fn prepare_video_trim_validated(
+    pub fn prepare_video_trim_validated(
         &self,
-        video_id: i64,
+        source: generated_video::Model,
         start_secs: f32,
         end_secs: f32,
     ) -> Result<VideoTrimPlan, AppError> {
         validate_video_trim_range(start_secs, end_secs).map_err(AppError::InvalidArgument)?;
-        let source = self.required_video_record(video_id).await?;
         let source_workflow_mode = source.workflow_mode.clone().ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "源视频 #{} 缺少 workflow_mode，无法按生成模式保存裁剪结果",
                 source.id
             ))
         })?;
-        if source.duration_secs > 0.0 && end_secs > source.duration_secs + 0.5 {
+        if !is_generated_video_workflow_mode(&source_workflow_mode) {
+            return Err(AppError::InvalidArgument(format!(
+                "源视频 #{} workflow_mode 无效：{}",
+                source.id, source_workflow_mode
+            )));
+        }
+        if !source.duration_secs.is_finite() || source.duration_secs <= 0.0 {
+            return Err(AppError::InvalidArgument(format!(
+                "源视频 #{} 时长无效：{}",
+                source.id, source.duration_secs
+            )));
+        }
+        if end_secs > source.duration_secs {
             return Err(AppError::InvalidArgument(
                 "裁剪结束时间超过视频时长".to_string(),
             ));
         }
-        let target_workflow_mode =
-            if source.chapter_id.is_none() || source_workflow_mode.starts_with("canvas_") {
-                "canvas_trim".to_string()
-            } else {
-                source_workflow_mode
-            };
+        if source.width <= 0 || source.height <= 0 {
+            return Err(AppError::InvalidArgument(format!(
+                "源视频尺寸无效：{}x{}",
+                source.width, source.height
+            )));
+        }
+        if source.fps <= 0 {
+            return Err(AppError::InvalidArgument(format!(
+                "源视频帧率无效：{}",
+                source.fps
+            )));
+        }
+        let target_workflow_mode = match source.chapter_id {
+            None if is_canvas_video_record(&source) => WORKFLOW_MODE_CANVAS_TRIM.to_string(),
+            None => {
+                return Err(AppError::InvalidArgument(format!(
+                    "项目级源视频 workflow_mode 无效：{source_workflow_mode}"
+                )));
+            }
+            Some(_) if !is_assembly_video_workflow_mode(&source_workflow_mode) => {
+                return Err(AppError::InvalidArgument(format!(
+                    "章节源视频不能使用 Canvas workflow_mode：{source_workflow_mode}"
+                )));
+            }
+            Some(_) => source_workflow_mode,
+        };
         Ok(VideoTrimPlan {
             source,
             start_secs,
@@ -1434,7 +1487,7 @@ impl crate::OrchestratorContext {
         self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
             project_id: plan.source.project_id,
             chapter_id: plan.source.chapter_id,
-            video_type: "trimmed_clip".to_string(),
+            video_type: generated_video::VIDEO_TYPE_TRIMMED_CLIP.to_string(),
             workflow_mode: Some(plan.target_workflow_mode),
             prompt: plan.source.prompt.clone(),
             negative_prompt: plan.source.negative_prompt.clone(),
@@ -1455,7 +1508,7 @@ impl crate::OrchestratorContext {
         .await
     }
 
-    async fn required_video_record(
+    pub async fn required_video_record(
         &self,
         video_id: i64,
     ) -> Result<generated_video::Model, AppError> {
@@ -1586,26 +1639,28 @@ fn assembly_clip_records_from_rows(
             (Some(video.id) != excluded_video_id
                 && video.project_id == project_id
                 && video.chapter_id == Some(chapter_id)
-                && if workflow_mode == "mixed" {
+                && if workflow_mode == WORKFLOW_MODE_MIXED {
                     adopted_video_ids.is_some_and(|ids| ids.contains(&video.id))
-                        || (video.video_type == ASSEMBLY_INSERT_VIDEO_TYPE
-                            && video.workflow_mode.as_deref() == Some("mixed"))
+                        || (video.video_type == generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
+                            && video.workflow_mode.as_deref() == Some(WORKFLOW_MODE_MIXED))
                 } else {
                     video.workflow_mode.as_deref() == Some(workflow_mode)
                 }
                 && is_assembly_clip_video_type(&video.video_type)
-                && video.status == "completed"
+                && video.status == generated_video::STATUS_COMPLETED
                 && !file_path.is_empty())
             .then_some((video, file_path))
         })
         .map(|(video, file_path)| {
-            let timeline_display_index = if video.video_type == ASSEMBLY_INSERT_VIDEO_TYPE {
+            let timeline_display_index = if video.video_type
+                == generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
+            {
                 None
             } else {
                 timeline_order.and_then(|order| order.display_index_for_video(video))
             };
             if timeline_order.is_some()
-                && video.video_type != ASSEMBLY_INSERT_VIDEO_TYPE
+                && video.video_type != generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
                 && timeline_display_index.is_none()
             {
                 return Err(AppError::InvalidArgument(format!(

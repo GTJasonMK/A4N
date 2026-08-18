@@ -13,16 +13,15 @@ use a4n_core::models::{
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v2";
+pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v3";
 pub const MANIFEST_PATH: &str = "a4n-project-family.json";
-pub const MEDIA_FILE_FIELD_FILE: &str = "file_path";
-pub const MEDIA_FILE_FIELD_THUMBNAIL: &str = "thumbnail_path";
 pub const MEDIA_FILE_FIELDS: [(&str, &str); 2] = [
-    (MEDIA_FILE_FIELD_FILE, "file"),
-    (MEDIA_FILE_FIELD_THUMBNAIL, "thumbnail"),
+    (FILE_PATH_FIELD, "file"),
+    (THUMBNAIL_PATH_FIELD, "thumbnail"),
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

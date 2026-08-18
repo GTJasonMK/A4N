@@ -21,7 +21,7 @@ use std::convert::Infallible;
 
 use a4n_api_contract::temp_media::TempMediaDeleteRequest;
 use a4n_core::models::{
-    ai::generated_image,
+    ai::{generated_image, generated_video},
     chapter::{chapter, chapter_outline, part_outline},
     generation::generation_task_checkpoint,
     project::novel_blueprint,
@@ -788,8 +788,8 @@ async fn server_process_returns_canonical_temp_media_artifact_contract() {
         .json(&json!({
             "owner_user_id": 7,
             "project_id": 11,
-            "source_image_id": 13,
-            "expires_in_seconds": 86400,
+            "source_media_kind": "generated_image",
+            "source_media_id": 13,
             "file_name": "reference.png",
             "mime_type": "image/png",
             "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
@@ -805,7 +805,8 @@ async fn server_process_returns_canonical_temp_media_artifact_contract() {
 
     assert_eq!(response.owner_user_id, 7);
     assert_eq!(response.project_id, 11);
-    assert_eq!(response.source_image_id, 13);
+    assert_eq!(response.source_media_kind, "generated_image");
+    assert_eq!(response.source_media_id, 13);
     assert_eq!(response.content_type, "image/png");
     assert_eq!(response.byte_size, bytes.len() as u64);
     assert_eq!(response.sha256, expected_sha256);
@@ -1184,7 +1185,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
             a4n_db::video::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: None,
-                video_type: "chapter_video".to_string(),
+                video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
                 workflow_mode: Some("reference_media".to_string()),
                 prompt: "provider cleanup".to_string(),
                 negative_prompt: None,
@@ -3236,11 +3237,9 @@ fn server_command(
         .env("A4N_FRONTEND_DIST", frontend_dir)
         .env("A4N_WEB_ADDR", addr.to_string())
         .env("A4N_TEMP_MEDIA_UPLOAD_TOKEN", "temp-media-process-token")
-        .env(
-            "A4N_TEMP_MEDIA_PUBLIC_BASE_URL",
-            "https://media.example.test/api/temp-media",
-        )
+        .env("A4N_PUBLIC_APP_URL", "https://media.example.test")
         .env("A4N_TEMP_MEDIA_TTL_MINUTES", "360")
+        .env("A4N_TEMP_MEDIA_MAX_BYTES", "20971520")
         .env("A4N_BOOTSTRAP_ADMIN_USERNAME", "cleanup_process_admin")
         .env(
             "A4N_BOOTSTRAP_ADMIN_EMAIL",

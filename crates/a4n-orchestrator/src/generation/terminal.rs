@@ -80,13 +80,13 @@ impl GenerationTerminalError {
 }
 
 #[derive(Debug, Clone)]
-pub struct CompletionDescriptor {
-    pub result_ref: Option<GenerationResultRef>,
-    pub final_text_hashes: Vec<StreamTextHash>,
-    pub final_usage: Option<GenerationUsage>,
-    pub finish_reason: Option<GenerationFinishReason>,
-    pub summary: Option<String>,
-    pub batch_summary: Option<BatchSummary>,
+pub(crate) struct CompletionDescriptor {
+    pub(crate) result_ref: Option<GenerationResultRef>,
+    pub(crate) final_text_hashes: Vec<StreamTextHash>,
+    pub(crate) final_usage: Option<GenerationUsage>,
+    pub(crate) finish_reason: Option<GenerationFinishReason>,
+    pub(crate) summary: Option<String>,
+    pub(crate) batch_summary: Option<BatchSummary>,
 }
 
 impl From<CompletionDescriptor> for CompletedEvent {
@@ -103,21 +103,21 @@ impl From<CompletionDescriptor> for CompletedEvent {
 }
 
 #[derive(Clone)]
-pub struct GenerationTerminalCoordinator {
+pub(crate) struct GenerationTerminalCoordinator {
     database: DbHandle,
     registry: Arc<GenerationSessionRegistry>,
 }
 
 impl GenerationTerminalCoordinator {
-    pub fn new(database: DbHandle, registry: Arc<GenerationSessionRegistry>) -> Self {
+    pub(crate) fn new(database: DbHandle, registry: Arc<GenerationSessionRegistry>) -> Self {
         Self { database, registry }
     }
 
-    pub fn registry(&self) -> &Arc<GenerationSessionRegistry> {
+    pub(crate) fn registry(&self) -> &Arc<GenerationSessionRegistry> {
         &self.registry
     }
 
-    pub async fn request_cancel(
+    pub(crate) async fn request_cancel(
         &self,
         session: &Arc<GenerationTaskSession>,
         reason: CancellationReason,
@@ -268,7 +268,7 @@ impl GenerationTerminalCoordinator {
         Ok(outcome)
     }
 
-    pub async fn begin_finalizing(
+    pub(crate) async fn begin_finalizing(
         &self,
         session: &Arc<GenerationTaskSession>,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
@@ -276,7 +276,7 @@ impl GenerationTerminalCoordinator {
             .await
     }
 
-    pub async fn begin_running(
+    pub(crate) async fn begin_running(
         &self,
         session: &Arc<GenerationTaskSession>,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
@@ -284,7 +284,7 @@ impl GenerationTerminalCoordinator {
             .await
     }
 
-    pub async fn complete_with<F>(
+    pub(crate) async fn complete_with<F>(
         &self,
         session: &Arc<GenerationTaskSession>,
         write_result: F,
@@ -298,7 +298,7 @@ impl GenerationTerminalCoordinator {
             .await
     }
 
-    pub async fn complete_with_artifacts<F>(
+    pub(crate) async fn complete_with_artifacts<F>(
         &self,
         session: &Arc<GenerationTaskSession>,
         artifacts: Vec<PreparedArtifactEvent>,
@@ -391,7 +391,7 @@ impl GenerationTerminalCoordinator {
         commit_or_rebuild(self.database.connection(), session, permit, persisted).await
     }
 
-    pub async fn fail(
+    pub(crate) async fn fail(
         &self,
         session: &Arc<GenerationTaskSession>,
         error: GenerationError,
@@ -417,7 +417,7 @@ impl GenerationTerminalCoordinator {
         self.persist_live_terminal(session, candidate, permit).await
     }
 
-    pub async fn cancel(
+    pub(crate) async fn cancel(
         &self,
         session: &Arc<GenerationTaskSession>,
         summary: Option<String>,
@@ -450,7 +450,7 @@ impl GenerationTerminalCoordinator {
         self.persist_live_terminal(session, candidate, permit).await
     }
 
-    pub async fn interrupt(
+    pub(crate) async fn interrupt(
         &self,
         session: &Arc<GenerationTaskSession>,
         reason: InterruptionReason,
@@ -526,7 +526,7 @@ impl GenerationTerminalCoordinator {
         commit_or_rebuild(self.database.connection(), session, permit, persisted).await
     }
 
-    pub async fn interrupt_persisted_task(
+    pub(crate) async fn interrupt_persisted_task(
         &self,
         task_id: &str,
         attempt: u32,
@@ -652,7 +652,7 @@ impl GenerationTerminalCoordinator {
             loaded.checkpoint.updated_at.and_utc().timestamp_millis(),
             admission,
         )?;
-        Ok(Some(self.registry.insert_restored_or_get(session)?))
+        Ok(Some(self.registry.insert_or_get(session)?))
     }
 }
 

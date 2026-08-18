@@ -99,7 +99,7 @@ impl OrchestratorContext {
     pub(crate) async fn execute_prepared_chapter_generation_rag_search(
         &self,
         prepared: &crate::chapter_generation::PreparedGenerationRagSearch,
-    ) -> Result<crate::chapter_generation::GenerationRagContext, String> {
+    ) -> Result<Option<String>, String> {
         crate::chapter_generation::rag_context::execute_prepared_chapter_generation_rag_search_in_store(
             self.rag_store.as_ref(),
             self.embedding.as_ref(),
@@ -113,7 +113,7 @@ impl OrchestratorContext {
         prepared: &crate::chapter_generation::PreparedGenerationRagSearch,
         embedding_identity: &a4n_embedding::provider::EmbeddingModelIdentity,
         query_vectors: Vec<Vec<f32>>,
-    ) -> Result<crate::chapter_generation::GenerationRagContext, String> {
+    ) -> Result<Option<String>, String> {
         crate::chapter_generation::rag_context::execute_prepared_chapter_generation_rag_search_with_vectors_in_store(
             self.rag_store.as_ref(),
             prepared,
@@ -125,13 +125,11 @@ impl OrchestratorContext {
 
     pub async fn execute_prepared_enhanced_rag_search(
         &self,
-        project_id: i64,
-        prepared: &crate::rag::PreparedEnhancedRagSearch,
+        prepared: crate::rag::PreparedEnhancedRagSearch,
     ) -> Result<crate::rag::EnhancedRagSearchResult, a4n_core::error::AppError> {
         crate::rag::search::enhanced::execute_prepared_enhanced_rag_search_in_store(
             self.rag_store.as_ref(),
             self.embedding.as_ref(),
-            project_id,
             prepared,
         )
         .await
@@ -139,14 +137,12 @@ impl OrchestratorContext {
 
     pub async fn execute_prepared_enhanced_rag_search_with_vectors(
         &self,
-        project_id: i64,
-        prepared: &crate::rag::PreparedEnhancedRagSearch,
+        prepared: crate::rag::PreparedEnhancedRagSearch,
         embedding_identity: &a4n_embedding::provider::EmbeddingModelIdentity,
         query_vectors: Vec<Vec<f32>>,
     ) -> Result<crate::rag::EnhancedRagSearchResult, a4n_core::error::AppError> {
         crate::rag::search::enhanced::execute_prepared_enhanced_rag_search_with_vectors_in_store(
             self.rag_store.as_ref(),
-            project_id,
             prepared,
             embedding_identity,
             query_vectors,

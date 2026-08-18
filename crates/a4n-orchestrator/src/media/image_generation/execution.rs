@@ -542,16 +542,10 @@ async fn cleanup_created_file_after_error(
         .await
     {
         Ok(()) => error,
-        Err(cleanup_error) => {
-            append_secondary_error(error, format!("清理{label}失败: {cleanup_error}"))
-        }
-    }
-}
-
-fn append_secondary_error(error: AppError, secondary: String) -> AppError {
-    AppError::InvalidState {
-        current: error.to_string(),
-        operation: secondary,
+        Err(cleanup_error) => crate::errors::app_error_with_secondary(
+            error,
+            format!("清理{label}失败: {cleanup_error}"),
+        ),
     }
 }
 

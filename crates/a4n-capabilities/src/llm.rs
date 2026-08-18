@@ -6,20 +6,19 @@ use async_trait::async_trait;
 use std::time::Duration;
 
 pub struct HttpLlmClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpLlmClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url).with_expected_service(LLM_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, LLM_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(LLM_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, LLM_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -67,10 +66,10 @@ impl LlmClient for HttpLlmClient {
     }
 
     async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/llm/probe", request).await
+        self.transport.post("/llm/probe", request).await
     }
 
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/llm/models", request).await
+        self.transport.post("/llm/models", request).await
     }
 }

@@ -1,4 +1,5 @@
 use crate::canvas::CanvasDbError;
+use a4n_domain::{EXTERNAL_IMPORT_MODEL, GeneratedMediaReference};
 use a4n_core::models::{
     ai::{generated_image, generated_video},
     generation::generation_spec,
@@ -30,8 +31,8 @@ where
         prompt_artifact_id: Set(None),
         provider_job_id: Set(None),
         source_media_asset_id: Set(None),
-        source_external_path: Set(Some(format!("generated_image:{}", image.id))),
-        imported_from_user: Set(image.model == "external-import"),
+        source_external_path: Set(Some(GeneratedMediaReference::Image(image.id).to_string())),
+        imported_from_user: Set(image.model == EXTERNAL_IMPORT_MODEL),
         request_snapshot_json: Set(request_snapshot_json),
         created_at: Set(now),
     };
@@ -69,8 +70,8 @@ where
             prompt_artifact_id: Set(None),
             provider_job_id: Set(video.provider_job_id.clone()),
             source_media_asset_id: Set(None),
-            source_external_path: Set(Some(format!("generated_video:{}", video.id))),
-            imported_from_user: Set(video.model == "external-import"),
+            source_external_path: Set(Some(GeneratedMediaReference::Video(video.id).to_string())),
+            imported_from_user: Set(video.model == EXTERNAL_IMPORT_MODEL),
             request_snapshot_json: Set(request_snapshot_json),
             created_at: Set(now),
         }
@@ -83,8 +84,8 @@ where
             prompt_artifact_id: Set(None),
             provider_job_id: Set(video.provider_job_id.clone()),
             source_media_asset_id: Set(None),
-            source_external_path: Set(Some(format!("generated_video:{}", video.id))),
-            imported_from_user: Set(video.model == "external-import"),
+            source_external_path: Set(Some(GeneratedMediaReference::Video(video.id).to_string())),
+            imported_from_user: Set(video.model == EXTERNAL_IMPORT_MODEL),
             request_snapshot_json: Set(request_snapshot_json),
             created_at: Set(now),
         }

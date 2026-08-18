@@ -57,6 +57,24 @@ function runtimeConfigPayload(config: unknown, includeApiKey: boolean): unknown 
   return sanitized;
 }
 
+function hasRuntimeConfigOverride(
+  overrides: Partial<RuntimeConfigSnapshot>,
+  kind: "llm" | "image" | "video" | "embedding",
+): boolean {
+  return Object.prototype.hasOwnProperty.call(overrides, kind);
+}
+
+function systemApiKeyForSnapshot(
+  includeApiKey: boolean,
+  defaultSource: "system" | "local",
+  hasOverride: boolean,
+  getApiKey: () => string | null,
+): string | null {
+  return includeApiKey && defaultSource === "system" && !hasOverride
+    ? getApiKey()
+    : null;
+}
+
 export function buildRuntimeConfigSnapshot(
   overrides: Partial<Pick<RuntimeConfigSnapshot, "llm" | "image" | "video" | "embedding">> = {},
   options: RuntimeConfigSnapshotOptions = {},
@@ -68,10 +86,10 @@ export function buildRuntimeConfigSnapshot(
     options.includeSystemLlmApiKey ?? includeLlmApiKeys;
   const includeProviderApiKeys =
     options.includeProviderApiKeys ?? includeLlmApiKeys;
-  const hasLlmOverride = Object.prototype.hasOwnProperty.call(overrides, "llm");
-  const hasImageOverride = Object.prototype.hasOwnProperty.call(overrides, "image");
-  const hasVideoOverride = Object.prototype.hasOwnProperty.call(overrides, "video");
-  const hasEmbeddingOverride = Object.prototype.hasOwnProperty.call(overrides, "embedding");
+  const hasLlmOverride = hasRuntimeConfigOverride(overrides, "llm");
+  const hasImageOverride = hasRuntimeConfigOverride(overrides, "image");
+  const hasVideoOverride = hasRuntimeConfigOverride(overrides, "video");
+  const hasEmbeddingOverride = hasRuntimeConfigOverride(overrides, "embedding");
   const rawLlm = hasLlmOverride ? overrides.llm : activeLocalLlmConfig();
   const rawImage = hasImageOverride ? overrides.image : activeLocalImageConfig();
   const rawVideo = hasVideoOverride ? overrides.video : activeLocalVideoConfig();
@@ -83,18 +101,24 @@ export function buildRuntimeConfigSnapshot(
   const llmDefaultSource = usesSystemDefaultLlmConfig() ? "system" : "local";
   const imageDefaultSource = usesSystemDefaultImageConfig() ? "system" : "local";
   const videoDefaultSource = usesSystemDefaultVideoConfig() ? "system" : "local";
-  const systemLlmApiKey =
-    includeSystemLlmApiKey && llmDefaultSource === "system" && !hasLlmOverride
-      ? getSystemDefaultLlmApiKey()
-      : null;
-  const systemImageApiKey =
-    includeProviderApiKeys && imageDefaultSource === "system" && !hasImageOverride
-      ? getSystemDefaultImageApiKey()
-      : null;
-  const systemVideoApiKey =
-    includeProviderApiKeys && videoDefaultSource === "system" && !hasVideoOverride
-      ? getSystemDefaultVideoApiKey()
-      : null;
+  const systemLlmApiKey = systemApiKeyForSnapshot(
+    includeSystemLlmApiKey,
+    llmDefaultSource,
+    hasLlmOverride,
+    getSystemDefaultLlmApiKey,
+  );
+  const systemImageApiKey = systemApiKeyForSnapshot(
+    includeProviderApiKeys,
+    imageDefaultSource,
+    hasImageOverride,
+    getSystemDefaultImageApiKey,
+  );
+  const systemVideoApiKey = systemApiKeyForSnapshot(
+    includeProviderApiKeys,
+    videoDefaultSource,
+    hasVideoOverride,
+    getSystemDefaultVideoApiKey,
+  );
   const llmConfigs = listLocalLlmConfigs().map((config) =>
     runtimeConfigPayload(config, includeLlmApiKeys),
   );

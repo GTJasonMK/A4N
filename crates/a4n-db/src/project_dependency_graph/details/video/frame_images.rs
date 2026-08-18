@@ -34,7 +34,7 @@ where
         .map_err(AppError::Database)?;
     let mut records = Vec::new();
     for image in images {
-        if let Some(prompt_id) = video_frame_image_prompt_id(image.metadata_json.as_ref()) {
+        if let Some(prompt_id) = video_frame_image_prompt_id(&image) {
             let mut record =
                 generated_image_record(image.clone(), "video_frame_image", "image_generated");
             if let Some(prompt) = prompt_by_id.get(&prompt_id) {
@@ -53,11 +53,9 @@ where
                 ));
             }
             records.push(record);
-        } else if crate::profile_material::is_video_frame_input_metadata(
-            image.metadata_json.as_ref(),
-        ) {
+        } else if a4n_domain::image::is_video_frame_prompt_image_type(&image.image_type) {
             warnings.push(format!(
-                "视频帧图片 #{} 缺少 generation_context.prompt_id。",
+                "视频帧图片 #{} 缺少有效 generation_context.source/prompt_id。",
                 image.id
             ));
             let mut record = generated_image_record(image, "video_frame_image", "unknown");

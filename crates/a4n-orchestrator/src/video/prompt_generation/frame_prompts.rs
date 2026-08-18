@@ -35,8 +35,8 @@ use super::super::prompt_context::{
 };
 use super::super::prompt_json::{
     ChatVideoPromptShot, VideoCinematicShot, VideoFramePrompt, VideoFramePromptDefaults,
-    VideoPromptShot, VideoPromptTargetedRepairResponse, VideoSegmentPlan,
-    VideoShootingScriptProjection, parse_chat_video_prompt_shots,
+    VideoPromptShot, VideoSegmentPlan, VideoShootingScriptProjection,
+    parse_chat_video_prompt_shots,
     parse_storyboard_frame_prompts_with_defaults, parse_video_frame_prompts_with_defaults,
     parse_video_prompt_shots, parse_video_segment_plan_input_values,
     parse_video_segment_plan_response, validate_direct_prompt_text, validate_reference_label_text,
@@ -89,7 +89,7 @@ use self::parsing::*;
 use self::prepared::{
     LoadedSharedSegmentPlan, PreparedSegmentPlan, SHARED_SEGMENT_PLAN_CONTEXT,
     SHARED_SEGMENT_PLAN_CONTRACT_VERSION, SHARED_SEGMENT_PLAN_PROGRESS,
-    SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE,
+    SHARED_SEGMENT_PLAN_TITLE,
 };
 pub(in crate::video) use self::prepared::{PreparedVideoPromptInputs, ReusableSegmentPlan};
 use self::progress::*;
@@ -136,4 +136,4 @@ pub(in crate::video) use self::video_units::{
 };
 
 const FINAL_VIDEO_PROMPT_OUTPUT_CONTRACT_VERSION: &str =
-    "final_video_prompt_dialogue_cues_no_model_source_spans_v1";
+    "final_video_prompt_strict_canonical_checkpoint_v2";

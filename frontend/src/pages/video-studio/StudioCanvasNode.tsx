@@ -1,5 +1,11 @@
 import React from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import {
+  CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT,
+  CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT,
+  CANVAS_TEXT_OUTPUT_KIND_STORYBOARD,
+  CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT,
+} from "../../api/canvas";
 import { loadVideoScrubPlaybackData } from "../../api/video";
 import {
   AlertTriangle,
@@ -340,11 +346,10 @@ export function canvasDataTypeLabel(value: string): string {
     media: "媒体",
     json: "结构数据",
     any: "任意内容",
-    canvas_text: "画布文本",
-    image_prompt: "图片提示词",
-    video_prompt: "视频提示词",
-    shot_script: "镜头脚本",
-    storyboard: "分镜",
+    [CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT]: "图片提示词",
+    [CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT]: "视频提示词",
+    [CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT]: "镜头脚本",
+    [CANVAS_TEXT_OUTPUT_KIND_STORYBOARD]: "分镜",
   };
   return labels[normalized] ?? (normalized || "未知内容");
 }
@@ -433,7 +438,9 @@ function operationNodeBodyPreview(data: StudioNodeData): string | null {
     case "RenderTextNode":
       return "按模板生成文本";
     case "LlmTextNode": {
-      const outputKind = configText(data.config, "output_kind") || "shot_script";
+      const outputKind =
+        configText(data.config, "output_kind") ||
+        CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT;
       const instruction = configText(data.config, "instruction").trim();
       return instruction || `输出类型：${outputKind}`;
     }
@@ -442,11 +449,11 @@ function operationNodeBodyPreview(data: StudioNodeData): string | null {
     case "GenerateVideoNode":
       return `输入模式：${generateVideoInputModeLabel(normalizeGenerateVideoInputMode(data.config.input_mode))}`;
     case "ExtractFrameNode":
-      return `抽帧：${configText(data.config, "frame_kind") || "first"}`;
+      return `抽帧：${configText(data.config, "frame_kind")}`;
     case "TrimVideoNode": {
       const start = configNumber(data.config, "start_secs");
       const end = configNumber(data.config, "end_secs");
-      return `裁剪：${start === "" ? 0 : start}s - ${end === "" ? "?" : end}s`;
+      return `裁剪：${start}s - ${end}s`;
     }
     case "AssembleVideoNode":
       return "接收视频片段并输出视频";

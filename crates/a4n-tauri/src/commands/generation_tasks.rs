@@ -346,6 +346,7 @@ fn host_error(
         message: message.into(),
         retryable,
         trace_id: None,
+        details: serde_json::Map::new(),
     }
 }
 

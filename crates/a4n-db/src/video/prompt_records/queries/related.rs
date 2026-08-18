@@ -36,7 +36,7 @@ where
         .filter(chapter_video_prompt::Column::WorkflowMode.eq(workflow_mode))
         .filter(chapter_video_prompt::Column::PromptType.eq(prompt_type))
         .filter(chapter_video_prompt::Column::ShotNumber.eq(frame_number))
-        .filter(chapter_video_prompt::Column::Status.ne("running"))
+        .filter(chapter_video_prompt::Column::Status.ne(chapter_video_prompt::STATUS_RUNNING))
         .order_by_desc(chapter_video_prompt::Column::UpdatedAt)
         .order_by_desc(chapter_video_prompt::Column::Id)
         .all(db)

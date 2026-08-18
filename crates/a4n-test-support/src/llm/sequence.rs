@@ -33,10 +33,6 @@ impl LlmProvider for SequenceLlmProvider {
         Ok(reply_stream(pop_reply(&self.replies)?))
     }
 
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        Ok(true)
-    }
-
     fn model_name(&self) -> &str {
         "sequence-test-llm"
     }
@@ -89,10 +85,6 @@ impl LlmProvider for CapturingSequenceLlmProvider {
                     .map(|message| message.content.clone()),
             );
         Ok(reply_stream(pop_reply(&self.replies)?))
-    }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        Ok(true)
     }
 
     fn model_name(&self) -> &str {

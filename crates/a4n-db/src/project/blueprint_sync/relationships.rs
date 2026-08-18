@@ -5,7 +5,10 @@ use super::identity::{
     blueprint_relationship_identity_from_keys, blueprint_relationship_matches,
     blueprint_relationship_model_identity, normalized_blueprint_identity,
 };
-use a4n_core::models::project::blueprint_relationship;
+use a4n_core::{
+    json_contract::is_empty_json_value,
+    models::project::blueprint_relationship,
+};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
@@ -166,18 +169,8 @@ fn supplement_relationship_draft(
         evolution: existing
             .evolution
             .as_ref()
-            .filter(|value| !json_value_is_empty(value))
+            .filter(|value| !is_empty_json_value(value))
             .cloned()
             .or(incoming.evolution),
-    }
-}
-
-fn json_value_is_empty(value: &serde_json::Value) -> bool {
-    match value {
-        serde_json::Value::Null => true,
-        serde_json::Value::String(value) => value.trim().is_empty(),
-        serde_json::Value::Array(value) => value.is_empty(),
-        serde_json::Value::Object(value) => value.is_empty(),
-        serde_json::Value::Bool(_) | serde_json::Value::Number(_) => false,
     }
 }

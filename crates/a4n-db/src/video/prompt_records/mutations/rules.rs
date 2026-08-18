@@ -12,11 +12,11 @@ pub(in crate::video::prompt_records) fn validate_chapter_video_prompt_duration(
     Ok(())
 }
 
-pub(in crate::video::prompt_records) fn ensure_chapter_video_prompt_not_running(
+pub(crate) fn ensure_chapter_video_prompt_not_running(
     prompt: &chapter_video_prompt::Model,
     operation: &str,
 ) -> Result<(), VideoDbError> {
-    if prompt.status == "running" {
+    if prompt.status == chapter_video_prompt::STATUS_RUNNING {
         return Err(VideoDbError::InvalidState {
             current: prompt.status.clone(),
             operation: operation.to_string(),

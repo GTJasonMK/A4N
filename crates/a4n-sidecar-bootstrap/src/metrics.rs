@@ -6,9 +6,9 @@ use std::sync::{
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use a4n_service_protocol::{
-    SIDECAR_LAST_ERROR_ENV, SIDECAR_REQUEST_ID_HEADER, SIDECAR_RESTART_COUNT_ENV,
-    SIDECAR_TRACE_ID_HEADER, ServiceOperationMetrics, ServiceRuntimeMetrics,
-    redact_sensitive_message,
+    SIDECAR_LAST_ERROR_ENV, SIDECAR_METRICS_PATH, SIDECAR_REQUEST_ID_HEADER,
+    SIDECAR_RESTART_COUNT_ENV, SIDECAR_TRACE_ID_HEADER, ServiceOperationMetrics,
+    ServiceRuntimeMetrics, redact_sensitive_message,
 };
 use anyhow::{Context, anyhow};
 use axum::{
@@ -19,7 +19,10 @@ use axum::{
     routing::get,
 };
 
-use crate::require_auth;
+use crate::{
+    environment::{optional_non_empty_string, optional_u32},
+    require_auth,
+};
 
 const REQUEST_LOG_FIELD_MAX_CHARS: usize = 128;
 
@@ -54,9 +57,9 @@ impl SidecarRuntimeMetrics {
             .context("系统时间早于 Unix epoch")?
             .as_millis()
             .try_into()
-            .unwrap_or(u64::MAX);
-        let restart_count = optional_env_u32(SIDECAR_RESTART_COUNT_ENV)?.unwrap_or(0);
-        let last_error = optional_env(SIDECAR_LAST_ERROR_ENV)?;
+            .context("sidecar 启动时间毫秒值超出 u64")?;
+        let restart_count = optional_u32(SIDECAR_RESTART_COUNT_ENV)?.unwrap_or(0);
+        let last_error = optional_non_empty_string(SIDECAR_LAST_ERROR_ENV)?;
         Ok(Self::new(
             service,
             started_at_unix_ms,
@@ -117,7 +120,7 @@ impl SidecarRuntimeMetrics {
                 .elapsed()
                 .as_millis()
                 .try_into()
-                .unwrap_or(u64::MAX),
+                .expect("sidecar uptime milliseconds must fit u64"),
             restart_count: self.inner.restart_count,
             requests_total: self.inner.requests_total.load(Ordering::Relaxed),
             errors_total: self.inner.errors_total.load(Ordering::Relaxed),
@@ -150,7 +153,7 @@ impl RequestMetricsGuard {
             .elapsed()
             .as_micros()
             .try_into()
-            .unwrap_or(u64::MAX);
+            .expect("sidecar request duration microseconds must fit u64");
         self.metrics.inner.in_flight.fetch_sub(1, Ordering::Relaxed);
         self.metrics
             .inner
@@ -209,15 +212,19 @@ impl Drop for RequestMetricsGuard {
     }
 }
 
-pub(super) fn with_runtime_metrics(router: Router, service: &str) -> anyhow::Result<Router> {
+pub(super) fn with_runtime_metrics(
+    router: Router,
+    service: &str,
+    auth_token: Option<Arc<str>>,
+) -> anyhow::Result<Router> {
     let metrics = SidecarRuntimeMetrics::from_env(service)?;
     let metrics_router = Router::new()
-        .route("/metrics", get(runtime_metrics))
-        .route_layer(middleware::from_fn(require_auth))
+        .route(SIDECAR_METRICS_PATH, get(runtime_metrics))
         .with_state(metrics.clone());
     Ok(Router::new()
         .merge(router)
         .merge(metrics_router)
+        .layer(middleware::from_fn_with_state(auth_token, require_auth))
         .layer(middleware::from_fn_with_state(metrics, observe_request)))
 }
 
@@ -268,31 +275,6 @@ fn sanitize_log_field(value: &str) -> String {
         .collect()
 }
 
-fn optional_env(key: &str) -> anyhow::Result<Option<String>> {
-    match std::env::var(key) {
-        Ok(value) => {
-            let value = value.trim();
-            if value.is_empty() {
-                Err(anyhow!("{key} 不能为空"))
-            } else {
-                Ok(Some(value.to_string()))
-            }
-        }
-        Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(error) => Err(anyhow!("读取 {key} 失败: {error}")),
-    }
-}
-
-fn optional_env_u32(key: &str) -> anyhow::Result<Option<u32>> {
-    optional_env(key)?
-        .map(|value| {
-            value
-                .parse::<u32>()
-                .with_context(|| format!("{key} 必须是非负整数"))
-        })
-        .transpose()
-}
-
 fn sanitize_last_error(value: &str) -> String {
     redact_sensitive_message(value).chars().take(512).collect()
 }
@@ -301,11 +283,14 @@ fn sanitize_last_error(value: &str) -> String {
 mod tests {
     use super::*;
 
+    const FAILED_OPERATION: &str = "/demo/fail";
+    const CANCELLED_OPERATION: &str = "/demo/cancel";
+
     #[test]
     fn request_completion_and_cancellation_update_one_shared_snapshot() {
         let metrics = SidecarRuntimeMetrics::new("demo", 1, 2, Some("previous crash".into()));
-        metrics.begin("/rag/search".into()).finish(true);
-        drop(metrics.begin("/rag/ingest/events".into()));
+        metrics.begin(FAILED_OPERATION.into()).finish(true);
+        drop(metrics.begin(CANCELLED_OPERATION.into()));
 
         let snapshot = metrics.snapshot();
         assert_eq!(snapshot.restart_count, 2);
@@ -314,8 +299,8 @@ mod tests {
         assert_eq!(snapshot.cancelled_total, 1);
         assert_eq!(snapshot.in_flight, 0);
         assert_eq!(snapshot.last_error.as_deref(), Some("previous crash"));
-        assert_eq!(snapshot.operations["/rag/search"].errors_total, 1);
-        assert_eq!(snapshot.operations["/rag/ingest/events"].cancelled_total, 1);
+        assert_eq!(snapshot.operations[FAILED_OPERATION].errors_total, 1);
+        assert_eq!(snapshot.operations[CANCELLED_OPERATION].cancelled_total, 1);
     }
 
     #[test]

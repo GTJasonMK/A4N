@@ -1,5 +1,5 @@
 use super::{reject_unknown_keys, required_field};
-use a4n_core::error::AppError;
+use a4n_core::{error::AppError, json_contract::is_empty_json_value};
 use serde_json::Value;
 
 pub(in crate::blueprint::json) fn required_object_with_keys(
@@ -31,14 +31,7 @@ pub(in crate::blueprint::json) fn required_non_empty_value(
     context: &str,
 ) -> Result<(), AppError> {
     let value = required_field(json, key, context)?;
-    let is_empty = match value {
-        Value::Null => true,
-        Value::String(text) => text.trim().is_empty(),
-        Value::Array(items) => items.is_empty(),
-        Value::Object(items) => items.is_empty(),
-        Value::Bool(_) | Value::Number(_) => false,
-    };
-    if is_empty {
+    if is_empty_json_value(value) {
         return Err(AppError::InvalidArgument(format!(
             "{context}.{key} 不能为空"
         )));

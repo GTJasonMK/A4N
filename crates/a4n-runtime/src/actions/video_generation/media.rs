@@ -18,22 +18,22 @@ pub(super) use self::reference_images::reference_image_ids;
 pub(crate) use self::reference_images::{
     reference_image_provider_input_by_id, reference_image_provider_inputs_by_ids,
     reference_image_request_preview_url_by_id, reference_image_request_preview_urls_by_ids,
-    remote_temp_upload_config, remote_temp_upload_configured,
+    remote_temp_upload_config,
 };
 pub(crate) use self::tail_frames::{
     capture_video_tail_frame_asset, delete_video_tail_frame_assets,
 };
 pub(crate) use self::video_files::{
     append_secondary_error, best_effort_video_thumbnail_path, combine_optional_errors,
-    ensure_chapter_videos_dir, ensure_ffmpeg, persist_canvas_video_bytes, prompt_id_from_video,
-    remove_partial_video_file, run_ffmpeg_trim, save_video_bytes, trimmed_video_path,
-    video_mime_from_path,
+    ensure_chapter_videos_dir, ensure_project_videos_dir, persist_canvas_video_bytes,
+    prompt_id_from_video, remove_partial_video_file, run_ffmpeg_trim, save_video_bytes,
+    trimmed_video_path,
 };
 
 #[cfg(test)]
 use self::video_files::{
     chapter_tail_frame_images_dir, chapter_videos_dir, persist_video_thumbnail_path,
-    required_trim_chapter_id, required_video_file_extension,
+    required_video_file_extension,
 };
 #[cfg(test)]
 mod tests;

@@ -23,7 +23,7 @@ impl StableDiffusionWebUiImageProvider {
         })
     }
 
-    fn txt2img_body(req: &ImageGenerationRequest) -> Result<serde_json::Value, AppError> {
+    pub(crate) fn txt2img_body(req: &ImageGenerationRequest) -> Result<serde_json::Value, AppError> {
         if !req.reference_images.is_empty() {
             return Err(internal_error(
                 "stable-diffusion 后端使用 /sdapi/v1/txt2img，真实请求不支持参考图绑定",
@@ -48,12 +48,6 @@ impl StableDiffusionWebUiImageProvider {
         }
 
         Ok(body)
-    }
-
-    pub fn request_body_preview(
-        req: &ImageGenerationRequest,
-    ) -> Result<serde_json::Value, AppError> {
-        Self::txt2img_body(req)
     }
 }
 

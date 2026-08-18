@@ -1,5 +1,6 @@
 use a4n_core::{error::AppError, models::canvas::canvas_node};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_domain::CanvasFrameKind;
 use async_trait::async_trait;
 
 use crate::canvas::CanvasNodeRunHandle;
@@ -7,7 +8,7 @@ use crate::canvas::CanvasNodeRunHandle;
 #[derive(Debug, Clone, PartialEq)]
 pub struct CanvasExtractFrameNodeInput {
     pub video_id: i64,
-    pub frame_kind: String,
+    pub frame_kind: CanvasFrameKind,
     pub at_secs: Option<f32>,
     pub canvas_text_asset_id: Option<i64>,
     pub source_node_ids: Vec<i64>,
@@ -53,7 +54,7 @@ pub struct CanvasExtractFrameHostInput {
     pub project_id: i64,
     pub workflow_run_id: i64,
     pub video_id: i64,
-    pub frame_kind: String,
+    pub frame_kind: CanvasFrameKind,
     pub at_secs: Option<f32>,
 }
 

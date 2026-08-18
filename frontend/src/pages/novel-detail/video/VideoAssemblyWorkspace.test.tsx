@@ -1,13 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { GeneratedVideo } from "../../../api/video";
+import {
+  VIDEO_TYPE_CHAPTER,
+  type GeneratedVideo,
+} from "../../../api/video";
 import { VideoAssemblyWorkspace } from "./VideoAssemblyWorkspace";
 
 const adoptedVideo: GeneratedVideo = {
   id: 11,
   project_id: 1,
   chapter_id: 2,
-  video_type: "chapter_video",
+  video_type: VIDEO_TYPE_CHAPTER,
   workflow_mode: "chat_video",
   file_path: "video.mp4",
   thumbnail_path: null,

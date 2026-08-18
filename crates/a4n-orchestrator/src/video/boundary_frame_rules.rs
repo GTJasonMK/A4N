@@ -2,11 +2,12 @@
 
 use a4n_core::models::ai::generated_image;
 use a4n_core::models::chapter::chapter_video_prompt;
-
-use super::{
-    image_generation_prompt_id, image_generation_source, prompt_chain_matches,
-    prompt_source_type_matches,
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, image_generation_prompt_id,
+    image_generation_source,
 };
+
+use super::{prompt_chain_matches, prompt_source_type_matches};
 
 pub fn boundary_frame_numbers_for_prompt(
     prompt: &chapter_video_prompt::Model,
@@ -41,9 +42,17 @@ pub fn frame_prompt_matches_video_prompt(
     video_prompt: &chapter_video_prompt::Model,
     frame_prompt: &chapter_video_prompt::Model,
 ) -> bool {
-    prompt_chain_matches("boundary_frames", video_prompt, frame_prompt)
-        && prompt_source_type_matches(video_prompt, "frame_segment_plan")
-        && prompt_source_type_matches(frame_prompt, "frame_segment_plan")
+    prompt_chain_matches(
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        video_prompt,
+        frame_prompt,
+    ) && prompt_source_type_matches(
+        video_prompt,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+    ) && prompt_source_type_matches(
+        frame_prompt,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+    )
 }
 
 pub fn latest_boundary_frame_image_id(
@@ -55,7 +64,8 @@ pub fn latest_boundary_frame_image_id(
         .find(|image| {
             let metadata = image.metadata_json.as_ref();
             image_generation_prompt_id(metadata) == Some(frame_prompt.id)
-                && image_generation_source(metadata) == Some("video_boundary_frame_prompt")
+                && image_generation_source(metadata)
+                    == Some(IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT)
         })
         .map(|image| image.id)
 }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 use a4n_service_protocol::redact_sensitive_value;
-use a4n_service_protocol::{SchemaVersion, SecretForwardingPolicy, TraceContext};
+use a4n_service_protocol::{SecretForwardingPolicy, TraceContext};
 use serde_json::Value;
 
 use crate::runtime_config;
@@ -11,7 +11,6 @@ pub(crate) struct SidecarRequestContext {
     pub(super) project_id: Option<i64>,
     pub(super) root_project_id: Option<i64>,
     pub(super) trace_context: Option<TraceContext>,
-    pub(super) schema_version: SchemaVersion,
     pub(super) runtime_config_snapshot: Option<Value>,
     pub(super) secret_policy: SecretForwardingPolicy,
 }
@@ -23,7 +22,6 @@ impl SidecarRequestContext {
             project_id: None,
             root_project_id: None,
             trace_context: None,
-            schema_version: SchemaVersion::protocol_only(),
             runtime_config_snapshot: None,
             secret_policy: SecretForwardingPolicy::deny_all(),
         }

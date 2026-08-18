@@ -2,13 +2,7 @@ use std::collections::HashMap;
 
 use crate::vector_store::SearchResult;
 
-#[derive(Debug, Clone)]
-pub(super) struct FusedScore {
-    pub(super) id: String,
-    pub(super) score: f32,
-    pub(super) vector_score: f32,
-    pub(super) bm25_score: f32,
-}
+const RRF_K: f32 = 60.0;
 
 /// Calculate cosine similarity.
 pub(super) fn cosine_sim(a: &[f32], b: &[f32]) -> f32 {
@@ -74,39 +68,21 @@ pub(super) fn rrf_fuse_scores(
     vector_results: &[SearchResult],
     bm25_results: &[SearchResult],
     top_k: usize,
-    k: usize,
-) -> Vec<FusedScore> {
-    let mut scores: HashMap<String, (f32, f32, f32)> = HashMap::new();
+) -> Vec<(String, f32)> {
+    let mut scores: HashMap<String, f32> = HashMap::new();
 
     for (rank, r) in vector_results.iter().enumerate() {
-        let score = 1.0 / (k as f32 + rank as f32 + 1.0);
-        let entry = scores.entry(r.id.clone()).or_insert((0.0, 0.0, 0.0));
-        entry.0 = score;
-        entry.2 = r.score;
+        let score = 1.0 / (RRF_K + rank as f32 + 1.0);
+        *scores.entry(r.id.clone()).or_insert(0.0) += score;
     }
 
     for (rank, r) in bm25_results.iter().enumerate() {
-        let score = 1.0 / (k as f32 + rank as f32 + 1.0);
-        let entry = scores.entry(r.id.clone()).or_insert((0.0, 0.0, 0.0));
-        entry.1 = score;
-        entry.2 = r.score;
+        let score = 1.0 / (RRF_K + rank as f32 + 1.0);
+        *scores.entry(r.id.clone()).or_insert(0.0) += score;
     }
 
-    let mut fused: Vec<(String, (f32, f32, f32))> = scores.into_iter().collect();
-    fused.sort_by(|a, b| {
-        let a_score = a.1.0 + a.1.1;
-        let b_score = b.1.0 + b.1.1;
-        b_score.total_cmp(&a_score)
-    });
-
+    let mut fused = scores.into_iter().collect::<Vec<_>>();
+    fused.sort_by(|a, b| b.1.total_cmp(&a.1));
+    fused.truncate(top_k);
     fused
-        .into_iter()
-        .take(top_k)
-        .map(|(id, (vector_score, bm25_score, _orig))| FusedScore {
-            id,
-            score: vector_score + bm25_score,
-            vector_score,
-            bm25_score,
-        })
-        .collect()
 }

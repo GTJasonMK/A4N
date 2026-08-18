@@ -22,6 +22,7 @@ use super::{
 
 fn prepared_search(queries: Vec<EnhancedRagQuery>) -> PreparedEnhancedRagSearch {
     PreparedEnhancedRagSearch {
+        project_id: 1,
         queries,
         filter: SearchFilter {
             equals: None,
@@ -29,7 +30,6 @@ fn prepared_search(queries: Vec<EnhancedRagQuery>) -> PreparedEnhancedRagSearch 
             data_types: None,
         },
         top_k: 5,
-        pull_k: 20,
         chapter_number: Some(6),
         embedding_identity: test_embedding_identity("enhanced-execution"),
     }
@@ -79,8 +79,6 @@ fn search_result(id: &str, chapter_number: i32, score: f32) -> SearchResult {
         id: id.to_string(),
         content: id.to_string(),
         score,
-        vector_score: Some(score),
-        bm25_score: None,
         metadata: json!({
             "chapter_number": chapter_number,
             "data_type": RagDataType::Chapter.as_str(),
@@ -90,15 +88,15 @@ fn search_result(id: &str, chapter_number: i32, score: f32) -> SearchResult {
 
 #[test]
 fn enhanced_rag_top_k_contract_preserves_limits() {
-    assert!(required_top_k(0, "rag_search").is_err());
-    assert!(required_top_k(MAX_RAG_TOP_K + 1, "rag_search").is_err());
-    assert_eq!(required_top_k(10, "rag_search").unwrap(), 10);
+    assert!(required_top_k(0).is_err());
+    assert!(required_top_k(MAX_RAG_TOP_K + 1).is_err());
+    assert_eq!(required_top_k(10).unwrap(), 10);
 }
 
 #[test]
 fn enhanced_rag_query_text_is_trimmed_and_required() {
-    assert_eq!(required_nonblank("  星门  ", "query").unwrap(), "星门");
-    assert!(required_nonblank("  ", "query").is_err());
+    assert_eq!(required_nonblank("  星门  ").unwrap(), "星门");
+    assert!(required_nonblank("  ").is_err());
 }
 
 #[test]
@@ -152,11 +150,10 @@ fn enhanced_rag_queries_include_character_foreshadowing_and_location() {
         &[foreshadowing(1, "旧钟在午夜倒走", 5, None)],
     );
 
-    assert_eq!(queries[0].kind, "main");
-    assert!(queries.iter().any(|query| query.kind == "character"));
-    assert!(queries.iter().any(|query| query.kind == "foreshadowing"));
-    assert!(queries.iter().any(|query| query.kind == "location"));
-    assert!(queries.len() <= 8);
+    assert_eq!(queries[0].label, "主查询");
+    assert!(queries.iter().any(|query| query.label == "角色"));
+    assert!(queries.iter().any(|query| query.label == "伏笔"));
+    assert!(queries.iter().any(|query| query.label == "场景"));
 }
 
 #[test]
@@ -189,8 +186,7 @@ fn enhanced_rag_fusion_prefers_current_chapter_context() {
             ],
         )],
         Some(6),
-    )
-    .expect("enhanced fusion");
+    );
 
     assert_eq!(fused[0].id, "current");
 }
@@ -200,7 +196,7 @@ async fn enhanced_rag_provider_execution_returns_domain_result() {
     let store = MemoryVectorStore::new();
     store_search_record(&store).await;
     let prepared = prepared_search(vec![EnhancedRagQuery {
-        kind: "main",
+        label: "主查询",
         query: "当前章节上下文".to_string(),
         weight: 1.0,
     }]);
@@ -208,8 +204,7 @@ async fn enhanced_rag_provider_execution_returns_domain_result() {
     let result = execute_prepared_enhanced_rag_search_in_store(
         &store,
         &MatchingEmbeddingProvider,
-        1,
-        &prepared,
+        prepared,
     )
     .await
     .expect("provider enhanced search");
@@ -225,27 +220,32 @@ async fn enhanced_rag_vector_execution_validates_identity_and_vectors() {
     let store = MemoryVectorStore::new();
     store_search_record(&store).await;
     let prepared = prepared_search(vec![EnhancedRagQuery {
-        kind: "main",
+        label: "主查询",
         query: "当前章节上下文".to_string(),
         weight: 1.0,
     }]);
 
     let mismatched = execute_prepared_enhanced_rag_search_with_vectors_in_store(
         &store,
-        1,
-        &prepared,
+        prepared,
         &test_embedding_identity("other"),
         vec![vec![1.0, 0.0]],
     )
     .await
-    .expect_err("mismatched identity should reject");
+    .err()
+    .expect("mismatched identity should reject");
     assert!(mismatched.to_string().contains("项目期望"));
 
+    let prepared = prepared_search(vec![EnhancedRagQuery {
+        label: "主查询",
+        query: "当前章节上下文".to_string(),
+        weight: 1.0,
+    }]);
+    let embedding_identity = prepared.embedding_identity.clone();
     let result = execute_prepared_enhanced_rag_search_with_vectors_in_store(
         &store,
-        1,
-        &prepared,
-        &prepared.embedding_identity,
+        prepared,
+        &embedding_identity,
         vec![vec![1.0, 0.0]],
     )
     .await

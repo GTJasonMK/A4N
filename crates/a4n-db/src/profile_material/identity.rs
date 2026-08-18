@@ -1,10 +1,9 @@
 use a4n_core::models::ai::generated_image;
+use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use serde_json::Value;
 
 pub const PROFILE_KIND_SCENE: &str = "scene";
 pub const PROFILE_KIND_OBJECT: &str = "object";
-pub const IMAGE_TYPE_SCENE_MATERIAL: &str = "scene_material";
-pub const IMAGE_TYPE_OBJECT_MATERIAL: &str = "object_material";
 
 pub fn profile_material_identity(
     image_type: &str,
@@ -33,36 +32,10 @@ pub fn generated_image_profile_material_identity(
     profile_material_identity(&image.image_type, image.metadata_json.as_ref())
 }
 
-pub fn is_video_frame_input_metadata(metadata: Option<&Value>) -> bool {
-    let Some(metadata) = metadata.and_then(Value::as_object) else {
-        return false;
-    };
-    metadata
-        .get("generation_context")
-        .and_then(Value::as_object)
-        .and_then(|context| context.get("source"))
-        .and_then(Value::as_str)
-        .is_some_and(|source| {
-            matches!(
-                source.trim(),
-                "video_boundary_frame_prompt"
-                    | "video_first_frame_prompt"
-                    | "video_tail_frame_capture"
-            )
-        })
-        || metadata
-            .get("video_frame_role")
-            .and_then(Value::as_str)
-            .is_some_and(|role| matches!(role.trim(), "key_frame" | "start_frame" | "end_frame"))
-}
-
 pub fn is_project_reusable_video_material_image(
     image_type: &str,
     metadata: Option<&Value>,
 ) -> bool {
-    if is_video_frame_input_metadata(metadata) {
-        return false;
-    }
     profile_material_identity(image_type, metadata).is_some()
 }
 

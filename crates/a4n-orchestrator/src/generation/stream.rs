@@ -30,18 +30,18 @@ const TOTAL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BATCH_DELAY: Duration = Duration::from_millis(50);
 const BATCH_BYTES: usize = MAX_TEXT_DELTA_BYTES;
 
-pub struct LlmGenerationCheckpoint<'a> {
-    pub writer: &'a GenerationCheckpointWriter,
-    pub session: &'a Arc<GenerationTaskSession>,
-    pub metadata: GenerationCheckpointMetadata,
+pub(crate) struct LlmGenerationCheckpoint<'a> {
+    pub(crate) writer: &'a GenerationCheckpointWriter,
+    pub(crate) session: &'a Arc<GenerationTaskSession>,
+    pub(crate) metadata: GenerationCheckpointMetadata,
 }
 
-pub struct LlmGenerationRequest<'a> {
-    pub request: ChatRequest,
-    pub stream_id: String,
-    pub cancellation: CancellationToken,
-    pub checkpoint: Option<LlmGenerationCheckpoint<'a>>,
-    pub usage_base: Option<GenerationUsage>,
+pub(crate) struct LlmGenerationRequest<'a> {
+    pub(crate) request: ChatRequest,
+    pub(crate) stream_id: String,
+    pub(crate) cancellation: CancellationToken,
+    pub(crate) checkpoint: Option<LlmGenerationCheckpoint<'a>>,
+    pub(crate) usage_base: Option<GenerationUsage>,
 }
 
 #[derive(Clone)]
@@ -53,19 +53,18 @@ pub(crate) struct TaskLlmStreamContext {
 }
 
 #[derive(Debug, Clone)]
-pub struct LlmGenerationOutput {
-    pub content: String,
-    pub usage: Option<GenerationUsage>,
-    pub finish_reason: GenerationFinishReason,
-    pub chunk_count: u64,
-    pub content_sha256: String,
+pub(crate) struct LlmGenerationOutput {
+    pub(crate) content: String,
+    pub(crate) usage: Option<GenerationUsage>,
+    pub(crate) finish_reason: GenerationFinishReason,
+    pub(crate) content_sha256: String,
 }
 
 /// 工作流领域在尚未接入 generation session 时使用的 publisher。
 /// 仍走统一 stream driver（超时/截断/finish_reason）；有 session 的任务必须用
 /// `SessionGenerationEventPublisher`。
 #[derive(Default)]
-pub struct WorkflowStreamPublisher;
+struct WorkflowStreamPublisher;
 
 #[async_trait]
 impl GenerationEventPublisher for WorkflowStreamPublisher {
@@ -87,7 +86,7 @@ impl GenerationEventPublisher for WorkflowStreamPublisher {
 }
 
 /// 生产完整响应替代入口：真实 `chat_stream` + 统一超时/截断规则，返回 ChatResponse。
-pub async fn execute_llm_chat_response(
+pub(crate) async fn execute_llm_chat_response(
     llm: &dyn LlmProvider,
     request: ChatRequest,
     cancellation: CancellationToken,
@@ -172,7 +171,7 @@ fn map_generation_error_to_app(error: GenerationError) -> AppError {
     AppError::LlmError(error.message)
 }
 
-pub async fn execute_llm_generation(
+pub(crate) async fn execute_llm_generation(
     llm: &dyn LlmProvider,
     publisher: &dyn GenerationEventPublisher,
     input: LlmGenerationRequest<'_>,
@@ -227,7 +226,6 @@ pub async fn execute_llm_generation(
     let mut pending_text = String::new();
     let mut usage = None;
     let mut finish_reason = None;
-    let mut chunk_count = 0u64;
 
     loop {
         flush_full_batches(publisher, &stream_id, &mut pending_text).await?;
@@ -275,7 +273,6 @@ pub async fn execute_llm_generation(
                         content,
                         usage,
                         finish_reason,
-                        chunk_count,
                         content_sha256,
                     });
                 }
@@ -318,14 +315,6 @@ pub async fn execute_llm_generation(
                     }
                     content.push_str(delta);
                     pending_text.push_str(delta);
-                    chunk_count = chunk_count.checked_add(1).ok_or_else(|| {
-                        public_error(
-                            "generation_event_invalid",
-                            "模型 chunk 数量溢出",
-                            false,
-                            "provider_stream",
-                        )
-                    })?;
                     flush_deadline.get_or_insert(Instant::now() + BATCH_DELAY);
                 }
                 if let Some(chunk_usage) = chunk.usage {
@@ -571,16 +560,14 @@ fn map_finish_reason(reason: &str) -> Result<GenerationFinishReason, GenerationE
             "provider_stream",
         ));
     }
-    match reason {
-        "stop" => Ok(GenerationFinishReason::Stop),
-        "tool_calls" => Ok(GenerationFinishReason::ToolCallsComplete),
-        _ => Err(public_error(
+    super::generation_finish_reason_from_text(reason).ok_or_else(|| {
+        public_error(
             "provider_job_failed",
             "模型返回了不支持的 finish_reason",
             false,
             "provider_stream",
-        )),
-    }
+        )
+    })
 }
 
 fn session_error(error: super::events::GenerationSessionError) -> GenerationError {
@@ -637,10 +624,6 @@ mod tests {
             Ok(Box::pin(stream::iter(self.0.clone().into_iter().map(Ok))))
         }
 
-        async fn test_connection(&self) -> Result<bool, AppError> {
-            Ok(true)
-        }
-
         fn model_name(&self) -> &str {
             "fake"
         }
@@ -667,10 +650,6 @@ mod tests {
             Ok(Box::pin(stream::iter([Err(AppError::LlmError(
                 "上游在接收 128 bytes 后提前断流".to_string(),
             ))])))
-        }
-
-        async fn test_connection(&self) -> Result<bool, AppError> {
-            Ok(false)
         }
 
         fn model_name(&self) -> &str {

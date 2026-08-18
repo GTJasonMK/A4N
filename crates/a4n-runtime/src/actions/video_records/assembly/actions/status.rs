@@ -12,10 +12,9 @@ pub async fn update_assembly_push_status(
 ) -> Result<GeneratedVideoSummary, String> {
     let existing = state
         .orchestrator()
-        .generated_video_by_id(video_id)
+        .required_video_record(video_id)
         .await
-        .map_err(app_error_message)?
-        .ok_or_else(|| "视频不存在".to_string())?;
+        .map_err(app_error_message)?;
     access::verify_project_editor_string(state, user_id, existing.project_id).await?;
     let row = state
         .orchestrator()

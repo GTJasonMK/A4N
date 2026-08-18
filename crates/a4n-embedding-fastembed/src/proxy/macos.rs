@@ -9,46 +9,40 @@ pub(super) fn read_macos_system_proxy() -> Option<SystemProxy> {
         return None;
     }
     let text = String::from_utf8_lossy(&output.stdout);
-    let http_enabled = scutil_value(&text, "HTTPEnable").is_some_and(|value| value == "1");
-    let https_enabled = scutil_value(&text, "HTTPSEnable").is_some_and(|value| value == "1");
-    let socks_enabled = scutil_value(&text, "SOCKSEnable").is_some_and(|value| value == "1");
 
     Some(SystemProxy {
-        http_proxy: if http_enabled {
-            proxy_url(
-                "http",
-                &scutil_value(&text, "HTTPProxy").unwrap_or_default(),
-                scutil_value(&text, "HTTPPort")
-                    .and_then(|value| value.parse().ok())
-                    .unwrap_or(0),
-            )
-        } else {
-            None
-        },
-        https_proxy: if https_enabled {
-            proxy_url(
-                "http",
-                &scutil_value(&text, "HTTPSProxy").unwrap_or_default(),
-                scutil_value(&text, "HTTPSPort")
-                    .and_then(|value| value.parse().ok())
-                    .unwrap_or(0),
-            )
-        } else {
-            None
-        },
-        all_proxy: if socks_enabled {
-            proxy_url(
-                "socks5h",
-                &scutil_value(&text, "SOCKSProxy").unwrap_or_default(),
-                scutil_value(&text, "SOCKSPort")
-                    .and_then(|value| value.parse().ok())
-                    .unwrap_or(0),
-            )
-        } else {
-            None
-        },
+        http_proxy: scutil_proxy_url(&text, "HTTPEnable", "HTTPProxy", "HTTPPort", "http"),
+        https_proxy: scutil_proxy_url(
+            &text,
+            "HTTPSEnable",
+            "HTTPSProxy",
+            "HTTPSPort",
+            "http",
+        ),
+        all_proxy: scutil_proxy_url(
+            &text,
+            "SOCKSEnable",
+            "SOCKSProxy",
+            "SOCKSPort",
+            "socks5h",
+        ),
         no_proxy: None,
     })
+}
+
+fn scutil_proxy_url(
+    text: &str,
+    enabled_key: &str,
+    host_key: &str,
+    port_key: &str,
+    scheme: &str,
+) -> Option<String> {
+    if scutil_value(text, enabled_key).as_deref() != Some("1") {
+        return None;
+    }
+    let host = scutil_value(text, host_key)?;
+    let port = scutil_value(text, port_key)?.parse().ok()?;
+    proxy_url(scheme, &host, port)
 }
 
 fn scutil_value(text: &str, key: &str) -> Option<String> {

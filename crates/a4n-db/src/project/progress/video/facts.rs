@@ -2,7 +2,6 @@ use super::identity::{
     VideoSlotKey, current_video_prompt_rows, latest_video_rows, video_metadata_i64,
     video_slot_key_from_prompt, video_slot_key_from_video,
 };
-use super::{VIDEO_FRAME_PROMPT_TYPE, VIDEO_PROMPT_TYPE, VIDEO_SEGMENT_PLAN_PROMPT_TYPE};
 use crate::project::progress::ProjectProgressReadError;
 use crate::project::progress::shared::ProgressCounts;
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
@@ -30,15 +29,15 @@ pub(super) fn video_progress_facts_from_rows(
     for prompt in current_prompts {
         prompt_counts.add("chapter_video_prompt", prompt.id, &prompt.status)?;
         match prompt.prompt_type.as_str() {
-            VIDEO_PROMPT_TYPE => {
+            chapter_video_prompt::PROMPT_TYPE_VIDEO => {
                 video_prompt_total += 1;
                 prompt_id_statuses.insert(prompt.id, prompt.status.clone());
                 if let Some(slot) = video_slot_key_from_prompt(prompt) {
                     prompt_slot_statuses.insert(slot, prompt.status.clone());
                 }
             }
-            VIDEO_FRAME_PROMPT_TYPE => frame_prompt_total += 1,
-            VIDEO_SEGMENT_PLAN_PROMPT_TYPE => segment_plan_total += 1,
+            chapter_video_prompt::PROMPT_TYPE_FRAME => frame_prompt_total += 1,
+            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => segment_plan_total += 1,
             _ => {}
         }
     }
@@ -64,18 +63,18 @@ fn should_count_video_for_progress(
     prompt_slot_statuses: &BTreeMap<VideoSlotKey, String>,
     prompt_id_statuses: &BTreeMap<i64, String>,
 ) -> bool {
-    if video.status != "failed" {
+    if video.status != generated_video::STATUS_FAILED {
         return true;
     }
     if let Some(slot) = video_slot_key_from_video(video)
         && let Some(status) = prompt_slot_statuses.get(&slot)
     {
-        return status == "failed";
+        return status == chapter_video_prompt::STATUS_FAILED;
     }
     if let Some(prompt_id) = video_metadata_i64(video, "prompt_id")
         && let Some(status) = prompt_id_statuses.get(&prompt_id)
     {
-        return status == "failed";
+        return status == chapter_video_prompt::STATUS_FAILED;
     }
     true
 }

@@ -4,7 +4,6 @@ use a4n_capabilities::A4nCapabilities;
 use a4n_core::error::AppError;
 use a4n_rag_core::vector_store::VectorStore;
 
-mod outputs;
 mod trait_impl;
 mod transport;
 

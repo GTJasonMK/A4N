@@ -1,5 +1,6 @@
 //! 视频 provider 请求：参考图 ID、provider 媒体合同、提示词元数据纯规则（无 DB、无 Host）。
 
+use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
 
 use super::boundary_frame_numbers_for_prompt;
@@ -44,9 +45,9 @@ pub enum ProviderGenerationWorkflow {
 impl ProviderGenerationWorkflow {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::BoundaryFrames => "boundary_frames",
-            Self::FirstFrameChain => "first_frame_chain",
-            Self::Storyboard => "storyboard",
+            Self::BoundaryFrames => chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            Self::FirstFrameChain => chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+            Self::Storyboard => chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
             Self::Keyframes => "keyframes",
             Self::TextOnly => "text_only",
         }
@@ -83,11 +84,13 @@ pub fn required_prompt_source_prompt_type(
 }
 
 pub fn ensure_provider_generation_workflow(
-    prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    prompt: &chapter_video_prompt::Model,
 ) -> Result<(), String> {
     match prompt.workflow_mode.as_str() {
-        "boundary_frames" | "first_frame_chain" | "storyboard" => Ok(()),
-        "chat_video" => Err(format!(
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
+        | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
+        | chapter_video_prompt::WORKFLOW_MODE_STORYBOARD => Ok(()),
+        chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO => Err(format!(
             "视频提示词 #{} 属于 Chat 生视频模式，不使用应用内视频 provider 生成；请复制提示词到外部 Chat 工具生成后导入视频",
             prompt.id
         )),
@@ -99,7 +102,7 @@ pub fn ensure_provider_generation_workflow(
 }
 
 pub(crate) fn prompt_provider_workflow_for_recipe(
-    prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    prompt: &chapter_video_prompt::Model,
     recipe: &a4n_core::video_execution::VideoSegmentExecutionRecipeV1,
 ) -> Result<ProviderGenerationWorkflow, String> {
     ensure_provider_generation_workflow(prompt)?;
@@ -120,14 +123,24 @@ fn provider_generation_workflow_for_guidance(
     match guidance_mode {
         VideoSegmentGuidanceModeV1::None => Ok(ProviderGenerationWorkflow::TextOnly),
         VideoSegmentGuidanceModeV1::Keyframes => Ok(ProviderGenerationWorkflow::Keyframes),
-        VideoSegmentGuidanceModeV1::Continuity if workflow_mode != "first_frame_chain" => Err(
-            format!("视频提示词 #{prompt_id} 只有首帧续接方案可以使用 continuity 引导"),
-        ),
+        VideoSegmentGuidanceModeV1::Continuity
+            if workflow_mode != chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN =>
+        {
+            Err(format!(
+                "视频提示词 #{prompt_id} 只有首帧续接方案可以使用 continuity 引导"
+            ))
+        }
         VideoSegmentGuidanceModeV1::Continuity => Ok(ProviderGenerationWorkflow::FirstFrameChain),
         VideoSegmentGuidanceModeV1::SystemFrames => match workflow_mode {
-            "boundary_frames" => Ok(ProviderGenerationWorkflow::BoundaryFrames),
-            "first_frame_chain" => Ok(ProviderGenerationWorkflow::FirstFrameChain),
-            "storyboard" => Ok(ProviderGenerationWorkflow::Storyboard),
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => {
+                Ok(ProviderGenerationWorkflow::BoundaryFrames)
+            }
+            chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN => {
+                Ok(ProviderGenerationWorkflow::FirstFrameChain)
+            }
+            chapter_video_prompt::WORKFLOW_MODE_STORYBOARD => {
+                Ok(ProviderGenerationWorkflow::Storyboard)
+            }
             other => Err(format!(
                 "视频提示词 #{prompt_id} workflow_mode 无效: {other}"
             )),
@@ -338,7 +351,7 @@ pub fn ensure_newapi_first_frame_image_supported(image_url: Option<&str>) -> Res
         return Ok(());
     };
     match mime.as_str() {
-        "image/png" | "image/jpeg" | "image/jpg" => Ok(()),
+        "image/png" | "image/jpeg" => Ok(()),
         other => Err(format!(
             "New API 视频首帧 image 仅支持 PNG/JPEG data URL，当前首帧是 {other}；请先使用 PNG/JPEG 图片作为首帧。素材参考图、WebP/GIF 或参考板不能放进 New API 的首帧 image 字段"
         )),
@@ -412,7 +425,7 @@ pub fn cliproxy_prompt_length_violation_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::video::FRAME_SEGMENT_PLAN_PROMPT_TYPE;
+    use a4n_core::models::chapter::chapter_video_prompt;
 
     #[test]
     fn reference_ids_dedupe_and_order() {
@@ -494,7 +507,7 @@ mod tests {
     #[test]
     fn source_prompt_type_and_identity() {
         use serde_json::json;
-        let plan = FRAME_SEGMENT_PLAN_PROMPT_TYPE;
+        let plan = chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN;
         assert_eq!(
             required_prompt_source_prompt_type(1, Some(&json!({"source_prompt_type": plan})))
                 .unwrap(),

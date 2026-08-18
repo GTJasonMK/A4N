@@ -5,27 +5,31 @@ use a4n_llm::{
     context::chat_request_with_workflow_run_id, structured_stream::StructuredLlmProgress,
 };
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::{
     OrchestratorContext,
-    structured_llm::{ChatJsonStreamInput, stream_error_or_cancelled},
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
+    structured_llm::{
+        ChatJsonStreamInput, ensure_checkpoint_parsed_output_matches, stream_error_or_cancelled,
+    },
+    workflow::{
+        self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+        workflow_checkpoint_contract_app_error,
+    },
 };
 
 use super::{
+    OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_PROGRESS_TOTAL,
     contracts::{
         ChapterAnchorMode, OBJECT_DISCOVERY_FIELDS, OBJECT_DISCOVERY_LLM_SPAN,
-        OBJECT_DISCOVERY_PROGRESS_TOTAL, ObjectDiscoveryCallCheckpoint, ObjectDiscoveryCallResult,
-        ObjectDiscoveryInput, ObjectDiscoveryProgress, ObjectDiscoveryRequestContext,
-        ObjectDiscoveryRequestPreview, PrepareObjectDiscoveryRequestInput,
-        RequiredObjectDiscoveryInput,
+        ObjectDiscoveryCallResult, ObjectDiscoveryInput, ObjectDiscoveryProgress,
+        ObjectDiscoveryRequestContext, ObjectDiscoveryRequestPreview,
     },
     output::parse_and_validate_object_discovery_output,
     request::build_object_discovery_request,
     rules::{
-        OBJECT_DISCOVERY_CALL_KEY, object_discovery_call_fingerprint_json,
-        object_discovery_workflow_run_input, select_object_discovery_chapters,
+        object_discovery_call_fingerprint_json, object_discovery_workflow_run_input,
+        select_object_discovery_chapters,
     },
 };
 
@@ -35,16 +39,17 @@ impl OrchestratorContext {
         input: ObjectDiscoveryInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ObjectDiscoveryRequestPreview, AppError> {
-        let prepared = self
-            .prepare_object_discovery_request(PrepareObjectDiscoveryRequestInput {
+        validate_object_discovery_input(&input)?;
+        let (prepared, request) = self
+            .prepare_object_discovery_request(
                 input,
-                anchor_mode: ChapterAnchorMode::RequireExistingCurrent,
+                ChapterAnchorMode::RequireExistingCurrent,
                 prompt_renderer,
-            })
+            )
             .await?;
         Ok(ObjectDiscoveryRequestPreview {
             analyzed_chapter_count: prepared.chapters.len(),
-            request: prepared.request,
+            request,
         })
     }
 
@@ -55,20 +60,20 @@ impl OrchestratorContext {
         progress: Option<ObjectDiscoveryProgress<'_>>,
     ) -> Result<Value, AppError> {
         report_object_discovery_progress(progress, 0, "正在读取可分析章节和已有物体档案")?;
-        let required = required_object_discovery_input(&input)?;
-        let request_context = self
-            .prepare_object_discovery_request(PrepareObjectDiscoveryRequestInput {
+        validate_object_discovery_input(&input)?;
+        let (request_context, request) = self
+            .prepare_object_discovery_request(
                 input,
-                anchor_mode: ChapterAnchorMode::EnsureCurrent,
+                ChapterAnchorMode::EnsureCurrent,
                 prompt_renderer,
-            })
+            )
             .await?;
         let workflow_input = object_discovery_workflow_run_input(
-            required.project_id,
-            required.chapter_number,
+            input.project_id,
+            input.chapter_number,
             &request_context.chapters,
             &request_context.text_anchors,
-            &request_context.request,
+            &request,
             progress.and_then(|progress| progress.active_task_id),
         )
         .map_err(AppError::InvalidArgument)?;
@@ -77,9 +82,9 @@ impl OrchestratorContext {
             let call_result = self
                 .run_object_discovery_call(
                     workflow_run.id,
-                    required.project_id,
-                    required.chapter_number,
-                    &request_context.request,
+                    input.project_id,
+                    input.chapter_number,
+                    &request,
                     &request_context.chapters,
                     &request_context.text_anchors,
                     progress,
@@ -87,8 +92,8 @@ impl OrchestratorContext {
                 .await?;
             let result = self
                 .persist_discovered_object_profiles(
-                    required.project_id,
-                    required.chapter_number,
+                    input.project_id,
+                    input.chapter_number,
                     request_context,
                     call_result,
                     progress,
@@ -108,27 +113,34 @@ impl OrchestratorContext {
 
     async fn prepare_object_discovery_request(
         &self,
-        input: PrepareObjectDiscoveryRequestInput<'_>,
-    ) -> Result<ObjectDiscoveryRequestContext, AppError> {
-        let required = required_object_discovery_input(&input.input)?;
-        let available_chapters = self.character_sync_chapters(required.project_id).await?;
+        input: ObjectDiscoveryInput,
+        anchor_mode: ChapterAnchorMode,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<
+        (
+            ObjectDiscoveryRequestContext,
+            a4n_llm::provider::ChatRequest,
+        ),
+        AppError,
+    > {
+        let available_chapters = self.character_sync_chapters(input.project_id).await?;
         let chapters = select_object_discovery_chapters(
             available_chapters,
-            required.project_id,
-            required.chapter_number,
+            input.project_id,
+            input.chapter_number,
         )
         .map_err(AppError::InvalidArgument)?;
-        let existing_profiles = self.object_profiles_by_project(required.project_id).await?;
+        let existing_profiles = self.object_profiles_by_project(input.project_id).await?;
         let mut text_anchors = Vec::new();
         for chapter in &chapters {
-            let anchors = match input.anchor_mode {
+            let anchors = match anchor_mode {
                 ChapterAnchorMode::EnsureCurrent => {
-                    self.ensure_chapter_content_anchor_records(required.project_id, chapter.id)
+                    self.ensure_chapter_content_anchor_records(input.project_id, chapter.id)
                         .await?
                 }
                 ChapterAnchorMode::RequireExistingCurrent => {
                     self.require_current_chapter_content_anchors_for_preview(
-                        required.project_id,
+                        input.project_id,
                         chapter.id,
                     )
                     .await?
@@ -137,19 +149,21 @@ impl OrchestratorContext {
             text_anchors.extend(anchors);
         }
         let request = build_object_discovery_request(
-            input.prompt_renderer,
-            required.project_id,
-            required.chapter_number,
+            prompt_renderer,
+            input.project_id,
+            input.chapter_number,
             &chapters,
             &text_anchors,
             &existing_profiles,
         )
         .await?;
-        Ok(ObjectDiscoveryRequestContext {
-            chapters,
-            text_anchors,
+        Ok((
+            ObjectDiscoveryRequestContext {
+                chapters,
+                text_anchors,
+            },
             request,
-        })
+        ))
     }
 
     async fn run_object_discovery_call(
@@ -184,7 +198,11 @@ impl OrchestratorContext {
         }
 
         let (parsed_drafts, response_content) = if let Some(checkpoint) = self
-            .load_object_discovery_checkpoint(workflow_run_id, &call_fingerprint_json)
+            .load_completed_llm_call_checkpoint(
+                workflow_run_id,
+                OBJECT_DISCOVERY_CALL_KEY,
+                &call_fingerprint_json,
+            )
             .await?
         {
             report_object_discovery_progress(
@@ -199,11 +217,11 @@ impl OrchestratorContext {
                 text_anchors,
             )
             .map_err(AppError::InvalidArgument)?;
-            if parsed_output != checkpoint.parsed_output {
-                return Err(AppError::InvalidArgument(format!(
-                    "{OBJECT_DISCOVERY_CALL_KEY} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致"
-                )));
-            }
+            ensure_checkpoint_parsed_output_matches(
+                &checkpoint.parsed_output,
+                &parsed_output,
+                OBJECT_DISCOVERY_CALL_KEY,
+            )?;
             (parsed_drafts, checkpoint.response_content)
         } else {
             // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
@@ -219,7 +237,7 @@ impl OrchestratorContext {
                 .chat_json_stream_result_with_sink(
                     ChatJsonStreamInput {
                         request: llm_request.clone(),
-                        prompt_name: "object_discovery",
+                        prompt_name: super::OBJECT_DISCOVERY_KIND,
                         truncated_message: "物体档案发现输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色/档案发现”输出档位，或减少本次章节上下文后重试",
                         structured_progress: Some(StructuredLlmProgress {
                             spec: StructuredJsonProgressSpec {
@@ -260,14 +278,13 @@ impl OrchestratorContext {
                 call_key: OBJECT_DISCOVERY_CALL_KEY.to_string(),
                 call_order: 1,
                 input_fingerprint_json: call_fingerprint_json,
-                checkpoint_json: json!({
-                    "output": parsed_output.clone(),
-                    "parsed_output": parsed_output,
-                    "response_content": response_content.clone(),
-                    "usage": null,
-                    "finish_reason": null,
-                }),
-                artifacts_json: None,
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output,
+                    response_content: response_content.clone(),
+                    usage: None,
+                    finish_reason: None,
+                    artifacts_json: None,
+                },
             })
             .await?;
             (parsed_drafts, response_content)
@@ -280,50 +297,11 @@ impl OrchestratorContext {
             analyzed_chapters,
         })
     }
-
-    async fn load_object_discovery_checkpoint(
-        &self,
-        workflow_run_id: i64,
-        input_fingerprint_json: &Value,
-    ) -> Result<Option<ObjectDiscoveryCallCheckpoint>, AppError> {
-        let Some(checkpoint) = self
-            .load_completed_llm_call_checkpoint(
-                workflow_run_id,
-                OBJECT_DISCOVERY_CALL_KEY,
-                input_fingerprint_json,
-            )
-            .await?
-        else {
-            return Ok(None);
-        };
-        let checkpoint_json =
-            workflow::required_llm_call_checkpoint_json(checkpoint, OBJECT_DISCOVERY_CALL_KEY)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        let response_content = checkpoint_json
-            .get("response_content")
-            .and_then(Value::as_str)
-            .map(ToString::to_string)
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "{OBJECT_DISCOVERY_CALL_KEY}.response_content 必须是字符串"
-                ))
-            })?;
-        let parsed_output = checkpoint_json
-            .get("parsed_output")
-            .cloned()
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!("{OBJECT_DISCOVERY_CALL_KEY}.parsed_output 缺失"))
-            })?;
-        Ok(Some(ObjectDiscoveryCallCheckpoint {
-            response_content,
-            parsed_output,
-        }))
-    }
 }
 
-fn required_object_discovery_input(
+pub(super) fn validate_object_discovery_input(
     input: &ObjectDiscoveryInput,
-) -> Result<RequiredObjectDiscoveryInput, AppError> {
+) -> Result<(), AppError> {
     if input.project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
     }
@@ -335,10 +313,7 @@ fn required_object_discovery_input(
             "物体档案发现章节号必须大于 0".to_string(),
         ));
     }
-    Ok(RequiredObjectDiscoveryInput {
-        project_id: input.project_id,
-        chapter_number: input.chapter_number,
-    })
+    Ok(())
 }
 
 pub(super) fn report_object_discovery_progress(

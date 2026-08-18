@@ -28,7 +28,7 @@ where
         file_size: Set(None),
         source_video_id: Set(input.source_video_id),
         source_image_id: Set(input.source_image_id),
-        status: Set("running".to_string()),
+        status: Set(generated_video::STATUS_RUNNING.to_string()),
         provider_job_id: Set(input.provider_job_id),
         error_message: Set(None),
         metadata_json: Set(input.metadata_json),

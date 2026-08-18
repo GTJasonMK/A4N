@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
 
 pub const PROMPT_OUTPUT_LANGUAGE_METADATA_KEY: &str = "prompt_output_language";
@@ -8,23 +9,12 @@ pub const PROMPT_OUTPUT_LANGUAGE_EN: &str = "en";
 pub fn prompt_type_uses_prompt_output_language(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
-        "frame_prompt"
-            | "first_frame_prompt"
-            | "chat_video_frame_prompt"
-            | "storyboard_prompt"
-            | "video_prompt"
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_STORYBOARD
+            | chapter_video_prompt::PROMPT_TYPE_VIDEO
     )
-}
-
-pub fn prompt_output_language_code_from_metadata(metadata: Option<&Value>) -> &'static str {
-    match metadata
-        .and_then(|metadata| metadata.get(PROMPT_OUTPUT_LANGUAGE_METADATA_KEY))
-        .and_then(Value::as_str)
-        .map(str::trim)
-    {
-        Some(PROMPT_OUTPUT_LANGUAGE_EN) => PROMPT_OUTPUT_LANGUAGE_EN,
-        _ => PROMPT_OUTPUT_LANGUAGE_ZH_CN,
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,22 +24,26 @@ pub enum PromptOutputLanguage {
 }
 
 impl PromptOutputLanguage {
-    pub fn from_optional_code(code: Option<&str>) -> Result<Self, AppError> {
-        match code.map(str::trim).filter(|value| !value.is_empty()) {
-            None | Some(PROMPT_OUTPUT_LANGUAGE_ZH_CN) => Ok(Self::ZhCn),
-            Some(PROMPT_OUTPUT_LANGUAGE_EN) => Ok(Self::En),
-            Some(other) => Err(AppError::InvalidArgument(format!(
+    pub fn from_code(code: &str) -> Result<Self, AppError> {
+        match code {
+            PROMPT_OUTPUT_LANGUAGE_ZH_CN => Ok(Self::ZhCn),
+            PROMPT_OUTPUT_LANGUAGE_EN => Ok(Self::En),
+            other => Err(AppError::InvalidArgument(format!(
                 "prompt_output_language 无效：{other}；允许值：zh_cn/en"
             ))),
         }
     }
 
-    pub fn from_metadata(metadata: Option<&Value>) -> Self {
-        match prompt_output_language_code_from_metadata(metadata) {
-            PROMPT_OUTPUT_LANGUAGE_EN => Self::En,
-            PROMPT_OUTPUT_LANGUAGE_ZH_CN => Self::ZhCn,
-            _ => unreachable!("shared prompt language contract returned an unknown code"),
-        }
+    pub fn from_metadata(metadata: Option<&Value>) -> Result<Self, AppError> {
+        let code = metadata
+            .and_then(|metadata| metadata.get(PROMPT_OUTPUT_LANGUAGE_METADATA_KEY))
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                AppError::InvalidArgument(
+                    "prompt_output_language 缺失或不是字符串；允许值：zh_cn/en".to_string(),
+                )
+            })?;
+        Self::from_code(code)
     }
 
     pub fn as_str(self) -> &'static str {
@@ -152,7 +146,7 @@ pub fn metadata_matches_prompt_output_language(
     metadata: Option<&Value>,
     expected: PromptOutputLanguage,
 ) -> bool {
-    PromptOutputLanguage::from_metadata(metadata) == expected
+    PromptOutputLanguage::from_metadata(metadata).is_ok_and(|actual| actual == expected)
 }
 
 pub fn with_prompt_output_language_metadata(
@@ -201,20 +195,22 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn metadata_language_defaults_to_zh_cn_and_preserves_en() {
-        assert_eq!(prompt_output_language_code_from_metadata(None), "zh_cn");
+    fn prompt_output_language_requires_a_canonical_code() {
+        assert!(PromptOutputLanguage::from_metadata(None).is_err());
         assert_eq!(
-            prompt_output_language_code_from_metadata(Some(&json!({
+            PromptOutputLanguage::from_metadata(Some(&json!({
                 "prompt_output_language": "en"
-            }))),
-            "en"
+            })))
+            .unwrap(),
+            PromptOutputLanguage::En
         );
-        assert_eq!(
-            prompt_output_language_code_from_metadata(Some(&json!({
+        assert!(
+            PromptOutputLanguage::from_metadata(Some(&json!({
                 "prompt_output_language": "invalid"
-            }))),
-            "zh_cn"
+            })))
+            .is_err()
         );
+        assert!(PromptOutputLanguage::from_code(" en ").is_err());
     }
 
     #[test]

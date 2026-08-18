@@ -1,27 +1,24 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
+use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use a4n_llm::context::LlmContextManifest;
 use a4n_prompt::rendering::PromptRenderer;
 
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
+
 use super::{
     CompletedVideoLlmCheckpointInput, FailedVideoLlmCheckpointInput, NewChapterVideoPrompt,
     OrchestratorContext, PromptWorkflowMode, RenderedVideoPromptTrace, StructuredJsonProgressSpec,
     VideoPromptChunk, VideoPromptGenerationTrace, VideoPromptProgress, VideoPromptRenderInput,
-    VideoPromptStepProgress, build_video_prompt_request_with_call_trace, checkpoint_finish_reason,
-    checkpoint_response_content, checkpoint_usage, ensure_checkpoint_parsed_output,
-    load_completed_video_checkpoint, render_and_chat_trace_with_context,
-    report_video_prompt_progress, save_completed_video_llm_checkpoint,
-    save_failed_video_llm_checkpoint, video_llm_call_trace_context,
+    VideoPromptStepProgress, build_video_prompt_request_with_call_trace,
+    render_and_chat_trace_with_context, report_video_prompt_progress,
+    save_completed_video_llm_checkpoint, save_failed_video_llm_checkpoint,
+    video_llm_call_trace_context,
     video_llm_validation_error_with_diagnostic,
 };
-use crate::structured_llm::{
-    StructuredRepairCheckpointContext, StructuredValueRepairInput, parse_strict_json_response,
-};
-use crate::video::prompt_json::video_llm_output_schema;
 
 pub(super) fn attach_generation_trace_to_draft(
     drafts: Vec<NewChapterVideoPrompt>,
@@ -66,30 +63,74 @@ pub(super) fn video_prompt_generation_trace(
 }
 
 pub(super) async fn render_json_with_validation_with_context<T, F>(
-    input: VideoPromptRenderInput<'_, '_, '_, '_>,
-    repair_checkpoint: StructuredRepairCheckpointContext,
+    input: RenderOrRestoreJsonWithValidationInput<'_, '_, '_, '_>,
     parse_and_validate: F,
-) -> Result<(RenderedVideoPromptTrace, T, Value), AppError>
+) -> Result<(RenderedVideoPromptTrace, T), AppError>
 where
     F: Fn(&str) -> Result<T, AppError>,
 {
-    let service = input.service;
-    let cancel_token = input.cancel_token;
-    let trace = render_and_chat_trace_with_context(input).await?;
-    let parse_output = |value: &Value| parse_and_validate(&serde_json::to_string(value)?);
-    let repaired = service
-        .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
-            request: trace.request.clone(),
-            raw_response: &trace.response_text,
-            label: &trace.prompt_name,
-            schema: video_llm_output_schema(&trace.prompt_name)?,
-            checkpoint: Some(repair_checkpoint),
-            cancel_token,
-            progress: None,
-            parse_output: &parse_output,
-        })
-        .await?;
-    Ok((trace, repaired.output, repaired.final_value))
+    let RenderOrRestoreJsonWithValidationInput {
+        service,
+        workflow_run_id,
+        call_key,
+        call_order,
+        input_fingerprint_json,
+        prompt_renderer,
+        prompt_name,
+        project_id,
+        variables,
+        context_manifest,
+        temperature,
+        cancel_token,
+        step,
+        progress,
+        chunks,
+        structured_progress,
+        checkpoint_context: _,
+    } = input;
+    let trace = render_and_chat_trace_with_context(VideoPromptRenderInput {
+        service,
+        prompt_renderer,
+        prompt_name,
+        project_id,
+        variables,
+        context_manifest,
+        temperature,
+        llm_call_trace: video_llm_call_trace_context(
+            workflow_run_id,
+            &call_key,
+            &input_fingerprint_json,
+        )?,
+        cancel_token,
+        step,
+        progress,
+        chunks,
+        structured_progress,
+    })
+    .await?;
+    report_video_prompt_progress(progress, step.current, step.total, "正在校验结构化视频输出")?;
+    let parsed = match parse_and_validate(&trace.response_text) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            let diagnostic = save_failed_video_llm_checkpoint(
+                service,
+                FailedVideoLlmCheckpointInput {
+                    workflow_run_id,
+                    call_key,
+                    call_order,
+                    input_fingerprint_json,
+                    prompt_name,
+                    request: &trace.request,
+                    response_content: Some(trace.response_text.as_str()),
+                    error_message: err.to_string(),
+                    source: "llm_response_validation",
+                },
+            )
+            .await;
+            return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
+        }
+    };
+    Ok((trace, parsed))
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) struct RenderOrRestoreJsonWithValidationInput<
@@ -115,124 +156,6 @@ pub(in crate::video::prompt_generation::frame_prompts) struct RenderOrRestoreJso
     pub chunks: &'a mut Option<VideoPromptChunk<'chunk>>,
     pub structured_progress: Option<StructuredJsonProgressSpec>,
     pub checkpoint_context: &'a str,
-}
-
-pub(in crate::video::prompt_generation::frame_prompts) struct RawVideoJsonResult {
-    pub trace: RenderedVideoPromptTrace,
-    pub value: Value,
-    pub restored: bool,
-}
-
-pub(in crate::video::prompt_generation::frame_prompts) async fn render_or_restore_raw_video_json(
-    input: RenderOrRestoreJsonWithValidationInput<'_, '_, '_, '_>,
-) -> Result<RawVideoJsonResult, AppError> {
-    let RenderOrRestoreJsonWithValidationInput {
-        service,
-        workflow_run_id,
-        call_key,
-        call_order,
-        input_fingerprint_json,
-        prompt_renderer,
-        prompt_name,
-        project_id,
-        variables,
-        context_manifest,
-        temperature,
-        cancel_token,
-        step,
-        progress,
-        chunks,
-        structured_progress,
-        checkpoint_context,
-    } = input;
-    let llm_call_trace =
-        video_llm_call_trace_context(workflow_run_id, &call_key, &input_fingerprint_json)?;
-    if let Some(checkpoint) = load_completed_video_checkpoint(
-        service,
-        workflow_run_id,
-        &call_key,
-        &input_fingerprint_json,
-    )
-    .await?
-    {
-        let response_content =
-            checkpoint_response_content(&checkpoint, checkpoint_context)?.to_string();
-        let request = build_video_prompt_request_with_call_trace(
-            prompt_renderer,
-            prompt_name,
-            project_id,
-            variables,
-            context_manifest,
-            temperature,
-            llm_call_trace,
-        )
-        .await?;
-        let value = match checkpoint.get("structured_response") {
-            Some(value) => value.clone(),
-            None => parse_strict_json_response::<Value>(&response_content, checkpoint_context)?,
-        };
-        ensure_checkpoint_parsed_output(&checkpoint, &value, checkpoint_context)?;
-        report_video_prompt_progress(
-            progress,
-            step.current,
-            step.total,
-            &format!("{}（已复用调用级断点）", step.message),
-        )?;
-        return Ok(RawVideoJsonResult {
-            trace: RenderedVideoPromptTrace {
-                prompt_name: prompt_name.to_string(),
-                request,
-                response_text: response_content,
-                usage: checkpoint_usage(&checkpoint, checkpoint_context)?,
-                finish_reason: checkpoint_finish_reason(&checkpoint, checkpoint_context)?,
-            },
-            value,
-            restored: true,
-        });
-    }
-
-    let trace = render_and_chat_trace_with_context(VideoPromptRenderInput {
-        service,
-        prompt_renderer,
-        prompt_name,
-        project_id,
-        variables,
-        context_manifest,
-        temperature,
-        llm_call_trace,
-        cancel_token,
-        step,
-        progress,
-        chunks,
-        structured_progress,
-    })
-    .await?;
-    let value = match parse_strict_json_response::<Value>(&trace.response_text, prompt_name) {
-        Ok(value) => value,
-        Err(err) => {
-            let diagnostic = save_failed_video_llm_checkpoint(
-                service,
-                FailedVideoLlmCheckpointInput {
-                    workflow_run_id,
-                    call_key,
-                    call_order,
-                    input_fingerprint_json,
-                    prompt_name,
-                    request: &trace.request,
-                    response_content: Some(trace.response_text.as_str()),
-                    error_message: err.to_string(),
-                    source: "strict_json_validation",
-                },
-            )
-            .await;
-            return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
-        }
-    };
-    Ok(RawVideoJsonResult {
-        trace,
-        value,
-        restored: false,
-    })
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn render_or_restore_json_with_validation_with_context<
@@ -269,16 +192,15 @@ where
     } = input;
     let llm_call_trace =
         video_llm_call_trace_context(workflow_run_id, &call_key, &input_fingerprint_json)?;
-    if let Some(checkpoint) = load_completed_video_checkpoint(
-        service,
-        workflow_run_id,
-        &call_key,
-        &input_fingerprint_json,
-    )
-    .await?
+    if let Some(checkpoint) = service
+        .load_completed_llm_call_checkpoint(
+            workflow_run_id,
+            &call_key,
+            &input_fingerprint_json,
+        )
+        .await?
     {
-        let response_content =
-            checkpoint_response_content(&checkpoint, checkpoint_context)?.to_string();
+        let response_content = checkpoint.response_content.clone();
         let request = build_video_prompt_request_with_call_trace(
             prompt_renderer,
             prompt_name,
@@ -289,12 +211,7 @@ where
             llm_call_trace.clone(),
         )
         .await?;
-        let validation_content = checkpoint
-            .get("structured_response")
-            .map(serde_json::to_string)
-            .transpose()?
-            .unwrap_or_else(|| response_content.clone());
-        let parsed = match parse_and_validate(&validation_content) {
+        let parsed = match parse_and_validate(&response_content) {
             Ok(parsed) => parsed,
             Err(err) => {
                 let diagnostic = save_failed_video_llm_checkpoint(
@@ -316,9 +233,11 @@ where
             }
         };
         let parsed_output = checkpoint_parsed_output(&parsed)?;
-        if let Err(err) =
-            ensure_checkpoint_parsed_output(&checkpoint, &parsed_output, checkpoint_context)
-        {
+        if let Err(err) = ensure_checkpoint_parsed_output_matches(
+            &checkpoint.parsed_output,
+            &parsed_output,
+            checkpoint_context,
+        ) {
             let diagnostic = save_failed_video_llm_checkpoint(
                 service,
                 FailedVideoLlmCheckpointInput {
@@ -336,8 +255,14 @@ where
             .await;
             return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
         }
-        let usage = checkpoint_usage(&checkpoint, checkpoint_context)?;
-        let finish_reason = checkpoint_finish_reason(&checkpoint, checkpoint_context)?;
+        let usage = checkpoint
+            .usage
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(|err| {
+                AppError::InvalidArgument(format!("{checkpoint_context}.usage 解析失败: {err}"))
+            })?;
+        let finish_reason = checkpoint.finish_reason;
         report_video_prompt_progress(
             progress,
             step.current,
@@ -372,26 +297,9 @@ where
         structured_progress,
     })
     .await?;
-    let parse_output = |value: &Value| parse_and_validate(&serde_json::to_string(value)?);
     report_video_prompt_progress(progress, step.current, step.total, "正在校验结构化视频输出")?;
-    let repaired = service
-        .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
-            request: trace.request.clone(),
-            raw_response: &trace.response_text,
-            label: prompt_name,
-            schema: video_llm_output_schema(prompt_name)?,
-            checkpoint: Some(StructuredRepairCheckpointContext {
-                workflow_run_id,
-                base_call_key: call_key.clone(),
-                call_order,
-            }),
-            cancel_token,
-            progress: None,
-            parse_output: &parse_output,
-        })
-        .await;
-    let parsed = match repaired {
-        Ok(repaired) => repaired,
+    let parsed = match parse_and_validate(&trace.response_text) {
+        Ok(parsed) => parsed,
         Err(err) => {
             let diagnostic = save_failed_video_llm_checkpoint(
                 service,
@@ -411,7 +319,7 @@ where
             return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
         }
     };
-    let parsed_output = checkpoint_parsed_output(&parsed.output)?;
+    let parsed_output = checkpoint_parsed_output(&parsed)?;
     save_completed_video_llm_checkpoint(CompletedVideoLlmCheckpointInput {
         service,
         workflow_run_id,
@@ -420,13 +328,8 @@ where
         input_fingerprint_json,
         trace: &trace,
         parsed_output,
-        extra_json: json!({
-            "structured_response": parsed.final_value,
-        }),
-        artifacts_json: Some(json!({
-            "structured_repair": parsed.artifact_summary(),
-        })),
+        artifacts_json: None,
     })
     .await?;
-    Ok((trace, parsed.output))
+    Ok((trace, parsed))
 }

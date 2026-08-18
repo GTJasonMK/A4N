@@ -24,11 +24,14 @@ use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
+use crate::{
+    OrchestratorContext, generation::GeneratedMediaArtifactFile,
+    test_support::TestOrchestratorBuilder,
+};
 
 use super::{
     DecodedPortraitImage, GenerateMissingPortraitsInput, GeneratePortraitInput,
-    GeneratedPortraitImage, PersistPortraitFileInput, PersistedPortraitFile, PortraitArtifactFile,
+    GeneratedPortraitImage, PersistPortraitFileInput, PersistedPortraitFile,
     PortraitGenerationHostPort, PortraitImageProviderInput, PortraitType, UploadPortraitInput,
     image::generate_portrait_image,
 };
@@ -103,8 +106,8 @@ impl PortraitGenerationHostPort for TestPortraitHost {
         &self,
         _relative_path: &str,
         _label: &str,
-    ) -> Result<PortraitArtifactFile, AppError> {
-        Ok(PortraitArtifactFile {
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        Ok(GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "a".repeat(64),
             byte_size: 4,

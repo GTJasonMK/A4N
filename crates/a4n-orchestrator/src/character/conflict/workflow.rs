@@ -12,22 +12,17 @@ use crate::{
     workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING},
 };
 
+use super::CHARACTER_CONFLICT_KIND;
+
 pub(super) fn character_conflict_workflow_run_input(
     project_id: i64,
+    profile_id: i64,
     name: &str,
     chapter_scope: CharacterConflictChapterScope,
     call_key: &str,
     request: &ChatRequest,
     active_task_id: Option<&str>,
 ) -> Result<(UpsertWorkflowRunInput, Value), AppError> {
-    if project_id <= 0 {
-        return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
-    }
-    if call_key.trim().is_empty() {
-        return Err(AppError::InvalidArgument(
-            "角色冲突 call_key 不能为空".to_string(),
-        ));
-    }
     let fingerprint = character_conflict_workflow_fingerprint(
         project_id,
         name,
@@ -39,12 +34,12 @@ pub(super) fn character_conflict_workflow_run_input(
     Ok((
         UpsertWorkflowRunInput {
             business_key,
-            workflow_kind: "character_conflict_check".to_string(),
+            workflow_kind: CHARACTER_CONFLICT_KIND.to_string(),
             project_id: Some(project_id),
             root_project_id: None,
             source_snapshot_id: None,
             scope_table: Some("protagonist_profile".to_string()),
-            scope_id: None,
+            scope_id: Some(profile_id),
             chapter_id: None,
             mode: Some("check".to_string()),
             input_fingerprint_json: Some(fingerprint.clone()),

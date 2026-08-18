@@ -14,7 +14,16 @@ pub use contracts::{
     AppConfig, EmbeddingConfig, ImageGenConfig, LlmConfig, SecurityConfig, SystemConfig,
 };
 use defaults::*;
-pub use portable::{portable_home_dir, resolve_path_in_portable_home, resolve_portable_path};
+pub use portable::{
+    apply_storage_env_overrides, portable_home_dir, resolve_path_in_portable_home,
+    resolve_portable_path,
+};
+
+impl AppConfig {
+    pub fn embedding_models_dir(&self) -> std::path::PathBuf {
+        resolve_portable_path(self.cache_dir.join("embedding-models"))
+    }
+}
 
 #[cfg(test)]
 mod tests;

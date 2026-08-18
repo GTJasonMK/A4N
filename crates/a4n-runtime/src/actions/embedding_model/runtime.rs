@@ -1,27 +1,23 @@
 use super::{
     LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput,
-    provider::{cached_local_embedding_provider, fastembed_cache_dir_from_config},
+    provider::cached_local_embedding_provider,
 };
 use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
-#[derive(Clone)]
 pub struct LocalEmbeddingProviderRuntime {
     fastembed_cache_dir: PathBuf,
-    pub(super) providers: Arc<Mutex<HashMap<String, Arc<dyn EmbeddingProvider>>>>,
+    pub(super) providers:
+        Mutex<HashMap<(String, usize, usize, PathBuf), Arc<dyn EmbeddingProvider>>>,
 }
 
 impl LocalEmbeddingProviderRuntime {
     pub fn from_app_config(config: &a4n_core::config::app_config::AppConfig) -> Self {
-        Self::new(fastembed_cache_dir_from_config(config))
-    }
-
-    pub fn new(fastembed_cache_dir: PathBuf) -> Self {
         Self {
-            fastembed_cache_dir,
-            providers: Arc::new(Mutex::new(HashMap::new())),
+            fastembed_cache_dir: config.embedding_models_dir(),
+            providers: Mutex::new(HashMap::new()),
         }
     }
 
@@ -47,11 +43,6 @@ impl LocalEmbeddingProviderRuntime {
     ) -> Result<LocalEmbedTextsOutput, AppError> {
         let provider = cached_local_embedding_provider(self, &input.config).await?;
         let (embeddings, identity) = provider.embed_with_identity(input.texts).await?;
-        let identity = a4n_api_contract::embedding::EmbeddingModelIdentity {
-            backend: identity.backend,
-            model: identity.model,
-            dimension: identity.dimension,
-        };
         Ok(LocalEmbedTextsOutput {
             identity,
             embeddings,

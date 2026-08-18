@@ -1,8 +1,5 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_manga_prompt;
-use sea_orm::ConnectionTrait;
-
-use crate::generation::generation_error;
 
 use super::super::super::OrchestratorContext;
 use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
@@ -16,10 +13,11 @@ impl OrchestratorContext {
         trace: MangaPromptGenerationTrace,
     ) -> Result<(), AppError> {
         if self
-            .chapter_manga_prompt_generation_trace_exists(
-                self.database.connection(),
+            .generation_run_exists_for_target_output(
+                "chapter_manga_prompt",
                 row.id,
-                &trace,
+                &trace.prompt_name,
+                &trace.response_text,
             )
             .await?
         {
@@ -27,32 +25,10 @@ impl OrchestratorContext {
         }
         let MangaPageGenerationTraceRecord { run, checkpoint } =
             build_manga_page_generation_trace_record(row, trace)?;
-        a4n_db::generation::record_completed_run_with_checkpoint_transaction(
-            self.database.connection(),
+        self.record_completed_generation_run_with_checkpoint(
             a4n_db::generation::RecordCompletedGenerationRunWithCheckpointInput { run, checkpoint },
         )
-        .await
-        .map_err(generation_error)?;
+        .await?;
         Ok(())
-    }
-
-    async fn chapter_manga_prompt_generation_trace_exists<C>(
-        &self,
-        db: &C,
-        prompt_id: i64,
-        trace: &MangaPromptGenerationTrace,
-    ) -> Result<bool, AppError>
-    where
-        C: ConnectionTrait,
-    {
-        a4n_db::generation::generation_run_exists_for_target_output(
-            db,
-            "chapter_manga_prompt",
-            prompt_id,
-            &trace.prompt_name,
-            &trace.response_text,
-        )
-        .await
-        .map_err(generation_error)
     }
 }

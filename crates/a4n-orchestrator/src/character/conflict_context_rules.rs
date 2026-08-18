@@ -11,11 +11,10 @@ use a4n_core::{
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
-pub const MAX_CONFLICT_FALLBACK_CONTENT_CHARS: usize = 4_000;
 pub const MAX_CONFLICT_TOTAL_CONTEXT_CHARS: usize = 24_000;
 
 /// 角色一致性检查章节范围。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CharacterConflictChapterScope {
     pub start_chapter: Option<i32>,
     pub end_chapter: Option<i32>,
@@ -71,7 +70,7 @@ pub fn character_conflict_chapter_context(
     {
         object.insert("title".to_string(), json!(title));
     }
-    if let Some(summary) = chapter
+    let Some(summary) = chapter
         .analysis_data
         .as_ref()
         .and_then(summary_text)
@@ -83,21 +82,10 @@ pub fn character_conflict_chapter_context(
                 .filter(|summary| !summary.is_empty())
                 .map(ToOwned::to_owned)
         })
-    {
-        object.insert("summary".to_string(), json!(summary));
-    } else if !chapter.content.trim().is_empty() {
-        let content = chapter.content.trim();
-        let content_chars = content.chars().count();
-        if content_chars > MAX_CONFLICT_FALLBACK_CONTENT_CHARS {
-            return Err(AppError::InvalidArgument(format!(
-                "第 {} 章缺少结构化分析摘要和章节摘要，且正文长度 {} 字超过角色一致性检查兜底上限 {} 字；请先生成章节分析或补充章节摘要后重试",
-                chapter.chapter_number, content_chars, MAX_CONFLICT_FALLBACK_CONTENT_CHARS
-            )));
-        }
-        object.insert("content".to_string(), json!(content));
-    } else {
+    else {
         return Ok(None);
-    }
+    };
+    object.insert("summary".to_string(), json!(summary));
     if let Some(analysis) = chapter.analysis_data.as_ref() {
         let mut analysis_context = serde_json::Map::new();
         if let Some(key_events) = analysis.get("key_events") {
@@ -190,7 +178,7 @@ pub fn ensure_character_conflict_context_size(
     .count();
     if total_chars > MAX_CONFLICT_TOTAL_CONTEXT_CHARS {
         Err(AppError::InvalidArgument(format!(
-            "角色一致性检查全量上下文过大：当前 {} 字，超过上限 {} 字；请先生成章节分析或章节摘要以减少正文兜底，或改用更小范围的检查入口后重试",
+            "角色一致性检查全量上下文过大：当前 {} 字，超过上限 {} 字；请先生成章节分析或章节摘要以减少上下文，或改用更小范围的检查入口后重试",
             total_chars, MAX_CONFLICT_TOTAL_CONTEXT_CHARS
         )))
     } else {
@@ -237,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn chapter_context_prefers_summary_and_rejects_long_body() {
+    fn chapter_context_requires_summary_without_body_fallback() {
         let chapter = sample_chapter(Some("主角进入旧城。"), "完整正文不应重复塞入");
         let context = character_conflict_chapter_context(&chapter)
             .unwrap()
@@ -246,15 +234,14 @@ mod tests {
         assert_eq!(context["summary"], json!("主角进入旧城。"));
         assert!(context.get("content").is_none());
 
-        let content = "陈恪走进旧城，看见魏征站在雨里。";
-        let context = character_conflict_chapter_context(&sample_chapter(None, content))
+        assert!(
+            character_conflict_chapter_context(&sample_chapter(
+                None,
+                "陈恪走进旧城，看见魏征站在雨里。",
+            ))
             .unwrap()
-            .unwrap();
-        assert_eq!(context["content"], json!(content));
-
-        let long = content.repeat(MAX_CONFLICT_FALLBACK_CONTENT_CHARS / 10 + 10);
-        let err = character_conflict_chapter_context(&sample_chapter(None, &long)).unwrap_err();
-        assert!(err.to_string().contains("超过角色一致性检查兜底上限"));
+            .is_none()
+        );
     }
 
     #[test]
@@ -298,7 +285,10 @@ mod tests {
     fn chapter_scope_validates_range() {
         assert_eq!(
             CharacterConflictChapterScope::new(None, None).unwrap(),
-            CharacterConflictChapterScope::default()
+            CharacterConflictChapterScope {
+                start_chapter: None,
+                end_chapter: None,
+            }
         );
         assert_eq!(
             CharacterConflictChapterScope::new(Some(2), Some(5)).unwrap(),

@@ -2,11 +2,12 @@ use std::collections::HashSet;
 
 use a4n_db::canvas::VideoStudioProjectExportRows;
 use async_trait::async_trait;
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_domain::CanvasNodeRefKind;
 
 use super::{
-    ImportMediaPayload, MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_IMAGE,
-    MEDIA_OWNER_MEDIA_ASSET, MEDIA_OWNER_VIDEO, ProjectPackageFileHostPort,
-    VideoStudioMediaFileEntry, VideoStudioProjectPackage, required_path_extension,
+    ImportMediaPayload, ProjectPackageFileHostPort, VideoStudioMediaFileEntry,
+    VideoStudioProjectPackage, required_path_extension,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,9 +44,9 @@ pub(crate) fn video_studio_export_media_files(
         push_media_file(
             &mut entries,
             &mut seen_package_paths,
-            MEDIA_OWNER_IMAGE,
+            CanvasNodeRefKind::GeneratedImage.as_str(),
             image.id,
-            MEDIA_FIELD_FILE,
+            FILE_PATH_FIELD,
             "file",
             &image.file_path,
         )?;
@@ -54,7 +55,7 @@ pub(crate) fn video_studio_export_media_files(
         push_optional_media_files(
             &mut entries,
             &mut seen_package_paths,
-            MEDIA_OWNER_VIDEO,
+            CanvasNodeRefKind::GeneratedVideo.as_str(),
             video.id,
             video.file_path.as_deref(),
             video.thumbnail_path.as_deref(),
@@ -64,7 +65,7 @@ pub(crate) fn video_studio_export_media_files(
         push_optional_media_files(
             &mut entries,
             &mut seen_package_paths,
-            MEDIA_OWNER_MEDIA_ASSET,
+            CanvasNodeRefKind::MediaAsset.as_str(),
             asset.id,
             asset.file_path.as_deref(),
             asset.thumbnail_path.as_deref(),
@@ -82,8 +83,8 @@ fn push_optional_media_files(
     thumbnail_path: Option<&str>,
 ) -> Result<(), String> {
     for (field, package_field, path) in [
-        (MEDIA_FIELD_FILE, "file", file_path),
-        (MEDIA_FIELD_THUMBNAIL, "thumbnail", thumbnail_path),
+        (FILE_PATH_FIELD, "file", file_path),
+        (THUMBNAIL_PATH_FIELD, "thumbnail", thumbnail_path),
     ] {
         let Some(original_path) = path else {
             continue;

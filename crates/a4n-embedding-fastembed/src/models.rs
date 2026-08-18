@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use a4n_core::error::AppError;
+use a4n_domain::embedding::LocalEmbeddingModelSummary;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding};
 
 use crate::cache::{dir_size, model_cache_path, repo_folder_name, snapshot_with_required_files};
@@ -10,27 +11,18 @@ use crate::cache::{dir_size, model_cache_path, repo_folder_name, snapshot_with_r
 /// 设置页默认推荐的本地模型：中文检索质量和体积之间比较均衡。
 pub const DEFAULT_FASTEMBED_MODEL: &str = "BGESmallZHV15";
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct FastEmbedLocalModel {
-    pub name: String,
-    pub model_code: String,
-    pub description: String,
-    pub dimension: usize,
-    pub downloaded: bool,
-    pub size_bytes: u64,
-}
-
-#[derive(Debug)]
 pub(super) struct ResolvedModel {
     pub(super) name: String,
     pub(super) info: ModelInfo<EmbeddingModel>,
 }
 
-pub fn list_fastembed_local_models(cache_dir: &Path) -> Result<Vec<FastEmbedLocalModel>, AppError> {
-    let mut models = Vec::new();
-    for info in TextEmbedding::list_supported_models() {
-        models.push(model_status_from_info(info, cache_dir)?);
-    }
+pub fn list_fastembed_local_models(
+    cache_dir: &Path,
+) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
+    let mut models = TextEmbedding::list_supported_models()
+        .into_iter()
+        .map(|info| model_status_from_info(info, cache_dir))
+        .collect::<Result<Vec<_>, _>>()?;
     models.sort_by(|left, right| {
         right
             .downloaded
@@ -86,24 +78,15 @@ pub fn remove_incomplete_fastembed_model_caches(cache_dir: &Path) -> Result<Vec<
             continue;
         }
 
-        remove_path(&repo_path)?;
+        std::fs::remove_dir_all(&repo_path)?;
         let repo_name = repo_folder_name(&variants[0].model_code);
         let lock_path = cache_dir.join(".locks").join(&repo_name);
         if lock_path.exists() {
-            remove_path(&lock_path)?;
+            std::fs::remove_dir_all(&lock_path)?;
         }
         removed.push(repo_name);
     }
     Ok(removed)
-}
-
-fn remove_path(path: &Path) -> Result<(), AppError> {
-    if path.is_dir() {
-        std::fs::remove_dir_all(path)?;
-    } else {
-        std::fs::remove_file(path)?;
-    }
-    Ok(())
 }
 
 pub(super) fn resolve_model_info(model_name: &str) -> Result<ResolvedModel, AppError> {
@@ -156,7 +139,7 @@ pub(super) fn resolve_model_info(model_name: &str) -> Result<ResolvedModel, AppE
 pub(super) fn model_status_from_info(
     info: ModelInfo<EmbeddingModel>,
     cache_dir: &Path,
-) -> Result<FastEmbedLocalModel, AppError> {
+) -> Result<LocalEmbeddingModelSummary, AppError> {
     let cache_path = model_cache_path(&info, cache_dir);
     let downloaded = snapshot_with_required_files(&info, &cache_path)?.is_some();
     let size_bytes = if cache_path.exists() {
@@ -165,7 +148,7 @@ pub(super) fn model_status_from_info(
         0
     };
 
-    Ok(FastEmbedLocalModel {
+    Ok(LocalEmbeddingModelSummary {
         name: info.model.to_string(),
         model_code: info.model_code,
         description: info.description,
@@ -173,14 +156,4 @@ pub(super) fn model_status_from_info(
         downloaded,
         size_bytes,
     })
-}
-
-pub(super) fn model_cache_status(
-    model: &EmbeddingModel,
-    cache_dir: &Path,
-) -> Result<FastEmbedLocalModel, AppError> {
-    let info = TextEmbedding::get_model_info(model)
-        .map_err(|err| AppError::ConfigError(err.to_string()))?
-        .clone();
-    model_status_from_info(info, cache_dir)
 }

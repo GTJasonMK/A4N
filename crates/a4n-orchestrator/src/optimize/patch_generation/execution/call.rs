@@ -1,18 +1,25 @@
 mod checkpoint;
 mod contracts;
 mod preparation;
-mod repair;
 mod transport;
+
+use a4n_core::{
+    error::AppError,
+    models::{ai::optimization_session, chapter::chapter},
+};
 
 use crate::generation::generation_public_error;
 use crate::generation::stream::{generation_usage, publish_generation_usage};
-use crate::optimize::{AgentLoopExecutionError, OrchestratorContext};
+use crate::optimize::{
+    AgentLoopExecutionError, OptimizationPatchProposal, OrchestratorContext,
+    patch::parse_content_optimization_patch_response,
+    turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED},
+};
 
 use super::PatchGenerationCallResult;
 use checkpoint::restore_patch_generation_checkpoint;
 use contracts::PreparedPatchGenerationCall;
 use preparation::prepare_patch_generation_call;
-use repair::repair_patch_generation_response;
 use transport::call_patch_generation_llm;
 
 pub(super) use contracts::PatchGenerationCallInput;
@@ -71,7 +78,6 @@ pub(super) async fn execute_patch_generation_call(
         }
         (restored.response, restored.proposal, true)
     } else {
-        let repair_request = request.clone();
         let response = call_patch_generation_llm(
             service,
             session.id,
@@ -87,17 +93,13 @@ pub(super) async fn execute_patch_generation_call(
             },
         )
         .await?;
-        let proposal = repair_patch_generation_response(
+        let proposal = parse_patch_generation_response(
             service,
             session,
             chapter,
             turn_id,
             base_content_hash,
-            workflow_run_id,
-            &call_key,
-            repair_request,
             &response.message.content,
-            generation,
         )
         .await?;
         (response, proposal, false)
@@ -110,4 +112,37 @@ pub(super) async fn execute_patch_generation_call(
         call_key,
         input_fingerprint_json,
     })
+}
+
+async fn parse_patch_generation_response(
+    service: &OrchestratorContext,
+    session: &optimization_session::Model,
+    chapter: &chapter::Model,
+    turn_id: i64,
+    base_content_hash: &str,
+    raw_response: &str,
+) -> Result<OptimizationPatchProposal, AppError> {
+    let proposal = parse_content_optimization_patch_response(
+        session.id,
+        chapter.project_id,
+        chapter.id,
+        base_content_hash,
+        &chapter.content,
+        raw_response,
+    );
+    match proposal {
+        Ok(proposal) => Ok(proposal),
+        Err(err) => {
+            service
+                .append_turn_event(
+                    turn_id,
+                    EVENT_KIND_ERROR,
+                    EVENT_STATUS_FAILED,
+                    &format!("局部补丁校验失败：{err}"),
+                    None,
+                )
+                .await?;
+            Err(err)
+        }
+    }
 }

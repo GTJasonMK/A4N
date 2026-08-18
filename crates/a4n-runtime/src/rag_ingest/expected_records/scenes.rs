@@ -18,7 +18,7 @@ pub(super) async fn append_scene_records(
         .map_err(|e| e.to_string())?;
     let scene_names = scene_profiles
         .iter()
-        .map(|profile| (profile.id, profile.name.clone()))
+        .map(|profile| (profile.id, profile.name.as_str()))
         .collect::<HashMap<_, _>>();
     for profile in &scene_profiles {
         let record = scene_profile_rag_record(project_id, profile)?;
@@ -33,6 +33,7 @@ pub(super) async fn append_scene_records(
     for occurrence in &scene_occurrences {
         let scene_name = scene_names
             .get(&occurrence.scene_profile_id)
+            .copied()
             .ok_or_else(|| {
                 format!(
                     "场景出场 {} 找不到 scene_profile_id={} 对应场景，无法构造 RAG 预期记录",
@@ -51,6 +52,7 @@ pub(super) async fn append_scene_records(
     for transition in &scene_transitions {
         let to_scene_name = scene_names
             .get(&transition.to_scene_profile_id)
+            .copied()
             .ok_or_else(|| {
                 format!(
                     "场景位移 {} 找不到 to_scene_profile_id={} 对应场景，无法构造 RAG 预期记录",
@@ -61,13 +63,13 @@ pub(super) async fn append_scene_records(
             Some(profile_id) => Some(
                 scene_names
                     .get(&profile_id)
+                    .copied()
                     .ok_or_else(|| {
                         format!(
                             "场景位移 {} 找不到 from_scene_profile_id={} 对应场景，无法构造 RAG 预期记录",
                             transition.id, profile_id
                         )
-                    })?
-                    .as_str(),
+                    })?,
             ),
             None => None,
         };

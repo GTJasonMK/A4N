@@ -1,26 +1,33 @@
 use std::{io::Write, path::Path};
 
-use a4n_core::{error::AppError, files::paths::ProjectPaths, models::ai::image_gen_config};
+use a4n_core::{
+    error::AppError,
+    files::{create_unique_timestamped_file, paths::ProjectPaths},
+    media::image_mime_from_path,
+    models::ai::image_gen_config,
+};
 use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_orchestrator::{
     config::image_backend_supports_reference_images,
+    generation::GeneratedMediaArtifactFile,
     portrait::{
         DecodedPortraitImage, GeneratedPortraitImage, PersistPortraitFileInput,
-        PersistedPortraitFile, PortraitArtifactFile, PortraitGenerationHostPort,
-        PortraitImageProviderInput,
+        PersistedPortraitFile, PortraitGenerationHostPort, PortraitImageProviderInput,
     },
 };
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use async_trait::async_trait;
 use base64::Engine as _;
-use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     AppState,
-    actions::{image_generation::resolve_image_config, image_records::IMPORTED_IMAGE_MODEL},
+    actions::image_generation::resolve_image_config,
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::{canonicalize_data_file_path, persist_created_media_file},
+    file_utils::{
+        canonicalize_data_file_path, inspect_generated_media_file, persist_created_media_file,
+    },
 };
 
 pub(super) struct RuntimePortraitGenerationHostPort<'a> {
@@ -176,7 +183,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         Ok(DecodedPortraitImage {
             bytes: decoded.bytes,
             format: decoded.extension.to_string(),
-            model: IMPORTED_IMAGE_MODEL.to_string(),
+            model: EXTERNAL_IMPORT_MODEL.to_string(),
             width: decoded.width,
             height: decoded.height,
         })
@@ -193,15 +200,14 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         &self,
         relative_path: &str,
         label: &str,
-    ) -> Result<PortraitArtifactFile, AppError> {
-        let path = canonicalize_data_file_path(self.state.data_dir(), relative_path, label)
-            .map_err(host_error)?;
-        let bytes = std::fs::read(&path)?;
-        Ok(PortraitArtifactFile {
-            content_type: reference_image_mime(&path)?.to_string(),
-            sha256: format!("{:x}", Sha256::digest(&bytes)),
-            byte_size: bytes.len() as u64,
-        })
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        inspect_generated_media_file(
+            self.state.data_dir(),
+            relative_path,
+            label,
+            image_mime_from_path,
+        )
+        .map_err(host_error)
     }
 
     fn validate_portrait_file(&self, relative_path: &str, label: &str) -> Result<(), AppError> {
@@ -257,28 +263,12 @@ fn read_reference_image(
     let path =
         canonicalize_data_file_path(state.data_dir(), relative_path, label).map_err(host_error)?;
     let bytes = std::fs::read(&path)?;
-    let mime = reference_image_mime(&path)?;
+    let mime = image_mime_from_path(&path).map_err(AppError::InvalidArgument)?;
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(ImageReference {
         label: label.to_string(),
         data_uri: format!("data:{mime};base64,{encoded}"),
     })
-}
-
-fn reference_image_mime(path: &Path) -> Result<&'static str, AppError> {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default();
-    match extension.as_str() {
-        "png" => Ok("image/png"),
-        "jpg" | "jpeg" => Ok("image/jpeg"),
-        "webp" => Ok("image/webp"),
-        other => Err(AppError::InvalidArgument(format!(
-            "参考图格式不支持: {other}，仅支持 png/jpg/webp"
-        ))),
-    }
 }
 
 fn create_portrait_output(
@@ -289,30 +279,12 @@ fn create_portrait_output(
 ) -> Result<(std::path::PathBuf, std::fs::File), AppError> {
     let directory = ProjectPaths::new(data_dir, project_id).portraits_dir();
     std::fs::create_dir_all(&directory)?;
-    let timestamp = chrono::Utc::now().timestamp_micros();
-    for attempt in 0..20 {
-        let suffix = if attempt == 0 {
-            String::new()
-        } else {
-            format!("_{attempt}")
-        };
-        let path = directory.join(format!(
-            "portrait_{profile_id}_{timestamp}{suffix}.{format}"
-        ));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(file) => return Ok((path, file)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(AppError::Io(error)),
-        }
-    }
-    Err(AppError::InvalidState {
-        current: "portrait_file_name_collision".to_string(),
-        operation: "创建立绘文件".to_string(),
-    })
+    create_unique_timestamped_file(
+        &directory,
+        &format!("portrait_{profile_id}"),
+        format,
+    )
+    .map_err(AppError::Io)
 }
 
 fn host_error(message: String) -> AppError {

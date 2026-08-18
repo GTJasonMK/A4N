@@ -12,11 +12,11 @@ pub async fn delete_local_embedding_model(
     state: &AppState,
     input: EmbeddingModelInput,
 ) -> Result<(), AppError> {
-    let model = required_text(&input.model, "fastembed 模型名")?;
     if state.runtime_profile().uses_sidecars() {
+        let model = required_text(&input.model, "fastembed 模型名")?;
         return crate::sidecar_clients::delete_embedding_model(state.capabilities(), &model).await;
     }
-    delete_local_embedding_model_in_cache(&model, &state.default_fastembed_cache_dir())
+    delete_local_embedding_model_in_cache(&input.model, &state.embedding_models_dir())
 }
 
 pub fn delete_local_embedding_model_in_cache(

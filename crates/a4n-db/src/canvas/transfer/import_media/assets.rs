@@ -7,8 +7,9 @@ use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps,
     VideoStudioProjectImportMediaFileWriter,
 };
-use super::super::{MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_MEDIA_ASSET};
 use a4n_core::models::media::{media_asset, media_provenance};
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 pub(in crate::canvas::transfer) async fn import_video_studio_media_assets<C, Writer>(
@@ -35,9 +36,9 @@ where
             .media_file_writer
             .write_imported_media_file(
                 context.project_id,
-                MEDIA_OWNER_MEDIA_ASSET,
+                CanvasNodeRefKind::MediaAsset.as_str(),
                 asset.id,
-                MEDIA_FIELD_FILE,
+                FILE_PATH_FIELD,
                 folder,
                 "imported_package_media",
             )
@@ -46,9 +47,9 @@ where
             .media_file_writer
             .write_imported_media_file(
                 context.project_id,
-                MEDIA_OWNER_MEDIA_ASSET,
+                CanvasNodeRefKind::MediaAsset.as_str(),
                 asset.id,
-                MEDIA_FIELD_THUMBNAIL,
+                THUMBNAIL_PATH_FIELD,
                 folder,
                 "imported_package_media_thumbnail",
             )

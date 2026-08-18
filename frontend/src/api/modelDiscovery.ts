@@ -1,17 +1,21 @@
 import { usesLocalRuntimeSettings } from "../utils/runtimeMode";
+import { apiInvoke } from "./index";
+import type { HostApiCommand } from "./generated/host";
 export type {
   DiscoveredModel,
   ModelDiscoveryInput,
   ModelDiscoveryResult,
 } from "./generated/config";
 
-import type { ModelDiscoveryInput } from "./generated/config";
+import type { ModelDiscoveryInput, ModelDiscoveryResult } from "./generated/config";
 
 interface LocalRuntimeDiscoveryKeyOptions {
   systemConfigId: number;
   getSystemDefaultApiKey: () => string | null | undefined;
   getLocalConfigApiKey: (configId: number) => string | null | undefined;
 }
+
+export type ModelConfigScope = "server" | "local";
 
 interface ModelDiscoveryFieldOptions {
   provider: string;
@@ -21,7 +25,7 @@ interface ModelDiscoveryFieldOptions {
   configId?: number | null;
   hasApiKey: boolean;
   readonly: boolean;
-  scope: "server" | "local";
+  scope: ModelConfigScope;
 }
 
 export function buildModelDiscoveryField(options: ModelDiscoveryFieldOptions): {
@@ -55,11 +59,23 @@ export function buildModelDiscoveryField(options: ModelDiscoveryFieldOptions): {
   };
 }
 
-export function withLocalRuntimeDiscoveryKey(
+export function detectConfigModels(
+  command: HostApiCommand,
   input: ModelDiscoveryInput,
+  scope: ModelConfigScope,
+  options: LocalRuntimeDiscoveryKeyOptions,
+): Promise<ModelDiscoveryResult> {
+  return apiInvoke<ModelDiscoveryResult>(command, {
+    input: resolveModelDiscoveryInput(input, scope, options),
+  });
+}
+
+function resolveModelDiscoveryInput(
+  input: ModelDiscoveryInput,
+  scope: ModelConfigScope,
   options: LocalRuntimeDiscoveryKeyOptions,
 ): ModelDiscoveryInput {
-  if (input.api_key === null) return input;
+  if (scope === "server" || input.api_key === null) return input;
   const apiKey = input.api_key?.trim();
   const useLocalRuntime = usesLocalRuntimeSettings();
   if (useLocalRuntime && input.config_id === options.systemConfigId) {

@@ -1,4 +1,3 @@
-use super::super::SOURCE_MODE_DERIVED;
 use super::contracts::{
     ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError,
 };
@@ -27,9 +26,7 @@ pub(in crate::project::family_metadata) fn build_project_family_metadata(
             .get(&source_snapshot_id)
             .ok_or(ProjectFamilyMetadataReadError::SourceSnapshotMissing { source_snapshot_id })?;
         metadata.source_snapshot_created_at = Some(snapshot.created_at.to_string());
-        if query.source_mode == SOURCE_MODE_DERIVED {
-            metadata.derived_chapter_scope = Some(snapshot.chapter_scope_json.clone());
-        }
+        metadata.derived_chapter_scope = Some(snapshot.chapter_scope_json.clone());
     }
     Ok(metadata)
 }

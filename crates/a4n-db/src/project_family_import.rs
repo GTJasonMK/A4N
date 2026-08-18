@@ -24,7 +24,7 @@ use a4n_core::models::{
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, Set};
 use serde_json::Value;
 
 #[cfg(test)]

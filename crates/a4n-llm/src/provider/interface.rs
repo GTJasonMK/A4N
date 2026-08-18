@@ -10,7 +10,7 @@ use super::request::ChatRequest;
 /// LLM Provider trait
 ///
 /// 所有 LLM 后端必须实现此 trait。
-/// 提供流式聊天、连接测试和能力查询。
+/// 提供流式聊天和能力查询。
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     /// 流式聊天：发送消息列表，返回流式块
@@ -18,9 +18,6 @@ pub trait LlmProvider: Send + Sync {
         &self,
         request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError>;
-
-    /// 测试连接可用性
-    async fn test_connection(&self) -> Result<bool, AppError>;
 
     /// 获取模型名称
     fn model_name(&self) -> &str;

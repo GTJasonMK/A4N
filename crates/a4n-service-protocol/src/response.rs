@@ -4,7 +4,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::artifacts::ArtifactRef;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(bound(deserialize = "T: Deserialize<'de>"))]
+#[serde(
+    deny_unknown_fields,
+    bound(deserialize = "T: Deserialize<'de>")
+)]
 pub struct ServiceResponse<T> {
     pub status: ServiceStatus,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -15,27 +15,24 @@ use self::context::build_reverse_engineer_context;
 pub use contracts::ReverseEngineerRequestInput;
 use payload::{build_reverse_engineer_user_message, reverse_engineer_source_artifact};
 
+use super::IMPORT_REVERSE_WORKFLOW_KIND;
+
 pub async fn build_reverse_engineer_request(
     input: ReverseEngineerRequestInput<'_>,
 ) -> Result<ChatRequest, AppError> {
     let ReverseEngineerRequestInput {
         project_id,
-        prompt_name,
-        user_prefix,
+        target,
         content_sample,
         prompt_renderer,
         variables,
-        max_tokens_profile,
     } = input;
+    let prompt_name = target.prompt_name();
+    let max_tokens_profile = target.max_tokens_profile();
     let sys = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
-    let (manifest, fingerprint) = build_reverse_engineer_context(
-        prompt_name,
-        user_prefix,
-        content_sample,
-        max_tokens_profile,
-    )?;
+    let (manifest, fingerprint) = build_reverse_engineer_context(target, content_sample)?;
     Ok(context_aware_system_user_request(
         sys,
         manifest,
@@ -47,7 +44,7 @@ pub async fn build_reverse_engineer_request(
     .with_trace_context(LlmTraceContext {
         project_id: Some(project_id),
         root_project_id: None,
-        workflow: "import_reverse_engineer".to_string(),
+        workflow: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
         step_key: prompt_name.to_string(),
         generation_run_id: None,
         workflow_run_id: None,

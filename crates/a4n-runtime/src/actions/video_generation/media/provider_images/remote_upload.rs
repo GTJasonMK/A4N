@@ -1,7 +1,8 @@
 use super::probe::validate_provider_public_image_url;
 use crate::actions::video_generation::media::reference_images::remote_temp_upload_config;
 use a4n_api_contract::temp_media::{
-    TempMediaDeleteRequest, TempMediaUploadRequest, TempMediaUploadResponse,
+    TEMP_MEDIA_MAX_TTL_SECONDS, TempMediaDeleteRequest, TempMediaUploadRequest,
+    TempMediaUploadResponse,
 };
 use a4n_core::models::ai::generated_image;
 use a4n_orchestrator::video::truncate_error_body;
@@ -10,8 +11,6 @@ use base64::Engine as _;
 use chrono::{DateTime, Duration, Utc};
 use sha2::{Digest, Sha256};
 use std::path::Path;
-
-const REMOTE_TEMP_MEDIA_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RemoteTempMediaDeleteOutcome {
@@ -88,8 +87,8 @@ pub(super) async fn image_file_to_remote_temp_media_url(
         .and_then(|value| value.to_str())
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or("video-input.png")
-        .to_string();
+        .map(str::to_string)
+        .ok_or_else(|| format!("参考图片 #{} 路径缺少有效 UTF-8 文件名", image.id))?;
     let uploaded = media_bytes_to_remote_temp_media_url(
         owner_user_id,
         image.project_id,
@@ -122,10 +121,8 @@ pub(crate) async fn media_bytes_to_remote_temp_media_url(
     let payload = TempMediaUploadRequest {
         owner_user_id,
         project_id,
-        source_image_id: source_media_id,
-        source_media_kind: Some(source_media_kind.to_string()),
-        source_media_id: Some(source_media_id),
-        expires_in_seconds: REMOTE_TEMP_MEDIA_TTL_SECONDS,
+        source_media_kind: source_media_kind.to_string(),
+        source_media_id,
         file_name: file_name.to_string(),
         mime_type: mime.to_string(),
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
@@ -159,17 +156,13 @@ pub(crate) async fn media_bytes_to_remote_temp_media_url(
         &parsed,
         owner_user_id,
         project_id,
+        source_media_kind,
         source_media_id,
         mime,
         &sha256,
         bytes.len(),
         Utc::now(),
     )?;
-    if parsed.source_media_kind.as_deref() != Some(source_media_kind)
-        || parsed.source_media_id != Some(source_media_id)
-    {
-        return Err("远端临时媒体响应 source_media_kind/source_media_id 不匹配".to_string());
-    }
     tracing::info!(
         artifact_id = parsed.artifact_id.trim(),
         owner_user_id,
@@ -198,7 +191,8 @@ fn validate_remote_temp_media_response<'a>(
     response: &'a TempMediaUploadResponse,
     owner_user_id: i64,
     project_id: i64,
-    source_image_id: i64,
+    source_media_kind: &str,
+    source_media_id: i64,
     mime_type: &str,
     sha256: &str,
     byte_size: usize,
@@ -210,7 +204,8 @@ fn validate_remote_temp_media_response<'a>(
     }
     if response.owner_user_id != owner_user_id
         || response.project_id != project_id
-        || response.source_image_id != source_image_id
+        || response.source_media_kind != source_media_kind
+        || response.source_media_id != source_media_id
     {
         return Err("远端临时媒体响应 owner/project/source 不匹配".to_string());
     }
@@ -247,9 +242,9 @@ fn validate_remote_temp_media_response<'a>(
     if expires_at <= now {
         return Err("远端临时媒体响应 expires_at 必须晚于当前时间".to_string());
     }
-    if expires_at > now + Duration::seconds(REMOTE_TEMP_MEDIA_TTL_SECONDS) {
+    if expires_at > now + Duration::seconds(TEMP_MEDIA_MAX_TTL_SECONDS) {
         return Err(format!(
-            "远端临时媒体 TTL 不能超过 {REMOTE_TEMP_MEDIA_TTL_SECONDS} 秒"
+            "远端临时媒体 TTL 不能超过 {TEMP_MEDIA_MAX_TTL_SECONDS} 秒"
         ));
     }
     Ok((url, expires_at.timestamp_millis()))
@@ -270,9 +265,8 @@ mod tests {
             expires_at: "2026-07-23T11:59:59Z".into(),
             owner_user_id: 7,
             project_id: 11,
-            source_image_id: 13,
-            source_media_kind: None,
-            source_media_id: None,
+            source_media_kind: "generated_image".into(),
+            source_media_id: 13,
             content_type: "image/png".into(),
             sha256: "a".repeat(64),
             byte_size: 3,
@@ -289,6 +283,7 @@ mod tests {
                 &response(),
                 7,
                 11,
+                "generated_image",
                 13,
                 "image/png",
                 &"a".repeat(64),
@@ -305,6 +300,7 @@ mod tests {
                 &invalid,
                 7,
                 11,
+                "generated_image",
                 13,
                 "image/png",
                 &"a".repeat(64),
@@ -320,6 +316,7 @@ mod tests {
                 &invalid,
                 7,
                 11,
+                "generated_image",
                 13,
                 "image/png",
                 &"a".repeat(64),
@@ -340,6 +337,7 @@ mod tests {
                 &response,
                 7,
                 11,
+                "generated_image",
                 13,
                 "image/png",
                 &"a".repeat(64),

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
@@ -146,7 +145,6 @@ pub struct OrchestratorContext {
     workflow: WorkflowApplication,
     capabilities: A4nCapabilities,
     service_manager: Arc<ServiceManager>,
-    service_pid_dir: Option<PathBuf>,
 
     /// 应用配置（含 data_dir）；仅 context 子树与用途方法可访问。
     config: a4n_core::config::app_config::AppConfig,

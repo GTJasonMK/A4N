@@ -44,35 +44,25 @@ BEGIN
     IF NEW.project_kind NOT IN ('text','comic','video','galgame') THEN
         RAISE EXCEPTION 'novel_project.project_kind 无效';
     END IF;
-    IF NEW.source_mode NOT IN ('self','derived','freeform') THEN
-        RAISE EXCEPTION 'novel_project.source_mode 无效';
-    END IF;
-    IF NEW.source_mode = 'self' AND NEW.project_kind <> 'text' THEN
-        RAISE EXCEPTION 'self 项目必须是文本项目';
-    END IF;
-    IF NEW.source_mode = 'derived' AND NEW.project_kind = 'text' THEN
-        RAISE EXCEPTION 'derived 项目不能是文本项目';
-    END IF;
-    IF NEW.source_mode = 'freeform' AND NEW.project_kind <> 'video' THEN
-        RAISE EXCEPTION 'freeform 项目当前只支持视频项目';
-    END IF;
-    IF NEW.source_mode IN ('self','freeform') AND (
-        NEW.root_project_id IS NOT NULL
-        OR NEW.source_snapshot_id IS NOT NULL
+    IF NOT (
+        (NEW.project_kind = 'text'
+            AND NEW.root_project_id IS NULL
+            AND NEW.source_snapshot_id IS NULL)
+        OR (NEW.project_kind = 'video'
+            AND NEW.root_project_id IS NULL
+            AND NEW.source_snapshot_id IS NULL)
+        OR (NEW.project_kind IN ('comic','video','galgame')
+            AND NEW.root_project_id IS NOT NULL
+            AND NEW.source_snapshot_id IS NOT NULL)
     ) THEN
-        RAISE EXCEPTION 'self/freeform 项目不能绑定派生项目字段';
+        RAISE EXCEPTION 'novel_project 项目来源身份无效';
     END IF;
-    IF NEW.source_mode = 'derived' AND (
-        NEW.root_project_id IS NULL
-        OR NEW.source_snapshot_id IS NULL
-    ) THEN
-        RAISE EXCEPTION '派生项目必须绑定根项目和源快照';
-    END IF;
-    IF NEW.source_mode = 'derived' AND NOT EXISTS (
+    IF NEW.root_project_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM novel_project root
         WHERE root.id = NEW.root_project_id
           AND root.project_kind = 'text'
-          AND root.source_mode = 'self'
+          AND root.root_project_id IS NULL
+          AND root.source_snapshot_id IS NULL
     ) THEN
         RAISE EXCEPTION '派生项目 root_project_id 必须指向文本项目';
     END IF;
@@ -96,7 +86,7 @@ FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
 
 pub(crate) const NOVEL_PROJECT_FAMILY_UPDATE_TRIGGER_SQL: &str = r#"
 CREATE TRIGGER trg_novel_project_family_update
-BEFORE UPDATE OF project_kind, source_mode, root_project_id, source_snapshot_id ON novel_project
+BEFORE UPDATE OF project_kind, root_project_id, source_snapshot_id ON novel_project
 FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
 "#;
 

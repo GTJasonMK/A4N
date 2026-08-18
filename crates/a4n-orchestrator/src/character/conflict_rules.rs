@@ -5,9 +5,12 @@ use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
-use crate::generation::generation_checkpoint_fingerprint_sha256;
+use crate::{
+    character::conflict::CHARACTER_CONFLICT_KIND,
+    generation::generation_checkpoint_fingerprint_sha256,
+};
 
-pub fn character_conflict_workflow_fingerprint(
+pub(in crate::character) fn character_conflict_workflow_fingerprint(
     project_id: i64,
     name: &str,
     start_chapter: Option<i32>,
@@ -15,7 +18,7 @@ pub fn character_conflict_workflow_fingerprint(
     request: &ChatRequest,
 ) -> Result<Value, AppError> {
     Ok(json!({
-        "workflow": "character_conflict_check",
+        "workflow": CHARACTER_CONFLICT_KIND,
         "schema_version": "character_conflict_workflow_v1",
         "project_id": project_id,
         "character_name": name,
@@ -27,21 +30,23 @@ pub fn character_conflict_workflow_fingerprint(
     }))
 }
 
-pub fn character_conflict_business_key(fingerprint: &Value) -> Result<String, AppError> {
+pub(in crate::character) fn character_conflict_business_key(
+    fingerprint: &Value,
+) -> Result<String, AppError> {
     Ok(format!(
-        "character_conflict_check:{}",
+        "{CHARACTER_CONFLICT_KIND}:{}",
         generation_checkpoint_fingerprint_sha256(fingerprint)?
     ))
 }
 
-pub fn character_conflict_call_fingerprint_json(
+pub(in crate::character) fn character_conflict_call_fingerprint_json(
     call_key: &str,
     workflow_fingerprint: &Value,
     request: &ChatRequest,
 ) -> Result<Value, AppError> {
     Ok(json!({
         "schema_version": "character_conflict_call_v1",
-        "workflow": "character_conflict_check",
+        "workflow": CHARACTER_CONFLICT_KIND,
         "call_key": call_key,
         "workflow_fingerprint": workflow_fingerprint,
         "request": context_aware_chat_request_trace_json(request)?,

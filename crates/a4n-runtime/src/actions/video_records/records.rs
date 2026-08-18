@@ -3,7 +3,6 @@ use crate::actions::access;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
 use a4n_api_contract::video::{SelectSegmentVideoInput, UpdateGeneratedVideoInput};
-use a4n_core::models::ai::generated_video;
 
 pub async fn list_videos_by_chapter(
     state: &AppState,
@@ -26,7 +25,11 @@ pub async fn update_video(
     video_id: i64,
     input: UpdateGeneratedVideoInput,
 ) -> Result<GeneratedVideoSummary, String> {
-    let existing = required_generated_video(state.orchestrator(), video_id).await?;
+    let existing = state
+        .orchestrator()
+        .required_video_record(video_id)
+        .await
+        .map_err(app_error_message)?;
     access::verify_project_editor_string(state, user_id, existing.project_id).await?;
     let row = state
         .orchestrator()
@@ -60,15 +63,4 @@ pub async fn select_segment_video(
         .await
         .map_err(app_error_message)?;
     Ok(video_to_summary(&row))
-}
-
-pub(super) async fn required_generated_video(
-    video: &a4n_orchestrator::OrchestratorContext,
-    video_id: i64,
-) -> Result<generated_video::Model, String> {
-    video
-        .generated_video_by_id(video_id)
-        .await
-        .map_err(app_error_message)?
-        .ok_or_else(|| "视频不存在".to_string())
 }

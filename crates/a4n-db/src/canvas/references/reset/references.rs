@@ -1,6 +1,5 @@
 use super::super::config::{
-    IMAGE_REF_CONFIG_KEY, VIDEO_REF_CONFIG_KEY, config_contains_any_i64, config_contains_i64,
-    validate_positive_id,
+    IMAGE_REF_CONFIG_KEY, VIDEO_REF_CONFIG_KEY, config_id_in, validate_positive_id,
 };
 use crate::canvas::CanvasDbError;
 use a4n_core::models::canvas::{canvas_graph, canvas_node};
@@ -40,7 +39,7 @@ where
 pub fn canvas_node_references_generated_video(node: &canvas_node::Model, video_id: i64) -> bool {
     (node.ref_type.as_deref() == Some(CanvasNodeRefKind::GeneratedVideo.as_str())
         && node.ref_id == Some(video_id))
-        || config_contains_i64(&node.config_json, VIDEO_REF_CONFIG_KEY, video_id)
+        || config_id_in(&node.config_json, VIDEO_REF_CONFIG_KEY, &[video_id]).is_some()
 }
 
 pub fn canvas_node_references_generated_image(
@@ -49,5 +48,5 @@ pub fn canvas_node_references_generated_image(
 ) -> bool {
     (node.ref_type.as_deref() == Some(CanvasNodeRefKind::GeneratedImage.as_str())
         && node.ref_id.is_some_and(|id| image_ids.contains(&id)))
-        || config_contains_any_i64(&node.config_json, IMAGE_REF_CONFIG_KEY, image_ids)
+        || config_id_in(&node.config_json, IMAGE_REF_CONFIG_KEY, image_ids).is_some()
 }

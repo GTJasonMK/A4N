@@ -34,7 +34,10 @@ async fn frame_image_generation_allows_prompt_with_later_video_prompt() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     service
-        .ensure_frame_prompt_image_generation_allowed(frame.id, "video_boundary_frame_prompt")
+        .ensure_frame_prompt_image_generation_allowed(
+            frame.id,
+            IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        )
         .await
         .expect("later video prompts must not block frame image generation");
 }
@@ -64,7 +67,7 @@ async fn frame_image_generation_rejects_prompt_with_generated_frame_image() {
         Some(chapter.id),
         Some(json!({
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": frame.id
             }
         })),
@@ -73,7 +76,10 @@ async fn frame_image_generation_rejects_prompt_with_generated_frame_image() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .ensure_frame_prompt_image_generation_allowed(frame.id, "video_boundary_frame_prompt")
+        .ensure_frame_prompt_image_generation_allowed(
+            frame.id,
+            IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        )
         .await
         .expect_err("generated frame image must block duplicate frame image generation");
 
@@ -108,7 +114,10 @@ async fn frame_image_generation_rejects_mismatched_generation_source() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .ensure_frame_prompt_image_generation_allowed(first_frame.id, "video_boundary_frame_prompt")
+        .ensure_frame_prompt_image_generation_allowed(
+            first_frame.id,
+            IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        )
         .await
         .expect_err("source must match prompt type");
 
@@ -163,7 +172,7 @@ async fn boundary_frame_generation_references_previous_frame_image_first() {
         Some(chapter.id),
         Some(json!({
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": first_frame.id
             }
         })),
@@ -175,7 +184,7 @@ async fn boundary_frame_generation_references_previous_frame_image_first() {
     let ids = service
         .effective_frame_prompt_image_reference_ids(
             second_frame.id,
-            "video_boundary_frame_prompt",
+            IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
             &[material_image.id],
         )
         .await
@@ -227,7 +236,7 @@ async fn boundary_frame_generation_rejects_missing_previous_frame_image() {
     let err = service
         .effective_frame_prompt_image_reference_ids(
             second_frame.id,
-            "video_boundary_frame_prompt",
+            IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
             &[],
         )
         .await

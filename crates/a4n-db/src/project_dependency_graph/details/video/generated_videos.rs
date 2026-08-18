@@ -7,6 +7,7 @@ use a4n_core::{
     error::AppError,
     models::{ai::generated_video, chapter::chapter_video_prompt},
 };
+use a4n_domain::GeneratedMediaReference;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::BTreeMap;
 
@@ -20,7 +21,9 @@ where
 {
     let prompts = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(chapter_video_prompt::Column::PromptType.eq("video_prompt"))
+        .filter(
+            chapter_video_prompt::Column::PromptType.eq(chapter_video_prompt::PROMPT_TYPE_VIDEO),
+        )
         .all(db)
         .await
         .map_err(AppError::Database)?;
@@ -74,7 +77,7 @@ where
             let mut media_sources = Vec::new();
             if let Some(id) = video.source_image_id {
                 media_sources.push(lineage_ref(
-                    &format!("generated_image:{id}"),
+                    &GeneratedMediaReference::Image(id).to_string(),
                     "源图片",
                     "image",
                     "generated_image",
@@ -83,7 +86,7 @@ where
             }
             if let Some(id) = video.source_video_id {
                 media_sources.push(lineage_ref(
-                    &format!("generated_video:{id}"),
+                    &GeneratedMediaReference::Video(id).to_string(),
                     "源视频",
                     "video",
                     "generated_video",
@@ -97,7 +100,7 @@ where
             let input_complete =
                 prompt.is_some() || !media_sources.is_empty() || request_snapshot.is_some();
             AssetLineageRecord {
-                id: format!("generated_video:{}", video.id),
+                id: GeneratedMediaReference::Video(video.id).to_string(),
                 label: format!("生成视频 #{}", video.id),
                 asset_kind: "generated_video".to_string(),
                 asset_id: Some(video.id),

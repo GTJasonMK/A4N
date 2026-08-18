@@ -3,7 +3,28 @@ mod graph;
 mod media;
 mod provenance;
 
-use super::*;
+use std::collections::HashMap;
+
+use a4n_core::models::{
+    ai::generated_video,
+    canvas::{canvas_edge, canvas_graph, canvas_node},
+    generation::generation_spec,
+    media::{media_asset, media_provenance},
+    project::novel_project,
+    video_project::assembly_timeline,
+};
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::CanvasNodeRefKind;
+
+use crate::media::MEDIA_STATUS_COMPLETED;
+use crate::project::{PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT, sha256_bytes};
+use crate::project::video_studio_package::{
+    ImportMediaPayload, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry,
+    VideoStudioProjectPackage, media_file_key,
+};
+
+use super::{validate_media_entry_bytes, validate_package_manifest};
 
 fn now() -> chrono::NaiveDateTime {
     chrono::Utc::now().naive_utc()
@@ -17,7 +38,6 @@ fn freeform_project() -> novel_project::Model {
         description: String::new(),
         project_type: "script".to_string(),
         project_kind: PROJECT_KIND_VIDEO.to_string(),
-        source_mode: SOURCE_MODE_FREEFORM.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
         source_sync_status: SOURCE_SYNC_CURRENT.to_string(),
@@ -66,8 +86,8 @@ fn video_with_file() -> generated_video::Model {
         id: 10,
         project_id: 1,
         chapter_id: None,
-        video_type: "canvas_video".to_string(),
-        workflow_mode: Some("canvas_video".to_string()),
+        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+        workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
         file_path: Some("projects/1/videos/video.mp4".to_string()),
         thumbnail_path: Some("projects/1/videos/video.jpg".to_string()),
         prompt: "prompt".to_string(),
@@ -249,7 +269,7 @@ fn generation_spec_with_target(
         id: 50,
         project_id: 1,
         root_project_id: 1,
-        source_context_kind: Some(SOURCE_MODE_FREEFORM.to_string()),
+        source_context_kind: Some(generation_spec::SOURCE_CONTEXT_FREEFORM.to_string()),
         source_snapshot_id: None,
         source_chapter_id: None,
         source_snapshot_chapter_id: None,

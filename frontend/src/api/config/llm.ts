@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import {
-  withLocalRuntimeDiscoveryKey,
+  detectConfigModels,
+  type ModelConfigScope,
   type ModelDiscoveryInput,
   type ModelDiscoveryResult,
 } from "../modelDiscovery";
@@ -32,7 +33,9 @@ import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 import {
   mergeLocalRuntimeConfigs,
   providerConfigIdOrSystem,
+  requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
+  systemDefaultProviderConfig,
 } from "./shared";
 
 export const SYSTEM_LLM_CONFIG_ID = -1;
@@ -51,23 +54,21 @@ function isSystemDefaultLlmConfigId(configId: Id): boolean {
 function systemDefaultLlmConfig(
   configs: LlmConfigSummary[],
 ): LlmConfigSummary | null {
-  const config = configs.find((item) => item.is_default) ?? null;
-  if (!config) return null;
-  return {
-    ...config,
-    id: SYSTEM_LLM_CONFIG_ID,
-    name: `系统默认：${config.name}`,
-    has_api_key: hasSystemDefaultLlmApiKey(),
-    is_default: usesSystemDefaultLlmConfig(),
-  };
+  return systemDefaultProviderConfig(
+    configs,
+    SYSTEM_LLM_CONFIG_ID,
+    hasSystemDefaultLlmApiKey(),
+    usesSystemDefaultLlmConfig(),
+  );
 }
 
 function requiredSystemDefaultLlmConfig(
   configs: LlmConfigSummary[],
 ): LlmConfigSummary {
-  const config = systemDefaultLlmConfig(configs);
-  if (!config) throw new Error("服务器尚未配置系统默认 LLM 模板");
-  return config;
+  return requireSystemDefaultProviderConfig(
+    systemDefaultLlmConfig(configs),
+    "服务器尚未配置系统默认 LLM 模板",
+  );
 }
 
 function systemDefaultRuntimeLlmConfig(
@@ -185,76 +186,58 @@ export async function deleteLlmConfig(configId: Id): Promise<void> {
   return deleteServerLlmConfig(configId);
 }
 
-export async function testServerLlmConfig(configId: Id): Promise<void> {
-  return apiInvoke<void>("test_llm_config", {
-    configId: llmConfigId(configId),
-    runtime_config_snapshot: null,
-  });
-}
-
-export async function testLlmConfig(configId: Id): Promise<void> {
-  if (isSystemDefaultLlmConfigId(configId)) {
-    const llm = await loadSystemDefaultRuntimeLlmConfig();
-    return apiInvoke<void>("test_llm_config", {
-      configId: SYSTEM_LLM_CONFIG_ID,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot({ llm }),
-    });
-  }
-  if (usesLocalRuntimeSettings()) {
-    const id = llmConfigId(configId);
-    return apiInvoke<void>("test_llm_config", {
-      configId: id,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot({
-        llm: getLocalLlmConfig(id),
-      }),
-    });
-  }
-  return testServerLlmConfig(configId);
-}
-
-export async function previewServerTestLlmConfigRequest(
+async function resolveLlmConnectivityTarget(
   configId: Id,
-): Promise<ModelRequestPreview> {
-  return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
-    configId: llmConfigId(configId),
-    runtime_config_snapshot: null,
+  scope: ModelConfigScope,
+  requireApiKey: boolean,
+): Promise<{ configId: number; config: LlmConfigSummary | null }> {
+  if (scope === "server") {
+    return { configId: llmConfigId(configId), config: null };
+  }
+  if (isSystemDefaultLlmConfigId(configId)) {
+    return {
+      configId: SYSTEM_LLM_CONFIG_ID,
+      config: await loadSystemDefaultRuntimeLlmConfig({ requireApiKey }),
+    };
+  }
+  const id = llmConfigId(configId);
+  return {
+    configId: id,
+    config: usesLocalRuntimeSettings() ? getLocalLlmConfig(id) : null,
+  };
+}
+
+export async function testLlmConfig(
+  configId: Id,
+  scope: ModelConfigScope,
+): Promise<void> {
+  const target = await resolveLlmConnectivityTarget(configId, scope, true);
+  return apiInvoke<void>("test_llm_config", {
+    configId: target.configId,
+    runtime_config_snapshot: target.config
+      ? buildRuntimeConfigSnapshot({ llm: target.config })
+      : null,
   });
 }
 
 export async function previewTestLlmConfigRequest(
   configId: Id,
+  scope: ModelConfigScope,
 ): Promise<ModelRequestPreview> {
-  if (isSystemDefaultLlmConfigId(configId)) {
-    const llm = await loadSystemDefaultRuntimeLlmConfig({
-      requireApiKey: false,
-    });
-    return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
-      configId: SYSTEM_LLM_CONFIG_ID,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot(
-        { llm },
-        {
-          includeLlmApiKeys: false,
-          includeSystemLlmApiKey: false,
-          includeProviderApiKeys: false,
-        },
-      ),
-    });
-  }
-  if (usesLocalRuntimeSettings()) {
-    const id = llmConfigId(configId);
-    return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
-      configId: id,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot(
-        { llm: getLocalLlmConfig(id) },
-        {
-          includeLlmApiKeys: false,
-          includeSystemLlmApiKey: false,
-          includeProviderApiKeys: false,
-        },
-      ),
-    });
-  }
-  return previewServerTestLlmConfigRequest(configId);
+  const target = await resolveLlmConnectivityTarget(configId, scope, false);
+  return apiInvoke<ModelRequestPreview>("preview_test_llm_config_request", {
+    configId: target.configId,
+    runtime_config_snapshot: target.config
+      ? buildRuntimeConfigSnapshot(
+          { llm: target.config },
+          {
+            includeLlmApiKeys: false,
+            includeSystemLlmApiKey: false,
+            includeProviderApiKeys: false,
+          },
+        )
+      : null,
+  });
 }
 
 export async function getServerLlmMaxTokensConfig(): Promise<LlmMaxTokensConfig> {
@@ -281,23 +264,14 @@ export async function updateLlmMaxTokensConfig(
   return updateServerLlmMaxTokensConfig(input);
 }
 
-export async function detectServerLlmConfigModels(
-  input: ModelDiscoveryInput,
-): Promise<ModelDiscoveryResult> {
-  return apiInvoke<ModelDiscoveryResult>("detect_llm_config_models", {
-    input,
-  });
-}
-
 export async function detectLlmConfigModels(
   input: ModelDiscoveryInput,
+  scope: ModelConfigScope,
 ): Promise<ModelDiscoveryResult> {
-  return detectServerLlmConfigModels(
-    withLocalRuntimeDiscoveryKey(input, {
-      systemConfigId: SYSTEM_LLM_CONFIG_ID,
-      getSystemDefaultApiKey: getSystemDefaultLlmApiKey,
-      getLocalConfigApiKey: (configId) =>
-        getLocalLlmConfig(configId).api_key_encrypted,
-    }),
-  );
+  return detectConfigModels("detect_llm_config_models", input, scope, {
+    systemConfigId: SYSTEM_LLM_CONFIG_ID,
+    getSystemDefaultApiKey: getSystemDefaultLlmApiKey,
+    getLocalConfigApiKey: (configId) =>
+      getLocalLlmConfig(configId).api_key_encrypted,
+  });
 }

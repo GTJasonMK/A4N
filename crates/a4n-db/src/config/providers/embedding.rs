@@ -5,7 +5,6 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, Set,
 };
 
-#[derive(Clone, Debug)]
 pub struct EmbeddingConfigRecordInput {
     pub name: String,
     pub backend: String,
@@ -67,6 +66,17 @@ where
     C: ConnectionTrait,
 {
     ensure_embedding_config_name_available(db, &input.name, None).await?;
+    insert_embedding_config_record(db, input, false).await
+}
+
+pub(crate) async fn insert_embedding_config_record<C>(
+    db: &C,
+    input: EmbeddingConfigRecordInput,
+    is_default: bool,
+) -> Result<embedding_config::Model, AppError>
+where
+    C: ConnectionTrait,
+{
     let now = Utc::now().naive_utc();
     embedding_config::ActiveModel {
         name: Set(input.name),
@@ -77,7 +87,7 @@ where
         base_url: Set(input.base_url),
         api_key_encrypted: Set(input.api_key_encrypted),
         local_model_path: Set(input.local_model_path),
-        is_default: Set(false),
+        is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

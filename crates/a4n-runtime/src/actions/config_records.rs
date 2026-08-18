@@ -14,7 +14,6 @@ pub use embedding::*;
 pub use image::*;
 pub use llm::*;
 pub use shared::{
-    DiscoveredModel, ModelDiscoveryInput, ModelDiscoveryResult, ModelRequestPreview,
-    ModelRequestPreviewStep,
+    ModelDiscoveryInput, ModelRequestPreview, ModelRequestPreviewStep,
 };
 pub use video::*;

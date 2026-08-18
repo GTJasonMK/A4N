@@ -4,17 +4,19 @@ use std::time::{Duration, SystemTime};
 use super::super::contracts::{ImportedVideoSource, MAX_UPLOAD_VIDEO_BYTES};
 use super::super::prelude::*;
 use super::import_video_source;
-use a4n_orchestrator::media::strip_data_url_prefix;
+use a4n_core::files::create_unique_timestamped_file;
+use a4n_orchestrator::media::{decode_uploaded_bytes, required_upload_file_name};
 use a4n_orchestrator::video::{
-    import_video_extension, required_upload_video_file_name, validate_upload_video_mime,
+    import_video_extension, validate_upload_video_mime,
 };
 
 const UPLOADED_VIDEO_TEMP_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
 pub(crate) fn recover_expired_uploaded_video_sources(temp_dir: &Path) {
-    let cutoff = SystemTime::now()
-        .checked_sub(UPLOADED_VIDEO_TEMP_TTL)
-        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let Some(cutoff) = SystemTime::now().checked_sub(UPLOADED_VIDEO_TEMP_TTL) else {
+        tracing::error!("当前系统时间无法计算上传视频临时文件过期边界");
+        return;
+    };
     let paths = match expired_uploaded_video_sources(temp_dir, cutoff) {
         Ok(paths) => paths,
         Err(error) => {
@@ -74,25 +76,10 @@ pub(in crate::actions::video_records) fn uploaded_video_source(
     data_base64: &str,
     label: &str,
 ) -> Result<ImportedVideoSource, String> {
-    let file_name = required_upload_video_file_name(file_name)?;
+    let file_name = required_upload_file_name(file_name, "上传视频文件名")?;
     let extension = import_video_extension(Path::new(&file_name))?;
     validate_upload_video_mime(mime_type, extension)?;
-    let raw = strip_data_url_prefix(data_base64).trim();
-    if raw.is_empty() {
-        return Err(format!("{label}数据不能为空"));
-    }
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(raw)
-        .map_err(|err| format!("{label} base64 解码失败：{err}"))?;
-    if bytes.is_empty() {
-        return Err(format!("{label}文件不能为空"));
-    }
-    if bytes.len() > MAX_UPLOAD_VIDEO_BYTES {
-        return Err(format!(
-            "{label}不能超过 {}MB",
-            MAX_UPLOAD_VIDEO_BYTES / 1024 / 1024
-        ));
-    }
+    let bytes = decode_uploaded_bytes(data_base64, label, MAX_UPLOAD_VIDEO_BYTES)?;
 
     persist_uploaded_video_source(temp_dir, file_name, extension, &bytes, label)
 }
@@ -128,30 +115,6 @@ fn create_uploaded_video_temp_file(
 ) -> Result<(PathBuf, std::fs::File), String> {
     let upload_dir = temp_dir.join("video_uploads");
     std::fs::create_dir_all(&upload_dir).map_err(|e| format!("创建视频上传临时目录失败：{e}"))?;
-    let stamp = Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| Utc::now().timestamp_micros() * 1000);
-    for attempt in 0..20 {
-        let suffix = if attempt == 0 {
-            String::new()
-        } else {
-            format!("_{attempt}")
-        };
-        let temp_path = upload_dir.join(format!(
-            "video_upload_{}_{}{suffix}.{}",
-            std::process::id(),
-            stamp,
-            extension
-        ));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-        {
-            Ok(file) => return Ok((temp_path, file)),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(format!("创建视频上传临时文件失败：{error}")),
-        }
-    }
-    Err("创建视频上传临时文件失败：文件名冲突过多".to_string())
+    create_unique_timestamped_file(&upload_dir, "video_upload", extension)
+        .map_err(|error| format!("创建视频上传临时文件失败：{error}"))
 }

@@ -28,34 +28,42 @@ use crate::{
         GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
         RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
     },
-    structured_llm::{StructuredRepairCheckpointContext, StructuredValueRepairInput},
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
+    structured_llm::parse_strict_json_response,
+    workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
-use super::prompt_optimization_rules::is_frame_prompt_type;
+use super::prompt_json::{validate_chat_video_prompt_text, validate_direct_prompt_text};
+use super::prompt_optimization_checkpoint::{
+    OptimizedVideoPromptFields, video_prompt_optimization_checkpoint_output,
+};
+use super::prompt_optimization_rules::{
+    VideoPromptOptimizationKind, video_prompt_optimization_kind,
+};
+use super::provider_prompt_text_rules::{
+    MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, validate_provider_model_text,
+};
+use super::reference_media_rules::MIN_PROVIDER_VISUAL_PROMPT_CHARS;
 use super::{
-    OptimizedVideoPromptFields, VideoPromptDownstreamCleanupPort,
-    VideoPromptDownstreamDependencies, normalized_existing_optional_text,
-    normalized_optimized_optional_text, optimized_motion_prompt, required_optimized_text,
-    validate_optimized_prompt_fields, video_prompt_optimization_checkpoint_output,
+    VideoPromptDownstreamCleanupPort, VideoPromptDownstreamDependencies,
 };
 
 const OPTIMIZATION_PROMPT_NAME: &str = "chapter_video_prompt_optimization";
 const OPTIMIZATION_USER_PROMPT_NAME: &str = "chapter_video_prompt_optimization_user";
 
-#[derive(Debug, Clone)]
-pub struct VideoPromptOptimizationInput {
-    pub prompt: chapter_video_prompt::Model,
-    pub instruction: String,
-    pub allow_downstream: bool,
-    pub delete_dependencies: Option<VideoPromptDownstreamDependencies>,
+pub(super) struct VideoPromptOptimizationInput {
+    pub(super) prompt: chapter_video_prompt::Model,
+    pub(super) instruction: String,
+    pub(super) allow_downstream: bool,
+    pub(super) delete_dependencies: Option<VideoPromptDownstreamDependencies>,
 }
 
 struct PreparedVideoPromptOptimization {
     prompt: chapter_video_prompt::Model,
+    prompt_kind: VideoPromptOptimizationKind,
     allow_downstream: bool,
     delete_dependencies: Option<VideoPromptDownstreamDependencies>,
     prompt_output_language: PromptOutputLanguage,
+    optimized_metadata: Value,
     request: ChatRequest,
     call_key: String,
     input_fingerprint_json: Value,
@@ -82,7 +90,7 @@ struct ValidatedVideoPromptOptimization {
 }
 
 impl OrchestratorContext {
-    pub async fn optimize_video_prompt_validated(
+    pub(super) async fn optimize_video_prompt_validated(
         &self,
         input: VideoPromptOptimizationInput,
         prompt_renderer: &dyn PromptRenderer,
@@ -122,6 +130,14 @@ impl OrchestratorContext {
         if instruction.is_empty() {
             return Err(AppError::InvalidArgument("优化要求不能为空".to_string()));
         }
+        let prompt_kind = video_prompt_optimization_kind(&input.prompt)?;
+        let current_metadata = input.prompt.metadata_json.clone().ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "视频提示词 #{} 缺少 metadata_json，不能优化",
+                input.prompt.id
+            ))
+        })?;
+        let current_language = PromptOutputLanguage::from_metadata(Some(&current_metadata))?;
         self.project_chapter_video_source(
             input.prompt.project_id,
             input.prompt.chapter_id,
@@ -130,14 +146,9 @@ impl OrchestratorContext {
         )
         .await?;
 
-        let current_language =
-            PromptOutputLanguage::from_metadata(input.prompt.metadata_json.as_ref());
         let prompt_output_language = if input.prompt.timeline_item_id.is_some() {
-            let recipe_language = input
-                .prompt
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("segment_recipe"))
+            let recipe_language = current_metadata
+                .get("segment_recipe")
                 .and_then(|recipe| recipe.get("prompt_output_language"))
                 .and_then(Value::as_str)
                 .ok_or_else(|| {
@@ -146,7 +157,7 @@ impl OrchestratorContext {
                             .to_string(),
                     )
                 })?;
-            let recipe_language = PromptOutputLanguage::from_optional_code(Some(recipe_language))?;
+            let recipe_language = PromptOutputLanguage::from_code(recipe_language)?;
             let requested = prompt_output_language_from_instruction(instruction, current_language);
             if requested != recipe_language {
                 return Err(AppError::InvalidArgument(
@@ -163,6 +174,7 @@ impl OrchestratorContext {
             &input.prompt,
             instruction,
             prompt_output_language,
+            prompt_kind,
         )
         .await?;
         let request_json = context_aware_chat_request_trace_json(&request)
@@ -190,13 +202,17 @@ impl OrchestratorContext {
             "source_refs": source_refs_json.clone(),
             "media_refs": media_refs_json.clone(),
         });
+        let optimized_metadata =
+            with_prompt_output_language_metadata(current_metadata, prompt_output_language);
 
         Ok(PreparedVideoPromptOptimization {
             call_key: video_prompt_optimization_call_key(input.prompt.id),
             prompt: input.prompt,
+            prompt_kind,
             allow_downstream: input.allow_downstream,
             delete_dependencies: input.delete_dependencies,
             prompt_output_language,
+            optimized_metadata,
             request,
             input_fingerprint_json,
             messages_json,
@@ -227,6 +243,7 @@ impl OrchestratorContext {
         let call_result = self
             .run_video_prompt_optimization_call(
                 &prepared.prompt,
+                prepared.prompt_kind,
                 prepared.prompt_output_language,
                 prepared.request,
                 workflow_run_id,
@@ -245,14 +262,6 @@ impl OrchestratorContext {
             }
         }
 
-        let optimized_metadata = with_prompt_output_language_metadata(
-            prepared
-                .prompt
-                .metadata_json
-                .clone()
-                .unwrap_or_else(|| json!({})),
-            prepared.prompt_output_language,
-        );
         let VideoPromptOptimizationCallResult {
             response_text,
             response_usage_json,
@@ -270,7 +279,7 @@ impl OrchestratorContext {
                 duration_secs: None,
                 reference_image_ids_json: None,
             },
-            Some(optimized_metadata),
+            Some(prepared.optimized_metadata),
             prepared.allow_downstream,
             RecordCompletedGenerationRunWithCheckpointInput {
                 run: RecordCompletedGenerationRunInput {
@@ -332,6 +341,7 @@ impl OrchestratorContext {
     async fn run_video_prompt_optimization_call(
         &self,
         prompt: &chapter_video_prompt::Model,
+        prompt_kind: VideoPromptOptimizationKind,
         prompt_output_language: PromptOutputLanguage,
         request: ChatRequest,
         workflow_run_id: i64,
@@ -341,24 +351,33 @@ impl OrchestratorContext {
         let (
             validated,
             response_text,
-            checkpoint_response_text,
+            save_checkpoint,
             response_usage_json,
             response_finish_reason,
         ) = if let Some(checkpoint) = self
             .load_completed_llm_call_checkpoint(workflow_run_id, call_key, input_fingerprint_json)
             .await?
         {
-            let checkpoint_json = workflow::required_llm_call_checkpoint_json(checkpoint, call_key)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-            let (optimized, usage, finish_reason) =
-                video_prompt_optimization_checkpoint_output(&checkpoint_json, call_key)
-                    .map_err(AppError::InvalidArgument)?;
-            let response_text = serde_json::to_string(&optimized)?;
-            let validated =
-                validate_video_prompt_optimization(prompt, optimized, prompt_output_language)?;
-            (validated, response_text, None, usage, finish_reason)
+            let optimized = video_prompt_optimization_checkpoint_output(
+                &checkpoint.parsed_output,
+                &checkpoint.response_content,
+                call_key,
+            )
+            .map_err(AppError::InvalidArgument)?;
+            let validated = validate_video_prompt_optimization(
+                prompt,
+                prompt_kind,
+                optimized,
+                prompt_output_language,
+            )?;
+            (
+                validated,
+                checkpoint.response_content,
+                false,
+                checkpoint.usage,
+                checkpoint.finish_reason,
+            )
         } else {
-            let repair_request = request.clone();
             let response = self
                 .stream_complete_llm(request)
                 .await
@@ -368,49 +387,27 @@ impl OrchestratorContext {
                     "优化视频提示词输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“媒体提示词”输出档位，或缩短本次提示词后重试".to_string(),
                 ));
             }
-            let checkpoint_response_text = response.message.content.clone();
             let response_usage_json = response
                 .usage
                 .as_ref()
                 .map(serde_json::to_value)
                 .transpose()?;
             let response_finish_reason = response.finish_reason.clone();
-            let parse_output = |value: &Value| {
-                let optimized: OptimizedVideoPromptFields = serde_json::from_value(value.clone())
-                    .map_err(|err| {
-                    AppError::InvalidArgument(format!("优化结果字段不符合要求: {err}"))
-                })?;
-                validate_video_prompt_optimization(prompt, optimized, prompt_output_language)
-            };
-            let repaired = self
-                .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
-                    request: repair_request,
-                    raw_response: &checkpoint_response_text,
-                    label: "视频提示词优化",
-                    schema: json!({
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["visual_prompt", "motion_prompt", "negative_prompt"],
-                        "properties": {
-                            "visual_prompt": {"type": "string"},
-                            "motion_prompt": {"type": ["string", "null"]},
-                            "negative_prompt": {"type": ["string", "null"]},
-                        },
-                    }),
-                    checkpoint: Some(StructuredRepairCheckpointContext {
-                        workflow_run_id,
-                        base_call_key: call_key.to_string(),
-                        call_order: 1,
-                    }),
-                    cancel_token: None,
-                    progress: None,
-                    parse_output: &parse_output,
-                })
-                .await?;
+            let response_text = response.message.content;
+            let optimized = parse_strict_json_response::<OptimizedVideoPromptFields>(
+                &response_text,
+                "视频提示词优化",
+            )?;
+            let validated = validate_video_prompt_optimization(
+                prompt,
+                prompt_kind,
+                optimized,
+                prompt_output_language,
+            )?;
             (
-                repaired.output,
-                serde_json::to_string(&repaired.final_value)?,
-                Some(checkpoint_response_text),
+                validated,
+                response_text,
+                true,
                 response_usage_json,
                 response_finish_reason,
             )
@@ -422,28 +419,23 @@ impl OrchestratorContext {
             motion_prompt,
             negative_prompt,
         } = validated;
-        if let Some(checkpoint_response_text) = checkpoint_response_text {
+        if save_checkpoint {
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key: call_key.to_string(),
                 call_order: 1,
                 input_fingerprint_json: input_fingerprint_json.clone(),
-                checkpoint_json: json!({
-                    "output": {
-                        "visual_prompt": visual_prompt.clone(),
-                        "motion_prompt": motion_prompt.clone(),
-                        "negative_prompt": negative_prompt.clone(),
-                    },
-                    "parsed_output": {
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: json!({
                         "visual_prompt": parsed.visual_prompt,
                         "motion_prompt": parsed.motion_prompt,
                         "negative_prompt": parsed.negative_prompt,
-                    },
-                    "response_content": checkpoint_response_text,
-                    "usage": response_usage_json.clone(),
-                    "finish_reason": response_finish_reason.clone(),
-                }),
-                artifacts_json: None,
+                    }),
+                    response_content: response_text.clone(),
+                    usage: response_usage_json.clone(),
+                    finish_reason: response_finish_reason.clone(),
+                    artifacts_json: None,
+                },
             })
             .await?;
         }
@@ -464,11 +456,12 @@ async fn build_video_prompt_optimization_request(
     prompt: &chapter_video_prompt::Model,
     instruction: &str,
     prompt_output_language: PromptOutputLanguage,
+    prompt_kind: VideoPromptOptimizationKind,
 ) -> Result<ChatRequest, AppError> {
     let dynamic_payload = build_video_prompt_optimization_dynamic_payload(
-        prompt,
         instruction,
         prompt_output_language,
+        prompt_kind,
     );
     let payload = serde_json::to_string_pretty(&dynamic_payload)?;
     let variables = HashMap::from([("payload".to_string(), json!(payload))]);
@@ -595,9 +588,9 @@ fn video_prompt_optimization_source_artifact(prompt: &chapter_video_prompt::Mode
 }
 
 fn build_video_prompt_optimization_dynamic_payload(
-    prompt: &chapter_video_prompt::Model,
     instruction: &str,
     prompt_output_language: PromptOutputLanguage,
+    prompt_kind: VideoPromptOptimizationKind,
 ) -> Value {
     json!({
         "context_refs": {
@@ -609,11 +602,11 @@ fn build_video_prompt_optimization_dynamic_payload(
         "output_contract": {
             "format": "json_object",
             "required_fields": ["visual_prompt", "motion_prompt", "negative_prompt"],
-            "asset_contract": optimized_prompt_asset_contract(prompt, prompt_output_language),
+            "asset_contract": optimized_prompt_asset_contract(prompt_kind, prompt_output_language),
             "field_rules": {
                 "visual_prompt": "优化后的画面/主体提示词，不能为空；自然语言必须遵守 prompt_output_language_instruction；原文对白、引号内台词和角色实际说出口的短句必须保留原文写法，不要把中文对白翻成英文",
-                "motion_prompt": "最终视频提示词必须返回完整 motion_prompt，不要写 null；帧提示词不使用 motion_prompt，可返回 null；自然语言必须遵守 prompt_output_language_instruction；原文对白、引号内台词和角色实际说出口的短句必须保留原文写法，不要把中文对白翻成英文",
-                "negative_prompt": "优化后的负面提示词；如果不需要修改，返回 null 表示保留原值；自然语言必须遵守 prompt_output_language_instruction",
+                "motion_prompt": "provider_video_prompt 必须返回完整非空字符串；chat_video_prompt 和 frame_prompt 必须返回 null；自然语言必须遵守 prompt_output_language_instruction；原文对白、引号内台词和角色实际说出口的短句必须保留原文写法，不要把中文对白翻成英文",
+                "negative_prompt": "最终负面提示词；需要保留原值时必须原样返回，最终不需要负面提示词时返回 null；不得用 null 表示沿用旧值；自然语言必须遵守 prompt_output_language_instruction",
             },
             "forbidden": [
                 "markdown",
@@ -629,16 +622,12 @@ fn build_video_prompt_optimization_dynamic_payload(
 }
 
 fn optimized_prompt_asset_contract(
-    prompt: &chapter_video_prompt::Model,
+    prompt_kind: VideoPromptOptimizationKind,
     prompt_output_language: PromptOutputLanguage,
 ) -> Value {
-    use super::{
-        MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, MIN_PROVIDER_VISUAL_PROMPT_CHARS,
-    };
-
-    match prompt.prompt_type.as_str() {
-        "video_prompt" => json!({
-            "kind": "video_prompt",
+    match prompt_kind {
+        VideoPromptOptimizationKind::ProviderVideo => json!({
+            "kind": "provider_video_prompt",
             "visual_prompt_required_sections": prompt_output_language.visual_sections(),
             "motion_prompt_required_sections": prompt_output_language.motion_sections(),
             "motion_prompt_required": true,
@@ -652,41 +641,112 @@ fn optimized_prompt_asset_contract(
                 "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
             },
         }),
-        prompt_type if is_frame_prompt_type(prompt_type) => {
-            json!({
-                "kind": "frame_prompt",
-                "visual_prompt_is_frame_prompt": true,
-                "visual_prompt_required_sections": prompt_output_language.frame_sections(),
-                "motion_prompt_required": false,
-                "minimum_lengths": {"visual_prompt_chars": MIN_FRAME_PROMPT_CHARS},
-                "forbidden_terms": {
-                    "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
-                },
-            })
-        }
-        _ => json!({"kind": "text_prompt", "motion_prompt_required": false}),
+        VideoPromptOptimizationKind::ChatVideo => json!({
+            "kind": "chat_video_prompt",
+            "visual_prompt_is_chat_prompt": true,
+            "visual_prompt_required_sections": prompt_output_language.visual_sections(),
+            "motion_prompt_must_be_null": true,
+            "required_avoidance_rule": "限制与避免项必须明确禁止背景音乐/配乐/BGM",
+            "forbidden_terms": {
+                "upload_status_examples": ["无输入首帧", "没有输入尾帧"],
+                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+            },
+        }),
+        VideoPromptOptimizationKind::Frame => json!({
+            "kind": "frame_prompt",
+            "visual_prompt_is_frame_prompt": true,
+            "visual_prompt_required_sections": prompt_output_language.frame_sections(),
+            "motion_prompt_must_be_null": true,
+            "minimum_lengths": {"visual_prompt_chars": MIN_FRAME_PROMPT_CHARS},
+            "forbidden_terms": {
+                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+            },
+        }),
     }
+}
+
+fn required_optimized_text(value: &str, field: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidArgument(format!(
+            "优化结果 {field} 不能为空"
+        )));
+    }
+    Ok(trimmed.to_string())
 }
 
 fn validate_video_prompt_optimization(
     prompt: &chapter_video_prompt::Model,
+    prompt_kind: VideoPromptOptimizationKind,
     parsed: OptimizedVideoPromptFields,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<ValidatedVideoPromptOptimization, AppError> {
-    let visual_prompt = required_optimized_text(&parsed.visual_prompt, "visual_prompt")
-        .map_err(AppError::InvalidArgument)?;
-    let motion_prompt = optimized_motion_prompt(prompt, parsed.motion_prompt.clone())
-        .map_err(AppError::InvalidArgument)?;
-    let negative_prompt = normalized_optimized_optional_text(parsed.negative_prompt.clone())
-        .or_else(|| normalized_existing_optional_text(prompt.negative_prompt.as_deref()));
-    validate_optimized_prompt_fields(
-        prompt,
-        &visual_prompt,
-        motion_prompt.as_deref(),
-        negative_prompt.as_deref(),
-        prompt_output_language,
-    )
-    .map_err(AppError::InvalidArgument)?;
+    let negative_prompt = parsed
+        .negative_prompt
+        .as_deref()
+        .map(|value| required_optimized_text(value, "negative_prompt"))
+        .transpose()?;
+    let (visual_prompt, motion_prompt) = match prompt_kind {
+        VideoPromptOptimizationKind::ProviderVideo => {
+            let visual_prompt = validate_provider_model_text(
+                &parsed.visual_prompt,
+                "visual_prompt",
+                prompt.id,
+                prompt_output_language,
+                MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+            )
+            .map(str::to_string)
+            .map_err(AppError::InvalidArgument)?;
+            let motion_prompt = parsed.motion_prompt.as_deref().ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "优化结果 motion_prompt 不能为空；视频提示词 #{} 生成视频需要运镜与动作提示词",
+                    prompt.id
+                ))
+            })?;
+            let motion_prompt = validate_provider_model_text(
+                motion_prompt,
+                "motion_prompt",
+                prompt.id,
+                prompt_output_language,
+                MIN_PROVIDER_MOTION_PROMPT_CHARS,
+            )
+            .map(str::to_string)
+            .map_err(AppError::InvalidArgument)?;
+            (visual_prompt, Some(motion_prompt))
+        }
+        VideoPromptOptimizationKind::ChatVideo => {
+            if parsed.motion_prompt.is_some() {
+                return Err(AppError::InvalidArgument(format!(
+                    "Chat 视频提示词 #{} 的优化结果 motion_prompt 必须为 null",
+                    prompt.id
+                )));
+            }
+            let visual_prompt = required_optimized_text(&parsed.visual_prompt, "visual_prompt")?;
+            validate_chat_video_prompt_text(&visual_prompt, prompt_output_language)?;
+            (visual_prompt, None)
+        }
+        VideoPromptOptimizationKind::Frame => {
+            if parsed.motion_prompt.is_some() {
+                return Err(AppError::InvalidArgument(format!(
+                    "帧提示词 #{} 的优化结果 motion_prompt 必须为 null",
+                    prompt.id
+                )));
+            }
+            let visual_prompt = validate_provider_model_text(
+                &parsed.visual_prompt,
+                "frame_prompt",
+                prompt.id,
+                prompt_output_language,
+                MIN_FRAME_PROMPT_CHARS,
+            )
+            .map(str::to_string)
+            .map_err(AppError::InvalidArgument)?;
+            (visual_prompt, None)
+        }
+    };
+    if let Some(negative_prompt) = negative_prompt.as_deref() {
+        validate_direct_prompt_text(negative_prompt, "视频提示词 negative_prompt")?;
+    }
     Ok(ValidatedVideoPromptOptimization {
         parsed,
         visual_prompt,
@@ -704,45 +764,155 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn storyboard_prompt_uses_frame_optimization_contract() {
+    fn test_prompt(prompt_type: &str, workflow_mode: &str) -> chapter_video_prompt::Model {
         let now = Utc::now().naive_utc();
-        let prompt = chapter_video_prompt::Model {
+        chapter_video_prompt::Model {
             id: 9,
             project_id: 1,
             chapter_id: 2,
             style: Some("电影感写实".to_string()),
-            prompt_type: "storyboard_prompt".to_string(),
-            workflow_mode: "storyboard".to_string(),
+            prompt_type: prompt_type.to_string(),
+            workflow_mode: workflow_mode.to_string(),
             shot_number: 3,
-            title: Some("走廊分镜".to_string()),
-            scene_summary: None,
-            visual_prompt: "中景展示主角穿过昏暗走廊".to_string(),
-            motion_prompt: None,
-            negative_prompt: None,
+            title: Some("穿过走廊".to_string()),
+            scene_summary: Some("主角沿走廊前进并停在门前".to_string()),
+            visual_prompt: "现有画面提示词".to_string(),
+            motion_prompt: Some("现有运镜提示词".to_string()),
+            negative_prompt: Some("现有负面提示词".to_string()),
             duration_secs: 5,
             aspect_ratio: Some("16:9".to_string()),
             reference_image_ids_json: None,
-            status: "completed".to_string(),
+            status: chapter_video_prompt::STATUS_COMPLETED.to_string(),
             generated_video_id: None,
             timeline_item_id: None,
             metadata_json: None,
             created_at: now,
             updated_at: now,
-        };
+        }
+    }
 
+    fn prompt_with_sections(sections: &[&str], body: &str) -> String {
+        sections
+            .iter()
+            .map(|section| format!("{section}\n{body}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn optimization_kind_requires_an_exact_type_and_workflow_pair() {
         assert_eq!(
-            optimized_prompt_asset_contract(&prompt, PromptOutputLanguage::ZhCn)["kind"],
-            "frame_prompt"
+            video_prompt_optimization_kind(&test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_VIDEO,
+                chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            ))
+            .expect("boundary video prompt should be optimizable"),
+            VideoPromptOptimizationKind::ProviderVideo
+        );
+        assert_eq!(
+            video_prompt_optimization_kind(&test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_VIDEO,
+                chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            ))
+            .expect("chat video prompt should be optimizable"),
+            VideoPromptOptimizationKind::ChatVideo
+        );
+        assert_eq!(
+            video_prompt_optimization_kind(&test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_STORYBOARD,
+                chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+            ))
+            .expect("storyboard frame prompt should be optimizable"),
+            VideoPromptOptimizationKind::Frame
         );
         assert!(
-            validate_optimized_prompt_fields(
-                &prompt,
-                "过短",
-                None,
-                None,
-                PromptOutputLanguage::ZhCn,
-            )
+            video_prompt_optimization_kind(&test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_STORYBOARD,
+                chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn optimization_output_enforces_kind_specific_nullable_fields() {
+        let language = PromptOutputLanguage::ZhCn;
+        let visual = prompt_with_sections(
+            language.visual_sections(),
+            "角色身份、服装、空间位置、动作、光线和道具关系保持清晰稳定，不增加片段外事件。",
+        );
+        let motion = prompt_with_sections(
+            language.motion_sections(),
+            "镜头平稳跟随角色向前，动作节奏清楚，视线、手部和停顿均与当前表演连续。",
+        );
+        let frame = prompt_with_sections(
+            language.frame_sections(),
+            "角色外观、空间锚点、道具位置、构图、光线与画面连续性均清晰稳定。",
+        );
+        let chat = prompt_with_sections(
+            language.visual_sections(),
+            "角色身份、空间关系、镜头动作和稳定尾态均清楚；不要配背景音乐。",
+        );
+
+        let provider = validate_video_prompt_optimization(
+            &test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_VIDEO,
+                chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            ),
+            VideoPromptOptimizationKind::ProviderVideo,
+            OptimizedVideoPromptFields {
+                visual_prompt: visual,
+                motion_prompt: Some(motion),
+                negative_prompt: None,
+            },
+            language,
+        )
+        .expect("provider prompt should require and retain motion_prompt");
+        assert!(provider.motion_prompt.is_some());
+        assert!(provider.negative_prompt.is_none());
+
+        validate_video_prompt_optimization(
+            &test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_VIDEO,
+                chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            ),
+            VideoPromptOptimizationKind::ChatVideo,
+            OptimizedVideoPromptFields {
+                visual_prompt: chat,
+                motion_prompt: None,
+                negative_prompt: None,
+            },
+            language,
+        )
+        .expect("chat prompt should require a null motion_prompt");
+
+        validate_video_prompt_optimization(
+            &test_prompt(
+                chapter_video_prompt::PROMPT_TYPE_STORYBOARD,
+                chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+            ),
+            VideoPromptOptimizationKind::Frame,
+            OptimizedVideoPromptFields {
+                visual_prompt: frame,
+                motion_prompt: None,
+                negative_prompt: None,
+            },
+            language,
+        )
+        .expect("frame prompt should require a null motion_prompt");
+
+        assert!(
+            serde_json::from_value::<OptimizedVideoPromptFields>(json!({
+                "visual_prompt": "完整提示词",
+                "negative_prompt": null,
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<OptimizedVideoPromptFields>(json!({
+                "visual_prompt": "完整提示词",
+                "motion_prompt": null,
+            }))
             .is_err()
         );
     }
@@ -753,36 +923,17 @@ mod tests {
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts"),
         )
         .expect("prompts should load");
-        let now = Utc::now().naive_utc();
-        let prompt = chapter_video_prompt::Model {
-            id: 9,
-            project_id: 1,
-            chapter_id: 2,
-            style: Some("电影感写实".to_string()),
-            prompt_type: "video_prompt".to_string(),
-            workflow_mode: "boundary_frames".to_string(),
-            shot_number: 3,
-            title: Some("穿过走廊".to_string()),
-            scene_summary: Some("主角沿走廊前进并停在门前".to_string()),
-            visual_prompt: "中景展示主角穿过昏暗走廊".to_string(),
-            motion_prompt: Some("镜头缓慢跟随主角向前".to_string()),
-            negative_prompt: Some("避免空间跳变".to_string()),
-            duration_secs: 5,
-            aspect_ratio: Some("16:9".to_string()),
-            reference_image_ids_json: None,
-            status: "completed".to_string(),
-            generated_video_id: None,
-            timeline_item_id: None,
-            metadata_json: None,
-            created_at: now,
-            updated_at: now,
-        };
+        let prompt = test_prompt(
+            chapter_video_prompt::PROMPT_TYPE_VIDEO,
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        );
 
         let request = build_video_prompt_optimization_request(
             &engine,
             &prompt,
             "让镜头动作更具体，但不要改变空间关系",
             PromptOutputLanguage::ZhCn,
+            VideoPromptOptimizationKind::ProviderVideo,
         )
         .await
         .expect("optimization prompt templates should render");

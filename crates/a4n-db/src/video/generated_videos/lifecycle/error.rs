@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_video;
+use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
@@ -16,6 +16,7 @@ async fn mark_generated_video_error_status_and_prompt_record_in<C>(
     video_id: i64,
     prompt_id: Option<i64>,
     status: &str,
+    prompt_status: &str,
     message: &str,
 ) -> Result<generated_video::Model, VideoDbError>
 where
@@ -33,9 +34,9 @@ where
     let updated = active.update(db).await?;
     if let Some(prompt) = prompt {
         let prompt_status = if prompt.generated_video_id.is_some() {
-            "completed"
+            chapter_video_prompt::STATUS_COMPLETED
         } else {
-            status
+            prompt_status
         };
         update_prompt_status_record(db, prompt, prompt_status).await?;
     }
@@ -63,15 +64,25 @@ pub async fn mark_generated_video_error_status_and_prompt_record<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    if !matches!(status, "failed" | "interrupted" | "cancelled") {
-        return Err(VideoDbError::InvalidArgument(format!(
-            "视频终止状态无效: {status}"
-        )));
-    }
+    let prompt_status = match status {
+        generated_video::STATUS_FAILED => chapter_video_prompt::STATUS_FAILED,
+        generated_video::STATUS_INTERRUPTED => chapter_video_prompt::STATUS_INTERRUPTED,
+        generated_video::STATUS_CANCELLED => chapter_video_prompt::STATUS_CANCELLED,
+        _ => {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "视频终止状态无效: {status}"
+            )));
+        }
+    };
     let message = normalize_generated_video_error_message(message)?;
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
     let updated = mark_generated_video_error_status_and_prompt_record_in(
-        &txn, video_id, prompt_id, status, message,
+        &txn,
+        video_id,
+        prompt_id,
+        status,
+        prompt_status,
+        message,
     )
     .await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
@@ -82,7 +93,10 @@ pub async fn recover_stale_generated_videos_without_provider_job(
     db: &DatabaseConnection,
 ) -> Result<u64, VideoDbError> {
     let stale = generated_video::Entity::find()
-        .filter(generated_video::Column::Status.is_in(["pending", "running"]))
+        .filter(generated_video::Column::Status.is_in([
+            generated_video::STATUS_PENDING,
+            generated_video::STATUS_RUNNING,
+        ]))
         .all(db)
         .await?
         .into_iter()
@@ -115,7 +129,7 @@ pub async fn recover_stale_generated_videos_without_provider_job(
             db,
             video.id,
             prompt_id,
-            "interrupted",
+            generated_video::STATUS_INTERRUPTED,
             message,
         )
         .await?;

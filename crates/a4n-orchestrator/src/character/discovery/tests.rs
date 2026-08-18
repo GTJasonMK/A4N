@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use a4n_api_contract::character::DiscoverCharacterProfilesInput;
 use a4n_core::{
     models::{chapter::chapter, character::protagonist_profile, project::text_anchor},
     source_spans::source_spans_for_chapters,
@@ -17,11 +18,10 @@ use crate::character::{
 
 use super::{
     context::character_llm_chapter_context,
-    contracts::CharacterDiscoveryInput,
-    execution::required_character_discovery_input,
+    execution::validate_character_discovery_input,
     identity::existing_profile_for_prompt,
     output::{discovered_character_base_attributes, parse_character_discovery_output},
-    request::build_character_discovery_user_prompt,
+    request::build_character_discovery_manifest_user_prompt,
 };
 
 fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> chapter::Model {
@@ -107,14 +107,14 @@ fn canonical_discovery_content(evidence_anchor_id: i64) -> String {
 
 #[test]
 fn input_contract_rejects_non_positive_project_and_chapter() {
-    let project_error = required_character_discovery_input(&CharacterDiscoveryInput {
+    let project_error = validate_character_discovery_input(&DiscoverCharacterProfilesInput {
         project_id: 0,
         chapter_number: None,
     })
     .expect_err("non-positive project id must fail");
     assert!(project_error.to_string().contains("项目 ID 必须大于 0"));
 
-    let chapter_error = required_character_discovery_input(&CharacterDiscoveryInput {
+    let chapter_error = validate_character_discovery_input(&DiscoverCharacterProfilesInput {
         project_id: 1,
         chapter_number: Some(0),
     })
@@ -145,32 +145,19 @@ fn workflow_and_call_fingerprints_validate_input_contracts() {
 
 #[test]
 fn character_discovery_user_prompt_uses_json_payload() {
-    let (chapters, anchors) = discovery_anchor_context("沈砚推门而入");
-    let prompt = build_character_discovery_user_prompt(
-        &[json!({"name": "沈砚"})],
-        &[json!({
-            "chapter_number": 1,
-            "title": "雨夜",
-            "content": "沈砚推门而入"
-        })],
-        &chapters,
-        &anchors,
-    )
-    .expect("discovery prompt should build");
+    let prompt =
+        build_character_discovery_manifest_user_prompt().expect("discovery prompt should build");
 
     assert!(prompt.contains(r#""task": {"#));
     assert!(prompt.contains(r#""name": "character_discovery""#));
-    assert!(prompt.contains(r#""existing_profiles""#));
-    assert!(prompt.contains(r#""chapters""#));
+    assert!(prompt.contains(r#""context_refs""#));
+    assert!(prompt.contains("profile_sync_source_context"));
     let payload_text = prompt
         .split_once("输入：\n")
         .map(|(_, payload)| payload)
         .expect("prompt should include json payload");
     let payload: Value = serde_json::from_str(payload_text).expect("prompt payload should be json");
-    assert_eq!(
-        payload["output_contract"]["size_limits"]["evidence_anchor_id_count"],
-        json!(1)
-    );
+    assert!(payload["output_contract"].get("size_limits").is_none());
     assert!(
         !payload["output_contract"]["character_required_fields"]
             .as_array()

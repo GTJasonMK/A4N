@@ -1,5 +1,6 @@
-use a4n_core::error::AppError;
+use a4n_core::{error::AppError, media::image_mime_from_path};
 use a4n_image::ImageReference;
+use a4n_orchestrator::generation::GeneratedMediaArtifactFile;
 use a4n_orchestrator::media::{
     ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
     ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
@@ -7,15 +8,13 @@ use a4n_orchestrator::media::{
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use async_trait::async_trait;
 use base64::Engine as _;
-use sha2::{Digest, Sha256};
-use std::path::Path;
 
 use super::{
     generation_io::persist_generated_image_file, run_queued_request_with_cancel_and_workflow,
 };
 use crate::{
     AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::canonicalize_data_file_path,
+    file_utils::{canonicalize_data_file_path, inspect_generated_media_file},
 };
 
 pub(in crate::actions) struct RuntimeImageGenerationHostPort<'state> {
@@ -56,7 +55,7 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         .map_err(host_error)?;
         let bytes = std::fs::read(&path)
             .map_err(|error| host_error(format!("读取参考图 {} 失败：{error}", path.display())))?;
-        let mime = reference_image_mime(&path).map_err(host_error)?;
+        let mime = image_mime_from_path(&path).map_err(host_error)?;
         Ok(ImageReference {
             label: label.to_string(),
             data_uri: format!(
@@ -142,17 +141,14 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         &self,
         relative_path: &str,
         label: &str,
-    ) -> Result<a4n_orchestrator::media::GeneratedImageArtifactFile, AppError> {
-        let path = canonicalize_data_file_path(self.state.data_dir(), relative_path, label)
-            .map_err(host_error)?;
-        let bytes = std::fs::read(&path)
-            .map_err(|error| host_error(format!("读取{}失败：{error}", path.display())))?;
-        let content_type = image_file_mime(&path).map_err(host_error)?;
-        Ok(a4n_orchestrator::media::GeneratedImageArtifactFile {
-            content_type: content_type.to_string(),
-            sha256: format!("{:x}", Sha256::digest(&bytes)),
-            byte_size: bytes.len() as u64,
-        })
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        inspect_generated_media_file(
+            self.state.data_dir(),
+            relative_path,
+            label,
+            image_mime_from_path,
+        )
+        .map_err(host_error)
     }
 
     async fn remove_generated_image_file(
@@ -183,22 +179,4 @@ fn host_error(error: String) -> AppError {
         current: "image_generation_host".to_string(),
         operation: error,
     }
-}
-
-fn reference_image_mime(path: &Path) -> Result<&'static str, String> {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default();
-    match extension.as_str() {
-        "png" => Ok("image/png"),
-        "jpg" | "jpeg" => Ok("image/jpeg"),
-        "webp" => Ok("image/webp"),
-        other => Err(format!("参考图格式不支持: {other}，仅支持 png/jpg/webp")),
-    }
-}
-
-fn image_file_mime(path: &Path) -> Result<&'static str, String> {
-    reference_image_mime(path)
 }

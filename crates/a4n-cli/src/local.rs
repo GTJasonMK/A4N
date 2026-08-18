@@ -7,22 +7,22 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use a4n_api_contract::command_manifest::HOST_IDENTITY;
-use a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV;
+use a4n_service_protocol::{MANAGED_SIDECARS_ENV, RELEASE_MANIFEST_ENV, SIDECAR_BIN_DIR_ENV};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::net::TcpStream;
 use url::Url;
-use uuid::Uuid;
 
-use crate::config::{lock_config, non_empty_env_string, write_private_json_unlocked};
+use crate::config::{
+    lock_config, non_empty_env_path, non_empty_env_string, write_private_json_unlocked,
+};
 
 const LOCAL_STATE_SCHEMA_VERSION: u32 = 1;
 const DEFAULT_QDRANT_URL: &str = "http://127.0.0.1:6334";
 
 #[derive(Clone, Copy)]
 pub(crate) struct StartOptions {
-    pub(crate) migrate: bool,
     pub(crate) managed_sidecars: bool,
     pub(crate) qdrant: bool,
     pub(crate) full: bool,
@@ -53,6 +53,36 @@ struct LocalPaths {
     qdrant_root: PathBuf,
 }
 
+struct LocalStateInspection {
+    server_process_alive: bool,
+    server_identity_matches: bool,
+    server_healthy: bool,
+    qdrant_owned: bool,
+    qdrant_process_alive: bool,
+    qdrant_identity_matches: bool,
+}
+
+impl LocalStateInspection {
+    fn running(&self) -> bool {
+        self.server_identity_matches && self.server_healthy
+    }
+
+    fn status(&self) -> &'static str {
+        if self.server_process_alive && !self.server_identity_matches
+            || self.qdrant_process_alive && !self.qdrant_identity_matches
+        {
+            "error"
+        } else if !self.server_process_alive
+            || !self.server_healthy
+            || self.qdrant_owned && (!self.qdrant_process_alive || !self.qdrant_identity_matches)
+        {
+            "warning"
+        } else {
+            "ok"
+        }
+    }
+}
+
 impl LocalPaths {
     fn new(config_path: &Path) -> Self {
         let root = config_path
@@ -76,6 +106,12 @@ pub(crate) async fn doctor(
     let mut checks = Vec::new();
     let mut errors = 0_u32;
     let mut warnings = 0_u32;
+    let paths = LocalPaths::new(config_path);
+    let local_state = load_state(&paths.state)?;
+    let local_inspection = match local_state.as_ref() {
+        Some(state) => Some(inspect_local_state(state).await),
+        None => None,
+    };
 
     match std::env::var("A4N_DATABASE_URL") {
         Ok(value) if !value.trim().is_empty() => match database_endpoint(&value) {
@@ -110,7 +146,13 @@ pub(crate) async fn doctor(
         push_check(&mut checks, "jwt", "error", "缺少 A4N_JWT_SECRET");
     }
 
-    if server_healthy(api_base).await {
+    let configured_server_healthy = match (local_state.as_ref(), local_inspection.as_ref()) {
+        (Some(state), Some(inspection)) if state.server_url == api_base => {
+            inspection.server_healthy
+        }
+        _ => server_healthy(api_base).await,
+    };
+    if configured_server_healthy {
         push_check(&mut checks, "server", "ok", format!("{api_base} 可用"));
     } else {
         warnings += 1;
@@ -131,12 +173,14 @@ pub(crate) async fn doctor(
                 format!("可从 workspace 构建: {}", root.display()),
             );
         }
-        None if find_binary("a4n-server").is_some() && find_binary("a4n-migration").is_some() => {
+        None if sibling_binary("a4n-server").is_some()
+            && sibling_binary("a4n-migration").is_some() =>
+        {
             push_check(
                 &mut checks,
                 "runtime-binaries",
                 "ok",
-                "a4n-server 与 a4n-migration 可执行文件已安装",
+                "a4n-server 与 a4n-migration 位于 CLI 同目录",
             );
         }
         None => {
@@ -145,7 +189,7 @@ pub(crate) async fn doctor(
                 &mut checks,
                 "runtime-binaries",
                 "error",
-                "未找到 workspace 或已安装的 a4n-server/a4n-migration",
+                "未找到 workspace 或 CLI 同目录的 a4n-server/a4n-migration",
             );
         }
     }
@@ -179,21 +223,9 @@ pub(crate) async fn doctor(
         );
     }
 
-    let paths = LocalPaths::new(config_path);
-    match load_state(&paths.state)? {
-        Some(state) => {
-            let server_alive = process_alive(state.server_pid);
-            let identity_matches =
-                server_alive && process_matches(state.server_pid, &state.server_marker);
-            let healthy = server_healthy(&state.server_url).await;
-            let qdrant_process_alive = state.qdrant_pid.is_some_and(process_alive);
-            let qdrant_identity_matches = state
-                .qdrant_pid
-                .zip(state.qdrant_marker.as_deref())
-                .is_some_and(|(pid, marker)| process_matches(pid, marker));
-            let qdrant_ok =
-                state.qdrant_pid.is_none() || (qdrant_process_alive && qdrant_identity_matches);
-            let status = local_state_status(server_alive, identity_matches, healthy, qdrant_ok);
+    match (local_state.as_ref(), local_inspection.as_ref()) {
+        (Some(state), Some(inspection)) => {
+            let status = inspection.status();
             match status {
                 "error" => errors += 1,
                 "warning" => warnings += 1,
@@ -206,17 +238,18 @@ pub(crate) async fn doctor(
                 json!({
                     "owned": true,
                     "server_pid": state.server_pid,
-                    "server_process_alive": server_alive,
-                    "server_identity_matches": identity_matches,
-                    "server_healthy": healthy,
+                    "server_process_alive": inspection.server_process_alive,
+                    "server_identity_matches": inspection.server_identity_matches,
+                    "server_healthy": inspection.server_healthy,
                     "server": state.server_url,
                     "qdrant_pid": state.qdrant_pid,
-                    "qdrant_process_alive": qdrant_process_alive,
-                    "qdrant_identity_matches": qdrant_identity_matches,
+                    "qdrant_process_alive": inspection.qdrant_process_alive,
+                    "qdrant_identity_matches": inspection.qdrant_identity_matches,
                 }),
             );
         }
-        None => push_check(&mut checks, "local-state", "ok", json!({ "owned": false })),
+        (None, None) => push_check(&mut checks, "local-state", "ok", json!({ "owned": false })),
+        _ => unreachable!("local state and inspection must have matching presence"),
     }
 
     Ok(DoctorOutcome {
@@ -290,9 +323,7 @@ pub(crate) async fn start(
     if options.full && source_root.is_none() {
         bail!("local start --full 需要 A4N 源码 workspace；发布包请使用默认 sidecar profile");
     }
-    if options.migrate {
-        run_migration(&database_url, source_root.as_deref())?;
-    }
+    run_migration(&database_url, source_root.as_deref())?;
 
     let server_binary = resolve_or_build_binary(
         "a4n-server",
@@ -303,7 +334,7 @@ pub(crate) async fn start(
             None
         },
     )?;
-    let sidecar_bin_dir = if options.managed_sidecars && !options.full {
+    let sidecar_bin_dir = if options.managed_sidecars {
         Some(resolve_or_build_sidecars(source_root.as_deref())?)
     } else {
         None
@@ -325,25 +356,36 @@ pub(crate) async fn start(
             if !endpoint.ip().is_loopback() {
                 bail!("远程 Qdrant {endpoint} 不可连接");
             }
-            let qdrant_binary = resolve_qdrant_binary(source_root.as_deref())?.ok_or_else(|| {
-                anyhow::anyhow!(
-                    "需要本地 Qdrant，但未安装；请运行 ./scripts/dev/setup-qdrant.sh 或设置 A4N_QDRANT_URL"
-                )
-            })?;
+            let qdrant_binary = source_root
+                .as_deref()
+                .map(|root| {
+                    root.join("tools/qdrant/bin")
+                        .join(executable_name("qdrant"))
+                })
+                .filter(|path| path.is_file())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "需要本地 Qdrant，但未安装；请运行 ./scripts/dev/setup-qdrant.sh 或设置 A4N_QDRANT_URL"
+                    )
+                })?;
             let marker = binary_marker(&qdrant_binary)?;
             let mut child = spawn_qdrant(&qdrant_binary, endpoint, &paths)?;
             qdrant_pid = Some(child.id());
             qdrant_marker = Some(marker);
             qdrant_url = Some(format!("http://{endpoint}"));
             if !wait_tcp(endpoint, &mut child, Duration::from_secs(20)).await {
-                let _ = terminate_owned(
-                    child.id(),
-                    qdrant_marker
-                        .as_deref()
-                        .expect("spawned Qdrant must have a process marker"),
+                stop_owned_processes(
+                    None,
+                    Some((
+                        child.id(),
+                        qdrant_marker
+                            .as_deref()
+                            .expect("spawned Qdrant must have a process marker"),
+                    )),
                     true,
                 )
-                .await;
+                .await
+                .context("Qdrant 启动失败后清理 owned 进程失败")?;
                 bail!("Qdrant 启动超时；日志: {}", paths.qdrant_log.display());
             }
         }
@@ -372,7 +414,13 @@ pub(crate) async fn start(
         Ok(child) => child,
         Err(error) => {
             if let (Some(pid), Some(marker)) = (qdrant_pid, qdrant_marker.as_deref()) {
-                let _ = terminate_owned(pid, marker, true).await;
+                if let Err(cleanup_error) =
+                    stop_owned_processes(None, Some((pid, marker)), true).await
+                {
+                    bail!(
+                        "启动 A4N Server 失败: {error:#}；同时清理 Qdrant 失败: {cleanup_error:#}"
+                    );
+                }
             }
             return Err(error);
         }
@@ -388,21 +436,30 @@ pub(crate) async fn start(
         qdrant_log: qdrant_pid.map(|_| paths.qdrant_log.clone()),
     };
     if let Err(error) = write_private_json_unlocked(&paths.state, &state) {
-        let _ = terminate_owned(state.server_pid, &state.server_marker, true).await;
-        if let (Some(pid), Some(marker)) = (state.qdrant_pid, state.qdrant_marker.as_deref()) {
-            let _ = terminate_owned(pid, marker, true).await;
+        if let Err(cleanup_error) = stop_owned_processes(
+            Some((state.server_pid, &state.server_marker)),
+            state.qdrant_pid.zip(state.qdrant_marker.as_deref()),
+            true,
+        )
+        .await
+        {
+            bail!("写入 local state 失败: {error:#}；同时清理 owned 进程失败: {cleanup_error:#}");
         }
         return Err(error);
     }
 
     if !wait_server(api_base, &mut child, Duration::from_secs(60)).await {
-        if process_alive(state.server_pid) {
-            let _ = terminate_owned(state.server_pid, &state.server_marker, true).await;
-        }
-        if let (Some(pid), Some(marker)) = (state.qdrant_pid, state.qdrant_marker.as_deref())
-            && process_alive(pid)
+        if let Err(cleanup_error) = stop_owned_processes(
+            Some((state.server_pid, &state.server_marker)),
+            state.qdrant_pid.zip(state.qdrant_marker.as_deref()),
+            true,
+        )
+        .await
         {
-            let _ = terminate_owned(pid, marker, true).await;
+            bail!(
+                "A4N Server 启动失败或超时；日志: {}；owned state 已保留，清理进程失败: {cleanup_error:#}",
+                paths.server_log.display()
+            );
         }
         if let Err(cleanup_error) = fs::remove_file(&paths.state)
             .with_context(|| format!("删除失败的 local state: {}", paths.state.display()))
@@ -426,7 +483,7 @@ pub(crate) async fn start(
         "server_log": state.server_log,
         "qdrant_pid": state.qdrant_pid,
         "qdrant_log": state.qdrant_log,
-        "managed_sidecars": options.managed_sidecars && !options.full,
+        "managed_sidecars": options.managed_sidecars,
         "profile": if options.full { "full" } else { "sidecar" },
     }))
 }
@@ -436,26 +493,18 @@ pub(crate) async fn status(api_base: &str, config_path: &Path) -> Result<Value> 
     let state = load_state(&paths.state)?;
     Ok(match state {
         Some(state) => {
-            let server_process_alive = process_alive(state.server_pid);
-            let server_identity_matches =
-                server_process_alive && process_matches(state.server_pid, &state.server_marker);
-            let running = server_identity_matches && server_healthy(&state.server_url).await;
-            let qdrant_process_alive = state.qdrant_pid.is_some_and(process_alive);
-            let qdrant_identity_matches = state
-                .qdrant_pid
-                .zip(state.qdrant_marker.as_deref())
-                .is_some_and(|(pid, marker)| process_matches(pid, marker));
+            let inspection = inspect_local_state(&state).await;
             json!({
-                "running": running,
+                "running": inspection.running(),
                 "owned": true,
                 "server": state.server_url,
                 "server_pid": state.server_pid,
-                "server_process_alive": server_process_alive,
-                "server_identity_matches": server_identity_matches,
+                "server_process_alive": inspection.server_process_alive,
+                "server_identity_matches": inspection.server_identity_matches,
                 "server_log": state.server_log,
                 "qdrant_pid": state.qdrant_pid,
-                "qdrant_process_alive": qdrant_process_alive,
-                "qdrant_identity_matches": qdrant_identity_matches,
+                "qdrant_process_alive": inspection.qdrant_process_alive,
+                "qdrant_identity_matches": inspection.qdrant_identity_matches,
                 "qdrant_log": state.qdrant_log,
                 "state_file": paths.state,
             })
@@ -486,17 +535,38 @@ pub(crate) async fn stop(config_path: &Path, force: bool) -> Result<Value> {
 }
 
 async fn stop_state(paths: &LocalPaths, state: &LocalState, force: bool) -> Result<()> {
-    if process_alive(state.server_pid) {
-        terminate_owned(state.server_pid, &state.server_marker, force).await?;
-    }
-    if let (Some(pid), Some(marker)) = (state.qdrant_pid, state.qdrant_marker.as_deref())
-        && process_alive(pid)
-    {
-        terminate_owned(pid, marker, force).await?;
-    }
+    stop_owned_processes(
+        Some((state.server_pid, &state.server_marker)),
+        state.qdrant_pid.zip(state.qdrant_marker.as_deref()),
+        force,
+    )
+    .await?;
     fs::remove_file(&paths.state)
         .with_context(|| format!("删除 local state 失败: {}", paths.state.display()))?;
     Ok(())
+}
+
+async fn stop_owned_processes(
+    server: Option<(u32, &str)>,
+    qdrant: Option<(u32, &str)>,
+    force: bool,
+) -> Result<()> {
+    let mut failures = Vec::new();
+    for (name, process) in [("Server", server), ("Qdrant", qdrant)] {
+        let Some((pid, marker)) = process else {
+            continue;
+        };
+        if process_alive(pid)
+            && let Err(error) = terminate_owned(pid, marker, force).await
+        {
+            failures.push(format!("{name} PID {pid}: {error:#}"));
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        bail!(failures.join("；"))
+    }
 }
 
 pub(crate) fn logs(config_path: &Path, lines: usize) -> Result<Value> {
@@ -522,7 +592,7 @@ pub(crate) fn migrate() -> Result<Value> {
 fn run_migration(database_url: &str, source_root: Option<&Path>) -> Result<()> {
     let binary = resolve_or_build_binary("a4n-migration", source_root, None)?;
     let output = Command::new(&binary)
-        .arg(database_url)
+        .env("A4N_DATABASE_URL", database_url)
         .output()
         .with_context(|| format!("启动数据库迁移器失败: {}", binary.display()))?;
     if !output.status.success() {
@@ -561,12 +631,8 @@ fn spawn_server(
             if options.full { "full" } else { "sidecar" },
         )
         .env(
-            "A4N_MANAGED_SIDECARS",
-            if options.managed_sidecars && !options.full {
-                "1"
-            } else {
-                "0"
-            },
+            MANAGED_SIDECARS_ENV,
+            if options.managed_sidecars { "1" } else { "0" },
         )
         .stdout(stdout)
         .stderr(stderr)
@@ -574,31 +640,20 @@ fn spawn_server(
     if let Some(root) = source_root {
         command.current_dir(root).env("A4N_PORTABLE_HOME", root);
     } else if let Some(root) = paths.state.parent() {
-        command.current_dir(root).env("A4N_PORTABLE_HOME", root);
+        let data_dir = std::path::absolute(root.join("data"))
+            .with_context(|| format!("无法解析 local 数据目录: {}", root.display()))?;
+        command.current_dir(root).env("A4N_DATA_DIR", data_dir);
     }
     if let Some(directory) = sidecar_bin_dir {
-        command.env("A4N_SIDECAR_BIN_DIR", directory);
+        command.env(SIDECAR_BIN_DIR_ENV, directory);
     }
     if let Some(url) = qdrant_url {
         command.env("A4N_QDRANT_URL", url);
     }
-    if std::env::var_os("A4N_PROMPT_SERVICE_PROMPTS_DIR").is_none()
-        && let Some(directory) = bundled_prompts_dir()
-    {
-        command.env("A4N_PROMPT_SERVICE_PROMPTS_DIR", directory);
-    }
-    if std::env::var_os("A4N_RELEASE_MANIFEST_PATH").is_none()
+    if std::env::var_os(RELEASE_MANIFEST_ENV).is_none()
         && let Some(path) = bundled_release_manifest()
     {
-        command.env("A4N_RELEASE_MANIFEST_PATH", path);
-    }
-    if !options.full
-        && !std::env::var(SIDECAR_AUTH_TOKEN_ENV).is_ok_and(|value| !value.trim().is_empty())
-    {
-        command.env(
-            SIDECAR_AUTH_TOKEN_ENV,
-            format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple()),
-        );
+        command.env(RELEASE_MANIFEST_ENV, path);
     }
     if options.managed_sidecars || options.full {
         configure_onnxruntime_environment(&mut command, sidecar_bin_dir)?;
@@ -606,18 +661,6 @@ fn spawn_server(
     command
         .spawn()
         .with_context(|| format!("启动 A4N Server 失败: {}", binary.display()))
-}
-
-fn bundled_prompts_dir() -> Option<PathBuf> {
-    let executable = std::env::current_exe().ok()?;
-    let root = executable.parent()?.parent()?;
-    [
-        root.join("prompts"),
-        root.join("Resources/prompts"),
-        root.join("share/a4n/prompts"),
-    ]
-    .into_iter()
-    .find(|path| path.join("_registry.yaml").is_file())
 }
 
 fn bundled_release_manifest() -> Option<PathBuf> {
@@ -671,7 +714,9 @@ fn onnxruntime_library_dir(sidecar_bin_dir: Option<&Path>) -> Result<PathBuf> {
                     anyhow::anyhow!("无法确定 ONNX Runtime 目录；请设置 A4N_ONNXRUNTIME_ROOT")
                 })?,
         };
-        data_home.join("a4n/onnxruntime/1.24.2")
+        data_home
+            .join("a4n/onnxruntime")
+            .join(onnxruntime_version())
     };
     let version_path = root.join("VERSION_NUMBER");
     let version = fs::read_to_string(&version_path)
@@ -679,13 +724,18 @@ fn onnxruntime_library_dir(sidecar_bin_dir: Option<&Path>) -> Result<PathBuf> {
         .trim()
         .to_string();
     let library_dir = root.join("lib");
-    if version != "1.24.2" || !library_dir.join(onnxruntime_library_name()).is_file() {
+    if version != onnxruntime_version() || !library_dir.join(onnxruntime_library_name()).is_file() {
         bail!(
-            "缺少 ONNX Runtime 1.24.2 动态库: {}；请先运行 ./scripts/dev/setup-onnxruntime.sh",
+            "缺少 ONNX Runtime {} 动态库: {}；请先运行 ./scripts/dev/setup-onnxruntime.sh",
+            onnxruntime_version(),
             root.display()
         );
     }
     Ok(library_dir)
+}
+
+fn onnxruntime_version() -> &'static str {
+    include_str!("../../../tools/onnxruntime/VERSION").trim()
 }
 
 fn prepend_env_path(name: &str, directory: &Path) -> Result<OsString> {
@@ -737,7 +787,7 @@ fn spawn_qdrant(
 ) -> Result<std::process::Child> {
     fs::create_dir_all(paths.qdrant_root.join("storage"))?;
     fs::create_dir_all(paths.qdrant_root.join("snapshots"))?;
-    let http_port = endpoint.port().saturating_sub(1).max(1);
+    let http_port = qdrant_http_port(endpoint.port())?;
     let (stdout, stderr) = log_stdio(&paths.qdrant_log)?;
     Command::new(binary)
         .current_dir(&paths.qdrant_root)
@@ -760,7 +810,7 @@ fn spawn_qdrant(
 }
 
 fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<PathBuf> {
-    if let Some(directory) = non_empty_env_path("A4N_SIDECAR_BIN_DIR")? {
+    if let Some(directory) = non_empty_env_path(SIDECAR_BIN_DIR_ENV)? {
         validate_sidecar_directory(&directory)?;
         return Ok(directory);
     }
@@ -768,14 +818,17 @@ fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<PathBuf> {
         && let Ok(executable) = std::env::current_exe()
         && let Some(parent) = executable.parent()
     {
-        for directory in installed_sidecar_directories(parent) {
-            if validate_sidecar_directory(&directory).is_ok() {
-                return Ok(directory);
-            }
-        }
+        let services = parent.join("services");
+        let directory = if services.is_dir() {
+            services
+        } else {
+            parent.to_path_buf()
+        };
+        validate_sidecar_directory(&directory)?;
+        return Ok(directory);
     }
     let root = source_root.ok_or_else(|| {
-        anyhow::anyhow!("未找到 managed sidecar 二进制；请设置 A4N_SIDECAR_BIN_DIR")
+        anyhow::anyhow!("未找到 managed sidecar 二进制；请设置 {SIDECAR_BIN_DIR_ENV}")
     })?;
     let directory = target_debug_dir(root)?;
     let catalog = a4n_service_protocol::service_catalog()?;
@@ -797,17 +850,6 @@ fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<PathBuf> {
     }
     validate_sidecar_directory(&directory)?;
     Ok(directory)
-}
-
-fn installed_sidecar_directories(executable_dir: &Path) -> Vec<PathBuf> {
-    let mut directories = vec![
-        executable_dir.join("services"),
-        executable_dir.to_path_buf(),
-    ];
-    if let Some(prefix) = executable_dir.parent() {
-        directories.push(prefix.join("lib/a4n/services"));
-    }
-    directories
 }
 
 fn validate_sidecar_directory(directory: &Path) -> Result<()> {
@@ -833,7 +875,7 @@ fn resolve_or_build_binary(
 ) -> Result<PathBuf> {
     if source_root.is_none()
         && feature.is_none()
-        && let Some(binary) = find_binary(name)
+        && let Some(binary) = sibling_binary(name)
     {
         return Ok(binary);
     }
@@ -867,39 +909,10 @@ fn resolve_or_build_binary(
     Ok(binary)
 }
 
-fn find_binary(name: &str) -> Option<PathBuf> {
+fn sibling_binary(name: &str) -> Option<PathBuf> {
     let executable = executable_name(name);
-    if let Ok(current) = std::env::current_exe()
-        && let Some(parent) = current.parent()
-    {
-        let sibling = parent.join(&executable);
-        if sibling.is_file() {
-            return Some(sibling);
-        }
-    }
-    std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths)
-            .map(|path| path.join(&executable))
-            .find(|path| path.is_file())
-    })
-}
-
-fn resolve_qdrant_binary(source_root: Option<&Path>) -> Result<Option<PathBuf>> {
-    if let Some(path) = non_empty_env_path("A4N_QDRANT_BIN")? {
-        if !path.is_file() {
-            bail!("A4N_QDRANT_BIN 不是可用文件: {}", path.display());
-        }
-        return Ok(Some(path));
-    }
-    if let Some(root) = source_root {
-        let path = root
-            .join("tools/qdrant/bin")
-            .join(executable_name("qdrant"));
-        if path.is_file() {
-            return Ok(Some(path));
-        }
-    }
-    Ok(find_binary("qdrant"))
+    let sibling = std::env::current_exe().ok()?.parent()?.join(executable);
+    sibling.is_file().then_some(sibling)
 }
 
 fn source_root() -> Result<Option<PathBuf>> {
@@ -961,6 +974,27 @@ fn load_state_unlocked(path: &Path) -> Result<Option<LocalState>> {
         bail!("local state 内容不一致");
     }
     Ok(Some(state))
+}
+
+async fn inspect_local_state(state: &LocalState) -> LocalStateInspection {
+    let server_process_alive = process_alive(state.server_pid);
+    let server_identity_matches =
+        server_process_alive && process_matches(state.server_pid, &state.server_marker);
+    let qdrant_owned = state.qdrant_pid.is_some();
+    let qdrant_process_alive = state.qdrant_pid.is_some_and(process_alive);
+    let qdrant_identity_matches = qdrant_process_alive
+        && state
+            .qdrant_pid
+            .zip(state.qdrant_marker.as_deref())
+            .is_some_and(|(pid, marker)| process_matches(pid, marker));
+    LocalStateInspection {
+        server_process_alive,
+        server_identity_matches,
+        server_healthy: server_healthy(&state.server_url).await,
+        qdrant_owned,
+        qdrant_process_alive,
+        qdrant_identity_matches,
+    }
 }
 
 fn binary_marker(binary: &Path) -> Result<String> {
@@ -1119,7 +1153,8 @@ fn server_endpoint(api_base: &str) -> Result<SocketAddr> {
     }
     Ok(SocketAddr::new(
         ip,
-        url.port_or_known_default().unwrap_or(8080),
+        url.port_or_known_default()
+            .expect("http Server URL must have a known default port"),
     ))
 }
 
@@ -1149,7 +1184,18 @@ fn endpoint_from_url(value: &str) -> Result<SocketAddr> {
     let host = url
         .host_str()
         .ok_or_else(|| anyhow::anyhow!("服务 URL 缺少 host"))?;
-    resolve_socket(host, url.port_or_known_default().unwrap_or(6334))
+    resolve_socket(
+        host,
+        url.port_or_known_default()
+            .expect("http/https service URL must have a known default port"),
+    )
+}
+
+fn qdrant_http_port(grpc_port: u16) -> Result<u16> {
+    grpc_port
+        .checked_sub(1)
+        .filter(|port| *port > 0)
+        .ok_or_else(|| anyhow::anyhow!("Qdrant gRPC 端口必须大于 1"))
 }
 
 fn resolve_socket(host: &str, port: u16) -> Result<SocketAddr> {
@@ -1221,21 +1267,6 @@ async fn server_healthy(api_base: &str) -> bool {
             .is_ok_and(|value| value["host"] == HOST_IDENTITY)
 }
 
-fn local_state_status(
-    server_alive: bool,
-    identity_matches: bool,
-    server_healthy: bool,
-    qdrant_alive: bool,
-) -> &'static str {
-    if server_alive && !identity_matches {
-        "error"
-    } else if !server_alive || !server_healthy || !qdrant_alive {
-        "warning"
-    } else {
-        "ok"
-    }
-}
-
 fn log_stdio(path: &Path) -> Result<(Stdio, Stdio)> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -1303,14 +1334,6 @@ fn required_env(key: &str) -> Result<String> {
     non_empty_env_string(key)?.ok_or_else(|| anyhow::anyhow!("缺少 {key}"))
 }
 
-fn non_empty_env_path(key: &str) -> Result<Option<PathBuf>> {
-    match std::env::var_os(key) {
-        Some(value) if value.is_empty() => bail!("{key} 不能为空"),
-        Some(value) => Ok(Some(PathBuf::from(value))),
-        None => Ok(None),
-    }
-}
-
 fn push_check(checks: &mut Vec<Value>, name: &str, status: &str, detail: impl Into<Value>) {
     checks.push(json!({ "name": name, "status": status, "detail": detail.into() }));
 }
@@ -1328,7 +1351,6 @@ fn executable_name(name: &str) -> OsString {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
     use std::process::Command;
 
     use tempfile::TempDir;
@@ -1336,10 +1358,9 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::{
-        configure_onnxruntime_environment, database_endpoint, endpoint_from_url,
-        installed_sidecar_directories, local_state_status, log_stdio, non_empty_command_line,
-        onnxruntime_library_name, runtime_loader_path_var, server_endpoint, server_healthy,
-        tail_lines,
+        LocalStateInspection, configure_onnxruntime_environment, database_endpoint,
+        endpoint_from_url, log_stdio, non_empty_command_line, onnxruntime_library_name,
+        qdrant_http_port, runtime_loader_path_var, server_endpoint, server_healthy, tail_lines,
     };
 
     #[test]
@@ -1367,10 +1388,35 @@ mod tests {
 
     #[test]
     fn owned_local_state_reports_stale_and_mismatched_processes() {
-        assert_eq!(local_state_status(true, true, true, true), "ok");
-        assert_eq!(local_state_status(false, false, false, true), "warning");
-        assert_eq!(local_state_status(true, false, false, true), "error");
-        assert_eq!(local_state_status(true, true, true, false), "warning");
+        let status = |server_process_alive,
+                      server_identity_matches,
+                      server_healthy,
+                      qdrant_owned,
+                      qdrant_process_alive,
+                      qdrant_identity_matches| {
+            LocalStateInspection {
+                server_process_alive,
+                server_identity_matches,
+                server_healthy,
+                qdrant_owned,
+                qdrant_process_alive,
+                qdrant_identity_matches,
+            }
+            .status()
+        };
+        assert_eq!(status(true, true, true, false, false, false), "ok");
+        assert_eq!(status(true, true, true, true, true, true), "ok");
+        assert_eq!(status(false, false, false, false, false, false), "warning");
+        assert_eq!(status(true, false, false, false, false, false), "error");
+        assert_eq!(status(true, true, true, true, false, false), "warning");
+        assert_eq!(status(true, true, true, true, true, false), "error");
+    }
+
+    #[test]
+    fn qdrant_http_port_rejects_saturating_fallbacks() {
+        assert_eq!(qdrant_http_port(6334).unwrap(), 6333);
+        assert!(qdrant_http_port(1).is_err());
+        assert!(qdrant_http_port(0).is_err());
     }
 
     #[test]
@@ -1391,18 +1437,6 @@ mod tests {
         let (server, task) = meta_server("a4n-server").await;
         assert!(server_healthy(&server).await);
         task.await.unwrap();
-    }
-
-    #[test]
-    fn installed_sidecars_support_portable_macos_and_system_layouts() {
-        assert_eq!(
-            installed_sidecar_directories(Path::new("/opt/a4n/bin")),
-            vec![
-                Path::new("/opt/a4n/bin/services").to_path_buf(),
-                Path::new("/opt/a4n/bin").to_path_buf(),
-                Path::new("/opt/a4n/lib/a4n/services").to_path_buf(),
-            ]
-        );
     }
 
     #[test]

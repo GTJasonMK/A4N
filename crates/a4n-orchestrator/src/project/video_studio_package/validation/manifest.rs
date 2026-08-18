@@ -12,7 +12,12 @@ use self::canvas_records::validate_canvas_records;
 use self::generation::validate_generation_records;
 use self::ids::validate_and_collect_manifest_ids;
 use self::payload::validate_payload_entries;
-use super::*;
+use a4n_core::state::validator::parse_project_status;
+
+use crate::project::{normalize_project_type, required_text, validate_freeform_video_project};
+use crate::project::video_studio_package::{
+    ImportMediaPayload, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage,
+};
 
 pub(super) fn validate_package_manifest(
     package: &VideoStudioProjectPackage,
@@ -25,7 +30,7 @@ pub(super) fn validate_package_manifest(
         return Err(format!("视频画布项目包模式无效: {}", package.mode));
     }
     required_text(&package.project.title, "视频画布项目包项目标题")?;
-    crate::project::validate_freeform_video_project(&package.project, "视频画布项目包")?;
+    validate_freeform_video_project(&package.project, "视频画布项目包")?;
     normalize_project_type(&package.project.project_type).map_err(|err| err.to_string())?;
     parse_project_status(&package.project.status).map_err(|err| err.to_string())?;
 

@@ -11,7 +11,7 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { StyleTemplatePicker } from "../StyleTemplatePicker";
 import type { ChapterRow } from "../shared";
-import { IMAGE_STYLE_TEMPLATES } from "../styleTemplates";
+import { VISUAL_STYLE_TEMPLATES } from "../styleTemplates";
 
 interface ImageGenerationDialogProps {
   open: boolean;
@@ -194,7 +194,7 @@ export function ImageGenerationDialog({
                 <StyleTemplatePicker
                   label="素材图风格"
                   value={objectImageStyle}
-                  templates={IMAGE_STYLE_TEMPLATES}
+                  templates={VISUAL_STYLE_TEMPLATES}
                   disabled={busy}
                   rows={4}
                   onChange={onObjectImageStyleChange}

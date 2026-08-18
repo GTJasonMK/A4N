@@ -30,6 +30,12 @@ const SPEC_STATUS_COMPLETED: &str = "completed";
 const SPEC_STATUS_FAILED: &str = "failed";
 const SPEC_STATUS_CANCELLED: &str = "cancelled";
 
+pub const GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT: &str = "canvas_prompt";
+pub const GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE: &str = "canvas_image";
+pub const GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO: &str = "canvas_video";
+pub const GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY: &str = "canvas_assembly";
+pub const GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE: &str = "canvas_node";
+
 pub const GENERATION_SPEC_TARGET_KINDS: &[&str] = &[
     "character_material_image",
     "portrait_expression",
@@ -47,10 +53,10 @@ pub const GENERATION_SPEC_TARGET_KINDS: &[&str] = &[
     "final_assembly",
     "manga_page",
     "manga_intermediate",
-    "canvas_prompt",
-    "canvas_image",
-    "canvas_video",
-    "canvas_assembly",
+    GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT,
+    GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
+    GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+    GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY,
 ];
 pub const GENERATION_SPEC_TARGET_ENTITY_KINDS: &[&str] = &[
     "character",
@@ -64,7 +70,7 @@ pub const GENERATION_SPEC_TARGET_ENTITY_KINDS: &[&str] = &[
     "chapter_video_prompt",
     "galgame_scene",
     "galgame_line",
-    "canvas_node",
+    GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
 ];
 pub const GENERATION_SPEC_STATUSES: &[&str] = &[
     SPEC_STATUS_DRAFT,

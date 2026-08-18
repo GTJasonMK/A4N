@@ -1,10 +1,13 @@
-use super::context::ServiceRequestContext;
 use super::secrets::SecretForwardingPolicy;
 use super::trace::{SchemaVersion, TraceContext};
-use crate::{ServiceError, ServiceResponse, validate_known_service_request};
+use crate::{
+    ServiceError, ServiceResponse, validate_known_service_request,
+    validate_provider_api_key_secret_policy,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ServiceRequest<T> {
     pub request_id: String,
     pub trace_context: TraceContext,
@@ -25,6 +28,15 @@ pub struct ServiceRequest<T> {
 impl<T> ServiceRequest<T> {
     pub fn validate_known_service(&self, service_name: &str) -> Result<(), ServiceError> {
         validate_known_service_request(self, service_name)
+    }
+
+    pub fn validate_known_provider_request(
+        &self,
+        service_name: &str,
+        api_key: Option<&str>,
+    ) -> Result<(), ServiceError> {
+        self.validate_known_service(service_name)?;
+        validate_provider_api_key_secret_policy(api_key, &self.secret_policy, service_name)
     }
 
     pub fn ok_response<U>(&self, payload: U) -> ServiceResponse<U> {
@@ -54,48 +66,5 @@ impl<T> ServiceRequest<T> {
         }
         let trace_id = self.trace_context.trace_id.clone();
         ServiceResponse::from_result(trace_id, operation(self.payload), map_error)
-    }
-
-    pub fn context(&self) -> ServiceRequestContext {
-        ServiceRequestContext {
-            request_id: self.request_id.clone(),
-            trace_context: self.trace_context.clone(),
-            schema_version: self.schema_version.clone(),
-            user_id: self.user_id,
-            project_id: self.project_id,
-            root_project_id: self.root_project_id,
-            runtime_config_snapshot: self.runtime_config_snapshot.clone(),
-            secret_policy: self.secret_policy.clone(),
-        }
-    }
-
-    pub fn into_context_and_payload(self) -> (ServiceRequestContext, String, T) {
-        let Self {
-            request_id,
-            trace_context,
-            schema_version,
-            user_id,
-            project_id,
-            root_project_id,
-            runtime_config_snapshot,
-            secret_policy,
-            capability_version,
-            payload,
-        } = self;
-
-        (
-            ServiceRequestContext {
-                request_id,
-                trace_context,
-                schema_version,
-                user_id,
-                project_id,
-                root_project_id,
-                runtime_config_snapshot,
-                secret_policy,
-            },
-            capability_version,
-            payload,
-        )
     }
 }

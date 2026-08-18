@@ -1,4 +1,7 @@
-use a4n_core::blueprint::{ParsedBlueprint, project_status_after_blueprint_generation};
+use a4n_core::blueprint::{
+    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATION_KIND, BLUEPRINT_GENERATION_PROMPTS,
+    ParsedBlueprint, project_status_after_blueprint_generation,
+};
 use a4n_core::error::AppError;
 use a4n_core::models::project::novel_blueprint;
 use a4n_core::state::validator::parse_project_status;
@@ -34,9 +37,6 @@ use crate::project::{
 
 pub(super) struct BlueprintGenerationCompletionInput {
     pub(super) project_id: i64,
-    pub(super) novel_title: String,
-    pub(super) genre: String,
-    pub(super) target_length: i32,
     pub(super) user_payload: Value,
     pub(super) trace_requests: Vec<(&'static str, ChatRequest)>,
     pub(super) assembled_content: String,
@@ -56,9 +56,6 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
 ) -> Result<BlueprintCompletionOutcome, AppError> {
     let BlueprintGenerationCompletionInput {
         project_id,
-        novel_title,
-        genre,
-        target_length,
         user_payload,
         trace_requests,
         assembled_content,
@@ -208,17 +205,13 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
         tx,
         RecordCompletedGenerationRunInput {
             project_id,
-            workflow: "blueprint_generation".to_string(),
-            step_key: "blueprint".to_string(),
+            workflow: BLUEPRINT_GENERATION_KIND.to_string(),
+            step_key: BLUEPRINT_BASE_PROMPT.to_string(),
             title: "生成故事蓝图".to_string(),
             model_kind: "llm".to_string(),
             provider: None,
             model: Some(model_name),
-            prompt_template_names_json: Some(json!([
-                "blueprint",
-                a4n_core::blueprint::BLUEPRINT_STAGE_SYSTEM_PROMPT,
-                "blueprint_stage_user"
-            ])),
+            prompt_template_names_json: Some(json!(BLUEPRINT_GENERATION_PROMPTS)),
             prompt_template_hashes_json: None,
             rendered_messages_json: Some(Value::Array(
                 trace_requests
@@ -232,12 +225,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
                     .collect::<Result<Vec<_>, AppError>>()?,
             )),
             rendered_prompts_json: None,
-            input_variables_json: Some(json!({
-                "novel_title": novel_title,
-                "genre": genre,
-                "target_length": target_length,
-                "generation_payload": user_payload,
-            })),
+            input_variables_json: Some(user_payload),
             source_refs_json: Some(json!({
                 "source_node": "inspiration",
                 "source_kind": "inspiration_conversation",

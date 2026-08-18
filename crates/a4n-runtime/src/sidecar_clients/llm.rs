@@ -3,13 +3,9 @@ use std::sync::Arc;
 use a4n_capabilities::A4nCapabilities;
 use a4n_core::error::AppError;
 use a4n_llm::provider::LlmProvider;
-use a4n_model_discovery::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_orchestrator::DynamicProviderFacade;
 
 use crate::state::RuntimeProfile;
-
-use super::request_context::global_provider_service_request;
-use super::response::{response_payload, service_error_string};
 
 pub(crate) fn create_llm_provider(
     facade: DynamicProviderFacade,
@@ -44,42 +40,4 @@ pub(super) fn required_sidecar_client<T: Clone>(
 
 pub(super) fn missing_sidecar_capability_message(capability: &str) -> String {
     format!("{capability} sidecar capability 未配置，无法启用 sidecar profile")
-}
-
-pub(crate) async fn discover_llm_models(
-    profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
-    provider: &str,
-    base_url: &str,
-    api_key: Option<&str>,
-) -> Result<ModelDiscoveryResult, String> {
-    if profile.uses_sidecars() {
-        let client = capabilities
-            .llm
-            .clone()
-            .ok_or_else(|| "LLM sidecar capability 未配置，无法探测模型列表".to_string())?;
-        let response = client
-            .discover_models(global_provider_service_request(
-                "llm",
-                a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
-                model_discovery_payload(provider, base_url, api_key),
-            )?)
-            .await
-            .map_err(service_error_string)?;
-        return response_payload(response, "llm");
-    }
-
-    a4n_model_discovery::discover_models(provider, base_url, api_key).await
-}
-
-pub(super) fn model_discovery_payload(
-    provider: &str,
-    base_url: &str,
-    api_key: Option<&str>,
-) -> ModelDiscoveryRequest {
-    ModelDiscoveryRequest {
-        provider: provider.to_string(),
-        base_url: base_url.to_string(),
-        api_key: api_key.map(str::to_string),
-    }
 }

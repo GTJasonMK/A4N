@@ -1,8 +1,10 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
-use serde_json::{Value, json};
+use serde_json::Value;
 
-use crate::workflow::workflow_write_app_error;
+use crate::{
+    structured_llm::ensure_checkpoint_parsed_output_matches,
+    workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
+};
 
 use super::super::super::OrchestratorContext;
 use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
@@ -14,12 +16,11 @@ impl OrchestratorContext {
         parsed_output: &Value,
     ) -> Result<(), AppError> {
         if let Some(restored) = trace.restored_parsed_output.as_ref() {
-            if restored != parsed_output {
-                return Err(AppError::InvalidArgument(format!(
-                    "{} checkpoint 的 parsed_output 与严格解析结果不一致",
-                    trace.call_key
-                )));
-            }
+            ensure_checkpoint_parsed_output_matches(
+                restored,
+                parsed_output,
+                &format!("漫画管线 {}", trace.call_key),
+            )?;
             return Ok(());
         }
         let response_usage_json = trace
@@ -28,24 +29,19 @@ impl OrchestratorContext {
             .map(serde_json::to_value)
             .transpose()
             .map_err(AppError::Serialization)?;
-        workflow::save_completed_llm_call_checkpoint(
-            self.database.connection(),
-            CompletedLlmCallCheckpointInput {
+        self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id: trace.workflow_run_id,
                 call_key: trace.call_key.clone(),
                 call_order: trace.call_order,
                 input_fingerprint_json: trace.input_fingerprint_json.clone(),
-                checkpoint_json: json!({
-                    "output": parsed_output,
-                    "parsed_output": parsed_output,
-                    "response_content": trace.response_text,
-                    "usage": response_usage_json,
-                    "finish_reason": trace.finish_reason,
-                }),
-                artifacts_json: None,
-            },
-        )
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: parsed_output.clone(),
+                    response_content: trace.response_text.clone(),
+                    usage: response_usage_json,
+                    finish_reason: trace.finish_reason.clone(),
+                    artifacts_json: None,
+                },
+        })
         .await
-        .map_err(workflow_write_app_error)
     }
 }

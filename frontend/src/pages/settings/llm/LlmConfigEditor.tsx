@@ -1,9 +1,6 @@
 import React from "react";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
-import {
-  detectLlmConfigModels,
-  detectServerLlmConfigModels,
-} from "../../../api/config";
+import { detectLlmConfigModels } from "../../../api/config";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
@@ -11,12 +8,13 @@ import type { LlmForm } from "./types";
 import type { LlmProviderDescriptor } from "../../../api/generated/config";
 import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
+import type { ModelConfigScope } from "../../../api/modelDiscovery";
 
 interface LlmConfigEditorProps {
   form: LlmForm;
   setForm: (form: LlmForm) => void;
   configId?: number | null;
-  serverScope?: boolean;
+  scope: ModelConfigScope;
   readonly?: boolean;
   templateLocked?: boolean;
   providers: LlmProviderDescriptor[];
@@ -26,16 +24,13 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
   form,
   setForm,
   configId = null,
-  serverScope = false,
+  scope,
   readonly = false,
   templateLocked = false,
   providers,
 }) => {
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
-  const detectModels = serverScope
-    ? detectServerLlmConfigModels
-    : detectLlmConfigModels;
   const selectedProvider = providers.find(
     (provider) => provider.id === form.provider,
   );
@@ -47,7 +42,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
     configId,
     hasApiKey: form.has_api_key,
     readonly,
-    scope: serverScope ? "server" : "local",
+    scope,
   });
 
   return (
@@ -101,7 +96,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
-            detectModels={() => detectModels(modelDiscovery.input)}
+            detectModels={() => detectLlmConfigModels(modelDiscovery.input, scope)}
           />
         </FormField>
       </div>

@@ -6,9 +6,10 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     portrait::{normalize_portrait_prompt_response, portrait_prompt_checkpoint_fingerprint},
+    structured_llm::ensure_checkpoint_parsed_output_matches,
     workflow::{
-        CompletedLlmCallCheckpointInput, CompletedWorkflowCheckpointInput,
-        required_checkpoint_field, required_checkpoint_json, required_llm_call_checkpoint_json,
+        CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+        CompletedWorkflowCheckpointInput, required_checkpoint_field, required_checkpoint_json,
     },
 };
 
@@ -70,37 +71,22 @@ pub(super) async fn resolve_initial_portrait_prompt(
         .await?
     {
         report_progress(progress, 2, 6, "图片提示词已从断点恢复")?;
-        let checkpoint_json =
-            required_llm_call_checkpoint_json(checkpoint, &call_key).map_err(|error| {
-                AppError::InvalidState {
-                    current: error.to_string(),
-                    operation: format!("恢复人物三视图提示词断点 {call_key}"),
-                }
-            })?;
-        let response_content = checkpoint_string(&checkpoint_json, &call_key, "response_content")?;
-        let image_prompt = checkpoint_string(&checkpoint_json, &call_key, "parsed_output")?;
-        let reparsed = normalize_portrait_prompt_response(&response_content)?;
-        if reparsed != image_prompt {
-            return Err(AppError::InvalidState {
-                current: "checkpoint_parsed_output_mismatch".to_string(),
-                operation: format!("恢复人物三视图提示词断点 {call_key}"),
-            });
-        }
-        let usage = checkpoint_json
-            .get("usage")
-            .cloned()
-            .ok_or_else(|| checkpoint_missing_field(&call_key, "usage"))?;
-        let finish_reason = checkpoint_json
-            .get("finish_reason")
-            .cloned()
-            .ok_or_else(|| checkpoint_missing_field(&call_key, "finish_reason"))?;
+        let image_prompt = checkpoint.parsed_output.as_str().ok_or_else(|| {
+            checkpoint_missing_field(&call_key, "parsed_output")
+        })?;
+        let reparsed = normalize_portrait_prompt_response(&checkpoint.response_content)?;
+        ensure_checkpoint_parsed_output_matches(
+            image_prompt,
+            &reparsed,
+            &format!("人物三视图提示词 {call_key}"),
+        )?;
         return Ok(InitialPortraitPrompt {
             request,
-            image_prompt,
+            image_prompt: reparsed,
             raw_response_json: json!({
-                "text": response_content,
-                "usage": usage,
-                "finish_reason": finish_reason,
+                "text": checkpoint.response_content,
+                "usage": checkpoint.usage,
+                "finish_reason": checkpoint.finish_reason,
             }),
         });
     }
@@ -132,14 +118,13 @@ pub(super) async fn resolve_initial_portrait_prompt(
             call_key,
             call_order: 1,
             input_fingerprint_json: prompt_fingerprint,
-            checkpoint_json: json!({
-                "output": image_prompt.clone(),
-                "parsed_output": image_prompt.clone(),
-                "response_content": response_content,
-                "usage": usage,
-                "finish_reason": finish_reason,
-            }),
-            artifacts_json: None,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: Value::String(image_prompt.clone()),
+                response_content,
+                usage,
+                finish_reason,
+                artifacts_json: None,
+            },
         })
         .await?;
     Ok(InitialPortraitPrompt {

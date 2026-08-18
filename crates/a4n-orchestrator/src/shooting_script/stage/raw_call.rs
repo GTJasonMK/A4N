@@ -6,7 +6,6 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     structured_llm::{ChatJsonStreamInput, StructuredLlmProgress},
-    workflow::{required_llm_call_checkpoint_json, workflow_checkpoint_contract_app_error},
 };
 
 use super::super::contracts::ShootingScriptProgressReporter;
@@ -38,34 +37,11 @@ impl OrchestratorContext {
             .load_completed_llm_call_checkpoint(workflow_run_id, call_key, fingerprint_json)
             .await?
         {
-            let checkpoint_json = required_llm_call_checkpoint_json(checkpoint, call_key)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-            let response_content = checkpoint_json["response_content"]
-                .as_str()
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!("{call_key}.response_content 必须是字符串"))
-                })?
-                .to_string();
-            let restored_parsed_output = checkpoint_json
-                .get("parsed_output")
-                .filter(|value| !value.is_null())
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!("{call_key}.parsed_output 必须是结构化输出"))
-                })?;
-            let usage = checkpoint_json
-                .get("usage")
-                .filter(|value| !value.is_null())
-                .cloned();
-            let finish_reason = checkpoint_json
-                .get("finish_reason")
-                .and_then(Value::as_str)
-                .map(str::to_string);
             return Ok(RawCallResult {
-                response_content,
-                restored_parsed_output: Some(restored_parsed_output),
-                usage,
-                finish_reason,
+                response_content: checkpoint.response_content,
+                restored_parsed_output: Some(checkpoint.parsed_output),
+                usage: checkpoint.usage,
+                finish_reason: checkpoint.finish_reason,
             });
         }
 

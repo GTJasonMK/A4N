@@ -14,11 +14,6 @@ pub use types::{
 };
 
 pub(super) use crate::project::SOURCE_SYNC_CURRENT;
-pub(super) const MEDIA_OWNER_IMAGE: &str = "generated_image";
-pub(super) const MEDIA_OWNER_VIDEO: &str = "generated_video";
-pub(super) const MEDIA_OWNER_MEDIA_ASSET: &str = "media_asset";
-pub(super) const MEDIA_FIELD_FILE: &str = "file_path";
-pub(super) const MEDIA_FIELD_THUMBNAIL: &str = "thumbnail_path";
 
 #[cfg(test)]
 use remap::{

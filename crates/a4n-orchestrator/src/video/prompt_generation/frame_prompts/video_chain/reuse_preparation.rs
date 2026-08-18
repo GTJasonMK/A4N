@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
+use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::Value;
 
 use super::super::{
@@ -60,7 +61,7 @@ pub(super) async fn prepare_video_prompt_reuse(
         project_id,
         chapter_id,
         workflow_mode: spec.workflow_mode.as_str(),
-        prompt_type: "video_prompt",
+        prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO,
         source_metadata,
         style,
         duration_secs,
@@ -75,7 +76,10 @@ pub(super) async fn prepare_video_prompt_reuse(
         .await?;
     let is_chat_video = spec.is_chat_video();
     let preflight_rows = &matching_video_prompts;
-    if preflight_rows.iter().any(|row| row.status == "running") {
+    if preflight_rows
+        .iter()
+        .any(|row| row.status == chapter_video_prompt::STATUS_RUNNING)
+    {
         return Err(AppError::InvalidArgument(format!(
             "当前章节已有{}正在运行，不能重新生成视频提示词",
             spec.video_prompt_label

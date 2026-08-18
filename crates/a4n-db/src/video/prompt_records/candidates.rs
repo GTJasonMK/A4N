@@ -42,7 +42,9 @@ pub async fn chapter_video_boundary_frame_prompt_candidates(
     chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::PromptType.eq("frame_prompt"))
+        .filter(
+            chapter_video_prompt::Column::PromptType.eq(chapter_video_prompt::PROMPT_TYPE_FRAME),
+        )
         .filter(
             chapter_video_prompt::Column::ShotNumber.is_in([first_frame_number, last_frame_number]),
         )
@@ -62,7 +64,10 @@ pub async fn chapter_video_first_frame_prompt_candidates(
     chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::PromptType.eq("first_frame_prompt"))
+        .filter(
+            chapter_video_prompt::Column::PromptType
+                .eq(chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME),
+        )
         .filter(chapter_video_prompt::Column::ShotNumber.eq(1))
         .order_by_desc(chapter_video_prompt::Column::Id)
         .all(db)
@@ -80,8 +85,13 @@ pub async fn chapter_video_first_frame_chain_prompt_candidates(
     chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::PromptType.eq("video_prompt"))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq("first_frame_chain"))
+        .filter(
+            chapter_video_prompt::Column::PromptType.eq(chapter_video_prompt::PROMPT_TYPE_VIDEO),
+        )
+        .filter(
+            chapter_video_prompt::Column::WorkflowMode
+                .eq(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN),
+        )
         .order_by_desc(chapter_video_prompt::Column::Id)
         .all(db)
         .await
@@ -100,8 +110,14 @@ pub async fn chapter_video_storyboard_prompt_candidates(
     chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq("storyboard"))
-        .filter(chapter_video_prompt::Column::PromptType.eq("storyboard_prompt"))
+        .filter(
+            chapter_video_prompt::Column::WorkflowMode
+                .eq(chapter_video_prompt::WORKFLOW_MODE_STORYBOARD),
+        )
+        .filter(
+            chapter_video_prompt::Column::PromptType
+                .eq(chapter_video_prompt::PROMPT_TYPE_STORYBOARD),
+        )
         .filter(chapter_video_prompt::Column::ShotNumber.eq(shot_number))
         .order_by_desc(chapter_video_prompt::Column::Id)
         .all(db)

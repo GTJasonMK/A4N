@@ -1,11 +1,11 @@
 use super::super::prelude::{
     AppState, GeneratedVideoSummary, Path, access, append_secondary_error,
-    best_effort_video_thumbnail_path, canonicalize_data_file_path, data_dir_relative_file_path,
-    ensure_ffmpeg, remove_created_file_on_error_sync, run_ffmpeg_trim, trimmed_video_path,
-    video_to_summary,
+    best_effort_video_thumbnail_path, canonicalize_data_file_path, data_file_record_facts,
+    remove_created_file_on_error_sync, run_ffmpeg_trim, trimmed_video_path, video_to_summary,
 };
-use crate::actions::video_records::imports::source::enqueue_unadopted_video_file_cleanup;
+use crate::actions::video_records::enqueue_unadopted_video_file_cleanup;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+use a4n_core::models::ai::generated_video;
 
 pub async fn trim_video(
     state: &AppState,
@@ -14,25 +14,29 @@ pub async fn trim_video(
     start_secs: f32,
     end_secs: f32,
 ) -> Result<GeneratedVideoSummary, String> {
-    let plan = state
+    let source = state
         .orchestrator()
-        .prepare_video_trim_validated(video_id, start_secs, end_secs)
+        .required_video_record(video_id)
         .await
         .map_err(crate::actions::app_error_message)?;
-    let source = &plan.source;
     access::verify_project_editor_string(state, user_id, source.project_id).await?;
+    let plan = state
+        .orchestrator()
+        .prepare_video_trim_validated(source, start_secs, end_secs)
+        .map_err(crate::actions::app_error_message)?;
+    let source = &plan.source;
+    let start_secs = plan.start_secs;
+    let end_secs = plan.end_secs;
     let source_path = source
         .file_path
-        .clone()
+        .as_deref()
         .ok_or_else(|| "源视频还没有可裁剪的本地文件".to_string())?;
     let source_path = canonicalize_data_file_path(
         state.data_dir(),
-        &source_path,
+        source_path,
         &format!("源视频 #{}", source.id),
     )?;
-    ensure_ffmpeg()?;
-
-    let output = trimmed_video_path(state.data_dir(), source, start_secs, end_secs)?;
+    let output = trimmed_video_path(state.data_dir(), source)?;
     let (size, output_path_str) = persist_trimmed_video_output(state.data_dir(), &output, || {
         run_ffmpeg_trim(&source_path, &output, start_secs, end_secs)
     })?;
@@ -95,7 +99,7 @@ pub async fn trim_video(
                 }
             };
             if let Some(authoritative) = authoritative.as_ref()
-                && authoritative.status == a4n_orchestrator::video::GENERATED_VIDEO_STATUS_COMPLETED
+                && authoritative.status == generated_video::STATUS_COMPLETED
             {
                 let cleanup_error = enqueue_unadopted_video_file_cleanup(
                     state,
@@ -128,9 +132,9 @@ pub async fn trim_video(
             if authoritative.as_ref().is_some_and(|video| {
                 matches!(
                     video.status.as_str(),
-                    a4n_orchestrator::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
-                        | a4n_orchestrator::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED
-                        | a4n_orchestrator::video::GENERATED_VIDEO_STATUS_CANCELLED
+                    generated_video::STATUS_FAILED
+                        | generated_video::STATUS_INTERRUPTED
+                        | generated_video::STATUS_CANCELLED
                 )
             }) {
                 return Err(failure_message);
@@ -140,7 +144,7 @@ pub async fn trim_video(
                 .mark_generated_video_error_status_and_prompt(
                     record.id,
                     None,
-                    "failed",
+                    generated_video::STATUS_FAILED,
                     &failure_message,
                 )
                 .await
@@ -163,11 +167,8 @@ where
 {
     remove_created_file_on_error_sync(output, "裁剪输出文件", || {
         trim()?;
-        let size = std::fs::metadata(output)
-            .map_err(|error| format!("无法读取裁剪视频文件元数据：{error}"))?
-            .len();
-        let size = i64::try_from(size).map_err(|_| "裁剪视频文件过大，无法记录大小".to_string())?;
-        let relative_path = data_dir_relative_file_path(data_dir, output, "裁剪视频")?;
+        let (relative_path, size) =
+            data_file_record_facts(data_dir, output, "裁剪视频", "裁剪视频文件")?;
         Ok((size, relative_path))
     })
 }

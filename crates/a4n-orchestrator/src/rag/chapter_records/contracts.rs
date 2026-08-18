@@ -1,11 +1,5 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ChapterRagChunkingMode {
     Semantic,
     ClientDesktop,
-}
-
-impl ChapterRagChunkingMode {
-    pub(super) fn is_semantic(self) -> bool {
-        self == Self::Semantic
-    }
 }

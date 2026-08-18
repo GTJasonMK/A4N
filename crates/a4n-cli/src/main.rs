@@ -16,6 +16,7 @@ use std::time::Duration;
 use a4n_api_contract::auth::{ChangePasswordInput, RevokeSessionInput};
 use a4n_api_contract::command_manifest as catalog;
 use a4n_api_contract::project::CreateProjectInput;
+use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use anyhow::{Context, Result, bail};
 use base64::Engine as _;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
@@ -427,8 +428,6 @@ enum LocalCommand {
     /// 迁移数据库并在后台启动本地 Server
     Start {
         #[arg(long)]
-        no_migrate: bool,
-        #[arg(long)]
         no_sidecars: bool,
         #[arg(long)]
         no_qdrant: bool,
@@ -474,6 +473,24 @@ enum ConfigCommand {
     SetServer { url: String },
     /// 清除本地 token，不调用 Server
     ClearAuth,
+    /// 管理自动注入 Host API 请求的本机运行时配置
+    Runtime {
+        #[command(subcommand)]
+        command: RuntimeConfigCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum RuntimeConfigCommand {
+    /// 查看运行时配置；密钥不会输出
+    Show,
+    /// 从 JSON、@文件或 stdin 保存完整 runtime_config_snapshot
+    Set {
+        #[arg(long, value_name = "JSON|@FILE|-")]
+        input: String,
+    },
+    /// 清除已保存的运行时配置
+    Clear,
 }
 
 #[derive(Debug, Subcommand)]
@@ -651,6 +668,17 @@ impl ConfigCommand {
             Self::Show => "show",
             Self::SetServer { .. } => "set-server",
             Self::ClearAuth => "clear-auth",
+            Self::Runtime { command } => command.label(),
+        }
+    }
+}
+
+impl RuntimeConfigCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Show => "runtime show",
+            Self::Set { .. } => "runtime set",
+            Self::Clear => "runtime clear",
         }
     }
 }
@@ -1032,7 +1060,6 @@ async fn run_local(
                 runtime.client.api_base(),
                 runtime.client.config_path(),
                 local::StartOptions {
-                    migrate: true,
                     managed_sidecars: true,
                     qdrant: true,
                     full: false,
@@ -1043,7 +1070,6 @@ async fn run_local(
             Box::pin(run_shell(runtime, false, None)).await
         }
         Some(LocalCommand::Start {
-            no_migrate,
             no_sidecars,
             no_qdrant,
             full,
@@ -1052,7 +1078,6 @@ async fn run_local(
                 runtime.client.api_base(),
                 runtime.client.config_path(),
                 local::StartOptions {
-                    migrate: !no_migrate,
                     managed_sidecars: !no_sidecars && !full,
                     qdrant: !no_qdrant,
                     full,
@@ -1162,6 +1187,7 @@ async fn invoke_call(
     let descriptor = catalog::command_descriptor(command)
         .ok_or_else(|| anyhow::anyhow!("未知 Host API 命令: {command}"))?;
     apply_context_args(&mut args, &descriptor, context)?;
+    apply_runtime_config(&mut args, &descriptor, client.runtime_config_snapshot())?;
     apply_file_inputs(&mut args, files.set_base64, files.set_text)?;
     let outputs = prepare_outputs(files.save_base64, files.save_text, files.force)?;
     let secrets = request_secret_values(&descriptor, &args);
@@ -1224,6 +1250,39 @@ fn apply_context_args(
             object.insert(field.to_string(), Value::from(value));
         }
     }
+    Ok(())
+}
+
+fn apply_runtime_config(
+    args: &mut Value,
+    descriptor: &catalog::CommandDescriptor,
+    snapshot: Option<&RuntimeConfigSnapshot>,
+) -> Result<()> {
+    let object = args
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("call --args 必须是 JSON object"))?;
+    if object
+        .get("runtime_config_snapshot")
+        .is_some_and(Value::is_null)
+    {
+        object.remove("runtime_config_snapshot");
+        return Ok(());
+    }
+    if object.contains_key("runtime_config_snapshot") {
+        return Ok(());
+    }
+    let Some(snapshot) = snapshot else {
+        return Ok(());
+    };
+    let snapshot = match descriptor.runtime_config_policy {
+        catalog::RuntimeConfigPolicy::None => return Ok(()),
+        catalog::RuntimeConfigPolicy::WithoutSecrets => snapshot.without_secrets(),
+        catalog::RuntimeConfigPolicy::Full => snapshot.clone(),
+    };
+    object.insert(
+        "runtime_config_snapshot".into(),
+        serde_json::to_value(snapshot).context("序列化运行时配置失败")?,
+    );
     Ok(())
 }
 
@@ -2154,6 +2213,37 @@ fn run_config(
                 output,
             )
         }
+        ConfigCommand::Runtime { command } => match command {
+            RuntimeConfigCommand::Show => print_json(
+                &json!({
+                    "configured": client.runtime_config_snapshot().is_some(),
+                    "snapshot": client
+                        .runtime_config_snapshot()
+                        .map(RuntimeConfigSnapshot::without_secrets),
+                    "config_file": client.config_path(),
+                }),
+                output,
+            ),
+            RuntimeConfigCommand::Set { input } => {
+                let snapshot: RuntimeConfigSnapshot =
+                    serde_json::from_value(read_json_source(&input)?)
+                        .context("runtime_config_snapshot 无效")?;
+                client.set_runtime_config_snapshot(snapshot)?;
+                print_json(
+                    &json!({
+                        "configured": true,
+                        "snapshot": client
+                            .runtime_config_snapshot()
+                            .map(RuntimeConfigSnapshot::without_secrets),
+                    }),
+                    output,
+                )
+            }
+            RuntimeConfigCommand::Clear => {
+                client.clear_runtime_config_snapshot()?;
+                print_json(&json!({ "configured": false }), output)
+            }
+        },
     }
 }
 
@@ -2668,8 +2758,9 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        SessionContext, apply_context_args, catalog, prepare_outputs, query_path, read_json_source,
-        request_secret_values, save_outputs, set_json_pointer,
+        RuntimeConfigSnapshot, SessionContext, apply_context_args, apply_runtime_config, catalog,
+        prepare_outputs, query_path, read_json_source, request_secret_values, save_outputs,
+        set_json_pointer,
     };
 
     #[test]
@@ -2733,6 +2824,81 @@ mod tests {
         let admin_descriptor = catalog::command_descriptor("list_all_users").unwrap();
         apply_context_args(&mut admin_args, &admin_descriptor, &context).unwrap();
         assert_eq!(admin_args, json!({}));
+    }
+
+    #[test]
+    fn call_runtime_config_respects_manifest_policy_and_explicit_override() {
+        let snapshot: RuntimeConfigSnapshot = serde_json::from_value(json!({
+            "schema_version": 1,
+            "llm": {
+                "id": 1,
+                "name": "local",
+                "provider": "openai",
+                "base_url": "https://example.test/v1",
+                "api_key_encrypted": "secret",
+                "model": "model",
+                "max_concurrent": 1,
+                "timeout_secs": 30,
+                "max_context_tokens": 4096,
+                "max_output_tokens": 1024
+            }
+        }))
+        .unwrap();
+
+        let mut full = json!({});
+        apply_runtime_config(
+            &mut full,
+            &catalog::command_descriptor("check_character_conflict").unwrap(),
+            Some(&snapshot),
+        )
+        .unwrap();
+        assert_eq!(
+            full["runtime_config_snapshot"]["llm"]["api_key_encrypted"],
+            "secret"
+        );
+
+        let mut preview = json!({});
+        apply_runtime_config(
+            &mut preview,
+            &catalog::command_descriptor("preview_check_character_conflict_request").unwrap(),
+            Some(&snapshot),
+        )
+        .unwrap();
+        assert!(
+            preview["runtime_config_snapshot"]["llm"]
+                .get("api_key_encrypted")
+                .is_none()
+        );
+
+        let mut no_runtime = json!({});
+        apply_runtime_config(
+            &mut no_runtime,
+            &catalog::command_descriptor("list_projects").unwrap(),
+            Some(&snapshot),
+        )
+        .unwrap();
+        assert_eq!(no_runtime, json!({}));
+
+        let mut explicit = json!({ "runtime_config_snapshot": { "schema_version": 1 } });
+        apply_runtime_config(
+            &mut explicit,
+            &catalog::command_descriptor("check_character_conflict").unwrap(),
+            Some(&snapshot),
+        )
+        .unwrap();
+        assert_eq!(
+            explicit["runtime_config_snapshot"],
+            json!({ "schema_version": 1 })
+        );
+
+        let mut disabled = json!({ "runtime_config_snapshot": null });
+        apply_runtime_config(
+            &mut disabled,
+            &catalog::command_descriptor("check_character_conflict").unwrap(),
+            Some(&snapshot),
+        )
+        .unwrap();
+        assert_eq!(disabled, json!({}));
     }
 
     #[test]

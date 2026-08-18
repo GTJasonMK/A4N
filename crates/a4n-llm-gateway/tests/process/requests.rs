@@ -1,5 +1,5 @@
 use a4n_capabilities::{CapabilityClient, LlmClient};
-use a4n_llm::provider::ChatRequest;
+use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, LLM_SERVICE_NAME, PROTOCOL_VERSION,
     ServiceErrorCode, ServiceStatus, sidecar_resource_policy,
@@ -60,7 +60,8 @@ async fn stream_response_headers_have_a_connect_deadline_when_gateway_is_saturat
         .expect("manager should start the independent gateway binary");
     let policy = sidecar_resource_policy(LLM_SERVICE_NAME).expect("llm resource policy");
     let held = hold_partial_requests(addr, "/llm/stream", policy.max_concurrent_requests).await;
-    let (events, _receiver) = tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+    let (events, _receiver) =
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = gateway_client(addr)
         .stream(
@@ -99,7 +100,7 @@ async fn event_queue_backpressure_waits_for_capacity_across_independent_gateway_
         .expect("manager should start the independent gateway binary");
     let client = gateway_client(addr);
     let (event_tx, mut event_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let stream = tokio::spawn(async move {
         client
@@ -136,7 +137,7 @@ async fn event_queue_backpressure_waits_for_capacity_across_independent_gateway_
         .await
         .expect("stream task should join")
         .expect("stream should finish after queue capacity is released");
-    assert!(chunk_count > a4n_capabilities::EVENT_QUEUE_CAPACITY);
+    assert!(chunk_count > a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     assert_gateway_health(&manager, addr).await;
     process
@@ -310,19 +311,18 @@ async fn typed_stream_crosses_independent_gateway_process() {
     assert_eq!(events.len(), 3);
     assert_eq!(events[0].task_id, "process-stream-request");
     assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
-    assert_eq!(events[0].chunk_delta.as_deref(), Some("pro"));
+    let first = event_chunk(&events[0]);
+    assert_eq!(first.content.as_deref(), Some("pro"));
     assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
-    assert_eq!(events[1].chunk_delta.as_deref(), Some("cess"));
-    assert_eq!(events[1].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
+    let second = event_chunk(&events[1]);
+    assert_eq!(second.content.as_deref(), Some("cess"));
+    assert_eq!(second.finish_reason.as_deref(), Some("stop"));
     assert_eq!(
-        events[2]
-            .final_usage
-            .as_ref()
-            .map(|usage| &usage["total_tokens"]),
-        Some(&json!(6))
+        second.usage.as_ref().map(|usage| usage.total_tokens),
+        Some(6)
     );
-    assert_eq!(events[2].finish_reason.as_deref(), Some("stop"));
+    assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
+    assert_eq!(events[2].payload, None);
     assert_eq!(events[2].error, None);
 
     assert_eq!(provider_requests.len(), 2);
@@ -435,6 +435,11 @@ async fn provider_failure_is_isolated_from_independent_gateway_process() {
         &to_string(&recovery_events).expect("recovery events should serialize"),
         &provider_base_url,
     );
+}
+
+fn event_chunk(event: &CapabilityTaskEvent) -> ChatChunk {
+    serde_json::from_value(event.payload.clone().expect("chunk payload"))
+        .expect("typed chunk payload")
 }
 
 fn assert_one_failed_terminal(events: &[CapabilityTaskEvent]) {

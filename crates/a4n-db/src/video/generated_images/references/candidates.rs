@@ -1,7 +1,8 @@
 use super::context::{video_chapter_record, video_project_record};
 use super::rules::validate_positive_image_i64;
-use crate::video::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, VideoDbError};
+use crate::video::VideoDbError;
 use a4n_core::models::{ai::generated_image, chapter::chapter, project::novel_project};
+use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::BTreeMap;
 

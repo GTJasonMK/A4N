@@ -12,6 +12,7 @@ import {
   listChapterVideoPrompts,
   listVideoConfigs,
   listVideosByChapter,
+  VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
   type ChapterVideoPrompt,
   type GeneratePromptOptions,
   type GeneratedVideo,
@@ -80,7 +81,7 @@ const segmentPlanResumeOptions = (
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "project_id/chapter_id");
   }
-  if (fingerprint.workflow_mode !== "shared_segment_plan") {
+  if (fingerprint.workflow_mode !== VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN) {
     invalidSegmentPlanWorkflowInput(run.id, "workflow_mode");
   }
 
@@ -191,7 +192,7 @@ const segmentPlanResumeOptions = (
   const regenerateExisting = options.regenerate_existing as boolean;
 
   return {
-    workflow_mode: "shared_segment_plan",
+    workflow_mode: VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
     style: resumeStyle,
     prompt_output_language: resumePromptOutputLanguage,
     prompt_batch_size: 1,

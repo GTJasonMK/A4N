@@ -3,7 +3,7 @@ use std::{collections::HashMap, pin::Pin, time::Instant};
 use a4n_core::error::AppError;
 use a4n_llm::provider::{
     ChatChunk, ChatMessage, ChatRequest, LlmProvider, MessageRole, ModelCapabilities, ToolCall,
-    UsageInfo, collect_chat_stream,
+    UsageInfo,
 };
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
@@ -14,8 +14,6 @@ use super::errors::{
     response_text,
 };
 use super::response::llm_api_status_error;
-
-const CONNECTION_TEST_MAX_TOKENS: usize = 8;
 
 pub struct AnthropicLlmProvider {
     client: reqwest::Client,
@@ -136,18 +134,6 @@ impl LlmProvider for AnthropicLlmProvider {
         request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         self.execute(request).await
-    }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        let request = ChatRequest::new(
-            vec![ChatMessage::user("ping")],
-            Some(0.0),
-            Some(CONNECTION_TEST_MAX_TOKENS),
-            None,
-        );
-        collect_chat_stream(self, request)
-            .await
-            .map(|response| !response.message.content.trim().is_empty())
     }
 
     fn model_name(&self) -> &str {

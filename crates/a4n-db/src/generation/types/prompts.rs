@@ -1,15 +1,29 @@
 use serde::{Deserialize, Serialize};
 
+pub const GENERATION_PROMPT_KIND_IMAGE_PROMPT: &str = "image_prompt";
+pub const GENERATION_PROMPT_KIND_VIDEO_PROMPT: &str = "video_prompt";
+pub const GENERATION_PROMPT_KIND_CANVAS_PROMPT: &str = "canvas_prompt";
+pub const GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT: &str = "shot_script";
+pub const GENERATION_PROMPT_KIND_CANVAS_STORYBOARD: &str = "storyboard";
+pub const GENERATION_PROMPT_KIND_CANVAS_VISUAL_DESCRIPTION: &str = "visual_description";
+pub const GENERATION_PROMPT_KIND_CANVAS_DIALOGUE: &str = "dialogue";
+pub const GENERATION_PROMPT_KIND_CANVAS_RHYTHM_PLAN: &str = "rhythm_plan";
+
 pub const GENERATION_PROMPT_KINDS: &[&str] = &[
-    "image_prompt",
-    "video_prompt",
+    GENERATION_PROMPT_KIND_IMAGE_PROMPT,
+    GENERATION_PROMPT_KIND_VIDEO_PROMPT,
     "chat_video_prompt",
     "provider_video_prompt",
     "negative_prompt",
     "manga_pipeline_output",
     "manga_page_prompt",
     "video_segment_plan",
-    "canvas_prompt",
+    GENERATION_PROMPT_KIND_CANVAS_PROMPT,
+    GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
+    GENERATION_PROMPT_KIND_CANVAS_STORYBOARD,
+    GENERATION_PROMPT_KIND_CANVAS_VISUAL_DESCRIPTION,
+    GENERATION_PROMPT_KIND_CANVAS_DIALOGUE,
+    GENERATION_PROMPT_KIND_CANVAS_RHYTHM_PLAN,
     "background_image_prompt",
     "event_cg_prompt",
 ];

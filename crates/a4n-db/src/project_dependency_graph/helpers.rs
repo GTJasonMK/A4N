@@ -37,15 +37,14 @@ pub(super) fn outline_range_summary(start: Option<i32>, end: Option<i32>) -> Opt
     }
 }
 
-pub(super) fn video_frame_image_prompt_id(metadata: Option<&Value>) -> Option<i64> {
-    let metadata = metadata?;
-    metadata
-        .get("generation_context")
-        .and_then(Value::as_object)
-        .and_then(|context| context.get("prompt_id"))
-        .and_then(Value::as_i64)
-        .or_else(|| metadata.get("prompt_id").and_then(Value::as_i64))
-        .filter(|id| *id > 0)
+pub(super) fn video_frame_image_prompt_id(image: &generated_image::Model) -> Option<i64> {
+    if !a4n_domain::image::is_video_frame_prompt_image_type(&image.image_type) {
+        return None;
+    }
+    a4n_domain::image::video_frame_image_generation_context(image.metadata_json.as_ref())
+        .ok()
+        .flatten()
+        .map(|context| context.prompt_id)
 }
 
 // tests stay in services for now

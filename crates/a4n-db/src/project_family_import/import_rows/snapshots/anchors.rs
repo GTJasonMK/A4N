@@ -3,7 +3,7 @@ use crate::project_family_import::{
     normalize_profile_evidence_role, remap_profile_id, remap_text_anchor_source_id,
 };
 use a4n_core::models::project::{profile_evidence, text_anchor};
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 pub(in crate::project_family_import::import_rows) async fn insert_text_anchor_rows(
     txn: &DatabaseTransaction,
@@ -42,12 +42,11 @@ pub(in crate::project_family_import::import_rows) async fn insert_text_anchor_ro
             active.source_id = Set(remap_text_anchor_source_id(anchor, maps)?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.profile_evidence,
         evidence,
         profile_evidence::ActiveModel,
-        maps.profile_evidence_ids,
         "导入档案证据失败",
         |active| {
             active.profile_id = Set(remap_profile_id(

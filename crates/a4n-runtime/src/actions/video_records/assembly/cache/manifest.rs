@@ -2,7 +2,7 @@ use super::super::contracts::{AssemblyCacheClip, AssemblyCacheManifest, Assembly
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-pub(in crate::actions::video_records::assembly) fn build_assembly_cache_manifest(
+pub(in crate::actions::video_records) fn build_assembly_cache_manifest(
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,

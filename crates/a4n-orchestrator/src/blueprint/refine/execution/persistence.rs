@@ -11,24 +11,17 @@ use a4n_db::project::{
 };
 use chrono::Utc;
 use sea_orm::DatabaseTransaction;
+use serde_json::Value;
 
-use super::contracts::BlueprintRefinementPersistenceInput;
 use crate::blueprint::persistence::{blueprint_character_drafts, blueprint_relationship_drafts};
 use crate::blueprint::{blueprint_db_error, blueprint_sync_error, character_profile_seed_error};
 
-pub(super) struct BlueprintRefinementCompletionOutcome {
-    pub(super) blueprint: novel_blueprint::Model,
-}
-
 pub(super) async fn persist_blueprint_refinement_in_transaction(
     tx: &DatabaseTransaction,
-    input: BlueprintRefinementPersistenceInput,
-) -> Result<BlueprintRefinementCompletionOutcome, AppError> {
-    let BlueprintRefinementPersistenceInput {
-        project_id,
-        expected_source_snapshot,
-        parsed,
-    } = input;
+    project_id: i64,
+    expected_source_snapshot: Value,
+    parsed: a4n_core::blueprint::ParsedBlueprintOptimization,
+) -> Result<novel_blueprint::Model, AppError> {
     let locked_sources =
         a4n_db::outline::load_outline_generation_source_rows_for_update(tx, project_id)
             .await?
@@ -124,5 +117,5 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
     )
     .await
     .map_err(blueprint_db_error)?;
-    Ok(BlueprintRefinementCompletionOutcome { blueprint: updated })
+    Ok(updated)
 }

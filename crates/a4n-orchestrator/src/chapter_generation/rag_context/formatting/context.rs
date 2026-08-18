@@ -1,7 +1,6 @@
 use super::super::super::truncate_text_chars;
 use super::result::{GenerationRagSection, format_generation_rag_result};
 use a4n_rag_core::vector_store::SearchResult;
-use std::collections::HashSet;
 
 pub(in crate::chapter_generation::rag_context) const GENERATION_RAG_CONTEXT_CHAR_LIMIT: usize =
     3_600;
@@ -12,36 +11,19 @@ const GENERATION_RAG_MAX_CONTINUITY_RESULTS: usize = 4;
 const GENERATION_RAG_MAX_SUMMARY_RESULTS: usize = 3;
 pub(in crate::chapter_generation::rag_context) const GENERATION_RAG_MAX_PASSAGE_RESULTS: usize = 3;
 
-pub(in crate::chapter_generation::rag_context) struct FormattedRagContext {
-    pub(in crate::chapter_generation::rag_context) text: Option<String>,
-    pub(in crate::chapter_generation::rag_context) continuity_count: usize,
-    pub(in crate::chapter_generation::rag_context) summary_count: usize,
-    pub(in crate::chapter_generation::rag_context) chunk_count: usize,
-}
-
 pub(in crate::chapter_generation::rag_context) fn format_generation_rag_context(
     results: &[SearchResult],
-    project_id: i64,
     chapter_number: i32,
-) -> FormattedRagContext {
-    let mut seen = HashSet::new();
+) -> Option<String> {
     let mut continuity_candidates = Vec::new();
     let mut summary_candidates = Vec::new();
     let mut passage_candidates = Vec::new();
 
     for result in results {
-        if !seen.insert(result.id.clone()) {
-            continue;
-        }
-        let Some(item) = format_generation_rag_result(result, project_id, chapter_number) else {
+        let Some(item) = format_generation_rag_result(result, chapter_number) else {
             continue;
         };
-        let section = if item.is_summary {
-            GenerationRagSection::Summary
-        } else {
-            item.section
-        };
-        match section {
+        match item.section {
             GenerationRagSection::Continuity => {
                 if continuity_candidates.len() < GENERATION_RAG_MAX_CONTINUITY_RESULTS {
                     continuity_candidates.push(item.line);
@@ -102,18 +84,10 @@ pub(in crate::chapter_generation::rag_context) fn format_generation_rag_context(
     );
 
     if continuity.is_empty() && summaries.is_empty() && passages.is_empty() {
-        return FormattedRagContext {
-            text: None,
-            continuity_count: 0,
-            summary_count: 0,
-            chunk_count: 0,
-        };
+        return None;
     }
 
     let mut lines = vec!["## 相关检索参考".to_string()];
-    let continuity_count = continuity.len();
-    let summary_count = summaries.len();
-    let chunk_count = passages.len();
     append_generation_rag_section(&mut lines, "### 关键连续性", &continuity);
     if !summaries.is_empty() {
         if lines.len() > 1 {
@@ -128,15 +102,10 @@ pub(in crate::chapter_generation::rag_context) fn format_generation_rag_context(
         append_generation_rag_section(&mut lines, "### 参考片段", &passages);
     }
 
-    FormattedRagContext {
-        text: Some(truncate_text_chars(
-            &lines.join("\n"),
-            GENERATION_RAG_CONTEXT_CHAR_LIMIT,
-        )),
-        continuity_count,
-        summary_count,
-        chunk_count,
-    }
+    Some(truncate_text_chars(
+        &lines.join("\n"),
+        GENERATION_RAG_CONTEXT_CHAR_LIMIT,
+    ))
 }
 
 fn rag_section_budget(total: usize, ratio: f32) -> usize {

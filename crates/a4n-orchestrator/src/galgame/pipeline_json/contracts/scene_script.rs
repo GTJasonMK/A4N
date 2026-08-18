@@ -1,6 +1,5 @@
 pub use a4n_domain::galgame::GalgamePipelineBeatRefV3;
 use a4n_domain::shooting_script::ShootingCoverageV1;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -24,7 +23,7 @@ pub struct GalgamePipelineScene {
     pub beats: Vec<GalgamePipelineShootingBeat>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GalgamePipelineShootingBeat {
     pub shot_index: u32,
@@ -71,13 +70,13 @@ pub struct GalgamePipelineBranchSceneLineDraft {
     pub lines: Vec<GalgamePipelineLineDraft>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline_json) struct ShootingScriptProjectionRaw {
     pub(in crate::galgame::pipeline_json) scenes: Vec<SceneRaw>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline_json) struct SceneRaw {
     pub(in crate::galgame::pipeline_json) index: i32,
@@ -94,21 +93,21 @@ pub(in crate::galgame::pipeline_json) struct SceneRaw {
     pub(in crate::galgame::pipeline_json) beats: Vec<GalgamePipelineShootingBeat>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline_json) struct ScriptAdaptationRaw {
     pub(in crate::galgame::pipeline_json) scene_lines: Vec<SceneLineDraftRaw>,
     pub(in crate::galgame::pipeline_json) branch_scene_lines: Vec<BranchSceneLineDraftRaw>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline_json) struct SceneLineDraftRaw {
     pub(in crate::galgame::pipeline_json) scene_index: i32,
     pub(in crate::galgame::pipeline_json) lines: Vec<LineDraftRaw>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline_json) struct LineDraftRaw {
     pub(in crate::galgame::pipeline_json) index: i32,
@@ -119,7 +118,7 @@ pub(in crate::galgame::pipeline_json) struct LineDraftRaw {
     pub(in crate::galgame::pipeline_json) source_span_ids: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline_json) struct BranchSceneLineDraftRaw {
     pub(in crate::galgame::pipeline_json) branch_id: String,

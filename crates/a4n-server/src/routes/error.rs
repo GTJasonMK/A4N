@@ -1,11 +1,10 @@
-use a4n_api_contract::generation_tasks::HostErrorResponse;
+use a4n_api_contract::{error::ApiErrorResponse, generation_tasks::HostErrorResponse};
 use a4n_core::error::AppError;
 use a4n_service_protocol::GenerationErrorCode;
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value};
 use std::fmt;
 
 #[derive(Debug)]
@@ -14,7 +13,7 @@ pub struct ApiError {
     code: &'static str,
     message: String,
     retryable: bool,
-    details: Value,
+    details: Map<String, Value>,
 }
 
 /// Generation 固定路由使用生成合同的规范 Host 错误体。
@@ -39,6 +38,7 @@ impl GenerationApiError {
                 message: message.into(),
                 retryable,
                 trace_id: None,
+                details: Map::new(),
             },
         }
     }
@@ -80,15 +80,6 @@ impl GenerationApiError {
     }
 }
 
-#[derive(Serialize)]
-struct ErrorBody {
-    code: &'static str,
-    message: String,
-    retryable: bool,
-    trace_id: Option<String>,
-    details: Value,
-}
-
 impl ApiError {
     pub fn unauthorized(message: impl Into<String>) -> Self {
         Self {
@@ -96,7 +87,7 @@ impl ApiError {
             code: "unauthorized",
             message: message.into(),
             retryable: false,
-            details: json!({}),
+            details: Map::new(),
         }
     }
 
@@ -106,7 +97,7 @@ impl ApiError {
             code: "invalid_request",
             message: message.into(),
             retryable: false,
-            details: json!({}),
+            details: Map::new(),
         }
     }
 
@@ -116,7 +107,7 @@ impl ApiError {
             code: "forbidden",
             message: message.into(),
             retryable: false,
-            details: json!({}),
+            details: Map::new(),
         }
     }
 
@@ -126,7 +117,7 @@ impl ApiError {
             code: "not_found",
             message: message.into(),
             retryable: false,
-            details: json!({}),
+            details: Map::new(),
         }
     }
 }
@@ -165,7 +156,7 @@ impl From<AppError> for ApiError {
             code,
             message: error.to_string(),
             retryable,
-            details: json!({}),
+            details: Map::new(),
         }
     }
 }
@@ -174,8 +165,8 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (
             self.status,
-            Json(ErrorBody {
-                code: self.code,
+            Json(ApiErrorResponse {
+                code: self.code.to_string(),
                 message: self.message,
                 retryable: self.retryable,
                 trace_id: None,
@@ -199,7 +190,10 @@ async fn api_error_serializes_only_the_canonical_message() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let value: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(value["message"], "failed");
-    assert!(value.get("error").is_none());
+    let error: ApiErrorResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(error.code, "invalid_request");
+    assert_eq!(error.message, "failed");
+    assert!(!error.retryable);
+    assert_eq!(error.trace_id, None);
+    assert!(error.details.is_empty());
 }

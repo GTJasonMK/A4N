@@ -261,8 +261,8 @@ export const generationClient = {
       if (!await snapshotTerminalIsConsistent(snapshot)) {
         const message = "generation completed hash 与 snapshot 正文不一致";
         const terminal = snapshot.terminal_event;
-        markConsistencyFailure(
-          handle,
+        markGenerationConsistencyFailure(
+          { taskId: handle.task_id, attempt: handle.attempt },
           message,
           terminal?.event.kind === "completed"
             ? terminal.event.data.result_ref ?? consistencyResultRef
@@ -377,9 +377,7 @@ async function runWebTransport(
         { headers, signal: session.controller.signal },
       );
       if (!response.ok) {
-        const error = await readHostError(response);
-        if (error.code === "generation_snapshot_required") throw error;
-        throw new Error(error.message);
+        throw await readHostError(response);
       }
       if (!response.body) throw new Error("generation SSE response 缺少 body");
       await readSseStream(response.body, (frame) => {
@@ -533,17 +531,17 @@ async function textHashesMatch(
   }))).every(Boolean);
 }
 
-function markConsistencyFailure(
-  handle: GenerationTaskHandle,
+export function markGenerationConsistencyFailure(
+  task: { taskId: string; attempt: number },
   message: string,
   resultRef: GenerationTaskSummary["result_ref"],
 ): void {
-  const key = generationTaskKey(handle.task_id, handle.attempt);
+  const key = generationTaskKey(task.taskId, task.attempt);
   const store = useGenerationTasksStore.getState();
   store.dispatch(key, { type: "consistency_error", resultRef });
   console.error("generation consistency error", {
-    taskId: handle.task_id,
-    attempt: handle.attempt,
+    taskId: task.taskId,
+    attempt: task.attempt,
     message,
   });
 }

@@ -816,7 +816,7 @@ export interface EmbeddingModelInput {
 
 export interface DownloadEmbeddingModelInput {
   model: string;
-  task_id?: string | null;
+  task_id: string;
 }
 
 export interface CancelEmbeddingModelDownloadInput {
@@ -1824,12 +1824,10 @@ export interface UpdateGalgameChoiceOptionInput {
 }
 
 export interface RagSearchResult {
-  bm25_score: number | null;
   content: string;
   id: string;
   metadata: unknown;
   score: number;
-  vector_score: number | null;
 }
 
 export interface EnhancedSearchInput {
@@ -1840,9 +1838,8 @@ export interface EnhancedSearchInput {
 }
 
 export interface RagEnhancedQuerySummary {
-  kind: string;
+  label: string;
   query: string;
-  weight: number;
 }
 
 export interface RagEnhancedSearchOutput {
@@ -1853,10 +1850,7 @@ export interface RagEnhancedSearchOutput {
 
 export interface RagPreparedEnhancedSearchOutput {
   embedding_identity: EmbeddingModelIdentity;
-  pull_k: number;
-  queries: RagEnhancedQuerySummary[];
   query_texts: string[];
-  top_k: number;
 }
 
 export interface RagEnhancedSearchWithVectorsInput {
@@ -1878,7 +1872,6 @@ export interface PreparedClientRagIngestRecord {
 export interface ClientRagIngestPrepareOutput {
   embedding_identity: EmbeddingModelIdentity;
   operation_trace_id: string;
-  rebuild: boolean;
   records: PreparedClientRagIngestRecord[];
 }
 
@@ -1897,7 +1890,6 @@ export interface ClientRagIngestUploadInput {
 
 export interface RagIngestResult {
   added_count: number;
-  chunk_count: number;
   deleted_count: number;
   skipped_count: number;
   updated_count: number;
@@ -2102,7 +2094,6 @@ export interface ImportCanvasMediaInput {
   media_kind: string;
   mime_type?: string | null;
   project_id: number;
-  prompt?: string | null;
 }
 
 export interface ImportedCanvasMedia {
@@ -2264,6 +2255,8 @@ export interface ProjectProgressSummary {
 
 export type ProjectKind = "text" | "comic" | "video" | "galgame";
 
+export type ProjectSourceMode = "self" | "derived" | "freeform";
+
 export const PROJECT_STATUSES = ["draft", "blueprint_ready", "part_outlines_ready", "chapter_outlines_ready", "writing", "completed"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -2414,7 +2407,7 @@ export interface ProjectSummary {
   project_type: string;
   root_project_id: number | null;
   root_project_title: string | null;
-  source_mode: string;
+  source_mode: ProjectSourceMode;
   source_sync_status: string;
   status: ProjectStatus;
   target_chapters: number;
@@ -3096,6 +3089,64 @@ export interface CharacterProfileMutationResult {
 
 export interface CharacterProfileDeleteResult {
   warnings: string[];
+}
+
+export interface ExistingCharacterProfileDiscovery {
+  aliases: unknown;
+  name: string;
+  reason: string;
+}
+
+export interface DiscoveredCharacterProfileSummary {
+  age: string | null;
+  appearance: string | null;
+  attribute_counts: AttributeCountsSummary;
+  background: string | null;
+  base_attributes: unknown;
+  character_arc: unknown;
+  created_at: string;
+  current_state: unknown;
+  gender: string | null;
+  id: number;
+  last_synced_chapter: number;
+  name: string;
+  personality: string | null;
+  project_id: number;
+  updated_at: string;
+  voice_fingerprint: unknown;
+}
+
+export interface DiscoverCharacterProfilesInput {
+  chapter_number?: number | null;
+  project_id: number;
+}
+
+export interface DiscoverCharacterProfilesResult {
+  chapter_numbers: number[];
+  chapters_analyzed: number;
+  created: DiscoveredCharacterProfileSummary[];
+  discovered_count: number;
+  existing: ExistingCharacterProfileDiscovery[];
+  status: string;
+}
+
+export interface CharacterConflictCheckInput {
+  end_chapter?: number | null;
+  name: string;
+  project_id: number;
+  start_chapter?: number | null;
+}
+
+export type CharacterConflictSeverity = "minor" | "moderate" | "major";
+
+export interface CharacterConflictSummary {
+  actual: unknown;
+  actual_source_id: string;
+  chapter_number: number;
+  expected: unknown;
+  expected_source_id: string;
+  field: string;
+  severity: CharacterConflictSeverity;
 }
 
 export interface SyncCharacterProfileInput {
@@ -4232,12 +4283,4 @@ export interface UploadAssemblyInsertVideoInput {
   file_name: string;
   insert_after_video_id?: number | null;
   mime_type: string;
-}
-
-export interface ImportCanvasVideoInput {
-  data_base64?: string | null;
-  file_name?: string | null;
-  file_path?: string | null;
-  mime_type?: string | null;
-  prompt?: string | null;
 }

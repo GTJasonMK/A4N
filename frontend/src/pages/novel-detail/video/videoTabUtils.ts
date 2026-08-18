@@ -1,27 +1,44 @@
-import type { GeneratedImage } from "../../../api/image";
+import {
+  IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+  IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
+  IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
+  IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+  IMAGE_TYPE_OBJECT_MATERIAL,
+  IMAGE_TYPE_SCENE_MATERIAL,
+  IMAGE_TYPE_VIDEO_KEY_FRAME,
+  IMAGE_TYPE_VIDEO_START_FRAME,
+  IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+  IMAGE_TYPE_VIDEO_TAIL_FRAME,
+  VIDEO_FRAME_IMAGE_TYPES,
+  VIDEO_FRAME_PROMPT_IMAGE_TYPES,
+  VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCES,
+  type GeneratedImage,
+  type VideoFramePromptImageType,
+  type VideoFramePromptImageGenerationSource,
+} from "../../../api/image";
 import { extractErrorMessage } from "../../../api";
-import type {
-  ChapterVideoPrompt,
-  GeneratedVideo,
-  PromptOutputLanguage,
-  SegmentGuidanceMode,
-  VideoGenConfig,
-  VideoSegmentExecutionRecipe,
-  VideoDurationMode,
-  VideoWorkflowMode,
+import {
+  VIDEO_TYPE_CHAPTER,
+  VIDEO_TYPE_REFERENCE_MEDIA,
+  VIDEO_SEGMENT_WORKFLOW_MODES,
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
+  VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
+  type ChapterVideoPrompt,
+  type GeneratedVideo,
+  type PromptOutputLanguage,
+  type SegmentGuidanceMode,
+  type VideoGenConfig,
+  type VideoSegmentExecutionRecipe,
+  type VideoSegmentWorkflowMode,
+  type VideoDurationMode,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import type { ChapterRow } from "../shared";
 import { DEFAULT_VIDEO_STYLE } from "../styleTemplates";
-
-export type ChapterVideoWorkflowMode = Extract<
-  VideoWorkflowMode,
-  | "boundary_frames"
-  | "first_frame_chain"
-  | "storyboard"
-  | "chat_video"
-  | "reference_media"
->;
 
 export interface PromptDraft {
   visual_prompt: string;
@@ -30,7 +47,15 @@ export interface PromptDraft {
   duration_secs: number;
 }
 
-export type VideoAspectRatio = "21:9" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
+export const VIDEO_ASPECT_RATIOS = [
+  "21:9",
+  "16:9",
+  "4:3",
+  "1:1",
+  "3:4",
+  "9:16",
+] as const;
+export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 
 export interface VideoGenOptions {
   style: string;
@@ -38,7 +63,6 @@ export interface VideoGenOptions {
   durationSecs: number;
   durationOptions: number[];
   aspectRatio: VideoAspectRatio;
-  storageError?: string | null;
 }
 
 export interface VideoDurationLimits {
@@ -52,7 +76,7 @@ export interface VideoDurationLimits {
 }
 
 export function videoGuidanceConfigurationError(
-  workflowMode: ChapterVideoWorkflowMode,
+  workflowMode: VideoSegmentWorkflowMode,
   segmentNumber: number,
   guidanceMode: VideoSegmentExecutionRecipe["guidance_mode"],
 ): string | null {
@@ -62,19 +86,19 @@ export function videoGuidanceConfigurationError(
   );
   if (guidanceMode === requiredMode) return null;
   if (
-    workflowMode === "first_frame_chain" &&
+    workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
     segmentNumber > 1 &&
     guidanceMode === "system_frames"
   ) {
     return null;
   }
-  if (workflowMode === "boundary_frames") {
+  if (workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES) {
     return "首尾帧方案固定使用首帧和尾帧输入";
   }
-  if (workflowMode === "storyboard") {
+  if (workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD) {
     return "分镜方案固定使用分镜板输入";
   }
-  if (workflowMode === "first_frame_chain") {
+  if (workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN) {
     return segmentNumber > 1
       ? "首帧续接的后续片段只能使用更早视频尾帧或独立生成首帧"
       : "首帧续接的首段固定使用首帧输入";
@@ -83,13 +107,17 @@ export function videoGuidanceConfigurationError(
 }
 
 export function guidanceModeForWorkflowChange(
-  workflowMode: ChapterVideoWorkflowMode,
+  workflowMode: VideoSegmentWorkflowMode,
   segmentNumber: number,
 ): SegmentGuidanceMode {
-  if (workflowMode === "chat_video" || workflowMode === "reference_media") {
+  if (
+    workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO ||
+    workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
+  ) {
     return "none";
   }
-  return workflowMode === "first_frame_chain" && segmentNumber > 1
+  return workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
+    segmentNumber > 1
     ? "continuity"
     : "system_frames";
 }
@@ -104,14 +132,6 @@ export const DEFAULT_DRAFT: PromptDraft = {
 export const MAX_REFERENCE_IMAGES = 4;
 export const MAX_CHAT_REFERENCE_IMAGES = 16;
 export const MAX_VIDEO_LIBRARY_IMAGES = 32;
-export const VIDEO_ASPECT_RATIOS: readonly VideoAspectRatio[] = [
-  "21:9",
-  "16:9",
-  "4:3",
-  "1:1",
-  "3:4",
-  "9:16",
-];
 const PROMPT_OUTPUT_LANGUAGES: readonly PromptOutputLanguage[] = [
   "zh_cn",
   "en",
@@ -127,13 +147,14 @@ export const MAX_VIDEO_DURATION_OPTION_COUNT = 12;
 export const VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE = "frame_segment_plan";
 export const VIDEO_FRAME_PROMPT_TYPE = "frame_prompt";
 export const VIDEO_FIRST_FRAME_PROMPT_TYPE = "first_frame_prompt";
+export const VIDEO_CHAT_FRAME_PROMPT_TYPE = "chat_video_frame_prompt";
 export const VIDEO_STORYBOARD_PROMPT_TYPE = "storyboard_prompt";
 export const isVideoFramePromptType = (promptType: string): boolean =>
   promptType === VIDEO_FRAME_PROMPT_TYPE ||
   promptType === VIDEO_FIRST_FRAME_PROMPT_TYPE ||
   promptType === VIDEO_STORYBOARD_PROMPT_TYPE ||
-  promptType === "chat_video_frame_prompt";
-const VIDEO_FINAL_PROMPT_TYPE = "video_prompt";
+  promptType === VIDEO_CHAT_FRAME_PROMPT_TYPE;
+export const VIDEO_FINAL_PROMPT_TYPE = "video_prompt";
 const VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION = "video_execution_contract_v5";
 export const VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION =
   "boundary_frame_segment_local_v4";
@@ -147,20 +168,33 @@ const VIDEO_STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION =
 const VIDEO_EXECUTION_CONTRACT_EPOCH = 5;
 export const VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS = 80;
 
-export type VideoFrameImageRole =
-  "key_frame" | "start_frame" | "storyboard_frame";
-
-const VIDEO_FRAME_IMAGE_TYPES: Array<{
-  role: VideoFrameImageRole;
-  imageType: string;
-}> = [
-  { role: "key_frame", imageType: "video_key_frame" },
-  { role: "start_frame", imageType: "video_start_frame" },
-  {
-    role: "storyboard_frame",
-    imageType: "video_storyboard_frame",
-  },
-];
+export function videoFrameImageContractForPromptType(promptType: string) {
+  switch (promptType) {
+    case VIDEO_FRAME_PROMPT_TYPE:
+      return {
+        imageType: IMAGE_TYPE_VIDEO_KEY_FRAME,
+        source: IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        promptLabel: "边界帧提示词",
+        frameLabel: "边界帧",
+      } as const;
+    case VIDEO_FIRST_FRAME_PROMPT_TYPE:
+      return {
+        imageType: IMAGE_TYPE_VIDEO_START_FRAME,
+        source: IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
+        promptLabel: "首帧提示词",
+        frameLabel: "首帧",
+      } as const;
+    case VIDEO_STORYBOARD_PROMPT_TYPE:
+      return {
+        imageType: IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+        source: IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
+        promptLabel: "分镜提示词",
+        frameLabel: "分镜板",
+      } as const;
+    default:
+      throw new Error(`提示词类型 ${promptType} 不支持视频帧成图`);
+  }
+}
 
 export const DEFAULT_VIDEO_OPTIONS: VideoGenOptions = {
   style: DEFAULT_VIDEO_STYLE,
@@ -168,32 +202,21 @@ export const DEFAULT_VIDEO_OPTIONS: VideoGenOptions = {
   durationSecs: 6,
   durationOptions: [6],
   aspectRatio: "16:9",
-  storageError: null,
 };
-
-const VIDEO_WORKFLOW_MODES: readonly ChapterVideoWorkflowMode[] = [
-  "boundary_frames",
-  "first_frame_chain",
-  "storyboard",
-  "chat_video",
-  "reference_media",
-];
 
 const VIDEO_SEGMENT_EXECUTION_RECIPE_SCHEMA_VERSION =
   "video_segment_execution_recipe_v1" as const;
 
 export const VIDEO_WORKFLOW_MODE_LABELS: Record<
-  ChapterVideoWorkflowMode,
+  VideoSegmentWorkflowMode,
   string
 > = {
-  boundary_frames: "首尾帧生成",
-  first_frame_chain: "首帧生成",
-  storyboard: "分镜生成",
-  chat_video: "Chat 生视频",
-  reference_media: "参考媒体生成",
+  [VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES]: "首尾帧生成",
+  [VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN]: "首帧生成",
+  [VIDEO_WORKFLOW_MODE_STORYBOARD]: "分镜生成",
+  [VIDEO_WORKFLOW_MODE_CHAT_VIDEO]: "Chat 生视频",
+  [VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA]: "参考媒体生成",
 };
-
-export const ASSEMBLY_WORKFLOW_MODE = "mixed" as const;
 
 type AssemblyPushStatus = "pending" | "accepted" | "rejected";
 
@@ -231,13 +254,13 @@ export const assemblyPushSourceIds = (
 
 export function videoWorkflowModeOfVideo(
   video: GeneratedVideo,
-): ChapterVideoWorkflowMode | null {
+): VideoSegmentWorkflowMode | null {
   const raw = video.workflow_mode;
   if (
     typeof raw === "string" &&
-    VIDEO_WORKFLOW_MODES.includes(raw as ChapterVideoWorkflowMode)
+    VIDEO_SEGMENT_WORKFLOW_MODES.includes(raw as VideoSegmentWorkflowMode)
   ) {
-    return raw as ChapterVideoWorkflowMode;
+    return raw as VideoSegmentWorkflowMode;
   }
   return null;
 }
@@ -280,12 +303,12 @@ export const videoProviderRequestPreviewBlockedReason = (
   video: GeneratedVideo,
 ): string | null => {
   const workflowMode = videoWorkflowModeOfVideo(video);
-  if (workflowMode === "chat_video") {
+  if (workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO) {
     return "Chat 生视频模式使用外部网站生成，没有应用内 provider 请求";
   }
   if (
-    video.video_type !== "chapter_video" &&
-    video.video_type !== "reference_media_video"
+    video.video_type !== VIDEO_TYPE_CHAPTER &&
+    video.video_type !== VIDEO_TYPE_REFERENCE_MEDIA
   ) {
     return "裁剪片段没有独立的视频模型 provider 请求";
   }
@@ -294,18 +317,18 @@ export const videoProviderRequestPreviewBlockedReason = (
   if (snapshotBlockedReason) {
     return snapshotBlockedReason;
   }
-  if (workflowMode === "reference_media") {
-    if (video.video_type !== "reference_media_video") {
+  if (workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA) {
+    if (video.video_type !== VIDEO_TYPE_REFERENCE_MEDIA) {
       return "裁剪片段没有独立的视频模型 provider 请求";
     }
     return null;
   }
   if (
-    workflowMode === "boundary_frames" ||
-    workflowMode === "first_frame_chain" ||
-    workflowMode === "storyboard"
+    workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES ||
+    workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
+    workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
   ) {
-    if (video.video_type !== "chapter_video") {
+    if (video.video_type !== VIDEO_TYPE_CHAPTER) {
       return "裁剪片段没有独立的视频模型 provider 请求";
     }
     const snapshot = videoProviderRequestSnapshotFromRecord(video);
@@ -332,52 +355,20 @@ export const CHAT_VIDEO_DURATION_LIMITS: VideoDurationLimits = {
   ...GENERIC_VIDEO_DURATION_LIMITS,
 };
 
-const VIDEO_FRAME_IMAGE_TYPE_BY_ROLE: Record<VideoFrameImageRole, string> =
-  Object.fromEntries(
-    VIDEO_FRAME_IMAGE_TYPES.map((item) => [item.role, item.imageType]),
-  ) as Record<VideoFrameImageRole, string>;
+const VIDEO_FRAME_IMAGE_TYPE_SET = new Set<string>(VIDEO_FRAME_IMAGE_TYPES);
+const VIDEO_FRAME_PROMPT_IMAGE_TYPE_SET = new Set<string>(
+  VIDEO_FRAME_PROMPT_IMAGE_TYPES,
+);
 
-const VIDEO_FRAME_IMAGE_ROLE_BY_TYPE: Record<string, VideoFrameImageRole> =
-  Object.fromEntries(
-    VIDEO_FRAME_IMAGE_TYPES.map((item) => [item.imageType, item.role]),
-  ) as Record<string, VideoFrameImageRole>;
+const VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCE_SET = new Set<string>(
+  VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCES,
+);
 
-const VIDEO_FRAME_GENERATION_SOURCES = new Set([
-  "video_boundary_frame_prompt",
-  "video_first_frame_prompt",
-  "video_storyboard_prompt",
-  "video_tail_frame_capture",
-]);
-
-function parseVideoFrameImageRole(value: unknown): VideoFrameImageRole | null {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim();
-  return VIDEO_FRAME_IMAGE_TYPES.some((item) => item.role === normalized)
-    ? (normalized as VideoFrameImageRole)
-    : null;
-}
-
-export function videoImageTypeForFrameRole(role: VideoFrameImageRole): string {
-  return VIDEO_FRAME_IMAGE_TYPE_BY_ROLE[role];
-}
-
-function videoFrameImageRoleFromImageType(
-  imageType: string | null | undefined,
-): VideoFrameImageRole | null {
-  const normalized = imageType?.trim();
-  return normalized
-    ? (VIDEO_FRAME_IMAGE_ROLE_BY_TYPE[normalized] ?? null)
-    : null;
-}
-
-function videoFrameImageRoleOfImage(
-  img: GeneratedImage,
-): VideoFrameImageRole | null {
-  const metadataRole = parseVideoFrameImageRole(
-    asRecord(img.metadata_json)?.video_frame_role,
-  );
-  return metadataRole ?? videoFrameImageRoleFromImageType(img.image_type);
-}
+export const isVideoFramePromptImageGenerationSource = (
+  source: string | null | undefined,
+): source is VideoFramePromptImageGenerationSource =>
+  typeof source === "string" &&
+  VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCE_SET.has(source);
 
 const videoImageGenerationContext = (
   img: GeneratedImage,
@@ -404,18 +395,26 @@ export const videoImageGenerationSource = (
   img: GeneratedImage,
 ): string | null => {
   const raw = videoImageGenerationContext(img)?.source;
-  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+  return typeof raw === "string" && raw.length > 0 && raw === raw.trim()
+    ? raw
+    : null;
 };
 
 const videoImageGenerationSourceHash = (img: GeneratedImage): string | null => {
   const raw = videoImageGenerationContext(img)?.source_content_sha256;
-  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+  return typeof raw === "string" && raw.length > 0 && raw === raw.trim()
+    ? raw
+    : null;
 };
 
 export const videoTailFrameSourceVideoId = (
   img: GeneratedImage,
 ): number | null => {
-  if (videoImageGenerationSource(img) !== "video_tail_frame_capture")
+  if (
+    img.image_type !== IMAGE_TYPE_VIDEO_TAIL_FRAME ||
+    videoImageGenerationSource(img) !==
+    IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE
+  )
     return null;
   const raw = videoImageGenerationContext(img)?.video_id;
   return typeof raw === "number" && Number.isInteger(raw) && raw > 0
@@ -426,8 +425,7 @@ export const videoTailFrameSourceVideoId = (
 export function videoTailFrameBoundaryNumber(
   img: GeneratedImage,
 ): number | null {
-  if (videoImageGenerationSource(img) !== "video_tail_frame_capture")
-    return null;
+  if (videoTailFrameSourceVideoId(img) == null) return null;
   const shotNumber = videoImageGenerationShotNumber(img);
   return shotNumber == null ? null : shotNumber + 1;
 }
@@ -440,9 +438,8 @@ export function isVideoPromptFrameImage(
   if (promptIds && (promptId == null || !promptIds.has(promptId))) return false;
   const source = videoImageGenerationSource(img);
   return (
-    source === "video_boundary_frame_prompt" ||
-    source === "video_first_frame_prompt" ||
-    source === "video_storyboard_prompt"
+    VIDEO_FRAME_PROMPT_IMAGE_TYPE_SET.has(img.image_type) &&
+    isVideoFramePromptImageGenerationSource(source)
   );
 }
 
@@ -461,13 +458,7 @@ export const formatVideoCreatedAt = (
 };
 
 function isVideoFrameInputImage(img: GeneratedImage): boolean {
-  const source = videoImageGenerationSource(img);
-  return (
-    (typeof source === "string" &&
-      VIDEO_FRAME_GENERATION_SOURCES.has(source.trim())) ||
-    videoFrameImageRoleOfImage(img) != null ||
-    img.image_type.trim() === "video_tail_frame"
-  );
+  return VIDEO_FRAME_IMAGE_TYPE_SET.has(img.image_type);
 }
 
 export function isChapterVideoMaterialImage(
@@ -476,17 +467,12 @@ export function isChapterVideoMaterialImage(
 ): boolean {
   if (!chapter || img.chapter_id !== chapter.id) return false;
   const metadata = asRecord(img.metadata_json);
-  if (isVideoFrameInputImage(img)) return false;
-  return (
-    metadata?.chapter_video_material === true ||
-    metadata?.video_library_member === true
-  );
+  return metadata?.chapter_video_material === true;
 }
 
 export function isProjectReusableVideoMaterialImage(
   img: GeneratedImage,
 ): boolean {
-  if (isVideoFrameInputImage(img)) return false;
   return profileMaterialKindOfImage(img) != null;
 }
 
@@ -499,13 +485,13 @@ function profileMaterialKindOfImage(
     typeof metadata?.profile_kind === "string" && metadata.profile_kind.trim()
       ? metadata.profile_kind.trim()
       : null;
-  if (type === "scene_material") {
+  if (type === IMAGE_TYPE_SCENE_MATERIAL) {
     if (explicitKind != null && explicitKind !== "scene") return null;
     const id =
       explicitKind === "scene" ? metadataNumber(metadata?.profile_id) : null;
     return id == null ? null : "scene";
   }
-  if (type === "object_material") {
+  if (type === IMAGE_TYPE_OBJECT_MATERIAL) {
     if (explicitKind != null && explicitKind !== "object") return null;
     const id =
       explicitKind === "object" ? metadataNumber(metadata?.profile_id) : null;
@@ -528,18 +514,13 @@ const metadataNumber = (value: unknown): number | null => {
 
 export function promptOutputLanguageOfPrompt(
   prompt: ChapterVideoPrompt | null | undefined,
-): PromptOutputLanguage {
+): PromptOutputLanguage | null {
   const raw = asRecord(prompt?.metadata_json)?.prompt_output_language;
   return typeof raw === "string" &&
     PROMPT_OUTPUT_LANGUAGES.includes(raw as PromptOutputLanguage)
     ? (raw as PromptOutputLanguage)
-    : DEFAULT_VIDEO_OPTIONS.promptOutputLanguage;
+    : null;
 }
-
-type VideoFrameImageGenerationSource =
-  | "video_boundary_frame_prompt"
-  | "video_first_frame_prompt"
-  | "video_storyboard_prompt";
 
 export function promptSourcePromptType(
   prompt: ChapterVideoPrompt | null | undefined,
@@ -550,10 +531,10 @@ export function promptSourcePromptType(
 
 export function videoWorkflowModeOfPrompt(
   prompt: ChapterVideoPrompt | null | undefined,
-): ChapterVideoWorkflowMode | null {
+): VideoSegmentWorkflowMode | null {
   const raw = prompt?.workflow_mode;
-  return VIDEO_WORKFLOW_MODES.includes(raw as ChapterVideoWorkflowMode)
-    ? (raw as ChapterVideoWorkflowMode)
+  return VIDEO_SEGMENT_WORKFLOW_MODES.includes(raw as VideoSegmentWorkflowMode)
+    ? (raw as VideoSegmentWorkflowMode)
     : null;
 }
 
@@ -562,9 +543,9 @@ export const videoPromptSupportsProviderGeneration = (
 ): boolean => {
   const workflowMode = videoWorkflowModeOfPrompt(prompt);
   return (
-    workflowMode === "boundary_frames" ||
-    workflowMode === "first_frame_chain" ||
-    workflowMode === "storyboard"
+    workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES ||
+    workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
+    workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
   );
 };
 
@@ -814,7 +795,7 @@ export function videoExecutionSegmentIdentityMatchesPrompt(
       identity,
       segmentPlanPrompt,
       segmentNumber,
-      prompt?.prompt_type === "video_prompt"
+      prompt?.prompt_type === VIDEO_FINAL_PROMPT_TYPE
         ? VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS
         : VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
     ) &&
@@ -842,7 +823,7 @@ export function videoExecutionSegmentIdentityMatchesVideo(
 }
 
 const promptIsSharedVideoUpstream = (prompt: ChapterVideoPrompt): boolean =>
-  prompt.workflow_mode === "shared_segment_plan" &&
+  prompt.workflow_mode === VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN &&
   prompt.prompt_type === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE;
 
 export function videoExecutionPromptsShareGenerationChain(
@@ -960,7 +941,7 @@ function videoSegmentRecipeFingerprintValue(
   const guidanceMode = frameStage ? "none" : recipe.guidance_mode;
   const referenceMedia =
     !frameStage &&
-    recipe.workflow_mode === "reference_media" &&
+    recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA &&
     recipe.reference_media
       ? {
           prompt: recipe.reference_media.prompt,
@@ -1004,14 +985,14 @@ export function latestVideoSegmentPlanPrompt(
   for (const prompt of prompts) {
     if (
       prompt.prompt_type === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE &&
-      prompt.workflow_mode === "shared_segment_plan" &&
+      prompt.workflow_mode === VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN &&
       prompt.status === "completed" &&
       promptHasVideoWorkflowContract(
         prompt,
         VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
       ) &&
       segmentPlanExecutionIdentityIsComplete(prompt) &&
-      extractPromptSourceHash(prompt.metadata_json) === currentContentHash &&
+      extractSourceContentHash(prompt.metadata_json) === currentContentHash &&
       (latest == null || prompt.id > latest.id)
     ) {
       latest = prompt;
@@ -1030,7 +1011,6 @@ export function videoOptionsFromSegmentRecipe(
     durationSecs: recipe.duration_secs,
     durationOptions: recipe.duration_secs_options,
     aspectRatio: recipe.aspect_ratio as VideoAspectRatio,
-    storageError: null,
   };
 }
 
@@ -1164,8 +1144,8 @@ function parseVideoSegmentRecipeArray(
     }
     if (
       typeof recipe.workflow_mode !== "string" ||
-      !VIDEO_WORKFLOW_MODES.includes(
-        recipe.workflow_mode as ChapterVideoWorkflowMode,
+      !VIDEO_SEGMENT_WORKFLOW_MODES.includes(
+        recipe.workflow_mode as VideoSegmentWorkflowMode,
       )
     ) {
       throw new Error(`片段 ${segmentNumber} workflow_mode 无效`);
@@ -1194,17 +1174,17 @@ export function currentFinalVideoPromptMatchesSegment(
   segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
   segmentNumber: number,
   recipeFingerprint: string | null | undefined,
-  workflowMode: ChapterVideoWorkflowMode | null | undefined,
+  workflowMode: VideoSegmentWorkflowMode | null | undefined,
   promptOutputLanguage: PromptOutputLanguage,
 ): boolean {
   const contractVersion =
-    workflowMode === "chat_video"
+    workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO
       ? VIDEO_CHAT_VIDEO_CONTRACT_VERSION
-      : workflowMode === "storyboard"
+      : workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
         ? VIDEO_STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION
-        : workflowMode === "first_frame_chain"
+        : workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
           ? VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION
-          : workflowMode === "boundary_frames"
+          : workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
             ? VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION
             : null;
   const metadata = asRecord(prompt.metadata_json);
@@ -1299,29 +1279,24 @@ export function completedSegmentPlanPreviewItems(
 
 const SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX = "video_segment_plan.shot.";
 
-function isSegmentPlanShotResultCheckpointKey(value: string): boolean {
-  if (!value.startsWith(SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX)) return false;
-  const sourceShotId = value.slice(SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX.length);
-  return sourceShotId.length > 0 && !sourceShotId.includes(":");
-}
-
 export function isSegmentPlanDraftCheckpointKey(value: string): boolean {
   return (
     value === "video_segment_plan.recovered" ||
-    isSegmentPlanShotResultCheckpointKey(value)
+    (value.startsWith(SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX) &&
+      value.length > SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX.length)
   );
 }
 
 export function videoPromptSourceFrameNumbers(
   prompt: ChapterVideoPrompt | null | undefined,
-  workflowMode: ChapterVideoWorkflowMode | null | undefined,
+  workflowMode: VideoSegmentWorkflowMode | null | undefined,
   guidanceMode?: SegmentGuidanceMode | null,
 ): { startFrameNumber: number | null; endFrameNumber: number | null } {
-  if (workflowMode === "boundary_frames") {
+  if (workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES) {
     return { startFrameNumber: 1, endFrameNumber: 2 };
   }
   if (
-    workflowMode === "first_frame_chain" &&
+    workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
     guidanceMode === "system_frames"
   ) {
     return { startFrameNumber: 1, endFrameNumber: null };
@@ -1339,46 +1314,24 @@ function positiveIntegerOrNull(value: unknown): number | null {
     : null;
 }
 
-export function videoFrameImageMetadata(
-  role: VideoFrameImageRole,
-  metadata: unknown = null,
-): Record<string, unknown> {
-  const base = asRecord(metadata);
-  return {
-    ...(base ?? (metadata == null ? {} : { value: metadata })),
-    video_frame_role: role,
-  };
-}
-
 export function buildVideoFrameImageTraceMetadata(
   prompt: ChapterVideoPrompt,
-  source: VideoFrameImageGenerationSource,
-  context: {
-    projectId: number;
-    chapter: ChapterRow | null;
-    currentContentHash: string | null;
-    requestPreviewNote?: string | null;
-  },
+  source: VideoFramePromptImageGenerationSource,
 ): Record<string, unknown> {
-  const requestPreviewNote = context.requestPreviewNote?.trim();
+  const sourceContentHash = extractSourceContentHash(prompt.metadata_json);
+  if (sourceContentHash == null) {
+    throw new Error(
+      `视频帧提示词 #${prompt.id} 缺少 source.content_sha256，不能生成图片`,
+    );
+  }
   return {
     generation_context: {
       source,
-      surface: "novel_detail.video",
-      project_id: context.projectId,
-      chapter_id: context.chapter?.id ?? prompt.chapter_id ?? null,
-      chapter_number: context.chapter?.chapter_number ?? null,
       prompt_id: prompt.id,
-      prompt_type: prompt.prompt_type,
       shot_number: prompt.shot_number,
       title: prompt.title,
       scene_summary: prompt.scene_summary,
-      source_content_sha256:
-        extractPromptSourceHash(prompt.metadata_json) ??
-        context.currentContentHash,
-      ...(requestPreviewNote
-        ? { request_preview_note: requestPreviewNote }
-        : {}),
+      source_content_sha256: sourceContentHash,
     },
     prompt_snapshot: {
       visual_prompt: prompt.visual_prompt,
@@ -1448,12 +1401,6 @@ export function isBoundaryFramePrompt(
   return prompt.prompt_type === VIDEO_FRAME_PROMPT_TYPE;
 }
 
-function promptSourceContentHash(prompt: ChapterVideoPrompt): string | null {
-  const source = asRecord(prompt.metadata_json)?.source;
-  const hash = asRecord(source)?.content_sha256;
-  return typeof hash === "string" && hash.trim() ? hash.trim() : null;
-}
-
 function promptUpdatedAtMillis(prompt: ChapterVideoPrompt): number {
   if (!prompt.updated_at) return 0;
   const millis = Date.parse(prompt.updated_at);
@@ -1477,9 +1424,15 @@ export function latestVideoFrameImageForPrompt(
   prompt: ChapterVideoPrompt,
   images: GeneratedImage[],
 ): GeneratedImage | null {
-  const promptHash = promptSourceContentHash(prompt);
+  const frameContract = videoFrameImageContractForPromptType(prompt.prompt_type);
+  const promptHash = extractSourceContentHash(prompt.metadata_json);
   const matchingImages = images.filter((image) => {
-    if (videoImageGenerationPromptId(image) === prompt.id) return true;
+    if (videoImageGenerationPromptId(image) === prompt.id) {
+      return (
+        image.image_type === frameContract.imageType &&
+        videoImageGenerationSource(image) === frameContract.source
+      );
+    }
     if (!isBoundaryFramePrompt(prompt)) return false;
     if (promptHash == null) return false;
     return (
@@ -1639,10 +1592,11 @@ export function referenceLabelOrderError(
 }
 
 export function buildVideoFrameImageRequest(
-  role: VideoFrameImageRole,
+  imageType: VideoFramePromptImageType,
   prompt: string,
   chapterId: number,
-  metadata: unknown = null,
+  aspectRatio: string | null | undefined,
+  metadata: Record<string, unknown>,
   referenceImageIds: number[] = [],
   referencePromptNote = "",
 ): Record<string, unknown> {
@@ -1650,15 +1604,22 @@ export function buildVideoFrameImageRequest(
   const promptWithReferenceNote = [referencePromptNote.trim(), trimmedPrompt]
     .filter(Boolean)
     .join("\n\n");
+  if (
+    typeof aspectRatio !== "string" ||
+    !VIDEO_ASPECT_RATIOS.includes(aspectRatio as VideoAspectRatio)
+  ) {
+    throw new Error("视频帧成图请求 aspect_ratio 无效");
+  }
   const promptGuard =
-    role === "storyboard_frame"
+    imageType === IMAGE_TYPE_VIDEO_STORYBOARD_FRAME
       ? VIDEO_STORYBOARD_FRAME_IMAGE_PROMPT_GUARD
       : VIDEO_REAL_FRAME_IMAGE_PROMPT_GUARD;
   return {
     prompt: `${promptWithReferenceNote}\n\n${promptGuard}`,
-    image_type: videoImageTypeForFrameRole(role),
+    image_type: imageType,
     chapter_id: chapterId,
-    metadata_json: videoFrameImageMetadata(role, metadata),
+    aspect_ratio: aspectRatio,
+    metadata_json: metadata,
     reference_image_ids: referenceImageIds,
   };
 }
@@ -1718,9 +1679,44 @@ const strictVideoOptionInt = (
   return value as number;
 };
 
+const durationOptionsValidationError = (
+  defaultDurationSecs: number,
+  options: number[],
+): string | null => {
+  if (
+    !Array.isArray(options) ||
+    options.some(
+      (duration) =>
+        !Number.isInteger(duration) || duration < 1 || duration > 60,
+    )
+  ) {
+    return "视频生成选项 durationOptions 必须全部是 1-60 之间的整数";
+  }
+  if (
+    options.length === 0 ||
+    options.length > MAX_VIDEO_DURATION_OPTION_COUNT
+  ) {
+    return "视频生成选项 durationOptions 必须选择 1-12 个候选时长";
+  }
+  if (!options.includes(defaultDurationSecs)) {
+    return "视频生成选项 durationOptions 必须包含默认时长";
+  }
+  if (
+    options.some(
+      (duration, index) => index > 0 && duration <= options[index - 1],
+    )
+  ) {
+    return "视频生成选项 durationOptions 必须严格递增且不能重复";
+  }
+  return null;
+};
+
 export const videoOptionsValidationError = (
   options: VideoGenOptions,
 ): string | null => {
+  if (typeof options.style !== "string") {
+    return "视频生成选项 style 必须是字符串";
+  }
   if (
     !Number.isInteger(options.durationSecs) ||
     options.durationSecs < 1 ||
@@ -1728,25 +1724,11 @@ export const videoOptionsValidationError = (
   ) {
     return "视频生成选项 durationSecs 必须是 1-60 之间的整数";
   }
-  if (
-    !Array.isArray(options.durationOptions) ||
-    options.durationOptions.some(
-      (duration) =>
-        !Number.isInteger(duration) || duration < 1 || duration > 60,
-    )
-  ) {
-    return "视频生成选项 durationOptions 必须全部是 1-60 之间的整数";
-  }
-  const durationOptions = normalizeDurationOptions(
+  const durationOptionsError = durationOptionsValidationError(
     options.durationSecs,
     options.durationOptions,
   );
-  if (
-    durationOptions.length === 0 ||
-    durationOptions.length > MAX_VIDEO_DURATION_OPTION_COUNT
-  ) {
-    return "视频生成选项 durationOptions 必须选择 1-12 个候选时长";
-  }
+  if (durationOptionsError) return durationOptionsError;
   if (!VIDEO_ASPECT_RATIOS.includes(options.aspectRatio)) {
     return "视频生成选项 aspectRatio 无效";
   }
@@ -1756,23 +1738,34 @@ export const videoOptionsValidationError = (
   return null;
 };
 
-const parseVideoOptionsStrict = (raw: string): VideoGenOptions => {
+export const parseVideoOptions = (raw: string): VideoGenOptions => {
   const parsed = asRecord(JSON.parse(raw));
   if (!parsed) throw new Error("视频生成选项必须是对象");
+  const allowedFields = new Set([
+    "style",
+    "promptOutputLanguage",
+    "durationSecs",
+    "durationOptions",
+    "aspectRatio",
+  ]);
+  const unknownField = Object.keys(parsed).find(
+    (field) => !allowedFields.has(field),
+  );
+  if (unknownField) {
+    throw new Error(`视频生成选项包含未知字段：${unknownField}`);
+  }
 
   if (typeof parsed.style !== "string") {
     throw new Error("视频生成选项 style 必须是字符串");
   }
   const style = parsed.style;
   const promptOutputLanguage =
-    parsed.promptOutputLanguage === undefined
-      ? DEFAULT_VIDEO_OPTIONS.promptOutputLanguage
-      : typeof parsed.promptOutputLanguage === "string" &&
-          PROMPT_OUTPUT_LANGUAGES.includes(
-            parsed.promptOutputLanguage as PromptOutputLanguage,
-          )
-        ? (parsed.promptOutputLanguage as PromptOutputLanguage)
-        : null;
+    typeof parsed.promptOutputLanguage === "string" &&
+    PROMPT_OUTPUT_LANGUAGES.includes(
+      parsed.promptOutputLanguage as PromptOutputLanguage,
+    )
+      ? (parsed.promptOutputLanguage as PromptOutputLanguage)
+      : null;
   if (!promptOutputLanguage) {
     throw new Error("视频生成选项 promptOutputLanguage 无效");
   }
@@ -1783,72 +1776,48 @@ const parseVideoOptionsStrict = (raw: string): VideoGenOptions => {
     1,
     60,
   );
-  const durationOptions = normalizeDurationOptions(
-    durationSecs,
-    Array.isArray(parsed.durationOptions)
-      ? parsed.durationOptions.map((value) =>
-          strictVideoOptionInt(value, "durationOptions", 1, 60),
-        )
-      : [durationSecs],
+  if (!Array.isArray(parsed.durationOptions)) {
+    throw new Error("视频生成选项 durationOptions 必须是数组");
+  }
+  const durationOptions = parsed.durationOptions.map((value) =>
+    strictVideoOptionInt(value, "durationOptions", 1, 60),
   );
 
   if (!VIDEO_ASPECT_RATIOS.includes(parsed.aspectRatio as VideoAspectRatio)) {
     throw new Error("视频生成选项 aspectRatio 无效");
   }
 
-  return {
+  const options: VideoGenOptions = {
     style,
     promptOutputLanguage,
     durationSecs,
     durationOptions,
     aspectRatio: parsed.aspectRatio as VideoAspectRatio,
-    storageError: null,
   };
-};
-
-export const parseVideoOptions = (raw: string): VideoGenOptions => {
-  try {
-    return parseVideoOptionsStrict(raw);
-  } catch (err) {
-    return {
-      ...DEFAULT_VIDEO_OPTIONS,
-      storageError: `视频生成选项本地存储损坏：${extractErrorMessage(err, "")}`,
-    };
+  const validationError = videoOptionsValidationError(options);
+  if (validationError) {
+    throw new Error(validationError);
   }
+  return options;
 };
 
 export const serializeVideoOptions = (options: VideoGenOptions): string => {
+  const validationError = videoOptionsValidationError(options);
+  if (validationError) throw new Error(validationError);
   return JSON.stringify({
     style: options.style,
     promptOutputLanguage: options.promptOutputLanguage,
     durationSecs: options.durationSecs,
-    durationOptions: normalizeDurationOptions(
-      options.durationSecs,
-      options.durationOptions,
-    ),
+    durationOptions: options.durationOptions,
     aspectRatio: options.aspectRatio,
   });
 };
 
-export function normalizeDurationOptions(
+export function mergeDurationOptions(
   defaultDurationSecs: number,
   options: number[],
 ): number[] {
-  const seen = new Set<number>();
-  const normalized: number[] = [];
-  for (const duration of [...options, defaultDurationSecs]) {
-    if (
-      !Number.isInteger(duration) ||
-      duration < 1 ||
-      duration > 60 ||
-      seen.has(duration)
-    ) {
-      continue;
-    }
-    seen.add(duration);
-    normalized.push(duration);
-  }
-  return normalized.sort((a, b) => a - b);
+  return [...new Set([...options, defaultDurationSecs])].sort((a, b) => a - b);
 }
 
 export function durationChoicesForLimits(
@@ -1857,7 +1826,7 @@ export function durationChoicesForLimits(
   if (limits.configError) return [];
   if (limits.durationMode === "fixed") return limits.supportedDurations;
   const baseChoices = [5, 10, 15];
-  return normalizeDurationOptions(
+  return mergeDurationOptions(
     limits.defaultDurationSecs,
     baseChoices.filter(
       (duration) =>
@@ -1872,10 +1841,9 @@ export function durationOptionsAllowed(
   options: number[],
   limits: VideoDurationLimits,
 ): boolean {
-  const normalized = normalizeDurationOptions(defaultDurationSecs, options);
   return (
-    normalized.length > 0 &&
-    normalized.every((duration) => isDurationAllowed(duration, limits))
+    durationOptionsValidationError(defaultDurationSecs, options) == null &&
+    options.every((duration) => isDurationAllowed(duration, limits))
   );
 }
 
@@ -1949,16 +1917,12 @@ const isTerminalVideoStatus = (status: string | null | undefined): boolean => {
 export const hasPendingProviderJob = (video: GeneratedVideo): boolean =>
   Boolean(video.provider_job_id) && !isTerminalVideoStatus(video.status);
 
-export const extractPromptSourceHash = (metadata: unknown): string | null => {
+export const extractSourceContentHash = (metadata: unknown): string | null => {
   const source = asRecord(metadata)?.source;
   const hash = asRecord(source)?.content_sha256;
-  return typeof hash === "string" && hash.trim() ? hash.trim() : null;
-};
-
-const extractImageSourceHash = (metadata: unknown): string | null => {
-  const source = asRecord(metadata)?.source;
-  const hash = asRecord(source)?.content_sha256;
-  return typeof hash === "string" && hash.trim() ? hash.trim() : null;
+  return typeof hash === "string" && hash.length > 0 && hash === hash.trim()
+    ? hash
+    : null;
 };
 
 export const isSelectableReferenceImage = (
@@ -1971,7 +1935,7 @@ export const isSelectableReferenceImage = (
   if (img.chapter_id == null) return true;
   if (!chapter || img.chapter_id !== chapter.id) return false;
   if (!currentContentHash) return true;
-  return extractImageSourceHash(img.metadata_json) === currentContentHash;
+  return extractSourceContentHash(img.metadata_json) === currentContentHash;
 };
 
 export const referenceImageScopeLabel = (
@@ -1987,7 +1951,7 @@ export const referenceImageScopeLabel = (
   if (!chapter || img.chapter_id !== chapter.id) return "其他章节";
   if (
     currentContentHash &&
-    extractImageSourceHash(img.metadata_json) !== currentContentHash
+    extractSourceContentHash(img.metadata_json) !== currentContentHash
   ) {
     return "指纹不一致";
   }

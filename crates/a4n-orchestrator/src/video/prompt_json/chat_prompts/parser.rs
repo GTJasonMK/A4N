@@ -8,7 +8,8 @@ pub(in crate::video) fn parse_chat_video_prompt_shots(
     segment_by_number: &HashMap<i32, &VideoSegmentPlan>,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<Vec<ChatVideoPromptShot>, AppError> {
-    let response: ChatVideoPromptResponse = serde_json::from_str(raw.trim())?;
+    let response: ChatVideoPromptResponse =
+        parse_strict_json_response(raw, "Chat 视频提示词")?;
     if response.shots.is_empty() {
         return Err(AppError::InvalidArgument(
             "Chat 视频提示词响应必须包含至少一个 shots 条目".to_string(),
@@ -38,7 +39,7 @@ pub(in crate::video) fn parse_chat_video_prompt_shots(
             shot_number,
             title: required_text(input.title, "title")?,
             scene_summary: required_text(input.scene_summary, "scene_summary")?,
-            chat_prompt: required_chat_prompt(input.chat_prompt, prompt_output_language)?,
+            chat_prompt: required_text(input.chat_prompt, "chat_prompt")?,
             negative_prompt,
             chat_video: derive_chat_video(segment),
             duration_secs: segment.duration_secs,
@@ -70,9 +71,7 @@ pub(in crate::video) fn validate_chat_video_prompt_shot_against_segment(
     segment: &VideoSegmentPlan,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<ChatVideoPromptShot, AppError> {
-    validate_direct_prompt_text(&shot.chat_prompt, "Chat 视频提示词 chat_prompt")?;
-    validate_prompt_has_no_upload_status(&shot.chat_prompt, "Chat 视频提示词 chat_prompt")?;
-    validate_chat_prompt_required_sections(&shot.chat_prompt, prompt_output_language)?;
+    validate_chat_video_prompt_text(&shot.chat_prompt, prompt_output_language)?;
     validate_reference_ids(
         &shot.reference_image_ids,
         "Chat 视频提示词 reference_image_ids",

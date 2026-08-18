@@ -1,25 +1,28 @@
 use crate::video_prompt::PromptStage;
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_core::source_spans::metadata_source_content_sha256;
 use serde_json::Value;
 
 pub(in crate::video_prompt::dependencies) fn prompt_stage(
     row: &chapter_video_prompt::Model,
 ) -> Option<PromptStage> {
     match row.prompt_type.as_str() {
-        "frame_segment_plan" => Some(PromptStage::SegmentPlan),
-        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" | "storyboard_prompt" => {
-            Some(PromptStage::FramePrompt)
-        }
-        "video_prompt" => Some(PromptStage::Video),
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => Some(PromptStage::SegmentPlan),
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_STORYBOARD => Some(PromptStage::FramePrompt),
+        chapter_video_prompt::PROMPT_TYPE_VIDEO => Some(PromptStage::Video),
         _ => None,
     }
 }
 
 fn prompt_workflow_mode(row: &chapter_video_prompt::Model) -> Option<&str> {
     match row.workflow_mode.as_str() {
-        mode @ ("boundary_frames" | "first_frame_chain" | "chat_video" | "storyboard") => {
-            Some(mode)
-        }
+        mode @ (chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
+        | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
+        | chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO
+        | chapter_video_prompt::WORKFLOW_MODE_STORYBOARD) => Some(mode),
         _ => None,
     }
 }
@@ -41,7 +44,10 @@ pub(in crate::video_prompt::dependencies) fn prompt_same_generation_chain(
     if left.style != right.style || left.aspect_ratio != right.aspect_ratio {
         return false;
     }
-    let source_matches = match (prompt_source_hash(left), prompt_source_hash(right)) {
+    let source_matches = match (
+        metadata_source_content_sha256(left.metadata_json.as_ref()),
+        metadata_source_content_sha256(right.metadata_json.as_ref()),
+    ) {
         (Some(left_hash), Some(right_hash)) => left_hash == right_hash,
         (None, None) => true,
         _ => false,
@@ -143,14 +149,19 @@ fn video_and_frame_prompt_pair(
     left: &chapter_video_prompt::Model,
     right: &chapter_video_prompt::Model,
 ) -> bool {
-    (left.prompt_type == "video_prompt" && is_frame_prompt(&right.prompt_type))
-        || (right.prompt_type == "video_prompt" && is_frame_prompt(&left.prompt_type))
+    (left.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && is_frame_prompt(&right.prompt_type))
+        || (right.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+            && is_frame_prompt(&left.prompt_type))
 }
 
 fn is_frame_prompt(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
-        "frame_prompt" | "first_frame_prompt" | "storyboard_prompt" | "chat_video_frame_prompt"
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_STORYBOARD
+            | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
     )
 }
 
@@ -195,44 +206,34 @@ pub(in crate::video_prompt::dependencies) fn prompt_same_frame_reference_chain(
 fn prompt_type_uses_generation_assets(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
-        "video_prompt"
-            | "first_frame_prompt"
-            | "chat_video_frame_prompt"
-            | "storyboard_prompt"
-            | "frame_prompt"
+        chapter_video_prompt::PROMPT_TYPE_VIDEO
+            | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_STORYBOARD
+            | chapter_video_prompt::PROMPT_TYPE_FRAME
     )
 }
 
 fn prompt_is_shared_video_upstream(row: &chapter_video_prompt::Model) -> bool {
-    row.workflow_mode == "shared_segment_plan"
-        && matches!(row.prompt_type.as_str(), "frame_segment_plan")
-}
-
-pub(in crate::video_prompt::dependencies) fn prompt_source_hash(
-    row: &chapter_video_prompt::Model,
-) -> Option<&str> {
-    row.metadata_json
-        .as_ref()
-        .and_then(|metadata| metadata.get("source"))
-        .and_then(|source| source.get("content_sha256"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    row.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+        && row.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
 }
 
 pub(in crate::video_prompt::dependencies) fn prompt_stage_label(
     row: &chapter_video_prompt::Model,
 ) -> &'static str {
     match row.prompt_type.as_str() {
-        "frame_segment_plan" => "视频片段规划",
-        "frame_prompt" => "边界帧提示词",
-        "first_frame_prompt" => "首帧提示词",
-        "chat_video_frame_prompt" => "Chat 首尾帧提示词",
-        "storyboard_prompt" => "分镜提示词",
-        "video_prompt" => match prompt_workflow_mode(row) {
-            Some("first_frame_chain") => "首帧串联视频提示词",
-            Some("chat_video") => "Chat 视频提示词",
-            Some("storyboard") => "分镜视频提示词",
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => "视频片段规划",
+        chapter_video_prompt::PROMPT_TYPE_FRAME => "边界帧提示词",
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => "首帧提示词",
+        chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => "Chat 首尾帧提示词",
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => "分镜提示词",
+        chapter_video_prompt::PROMPT_TYPE_VIDEO => match prompt_workflow_mode(row) {
+            Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN) => {
+                "首帧串联视频提示词"
+            }
+            Some(chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO) => "Chat 视频提示词",
+            Some(chapter_video_prompt::WORKFLOW_MODE_STORYBOARD) => "分镜视频提示词",
             _ => "视频提示词",
         },
         _ => "视频提示词",

@@ -6,7 +6,7 @@ use crate::models::{
     resolve_model_info,
 };
 use crate::proxy::{
-    HF_HOME_OVERRIDE_LOCK, SystemProxy, merge_download_proxy, proxy_to_env_vars, proxy_url,
+    HF_HOME_OVERRIDE_LOCK, ScopedEnvVar, SystemProxy, proxy_to_env_vars, proxy_url,
 };
 #[cfg(target_os = "linux")]
 use crate::proxy::{parse_gsettings_array, parse_gsettings_string};
@@ -36,45 +36,33 @@ fn builds_proxy_urls_only_when_host_and_port_are_present() {
 }
 
 #[test]
-fn merge_download_proxy_prefers_system_http_proxy_over_explicit_socks_all_proxy() {
-    let proxy = merge_download_proxy(
-        Some(SystemProxy {
-            all_proxy: Some("socks5://127.0.0.1:7897".to_string()),
-            ..SystemProxy::default()
-        }),
-        Some(SystemProxy {
-            http_proxy: Some("http://127.0.0.1:7897".to_string()),
-            https_proxy: Some("http://127.0.0.1:7897".to_string()),
-            all_proxy: Some("socks5h://127.0.0.1:7897".to_string()),
-            ..SystemProxy::default()
-        }),
-    )
-    .unwrap();
-
-    assert_eq!(proxy.http_proxy.as_deref(), Some("http://127.0.0.1:7897"));
-    assert_eq!(proxy.https_proxy.as_deref(), Some("http://127.0.0.1:7897"));
-    assert_eq!(proxy.all_proxy.as_deref(), Some("http://127.0.0.1:7897"));
-}
-
-#[test]
-fn proxy_env_vars_overwrite_all_proxy_with_https_proxy() {
+fn system_proxy_only_fills_missing_explicit_protocols() {
     let _guard = HF_HOME_OVERRIDE_LOCK.lock().unwrap();
+    let _explicit_http = ScopedEnvVar::set("HTTP_PROXY", "http://127.0.0.1:7001");
+    let _explicit_http_lower = ScopedEnvVar::set("http_proxy", "http://127.0.0.1:7001");
+    let _empty_https = ScopedEnvVar::set("HTTPS_PROXY", "");
+    let _empty_https_lower = ScopedEnvVar::set("https_proxy", "");
+    let _empty_all = ScopedEnvVar::set("ALL_PROXY", "");
+    let _empty_all_lower = ScopedEnvVar::set("all_proxy", "");
     let _vars = proxy_to_env_vars(SystemProxy {
-        http_proxy: Some("http://127.0.0.1:7897".to_string()),
-        https_proxy: Some("http://127.0.0.1:7897".to_string()),
-        all_proxy: Some("socks5://127.0.0.1:7897".to_string()),
+        http_proxy: Some("http://127.0.0.1:7002".to_string()),
+        https_proxy: Some("http://127.0.0.1:7003".to_string()),
+        all_proxy: Some("socks5h://127.0.0.1:7004".to_string()),
         ..SystemProxy::default()
     });
 
     assert_eq!(
         std::env::var("HTTP_PROXY").unwrap(),
-        "http://127.0.0.1:7897"
+        "http://127.0.0.1:7001"
     );
     assert_eq!(
         std::env::var("HTTPS_PROXY").unwrap(),
-        "http://127.0.0.1:7897"
+        "http://127.0.0.1:7003"
     );
-    assert_eq!(std::env::var("ALL_PROXY").unwrap(), "http://127.0.0.1:7897");
+    assert_eq!(
+        std::env::var("ALL_PROXY").unwrap(),
+        "socks5h://127.0.0.1:7004"
+    );
 }
 
 #[cfg(target_os = "linux")]

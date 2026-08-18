@@ -1,9 +1,12 @@
 use std::collections::{BTreeSet, HashMap};
 
+use a4n_domain::VideoAspectRatio;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+
+use crate::models::chapter::chapter_video_prompt;
 
 use super::VideoSegmentPlanV2;
 
@@ -23,11 +26,11 @@ pub enum VideoSegmentWorkflowModeV1 {
 impl VideoSegmentWorkflowModeV1 {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::BoundaryFrames => "boundary_frames",
-            Self::FirstFrameChain => "first_frame_chain",
-            Self::Storyboard => "storyboard",
+            Self::BoundaryFrames => chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            Self::FirstFrameChain => chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+            Self::Storyboard => chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
             Self::ReferenceMedia => "reference_media",
-            Self::ChatVideo => "chat_video",
+            Self::ChatVideo => chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
         }
     }
 
@@ -127,8 +130,12 @@ impl VideoSegmentExecutionRecipeV1 {
                 "片段执行方案 duration_secs_options 必须包含默认时长且全部为正整数".to_string(),
             );
         }
-        if self.aspect_ratio.trim().is_empty() {
-            return Err("片段执行方案 aspect_ratio 不能为空".to_string());
+        if self.aspect_ratio.parse::<VideoAspectRatio>().is_err() {
+            return Err(format!(
+                "片段执行方案 aspect_ratio 无效：{}，必须是 {}",
+                self.aspect_ratio,
+                VideoAspectRatio::supported_values()
+            ));
         }
         validate_positive_unique_ids(&self.reference_image_ids, "reference_image_ids")?;
         validate_positive_unique_ids(&self.video_library_image_ids, "video_library_image_ids")?;

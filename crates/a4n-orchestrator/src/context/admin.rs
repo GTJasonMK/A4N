@@ -58,8 +58,8 @@ impl AdminApplication {
             .map_err(admin_db_error)
     }
 
-    async fn database_health(&self) -> Result<serde_json::Value, AppError> {
-        a4n_db::admin::database_health(self.database.connection())
+    async fn check_database_health(&self) -> Result<(), AppError> {
+        a4n_db::admin::check_database_health(self.database.connection())
             .await
             .map_err(admin_db_error)
     }
@@ -126,8 +126,8 @@ impl OrchestratorContext {
         self.admin.all_project_summaries().await
     }
 
-    pub async fn database_health(&self) -> Result<serde_json::Value, AppError> {
-        self.admin.database_health().await
+    pub async fn check_database_health(&self) -> Result<(), AppError> {
+        self.admin.check_database_health().await
     }
 
     pub async fn generation_call_analytics(

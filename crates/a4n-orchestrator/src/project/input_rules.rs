@@ -2,7 +2,7 @@
 
 use a4n_core::models::project::novel_project;
 
-use super::{PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM};
+use super::ProjectSourceMode;
 
 /// 复制项目时的落库路径选择（不含权限与文件副作用）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,27 +37,39 @@ pub fn optional_text(value: Option<&str>) -> String {
     value.map(str::trim).unwrap_or_default().to_string()
 }
 
-/// 按 source_mode / project_kind 选择 duplicate 落库路径。
-pub fn resolve_project_duplicate_path(project: &novel_project::Model) -> ProjectDuplicatePath {
-    if project.source_mode != SOURCE_MODE_FREEFORM && project.project_kind == PROJECT_KIND_TEXT {
-        ProjectDuplicatePath::Text
-    } else if project.source_mode != SOURCE_MODE_FREEFORM {
-        ProjectDuplicatePath::Derived
-    } else {
-        ProjectDuplicatePath::Freeform
-    }
+/// 按项目身份选择 duplicate 落库路径。
+pub fn resolve_project_duplicate_path(
+    project: &novel_project::Model,
+) -> Result<ProjectDuplicatePath, String> {
+    project
+        .source_mode()
+        .map(|source_mode| match source_mode {
+            ProjectSourceMode::Self_ => ProjectDuplicatePath::Text,
+            ProjectSourceMode::Derived => ProjectDuplicatePath::Derived,
+            ProjectSourceMode::Freeform => ProjectDuplicatePath::Freeform,
+        })
+        .map_err(|error| format!("项目 {}: {error}", project.id))
 }
 
 /// 是否走「自由画布视频生成数据重置」专用入口。
-pub fn is_freeform_video_generated_data_reset_project(project: &novel_project::Model) -> bool {
-    project.project_kind == PROJECT_KIND_VIDEO && project.source_mode == SOURCE_MODE_FREEFORM
+pub fn is_freeform_video_generated_data_reset_project(
+    project: &novel_project::Model,
+) -> Result<bool, String> {
+    project
+        .source_mode()
+        .map(|source_mode| source_mode == ProjectSourceMode::Freeform)
+        .map_err(|error| format!("项目 {}: {error}", project.id))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn project(kind: &str, source_mode: &str) -> novel_project::Model {
+    fn project(
+        kind: &str,
+        root_project_id: Option<i64>,
+        source_snapshot_id: Option<i64>,
+    ) -> novel_project::Model {
         let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
             .unwrap()
             .and_hms_opt(0, 0, 0)
@@ -69,9 +81,8 @@ mod tests {
             description: String::new(),
             project_type: "novel_long".into(),
             project_kind: kind.into(),
-            source_mode: source_mode.into(),
-            root_project_id: None,
-            source_snapshot_id: None,
+            root_project_id,
+            source_snapshot_id,
             source_sync_status: "current".into(),
             status: "draft".into(),
             lifecycle_gate: "active".into(),
@@ -112,31 +123,36 @@ mod tests {
     #[test]
     fn resolve_project_duplicate_path_covers_modes() {
         assert_eq!(
-            resolve_project_duplicate_path(&project("text", "root")),
-            ProjectDuplicatePath::Text
+            resolve_project_duplicate_path(&project("text", None, None)),
+            Ok(ProjectDuplicatePath::Text)
         );
         assert_eq!(
-            resolve_project_duplicate_path(&project("galgame", "root")),
-            ProjectDuplicatePath::Derived
+            resolve_project_duplicate_path(&project("galgame", Some(1), Some(2))),
+            Ok(ProjectDuplicatePath::Derived)
         );
         assert_eq!(
-            resolve_project_duplicate_path(&project("video", SOURCE_MODE_FREEFORM)),
-            ProjectDuplicatePath::Freeform
+            resolve_project_duplicate_path(&project("video", None, None)),
+            Ok(ProjectDuplicatePath::Freeform)
         );
     }
 
     #[test]
     fn freeform_video_reset_path_only_for_video_freeform() {
-        assert!(is_freeform_video_generated_data_reset_project(&project(
-            "video",
-            SOURCE_MODE_FREEFORM
-        )));
-        assert!(!is_freeform_video_generated_data_reset_project(&project(
-            "text",
-            SOURCE_MODE_FREEFORM
-        )));
-        assert!(!is_freeform_video_generated_data_reset_project(&project(
-            "video", "root"
-        )));
+        assert_eq!(
+            is_freeform_video_generated_data_reset_project(&project("video", None, None)),
+            Ok(true)
+        );
+        assert_eq!(
+            is_freeform_video_generated_data_reset_project(&project("text", None, None)),
+            Ok(false)
+        );
+        assert_eq!(
+            is_freeform_video_generated_data_reset_project(&project(
+                "video",
+                Some(1),
+                Some(2)
+            )),
+            Ok(false)
+        );
     }
 }

@@ -2,19 +2,30 @@
 
 use a4n_core::models::ai::generated_image;
 use a4n_core::models::chapter::chapter_video_prompt;
-
-use super::{
-    FRAME_SEGMENT_PLAN_PROMPT_TYPE, image_generation_prompt_id, image_generation_source,
-    prompt_chain_matches, prompt_source_type_matches,
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT, image_generation_prompt_id,
+    image_generation_source,
 };
+
+use super::{prompt_chain_matches, prompt_source_type_matches};
 
 pub fn storyboard_prompt_matches_video_prompt(
     video_prompt: &chapter_video_prompt::Model,
     storyboard_prompt: &chapter_video_prompt::Model,
 ) -> bool {
-    prompt_chain_matches("storyboard", video_prompt, storyboard_prompt)
-        && prompt_source_type_matches(video_prompt, FRAME_SEGMENT_PLAN_PROMPT_TYPE)
-        && prompt_source_type_matches(storyboard_prompt, FRAME_SEGMENT_PLAN_PROMPT_TYPE)
+    prompt_chain_matches(
+        chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+        video_prompt,
+        storyboard_prompt,
+    )
+        && prompt_source_type_matches(
+            video_prompt,
+            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+        )
+        && prompt_source_type_matches(
+            storyboard_prompt,
+            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+        )
 }
 
 pub fn latest_storyboard_image_id(
@@ -26,7 +37,8 @@ pub fn latest_storyboard_image_id(
         .find(|image| {
             let metadata = image.metadata_json.as_ref();
             image_generation_prompt_id(metadata) == Some(storyboard_prompt.id)
-                && image_generation_source(metadata) == Some("video_storyboard_prompt")
+                && image_generation_source(metadata)
+                    == Some(IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT)
         })
         .map(|image| image.id)
 }
@@ -70,7 +82,7 @@ mod tests {
             timeline_item_id: None,
             metadata_json: Some(json!({
                 "contract_version": contract_version,
-                "source_prompt_type": FRAME_SEGMENT_PLAN_PROMPT_TYPE,
+                "source_prompt_type": chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
                 "video_execution_identity": {
                     "contract_epoch": VIDEO_EXECUTION_CONTRACT_EPOCH,
                     "shooting_script_identity": "script",
@@ -144,8 +156,12 @@ mod tests {
         let storyboard = prompt(11, "storyboard_prompt", STORYBOARD_PROMPT_CONTRACT_VERSION);
         let images = vec![
             image(20, storyboard.id, "other"),
-            image(21, 999, "video_storyboard_prompt"),
-            image(22, storyboard.id, "video_storyboard_prompt"),
+            image(21, 999, IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT),
+            image(
+                22,
+                storyboard.id,
+                IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
+            ),
         ];
 
         assert_eq!(latest_storyboard_image_id(&images, &storyboard), Some(22));

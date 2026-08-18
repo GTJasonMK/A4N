@@ -23,8 +23,7 @@ where
     } = prepared;
 
     if !duplicate_rows.is_empty() {
-        let duplicate_ids = duplicate_rows.iter().map(|row| row.id).collect::<Vec<_>>();
-        video::delete_chapter_video_prompt_records(db, &duplicate_ids).await?;
+        video::delete_chapter_video_prompt_records(db, &duplicate_rows).await?;
     }
     let now = chrono::Utc::now().naive_utc();
     let mut rows = Vec::with_capacity(draft_count);
@@ -54,9 +53,8 @@ where
         }
         rows.push(row);
     }
-    let stale_ids = stale_rows.iter().map(|row| row.id).collect::<Vec<_>>();
-    if !stale_ids.is_empty() {
-        video::delete_chapter_video_prompt_records(db, &stale_ids).await?;
+    if !stale_rows.is_empty() {
+        video::delete_chapter_video_prompt_records(db, &stale_rows).await?;
     }
     for (row, trace) in trace_bindings {
         record_chapter_video_prompt_generation_run(db, &row, trace).await?;

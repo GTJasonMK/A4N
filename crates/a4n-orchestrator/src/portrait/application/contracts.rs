@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
+use crate::generation::GeneratedMediaArtifactFile;
+
 pub use a4n_api_contract::portrait::{
     GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
     GeneratePortraitPromptInput, PortraitSummary, PortraitType, RegeneratePortraitInput,
@@ -60,13 +62,6 @@ pub struct PersistedPortraitFile {
 }
 
 #[derive(Debug, Clone)]
-pub struct PortraitArtifactFile {
-    pub content_type: String,
-    pub sha256: String,
-    pub byte_size: u64,
-}
-
-#[derive(Debug, Clone)]
 pub struct PortraitBatchItem {
     pub item_key: String,
     pub item_index: u32,
@@ -118,7 +113,7 @@ pub trait PortraitGenerationHostPort: Send + Sync {
         &self,
         relative_path: &str,
         label: &str,
-    ) -> Result<PortraitArtifactFile, AppError>;
+    ) -> Result<GeneratedMediaArtifactFile, AppError>;
 
     fn validate_portrait_file(&self, relative_path: &str, label: &str) -> Result<(), AppError>;
 

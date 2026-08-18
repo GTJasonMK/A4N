@@ -20,7 +20,7 @@ pub(super) async fn validate_provider_public_image_url(
         return Ok(());
     }
     Err(format!(
-        "{label} 的公网 URL 无法作为视频模型图片输入：{}。请检查 A4N_TEMP_MEDIA_PUBLIC_BASE_URL/A4N_PUBLIC_APP_URL/A4N_PUBLIC_MEDIA_BASE_URL 是否指向可公网访问的图片路由，且没有被 Cloudflare、DNSPod、Nginx 或登录页重定向到 HTML/JSON 页面。url={}",
+        "{label} 的公网 URL 无法作为视频模型图片输入：{}。请检查 A4N_PUBLIC_APP_URL 是否指向可公网访问的应用入口，且没有被 Cloudflare、DNSPod、Nginx 或登录页重定向到 HTML/JSON 页面。url={}",
         get_probe.message,
         truncate_url_for_error(url)
     ))

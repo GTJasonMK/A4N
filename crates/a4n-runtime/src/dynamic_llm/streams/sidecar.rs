@@ -8,10 +8,10 @@ use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
 use a4n_orchestrator::DynamicProviderFacade;
 use a4n_orchestrator::task_queue::RunningTask;
-use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
+use a4n_service_protocol::CapabilityTaskEvent;
 use futures::Stream;
 
-use super::events::{chat_chunk_from_sidecar_event, sidecar_event_error, usage_from_sidecar_value};
+use super::events::{SidecarLlmEvent, parse_sidecar_llm_event};
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};
 
 pub(in crate::dynamic_llm) struct QueueTrackedSidecarLlmStream {
@@ -40,14 +40,6 @@ impl QueueTrackedSidecarLlmStream {
             ),
         }
     }
-
-    fn apply_usage_value(&mut self, value: Option<serde_json::Value>) -> Result<(), AppError> {
-        if let Some(value) = value {
-            self.terminal
-                .replace_usage(usage_from_sidecar_value(value)?);
-        }
-        Ok(())
-    }
 }
 
 impl Stream for QueueTrackedSidecarLlmStream {
@@ -71,45 +63,20 @@ impl Stream for QueueTrackedSidecarLlmStream {
                 }
                 Poll::Pending => return Poll::Pending,
             };
-            match event.event_kind {
-                CapabilityTaskEventKind::Chunk => {
-                    let chunk = match chat_chunk_from_sidecar_event(event) {
-                        Ok(chunk) => chunk,
-                        Err(error) => {
-                            self.terminal.start_failed(error);
-                            return self.terminal.poll(cx);
-                        }
-                    };
+            match parse_sidecar_llm_event(event) {
+                Ok(SidecarLlmEvent::Chunk(chunk)) => {
                     self.terminal.observe_chunk(&chunk);
                     return Poll::Ready(Some(Ok(chunk)));
                 }
-                CapabilityTaskEventKind::Usage => {
-                    if let Err(error) = self.apply_usage_value(event.usage_delta) {
-                        self.terminal.start_failed(error);
-                        return self.terminal.poll(cx);
-                    }
-                }
-                CapabilityTaskEventKind::Completed => {
-                    if let Err(error) = self.apply_usage_value(event.final_usage) {
-                        self.terminal.start_failed(error);
-                        return self.terminal.poll(cx);
-                    }
-                    if let Some(finish_reason) = event.finish_reason {
-                        self.terminal.replace_finish_reason(finish_reason);
-                    }
+                Ok(SidecarLlmEvent::Completed) => {
                     self.terminal.start_success();
                     return self.terminal.poll(cx);
                 }
-                CapabilityTaskEventKind::Failed => {
-                    let error = sidecar_event_error(event);
+                Ok(SidecarLlmEvent::Progress) => {}
+                Err(error) => {
                     self.terminal.start_failed(error);
                     return self.terminal.poll(cx);
                 }
-                CapabilityTaskEventKind::Progress
-                | CapabilityTaskEventKind::StructuredProgress
-                | CapabilityTaskEventKind::Checkpoint
-                | CapabilityTaskEventKind::Artifact
-                | CapabilityTaskEventKind::CancelAck => {}
             }
         }
     }

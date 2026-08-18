@@ -69,9 +69,15 @@ fn prompt_sync_output_language_identity(
     prompt_type: &str,
     metadata: Option<&Value>,
 ) -> Option<String> {
-    a4n_core::prompt_language::prompt_type_uses_prompt_output_language(prompt_type).then(|| {
-        a4n_core::prompt_language::prompt_output_language_code_from_metadata(metadata).to_string()
-    })
+    if !a4n_core::prompt_language::prompt_type_uses_prompt_output_language(prompt_type) {
+        return None;
+    }
+    Some(
+        a4n_core::prompt_language::PromptOutputLanguage::from_metadata(metadata)
+            .expect("prompt sync identity must be built after output-language validation")
+            .as_str()
+            .to_string(),
+    )
 }
 
 pub(super) fn should_prefer_existing_prompt(
@@ -95,9 +101,12 @@ pub(super) fn should_keep_unmatched_prompt(
     {
         return true;
     }
-    row.prompt_type == "video_prompt"
+    row.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
         && (row.generated_video_id.is_some()
-            || matches!(row.status.as_str(), "running" | "completed"))
+            || matches!(
+                row.status.as_str(),
+                chapter_video_prompt::STATUS_RUNNING | chapter_video_prompt::STATUS_COMPLETED
+            ))
 }
 
 #[cfg(test)]

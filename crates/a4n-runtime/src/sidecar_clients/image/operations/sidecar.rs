@@ -7,11 +7,12 @@ use base64::Engine as _;
 use serde_json::Value;
 
 use super::super::super::{
-    SidecarRequestContext, missing_sidecar_capability_message, response_payload,
-    service_error_string, service_request_with_context_provider_secret_policy,
+    GenerationEvent, SidecarRequestContext, missing_sidecar_capability_message,
+    parse_generation_event, response_payload, service_error_string,
+    service_request_with_context_provider_secret_policy,
     sidecar_context_for_workflow_operation_with_root,
 };
-use super::super::{contracts::image_provider_payload, events::handle_image_generation_event};
+use super::super::contracts::{ImageGenerationOutput, image_provider_payload};
 
 pub(crate) async fn preview_image_provider_request(
     capabilities: &A4nCapabilities,
@@ -28,17 +29,12 @@ pub(crate) async fn preview_image_provider_request(
     let response = client
         .preview_request(service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
-            "image",
             a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)
         .await
         .map_err(service_error_string)?;
-    let preview: Value = response_payload(response, "image")?;
-    if preview.is_null() {
-        return Err("image sidecar request preview 为空".to_string());
-    }
-    Ok(preview)
+    response_payload(response, "image")
 }
 
 pub(super) async fn generate_image_via_sidecar(
@@ -58,12 +54,11 @@ pub(super) async fn generate_image_via_sidecar(
             workflow_run_id,
             "image.generate",
         )?,
-        "image",
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         payload,
     )?;
     let (event_tx, mut event_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.generate_events(request, event_tx));
     let mut transport_complete = false;
     let output = loop {
@@ -76,8 +71,13 @@ pub(super) async fn generate_image_via_sidecar(
                 let event = event.ok_or_else(|| {
                     "image sidecar 生成事件流结束但缺少终止事件".to_string()
                 })?;
-                if let Some(output) = handle_image_generation_event(event, progress)? {
-                    break output;
+                match parse_generation_event::<ImageGenerationOutput>(event, "image")? {
+                    GenerationEvent::Progress(message) => {
+                        if let Some(progress) = progress {
+                            progress(&message);
+                        }
+                    }
+                    GenerationEvent::Completed(output) => break output,
                 }
             }
         }

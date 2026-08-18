@@ -21,7 +21,7 @@ import { cancelWorkflowTask } from "../../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 
 interface UseChapterAnalysisActionsParams {
   projectId: number;

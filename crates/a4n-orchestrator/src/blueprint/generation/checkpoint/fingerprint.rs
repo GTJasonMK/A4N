@@ -1,16 +1,12 @@
 use super::super::contracts::BlueprintStageSpec;
-use a4n_core::error::AppError;
+use a4n_core::{
+    blueprint::{
+        BLUEPRINT_GENERATION_KIND, BLUEPRINT_GENERATION_PROMPTS, blueprint_stage_call_key,
+    },
+    error::AppError,
+};
 use a4n_llm::provider::ChatRequest;
 use serde_json::{Value, json};
-
-const BLUEPRINT_STAGE_PREVIEW_PROMPT_NAME: &str =
-    "blueprint + blueprint_stage_system + blueprint_stage_user";
-
-pub(in crate::blueprint::generation) fn blueprint_stage_call_key(
-    spec: &BlueprintStageSpec,
-) -> String {
-    format!("blueprint_generation.{}", spec.key)
-}
 
 pub(in crate::blueprint::generation) fn blueprint_stage_call_fingerprint_json(
     spec: &BlueprintStageSpec,
@@ -18,16 +14,15 @@ pub(in crate::blueprint::generation) fn blueprint_stage_call_fingerprint_json(
 ) -> Result<Value, AppError> {
     Ok(json!({
         "schema_version": 1,
-        "workflow": "blueprint_generation",
-        "call_key": blueprint_stage_call_key(spec),
+        "workflow": BLUEPRINT_GENERATION_KIND,
+        "call_key": blueprint_stage_call_key(spec.key),
         "stage_key": spec.key,
-        "prompt_name": BLUEPRINT_STAGE_PREVIEW_PROMPT_NAME,
+        "prompt_name": BLUEPRINT_GENERATION_PROMPTS.join(" + "),
         "messages": request.messages,
         "context_manifest": request.context_manifest_json,
         "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
         "output_schema": spec.output_schema,
-        "expected_top_level_keys": spec.expected_top_level_keys,
     }))
 }
 
@@ -41,7 +36,7 @@ mod tests {
     #[test]
     fn builds_stable_stage_call_key() {
         assert_eq!(
-            blueprint_stage_call_key(&BLUEPRINT_GENERATION_STAGES[1]),
+            blueprint_stage_call_key(BLUEPRINT_GENERATION_STAGES[1].key),
             "blueprint_generation.world"
         );
     }
@@ -60,10 +55,14 @@ mod tests {
                 .expect("fingerprint should build");
 
         assert_eq!(fingerprint["schema_version"], 1);
-        assert_eq!(fingerprint["workflow"], "blueprint_generation");
+        assert_eq!(fingerprint["workflow"], BLUEPRINT_GENERATION_KIND);
         assert_eq!(fingerprint["call_key"], "blueprint_generation.world");
         assert_eq!(fingerprint["stage_key"], "world");
         assert_eq!(fingerprint["max_tokens_profile"], "blueprint");
-        assert_eq!(fingerprint["expected_top_level_keys"][0], "world_setting");
+        assert!(
+            fingerprint["output_schema"]
+                .as_str()
+                .is_some_and(|schema| schema.contains("world_setting"))
+        );
     }
 }

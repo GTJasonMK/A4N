@@ -9,6 +9,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
+import { extractErrorMessage } from "../../../api";
 import type { GeneratedImage, UpdateImageInput } from "../../../api/image";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { toMediaSrc } from "../../../utils/mediaSrc";
@@ -130,7 +131,7 @@ export function ImageActionDialog({
       window.setTimeout(() => setCopied(false), 1200);
     } catch (err) {
       setCopied(false);
-      addToast(err, "error");
+      addToast(extractErrorMessage(err, "复制图片数据失败"), "error");
     }
   };
 

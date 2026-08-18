@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use crate::{
     OrchestratorContext,
     project::ProjectGeneratedChapterSceneSaveInput,
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
+    workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
 use super::{
@@ -246,10 +246,11 @@ impl OrchestratorContext {
                 CHAPTER_SCENE_PROGRESS_TOTAL,
                 "场景正文已从断点恢复，正在保存场景",
             )?;
-            let checkpoint_json =
-                workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
-                    .map_err(workflow_checkpoint_contract_app_error)?;
-            return restored_chapter_scene_checkpoint(checkpoint_json, &call_key);
+            return restored_chapter_scene_checkpoint(
+                &checkpoint.parsed_output,
+                &checkpoint.response_content,
+                &call_key,
+            );
         }
 
         let response = self.stream_complete_llm(request).await?;
@@ -269,14 +270,13 @@ impl OrchestratorContext {
             call_key,
             call_order: 1,
             input_fingerprint_json: fingerprint_json,
-            checkpoint_json: json!({
-                "output": content.clone(),
-                "parsed_output": content.clone(),
-                "response_content": response.message.content,
-                "finish_reason": response.finish_reason,
-                "usage": response_usage_json,
-            }),
-            artifacts_json: None,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: Value::String(content.clone()),
+                response_content: response.message.content,
+                usage: response_usage_json,
+                finish_reason: response.finish_reason,
+                artifacts_json: None,
+            },
         })
         .await?;
         Ok(content)

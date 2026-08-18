@@ -1,27 +1,21 @@
 use crate::contracts::{VideoPollPayload, VideoProviderPayload};
 use a4n_core::error::AppError;
-use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
-    redact_sensitive_message, validate_provider_api_key_secret_policy,
+    redact_sensitive_message,
 };
 
 pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
     result: Result<T, AppError>,
 ) -> ServiceResponse<T> {
-    request.result_response(result, |err| {
-        ServiceError::non_retryable(
-            service_error_code(&err),
-            redact_sensitive_message(err.to_string()),
-        )
-    })
+    request.result_response(result, service_error)
 }
 
 pub(crate) fn validate_video_provider_request(
     request: &ServiceRequest<VideoProviderPayload>,
 ) -> Result<(), ServiceError> {
-    validate_service_request(request)?;
+    request.validate_known_provider_request(VIDEO_SERVICE_NAME, Some(&request.payload.api_key))?;
     request
         .payload
         .request
@@ -29,7 +23,6 @@ pub(crate) fn validate_video_provider_request(
         .map_err(|error| {
             ServiceError::non_retryable(ServiceErrorCode::ConfigurationError, error.to_string())
         })?;
-    validate_provider_secret_policy(&request.payload.api_key, request)?;
     validate_project_scope(request.payload.project_id, request.project_id, "generation")?;
     a4n_video::validate_video_provider_idempotency_key(
         request.payload.provider_idempotency_key_sha256.as_deref(),
@@ -43,8 +36,7 @@ pub(crate) fn validate_video_provider_request(
 pub(crate) fn validate_video_poll_request(
     request: &ServiceRequest<VideoPollPayload>,
 ) -> Result<(), ServiceError> {
-    validate_service_request(request)?;
-    validate_provider_secret_policy(&request.payload.api_key, request)?;
+    request.validate_known_provider_request(VIDEO_SERVICE_NAME, Some(&request.payload.api_key))?;
     validate_project_scope(
         request.payload.project_id,
         request.project_id,
@@ -68,33 +60,7 @@ fn validate_project_scope(
     Ok(())
 }
 
-pub(crate) fn validate_model_discovery_request(
-    request: &ServiceRequest<ModelDiscoveryRequest>,
-) -> Result<(), ServiceError> {
-    validate_service_request(request)?;
-    validate_optional_provider_secret_policy(request.payload.api_key.as_deref(), request)?;
-    Ok(())
-}
-
-pub(crate) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    request.validate_known_service(VIDEO_SERVICE_NAME)
-}
-
-pub(crate) fn validate_provider_secret_policy<T>(
-    api_key: &str,
-    request: &ServiceRequest<T>,
-) -> Result<(), ServiceError> {
-    validate_optional_provider_secret_policy(Some(api_key), request)
-}
-
-pub(crate) fn validate_optional_provider_secret_policy<T>(
-    api_key: Option<&str>,
-    request: &ServiceRequest<T>,
-) -> Result<(), ServiceError> {
-    validate_provider_api_key_secret_policy(api_key, &request.secret_policy, VIDEO_SERVICE_NAME)
-}
-
-pub(crate) fn service_error_code(err: &AppError) -> ServiceErrorCode {
+fn service_error_code(err: &AppError) -> ServiceErrorCode {
     match err {
         AppError::InvalidArgument(_) | AppError::ConfigError(_) => {
             ServiceErrorCode::ConfigurationError
@@ -105,9 +71,9 @@ pub(crate) fn service_error_code(err: &AppError) -> ServiceErrorCode {
     }
 }
 
-pub(crate) fn service_error(err: &AppError) -> ServiceError {
+pub(crate) fn service_error(err: AppError) -> ServiceError {
     ServiceError::non_retryable(
-        service_error_code(err),
+        service_error_code(&err),
         redact_sensitive_message(err.to_string()),
     )
 }

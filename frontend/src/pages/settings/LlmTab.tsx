@@ -8,11 +8,9 @@ import {
   listLlmConfig,
   listServerLlmConfig,
   previewTestLlmConfigRequest,
-  previewServerTestLlmConfigRequest,
   setDefaultLlmConfig,
   setDefaultServerLlmConfig,
   testLlmConfig,
-  testServerLlmConfig,
   updateLlmConfig,
   updateServerLlmConfig,
   updateServerLlmMaxTokensConfig,
@@ -36,6 +34,7 @@ import {
   listModelProviderCatalog,
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
+import type { ModelConfigScope } from "../../api/modelDiscovery";
 
 /**
  * LLM 配置 Tab
@@ -45,10 +44,10 @@ import type { ModelProviderCatalog } from "../../api/generated/config";
  * system_settings.llm_max_tokens。
  */
 interface LlmTabProps {
-  scope?: "user" | "server";
+  scope?: ModelConfigScope;
 }
 
-export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
+export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<LlmForm>[];
@@ -102,7 +101,7 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
               form={form}
               setForm={setForm}
               configId={context.selectedId}
-              serverScope={serverScope}
+              scope={scope}
               readonly={context.readonly}
               templateLocked={!serverScope && context.selectedId === SYSTEM_LLM_CONFIG_ID}
               providers={catalog?.llm ?? []}
@@ -120,9 +119,9 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
           onDelete={serverScope ? deleteServerLlmConfig : deleteLlmConfig}
           onActivate={serverScope ? setDefaultServerLlmConfig : setDefaultLlmConfig}
           onTest={async (id) => {
-            await (serverScope ? testServerLlmConfig : testLlmConfig)(id);
+            await testLlmConfig(id, scope);
           }}
-          onPreviewTest={serverScope ? previewServerTestLlmConfigRequest : previewTestLlmConfigRequest}
+          onPreviewTest={(id) => previewTestLlmConfigRequest(id, scope)}
         />
       </div>
     </div>

@@ -1,5 +1,11 @@
-use super::super::*;
 use super::contracts::ManifestIds;
+
+use crate::canvas::validate_canvas_record_viewport_json;
+use crate::project::video_studio_package::VideoStudioProjectPackage;
+
+use super::super::canvas::{
+    CanvasNodeRefIds, validate_canvas_edge_contracts, validate_canvas_node_ref,
+};
 
 pub(super) fn validate_canvas_records(
     package: &VideoStudioProjectPackage,
@@ -12,7 +18,7 @@ pub(super) fn validate_canvas_records(
                 graph.id
             ));
         }
-        if let Err(err) = validate_canvas_viewport_json(
+        if let Err(err) = validate_canvas_record_viewport_json(
             graph.viewport_json.as_ref(),
             "canvas_graph.viewport_json",
         ) {

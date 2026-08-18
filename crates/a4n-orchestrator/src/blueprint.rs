@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
+use a4n_core::blueprint::{BLUEPRINT_GENERATION_KIND, blueprint_stage_call_key};
 use a4n_core::error::AppError;
 use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
 use crate::OrchestratorContext;
-use generation::preview_generate_requests;
+use generation::preview_generate_request;
 
 mod generation;
-mod generation_contract;
 mod json;
 pub mod persistence;
 mod refine;
@@ -17,16 +17,8 @@ mod refine;
 pub(crate) use generation::BLUEPRINT_GENERATION_STAGES;
 pub(crate) use json::validate_sparse_blueprint_sections;
 
-pub struct BlueprintGenerationApplicationContext<'a> {
-    pub prompt_renderer: &'a dyn PromptRenderer,
-}
-
-pub struct BlueprintRefinementApplicationContext<'a> {
-    pub prompt_renderer: &'a dyn PromptRenderer,
-}
-
 impl OrchestratorContext {
-    pub async fn preview_blueprint_generation_requests_for_user_validated(
+    pub async fn preview_blueprint_generation_request_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -35,14 +27,14 @@ impl OrchestratorContext {
         target_length: i32,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
-    ) -> Result<Vec<BlueprintGenerationPreviewStep>, AppError> {
+    ) -> Result<BlueprintGenerationPreviewStep, AppError> {
         self.verify_project_permission(
             project_id,
             user_id,
             crate::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.preview_blueprint_generation_requests(
+        self.preview_blueprint_generation_request(
             project_id,
             novel_title,
             genre,
@@ -53,7 +45,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn preview_blueprint_generation_requests(
+    pub async fn preview_blueprint_generation_request(
         &self,
         project_id: i64,
         novel_title: &str,
@@ -61,8 +53,8 @@ impl OrchestratorContext {
         target_length: i32,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
-    ) -> Result<Vec<BlueprintGenerationPreviewStep>, AppError> {
-        preview_generate_requests(
+    ) -> Result<BlueprintGenerationPreviewStep, AppError> {
+        preview_generate_request(
             project_id,
             novel_title,
             genre,
@@ -124,7 +116,7 @@ impl OrchestratorContext {
         }
         let fingerprint = json!({
             "schema_version": 1,
-            "workflow": "blueprint_generation",
+            "workflow": BLUEPRINT_GENERATION_KIND,
             "project_id": project_id,
             "title": title,
             "genre": genre,
@@ -132,8 +124,8 @@ impl OrchestratorContext {
             "variables": variables,
         });
         self.begin_workflow_run_validated(UpsertWorkflowRunInput {
-            business_key: format!("blueprint_generation:project:{project_id}"),
-            workflow_kind: "blueprint_generation".to_string(),
+            business_key: format!("{BLUEPRINT_GENERATION_KIND}:project:{project_id}"),
+            workflow_kind: BLUEPRINT_GENERATION_KIND.to_string(),
             project_id: Some(project_id),
             root_project_id: Some(project_id),
             source_snapshot_id: None,
@@ -143,7 +135,7 @@ impl OrchestratorContext {
             mode: Some("generate".to_string()),
             input_fingerprint_json: Some(fingerprint),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
-            current_step_key: Some("blueprint_generation.story_core".to_string()),
+            current_step_key: Some(blueprint_stage_call_key(BLUEPRINT_GENERATION_STAGES[0].key)),
             active_task_id: task_id,
             can_resume: true,
             resume_block_reason: None,

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use a4n_core::config::app_config::AppConfig;
-use a4n_core::config::env::optional_non_empty_env_path;
+use a4n_core::config::env::{optional_non_empty_env_path, optional_non_empty_env_string};
+use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, PROMPT_SERVICE_PROMPTS_DIR_ENV};
 
 pub(super) fn apply_common_sidecar_env(
     env: &mut HashMap<String, String>,
@@ -10,38 +11,37 @@ pub(super) fn apply_common_sidecar_env(
 ) -> Result<(), String> {
     env.insert(
         "A4N_DATA_DIR".to_string(),
-        path_string(config.data_dir.clone()),
+        path_string(&config.data_dir)?,
     );
     env.insert(
         "A4N_CACHE_DIR".to_string(),
-        path_string(config.cache_dir.clone()),
+        path_string(&config.cache_dir)?,
     );
     env.insert(
         "A4N_TEMP_DIR".to_string(),
-        path_string(config.temp_dir.clone()),
+        path_string(&config.temp_dir)?,
     );
     env.insert(
         "A4N_LOG_DIR".to_string(),
-        path_string(config.log_dir.clone()),
+        path_string(&config.log_dir)?,
     );
-    let rag_data_dir = configured_path("A4N_RAG_SERVICE_DATA_DIR", config.data_dir.clone())?;
+    let rag_data_dir = configured_path("A4N_RAG_SERVICE_DATA_DIR", &config.data_dir)?;
     env.insert(
         "A4N_RAG_SERVICE_DATA_DIR".to_string(),
-        path_string(rag_data_dir),
+        path_string(&rag_data_dir)?,
     );
     let embedding_cache_dir = configured_path(
-        "A4N_EMBEDDING_CACHE_DIR",
-        config.cache_dir.join("embedding-models"),
+        EMBEDDING_CACHE_DIR_ENV,
+        &config.embedding_models_dir(),
     )?;
     env.insert(
-        "A4N_EMBEDDING_CACHE_DIR".to_string(),
-        path_string(embedding_cache_dir),
+        EMBEDDING_CACHE_DIR_ENV.to_string(),
+        path_string(&embedding_cache_dir)?,
     );
+    let prompts_dir = crate::prompt_resources::bundled_prompts_dir(&config.data_dir)?;
     env.insert(
-        "A4N_PROMPT_SERVICE_PROMPTS_DIR".to_string(),
-        path_string(crate::prompt_resources::bundled_prompts_dir(
-            &config.data_dir,
-        )?),
+        PROMPT_SERVICE_PROMPTS_DIR_ENV.to_string(),
+        path_string(&prompts_dir)?,
     );
     for key in [
         "PATH",
@@ -55,11 +55,16 @@ pub(super) fn apply_common_sidecar_env(
         "SSL_CERT_DIR",
         "HTTP_PROXY",
         "HTTPS_PROXY",
+        "ALL_PROXY",
         "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
         "RUST_LOG",
     ] {
-        if let Ok(value) = std::env::var(key)
-            && !value.trim().is_empty()
+        if let Some(value) =
+            optional_non_empty_env_string(key).map_err(|error| error.to_string())?
         {
             env.insert(key.to_string(), value);
         }
@@ -67,12 +72,14 @@ pub(super) fn apply_common_sidecar_env(
     Ok(())
 }
 
-fn configured_path(key: &str, fallback: PathBuf) -> Result<PathBuf, String> {
+fn configured_path(key: &str, default_path: &Path) -> Result<PathBuf, String> {
     optional_non_empty_env_path(key)
-        .map(|path| path.unwrap_or(fallback))
+        .map(|path| path.unwrap_or_else(|| default_path.to_path_buf()))
         .map_err(|error| error.to_string())
 }
 
-fn path_string(path: PathBuf) -> String {
-    path.display().to_string()
+fn path_string(path: &Path) -> Result<String, String> {
+    path.to_str()
+        .map(str::to_string)
+        .ok_or_else(|| format!("Sidecar 环境路径不是有效 Unicode: {}", path.display()))
 }

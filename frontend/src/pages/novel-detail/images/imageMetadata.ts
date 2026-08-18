@@ -35,19 +35,6 @@ const GENERATION_SERVICE_LABELS: Record<string, string> = {
   newapi: "New API",
 };
 
-const PROMPT_SOURCE_LABELS: Record<string, string> = {
-  frame_segment_plan: "片段规划",
-  frame_prompt: "画面提示词",
-  first_frame_prompt: "首帧提示词",
-  chat_video_frame_prompt: "Chat 视频画面提示词",
-  storyboard_prompt: "分镜板提示词",
-  video_prompt: "视频提示词",
-  page_generation: "漫画页生成",
-  panel_generation: "漫画画格生成",
-  portrait_generation: "角色立绘生成",
-  scene_generation: "场景图生成",
-};
-
 const VIDEO_ASSET_ROLE_LABELS: Record<string, string> = {
   reference: "参考素材",
   material: "视频素材",
@@ -134,7 +121,6 @@ export const imageBusinessMetadataFields = (image: GeneratedImage): MetadataFiel
   const context = asRecord(metadata.generation_context);
   const fields: MetadataField[] = [
     field("用于章节视频", metadata.chapter_video_material),
-    field("加入视频素材库", metadata.video_library_member),
     field(
       "视频用途",
       enumLabel(metadata.video_asset_role, VIDEO_ASSET_ROLE_LABELS, "相关视频素材"),
@@ -148,10 +134,6 @@ export const imageBusinessMetadataFields = (image: GeneratedImage): MetadataFiel
 
   if (context) {
     fields.push(
-      field(
-        "来源类型",
-        enumLabel(context.prompt_type, PROMPT_SOURCE_LABELS, "其他生成来源"),
-      ),
       field(
         "镜头",
         typeof context.shot_number === "number" ? `镜头 ${context.shot_number}` : null,

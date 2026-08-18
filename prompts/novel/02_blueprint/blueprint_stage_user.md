@@ -12,8 +12,6 @@ name: blueprint_stage_user
 当前阶段指令：请基于故事核心和世界观生成主要角色。只输出 JSON 对象，顶层只能包含 characters。至少 3 个角色；每个角色必须使用 name、character_type、gender、age、appearance、personality、background、motivation、arc_summary、relationship_to_protagonist、arc_stages；arc_stages 必含 start、core_wound、desire、need、secret、voice_style、turning_point、end。
 {% elif stage_key == "relationships" %}
 当前阶段指令：请基于故事核心、世界观和角色档案生成角色关系网络。只输出 JSON 对象，顶层只能包含 relationships。至少 1 条重要关系；每条关系必须使用 relationship_type、character_a、character_b、description、strength、evolution；strength 为 1 到 10 的整数；evolution 必含 start、tension、turning_points、hidden_truth、story_function、end。
-{% else %}
-当前阶段指令：只输出 current_stage.output_schema 对应字段。
 {% endif %}
 
 输入：

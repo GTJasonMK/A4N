@@ -57,7 +57,7 @@ import type { useOptimizeActivityStream } from "./useOptimizeActivityStream";
 import type { useOptimizePatchReviewState } from "./useOptimizePatchReviewState";
 import type { useOptimizeSessionState } from "./useOptimizeSessionState";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 type OptimizeSessionState = ReturnType<typeof useOptimizeSessionState>;
 type OptimizeActivityStream = ReturnType<typeof useOptimizeActivityStream>;
 type OptimizePatchReviewState = ReturnType<typeof useOptimizePatchReviewState>;

@@ -15,8 +15,8 @@ use futures::stream;
 use serde_json::{Value, json};
 
 use super::{
-    FakeProviderObservation, TestHttpServer, build_router, collect_stream_events, json_request,
-    observe_fake_provider_request, service_request,
+    FakeProviderObservation, TestHttpServer, build_router, collect_stream_events, event_chunk,
+    json_request, observe_fake_provider_request, service_request,
 };
 fn malformed_fake_provider_router(observation: FakeProviderObservation) -> Router {
     Router::new()
@@ -186,7 +186,7 @@ async fn malformed_provider_sse_emits_one_redacted_failed_terminal_event() {
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].sequence, 1);
-    assert_eq!(events[0].chunk_delta.as_deref(), Some("safe"));
+    assert_eq!(event_chunk(&events[0]).content.as_deref(), Some("safe"));
 
     assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(events[1].sequence, 2);
@@ -336,12 +336,14 @@ async fn provider_body_error_after_done_keeps_completed_result() {
 
     assert_eq!(events.len(), 3);
     assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
-    assert_eq!(events[0].chunk_delta.as_deref(), Some("complete"));
+    assert_eq!(event_chunk(&events[0]).content.as_deref(), Some("complete"));
     assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
-    assert_eq!(events[1].finish_reason.as_deref(), Some("stop"));
+    assert_eq!(
+        event_chunk(&events[1]).finish_reason.as_deref(),
+        Some("stop")
+    );
     assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
-    assert_eq!(events[2].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[2].is_truncated_finish_reason, Some(false));
+    assert_eq!(events[2].payload, None);
 }
 
 #[tokio::test]
@@ -372,8 +374,11 @@ async fn provider_body_error_after_finish_preserves_truncation_contract() {
 
     assert_eq!(events.len(), 3);
     assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
-    assert_eq!(events[2].finish_reason.as_deref(), Some("length"));
-    assert_eq!(events[2].is_truncated_finish_reason, Some(true));
+    assert_eq!(
+        event_chunk(&events[1]).finish_reason.as_deref(),
+        Some("length")
+    );
+    assert_eq!(events[2].payload, None);
 }
 
 #[tokio::test]

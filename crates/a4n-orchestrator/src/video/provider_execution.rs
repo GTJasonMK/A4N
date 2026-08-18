@@ -12,6 +12,7 @@ use tokio::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
 use crate::generation::{
+    GeneratedMediaArtifactFile,
     checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
     events::GenerationTaskSession,
 };
@@ -268,20 +269,13 @@ pub struct PersistedVideoResult {
     pub metadata_json: Option<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VideoArtifactFile {
-    pub content_type: String,
-    pub sha256: String,
-    pub byte_size: u64,
-}
-
 #[async_trait]
 pub trait VideoProviderHostPort: Send + Sync {
     fn inspect_video_file(
         &self,
         relative_path: &str,
         label: &str,
-    ) -> Result<VideoArtifactFile, AppError>;
+    ) -> Result<GeneratedMediaArtifactFile, AppError>;
 
     async fn poll_video_job(
         &self,
@@ -442,7 +436,7 @@ impl crate::OrchestratorContext {
                     .update_generated_video_waiting_status_validated(
                         video.id,
                         prompt_id,
-                        crate::video::GENERATED_VIDEO_WAITING_STATUS_RUNNING,
+                        generated_video::STATUS_RUNNING,
                     )
                     .await?;
                 let updated = self
@@ -455,7 +449,7 @@ impl crate::OrchestratorContext {
                     )
                     .await?;
                 let (status, error_message) =
-                    if updated.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+                    if updated.status == generated_video::STATUS_COMPLETED {
                         (crate::workflow::WORKFLOW_STATUS_COMPLETED, None)
                     } else {
                         (
@@ -482,7 +476,7 @@ impl crate::OrchestratorContext {
                     .update_generated_video_waiting_status_validated(
                         video.id,
                         prompt_id,
-                        crate::video::GENERATED_VIDEO_WAITING_STATUS_PENDING,
+                        generated_video::STATUS_PENDING,
                     )
                     .await?;
                 self.mark_video_provider_workflow_validated(
@@ -499,7 +493,7 @@ impl crate::OrchestratorContext {
                     .update_generated_video_waiting_status_validated(
                         video.id,
                         prompt_id,
-                        crate::video::GENERATED_VIDEO_WAITING_STATUS_RUNNING,
+                        generated_video::STATUS_RUNNING,
                     )
                     .await?;
                 self.mark_video_provider_workflow_validated(
@@ -583,7 +577,7 @@ impl crate::OrchestratorContext {
                         )
                         .await?;
                     let (status, can_resume, error_message) =
-                        if updated.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+                        if updated.status == generated_video::STATUS_COMPLETED {
                             (crate::workflow::WORKFLOW_STATUS_COMPLETED, false, None)
                         } else {
                             (
@@ -612,7 +606,7 @@ impl crate::OrchestratorContext {
                         .update_generated_video_waiting_status_validated(
                             video.id,
                             prompt_id,
-                            crate::video::GENERATED_VIDEO_WAITING_STATUS_PENDING,
+                            generated_video::STATUS_PENDING,
                         )
                         .await?;
                     self.mark_video_provider_workflow_validated(
@@ -629,7 +623,7 @@ impl crate::OrchestratorContext {
                         .update_generated_video_waiting_status_validated(
                             video.id,
                             prompt_id,
-                            crate::video::GENERATED_VIDEO_WAITING_STATUS_RUNNING,
+                            generated_video::STATUS_RUNNING,
                         )
                         .await?;
                     self.mark_video_provider_workflow_validated(
@@ -714,7 +708,7 @@ impl crate::OrchestratorContext {
             if let Err(error) = cancelled {
                 let authoritative = self.generated_video_by_id(video.id).await?;
                 if authoritative.as_ref().is_some_and(|video| {
-                    video.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED
+                    video.status == generated_video::STATUS_COMPLETED
                 }) {
                     return Err(error);
                 }
@@ -726,7 +720,10 @@ impl crate::OrchestratorContext {
                     );
                 }
                 if authoritative.as_ref().is_some_and(|video| {
-                    matches!(video.status.as_str(), "cancelled" | "interrupted")
+                    matches!(
+                        video.status.as_str(),
+                        generated_video::STATUS_CANCELLED | generated_video::STATUS_INTERRUPTED
+                    )
                 }) {
                     return Err(AppError::Cancelled);
                 }
@@ -759,7 +756,7 @@ impl crate::OrchestratorContext {
                 let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
                 let authoritative = self.generated_video_by_id(video.id).await?;
                 if let Some(authoritative) = authoritative {
-                    if authoritative.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+                    if authoritative.status == generated_video::STATUS_COMPLETED {
                         if authoritative.file_path.as_deref() != Some(persisted.file_path.as_str())
                             && let Err(cleanup_error) =
                                 host_port.remove_video_result(&persisted).await
@@ -774,7 +771,10 @@ impl crate::OrchestratorContext {
                             return Err(error);
                         }
                         authoritative
-                    } else if matches!(authoritative.status.as_str(), "cancelled" | "interrupted") {
+                    } else if matches!(
+                        authoritative.status.as_str(),
+                        generated_video::STATUS_CANCELLED | generated_video::STATUS_INTERRUPTED
+                    ) {
                         if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await
                         {
                             tracing::error!(
@@ -784,7 +784,7 @@ impl crate::OrchestratorContext {
                             );
                         }
                         return Err(AppError::Cancelled);
-                    } else if authoritative.status == "failed" {
+                    } else if authoritative.status == generated_video::STATUS_FAILED {
                         if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await
                         {
                             tracing::error!(
@@ -875,9 +875,8 @@ impl crate::OrchestratorContext {
             return Ok(());
         };
         let checkpoint_completed = match video.status.as_str() {
-            crate::video::GENERATED_VIDEO_STATUS_COMPLETED
-            | crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED => true,
-            crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED => false,
+            generated_video::STATUS_COMPLETED | generated_video::STATUS_FAILED => true,
+            generated_video::STATUS_INTERRUPTED => false,
             other => {
                 return Err(AppError::InvalidState {
                     current: format!("generated_video_status={other}"),
@@ -911,10 +910,10 @@ impl crate::OrchestratorContext {
             completed: checkpoint_completed,
         })
         .await?;
-        if video.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+        if video.status == generated_video::STATUS_COMPLETED {
             self.complete_workflow_run_validated(canvas.workflow_run_id)
                 .await?;
-        } else if video.status == crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED {
+        } else if video.status == generated_video::STATUS_FAILED {
             let error_message = error_message.ok_or_else(|| AppError::InvalidState {
                 current: "failed_video_without_error".to_string(),
                 operation: "同步画布视频失败终态".to_string(),
@@ -1036,8 +1035,10 @@ mod tests {
             id: workflow_run_id,
             project_id: 1,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(
+                a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
+            ),
             file_path: None,
             thumbnail_path: None,
             prompt: "test prompt".to_string(),

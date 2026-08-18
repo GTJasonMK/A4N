@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CanvasNodeRefKind, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD, VideoStudioMediaFileEntry,
+    empty_payload, media_asset_with_file, media_file_key, package, validate_media_entry_bytes,
+    validate_package_manifest, video_with_file,
+};
 
 #[test]
 fn validate_video_studio_manifest_rejects_missing_generated_video_file_payload() {
@@ -63,11 +67,11 @@ fn validate_video_studio_manifest_accepts_generated_video_media_payloads() {
     package.generated_videos.push(video.clone());
     let mut payload = empty_payload();
     for (field, path) in [
-        (MEDIA_FIELD_FILE, video.file_path.clone().unwrap()),
-        (MEDIA_FIELD_THUMBNAIL, video.thumbnail_path.clone().unwrap()),
+        (FILE_PATH_FIELD, video.file_path.clone().unwrap()),
+        (THUMBNAIL_PATH_FIELD, video.thumbnail_path.clone().unwrap()),
     ] {
         let entry = VideoStudioMediaFileEntry {
-            owner_kind: MEDIA_OWNER_VIDEO.to_string(),
+            owner_kind: CanvasNodeRefKind::GeneratedVideo.as_str().to_string(),
             owner_id: video.id,
             field: field.to_string(),
             original_path: path,
@@ -120,9 +124,9 @@ fn validate_media_entry_bytes_rejects_generated_video_file_size_mismatch() {
     let video = video_with_file();
     package.generated_videos.push(video.clone());
     let entry = VideoStudioMediaFileEntry {
-        owner_kind: MEDIA_OWNER_VIDEO.to_string(),
+        owner_kind: CanvasNodeRefKind::GeneratedVideo.as_str().to_string(),
         owner_id: video.id,
-        field: MEDIA_FIELD_FILE.to_string(),
+        field: FILE_PATH_FIELD.to_string(),
         original_path: video.file_path.unwrap(),
         package_path: "media/generated_video/10/file.mp4".to_string(),
     };
@@ -140,9 +144,9 @@ fn validate_media_entry_bytes_rejects_media_asset_checksum_mismatch() {
     let asset = media_asset_with_file(b"expected bytes");
     package.media_assets.push(asset.clone());
     let entry = VideoStudioMediaFileEntry {
-        owner_kind: MEDIA_OWNER_MEDIA_ASSET.to_string(),
+        owner_kind: CanvasNodeRefKind::MediaAsset.as_str().to_string(),
         owner_id: asset.id,
-        field: MEDIA_FIELD_FILE.to_string(),
+        field: FILE_PATH_FIELD.to_string(),
         original_path: asset.file_path.unwrap(),
         package_path: "media/media_asset/60/file.mp4".to_string(),
     };

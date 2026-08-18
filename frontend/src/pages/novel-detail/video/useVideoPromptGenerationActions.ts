@@ -18,22 +18,26 @@ import {
   startChapterVideoFramePrompts,
   startChapterVideoPrompts,
   startChapterVideoSegmentPlan,
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
   type ChapterVideoPrompt,
   type GeneratePromptOptions,
   type VideoSegmentExecutionRecipe,
+  type VideoSegmentWorkflowMode,
 } from "../../../api/video";
+import { readFileAsBase64, pickLocalFile } from "../../../utils/fileUpload";
 import {
   isSupportedImageMime,
   MAX_UPLOAD_IMAGE_BYTES,
-  readFileAsBase64,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
-import { pickLocalFile } from "../../../utils/fileUpload";
 import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import type { ChapterRow } from "../shared";
 import {
-  type ChapterVideoWorkflowMode,
   buildVideoFrameImageTraceMetadata,
   buildVideoFrameImageRequest,
   boundaryFramePromptChainTo,
@@ -44,7 +48,6 @@ import {
   isSegmentPlanDraftCheckpointKey,
   isDurationAllowed,
   latestVideoFrameImageForPrompt,
-  normalizeDurationOptions,
   promptHasVideoWorkflowContract,
   promptLengthError,
   promptOutputLanguageOfPrompt,
@@ -57,9 +60,7 @@ import {
   videoExecutionSegmentNumberInPlanByLineage,
   videoWorkflowModeOfPrompt,
   videoExecutionIdentityMatches,
-  videoFrameImageMetadata,
-  videoImageTypeForFrameRole,
-  type VideoFrameImageRole,
+  videoFrameImageContractForPromptType,
   type VideoDurationLimits,
   type VideoGenOptions,
   CHAT_VIDEO_DURATION_LIMITS,
@@ -74,7 +75,7 @@ import {
 } from "./videoTabUtils";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 type PromptGenerationRequestOptions = {
   regenerateExisting?: boolean;
   targetSegment?: {
@@ -157,7 +158,7 @@ interface UseVideoPromptGenerationActionsParams {
   projectId: number;
   chapter: ChapterRow | null;
   options: VideoGenOptions;
-  segmentPlanOptions: VideoGenOptions;
+  segmentPlanOptions: VideoGenOptions | null;
   durationLimits: VideoDurationLimits;
   promptInputSelectionError: string | null;
   referenceIds: number[];
@@ -209,7 +210,9 @@ export function useVideoPromptGenerationActions({
   finishAction,
 }: UseVideoPromptGenerationActionsParams) {
   type ValidatedPromptOptions = VideoGenOptions & {
-    workflowMode: ChapterVideoWorkflowMode | "shared_segment_plan";
+    workflowMode:
+      | VideoSegmentWorkflowMode
+      | typeof VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN;
     referenceIds: number[];
     videoLibraryImageIds: number[];
   };
@@ -225,12 +228,12 @@ export function useVideoPromptGenerationActions({
           durationSecs: recipe.duration_secs,
           durationOptions: recipe.duration_secs_options,
           aspectRatio: recipe.aspect_ratio as VideoGenOptions["aspectRatio"],
-          storageError: null,
         }
       : baseOptions;
-    const operationDurationLimits = recipe?.workflow_mode === "chat_video"
-      ? CHAT_VIDEO_DURATION_LIMITS
-      : durationLimits;
+    const operationDurationLimits =
+      recipe?.workflow_mode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO
+        ? CHAT_VIDEO_DURATION_LIMITS
+        : durationLimits;
     const style = effectiveOptions.style.trim();
     if (!style) {
       addToast(`请填写${operation}风格`, "error");
@@ -259,7 +262,8 @@ export function useVideoPromptGenerationActions({
     return {
       ...effectiveOptions,
       style,
-      workflowMode: recipe?.workflow_mode ?? "shared_segment_plan",
+      workflowMode:
+        recipe?.workflow_mode ?? VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
       referenceIds: recipe?.reference_image_ids ?? referenceIds,
       videoLibraryImageIds: recipe?.video_library_image_ids ?? videoLibraryImageIds,
     };
@@ -282,7 +286,6 @@ export function useVideoPromptGenerationActions({
       return;
     }
     try {
-      let generatedIds: number[] = [];
       const handle = await startImageGeneration({
         project_id: projectId,
         operation: {
@@ -290,7 +293,7 @@ export function useVideoPromptGenerationActions({
           requests: [requests[0], ...requests.slice(1)],
         },
       });
-      await runGenerationProgressTaskThen(
+      const generatedIds = await runGenerationProgressTaskThen(
         runProgressTask,
         handle,
         {
@@ -303,14 +306,8 @@ export function useVideoPromptGenerationActions({
         },
         async (task) => {
           const rows = await verifyImageGenerationResult(task, projectId);
-          generatedIds = rows.map((row, index) => {
-            if (!Number.isInteger(row.id) || row.id <= 0) {
-              throw new Error(`图片生成结果第 ${index + 1} 项缺少有效 ID`);
-            }
-            return row.id;
-          });
-          if (!isCurrentActionScope(requestScope)) return;
-          await loadAll();
+          if (isCurrentActionScope(requestScope)) await loadAll();
+          return rows.map((row) => row.id);
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
@@ -324,16 +321,16 @@ export function useVideoPromptGenerationActions({
     }
   };
 
-  const importFrameImage = async (
-    prompt: ChapterVideoPrompt,
-    role: VideoFrameImageRole,
-    frameLabel: string,
-    source:
-      | "video_boundary_frame_prompt"
-      | "video_first_frame_prompt"
-      | "video_storyboard_prompt",
-  ) => {
+  const importFrameImage = async (prompt: ChapterVideoPrompt) => {
     if (!chapter) return;
+    let frameContract: ReturnType<typeof videoFrameImageContractForPromptType>;
+    try {
+      frameContract = videoFrameImageContractForPromptType(prompt.prompt_type);
+    } catch (err) {
+      addToast(extractErrorMessage(err, "导入视频帧图片失败"), "error");
+      return;
+    }
+    const { frameLabel, imageType, source } = frameContract;
     if (prompt.status === "running") {
       addToast(`${frameLabel}提示词 #${prompt.shot_number} 正在运行，不能导入图片`, "error");
       return;
@@ -380,17 +377,10 @@ export function useVideoPromptGenerationActions({
         file_name: file.name,
         mime_type: file.type,
         data_base64: dataBase64,
-        image_type: videoImageTypeForFrameRole(role),
+        image_type: imageType,
         prompt: imagePrompt,
         chapter_id: chapter.id,
-        metadata_json: videoFrameImageMetadata(
-          role,
-          buildVideoFrameImageTraceMetadata(prompt, source, {
-            projectId,
-            chapter,
-            currentContentHash,
-          }),
-        ),
+        metadata_json: buildVideoFrameImageTraceMetadata(prompt, source),
       });
       if (!isCurrentActionScope(requestScope)) return;
       addToast(`已导入${frameLabel}图片`, "success");
@@ -416,27 +406,31 @@ export function useVideoPromptGenerationActions({
     target_segment: requestOptions.targetSegment,
     target_narrative_unit_index: requestOptions.targetNarrativeUnitIndex,
     duration_secs: promptOptions.durationSecs,
-    duration_secs_options: normalizeDurationOptions(
-      promptOptions.durationSecs,
-      promptOptions.durationOptions,
-    ),
+    duration_secs_options: promptOptions.durationOptions,
     aspect_ratio: promptOptions.aspectRatio,
     reference_image_ids: promptOptions.referenceIds,
     video_library_image_ids: promptOptions.videoLibraryImageIds,
     regenerate_existing: requestOptions.regenerateExisting ?? false,
   });
 
-  const framePromptTypeForWorkflow = (mode: ChapterVideoWorkflowMode): string | null => {
-    if (mode === "boundary_frames") return VIDEO_FRAME_PROMPT_TYPE;
-    if (mode === "first_frame_chain") return VIDEO_FIRST_FRAME_PROMPT_TYPE;
-    if (mode === "storyboard") return VIDEO_STORYBOARD_PROMPT_TYPE;
+  const framePromptTypeForWorkflow = (
+    mode: VideoSegmentWorkflowMode,
+  ): string | null => {
+    if (mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES) return VIDEO_FRAME_PROMPT_TYPE;
+    if (mode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN) return VIDEO_FIRST_FRAME_PROMPT_TYPE;
+    if (mode === VIDEO_WORKFLOW_MODE_STORYBOARD) return VIDEO_STORYBOARD_PROMPT_TYPE;
     return null;
   };
 
-  const framePromptContractForWorkflow = (mode: ChapterVideoWorkflowMode): string | null => {
-    if (mode === "boundary_frames") return VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION;
-    if (mode === "first_frame_chain") return VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION;
-    if (mode === "storyboard") return VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION;
+  const framePromptContractForWorkflow = (
+    mode: VideoSegmentWorkflowMode,
+  ): string | null => {
+    if (mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES)
+      return VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION;
+    if (mode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN)
+      return VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION;
+    if (mode === VIDEO_WORKFLOW_MODE_STORYBOARD)
+      return VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION;
     return null;
   };
 
@@ -488,7 +482,7 @@ export function useVideoPromptGenerationActions({
     if (savedDurationOptions.error) return false;
     return idsEqual(
       savedDurationOptions.ids,
-      normalizeDurationOptions(promptOptions.durationSecs, promptOptions.durationOptions),
+      promptOptions.durationOptions,
     );
   };
 
@@ -523,17 +517,18 @@ export function useVideoPromptGenerationActions({
     if (!chapter) return;
     const targetWorkflowMode = recipe.workflow_mode;
     if (
-      targetWorkflowMode !== "boundary_frames" &&
-      targetWorkflowMode !== "first_frame_chain" &&
-      targetWorkflowMode !== "storyboard"
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES &&
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_STORYBOARD
     ) {
       addToast("当前模式不能使用帧提示词链路", "error");
       return;
     }
     const segmentNumber = recipe.segment_number;
-    const firstFrameMode = targetWorkflowMode === "first_frame_chain";
+    const firstFrameMode =
+      targetWorkflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN;
     const label =
-      targetWorkflowMode === "storyboard"
+      targetWorkflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
           ? "分镜提示词"
         : firstFrameMode
           ? "首帧提示词"
@@ -565,11 +560,7 @@ export function useVideoPromptGenerationActions({
     const promptOptions = validatedPromptOptions(label, recipe);
     if (!promptOptions) return;
     const expectedFrameCount =
-      targetWorkflowMode === "boundary_frames"
-        ? 2
-        : targetWorkflowMode === "storyboard"
-          ? 1
-          : 1;
+      targetWorkflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES ? 2 : 1;
     const framePromptType = framePromptTypeForWorkflow(targetWorkflowMode);
     const framePromptContract = framePromptContractForWorkflow(targetWorkflowMode);
     if (!segmentPlanPrompt) {
@@ -580,11 +571,12 @@ export function useVideoPromptGenerationActions({
       addToast("当前模式缺少帧提示词类型或合同版本，不能生成帧提示词", "error");
       return;
     }
-    const targetFrameNumbers = targetWorkflowMode === "boundary_frames"
-      ? [1, 2]
-      : targetWorkflowMode === "first_frame_chain"
-        ? [1]
-        : [segmentNumber];
+    const targetFrameNumbers =
+      targetWorkflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
+        ? [1, 2]
+        : targetWorkflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
+          ? [1]
+          : [segmentNumber];
     const targetFramePrompts = allFramePrompts.filter(
       (prompt) =>
         videoExecutionSegmentNumberInPlan(
@@ -668,17 +660,29 @@ export function useVideoPromptGenerationActions({
     const resumedDraft = segmentPlanDraft;
     const effectiveRegenerateExisting =
       resumedDraft?.resumeOptions.regenerate_existing ?? regenerateExisting;
-    let generationOptions: GeneratePromptOptions | null = resumedDraft?.resumeOptions ?? null;
+    let generationOptions: GeneratePromptOptions | null =
+      resumedDraft?.resumeOptions ?? null;
     if (!generationOptions) {
-      const validatedOptions = validatedPromptOptions(label, undefined, segmentPlanOptions);
+      if (!segmentPlanOptions) {
+        addToast("视频片段规划配置不可用，请重置损坏的本地配置", "error");
+        return;
+      }
+      const validatedOptions = validatedPromptOptions(
+        label,
+        undefined,
+        segmentPlanOptions,
+      );
       if (!validatedOptions) return;
       generationOptions = {
-        ...promptGenerationOptions({
-          ...validatedOptions,
-          referenceIds: [],
-          videoLibraryImageIds: [],
-        }, requestOptions),
-        workflow_mode: "shared_segment_plan",
+        ...promptGenerationOptions(
+          {
+            ...validatedOptions,
+            referenceIds: [],
+            videoLibraryImageIds: [],
+          },
+          requestOptions,
+        ),
+        workflow_mode: VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
       };
     }
     const requestScope = actionScopeKey;
@@ -755,19 +759,19 @@ export function useVideoPromptGenerationActions({
     if (!chapter) return;
     const targetWorkflowMode = recipe.workflow_mode;
     if (
-      targetWorkflowMode !== "boundary_frames" &&
-      targetWorkflowMode !== "first_frame_chain" &&
-      targetWorkflowMode !== "storyboard" &&
-      targetWorkflowMode !== "chat_video"
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES &&
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_STORYBOARD &&
+      targetWorkflowMode !== VIDEO_WORKFLOW_MODE_CHAT_VIDEO
     ) {
       addToast("当前模式的视频提示词链路尚未接入", "error");
       return;
     }
     const segmentNumber = recipe.segment_number;
-    const chatVideoMode = targetWorkflowMode === "chat_video";
+    const chatVideoMode = targetWorkflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO;
     const promptLabel = chatVideoMode
       ? "Chat 视频提示词"
-      : targetWorkflowMode === "storyboard"
+      : targetWorkflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
         ? "分镜视频提示词"
         : "视频提示词";
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
@@ -875,15 +879,11 @@ export function useVideoPromptGenerationActions({
 
   const buildFrameImageGenerationRequest = (
     prompt: ChapterVideoPrompt,
-    label: string,
-    role: VideoFrameImageRole,
-    source:
-      | "video_boundary_frame_prompt"
-      | "video_first_frame_prompt"
-      | "video_storyboard_prompt",
     images: GeneratedImage[] = frameImages,
     prompts: ChapterVideoPrompt[] = framePrompts,
   ): Record<string, unknown> => {
+    const { imageType, source, promptLabel: label } =
+      videoFrameImageContractForPromptType(prompt.prompt_type);
     const framePrompt = prompt.visual_prompt.trim();
     const error = promptLengthError(
       label,
@@ -907,14 +907,11 @@ export function useVideoPromptGenerationActions({
       throw new Error(`${referenceOrderError}；请重新生成或手动修正${label}后再生成图片`);
     }
     return buildVideoFrameImageRequest(
-      role,
+      imageType,
       effectiveFramePrompt,
       chapter?.id ?? prompt.chapter_id,
-      buildVideoFrameImageTraceMetadata(prompt, source, {
-        projectId,
-        chapter,
-        currentContentHash,
-      }),
+      prompt.aspect_ratio,
+      buildVideoFrameImageTraceMetadata(prompt, source),
       references.ids,
       references.note,
     );
@@ -986,9 +983,6 @@ export function useVideoPromptGenerationActions({
       if (!firstMissing) throw new Error("缺少可生成的边界帧提示词");
       const firstRequest = buildFrameImageGenerationRequest(
         firstMissing,
-        label,
-        "key_frame",
-        "video_boundary_frame_prompt",
         chainImages,
         chain,
       );
@@ -1015,9 +1009,6 @@ export function useVideoPromptGenerationActions({
             if (index > 0) {
               const request = buildFrameImageGenerationRequest(
                 item,
-                label,
-                "key_frame",
-                "video_boundary_frame_prompt",
                 chainImages,
                 chain,
               );
@@ -1034,11 +1025,7 @@ export function useVideoPromptGenerationActions({
                 setProgress(current.progress.message, index, missingPrompts.length);
               }
             });
-            const rows = await verifyImageGenerationResult(task, projectId);
-            const image = rows[0];
-            if (!image || !Number.isInteger(image.id) || image.id <= 0) {
-              throw new Error(`第 ${item.shot_number} 张${frameLabel}生成结果缺少有效图片 ID`);
-            }
+            const [image] = await verifyImageGenerationResult(task, projectId);
             generatedIds.push(image.id);
             chainImages.push(image);
             setProgress(
@@ -1067,18 +1054,14 @@ export function useVideoPromptGenerationActions({
 
   const handleGenerateFrameImages = async (prompt: ChapterVideoPrompt) => {
     if (!chapter) return;
-    const firstFramePrompt = prompt.prompt_type === VIDEO_FIRST_FRAME_PROMPT_TYPE;
-    const storyboardPrompt = prompt.prompt_type === VIDEO_STORYBOARD_PROMPT_TYPE;
-    const label = firstFramePrompt
-      ? "首帧提示词"
-      : storyboardPrompt
-        ? "分镜提示词"
-        : "边界帧提示词";
-    const frameLabel = firstFramePrompt
-      ? "首帧"
-      : storyboardPrompt
-        ? "分镜板"
-        : "边界帧";
+    let frameContract: ReturnType<typeof videoFrameImageContractForPromptType>;
+    try {
+      frameContract = videoFrameImageContractForPromptType(prompt.prompt_type);
+    } catch (err) {
+      addToast(extractErrorMessage(err, "生成视频帧图片失败"), "error");
+      return;
+    }
+    const { promptLabel: label, frameLabel } = frameContract;
     const actionKey = `generate-frame-images-${prompt.id}`;
     if (isBoundaryFramePrompt(prompt)) {
       if (!beginAction(actionKey)) return;
@@ -1091,20 +1074,7 @@ export function useVideoPromptGenerationActions({
     }
     let request: Record<string, unknown>;
     try {
-      request = buildFrameImageGenerationRequest(
-        prompt,
-        label,
-        firstFramePrompt
-          ? "start_frame"
-          : storyboardPrompt
-            ? "storyboard_frame"
-            : "key_frame",
-        firstFramePrompt
-          ? "video_first_frame_prompt"
-          : storyboardPrompt
-            ? "video_storyboard_prompt"
-            : "video_boundary_frame_prompt",
-      );
+      request = buildFrameImageGenerationRequest(prompt);
     } catch (err) {
       addToast(extractErrorMessage(err, `生成${frameLabel}图片失败`), "error");
       return;
@@ -1126,37 +1096,14 @@ export function useVideoPromptGenerationActions({
     }
     await runImageAssetTask(
       actionKey,
-      firstFramePrompt
-        ? "生成首帧"
-        : storyboardPrompt
-          ? "生成分镜板"
-          : "生成边界帧",
+      `生成${frameLabel}`,
       frameLabel,
       [request],
     );
   };
 
   const handleImportFrameImage = async (prompt: ChapterVideoPrompt) => {
-    const firstFramePrompt = prompt.prompt_type === VIDEO_FIRST_FRAME_PROMPT_TYPE;
-    const storyboardPrompt = prompt.prompt_type === VIDEO_STORYBOARD_PROMPT_TYPE;
-    await importFrameImage(
-      prompt,
-      firstFramePrompt
-        ? "start_frame"
-        : storyboardPrompt
-          ? "storyboard_frame"
-          : "key_frame",
-      firstFramePrompt
-        ? "首帧"
-        : storyboardPrompt
-          ? "分镜板"
-          : "边界帧",
-      firstFramePrompt
-        ? "video_first_frame_prompt"
-        : storyboardPrompt
-          ? "video_storyboard_prompt"
-          : "video_boundary_frame_prompt",
-    );
+    await importFrameImage(prompt);
   };
 
   return {

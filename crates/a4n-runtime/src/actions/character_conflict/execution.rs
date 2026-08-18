@@ -1,56 +1,62 @@
-use crate::AppState;
+use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
 use a4n_core::error::AppError;
 use a4n_orchestrator::character::{
-    CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictTaskScope,
+    CHARACTER_CONFLICT_PROGRESS_TOTAL, validate_character_conflict_input,
 };
-use serde_json::Value;
+
+use crate::{
+    AppState,
+    actions::{
+        access,
+        character_ai::{CharacterAiProgress, CharacterAiTaskScope},
+    },
+};
 
 pub async fn character_conflict_task_scope(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    name: &str,
-    start_chapter: Option<i32>,
-    end_chapter: Option<i32>,
-) -> Result<CharacterConflictTaskScope, AppError> {
-    state
-        .orchestrator()
-        .character_conflict_task_scope_validated(
-            user_id,
-            &CharacterConflictCheckInput {
-                project_id,
-                name: name.to_string(),
-                start_chapter,
-                end_chapter,
-            },
-        )
+    input: &CharacterConflictCheckInput,
+) -> Result<CharacterAiTaskScope, String> {
+    validate_character_conflict_input(input).map_err(|error| error.to_string())?;
+    access::verify_project_editor(state, user_id, input.project_id)
         .await
+        .map_err(|error| error.to_string())?;
+    Ok(CharacterAiTaskScope {
+        project_id: input.project_id,
+        total: CHARACTER_CONFLICT_PROGRESS_TOTAL,
+    })
 }
 
 pub async fn check_character_conflict(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    name: &str,
-    start_chapter: Option<i32>,
-    end_chapter: Option<i32>,
-    progress: CharacterConflictProgressReporter<'_>,
-    active_task_id: Option<&str>,
-) -> Result<Vec<Value>, AppError> {
+    input: CharacterConflictCheckInput,
+    progress: Option<&CharacterAiProgress<'_>>,
+) -> Result<Vec<CharacterConflictSummary>, String> {
+    access::verify_project_editor(state, user_id, input.project_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    let reporter = |current, total, message: &str| match progress {
+        Some(progress) => progress
+            .report(current, total, message, "角色一致性检查已停止")
+            .map_err(|error| {
+                if progress.is_cancelled() {
+                    AppError::Cancelled
+                } else {
+                    AppError::InvalidArgument(error)
+                }
+            }),
+        None => Ok(()),
+    };
     let prompt_renderer = state;
     state
         .orchestrator()
         .check_character_conflict_validated(
-            user_id,
-            CharacterConflictCheckInput {
-                project_id,
-                name: name.to_string(),
-                start_chapter,
-                end_chapter,
-            },
+            input,
             prompt_renderer,
-            progress,
-            active_task_id,
+            &reporter,
+            progress.and_then(CharacterAiProgress::task_id),
         )
         .await
+        .map_err(|error| error.to_string())
 }

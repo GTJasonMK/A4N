@@ -34,10 +34,6 @@ impl LlmProvider for StaticLlmProvider {
         })])))
     }
 
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        Ok(true)
-    }
-
     fn model_name(&self) -> &str {
         "static-test-llm"
     }

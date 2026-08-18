@@ -1,5 +1,6 @@
 use super::super::{UpdateGeneratedImageRecordInput, VideoDbError};
 use a4n_core::models::ai::generated_image;
+use a4n_domain::image::is_system_managed_image_type;
 
 pub fn validate_generated_image_update_clear_flags(
     input: &UpdateGeneratedImageRecordInput,
@@ -71,25 +72,4 @@ pub fn validate_generated_image_update_panel_binding(
         )));
     }
     Ok(())
-}
-
-fn is_system_managed_image_type(image_type: &str) -> bool {
-    matches!(
-        image_type.trim(),
-        "scene"
-            | "manga_page"
-            | "scene_material"
-            | "object_material"
-            | "video_key_frame"
-            | "video_start_frame"
-            | "video_storyboard_frame"
-            | "video_end_frame"
-            | "video_tail_frame"
-            | "canvas_image"
-            | "canvas_frame"
-            | "portrait"
-            | "portrait_reference"
-            | "chapter_reference"
-            | "project_reference"
-    )
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import type { CharacterConflictSummary } from "../../api/character";
 
 /**
  * CharacterDetailDialog 的简单视图：Arc / Voice / Conflict + TabBtn。
@@ -146,7 +147,7 @@ export const VoiceView: React.FC<{ data: unknown }> = ({ data }) => {
 };
 
 
-export const ConflictView: React.FC<{ conflicts: unknown[] }> = ({ conflicts }) => {
+export const ConflictView: React.FC<{ conflicts: CharacterConflictSummary[] }> = ({ conflicts }) => {
   if (conflicts.length === 0) {
     return (
       <div className="text-xs text-success py-4 inline-flex items-center gap-2">
@@ -156,14 +157,13 @@ export const ConflictView: React.FC<{ conflicts: unknown[] }> = ({ conflicts }) 
   }
   return (
     <ul className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
-      {conflicts.map((c, i) => {
-        const co = c as Record<string, unknown>;
-        const severity = typeof co.severity === "string" ? co.severity : "minor";
+      {conflicts.map((conflict, index) => {
+        const severity = conflict.severity;
         const severityLabel =
           severity === "major" ? "严重" : severity === "moderate" ? "需关注" : "轻微";
         return (
           <li
-            key={i}
+            key={`${conflict.chapter_number}:${conflict.field}:${index}`}
             className={`px-3 py-2.5 text-xs ${
               severity === "major"
                 ? "bg-error-bg/35"
@@ -173,15 +173,9 @@ export const ConflictView: React.FC<{ conflicts: unknown[] }> = ({ conflicts }) 
             }`}
           >
             <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
-              {typeof co.chapter_number === "number" && (
-                <span>第 {co.chapter_number} 章</span>
-              )}
-              {typeof co.field === "string" && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>{conflictFieldLabel(co.field)}</span>
-                </>
-              )}
+              <span>第 {conflict.chapter_number} 章</span>
+              <span aria-hidden="true">·</span>
+              <span>{conflictFieldLabel(conflict.field)}</span>
               <span aria-hidden="true">·</span>
               <span className={severity === "major" ? "text-error" : severity === "moderate" ? "text-warning" : undefined}>
                 {severityLabel}
@@ -189,11 +183,11 @@ export const ConflictView: React.FC<{ conflicts: unknown[] }> = ({ conflicts }) 
             </div>
             <div className="text-book-text-main">
               <div className="text-book-text-muted">期望：</div>
-              <span className="text-small leading-relaxed">{structuredValueText(co.expected)}</span>
+              <span className="text-small leading-relaxed">{structuredValueText(conflict.expected)}</span>
             </div>
             <div className="text-book-text-main mt-1">
               <div className="text-book-text-muted">实际：</div>
-              <span className="text-small leading-relaxed">{structuredValueText(co.actual)}</span>
+              <span className="text-small leading-relaxed">{structuredValueText(conflict.actual)}</span>
             </div>
           </li>
         );

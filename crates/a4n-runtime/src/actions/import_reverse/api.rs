@@ -95,29 +95,22 @@ pub async fn confirm_reverse_engineering_candidate(
         .orchestrator()
         .workflow_run_model_by_id(input.workflow_run_id)
         .await?;
-    let project_id =
-        run.project_id
-            .or(run.root_project_id)
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_reverse_candidate_project".to_string(),
-                operation: "确认项目资料归纳候选".to_string(),
-            })?;
-    access::verify_project_editor(state, user_id, project_id).await?;
-    let target = run
-        .current_step_key
-        .as_deref()
-        .and_then(ReverseEngineeringTarget::from_prompt_name)
+    let project_id = run
+        .project_id
+        .filter(|project_id| *project_id > 0)
         .ok_or_else(|| AppError::InvalidState {
-            current: run
-                .current_step_key
-                .clone()
-                .unwrap_or_else(|| "missing_reverse_candidate_step".to_string()),
+            current: format!(
+                "workflow_run_id={}, project_id={:?}, root_project_id={:?}",
+                run.id, run.project_id, run.root_project_id
+            ),
             operation: "确认项目资料归纳候选".to_string(),
         })?;
+    access::verify_project_editor(state, user_id, project_id).await?;
     let mut result = state
         .orchestrator()
         .confirm_reverse_engineering_candidate_validated(input.workflow_run_id)
         .await?;
+    let target = result.target;
     result
         .warnings
         .extend(reverse_material_sync_warnings(state, project_id, target).await);

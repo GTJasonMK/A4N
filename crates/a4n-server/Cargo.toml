@@ -7,15 +7,12 @@ license.workspace = true
 [features]
 default = []
 embedded-capabilities = [
-    "a4n-runtime/migration",
     "a4n-runtime/embedded-capabilities",
 ]
 embedded-llm-provider = [
-    "a4n-runtime/migration",
     "a4n-runtime/embedded-llm-provider",
 ]
 embedded-media-providers = [
-    "a4n-runtime/migration",
     "a4n-runtime/embedded-media-providers",
 ]
 

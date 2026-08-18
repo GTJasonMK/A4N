@@ -6,13 +6,10 @@ use a4n_core::{
     structured_progress::{FieldMilestone, ProgressSpan},
 };
 use a4n_llm::provider::ChatRequest;
-use a4n_prompt::rendering::PromptRenderer;
-use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use crate::asset::ObjectProfileDraft;
 
-pub(super) const OBJECT_DISCOVERY_PROGRESS_TOTAL: u32 = 100;
 pub(super) const OBJECT_DISCOVERY_LLM_SPAN: ProgressSpan = ProgressSpan::new(10, 75);
 pub(super) const OBJECT_DISCOVERY_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("name", "物体名称", 1),
@@ -43,7 +40,7 @@ pub struct ObjectDiscoveryProgress<'a> {
 impl ObjectDiscoveryProgress<'_> {
     pub(super) fn report(&self, current: u32, message: &str) -> Result<(), AppError> {
         if let Some(reporter) = self.reporter {
-            reporter(current, OBJECT_DISCOVERY_PROGRESS_TOTAL, message)?;
+            reporter(current, super::OBJECT_DISCOVERY_PROGRESS_TOTAL, message)?;
         }
         if self
             .cancel_token
@@ -73,16 +70,9 @@ pub(super) enum ChapterAnchorMode {
     RequireExistingCurrent,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(super) struct RequiredObjectDiscoveryInput {
-    pub(super) project_id: i64,
-    pub(super) chapter_number: Option<i32>,
-}
-
 pub(super) struct ObjectDiscoveryRequestContext {
     pub(super) chapters: Vec<chapter::Model>,
     pub(super) text_anchors: Vec<text_anchor::Model>,
-    pub(super) request: ChatRequest,
 }
 
 #[derive(Debug)]
@@ -96,15 +86,4 @@ pub(super) struct ObjectDiscoveryCallResult {
     pub(super) response_content: String,
     pub(super) llm_request: ChatRequest,
     pub(super) analyzed_chapters: BTreeSet<i32>,
-}
-
-pub(super) struct ObjectDiscoveryCallCheckpoint {
-    pub(super) response_content: String,
-    pub(super) parsed_output: Value,
-}
-
-pub(super) struct PrepareObjectDiscoveryRequestInput<'a> {
-    pub(super) input: ObjectDiscoveryInput,
-    pub(super) anchor_mode: ChapterAnchorMode,
-    pub(super) prompt_renderer: &'a dyn PromptRenderer,
 }

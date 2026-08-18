@@ -1,14 +1,21 @@
 use a4n_core::error::AppError;
-use a4n_db::canvas::{
-    CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
-    CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput,
+use a4n_db::{
+    canvas::{
+        CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
+        CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
+        FreeformCanvasGenerationSpecUpsertInput,
+    },
+    generation::{
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+    },
 };
 use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    project::SOURCE_MODE_FREEFORM,
+    project::ProjectSourceMode,
     workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
 };
 
@@ -60,7 +67,7 @@ impl OrchestratorContext {
                             project_id: input.project_id,
                             workflow_run_id: lifecycle.run.workflow_run_id,
                             video_id: node_input.video_id,
-                            frame_kind: node_input.frame_kind.clone(),
+                            frame_kind: node_input.frame_kind,
                             at_secs: node_input.at_secs,
                         })
                         .await?;
@@ -187,7 +194,10 @@ impl OrchestratorContext {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
-        if project.source_mode != SOURCE_MODE_FREEFORM {
+        if project.source_mode().map_err(|error| {
+            AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
+        })? != ProjectSourceMode::Freeform
+        {
             return Ok(None);
         }
         let (target_kind, workflow, canvas_text_asset_id, source_material_json) =
@@ -198,7 +208,7 @@ impl OrchestratorContext {
                 target_entity_id: input.node.id,
                 canvas_text_asset_id,
                 target_kind: target_kind.to_string(),
-                target_entity_kind: "canvas_node".to_string(),
+                target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
                 status: WORKFLOW_STATUS_RUNNING.to_string(),
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,
@@ -261,7 +271,7 @@ fn editing_spec_fields(
             canvas_text_asset_id,
             source_node_ids,
         }) => (
-            "canvas_image",
+            GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
             "extract_frame",
             *canvas_text_asset_id,
             json!({
@@ -278,7 +288,7 @@ fn editing_spec_fields(
             canvas_text_asset_id,
             source_node_ids,
         }) => (
-            "canvas_video",
+            GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
             "trim_video",
             *canvas_text_asset_id,
             json!({
@@ -289,7 +299,7 @@ fn editing_spec_fields(
             }),
         ),
         CanvasEditingNodeInput::AssembleVideo(node_input) => (
-            "canvas_assembly",
+            GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY,
             "assemble",
             node_input.canvas_text_asset_id,
             json!({

@@ -7,8 +7,9 @@ use a4n_api_contract::generation_tasks::{
 };
 use a4n_db::generation::{GenerationTaskListCursor, PersistedGenerationTask};
 pub use a4n_orchestrator::GenerationTaskAccessError;
-pub use a4n_orchestrator::generation::events::{GenerationReplay, GenerationSubscription};
-pub use a4n_orchestrator::generation::terminal::GenerationTerminalError;
+pub use a4n_orchestrator::generation::{
+    GenerationReplay, GenerationSubscription, GenerationTerminalError,
+};
 pub use cursor::{
     GenerationCursorError, decode_generation_history_cursor, encode_generation_history_cursor,
 };

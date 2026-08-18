@@ -1,4 +1,7 @@
-use super::config::{ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode};
+use super::config::{
+    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode,
+    is_loopback_http_url, normalize_remote_service_url,
+};
 use super::errors::ServiceManagerError;
 use super::health::validate_service_health;
 use super::manager::{HttpClientFactory, ServiceManager};
@@ -245,9 +248,7 @@ fn remote_service_requires_url() {
         name: LLM_SERVICE_NAME.to_string(),
         mode: ServiceMode::Remote,
         binary: None,
-        args: Vec::new(),
         url: None,
-        health_path: "/healthz".to_string(),
         env: HashMap::new(),
         startup_timeout_ms: 1000,
         restart_policy: RestartPolicy::default(),
@@ -257,6 +258,53 @@ fn remote_service_requires_url() {
     let err = ServiceManager::new(vec![config]).expect_err("remote url is required");
 
     assert!(err.to_string().contains("requires url"));
+}
+
+#[test]
+fn remote_service_url_contract_is_strict_and_normalized() {
+    assert_eq!(
+        normalize_remote_service_url(" http://127.0.0.1:47641/ ").unwrap(),
+        "http://127.0.0.1:47641"
+    );
+    assert_eq!(
+        normalize_remote_service_url("https://prompt.example.test/api/").unwrap(),
+        "https://prompt.example.test/api"
+    );
+    for value in [
+        "http://localhost:47642",
+        "http://api.localhost:47642",
+        "http://127.0.0.8:47642",
+        "http://[::1]:47642",
+        "https://localhost:47642",
+    ] {
+        assert!(is_loopback_http_url(value), "{value}");
+    }
+    for value in [
+        "",
+        "not-a-url",
+        "ftp://localhost:47642",
+        "http://localhost:bad",
+        "http://[::1]:99999",
+        "http://[::1]evil:47642",
+        "https://sidecar.example.com",
+        "http://10.0.0.8:47642",
+        "http://user:secret@127.0.0.1:47641",
+        "http://127.0.0.1:47641/api?scope=ignored",
+        "http://127.0.0.1:47641/api#ignored",
+    ] {
+        assert!(!is_loopback_http_url(value), "{value}");
+    }
+    for value in [
+        "",
+        "not-a-url",
+        "ftp://127.0.0.1:21",
+        "http://10.0.0.8:47642",
+        "http://user:secret@127.0.0.1:47641",
+        "http://127.0.0.1:47641/api?scope=ignored",
+        "http://127.0.0.1:47641/api#ignored",
+    ] {
+        assert!(normalize_remote_service_url(value).is_err(), "{value}");
+    }
 }
 
 #[test]
@@ -349,7 +397,7 @@ fn remote_http_client_uses_the_declared_credential_without_serializing_it() {
         .expect("remote HTTP client factory should be available");
     factory().expect("remote HTTP client should use system TLS plus the declared credential");
     assert_eq!(
-        manager.auth_token(PROMPT_SERVICE_NAME).as_deref(),
+        manager.auth_token(PROMPT_SERVICE_NAME).unwrap().as_deref(),
         Some("remote-deployment-secret")
     );
     assert!(!format!("{manager:?}").contains("remote-deployment-secret"));
@@ -447,10 +495,10 @@ fn manager_returns_configured_sidecar_auth_token() {
     let manager = ServiceManager::new(vec![config]).unwrap();
 
     assert_eq!(
-        manager.auth_token(PROMPT_SERVICE_NAME).as_deref(),
+        manager.auth_token(PROMPT_SERVICE_NAME).unwrap().as_deref(),
         Some("service-specific-token")
     );
-    assert_eq!(manager.auth_token(LLM_SERVICE_NAME), None);
+    assert!(manager.auth_token(LLM_SERVICE_NAME).is_err());
 }
 
 #[test]
@@ -460,7 +508,6 @@ fn managed_service_debug_exposes_only_environment_keys() {
         PathBuf::from("target/debug/a4n-prompt-service"),
         "https://user:secret@sidecar.example.test",
     );
-    config.args.push("--credential=argument-secret".to_string());
     config.env.insert(
         SIDECAR_AUTH_TOKEN_ENV.to_string(),
         "service-specific-token".to_string(),
@@ -473,7 +520,6 @@ fn managed_service_debug_exposes_only_environment_keys() {
     let debug = format!("{config:?}");
     for secret in [
         "service-specific-token",
-        "argument-secret",
         "sidecar.example.test",
         "proxy-secret",
         "proxy.example.test",
@@ -573,7 +619,6 @@ fn health_validation_rejects_known_service_capability_mismatch() {
             service_version: "0.1.0".to_string(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: "prompt-render-v0".to_string(),
-            compatibility: None,
         },
     };
 
@@ -596,7 +641,6 @@ fn health_validation_rejects_service_identity_mismatch() {
             service_version: "0.1.0".to_string(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
-            compatibility: None,
         },
     };
 
@@ -620,7 +664,6 @@ fn health_validation_rejects_unhealthy_status() {
             service_version: "0.1.0".to_string(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
-            compatibility: None,
         },
     };
 
@@ -647,7 +690,6 @@ fn local_sidecar_health_rejects_a_mixed_bundle_build() {
             service_version: "older-sidecar-build".to_string(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
-            compatibility: None,
         },
     };
 
@@ -664,7 +706,7 @@ fn local_sidecar_health_rejects_a_mixed_bundle_build() {
 }
 
 #[test]
-fn remote_health_allows_rolling_build_and_additive_capability_versions() {
+fn remote_health_allows_different_build_with_exact_capability_version() {
     let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://127.0.0.1:47641");
     let health = ServiceHealth {
         service: PROMPT_SERVICE_NAME.to_string(),
@@ -672,13 +714,12 @@ fn remote_health_allows_rolling_build_and_additive_capability_versions() {
         version: ServiceVersion {
             service_version: "older-remote-build".to_string(),
             protocol_version: PROTOCOL_VERSION,
-            capability_version: format!("{PROMPT_RENDER_CAPABILITY_VERSION}.1"),
-            compatibility: a4n_service_protocol::service_compatibility(PROMPT_SERVICE_NAME),
+            capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
         },
     };
 
     validate_service_health(&config, &health)
-        .expect("remote rolling deployment may mix compatible builds");
+        .expect("remote deployment may use a different build with the exact wire contract");
 }
 
 #[test]
@@ -690,7 +731,6 @@ fn sidecar_constructor_sets_required_fields() {
     );
 
     assert_eq!(config.mode, ServiceMode::Sidecar);
-    assert_eq!(config.health_path, "/healthz");
     assert!(config.binary.is_some());
     assert!(config.url.as_deref().is_some_and(|url| !url.is_empty()));
     config.validate().unwrap();
@@ -772,7 +812,14 @@ async fn start_sidecar_launches_demo_and_health_reports_exit() {
 
     let process = manager.start_sidecar("demo").await.unwrap();
     assert_eq!(process.service_name(), "demo");
-    assert!(process.id().is_some());
+    assert!(
+        manager
+            .process_status("demo")
+            .await
+            .unwrap()
+            .and_then(|status| status.pid)
+            .is_some()
+    );
 
     let health = manager.health("demo").await.unwrap();
     assert_eq!(health.service, "demo");
@@ -803,7 +850,10 @@ async fn start_sidecar_launches_demo_and_health_reports_exit() {
     assert_eq!(trace["trace_id"], "host-trace-1");
 
     let metrics: a4n_service_protocol::ServiceRuntimeMetrics = reqwest::Client::new()
-        .get(format!("http://{addr}/metrics"))
+        .get(format!(
+            "http://{addr}{}",
+            a4n_service_protocol::SIDECAR_METRICS_PATH
+        ))
         .header(
             a4n_service_protocol::SIDECAR_AUTH_HEADER,
             "demo-manager-token",
@@ -883,6 +933,11 @@ async fn supervisor_restarts_once_and_does_not_replay_in_flight_request() {
     };
     let manager = ServiceManager::new(vec![config]).unwrap();
     let process = manager.start_sidecar("demo").await.unwrap();
+    let initial_pid = manager
+        .process_status("demo")
+        .await
+        .unwrap()
+        .and_then(|status| status.pid);
     let client = reqwest::Client::new();
 
     let in_flight = tokio::spawn({
@@ -912,7 +967,7 @@ async fn supervisor_restarts_once_and_does_not_replay_in_flight_request() {
         loop {
             if let Some(status) = manager.process_status("demo").await.unwrap()
                 && status.state == ManagedSidecarState::Running
-                && status.restart_count == 1
+                && status.pid != initial_pid
             {
                 break;
             }
@@ -953,6 +1008,11 @@ async fn supervisor_opens_circuit_after_restart_budget_is_exhausted() {
     };
     let manager = ServiceManager::new(vec![config]).unwrap();
     let process = manager.start_sidecar("demo").await.unwrap();
+    let initial_pid = manager
+        .process_status("demo")
+        .await
+        .unwrap()
+        .and_then(|status| status.pid);
     let client = reqwest::Client::new();
 
     let _ = client
@@ -967,7 +1027,7 @@ async fn supervisor_opens_circuit_after_restart_budget_is_exhausted() {
                 .await
                 .unwrap()
                 .is_some_and(|status| {
-                    status.state == ManagedSidecarState::Running && status.restart_count == 1
+                    status.state == ManagedSidecarState::Running && status.pid != initial_pid
                 })
             {
                 break;
@@ -1041,10 +1101,20 @@ async fn two_managers_own_distinct_sidecars_and_stop_independently() {
     let second_manager = ServiceManager::new(vec![second_config]).unwrap();
     let second_process = second_manager.start_sidecar("demo").await.unwrap();
 
-    assert_ne!(first_process.id(), second_process.id());
+    let first_pid = first_manager
+        .process_status("demo")
+        .await
+        .unwrap()
+        .and_then(|status| status.pid);
+    let second_pid = second_manager
+        .process_status("demo")
+        .await
+        .unwrap()
+        .and_then(|status| status.pid);
+    assert_ne!(first_pid, second_pid);
     assert_ne!(
-        first_manager.auth_token("demo"),
-        second_manager.auth_token("demo")
+        first_manager.auth_token("demo").unwrap(),
+        second_manager.auth_token("demo").unwrap()
     );
     assert_eq!(first_manager.health("demo").await.unwrap().service, "demo");
     assert_eq!(second_manager.health("demo").await.unwrap().service, "demo");

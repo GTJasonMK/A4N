@@ -12,13 +12,12 @@ use serde_json::json;
 
 use super::context::RagSyncContext;
 use super::identity::{classify_rag_record, ensure_project_embedding_identity_matches};
-use super::keys::{
-    chapter_rag_chunk_prefix, chapter_rag_delete_filter, character_attribute_event_rag_chunk_id,
+use super::{RagRecord, RagRecordSyncOutcome};
+use crate::rag::{
+    chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id,
     character_state_rag_chunk_id, foreshadowing_rag_chunk_id, protagonist_rag_chunk_id,
     protagonist_rag_chunk_prefix,
 };
-use super::metadata::root_text_family_metadata;
-use super::{RagRecord, RagRecordSyncOutcome};
 
 fn identity(model: &str) -> EmbeddingModelIdentity {
     EmbeddingModelIdentity {
@@ -45,24 +44,27 @@ fn canonical_character_and_foreshadowing_ids_share_write_delete_identity() {
 }
 
 #[tokio::test]
-async fn chapter_delete_filter_removes_only_the_canonical_chapter_prefix() {
+async fn chapter_prefix_filter_removes_only_the_canonical_chapter_records() {
     let store = MemoryVectorStore::new();
     let collection = "1";
     store
         .add_embeddings(
             collection,
             vec![
-                embedding_record("chapter:1:100:p1", "chapter", 100),
-                embedding_record("chapter:1:100:summary", "chapter_summary", 100),
-                embedding_record("chapter:1:100:key_event:1", "key_event", 100),
-                embedding_record("chapter:1:101:p1", "chapter", 101),
-                embedding_record("outline:1:1", "outline", 0),
+                embedding_record("chapter:1:100:p1"),
+                embedding_record("chapter:1:100:summary"),
+                embedding_record("chapter:1:100:key_event:1"),
+                embedding_record("chapter:1:101:p1"),
+                embedding_record("outline:1:1"),
             ],
         )
         .await
         .expect("chapter records should store");
 
-    let filter = chapter_rag_delete_filter(1, 100, 3).expect("valid chapter delete filter");
+    let filter = DeleteFilter {
+        ids: Vec::new(),
+        id_prefixes: vec![chapter_rag_chunk_prefix(1, 100)],
+    };
     let deleted = store
         .delete(collection, filter)
         .await
@@ -73,9 +75,6 @@ async fn chapter_delete_filter_removes_only_the_canonical_chapter_prefix() {
         .metadata_by_filter(
             collection,
             DeleteFilter {
-                project_id: 1,
-                data_type: None,
-                chapter_number: None,
                 ids: Vec::new(),
                 id_prefixes: Vec::new(),
             },
@@ -89,22 +88,11 @@ async fn chapter_delete_filter_removes_only_the_canonical_chapter_prefix() {
 }
 
 #[test]
-fn chapter_delete_filter_rejects_non_positive_chapter_number() {
-    let error = chapter_rag_delete_filter(1, 100, 0)
-        .expect_err("non-positive chapter number should reject");
-    assert_eq!(
-        error.to_string(),
-        "参数无效：RAG 章节清理 chapter_number 必须大于 0，实际为 0"
-    );
-}
-
-#[test]
 fn classifies_hash_index_and_embedding_identity_from_one_owner() {
     let content_hash = content_hash("旧内容").expect("content hash");
     let current = identity("current-test");
     let unchanged = json!({
         "content_hash": content_hash,
-        "source_generation": content_hash,
         "index_format_version": RAG_INDEX_FORMAT_VERSION,
         "text_index_version": RAG_TEXT_INDEX_VERSION,
         "embedding_backend": "LocalHash",
@@ -113,7 +101,6 @@ fn classifies_hash_index_and_embedding_identity_from_one_owner() {
     });
     let old_model = json!({
         "content_hash": content_hash,
-        "source_generation": content_hash,
         "index_format_version": RAG_INDEX_FORMAT_VERSION,
         "text_index_version": RAG_TEXT_INDEX_VERSION,
         "embedding_backend": "LocalHash",
@@ -122,7 +109,6 @@ fn classifies_hash_index_and_embedding_identity_from_one_owner() {
     });
     let old_index = json!({
         "content_hash": content_hash,
-        "source_generation": content_hash,
         "index_format_version": RAG_INDEX_FORMAT_VERSION,
         "text_index_version": "legacy",
         "embedding_backend": "LocalHash",
@@ -166,7 +152,6 @@ fn preparing_record_removes_seen_chunk_from_stale_cleanup_scope() {
             "chunk:seen".to_string(),
             json!({
                 "content_hash": content_hash,
-                "source_generation": content_hash,
                 "index_format_version": RAG_INDEX_FORMAT_VERSION,
                 "text_index_version": RAG_TEXT_INDEX_VERSION,
                 "embedding_backend": "LocalHash",
@@ -188,27 +173,6 @@ fn preparing_record_removes_seen_chunk_from_stale_cleanup_scope() {
     assert_eq!(prepared.outcome(), RagRecordSyncOutcome::Skipped);
     assert!(!context.stale_ids.contains("chunk:seen"));
     assert!(context.stale_ids.contains("chunk:stale"));
-}
-
-#[test]
-fn root_text_metadata_is_inserted_and_conflicts_are_rejected() {
-    let metadata =
-        root_text_family_metadata(7, json!({"chapter_id": 9})).expect("root text metadata");
-    assert_eq!(metadata["root_project_id"], 7);
-    assert_eq!(metadata["source_chapter_id"], 9);
-    assert!(metadata["source_snapshot_id"].is_null());
-    assert!(metadata["source_snapshot_chapter_id"].is_null());
-    assert!(metadata["derived_project_id"].is_null());
-
-    let error = root_text_family_metadata(7, json!({"root_project_id": 8}))
-        .expect_err("conflicting root project must fail");
-    assert!(error.to_string().contains("expected=7, actual=8"));
-
-    for chapter_id in [json!(0), json!(-1), json!("9"), json!(null)] {
-        let error = root_text_family_metadata(7, json!({"chapter_id": chapter_id}))
-            .expect_err("invalid present chapter id must fail");
-        assert!(error.to_string().contains("chapter_id 必须是正整数"));
-    }
 }
 
 #[test]

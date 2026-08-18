@@ -7,7 +7,8 @@ use crate::{
     },
     file_utils::remove_data_dir_in_data_dir,
 };
-use std::{collections::HashSet, path::PathBuf};
+use a4n_core::files::paths::ProjectPaths;
+use std::collections::HashSet;
 
 pub async fn list_orphan_project_data_dirs(
     state: &AppState,
@@ -68,9 +69,10 @@ async fn remove_unowned_project_data_dirs(
         }
     }
     for item in &summary.items {
+        let project_paths = ProjectPaths::new(state.data_dir(), item.project_id);
         remove_data_dir_in_data_dir(
             state.data_dir(),
-            &PathBuf::from(&item.path),
+            project_paths.root(),
             "孤儿项目数据目录",
         )?;
     }

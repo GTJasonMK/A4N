@@ -1,5 +1,5 @@
 use super::super::contracts::ImportedVideoSource;
-use super::super::prelude::{Path, PathBuf, ProjectPaths, ensure_chapter_videos_dir};
+use super::super::prelude::PathBuf;
 use a4n_orchestrator::video::import_video_extension;
 
 pub(in crate::actions::video_records::imports) fn import_video_source(
@@ -13,8 +13,8 @@ pub(in crate::actions::video_records::imports) fn import_video_source(
     let file_name = path
         .file_name()
         .and_then(|value| value.to_str())
-        .unwrap_or("video")
-        .to_string();
+        .map(str::to_string)
+        .ok_or_else(|| format!("{label}路径缺少有效 UTF-8 文件名"))?;
     let extension = import_video_extension(&path)?;
     Ok(ImportedVideoSource {
         path,
@@ -40,28 +40,4 @@ pub(in crate::actions::video_records) fn import_video_source_path(
     import_video_extension(&path)?;
     path.canonicalize()
         .map_err(|e| format!("无法解析导入视频路径：{e}"))
-}
-
-pub(in crate::actions::video_records) fn import_video_output_path(
-    data_dir: &Path,
-    project_id: i64,
-    chapter_id: i64,
-    video_id: i64,
-    prefix: &str,
-    extension: &str,
-) -> Result<PathBuf, String> {
-    let dir = ensure_chapter_videos_dir(data_dir, project_id, chapter_id)?;
-    Ok(dir.join(format!("{prefix}_{video_id}.{extension}")))
-}
-
-pub(in crate::actions::video_records::imports) fn import_project_video_output_path(
-    data_dir: &Path,
-    project_id: i64,
-    video_id: i64,
-    prefix: &str,
-    extension: &str,
-) -> Result<PathBuf, String> {
-    let dir = ProjectPaths::new(data_dir, project_id).videos_dir();
-    std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建项目视频目录：{err}"))?;
-    Ok(dir.join(format!("{prefix}_{video_id}.{extension}")))
 }

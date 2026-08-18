@@ -1,7 +1,6 @@
 use super::contracts::{
     CreateFreeformVideoProjectParams, CreateProjectRecordInput, PROJECT_KIND_TEXT,
-    PROJECT_KIND_VIDEO, PROJECT_TYPE_SCRIPT, ProjectMutationError, SOURCE_MODE_FREEFORM,
-    SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT,
+    PROJECT_KIND_VIDEO, PROJECT_TYPE_SCRIPT, ProjectMutationError, SOURCE_SYNC_CURRENT,
 };
 use super::rules::{normalize_project_type, required_project_title};
 use a4n_core::models::project::novel_project;
@@ -23,7 +22,6 @@ pub async fn create_project_record(
         description: Set(description),
         project_type: Set(project_type),
         project_kind: Set(PROJECT_KIND_TEXT.to_string()),
-        source_mode: Set(SOURCE_MODE_SELF.to_string()),
         root_project_id: Set(None),
         source_snapshot_id: Set(None),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),
@@ -60,7 +58,6 @@ pub async fn create_freeform_video_project_record(
         description: Set(description),
         project_type: Set(PROJECT_TYPE_SCRIPT.to_string()),
         project_kind: Set(PROJECT_KIND_VIDEO.to_string()),
-        source_mode: Set(SOURCE_MODE_FREEFORM.to_string()),
         root_project_id: Set(None),
         source_snapshot_id: Set(None),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),

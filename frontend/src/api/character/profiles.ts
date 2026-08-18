@@ -4,6 +4,7 @@ import type {
   CharacterProfileDeleteResult,
   CharacterProfileMutationResult,
   CreateProfileInput,
+  DiscoverCharacterProfilesInput,
   ListProfilesInput,
   SyncAllCharacterProfilesInput,
   SyncAllCharacterProfilesResult,
@@ -17,6 +18,16 @@ function allCharacterProfilesSyncInput(
   projectId: Id,
   chapterNumber: number,
 ): SyncAllCharacterProfilesInput {
+  return {
+    project_id: idNum(projectId),
+    chapter_number: chapterNumber,
+  };
+}
+
+function characterDiscoveryInput(
+  projectId: Id,
+  chapterNumber: number | null,
+): DiscoverCharacterProfilesInput {
   return {
     project_id: idNum(projectId),
     chapter_number: chapterNumber,
@@ -54,12 +65,11 @@ export async function deleteProfile(profileId: Id): Promise<CharacterProfileDele
 export async function discoverCharacterProfiles(
   projectId: Id,
   chapterNumber: number | null,
-  taskId?: string | null,
+  taskId: string,
 ): Promise<DiscoverCharacterProfilesResult> {
   return apiInvoke<DiscoverCharacterProfilesResult>("discover_character_profiles", {
-    projectId: idNum(projectId),
-    chapterNumber,
-    taskId: taskId ?? null,
+    input: characterDiscoveryInput(projectId, chapterNumber),
+    taskId,
   });
 }
 
@@ -68,8 +78,7 @@ export async function previewDiscoverCharacterProfilesRequest(
   chapterNumber: number | null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_discover_character_profiles_request", {
-    projectId: idNum(projectId),
-    chapterNumber,
+    input: characterDiscoveryInput(projectId, chapterNumber),
   });
 }
 

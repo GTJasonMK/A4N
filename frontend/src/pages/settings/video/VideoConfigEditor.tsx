@@ -1,8 +1,5 @@
 import React from "react";
-import {
-  detectServerVideoConfigModels,
-  detectVideoConfigModels,
-} from "../../../api/video";
+import { detectVideoConfigModels } from "../../../api/video";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
@@ -10,13 +7,14 @@ import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import { VIDEO_DURATION_MODES, VIDEO_SIZE_OPTIONS } from "./videoConfigUtils";
 import type { VideoProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
+import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import type { VideoForm } from "./types";
 
 interface VideoConfigEditorProps {
   form: VideoForm;
   setForm: (form: VideoForm) => void;
   configId?: number | null;
-  serverScope?: boolean;
+  scope: ModelConfigScope;
   readonly?: boolean;
   templateLocked?: boolean;
   providers: VideoProviderDescriptor[];
@@ -26,14 +24,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
   form,
   setForm,
   configId = null,
-  serverScope = false,
+  scope,
   readonly = false,
   templateLocked = false,
   providers,
 }) => {
-  const detectModels = serverScope
-    ? detectServerVideoConfigModels
-    : detectVideoConfigModels;
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const selectedProvider = providers.find(
@@ -51,7 +46,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
     configId,
     hasApiKey: form.has_api_key,
     readonly,
-    scope: serverScope ? "server" : "local",
+    scope,
   });
 
   const setDurationMode = (durationMode: VideoForm["duration_mode"]) => {
@@ -116,7 +111,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
-            detectModels={() => detectModels(modelDiscovery.input)}
+            detectModels={() => detectVideoConfigModels(modelDiscovery.input, scope)}
           />
         </FormField>
       </div>

@@ -57,9 +57,7 @@ pub fn image_provider_request_body_preview(
             Ok(ChatCompletionsImageProvider::request_body_preview(request))
         }
         CLIPROXY_IMAGE_BACKEND => CliProxyImageProvider::request_body_preview(request),
-        STABLE_DIFFUSION_IMAGE_BACKEND => {
-            StableDiffusionWebUiImageProvider::request_body_preview(request)
-        }
+        STABLE_DIFFUSION_IMAGE_BACKEND => StableDiffusionWebUiImageProvider::txt2img_body(request),
         COMFYUI_IMAGE_BACKEND => ComfyUiImageProvider::request_body_preview(request),
         other => Err(AppError::InvalidArgument(format!(
             "未知图片生成后端: {other}"

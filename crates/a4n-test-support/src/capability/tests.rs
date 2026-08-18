@@ -94,7 +94,7 @@ async fn pending_embedding_download_observes_start_and_future_drop() {
     let task_client = Arc::clone(&client);
     let task_request = request.clone();
     let (events_tx, _events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let task = tokio::spawn(async move {
         task_client
             .download_model_events(task_request, events_tx)
@@ -140,7 +140,7 @@ async fn recording_image_generate_events_capture_request_and_bind_task_id() {
         .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
     let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
     let (events_tx, mut events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     client
         .generate_events(request.clone(), events_tx)
@@ -177,7 +177,7 @@ async fn recording_image_unconfigured_operations_fail_explicitly() {
     let client = RecordingImageClient::new();
     let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
     let (events_tx, _events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let error = client
         .generate_events(request.clone(), events_tx)
         .await
@@ -198,7 +198,7 @@ async fn recording_video_generate_events_capture_request_and_bind_task_id() {
         .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
     let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
     let (events_tx, mut events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     client
         .generate_events(request.clone(), events_tx)
@@ -260,7 +260,7 @@ async fn recording_video_unconfigured_operations_fail_explicitly() {
     let client = RecordingVideoClient::new();
     let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
     let (events_tx, _events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let error = client
         .generate_events(request.clone(), events_tx)
         .await
@@ -281,7 +281,7 @@ async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
         .with_ingest_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
     let request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
     let (events_tx, mut events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     client
         .ingest_events(request.clone(), events_tx)
@@ -300,7 +300,7 @@ async fn recording_rag_unconfigured_operations_fail_explicitly() {
     let client = RecordingRagClient::new();
     let ingest_request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
     let (events_tx, _events_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let ingest_error = client
         .ingest_events(ingest_request.clone(), events_tx)
@@ -429,14 +429,6 @@ fn media_event(event_kind: CapabilityTaskEventKind, sequence: u64) -> Capability
         task_id: "configured-task".to_string(),
         event_kind,
         sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
         error: None,
         payload: None,
     }

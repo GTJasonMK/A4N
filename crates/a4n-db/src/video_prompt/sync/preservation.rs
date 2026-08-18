@@ -39,8 +39,8 @@ where
     C: ConnectionTrait,
 {
     if policy.preserve_generated_video_prompts
-        && existing.prompt_type == "video_prompt"
-        && draft.fields.prompt_type == "video_prompt"
+        && existing.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && draft.fields.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
         && existing.generated_video_id.is_some()
         && !prompt_sync_draft_fields_match(existing, draft)
     {
@@ -60,7 +60,10 @@ where
 fn is_sync_frame_prompt_type(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
-        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" | "storyboard_prompt"
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+            | chapter_video_prompt::PROMPT_TYPE_STORYBOARD
     )
 }
 
@@ -107,10 +110,10 @@ pub(super) fn segment_plan_extension_preserves_existing(
     existing: &chapter_video_prompt::Model,
     draft: &ChapterVideoPromptSyncDraft,
 ) -> bool {
-    if existing.prompt_type != "frame_segment_plan"
-        || draft.fields.prompt_type != "frame_segment_plan"
-        || existing.workflow_mode != "shared_segment_plan"
-        || draft.fields.workflow_mode != "shared_segment_plan"
+    if existing.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+        || draft.fields.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+        || existing.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+        || draft.fields.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
         || existing.style != draft.fields.style
         || existing.duration_secs != draft.fields.duration_secs
         || existing.aspect_ratio != draft.fields.aspect_ratio

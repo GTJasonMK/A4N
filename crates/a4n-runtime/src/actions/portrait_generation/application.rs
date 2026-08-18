@@ -48,7 +48,7 @@ pub(crate) async fn generate_portrait_inline(
     };
     let start = state
         .orchestrator()
-        .start_portrait_generation_task(user_id, input.clone())
+        .start_portrait_generation_task(user_id, &input)
         .await
         .map_err(|error| error.to_string())?;
     let prompt_renderer = state;

@@ -116,7 +116,7 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
       <div className="mb-2 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 px-1">
         <h3 className="text-xs font-medium text-book-text-main">系统健康</h3>
         <span className="min-w-0 flex-1 text-right text-small text-book-text-muted">
-          {health?.runtime_profile ? `${serviceModeLabel(health.runtime_profile)} · ` : ""}
+          {health ? `${serviceModeLabel(health.runtime_profile)} · ` : ""}
           {services.length > 0 ? `${healthyCount}/${services.length} 项正常` : "暂无数据"}
         </span>
       </div>
@@ -142,8 +142,7 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
 };
 
 const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }) => {
-  const mode = service.service_mode ?? service.mode;
-  const url = service.url ? `${service.url}${service.health_path ?? ""}` : "";
+  const url = service.url ?? "";
 
   return (
     <li
@@ -164,7 +163,7 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
         <div className="mt-1.5 grid gap-3 border-l border-book-border/45 pl-3 sm:grid-cols-2">
           <div className="min-w-0">
             <div className="mb-0.5 text-book-text-muted">连接</div>
-            <div className="text-book-text-sub">{serviceModeLabel(mode)}</div>
+            <div className="text-book-text-sub">{serviceModeLabel(service.mode)}</div>
             <div className="mt-0.5 truncate font-mono text-book-text-muted" title={url}>
               {url || "未配置服务地址"}
             </div>
@@ -175,14 +174,12 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
           </div>
           <div>
             <div className="mb-0.5 text-book-text-muted">进程</div>
-            <PidCell service={service} />
+            <div>{service.pid ?? "—"}</div>
           </div>
           <div className="min-w-0">
             <div className="mb-0.5 text-book-text-muted">错误与程序</div>
-            {service.error_message || service.error_code ? (
-              <div className="break-words text-error">
-                {service.error_message ?? service.error_code}
-              </div>
+            {service.error_message ? (
+              <div className="break-words text-error">{service.error_message}</div>
             ) : (
               <div className="text-book-text-sub">无错误</div>
             )}
@@ -198,50 +195,25 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
   );
 };
 
-const SERVICE_MODE_LABELS: Record<string, string> = {
+type ServiceModeValue = AdminServiceHealth["mode"] | AdminHealthCheck["runtime_profile"];
+
+const SERVICE_MODE_LABELS: Record<ServiceModeValue, string> = {
   full: "内置服务",
+  minimal: "精简内置",
   embedded: "内置",
   sidecar: "随附进程",
   remote: "远程",
   disabled: "已停用",
 };
 
-const serviceModeLabel = (mode: string | null | undefined): string => {
-  const normalized = String(mode ?? "").trim().toLowerCase();
-  return SERVICE_MODE_LABELS[normalized] ?? (normalized ? "其他运行方式" : "未配置");
-};
-
-const PID_STATUS_LABELS: Record<string, string> = {
-  observed: "运行中",
-  missing: "未记录",
-  stale: "已过期",
-  invalid: "无效",
-  unreadable: "不可读",
-  unverifiable: "未确认",
-};
-
-const PidCell: React.FC<{ service: AdminServiceHealth }> = ({ service }) => {
-  const status = service.pid_status ?? null;
-  const label = status ? PID_STATUS_LABELS[status] ?? "未知状态" : null;
-
-  return (
-    <div className="space-y-1">
-      <div>{service.pid ?? "—"}</div>
-      {label && (
-        <span className={status === "observed" ? "text-success" : "text-warning"}>
-          {label}
-        </span>
-      )}
-    </div>
-  );
-};
+const serviceModeLabel = (mode: ServiceModeValue): string => SERVICE_MODE_LABELS[mode];
 
 const VersionLines: React.FC<{ service: AdminServiceHealth }> = ({ service }) => (
   <div className="space-y-0.5 font-mono text-small leading-snug text-book-text-sub">
     <div className="truncate" title={service.service_version ?? ""}>
       服务 {service.service_version ?? "—"}
     </div>
-    <div className="truncate" title={service.protocol_version ?? ""}>
+    <div className="truncate" title={service.protocol_version?.toString() ?? ""}>
       协议 {service.protocol_version ?? "—"}
     </div>
     <div className="truncate" title={service.capability_version ?? ""}>

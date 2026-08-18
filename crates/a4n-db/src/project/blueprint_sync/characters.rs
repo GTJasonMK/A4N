@@ -2,7 +2,10 @@ use super::contracts::{
     BlueprintCharacterDraft, BlueprintIncrementalSyncStats, BlueprintSyncError,
 };
 use super::identity::{blueprint_character_matches, normalized_blueprint_identity};
-use a4n_core::models::project::blueprint_character;
+use a4n_core::{
+    json_contract::is_empty_json_value,
+    models::project::blueprint_character,
+};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
@@ -207,17 +210,7 @@ fn prefer_existing_json(
     incoming: Option<serde_json::Value>,
 ) -> Option<serde_json::Value> {
     existing
-        .filter(|value| !json_value_is_empty(value))
+        .filter(|value| !is_empty_json_value(value))
         .cloned()
         .or(incoming)
-}
-
-fn json_value_is_empty(value: &serde_json::Value) -> bool {
-    match value {
-        serde_json::Value::Null => true,
-        serde_json::Value::String(value) => value.trim().is_empty(),
-        serde_json::Value::Array(value) => value.is_empty(),
-        serde_json::Value::Object(value) => value.is_empty(),
-        serde_json::Value::Bool(_) | serde_json::Value::Number(_) => false,
-    }
 }

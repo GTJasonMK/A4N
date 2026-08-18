@@ -30,7 +30,7 @@ pub async fn list_active_workflows_for_user(
         seen.insert(task.id.clone());
         active.push(task_info_to_workflow(&task));
     }
-    for snapshot in state.active_task_snapshots() {
+    for snapshot in state.orchestrator().active_task_snapshots() {
         if seen.contains(&snapshot.task_id)
             || !task_scope_visible_to_user(
                 state,

@@ -3,6 +3,7 @@ use a4n_core::models::{
     generation::{generation_run, generation_run_target, workflow_run},
     task::task_queue,
 };
+use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_db::{
     generation::RecordStartedGenerationRunInput,
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
@@ -188,8 +189,8 @@ async fn insert_video_with_run(
         CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "prompt".to_string(),
             negative_prompt: None,
             model: "test".to_string(),

@@ -1,3 +1,13 @@
+pub(crate) fn app_error_with_secondary(
+    error: a4n_core::error::AppError,
+    secondary: impl Into<String>,
+) -> a4n_core::error::AppError {
+    a4n_core::error::AppError::InvalidState {
+        current: error.to_string(),
+        operation: secondary.into(),
+    }
+}
+
 pub(crate) fn project_delete_error_to_app_error(
     error: a4n_db::project_delete::ProjectDeleteDbError,
 ) -> a4n_core::error::AppError {
@@ -93,7 +103,7 @@ pub(crate) fn freeform_generated_reset_error_to_app_error(
         a4n_db::project::FreeformGeneratedResetDbError::ProjectNotFound { .. } => {
             AppError::NotFound(error.to_string())
         }
-        a4n_db::project::FreeformGeneratedResetDbError::UnsupportedProject { .. } => {
+        a4n_db::project::FreeformGeneratedResetDbError::UnsupportedProject => {
             AppError::InvalidArgument(error.to_string())
         }
         a4n_db::project::FreeformGeneratedResetDbError::ProjectCleanup { source } => {

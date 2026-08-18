@@ -42,7 +42,10 @@ pub(super) fn ensure_generated_video_status_mutable(
 pub(super) fn ensure_generated_video_status_allows_completion(
     status: &str,
 ) -> Result<(), VideoDbError> {
-    if matches!(status, "pending" | "running") {
+    if matches!(
+        status,
+        generated_video::STATUS_PENDING | generated_video::STATUS_RUNNING
+    ) {
         Ok(())
     } else {
         Err(VideoDbError::InvalidState {

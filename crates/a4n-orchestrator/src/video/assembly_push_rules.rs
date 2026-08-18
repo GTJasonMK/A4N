@@ -5,8 +5,6 @@ use chrono::Utc;
 use serde_json::{Map, Value, json};
 use std::collections::HashSet;
 
-/// 成片推送视频类型。
-pub const ASSEMBLY_PUSH_VIDEO_TYPE: &str = "assembly_push";
 /// 推送待审。
 pub const ASSEMBLY_PUSH_STATUS_PENDING: &str = "pending";
 /// 推送已接受。
@@ -37,9 +35,9 @@ pub fn is_completed_assembly_push_row(
     status: &str,
     expected_workflow_mode: &str,
 ) -> bool {
-    video_type == ASSEMBLY_PUSH_VIDEO_TYPE
+    video_type == generated_video::VIDEO_TYPE_ASSEMBLY_PUSH
         && workflow_mode == Some(expected_workflow_mode)
-        && status == "completed"
+        && status == generated_video::STATUS_COMPLETED
 }
 
 /// 解析 assembly_push 对象上的 status。
@@ -293,7 +291,7 @@ mod tests {
         assert_eq!(meta.status, ASSEMBLY_PUSH_STATUS_ACCEPTED);
         assert_eq!(meta.source_video_ids, vec![1, 2]);
         assert!(is_completed_assembly_push_row(
-            ASSEMBLY_PUSH_VIDEO_TYPE,
+            generated_video::VIDEO_TYPE_ASSEMBLY_PUSH,
             Some("first_frame_chain"),
             "completed",
             "first_frame_chain"
@@ -359,7 +357,10 @@ mod tests {
             validate_assembly_workflow_mode("chat_video"),
             Ok("chat_video")
         );
-        assert_eq!(validate_assembly_workflow_mode(" mixed "), Ok("mixed"));
+        assert_eq!(
+            validate_assembly_workflow_mode(" mixed "),
+            Ok(a4n_core::video_workflow::WORKFLOW_MODE_MIXED)
+        );
         assert!(validate_assembly_workflow_mode(" ").is_err());
         assert!(validate_assembly_workflow_mode("unknown").is_err());
     }

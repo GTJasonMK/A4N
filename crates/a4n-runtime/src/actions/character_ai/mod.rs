@@ -10,11 +10,11 @@ mod sync_profile;
 mod sync_trace;
 mod sync_types;
 
-pub(crate) use character_discovery_flow::character_discovery_preview_steps;
-pub use character_discovery_flow::discover_character_profiles_for_chapters;
+pub(crate) use character_discovery_flow::character_discovery_preview_step;
+pub use character_discovery_flow::discover_character_profiles;
 pub use contracts::{
-    CharacterAiTaskScope, SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult,
-    SyncCharacterProfileInput, SyncCharacterProfileResult,
+    CharacterAiTaskScope, DiscoverCharacterProfilesInput, SyncAllCharacterProfilesInput,
+    SyncAllCharacterProfilesResult, SyncCharacterProfileInput, SyncCharacterProfileResult,
 };
 pub use preview::{
     preview_discover_character_profiles_request, preview_sync_all_character_profiles_request,

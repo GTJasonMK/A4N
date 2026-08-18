@@ -1,6 +1,5 @@
 use super::{
     EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary, host_adapter::required_text,
-    normalize_optional_embedding_download_task_id,
 };
 use a4n_core::error::AppError;
 
@@ -9,18 +8,6 @@ fn blank_model_is_rejected() {
     let err = required_text("  ", "fastembed 模型名").expect_err("blank model should fail");
 
     assert!(matches!(err, AppError::InvalidArgument(_)));
-}
-
-#[test]
-fn embedding_download_task_id_uses_one_strict_rule() {
-    assert_eq!(
-        normalize_optional_embedding_download_task_id(Some(" task-1 ".to_string()))
-            .expect("valid task id"),
-        Some("task-1".to_string())
-    );
-    for task_id in ["", "task/path", "任务"] {
-        assert!(normalize_optional_embedding_download_task_id(Some(task_id.to_string())).is_err());
-    }
 }
 
 #[test]

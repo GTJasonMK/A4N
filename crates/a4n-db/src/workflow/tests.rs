@@ -90,7 +90,6 @@ fn workflow_checkpoint_contract_error_keeps_json_source() {
 fn validates_completed_llm_call_checkpoint_contract() {
     validate_completed_llm_call_checkpoint_json(
         &serde_json::json!({
-            "output": {"value": 1},
             "parsed_output": {"value": 1},
             "response_content": "{\"value\":1}",
             "usage": null,
@@ -105,7 +104,6 @@ fn validates_completed_llm_call_checkpoint_contract() {
 fn rejects_completed_llm_call_checkpoint_without_parsed_output() {
     let error = validate_completed_llm_call_checkpoint_json(
         &serde_json::json!({
-            "output": {"value": 1},
             "response_content": "{\"value\":1}",
             "usage": null,
             "finish_reason": null,
@@ -125,7 +123,6 @@ fn rejects_completed_llm_call_checkpoint_without_parsed_output() {
 fn rejects_completed_llm_call_checkpoint_with_truncated_finish_reason() {
     let error = validate_completed_llm_call_checkpoint_json(
         &serde_json::json!({
-            "output": {"value": 1},
             "parsed_output": {"value": 1},
             "response_content": "{\"value\":1}",
             "usage": null,
@@ -143,54 +140,63 @@ fn rejects_completed_llm_call_checkpoint_with_truncated_finish_reason() {
 }
 
 #[test]
-fn rejects_completed_llm_call_checkpoint_without_restorable_result() {
+fn rejects_completed_llm_call_checkpoint_with_null_parsed_output() {
     let error = validate_completed_llm_call_checkpoint_json(
         &serde_json::json!({
-            "output": "",
             "parsed_output": null,
-            "response_content": "",
+            "response_content": "{\"value\":1}",
             "usage": {"completion_tokens": 100},
             "finish_reason": "stop",
         }),
         "test.call",
     )
-    .expect_err("empty completed response must not become a resumable checkpoint");
+    .expect_err("null parsed output must not become a resumable checkpoint");
 
     assert!(matches!(
         error,
         WorkflowCheckpointContractError::Invalid(message)
-            if message.contains("没有可恢复的响应内容")
+            if message.contains("parsed_output 不能为 null")
     ));
 }
 
 #[test]
-fn required_llm_call_checkpoint_json_reports_missing_payload() {
-    let now = chrono::Utc::now().naive_utc();
-    let error = required_llm_call_checkpoint_json(
-        workflow_checkpoint::Model {
-            id: 1,
-            workflow_run_id: 1,
-            step_key: "test.call".to_string(),
-            step_order: 1,
-            status: WORKFLOW_STATUS_COMPLETED.to_string(),
-            input_fingerprint_sha256: Some("fingerprint".to_string()),
-            input_fingerprint_json: Some(serde_json::json!({"input": true})),
-            checkpoint_json: None,
-            artifacts_json: None,
-            generation_run_ids_json: None,
-            error_message: None,
-            created_at: now,
-            updated_at: now,
-            completed_at: Some(now),
-        },
+fn rejects_completed_llm_call_checkpoint_with_empty_response_content() {
+    let error = validate_completed_llm_call_checkpoint_json(
+        &serde_json::json!({
+            "parsed_output": {"value": 1},
+            "response_content": "  ",
+            "usage": {"completion_tokens": 100},
+            "finish_reason": "stop",
+        }),
         "test.call",
     )
-    .expect_err("missing checkpoint JSON must fail");
+    .expect_err("empty raw response must not become a resumable checkpoint");
 
     assert!(matches!(
         error,
-        WorkflowCheckpointContractError::MissingCheckpointJson { call_key }
-            if call_key == "test.call"
+        WorkflowCheckpointContractError::Invalid(message)
+            if message.contains("response_content 不能为空")
+    ));
+}
+
+#[test]
+fn rejects_completed_llm_call_checkpoint_with_unknown_field() {
+    let error = validate_completed_llm_call_checkpoint_json(
+        &serde_json::json!({
+            "parsed_output": {"value": 1},
+            "response_content": "{\"value\":1}",
+            "usage": null,
+            "finish_reason": null,
+            "output": {"value": 1},
+        }),
+        "test.call",
+    )
+    .expect_err("unknown legacy field must fail");
+
+    assert!(matches!(
+        error,
+        WorkflowCheckpointContractError::Invalid(message)
+            if message.contains("未知字段 output")
     ));
 }
 use a4n_test_support::workflow::WorkflowRunModelBuilder;

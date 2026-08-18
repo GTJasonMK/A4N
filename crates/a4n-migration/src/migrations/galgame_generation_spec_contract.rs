@@ -74,7 +74,6 @@ DECLARE
     context_kind TEXT := COALESCE(NULLIF(NEW.source_context_kind, ''), 'snapshot_backed');
     params JSONB := NEW.params_json::jsonb;
     project_kind TEXT;
-    project_source_mode TEXT;
     project_root_project_id BIGINT;
     project_source_snapshot_id BIGINT;
     target_id BIGINT;
@@ -111,11 +110,9 @@ BEGIN
     END IF;
 
     SELECT project_row.project_kind,
-           project_row.source_mode,
            project_row.root_project_id,
            project_row.source_snapshot_id
       INTO project_kind,
-           project_source_mode,
            project_root_project_id,
            project_source_snapshot_id
     FROM novel_project project_row
@@ -163,7 +160,8 @@ BEGIN
             SELECT 1 FROM novel_project project_row
             WHERE project_row.id = NEW.project_id
               AND project_row.project_kind = 'video'
-              AND project_row.source_mode = 'freeform'
+              AND project_row.root_project_id IS NULL
+              AND project_row.source_snapshot_id IS NULL
         ) THEN
             RAISE EXCEPTION 'freeform 生成意图必须属于自由视频项目';
         END IF;
@@ -198,7 +196,8 @@ BEGIN
 
         IF context_kind <> 'snapshot_backed'
            OR project_kind <> 'galgame'
-           OR project_source_mode <> 'derived'
+           OR project_root_project_id IS NULL
+           OR project_source_snapshot_id IS NULL
            OR project_root_project_id IS DISTINCT FROM NEW.root_project_id
            OR project_source_snapshot_id IS DISTINCT FROM NEW.source_snapshot_id
         THEN

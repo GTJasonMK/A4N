@@ -45,7 +45,7 @@ where
     for prompt in prompts.iter().cloned() {
         let mut active: chapter_video_prompt::ActiveModel = prompt.into();
         active.generated_video_id = Set(None);
-        active.status = Set("pending".to_string());
+        active.status = Set(chapter_video_prompt::STATUS_PENDING.to_string());
         active.updated_at = Set(now);
         active.update(db).await?;
     }

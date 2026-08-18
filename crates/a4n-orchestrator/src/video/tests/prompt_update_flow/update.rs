@@ -268,9 +268,8 @@ async fn update_prompt_accepts_same_chapter_video_frame_reference_with_stale_sou
         Some(chapter.id),
         Some(json!({
             "source": {"content_sha256": "old"},
-            "video_frame_role": "key_frame",
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": 101,
                 "chapter_id": chapter.id,
                 "project_id": project.id,

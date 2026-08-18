@@ -1,13 +1,18 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { GeneratedImage } from "../../../api/image";
-import type {
-  ChapterVideoPrompt,
-  GeneratedVideo,
-  SegmentGuidanceMode,
+import {
+  IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+  IMAGE_TYPE_VIDEO_KEY_FRAME,
+  type GeneratedImage,
+} from "../../../api/image";
+import {
+  VIDEO_TYPE_CHAPTER,
+  type ChapterVideoPrompt,
+  type GeneratedVideo,
+  type SegmentGuidanceMode,
+  type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { useVideoTabDerivedState } from "./useVideoTabDerivedState";
-import type { ChapterVideoWorkflowMode } from "./videoTabUtils";
 
 const executionIdentity = {
   contract_epoch: 5,
@@ -75,13 +80,13 @@ const plan: ChapterVideoPrompt = {
 const video = (
   id: number,
   segmentNumber: number,
-  workflowMode: ChapterVideoWorkflowMode,
+  workflowMode: VideoSegmentWorkflowMode,
   recipeFingerprint: string,
 ): GeneratedVideo => ({
   id,
   project_id: 1,
   chapter_id: 2,
-  video_type: "chapter_video",
+  video_type: VIDEO_TYPE_CHAPTER,
   workflow_mode: workflowMode,
   file_path: `video-${id}.mp4`,
   thumbnail_path: null,
@@ -212,9 +217,9 @@ const image = (
   created_at: "2026-01-01T00:00:00Z",
 });
 
-const systemFrameImage = image(201, "video_key_frame", {
+const systemFrameImage = image(201, IMAGE_TYPE_VIDEO_KEY_FRAME, {
   generation_context: {
-    source: "video_boundary_frame_prompt",
+    source: IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     prompt_id: framePrompt.id,
   },
 });
@@ -229,7 +234,7 @@ const Probe = ({
   selectedVideoId,
 }: {
   segmentNumber: number;
-  workflowMode: ChapterVideoWorkflowMode;
+  workflowMode: VideoSegmentWorkflowMode;
   recipeFingerprint: string;
   selectedVideoId: number;
 }) => {

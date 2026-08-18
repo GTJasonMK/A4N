@@ -2,7 +2,13 @@ use a4n_api_contract::{
     blueprint::{PreviewBlueprintRefinementInput, StartBlueprintRefinementInput},
     generation_tasks::GenerationTaskHandle,
 };
-use a4n_core::error::AppError;
+use a4n_core::{
+    blueprint::{
+        BLUEPRINT_REFINEMENT_PROMPTS, BLUEPRINT_REFINEMENT_TASK_KIND,
+        BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
+    },
+    error::AppError,
+};
 use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::AppState;
@@ -17,36 +23,24 @@ pub async fn start_blueprint_refinement_typed(
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
         .orchestrator()
-        .start_blueprint_refinement_task(user_id, input.clone())
+        .start_blueprint_refinement_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
     }
 
     let worker_state = state.clone();
-    let handle = start.handle.clone();
-    state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = &worker_state;
-        if let Err(error) = worker_state
-            .orchestrator()
-            .run_blueprint_refinement_task(
-                a4n_orchestrator::blueprint::BlueprintRefinementApplicationContext {
-                    prompt_renderer: prompt_renderer,
-                },
-                user_id,
-                input,
-                handle.clone(),
-            )
-            .await
-        {
-            tracing::error!(
-                task_id = %handle.task_id,
-                attempt = handle.attempt,
-                error = %error,
-                "蓝图 refinement worker 失败"
-            );
-        }
-    });
+    state.spawn_generation_execution(
+        start.handle.clone(),
+        BLUEPRINT_REFINEMENT_TASK_KIND,
+        move |handle| async move {
+            let prompt_renderer = &worker_state;
+            worker_state
+                .orchestrator()
+                .run_blueprint_refinement_task(prompt_renderer, input, handle)
+                .await
+        },
+    );
     Ok(start.handle)
 }
 
@@ -69,12 +63,12 @@ pub async fn preview_refine_blueprint_request(
         .await?;
     chat_status_preview_for_state(
         state,
-        "blueprint_refine",
+        BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
         "蓝图优化请求预览",
         [ChatStatusPreviewStep::llm(
-            "blueprint_refine",
+            BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
             "优化蓝图",
-            Some("blueprint_optimization".to_string()),
+            Some(BLUEPRINT_REFINEMENT_PROMPTS.join(" + ")),
             "ready",
             None,
             Some(request),

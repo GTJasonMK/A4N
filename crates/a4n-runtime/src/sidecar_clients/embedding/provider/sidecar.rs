@@ -10,10 +10,9 @@ use async_trait::async_trait;
 use crate::{dynamic_embedding, runtime_config};
 
 use super::super::super::{
-    global_provider_service_request, service_app_error, service_error_app_error,
-    service_response_payload,
+    global_provider_service_request, response_payload, service_app_error, service_error_app_error,
 };
-use super::super::contracts::{EmbeddingTextsOutput, embedding_texts_payload, positive_usize};
+use super::super::contracts::{EmbedTextsOutput, embedding_texts_payload};
 
 pub(in crate::sidecar_clients::embedding) struct SidecarEmbeddingProvider {
     metadata_dimension: usize,
@@ -50,8 +49,8 @@ impl SidecarEmbeddingProvider {
         model: embedding_config::Model,
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
-        let expected_dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
         let payload = embedding_texts_payload(&model, texts)?;
+        let expected_dimension = payload.dimension;
         let client = self.client.clone();
         let response = self
             .facade
@@ -61,7 +60,6 @@ impl SidecarEmbeddingProvider {
                 None,
                 || async move {
                     let request = global_provider_service_request(
-                        a4n_service_protocol::EMBEDDING_SERVICE_NAME,
                         a4n_service_protocol::EMBEDDING_CAPABILITY_VERSION,
                         payload,
                     )
@@ -70,8 +68,8 @@ impl SidecarEmbeddingProvider {
                 },
             )
             .await?;
-        let output: EmbeddingTextsOutput =
-            service_response_payload(response, "embedding").map_err(service_app_error)?;
+        let output: EmbedTextsOutput =
+            response_payload(response, "embedding").map_err(service_app_error)?;
         if output.identity.dimension != expected_dimension {
             return Err(AppError::ConfigError(format!(
                 "嵌入配置 {} 的向量维度为 {}，但 sidecar 模型 {} 实际输出 {} 维",
@@ -85,10 +83,9 @@ impl SidecarEmbeddingProvider {
 #[async_trait]
 impl EmbeddingProvider for SidecarEmbeddingProvider {
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
-        let model = self.resolve_default_model().await?;
-        self.embed_via_sidecar(model, texts)
+        self.embed_with_identity(texts)
             .await
-            .map(|(items, _)| items)
+            .map(|(embeddings, _)| embeddings)
     }
 
     fn dimension(&self) -> usize {

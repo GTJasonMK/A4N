@@ -1,8 +1,8 @@
 use super::super::canvas_node_references_generated_video;
 use super::super::config::{
-    VIDEO_REF_CONFIG_KEY, config_i64, remove_config_i64_ref, validate_positive_id,
+    VIDEO_REF_CONFIG_KEY, config_id_in, remove_config_any_i64_ref, validate_positive_id,
 };
-use super::scope::canvas_nodes_for_project;
+use super::scope::canvas_nodes_for_projects;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::canvas::canvas_node;
 use a4n_domain::CanvasNodeRefKind;
@@ -21,7 +21,7 @@ where
     validate_positive_id(project_id, "project_id")?;
     validate_positive_id(video_id, "video_id")?;
 
-    let nodes = canvas_nodes_for_project(db, project_id).await?;
+    let nodes = canvas_nodes_for_projects(db, std::slice::from_ref(&project_id)).await?;
     let now = Utc::now().naive_utc();
     for node in nodes {
         if !canvas_node_references_generated_video(&node, video_id) {
@@ -33,7 +33,7 @@ where
         let missing_ref_id = node
             .ref_id
             .filter(|id| *id == video_id)
-            .or_else(|| config_i64(&node.config_json, VIDEO_REF_CONFIG_KEY));
+            .or_else(|| config_id_in(&node.config_json, VIDEO_REF_CONFIG_KEY, &[video_id]));
         let mut config = node.config_json.clone();
         if let Some(object) = config.as_object_mut() {
             object.insert(
@@ -47,7 +47,7 @@ where
             if let Some(id) = missing_ref_id {
                 object.insert("missing_ref_id".to_string(), Value::from(id));
             }
-            remove_config_i64_ref(object, VIDEO_REF_CONFIG_KEY, video_id);
+            remove_config_any_i64_ref(object, VIDEO_REF_CONFIG_KEY, &[video_id]);
         }
 
         let mut active: canvas_node::ActiveModel = node.into();

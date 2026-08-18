@@ -1,3 +1,4 @@
+use a4n_core::video_workflow::WORKFLOW_MODE_MIXED;
 use sea_orm::ActiveModelTrait;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -11,7 +12,7 @@ fn assembly_video(id: i64, shot_number: i32, file_path: Option<&str>) -> generat
         id,
         project_id: 1,
         chapter_id: Some(2),
-        video_type: "chapter_video".to_string(),
+        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("first_frame_chain".to_string()),
         file_path: file_path.map(str::to_string),
         thumbnail_path: None,
@@ -56,7 +57,7 @@ fn assembly_uses_available_videos_without_requiring_every_segment() {
 #[test]
 fn mixed_assembly_combines_timeline_videos_with_external_assembly_insert() {
     let mut native = assembly_video(1, 1, Some("native.mp4"));
-    native.workflow_mode = Some("mixed".to_string());
+    native.workflow_mode = Some(WORKFLOW_MODE_MIXED.to_string());
     native.metadata_json = Some(json!({
         "video_execution_identity": {
             "source_shot_id": "shot-a",
@@ -65,13 +66,13 @@ fn mixed_assembly_combines_timeline_videos_with_external_assembly_insert() {
     }));
 
     let mut inserted = assembly_video(2, 2, Some("timeline-insert.mp4"));
-    inserted.workflow_mode = Some("mixed".to_string());
+    inserted.workflow_mode = Some(WORKFLOW_MODE_MIXED.to_string());
     inserted.timeline_item_id = Some(102);
     inserted.metadata_json = Some(json!({}));
 
     let mut external_insert = assembly_video(3, 1, Some("external-insert.mp4"));
-    external_insert.video_type = ASSEMBLY_INSERT_VIDEO_TYPE.to_string();
-    external_insert.workflow_mode = Some("mixed".to_string());
+    external_insert.video_type = generated_video::VIDEO_TYPE_ASSEMBLY_INSERT.to_string();
+    external_insert.workflow_mode = Some(WORKFLOW_MODE_MIXED.to_string());
     external_insert.metadata_json = Some(json!({
         "assembly_insert": {
             "sort_order": 1500.0,
@@ -90,7 +91,7 @@ fn mixed_assembly_combines_timeline_videos_with_external_assembly_insert() {
         &[inserted, external_insert, native],
         1,
         2,
-        "mixed",
+        WORKFLOW_MODE_MIXED,
         None,
         Some(&adopted_video_ids),
         Some(&timeline_order),
@@ -109,14 +110,14 @@ fn mixed_assembly_combines_timeline_videos_with_external_assembly_insert() {
 #[test]
 fn mixed_assembly_does_not_fall_back_when_timeline_exists_but_is_empty() {
     let mut native = assembly_video(1, 1, Some("native.mp4"));
-    native.workflow_mode = Some("mixed".to_string());
+    native.workflow_mode = Some(WORKFLOW_MODE_MIXED.to_string());
     let adopted_video_ids = HashSet::from([1]);
 
     let error = assembly_clip_records_from_rows(
         &[native],
         1,
         2,
-        "mixed",
+        WORKFLOW_MODE_MIXED,
         None,
         Some(&adopted_video_ids),
         Some(&super::super::timeline::VideoTimelineAssemblyOrder::default()),
@@ -214,7 +215,7 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
             &db,
             project.id,
             chapter.id,
-            super::super::timeline::SHARED_VIDEO_TIMELINE_MODE,
+            a4n_core::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
         )
         .await
         .unwrap()
@@ -223,7 +224,12 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
 
     let service = test_video_orchestrator(std::sync::Arc::new(db.clone())).await;
     let records = service
-        .assembly_video_records_validated(project.id, chapter.id, "mixed", "测试混合成片")
+        .assembly_video_records_validated(
+            project.id,
+            chapter.id,
+            WORKFLOW_MODE_MIXED,
+            "测试混合成片",
+        )
         .await
         .unwrap();
 
@@ -232,7 +238,7 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
         &db,
         project.id,
         chapter.id,
-        super::super::timeline::SHARED_VIDEO_TIMELINE_MODE,
+        a4n_core::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
     )
     .await
     .unwrap()

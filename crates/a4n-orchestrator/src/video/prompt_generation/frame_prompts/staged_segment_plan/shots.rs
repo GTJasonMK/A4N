@@ -1,7 +1,11 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
+use a4n_core::{
+    error::AppError, models::chapter::chapter_video_prompt, source_spans::SourceSpan,
+};
 use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashSet};
+
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 
 use super::super::frame_chain::{
     SegmentPlanDraftInput, merge_incremental_segment_plan, segment_plan_covers_required_shots,
@@ -9,16 +13,16 @@ use super::super::frame_chain::{
 };
 use super::super::{
     CompletedVideoLlmCheckpointInput, ProgressSpan, VIDEO_PREVIOUS_OUTPUT_SHOOTING_SCRIPT,
-    VideoContextManifestInput, VideoContextPreviousOutput, VideoPlanningPromptContext,
-    VideoPromptRenderInput, VideoPromptStepProgress, build_segment_plan_for_shot_user,
-    build_video_context_manifest, checkpoint_response_content, load_completed_video_checkpoint,
-    parse_generated_segment_plan_with_current_config, parse_video_segment_plan_input_values,
-    render_json_with_validation_with_context, report_video_prompt_checkpoint,
-    report_video_prompt_item_committed, report_video_prompt_progress,
-    save_completed_video_llm_checkpoint, segment_plan_progress_spec, serialize_video_value,
-    source_spans_for_shot, validate_segment_plan_against_shooting_script_projection,
-    video_execution_chain_identity, video_llm_call_trace_context, video_segment_plan_input_values,
-    video_stage_fingerprint,
+    RenderOrRestoreJsonWithValidationInput, VideoContextManifestInput,
+    VideoContextPreviousOutput, VideoPlanningPromptContext, VideoPromptStepProgress,
+    build_segment_plan_for_shot_user, build_video_context_manifest,
+    parse_generated_segment_plan_with_current_config,
+    parse_video_segment_plan_input_values, render_json_with_validation_with_context,
+    report_video_prompt_checkpoint, report_video_prompt_item_committed,
+    report_video_prompt_progress, save_completed_video_llm_checkpoint,
+    segment_plan_progress_spec, serialize_video_value, source_spans_for_shot,
+    validate_segment_plan_against_shooting_script_projection, video_execution_chain_identity,
+    video_segment_plan_input_values, video_stage_fingerprint,
 };
 use super::{
     contracts::{RenderedSegmentPlanShots, StagedSegmentPlanInput},
@@ -168,12 +172,16 @@ pub(super) async fn render_segment_plan_shots(
                 "shot_index": index + 1,
                 "total_shots": total_shots,
                 "expected_items": expected_items,
-                "validation_contract": "segment_plan_per_shot_v3",
+                "validation_contract": "segment_plan_per_shot_strict_v4",
             }),
         );
-        if let Some(checkpoint) =
-            load_completed_video_checkpoint(service, workflow_run_id, &step_key, &fingerprint_json)
-                .await?
+        if let Some(checkpoint) = service
+            .load_completed_llm_call_checkpoint(
+                workflow_run_id,
+                &step_key,
+                &fingerprint_json,
+            )
+            .await?
         {
             let (response_content, segment_shot) = restore_segment_plan_shot_checkpoint(
                 &checkpoint,
@@ -227,7 +235,7 @@ pub(super) async fn render_segment_plan_shots(
             )
         } else {
             format!(
-                "{progress_message}（已恢复 {restored_count} 个镜头断点，复用 {reused_count} 个已发布镜头，剩余 {} 个镜头继续生成或修复）",
+                "{progress_message}（已恢复 {restored_count} 个镜头断点，复用 {reused_count} 个已发布镜头，剩余 {} 个镜头继续生成）",
                 pending_shots.len()
             )
         };
@@ -257,36 +265,32 @@ pub(super) async fn render_segment_plan_shots(
         } = pending;
         let shot_span = pending_progress_span.split(pending_index, pending_total);
         let step_key = format!("video_segment_plan.shot.{source_shot_id}");
-        let (trace, segment_shot, structured_response) = render_json_with_validation_with_context(
-            VideoPromptRenderInput {
+        let step_order = i32::try_from(index)
+            .ok()
+            .and_then(|index| index.checked_add(200))
+            .ok_or_else(|| {
+                AppError::InvalidArgument("视频片段规划镜头序号超出 i32 范围".to_string())
+            })?;
+        let (trace, segment_shot) = render_json_with_validation_with_context(
+            RenderOrRestoreJsonWithValidationInput {
                 service,
+                workflow_run_id,
+                call_key: step_key.clone(),
+                call_order: step_order,
+                input_fingerprint_json: fingerprint_json.clone(),
                 prompt_renderer,
                 prompt_name: "chapter_video_segment_plan",
                 project_id,
                 variables,
                 context_manifest,
                 temperature: 0.35,
-                llm_call_trace: video_llm_call_trace_context(
-                    workflow_run_id,
-                    &step_key,
-                    &fingerprint_json,
-                )?,
                 cancel_token,
                 step: VideoPromptStepProgress::new(shot_span.start(), 100, progress_message)
                     .with_span(shot_span),
                 progress,
                 chunks,
                 structured_progress: Some(segment_plan_progress_spec(expected_items)),
-            },
-            crate::structured_llm::StructuredRepairCheckpointContext {
-                workflow_run_id,
-                base_call_key: step_key.clone(),
-                call_order: i32::try_from(index)
-                    .ok()
-                    .and_then(|index| index.checked_add(200))
-                    .ok_or_else(|| {
-                        AppError::InvalidArgument("视频片段规划镜头序号超出 i32 范围".to_string())
-                    })?,
+                checkpoint_context: &shot_context,
             },
             |raw| {
                 parse_and_validate_segment_plan_shot(
@@ -306,12 +310,6 @@ pub(super) async fn render_segment_plan_shots(
             "prompt_name": trace.prompt_name.clone(),
             "raw": trace.response_text.clone()
         });
-        let step_order = i32::try_from(index)
-            .ok()
-            .and_then(|index| index.checked_add(200))
-            .ok_or_else(|| {
-                AppError::InvalidArgument("视频片段规划镜头序号超出 i32 范围".to_string())
-            })?;
         let checkpoint_key = step_key.clone();
         let previous_recipe_state = previous_segment_plan.zip(previous_segment_recipes);
         let recipe_artifacts = segment_plan_shot_recipe_artifacts(
@@ -328,10 +326,6 @@ pub(super) async fn render_segment_plan_shots(
             input_fingerprint_json: fingerprint_json,
             trace: &trace,
             parsed_output: serde_json::to_value(&segment_shot.checkpoint_values)?,
-            extra_json: json!({
-                "stage_output": stage_output.clone(),
-                "structured_response": structured_response,
-            }),
             artifacts_json: Some(recipe_artifacts),
         })
         .await?;
@@ -403,7 +397,7 @@ pub(super) async fn render_segment_plan_shots(
             progress,
             shot_span.end(),
             100,
-            "frame_segment_plan",
+            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
             0,
             index + 1,
             total_shots,
@@ -498,7 +492,7 @@ fn reuse_published_segment_plan_shot(
 }
 
 fn restore_segment_plan_shot_checkpoint(
-    checkpoint: &Value,
+    checkpoint: &a4n_db::workflow::CompletedLlmCallCheckpoint,
     context: &str,
     source_spans: &[a4n_core::source_spans::SourceSpan],
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
@@ -506,12 +500,9 @@ fn restore_segment_plan_shot_checkpoint(
     duration_secs: i32,
     default_aspect_ratio: &str,
 ) -> Result<(String, ValidatedSegmentPlanShot), AppError> {
-    let response_content = checkpoint_response_content(checkpoint, context)?.to_string();
-    let structured_response: Value =
-        super::super::checkpoint_field(checkpoint, "structured_response", context)?;
-    let validation_content = serde_json::to_string(&structured_response)?;
+    let response_content = checkpoint.response_content.clone();
     let segment_shot = parse_and_validate_segment_plan_shot(
-        &validation_content,
+        &response_content,
         context,
         source_spans,
         shooting_script_projection,
@@ -519,7 +510,7 @@ fn restore_segment_plan_shot_checkpoint(
         duration_secs,
         default_aspect_ratio,
     )?;
-    ensure_segment_plan_checkpoint_output(checkpoint, &segment_shot, context)?;
+    ensure_segment_plan_checkpoint_output(&checkpoint.parsed_output, &segment_shot, context)?;
     Ok((response_content, segment_shot))
 }
 
@@ -555,24 +546,19 @@ fn parse_and_validate_segment_plan_shot(
 }
 
 fn ensure_segment_plan_checkpoint_output(
-    checkpoint: &Value,
+    parsed_output: &Value,
     segment_shot: &ValidatedSegmentPlanShot,
     context: &str,
 ) -> Result<(), AppError> {
-    let checkpoint_output =
-        checkpoint
-            .get("parsed_output")
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_checkpoint_parsed_output".to_string(),
-                operation: format!("读取{context}"),
-            })?;
-    if checkpoint_output.as_array() == Some(&segment_shot.checkpoint_values) {
-        return Ok(());
-    }
-    Err(AppError::InvalidState {
-        current: "checkpoint_parsed_output_mismatch".to_string(),
-        operation: format!("校验{context}"),
-    })
+    let checkpoint_output = parsed_output.as_array().ok_or_else(|| AppError::InvalidState {
+        current: "invalid_checkpoint_parsed_output".to_string(),
+        operation: format!("读取{context}"),
+    })?;
+    ensure_checkpoint_parsed_output_matches(
+        checkpoint_output.as_slice(),
+        segment_shot.checkpoint_values.as_slice(),
+        context,
+    )
 }
 
 fn segment_plan_expected_items(recommended: i32, minimum_readable: i32) -> usize {
@@ -741,13 +727,13 @@ mod tests {
         .unwrap();
 
         ensure_segment_plan_checkpoint_output(
-            &json!({ "parsed_output": segment_shot.checkpoint_values.clone() }),
+            &json!(segment_shot.checkpoint_values.clone()),
             &segment_shot,
             "测试镜头",
         )
         .unwrap();
         let error = ensure_segment_plan_checkpoint_output(
-            &json!({ "parsed_output": segment_shot.input_values.clone() }),
+            &json!(segment_shot.input_values.clone()),
             &segment_shot,
             "测试镜头",
         )

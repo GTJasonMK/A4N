@@ -23,7 +23,7 @@ impl OrchestratorContext {
         &self,
         plan: ChapterDerivedRagCleanupPlan<'_>,
     ) -> Result<(), String> {
-        self.delete_chapter_rag_by_id(plan.project_id, plan.chapter_id, plan.chapter_number)
+        self.delete_chapter_rag_by_id(plan.project_id, plan.chapter_id)
             .await
             .map_err(|error| {
                 format!(

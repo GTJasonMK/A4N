@@ -115,6 +115,24 @@ mod tests {
         assert!(error.to_string().contains("输出 schema 不是合法 JSON"));
     }
 
+    #[tokio::test]
+    async fn rejects_non_object_output_schema() {
+        let error = build_blueprint_stage_request(BlueprintStageRequestInput {
+            prompt_renderer: &prompt_engine(),
+            project_id: 42,
+            base_prompt: "基础蓝图规则",
+            user_payload_json: r#"{"novel_title":"星潮档案"}"#,
+            stage_key: "story_core",
+            stage_name: "阶段测试",
+            output_schema: "[]",
+            previous_context: None,
+        })
+        .await
+        .expect_err("stage schema must be an object");
+
+        assert!(error.to_string().contains("输出 schema 必须是 JSON 对象"));
+    }
+
     #[test]
     fn source_hash_uses_serialized_json_text() {
         let value = json!({"title": "测试 & 蓝图", "chapters": [1, 2]});

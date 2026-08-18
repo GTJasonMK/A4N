@@ -5,16 +5,13 @@
 # 用法:
 #   ./scripts/build.sh              # 构建前端 + 默认 Rust 可执行包（Debug）
 #   ./scripts/build.sh --release    # Release 构建（LTO + strip）
-#   ./scripts/build.sh -r           # Release 构建（简写）
 #   ./scripts/build.sh --frontend   # 仅构建前端
 #   ./scripts/build.sh --backend    # 仅构建后端（Debug）
-#   ./scripts/build.sh -p a4n-server # 仅构建指定 Rust package 及其依赖
-#   ./scripts/build.sh -p a4n-server --no-default-features # 使用 minimal host feature 集检查/构建
-#   ./scripts/build.sh -p a4n-server --features embedded-capabilities # 检查/构建 full host
+#   ./scripts/build.sh --package a4n-server # 仅构建指定 Rust package 及其依赖
+#   ./scripts/build.sh --package a4n-server --no-default-features # 使用 minimal host feature 集检查/构建
+#   ./scripts/build.sh --package a4n-server --features embedded-capabilities # 检查/构建 full host
 #   ./scripts/build.sh --all         # 构建整个 Rust workspace
 #   ./scripts/build.sh --check      # 仅检查编译（不输出二进制）
-#   ./scripts/build.sh -c           # 仅检查编译（简写）
-#   ./scripts/build.sh -w           # 显示所有 warning
 #   ./scripts/build.sh --help       # 显示帮助
 #
 # 跨平台：Linux / macOS / Windows(Git Bash / WSL)
@@ -30,22 +27,23 @@ source "$SCRIPT_DIR/lib/common.sh"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 TARGET_CRATE="a4n-tauri"
 BUILD_MODE="debug"
-EXTRA_FLAGS=""
-SHOW_WARNINGS=false
 FRONTEND_ONLY=false
 BACKEND_ONLY=false
 BUILD_ALL=false
+PACKAGE_SELECTED=false
 NO_DEFAULT_FEATURES=false
 FEATURES=""
 
 # —— 解析参数 ——
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --release|-r)
+        --release)
+            [[ "$BUILD_MODE" == "debug" ]] || die "构建模式只能指定一次"
             BUILD_MODE="release"
             shift
             ;;
-        --check|-c)
+        --check)
+            [[ "$BUILD_MODE" == "debug" ]] || die "构建模式只能指定一次"
             BUILD_MODE="check"
             shift
             ;;
@@ -57,19 +55,17 @@ while [[ $# -gt 0 ]]; do
             BACKEND_ONLY=true
             shift
             ;;
-        --package|-p)
+        --package)
             if [[ $# -lt 2 || -z "${2:-}" ]]; then
                 die "--package 需要提供 Cargo package 名称，例如: --package a4n-server"
             fi
+            $PACKAGE_SELECTED && die "--package 只能指定一次"
+            PACKAGE_SELECTED=true
             TARGET_CRATE="$2"
             shift 2
             ;;
         --all)
             BUILD_ALL=true
-            shift
-            ;;
-        --warnings|-w)
-            SHOW_WARNINGS=true
             shift
             ;;
         --no-default-features)
@@ -84,7 +80,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            print_script_usage "$0" 16
+            print_script_usage "$0" 15
             exit 0
             ;;
         *)
@@ -93,28 +89,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+$BUILD_ALL && $PACKAGE_SELECTED && die "--all 与 --package 不能同时使用"
+if $FRONTEND_ONLY; then
+    $BACKEND_ONLY && die "--frontend 与 --backend 不能同时使用"
+    [[ "$BUILD_MODE" == "debug" ]] || die "--frontend 不能与 Rust 构建模式同时使用"
+    $BUILD_ALL && die "--frontend 不能与 --all 同时使用"
+    $PACKAGE_SELECTED && die "--frontend 不能与 --package 同时使用"
+    $NO_DEFAULT_FEATURES && die "--frontend 不能与 --no-default-features 同时使用"
+    [[ -n "$FEATURES" ]] && die "--frontend 不能与 --features 同时使用"
+fi
+
 should_build_frontend() {
-    if $BACKEND_ONLY; then
-        return 1
-    fi
-    if [[ "$BUILD_MODE" == "check" ]]; then
-        return 1
-    fi
-    return 0
+    [[ "$BACKEND_ONLY" == false && "$BUILD_MODE" != "check" ]]
 }
 
 cargo_target_args() {
-    if $BUILD_ALL; then
-        if $NO_DEFAULT_FEATURES; then
-            printf '%s\n' "--no-default-features"
-        fi
-        if [[ -n "$FEATURES" ]]; then
-            printf '%s\n' "--features" "$FEATURES"
-        fi
-        return 0
+    if ! $BUILD_ALL; then
+        printf '%s\n' "-p" "$TARGET_CRATE"
     fi
 
-    printf '%s\n' "-p" "$TARGET_CRATE"
     if $NO_DEFAULT_FEATURES; then
         printf '%s\n' "--no-default-features"
     fi
@@ -123,86 +116,36 @@ cargo_target_args() {
     fi
 }
 
-needs_onnxruntime() {
-    if $FRONTEND_ONLY; then
-        return 1
-    fi
-
-    local cargo_args=()
-    local dependency_tree
-    while IFS= read -r arg; do
-        cargo_args+=("$arg")
-    done < <(cargo_target_args)
-
-    if ! dependency_tree=$(cd "$PROJECT_ROOT" && cargo tree -e normal,build --prefix none "${cargo_args[@]}"); then
-        die "无法解析 Cargo 依赖图，不能判断当前构建是否需要 ONNX Runtime"
-    fi
-
-    grep -Fq 'a4n-embedding-fastembed v' <<<"$dependency_tree"
-}
-
-run_cargo_capture() {
-    local output_file=$1
-    shift
-
-    if $SHOW_WARNINGS; then
-        "$@" 2>&1 | tee "$output_file"
-        return "${PIPESTATUS[0]}"
-    fi
-
-    "$@" 2>&1 | tee "$output_file" | while IFS= read -r line; do
-        # 过滤 warning，只在有错误时显示
-        if [[ "$line" =~ ^error ]]; then
-            echo -e "${RED}${line}${NC}"
-        elif [[ ! "$line" =~ ^warning ]] && [[ ! "$line" =~ ^\s+--\> ]] && [[ ! "$line" =~ ^\s+\| ]] && [[ ! "$line" =~ ^\s+= ]] && [[ ! "$line" =~ ^\s+help: ]]; then
-            echo "$line"
-        fi
-    done
-    return "${PIPESTATUS[0]}"
-}
-
 # —— 前置检查 ——
 check_prerequisites() {
     echo -e "${CYAN}━━━ 前置检查 ━━━${NC}"
 
-    # Rust 工具链
-    require_command cargo
-    echo -e "${GREEN}✓ cargo $(cargo --version | cut -d' ' -f2)${NC}"
+    if ! $FRONTEND_ONLY; then
+        require_command cargo
+        echo -e "${GREEN}✓ cargo $(cargo --version | cut -d' ' -f2)${NC}"
 
-    # Rust 版本检查
-    local rust_ver
-    rust_ver=$(rustc --version | cut -d' ' -f2)
-    echo -e "${GREEN}✓ rustc ${rust_ver}${NC}"
+        local rust_ver
+        rust_ver=$(rustc --version | cut -d' ' -f2)
+        echo -e "${GREEN}✓ rustc ${rust_ver}${NC}"
 
-    if needs_onnxruntime; then
-        require_onnxruntime
-        echo -e "${GREEN}✓ ONNX Runtime 1.24.2 ($A4N_ONNXRUNTIME_ROOT)${NC}"
+        local cargo_args=()
+        while IFS= read -r arg; do
+            cargo_args+=("$arg")
+        done < <(cargo_target_args)
+        if cargo_graph_uses_onnxruntime normal,build "${cargo_args[@]}"; then
+            require_onnxruntime
+            echo -e "${GREEN}✓ ONNX Runtime $(onnxruntime_version) ($A4N_ONNXRUNTIME_ROOT)${NC}"
+        fi
     fi
 
     # Node.js（前端构建必需）
     if should_build_frontend; then
-        if command -v node &>/dev/null; then
-            echo -e "${GREEN}✓ node $(node --version)${NC}"
-        else
-            echo -e "${RED}✗ Node.js 未安装（前端构建必需）${NC}"
-            exit 1
-        fi
+        require_command node
+        require_command npm
+        echo -e "${GREEN}✓ node $(node --version)${NC}"
+        echo -e "${GREEN}✓ npm $(npm --version)${NC}"
 
-        if command -v npm &>/dev/null; then
-            echo -e "${GREEN}✓ npm $(npm --version)${NC}"
-        else
-            echo -e "${RED}✗ npm 未安装${NC}"
-            exit 1
-        fi
-
-        # 检查前端依赖
-        if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-            echo -e "${YELLOW}⚠ 前端依赖未安装，正在安装...${NC}"
-            cd "$FRONTEND_DIR"
-            npm install --silent 2>&1
-            cd "$PROJECT_ROOT"
-            echo -e "${GREEN}✓ 前端依赖安装完成${NC}"
-        fi
+        ensure_frontend_dependencies
     fi
 
     # 检查系统库（Linux 下 Tauri 需要）
@@ -254,16 +197,12 @@ build_frontend() {
 
 # —— 执行构建 ——
 do_build() {
-    local mode_label
     local cargo_args=()
-    local cargo_output
-    local build_status=0
+    local cargo_command=(cargo)
 
     while IFS= read -r arg; do
         cargo_args+=("$arg")
     done < <(cargo_target_args)
-
-    cargo_output="$(mktemp)"
 
     if $BUILD_ALL; then
         echo -e "  范围: ${CYAN}整个 Rust workspace${NC}"
@@ -274,48 +213,29 @@ do_build() {
 
     case "$BUILD_MODE" in
         debug)
-            mode_label="${BOLD}Debug${NC}"
+            cargo_command+=(build)
             echo -e "${CYAN}━━━ Debug 构建 ━━━${NC}"
-            echo ""
-            cd "$PROJECT_ROOT"
-            if run_cargo_capture "$cargo_output" cargo build "${cargo_args[@]}"; then
-                build_status=0
-            else
-                build_status=$?
-            fi
             ;;
         release)
-            mode_label="${BOLD}Release (LTO + strip)${NC}"
+            cargo_command+=(build --release)
             echo -e "${CYAN}━━━ Release 构建 ━━━${NC}"
-            echo ""
-            cd "$PROJECT_ROOT"
-            if run_cargo_capture "$cargo_output" cargo build --release "${cargo_args[@]}"; then
-                build_status=0
-            else
-                build_status=$?
-            fi
             ;;
         check)
-            mode_label="${BOLD}检查${NC}"
+            cargo_command+=(check)
             echo -e "${CYAN}━━━ 编译检查 ━━━${NC}"
-            echo ""
-            cd "$PROJECT_ROOT"
-            if run_cargo_capture "$cargo_output" cargo check "${cargo_args[@]}"; then
-                build_status=0
-            else
-                build_status=$?
-            fi
             ;;
     esac
 
     echo ""
+    cd "$PROJECT_ROOT"
 
-    if [[ $build_status -eq 0 ]]; then
+    if "${cargo_command[@]}" "${cargo_args[@]}"; then
+        echo ""
         echo -e "${GREEN}${BOLD}━━━ 后端构建成功 ━━━${NC}"
 
         # 显示产物位置
         if [[ "$BUILD_MODE" != "check" ]]; then
-            local binary_path="$PROJECT_ROOT/target/$BUILD_MODE/$TARGET_CRATE"
+            local binary_path="$CARGO_TARGET_DIR/$BUILD_MODE/$TARGET_CRATE"
             if [[ -f "$binary_path" ]]; then
                 local size
                 size=$(du -h "$binary_path" | cut -f1)
@@ -324,22 +244,15 @@ do_build() {
             fi
         fi
 
-        local total_warnings
-        total_warnings=$(grep -c 'warning:' "$cargo_output" || true)
-        rm -f "$cargo_output"
-        if [[ "$total_warnings" -gt 0 ]]; then
-            echo -e "  警告: ${YELLOW}${total_warnings} 条${NC}（使用 -w 查看详情）"
-        fi
-
         echo ""
         exit 0
-    else
-        echo -e "${RED}${BOLD}━━━ 后端构建失败 ━━━${NC}"
-        echo "  请检查上方错误信息"
-        echo ""
-        rm -f "$cargo_output"
-        exit 1
     fi
+
+    echo ""
+    echo -e "${RED}${BOLD}━━━ 后端构建失败 ━━━${NC}"
+    echo "  请检查上方错误信息"
+    echo ""
+    exit 1
 }
 
 # —— 主流程 ——
@@ -356,22 +269,8 @@ if $FRONTEND_ONLY; then
     exit 0
 fi
 
-guard_build_cache
-
-if $BACKEND_ONLY; then
-    do_build
-fi
-
 # 默认：按当前模式构建前端和 Rust 目标
 if should_build_frontend; then
     build_frontend
 fi
 do_build
-
-echo ""
-echo -e "${GREEN}${BOLD}━━━ 全部构建完成 ━━━${NC}"
-echo -e "  前端: ${FRONTEND_DIR}/dist/"
-if [[ "$BUILD_MODE" != "check" ]]; then
-    echo -e "  后端: ${PROJECT_ROOT}/target/${BUILD_MODE}/${TARGET_CRATE}"
-fi
-echo ""

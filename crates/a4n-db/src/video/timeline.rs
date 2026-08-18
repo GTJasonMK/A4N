@@ -7,8 +7,8 @@
 use a4n_core::{
     models::chapter::{chapter_video_prompt, chapter_video_timeline, chapter_video_timeline_item},
     video_execution::{
-        NativeVideoTimelineKey, VideoTimelineGap, insert_timeline_item,
-        move_inserted_timeline_item, remove_inserted_timeline_item,
+        NativeVideoTimelineKey, VideoTimelineGap, move_inserted_timeline_item,
+        remove_inserted_timeline_item,
     },
 };
 use chrono::Utc;
@@ -96,7 +96,7 @@ pub async fn commit_inserted_timeline_item(
     }
 
     let order = positioned_order(&existing)?;
-    let _ = a4n_core::video_execution::timeline_gap_index(&order, input.gap)
+    let insertion_index = a4n_core::video_execution::timeline_gap_index(&order, input.gap)
         .map_err(|error| VideoDbError::InvalidArgument(error.to_string()))?;
     let temporary_position = i32::try_from(order.len() + 1)
         .map_err(|_| VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string()))?;
@@ -116,7 +116,7 @@ pub async fn commit_inserted_timeline_item(
         duration_secs: Set(input.prompt.duration_secs),
         aspect_ratio: Set(input.prompt.aspect_ratio),
         reference_image_ids_json: Set(input.prompt.reference_image_ids_json),
-        status: Set("completed".to_string()),
+        status: Set(chapter_video_prompt::STATUS_COMPLETED.to_string()),
         generated_video_id: Set(None),
         timeline_item_id: Set(None),
         metadata_json: Set(input.prompt.metadata_json),
@@ -144,8 +144,8 @@ pub async fn commit_inserted_timeline_item(
     .insert(&txn)
     .await
     .map_err(VideoDbError::Database)?;
-    let new_order = insert_timeline_item(&order, item.id, input.gap)
-        .map_err(|error| VideoDbError::InvalidArgument(error.to_string()))?;
+    let mut new_order = order;
+    new_order.insert(insertion_index, item.id);
     rewrite_positions(&txn, &timeline, &new_order).await?;
 
     let mut prompt_active: chapter_video_prompt::ActiveModel = prompt.into();
@@ -283,6 +283,11 @@ pub async fn reconcile_native_timeline(
     }
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
     let timeline = lock_active_timeline_for_update(&txn, timeline_id).await?;
+    if keys.is_empty() {
+        return Err(VideoDbError::InvalidArgument(
+            "原生时间线不能同步为空规划".to_string(),
+        ));
+    }
     let existing = chapter_video_timeline_item::Entity::find()
         .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline_id))
         .all(&txn)
@@ -371,6 +376,9 @@ pub async fn reconcile_native_timeline(
     // 保留插入项的相对位置；没有出现在新 native 规划中的 native 项进入删除状态，
     // 不硬删除，以便历史/撤销和问题修复仍有依据。
     for item in by_key.values() {
+        if item.status == TIMELINE_DELETED_STATUS {
+            continue;
+        }
         let mut active: chapter_video_timeline_item::ActiveModel = (*item).clone().into();
         active.status = Set(TIMELINE_DELETED_STATUS.to_string());
         active.position = Set(None);
@@ -378,21 +386,17 @@ pub async fn reconcile_native_timeline(
         active.update(&txn).await.map_err(VideoDbError::Database)?;
     }
 
+    let inserted_id_set = existing
+        .iter()
+        .filter(|item| item.item_kind == TIMELINE_INSERTED_KIND)
+        .map(|item| item.id)
+        .collect::<std::collections::HashSet<_>>();
     let inserted_ids = current_order
         .iter()
         .copied()
-        .filter(|id| {
-            existing
-                .iter()
-                .find(|item| item.id == *id)
-                .is_some_and(|item| item.item_kind == TIMELINE_INSERTED_KIND)
-        })
+        .filter(|id| inserted_id_set.contains(id))
         .collect::<Vec<_>>();
     // 以原生规划顺序为主，将插入项保留在原来相邻的 gap；无法恢复的项置于末尾并标记。
-    let inserted_id_set = inserted_ids
-        .iter()
-        .copied()
-        .collect::<std::collections::HashSet<_>>();
     let (rebuilt, needs_reanchor) =
         rebuild_native_timeline_order(&current_order, desired_native_ids, &inserted_id_set);
     for inserted_id in inserted_ids {
@@ -436,7 +440,7 @@ pub async fn move_inserted_timeline_item_persisted(
     expected_revision: i64,
     item_id: i64,
     gap: VideoTimelineGap,
-) -> Result<chapter_video_timeline::Model, VideoDbError> {
+) -> Result<(), VideoDbError> {
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
     let timeline = lock_active_timeline_for_update(&txn, timeline_id).await?;
     ensure_revision(&timeline, expected_revision)?;
@@ -455,9 +459,8 @@ pub async fn move_inserted_timeline_item_persisted(
     let new_order = move_inserted_timeline_item(&order, item_id, gap)
         .map_err(|error| VideoDbError::InvalidArgument(error.to_string()))?;
     if new_order == order && target.status == TIMELINE_ACTIVE_STATUS {
-        sync_inserted_prompt_shot_numbers(&txn, &order).await?;
         txn.commit().await.map_err(VideoDbError::Database)?;
-        return Ok(timeline);
+        return Ok(());
     }
     if target.status != TIMELINE_ACTIVE_STATUS {
         let mut active: chapter_video_timeline_item::ActiveModel = target.clone().into();
@@ -467,9 +470,8 @@ pub async fn move_inserted_timeline_item_persisted(
     }
     rewrite_positions(&txn, &timeline, &new_order).await?;
     sync_inserted_prompt_shot_numbers(&txn, &new_order).await?;
-    let timeline = refreshed_timeline(&txn, timeline.id).await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(timeline)
+    Ok(())
 }
 
 pub async fn delete_inserted_timeline_item(
@@ -477,7 +479,7 @@ pub async fn delete_inserted_timeline_item(
     timeline_id: i64,
     expected_revision: i64,
     item_id: i64,
-) -> Result<chapter_video_timeline::Model, VideoDbError> {
+) -> Result<(), VideoDbError> {
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
     let timeline = lock_active_timeline_for_update(&txn, timeline_id).await?;
     ensure_revision(&timeline, expected_revision)?;
@@ -510,9 +512,8 @@ pub async fn delete_inserted_timeline_item(
     active.update(&txn).await.map_err(VideoDbError::Database)?;
     rewrite_positions(&txn, &timeline, &new_order).await?;
     sync_inserted_prompt_shot_numbers(&txn, &new_order).await?;
-    let timeline = refreshed_timeline(&txn, timeline.id).await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(timeline)
+    Ok(())
 }
 
 async fn lock_timeline<C: ConnectionTrait>(
@@ -556,17 +557,6 @@ async fn load_items<C: ConnectionTrait>(
         .all(db)
         .await
         .map_err(VideoDbError::Database)
-}
-
-async fn refreshed_timeline<C: ConnectionTrait>(
-    db: &C,
-    timeline_id: i64,
-) -> Result<chapter_video_timeline::Model, VideoDbError> {
-    chapter_video_timeline::Entity::find_by_id(timeline_id)
-        .one(db)
-        .await
-        .map_err(VideoDbError::Database)?
-        .ok_or_else(|| VideoDbError::NotFound(format!("时间线不存在: {timeline_id}")))
 }
 
 fn validate_scope(
@@ -769,9 +759,6 @@ fn rebuild_native_timeline_order(
             needs_reanchor.extend(rebuilt[start..index].iter().copied());
         }
     }
-    if rebuilt.iter().all(|item_id| inserted_ids.contains(item_id)) {
-        needs_reanchor.extend(inserted_ids.iter().copied());
-    }
     (rebuilt, needs_reanchor)
 }
 
@@ -896,6 +883,7 @@ async fn rewrite_positions<C: ConnectionTrait>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_core::models::ai::generated_video;
 
     fn timeline_item(
         id: i64,
@@ -1005,16 +993,6 @@ mod tests {
             inserted_status_after_native_reconcile(TIMELINE_ACTIVE_STATUS, false),
             TIMELINE_ACTIVE_STATUS
         );
-    }
-
-    #[test]
-    fn native_reconcile_marks_every_unanchored_inserted_item() {
-        let inserted_ids = [8, 9].into_iter().collect();
-        let (rebuilt, needs_reanchor) =
-            rebuild_native_timeline_order(&[8, 9], Vec::new(), &inserted_ids);
-
-        assert_eq!(rebuilt, vec![8, 9]);
-        assert_eq!(needs_reanchor, inserted_ids);
     }
 
     #[test]
@@ -1198,7 +1176,7 @@ mod tests {
             crate::video::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: Some(chapter.id),
-                video_type: "chapter_video".to_string(),
+                video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
                 workflow_mode: Some("boundary_frames".to_string()),
                 prompt: "external import".to_string(),
                 negative_prompt: None,

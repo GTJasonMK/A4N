@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
+use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::json;
 
 use super::super::super::super::FRAME_SEGMENT_PLAN_CONTRACT_VERSION;
@@ -101,7 +102,8 @@ pub(in crate::video) fn video_prompt_drafts(
                         "temporal_beats": prompt.temporal_beats.clone(),
                         "reference_binding": prompt.reference_binding.clone(),
                         "continuity_check": prompt.continuity_check.clone(),
-                        "source_prompt_type": "frame_segment_plan",
+                        "source_prompt_type":
+                            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
                         "source": common.source_metadata.clone()
                     }),
                     common.prompt_output_language,

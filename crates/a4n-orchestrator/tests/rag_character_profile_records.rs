@@ -72,7 +72,7 @@ fn blueprint_character_records_preserve_dimensions_ids_and_metadata() {
 
     let motivation = records
         .iter()
-        .find(|record| record.metadata["dimension"] == "motivation")
+        .find(|record| record.chunk_id == "character:9:blueprint:70:motivation")
         .expect("motivation record");
     assert_eq!(motivation.chunk_id, "character:9:blueprint:70:motivation");
     assert!(motivation.text.contains("[角色设定-动机]"));
@@ -81,7 +81,6 @@ fn blueprint_character_records_preserve_dimensions_ids_and_metadata() {
         motivation.metadata["data_type"],
         RagDataType::Character.as_str()
     );
-    assert_eq!(motivation.metadata["source"], "blueprint_character");
     assert_eq!(motivation.metadata["title"], "沈砚 角色设定: 动机");
 }
 
@@ -100,7 +99,7 @@ fn blueprint_character_records_omit_blank_optional_dimensions() {
 
     let records = blueprint_character_rag_records(9, &character).expect("identity record");
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].metadata["dimension"], "identity");
+    assert_eq!(records[0].chunk_id, "character:9:blueprint:70:identity");
     assert_eq!(
         records[0].text,
         "[角色设定-身份]\n角色: 沈砚\n类型: supporting"
@@ -122,7 +121,7 @@ fn protagonist_records_preserve_dimensions_ids_and_metadata() {
 
     let current_state = records
         .iter()
-        .find(|record| record.metadata["dimension"] == "current_state")
+        .find(|record| record.chunk_id == "protagonist:9:40:current_state")
         .expect("current state record");
     assert_eq!(current_state.chunk_id, "protagonist:9:40:current_state");
     assert!(current_state.text.contains("[主角档案-当前状态]"));
@@ -149,6 +148,6 @@ fn protagonist_records_omit_blank_optional_dimensions() {
 
     let records = protagonist_rag_records(9, &profile).expect("identity record");
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].metadata["dimension"], "identity");
+    assert_eq!(records[0].chunk_id, "protagonist:9:40:identity");
     assert_eq!(records[0].text, "[主角档案-身份]\n角色: 林舟");
 }

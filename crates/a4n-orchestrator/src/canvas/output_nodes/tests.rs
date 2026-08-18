@@ -14,6 +14,7 @@ use a4n_db::{
     },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 
@@ -415,7 +416,7 @@ async fn insert_generated_image(
 ) -> generated_image::Model {
     generated_image::ActiveModel {
         project_id: Set(project_id),
-        image_type: Set("canvas_image".to_string()),
+        image_type: Set(IMAGE_TYPE_CANVAS.to_string()),
         file_path: Set("projects/output/image.png".to_string()),
         prompt: Set("测试图片".to_string()),
         model: Set("test-model".to_string()),
@@ -443,7 +444,7 @@ async fn insert_generated_video(
     generated_video::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(None),
-        video_type: Set("canvas_video".to_string()),
+        video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
         workflow_mode: Set(None),
         file_path: Set(Some("projects/output/video.mp4".to_string())),
         thumbnail_path: Set(Some("projects/output/video.jpg".to_string())),

@@ -23,6 +23,39 @@ export function rejectSystemDefaultMutation(): never {
   throw new Error("系统默认配置由管理员维护，不能在用户配置页编辑");
 }
 
+export function systemDefaultProviderConfig<
+  T extends {
+    id: number;
+    name: string;
+    has_api_key: boolean;
+    is_default: boolean;
+  },
+>(
+  configs: T[],
+  systemConfigId: number,
+  hasApiKey: boolean,
+  isDefault: boolean,
+): T | null {
+  const config = configs.find((item) => item.is_default);
+  return config
+    ? {
+        ...config,
+        id: systemConfigId,
+        name: `系统默认：${config.name}`,
+        has_api_key: hasApiKey,
+        is_default: isDefault,
+      }
+    : null;
+}
+
+export function requireSystemDefaultProviderConfig<T>(
+  config: T | null,
+  message: string,
+): T {
+  if (!config) throw new Error(message);
+  return config;
+}
+
 export function mergeLocalRuntimeConfigs<T extends { is_default: boolean }>(
   localConfigs: T[],
   systemDefault: T | null,

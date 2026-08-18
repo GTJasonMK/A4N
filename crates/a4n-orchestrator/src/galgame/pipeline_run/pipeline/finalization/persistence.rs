@@ -1,14 +1,10 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{
-    UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED, mark_workflow_current_step,
-    upsert_workflow_checkpoint,
-};
+use a4n_db::workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED};
 use serde_json::json;
 
 use crate::galgame::{
     GalgamePipelineStartStage, GalgameScriptDetail, build_galgame_script_persist_plan,
 };
-use crate::workflow::workflow_write_app_error;
 
 use super::super::super::contracts::{
     CHECKPOINT_LINES_STAGED, CHECKPOINT_PERSIST_SCRIPT, CHECKPOINT_SCENES, CHECKPOINT_VISUAL_PLAN,
@@ -24,18 +20,12 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn persist_galgame_pipeline
     late: &GalgamePipelineLateOutputs,
 ) -> Result<GalgameScriptDetail, AppError> {
     let stage = GalgamePipelineStartStage::PersistScript;
-    ensure_galgame_pipeline_not_cancelled(
-        &execution.service.database,
-        execution.options.workflow_run_id,
-    )
-    .await?;
-    mark_workflow_current_step(
-        execution.service.database.connection(),
-        execution.options.workflow_run_id,
-        stage.key(),
-    )
-    .await
-    .map_err(workflow_write_app_error)?;
+    ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
+        .await?;
+    execution
+        .service
+        .mark_workflow_current_step(execution.options.workflow_run_id, stage.key())
+        .await?;
     execution
         .service
         .report_pipeline_progress(
@@ -64,9 +54,9 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn persist_galgame_pipeline
         .iter()
         .map(|scene| scene.lines.len())
         .sum::<usize>();
-    upsert_workflow_checkpoint(
-        execution.service.database.connection(),
-        UpsertWorkflowCheckpointInput {
+    execution
+        .service
+        .upsert_workflow_checkpoint(UpsertWorkflowCheckpointInput {
             workflow_run_id: execution.options.workflow_run_id,
             step_key: CHECKPOINT_PERSIST_SCRIPT.to_string(),
             step_order: stage.order(),
@@ -92,10 +82,8 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn persist_galgame_pipeline
             generation_run_ids_json: None,
             error_message: None,
             completed: true,
-        },
-    )
-    .await
-    .map_err(workflow_write_app_error)?;
+        })
+        .await?;
     execution
         .service
         .report_pipeline_progress(

@@ -1,6 +1,5 @@
 use a4n_capabilities::A4nCapabilities;
 use a4n_core::models::ai::video_gen_config;
-use a4n_model_discovery::ModelDiscoveryResult;
 use a4n_orchestrator::video::pick_provider_for_config;
 use a4n_video::{
     VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
@@ -10,10 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::state::RuntimeProfile;
 
-use super::super::super::{
-    global_provider_service_request, missing_sidecar_capability_message, model_discovery_payload,
-    response_payload, service_error_string,
-};
+use super::super::super::missing_sidecar_capability_message;
 use super::super::events::generate_video_via_sidecar;
 use super::sidecar::{delete_video_via_sidecar, poll_video_via_sidecar, video_status_via_sidecar};
 
@@ -123,30 +119,4 @@ pub(crate) async fn delete_video_job(
         .delete(job_id)
         .await
         .map_err(|error| error.to_string())
-}
-
-pub(crate) async fn discover_video_models(
-    profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
-    provider: &str,
-    base_url: &str,
-    api_key: Option<&str>,
-) -> Result<ModelDiscoveryResult, String> {
-    if profile.uses_sidecars() {
-        let client = capabilities
-            .video
-            .clone()
-            .ok_or_else(|| "video sidecar capability 未配置，无法探测模型列表".to_string())?;
-        let response = client
-            .discover_models(global_provider_service_request(
-                "video",
-                a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
-                model_discovery_payload(provider, base_url, api_key),
-            )?)
-            .await
-            .map_err(service_error_string)?;
-        return response_payload(response, "video");
-    }
-
-    a4n_model_discovery::discover_models(provider, base_url, api_key).await
 }

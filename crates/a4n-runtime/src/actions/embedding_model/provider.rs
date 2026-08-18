@@ -7,17 +7,11 @@ use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::FastEmbedProvider;
-use std::{path::PathBuf, sync::Arc};
+#[cfg(feature = "local-embedding")]
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use super::runtime::LocalEmbeddingProviderRuntime;
-
-pub(super) fn fastembed_cache_dir_from_config(
-    config: &a4n_core::config::app_config::AppConfig,
-) -> PathBuf {
-    crate::dynamic_embedding::effective_fastembed_cache_dir(
-        crate::dynamic_embedding::default_fastembed_cache_dir(config),
-    )
-}
 
 pub(super) async fn cached_local_embedding_provider(
     runtime: &LocalEmbeddingProviderRuntime,
@@ -25,15 +19,13 @@ pub(super) async fn cached_local_embedding_provider(
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     #[cfg(feature = "local-embedding")]
     {
-        let (backend, model, dimension, batch_size, cache_dir) =
-            resolve_fastembed_config(runtime, input)?;
-        let key = local_provider_cache_key(&backend, &model, dimension, batch_size, &cache_dir);
+        let (model, dimension, batch_size, cache_dir) = resolve_fastembed_config(runtime, input)?;
+        let key = (model.clone(), dimension, batch_size, cache_dir.clone());
         if let Some(provider) = runtime.providers.lock().await.get(&key).cloned() {
             return Ok(provider);
         }
 
-        let provider =
-            FastEmbedProvider::try_new(model, batch_size, cache_dir).map_err(AppError::from)?;
+        let provider = FastEmbedProvider::try_new(&model, batch_size, cache_dir)?;
         if provider.dimension() != dimension {
             return Err(AppError::ConfigError(format!(
                 "嵌入配置维度为 {dimension}，但 fastembed 模型 {} 实际输出 {} 维",
@@ -56,8 +48,28 @@ pub(super) async fn cached_local_embedding_provider(
 pub(super) fn resolve_fastembed_config(
     runtime: &LocalEmbeddingProviderRuntime,
     input: &LocalEmbeddingConfigInput,
-) -> Result<(String, String, usize, usize, PathBuf), AppError> {
-    let backend = normalized_fastembed_backend_name(&input.backend)?;
+) -> Result<(String, usize, usize, PathBuf), AppError> {
+    let backend = input.backend.trim();
+    if backend.is_empty() {
+        return Err(AppError::InvalidArgument("嵌入后端不能为空".to_string()));
+    }
+    let capabilities = embedding_provider_capabilities(backend)
+        .ok_or_else(|| AppError::InvalidArgument(format!("不支持的嵌入后端: {backend}")))?;
+    match capabilities.kind {
+        EmbeddingBackendKind::FastEmbed => {}
+        EmbeddingBackendKind::LocalHash => {
+            return Err(AppError::InvalidArgument(
+                "远程桌面本机 Embedding 模式不支持 local_hash，请选择 fastembed 并下载本机模型"
+                    .to_string(),
+            ));
+        }
+        EmbeddingBackendKind::Api => {
+            return Err(AppError::InvalidArgument(
+                "远程桌面本机 Embedding 模式不支持 API 后端，请选择 fastembed 并下载本机模型"
+                    .to_string(),
+            ));
+        }
+    }
     let model = required_text(&input.model, "模型名")?;
     let dimension = input.dimension;
     if dimension == 0 {
@@ -71,48 +83,7 @@ pub(super) fn resolve_fastembed_config(
         input.local_model_path.as_deref(),
         runtime.fastembed_cache_dir(),
     )?;
-    Ok((backend, model, dimension, batch_size, cache_dir))
-}
-
-#[cfg(feature = "local-embedding")]
-fn normalized_fastembed_backend_name(value: &str) -> Result<String, AppError> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(AppError::InvalidArgument("嵌入后端不能为空".to_string()));
-    }
-    let capabilities = embedding_provider_capabilities(value)
-        .ok_or_else(|| AppError::InvalidArgument(format!("不支持的嵌入后端: {value}")))?;
-    match capabilities.kind {
-        EmbeddingBackendKind::FastEmbed => Ok(EmbeddingBackendKind::FastEmbed
-            .identity_backend_name()
-            .to_string()),
-        EmbeddingBackendKind::LocalHash => Err(AppError::InvalidArgument(
-            "远程桌面本机 Embedding 模式不支持 local_hash，请选择 fastembed 并下载本机模型"
-                .to_string(),
-        )),
-        EmbeddingBackendKind::Api => Err(AppError::InvalidArgument(
-            "远程桌面本机 Embedding 模式不支持 API 后端，请选择 fastembed 并下载本机模型"
-                .to_string(),
-        )),
-    }
-}
-
-#[cfg(feature = "local-embedding")]
-fn local_provider_cache_key(
-    backend: &str,
-    model: &str,
-    dimension: usize,
-    batch_size: usize,
-    cache_dir: &std::path::Path,
-) -> String {
-    format!(
-        "{}\n{}\n{}\n{}\n{}",
-        backend,
-        model,
-        dimension,
-        batch_size,
-        cache_dir.to_string_lossy()
-    )
+    Ok((model, dimension, batch_size, cache_dir))
 }
 
 #[cfg(not(feature = "local-embedding"))]

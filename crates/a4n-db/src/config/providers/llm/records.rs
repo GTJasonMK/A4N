@@ -36,6 +36,17 @@ where
     C: ConnectionTrait,
 {
     ensure_llm_config_name_available(db, &input.name, None).await?;
+    insert_llm_config_record(db, input, false).await
+}
+
+pub(crate) async fn insert_llm_config_record<C>(
+    db: &C,
+    input: LlmConfigRecordInput,
+    is_default: bool,
+) -> Result<llm_config::Model, AppError>
+where
+    C: ConnectionTrait,
+{
     let now = Utc::now().naive_utc();
     llm_config::ActiveModel {
         name: Set(input.name),
@@ -48,7 +59,7 @@ where
         max_context_tokens: Set(input.max_context_tokens),
         max_output_tokens: Set(input.max_output_tokens),
         extra_body_json: Set(input.extra_body_json),
-        is_default: Set(false),
+        is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

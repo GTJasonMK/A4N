@@ -44,10 +44,10 @@ pub fn video_provider_request_body_preview(
     request: &VideoGenerationRequest,
 ) -> Result<Value, AppError> {
     match backend {
-        OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(HttpVideoProvider::request_body_preview(request)),
-        NEWAPI_VIDEO_BACKEND => NewApiVideoProvider::request_body_preview(request),
+        OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(HttpVideoProvider::request_body(request)),
+        NEWAPI_VIDEO_BACKEND => NewApiVideoProvider::request_body(request),
         GEMINI_VEO_VIDEO_BACKEND => GeminiVeoVideoProvider::request_body_preview(request),
-        SEEDANCE2_VIDEO_BACKEND => Seedance2VideoProvider::request_body_preview(request),
+        SEEDANCE2_VIDEO_BACKEND => Seedance2VideoProvider::request_body(request),
         CLIPROXY_OPENAI_VIDEO_BACKEND => {
             CliProxyOpenAiVideoProvider::request_body_preview_for_base_url(request, base_url)
         }

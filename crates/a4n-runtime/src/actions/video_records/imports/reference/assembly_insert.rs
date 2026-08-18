@@ -1,14 +1,13 @@
 use super::super::contracts::{ImportedVideoSource, UploadAssemblyInsertVideoInput};
 use super::super::source::{
-    import_video_output_path, mark_imported_video_completed, persist_imported_video_file,
-    probe_video_properties, uploaded_video_source,
+    persist_imported_video_file, probe_imported_video_properties, uploaded_video_source,
 };
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
+use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
-use a4n_orchestrator::video::ImportedVideoProperties;
 use chrono::Utc;
 
 pub async fn upload_assembly_insert_video(
@@ -48,7 +47,7 @@ async fn create_assembly_insert_video(
     source: ImportedVideoSource,
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let properties = probe_video_properties(&source.path, "插入视频")?;
+    let properties = probe_imported_video_properties(&source, "插入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
         .orchestrator()
@@ -57,12 +56,7 @@ async fn create_assembly_insert_video(
             chapter_id,
             &workflow_mode,
             insert_after_video_id,
-            ImportedVideoProperties {
-                width: properties.width,
-                height: properties.height,
-                duration_secs: properties.duration_secs,
-                fps: properties.fps,
-            },
+            properties,
             &source.file_name,
             source.extension,
             &imported_at,
@@ -76,10 +70,10 @@ async fn create_assembly_insert_video(
         record.id,
         &source.path,
         || {
-            import_video_output_path(
+            video_record_output_path(
                 state.data_dir(),
                 project_id,
-                chapter_id,
+                Some(chapter_id),
                 record.id,
                 "assembly_insert",
                 source.extension,
@@ -97,7 +91,7 @@ async fn create_assembly_insert_video(
         record.id,
         &output,
     );
-    let updated = mark_imported_video_completed(
+    let updated = complete_video_record(
         state,
         record.id,
         &output_path_str,

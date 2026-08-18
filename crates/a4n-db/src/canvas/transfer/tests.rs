@@ -1,5 +1,4 @@
 use super::*;
-use crate::canvas::SOURCE_MODE_FREEFORM;
 use a4n_core::models::generation::generation_spec;
 use chrono::Utc;
 use sea_orm::DbErr;
@@ -16,7 +15,7 @@ fn generation_spec_with_target(
         id: 1,
         project_id: 1,
         root_project_id: 1,
-        source_context_kind: Some(SOURCE_MODE_FREEFORM.to_string()),
+        source_context_kind: Some(generation_spec::SOURCE_CONTEXT_FREEFORM.to_string()),
         source_snapshot_id: None,
         source_chapter_id: None,
         source_snapshot_chapter_id: None,

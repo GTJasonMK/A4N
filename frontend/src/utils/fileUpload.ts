@@ -1,4 +1,4 @@
-function readFileAsDataUrl(file: File): Promise<string> {
+export function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("读取文件失败"));
@@ -7,14 +7,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
         reject(new Error("读取文件失败"));
         return;
       }
-      resolve(reader.result);
+      const [, body] = reader.result.split(",", 2);
+      if (!body) {
+        reject(new Error("文件 data URL 格式无效"));
+        return;
+      }
+      resolve(body);
     };
     reader.readAsDataURL(file);
   });
-}
-
-export async function readFileAsBase64(file: File): Promise<string> {
-  return dataUrlToBase64(await readFileAsDataUrl(file));
 }
 
 export function pickLocalFile(accept: string): Promise<File | null> {
@@ -52,12 +53,4 @@ export function pickLocalFile(accept: string): Promise<File | null> {
     window.addEventListener("focus", handleFocus);
     input.click();
   });
-}
-
-function dataUrlToBase64(dataUrl: string): string {
-  const [, body] = dataUrl.split(",", 2);
-  if (!body) {
-    throw new Error("文件 data URL 格式无效");
-  }
-  return body;
 }

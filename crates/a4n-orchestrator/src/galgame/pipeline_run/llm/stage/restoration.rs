@@ -1,9 +1,7 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow;
 use serde_json::Value;
 
 use crate::galgame::OrchestratorContext;
-use crate::workflow::{workflow_checkpoint_contract_app_error, workflow_read_app_error};
 
 use super::super::super::checkpoints::restored_galgame_llm_stage_output;
 use super::{GalgameLlmStageInput, PreparedGalgameLlmStage};
@@ -20,20 +18,17 @@ where
     if !input.restore_from_checkpoint {
         return Ok(None);
     }
-    if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        service.database.connection(),
-        input.workflow_run_id,
-        input.checkpoint_key,
-        &prepared.fingerprint_json,
-    )
-    .await
-    .map_err(workflow_read_app_error)?
+    if let Some(checkpoint) = service
+        .load_completed_llm_call_checkpoint(
+            input.workflow_run_id,
+            input.checkpoint_key,
+            &prepared.fingerprint_json,
+        )
+        .await?
     {
-        let checkpoint_json =
-            workflow::required_llm_call_checkpoint_json(checkpoint, input.checkpoint_key)
-                .map_err(workflow_checkpoint_contract_app_error)?;
         let restored = restored_galgame_llm_stage_output(
-            &checkpoint_json,
+            &checkpoint.parsed_output,
+            &checkpoint.response_content,
             input.checkpoint_key,
             input.prompt_name,
             validate,

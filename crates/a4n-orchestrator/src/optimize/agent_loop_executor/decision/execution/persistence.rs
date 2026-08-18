@@ -1,8 +1,9 @@
 use serde_json::Value;
 
+use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
+
 use super::super::super::{
-    AgentLoopDecision, AgentLoopDecisionRequest, AppError, CompletedLlmCallCheckpointInput,
-    OrchestratorContext, json, workflow, workflow_write_app_error,
+    AgentLoopDecision, AgentLoopDecisionRequest, AppError, OrchestratorContext,
 };
 use super::super::checkpoint::agent_loop_decision_json;
 use super::contracts::AgentDecisionCallResult;
@@ -30,25 +31,21 @@ pub(super) async fn persist_agent_loop_decision_call(
             .as_ref()
             .map(serde_json::to_value)
             .transpose()?;
-        workflow::save_completed_llm_call_checkpoint(
-            context.database.connection(),
-            CompletedLlmCallCheckpointInput {
+        context
+            .save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id: request.workflow_run_id,
                 call_key,
                 call_order: agent_loop_call_order(request.step)?,
                 input_fingerprint_json,
-                checkpoint_json: json!({
-                    "output": agent_loop_decision_json(&decision),
-                    "parsed_output": agent_loop_decision_json(&decision),
-                    "response_content": response.message.content,
-                    "usage": usage,
-                    "finish_reason": response.finish_reason,
-                }),
-                artifacts_json: None,
-            },
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: agent_loop_decision_json(&decision),
+                    response_content: response.message.content,
+                    usage,
+                    finish_reason: response.finish_reason,
+                    artifacts_json: None,
+                },
+            })
+            .await?;
     }
     Ok(decision)
 }

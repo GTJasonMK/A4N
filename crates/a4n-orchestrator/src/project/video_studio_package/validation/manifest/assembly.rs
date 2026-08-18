@@ -1,5 +1,9 @@
-use super::super::*;
 use super::contracts::ManifestIds;
+
+use a4n_domain::parse_canvas_cache_key;
+
+use crate::media::{is_valid_media_binding_role, is_valid_media_binding_target_kind};
+use crate::project::video_studio_package::VideoStudioProjectPackage;
 
 pub(super) fn validate_assembly_records(
     package: &VideoStudioProjectPackage,

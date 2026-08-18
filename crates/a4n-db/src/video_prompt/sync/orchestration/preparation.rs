@@ -8,7 +8,9 @@ use super::super::{
         segment_plan_extension_preserves_existing, should_preserve_existing_prompt,
     },
     validate_prompt_sync_draft,
-    validation::validate_prompt_workflow_mode,
+    validation::{
+        validate_prompt_output_language_metadata, validate_prompt_workflow_mode,
+    },
 };
 use a4n_core::models::chapter::chapter_video_prompt;
 use sea_orm::ConnectionTrait;
@@ -90,6 +92,11 @@ where
     let mut duplicate_rows = Vec::new();
     for row in existing {
         validate_prompt_workflow_mode(&row.workflow_mode, row.id)?;
+        validate_prompt_output_language_metadata(
+            &row.prompt_type,
+            row.metadata_json.as_ref(),
+            row.id,
+        )?;
         if !draft_workflows.contains(&row.workflow_mode) {
             continue;
         }
@@ -106,6 +113,7 @@ where
         existing_by_identity.insert(identity, row);
     }
     for row in &duplicate_rows {
+        video::ensure_chapter_video_prompt_not_running(row, "删除视频提示词")?;
         ensure_chapter_video_prompt_stage_mutable(db, row, "删除").await?;
     }
 
@@ -177,6 +185,7 @@ where
         })
         .collect::<Vec<_>>();
     for row in &stale_rows {
+        video::ensure_chapter_video_prompt_not_running(row, "删除视频提示词")?;
         ensure_chapter_video_prompt_stage_mutable(db, row, "删除").await?;
     }
 

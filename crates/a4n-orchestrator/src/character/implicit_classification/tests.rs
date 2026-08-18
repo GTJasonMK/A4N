@@ -446,11 +446,6 @@ async fn application_persists_restores_and_revalidates_checkpoint() {
     let response_content = checkpoint_json["response_content"].clone();
     let mut active: workflow_checkpoint::ActiveModel = checkpoint.into();
     active.checkpoint_json = Set(Some(json!({
-        "output": {
-            "classifications": {"谨慎": "conform"},
-            "reasoning": "被篡改的断点",
-            "suggested_new_attributes": []
-        },
         "parsed_output": {
             "classifications": {"谨慎": "conform"},
             "reasoning": "被篡改的断点",
@@ -472,7 +467,7 @@ async fn application_persists_restores_and_revalidates_checkpoint() {
     assert!(
         error
             .to_string()
-            .contains("parsed_output 与 response_content 重新解析结果不一致")
+            .contains("checkpoint_parsed_output_mismatch")
     );
     assert_eq!(provider.stream_call_count(), 1);
 }

@@ -13,8 +13,8 @@ pub(super) async fn download_required_file(
     client: &Client,
     cache_repo: &hf_hub::CacheRepo,
     file: &FastEmbedDownloadFile,
-    progress: &mut AggregatedDownloadProgress,
-    cancel_token: Option<&CancellationToken>,
+    progress: &mut AggregatedDownloadProgress<'_>,
+    cancel_token: &CancellationToken,
 ) -> Result<(), String> {
     let blob_path = cache_repo.blob_path(&file.etag);
     std::fs::create_dir_all(blob_path.parent().ok_or_else(|| {
@@ -25,9 +25,17 @@ pub(super) async fn download_required_file(
     })?)
     .map_err(|err| format!("创建模型缓存 blob 目录失败：{err}"))?;
 
-    if file_size(&blob_path) >= file.size_bytes {
+    let blob_size = file_size(&blob_path)?;
+    if blob_size == file.size_bytes {
         create_snapshot_pointer(cache_repo, &blob_path, &file.commit_hash, &file.path)?;
         return Ok(());
+    }
+    if blob_size > 0 {
+        return Err(format!(
+            "模型缓存 blob 大小异常：{} / {}，请删除该模型缓存后重新下载",
+            format_bytes(blob_size),
+            format_bytes(file.size_bytes)
+        ));
     }
 
     let mut part_path = blob_path.clone();
@@ -38,14 +46,16 @@ pub(super) async fn download_required_file(
         .read(true)
         .open(&part_path)
         .map_err(|err| format!("打开临时下载文件失败：{err}"))?;
-    let mut start = part
+    let start = part
         .metadata()
         .map_err(|err| format!("读取临时下载文件状态失败：{err}"))?
         .len();
     if start > file.size_bytes {
-        part.set_len(0)
-            .map_err(|err| format!("重置异常临时下载文件失败：{err}"))?;
-        start = 0;
+        return Err(format!(
+            "模型临时下载文件大小异常：{} / {}，请删除该模型缓存后重新下载",
+            format_bytes(start),
+            format_bytes(file.size_bytes)
+        ));
     }
     part.seek(SeekFrom::End(0))
         .map_err(|err| format!("定位临时下载文件失败：{err}"))?;
@@ -56,14 +66,9 @@ pub(super) async fn download_required_file(
         request = request.header(RANGE, format!("bytes={start}-"));
     }
     ensure_not_cancelled(cancel_token)?;
-    let response_result = match cancel_token {
-        Some(token) => {
-            tokio::select! {
-                _ = token.cancelled() => return Err(DOWNLOAD_CANCELLED_MESSAGE.to_string()),
-                result = request.send() => result,
-            }
-        }
-        None => request.send().await,
+    let response_result = tokio::select! {
+        _ = cancel_token.cancelled() => return Err(DOWNLOAD_CANCELLED_MESSAGE.to_string()),
+        result = request.send() => result,
     };
     let response = response_result
         .map_err(|err| cancelled_or_error(cancel_token, || format!("请求模型文件失败：{err}")))?;
@@ -76,14 +81,9 @@ pub(super) async fn download_required_file(
 
     loop {
         ensure_not_cancelled(cancel_token)?;
-        let chunk_result = match cancel_token {
-            Some(token) => {
-                tokio::select! {
-                    _ = token.cancelled() => return Err(DOWNLOAD_CANCELLED_MESSAGE.to_string()),
-                    result = response.chunk() => result,
-                }
-            }
-            None => response.chunk().await,
+        let chunk_result = tokio::select! {
+            _ = cancel_token.cancelled() => return Err(DOWNLOAD_CANCELLED_MESSAGE.to_string()),
+            result = response.chunk() => result,
         };
         let Some(chunk) = chunk_result.map_err(|err| {
             cancelled_or_error(cancel_token, || format!("读取模型文件响应失败：{err}"))
@@ -101,7 +101,7 @@ pub(super) async fn download_required_file(
         .map_err(|err| format!("刷新临时下载文件失败：{err}"))?;
     drop(part);
 
-    let final_size = file_size(&part_path);
+    let final_size = file_size(&part_path)?;
     if final_size != file.size_bytes {
         return Err(format!(
             "模型文件大小不完整：{} / {}",

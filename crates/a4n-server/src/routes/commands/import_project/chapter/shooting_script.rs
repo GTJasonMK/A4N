@@ -1,7 +1,7 @@
 use crate::routes::commands::{
     ApiError, finish_web_task, optional_string_field, register_web_task, sanitize_optional_task_id,
     strict_command_input, strict_optional_task_runtime_command_input, string_action_result,
-    web_fire_and_forget_progress_reporter, web_stream_reporter,
+    web_progress_reporter, web_stream_reporter,
 };
 use crate::state::ServerState;
 use a4n_core::event::channel::TaskKind;
@@ -60,18 +60,9 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
         input.project_id,
         shooting_script_records_actions::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在准备剧本改编",
-    );
+    )?;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let reporter = web_fire_and_forget_progress_reporter(task.clone());
-    let progress = |current, total, message: &str| {
-        reporter(current, total, message);
-        if let Some(cancel_token) = cancel_token.as_ref()
-            && cancel_token.is_cancelled()
-        {
-            return Err(a4n_core::error::AppError::Cancelled);
-        }
-        Ok(())
-    };
+    let progress = web_progress_reporter(task.clone());
     let stream_reporter = web_stream_reporter(task.clone());
     let result = shooting_script_records_actions::generate_chapter_shooting_script(
         state.runtime(),
@@ -85,7 +76,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
     .await;
     let result = finish_web_task(
         state,
-        task_id,
+        task.as_ref(),
         string_action_result(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
@@ -113,18 +104,9 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
         input.project_id,
         shooting_script_records_actions::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在准备下一个场景改编",
-    );
+    )?;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let reporter = web_fire_and_forget_progress_reporter(task.clone());
-    let progress = |current, total, message: &str| {
-        reporter(current, total, message);
-        if let Some(cancel_token) = cancel_token.as_ref()
-            && cancel_token.is_cancelled()
-        {
-            return Err(a4n_core::error::AppError::Cancelled);
-        }
-        Ok(())
-    };
+    let progress = web_progress_reporter(task.clone());
     let stream_reporter = web_stream_reporter(task.clone());
     let result = shooting_script_records_actions::generate_next_chapter_shooting_script_unit(
         state.runtime(),
@@ -138,7 +120,7 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
     .await;
     let result = finish_web_task(
         state,
-        task_id,
+        task.as_ref(),
         string_action_result(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),

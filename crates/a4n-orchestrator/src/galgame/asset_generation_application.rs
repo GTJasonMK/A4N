@@ -500,7 +500,7 @@ async fn persist_visual_asset(
     let asset = context.create_media_asset(crate::media::CreateMediaAssetInput {
         project_id: spec.project_id, root_project_id: spec.root_project_id, source_snapshot_id: Some(source_snapshot_id), source_chapter_id: spec.source_chapter_id, source_snapshot_chapter_id: spec.source_snapshot_chapter_id,
         media_kind: crate::media::MEDIA_KIND_IMAGE.to_string(), origin: crate::media::MEDIA_ORIGIN_GENERATED.to_string(), file_path: Some(generated_file_path.to_string()), thumbnail_path: None, width: Some(generated.width), height: Some(generated.height), duration_secs: None, fps: None, status: crate::media::MEDIA_STATUS_COMPLETED.to_string(), error_message: None,
-        provenance: crate::media::CreateMediaProvenanceInput { generation_spec_id: Some(spec.id), prompt_artifact_id: Some(prompt.id), provider_job_id: None, source_media_asset_id: None, source_external_path: Some(format!("generated_image:{}", generated.id)), imported_from_user: false, request_snapshot_json: Some(json!({"source":"galgame_asset_generation","generated_image_id":generated.id,"image_type":generated.image_type,"model":generated.model,"prompt":generated.prompt,"metadata_json":generated.metadata_json,"target_kind":spec.target_kind,"target_entity_kind":spec.target_entity_kind,"target_entity_id":plan.target_entity_id})) },
+        provenance: crate::media::CreateMediaProvenanceInput { generation_spec_id: Some(spec.id), prompt_artifact_id: Some(prompt.id), provider_job_id: None, source_media_asset_id: None, source_external_path: Some(a4n_domain::GeneratedMediaReference::Image(generated.id).to_string()), imported_from_user: false, request_snapshot_json: Some(json!({"source":"galgame_asset_generation","generated_image_id":generated.id,"image_type":generated.image_type,"model":generated.model,"prompt":generated.prompt,"metadata_json":generated.metadata_json,"target_kind":spec.target_kind,"target_entity_kind":spec.target_entity_kind,"target_entity_id":plan.target_entity_id})) },
     }).await?;
     match context
         .bind_galgame_media_validated(super::BindGalgameMediaInput {
@@ -519,10 +519,10 @@ async fn persist_visual_asset(
                 .await
                 .err();
             Err(match cleanup {
-                Some(cleanup) => AppError::InvalidState {
-                    current: error.to_string(),
-                    operation: format!("后续清理也失败：{cleanup}"),
-                },
+                Some(cleanup) => crate::errors::app_error_with_secondary(
+                    error,
+                    format!("后续清理也失败：{cleanup}"),
+                ),
                 None => error,
             })
         }

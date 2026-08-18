@@ -1,7 +1,11 @@
 use super::*;
 use crate::file_utils::{canonicalize_data_file_path, data_dir_relative_file_path};
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+    IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
+};
 use a4n_orchestrator::video::{
-    encode_query_component, image_mime_from_path, is_provider_supported_image_content_type,
+    encode_query_component, is_provider_supported_image_content_type,
     tail_frame_image_belongs_to_video, video_shot_number,
 };
 use chrono::Utc;
@@ -39,7 +43,7 @@ fn video_with_chapter(chapter_id: Option<i64>) -> generated_video::Model {
 
 fn video_with_shot_number(shot_number: Option<Value>) -> generated_video::Model {
     let mut video = video_with_chapter(Some(2));
-    video.video_type = "chapter_video".to_string();
+    video.video_type = generated_video::VIDEO_TYPE_CHAPTER.to_string();
     video.workflow_mode = Some("first_frame_chain".to_string());
     video.width = 1280;
     video.height = 720;
@@ -76,10 +80,10 @@ fn image_for_preview(
 #[test]
 fn tail_frame_image_binds_to_capture_video_id() {
     let mut image = image_for_preview(1, Some(2), "images/tail.jpg", Some(100));
-    image.image_type = "video_tail_frame".to_string();
+    image.image_type = IMAGE_TYPE_VIDEO_TAIL_FRAME.to_string();
     image.metadata_json = Some(json!({
         "generation_context": {
-            "source": "video_tail_frame_capture",
+            "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
             "video_id": 42,
         }
     }));
@@ -89,7 +93,7 @@ fn tail_frame_image_binds_to_capture_video_id() {
 
     image.metadata_json = Some(json!({
         "generation_context": {
-            "source": "video_boundary_frame_prompt",
+            "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
             "video_id": 42,
         }
     }));
@@ -116,32 +120,6 @@ fn reference_image_ids_rejects_invalid_or_duplicate_values() {
         reference_image_ids(Some(&value))
             .expect_err("invalid reference image ids should be rejected");
     }
-}
-
-#[test]
-fn image_mime_from_path_requires_supported_extension() {
-    for path in ["image", "image.bmp", "image.gif"] {
-        let err = image_mime_from_path(std::path::Path::new(path))
-            .expect_err("unsupported image extension should be rejected");
-
-        assert!(err.contains("参考图片"));
-    }
-}
-
-#[test]
-fn image_mime_from_path_accepts_supported_extensions() {
-    assert_eq!(
-        image_mime_from_path(std::path::Path::new("image.PNG")),
-        Ok("image/png")
-    );
-    assert_eq!(
-        image_mime_from_path(std::path::Path::new("image.jpeg")),
-        Ok("image/jpeg")
-    );
-    assert_eq!(
-        image_mime_from_path(std::path::Path::new("image.webp")),
-        Ok("image/webp")
-    );
 }
 
 #[test]
@@ -233,20 +211,43 @@ fn canvas_video_persistence_uses_project_video_directory_without_chapter() {
 }
 
 #[test]
-fn required_trim_chapter_id_rejects_missing_or_invalid_id() {
-    for id in [None, Some(0), Some(-1)] {
-        let video = video_with_chapter(id);
-        let err = required_trim_chapter_id(&video).expect_err("trim chapter id should be required");
+fn trimmed_video_path_uses_chapter_video_directory() {
+    let root = tempfile::tempdir().expect("create trim data directory");
+    let video = video_with_chapter(Some(7));
 
-        assert!(err.contains("源视频 #42 缺少 chapter_id"));
-    }
+    let path = trimmed_video_path(root.path(), &video).expect("create chapter trim path");
+
+    assert_eq!(
+        path.parent(),
+        Some(root.path().join("projects/1/videos/chapter_7").as_path())
+    );
+    assert!(
+        path.file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("trim_42_")
+    );
+    assert_eq!(path.extension().and_then(|value| value.to_str()), Some("mp4"));
 }
 
 #[test]
-fn required_trim_chapter_id_accepts_positive_id() {
-    let video = video_with_chapter(Some(7));
+fn trimmed_video_path_uses_project_video_directory_without_chapter() {
+    let root = tempfile::tempdir().expect("create trim data directory");
+    let video = video_with_chapter(None);
 
-    assert_eq!(required_trim_chapter_id(&video), Ok(7));
+    let path = trimmed_video_path(root.path(), &video).expect("create project trim path");
+
+    assert_eq!(
+        path.parent(),
+        Some(root.path().join("projects/1/videos").as_path())
+    );
+    assert!(
+        path.file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("trim_42_")
+    );
+    assert_eq!(path.extension().and_then(|value| value.to_str()), Some("mp4"));
 }
 
 #[test]

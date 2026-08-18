@@ -1,7 +1,9 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-use crate::structured_llm::llm_response_preview;
+use crate::structured_llm::{
+    ensure_checkpoint_parsed_output_matches, llm_response_preview,
+};
 
 pub(super) fn normalize_scene_generation_output(content: &str) -> Result<String, AppError> {
     let content = content.trim();
@@ -20,35 +22,21 @@ pub(super) fn normalize_scene_generation_output(content: &str) -> Result<String,
 }
 
 pub(super) fn restored_chapter_scene_checkpoint(
-    checkpoint_json: Value,
+    parsed_output: &Value,
+    response_content: &str,
     call_key: &str,
 ) -> Result<String, AppError> {
-    let parsed_output = required_checkpoint_string(&checkpoint_json, call_key, "parsed_output")?;
-    let response_content =
-        required_checkpoint_string(&checkpoint_json, call_key, "response_content")?;
-    let reparsed = normalize_scene_generation_output(&response_content)?;
-    if reparsed != parsed_output {
-        return Err(AppError::InvalidState {
-            current: "checkpoint_parsed_output_mismatch".to_string(),
-            operation: format!("恢复章节场景生成 LLM 调用断点 {call_key}"),
-        });
-    }
+    let parsed_output = parsed_output.as_str().ok_or_else(|| AppError::InvalidState {
+        current: "invalid_checkpoint_field:parsed_output".to_string(),
+        operation: format!("恢复章节场景生成 LLM 调用断点 {call_key}"),
+    })?;
+    let reparsed = normalize_scene_generation_output(response_content)?;
+    ensure_checkpoint_parsed_output_matches(
+        parsed_output,
+        &reparsed,
+        &format!("章节场景生成 {call_key}"),
+    )?;
     Ok(reparsed)
-}
-
-fn required_checkpoint_string(
-    checkpoint_json: &Value,
-    call_key: &str,
-    field: &str,
-) -> Result<String, AppError> {
-    checkpoint_json
-        .get(field)
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!("missing_or_invalid_checkpoint_field:{field}"),
-            operation: format!("恢复章节场景生成 LLM 调用断点 {call_key}"),
-        })
 }
 
 fn looks_like_structured_or_fenced_scene_response(raw: &str) -> bool {

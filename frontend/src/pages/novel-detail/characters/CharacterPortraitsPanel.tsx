@@ -160,12 +160,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     generatingRef.current = true;
     setGenerating(true);
     try {
-      let createdCount = 0;
       const handle = await startPortraitGeneration({
         project_id: requestProjectId,
         operation: { kind: "generate_missing" },
       });
-      await runGenerationProgressTaskThen(
+      const createdCount = await runGenerationProgressTaskThen(
         runProgressTask,
         handle,
         {
@@ -177,22 +176,15 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           cancelLabel: "停止生成",
         },
         async (task) => {
-          createdCount = task.artifacts.filter(
-            (artifact) => artifact.artifact_kind === "portrait_image",
-          ).length;
-          await verifyPortraitGenerationResult(task, requestProjectId);
+          const generated = await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
           await load();
           if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
+          return generated.length;
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(
-        createdCount > 0
-          ? `已为 ${createdCount} 位角色生成人物三视图拆解`
-          : "所有角色都已有三视图拆解，无需生成",
-        "success",
-      );
+      addToast(`已为 ${createdCount} 位角色生成人物三视图拆解`, "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       const message = extractErrorMessage(err, "生成人物三视图拆解失败");

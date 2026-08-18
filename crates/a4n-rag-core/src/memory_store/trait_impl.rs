@@ -47,7 +47,6 @@ impl VectorStore for MemoryVectorStore {
         query_embedding: Vec<f32>,
         top_k: usize,
         filters: Option<SearchFilter>,
-        _vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError> {
         self.hybrid_memory_search(collection, query_text, query_embedding, top_k, filters)
     }

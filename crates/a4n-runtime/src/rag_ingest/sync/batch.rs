@@ -1,11 +1,7 @@
 use a4n_core::rag::RagDataType;
-use a4n_orchestrator::rag::{
-    PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, RagSyncContext,
-};
+use a4n_orchestrator::rag::{RagRecord, RagRecordSyncOutcome, RagSyncContext};
 
-use super::progress::{
-    ExpectedSyncStats, RagIngestProgress, progress_advance, progress_stage, sync_progress_message,
-};
+use super::progress::{ExpectedSyncStats, RagIngestProgress};
 use crate::state::AppState;
 
 pub(in crate::rag_ingest) async fn sync_project_records(
@@ -43,17 +39,18 @@ async fn sync_records(
 
     for record in records {
         let chunk_id = record.chunk_id.clone();
-        progress_stage(&mut progress, format!("正在比对 RAG 记录：{chunk_id}"))?;
+        if let Some(progress) = progress.as_deref_mut() {
+            progress.stage(format!("正在比对 RAG 记录：{chunk_id}"))?;
+        }
         let prepared = sync
             .prepare_record(record)
             .map_err(|error| format!("RAG 记录 {chunk_id} 无效：{error}"))?;
-        if prepared.outcome() == RagRecordSyncOutcome::Skipped {
-            stats.record_outcome(prepared.outcome())?;
-            progress_advance(
-                &mut progress,
-                1,
-                sync_progress_message(prepared.outcome(), chunk_id),
-            )?;
+        let outcome = prepared.outcome();
+        if outcome == RagRecordSyncOutcome::Skipped {
+            stats.record_outcome(outcome)?;
+            if let Some(progress) = progress.as_deref_mut() {
+                progress.advance(sync_progress_message(outcome, chunk_id))?;
+            }
         } else {
             pending.push(prepared);
         }
@@ -63,20 +60,26 @@ async fn sync_records(
     if batch_size == 0 {
         return Err("RAG embedding provider batch_size 必须大于 0".to_string());
     }
-    for batch in pending.chunks(batch_size) {
+    let mut pending = pending.into_iter();
+    loop {
+        let batch = pending.by_ref().take(batch_size).collect::<Vec<_>>();
+        if batch.is_empty() {
+            break;
+        }
+        let batch_status = batch
+            .iter()
+            .map(|prepared| (prepared.outcome(), prepared.chunk_id().to_string()))
+            .collect::<Vec<_>>();
         state
             .orchestrator()
             .store_prepared_rag_records(sync.project_id(), batch)
             .await
-            .map_err(|error| batch_store_error(batch, &error.to_string()))?;
-        for prepared in batch {
-            let outcome = prepared.outcome();
+            .map_err(|error| batch_store_error(&batch_status, &error.to_string()))?;
+        for (outcome, chunk_id) in batch_status {
             stats.record_outcome(outcome)?;
-            progress_advance(
-                &mut progress,
-                1,
-                sync_progress_message(outcome, prepared.chunk_id()),
-            )?;
+            if let Some(progress) = progress.as_deref_mut() {
+                progress.advance(sync_progress_message(outcome, chunk_id))?;
+            }
         }
     }
 
@@ -86,16 +89,27 @@ async fn sync_records(
         .map_err(|error| error.to_string())?;
     stats.add_deleted(deleted)?;
     if deleted > 0 {
-        progress_stage(&mut progress, format!("已清理过期 RAG 记录 {deleted} 个"))?;
+        if let Some(progress) = progress.as_deref_mut() {
+            progress.stage(format!("已清理过期 RAG 记录 {deleted} 个"))?;
+        }
     }
     Ok(stats)
 }
 
-fn batch_store_error(batch: &[PreparedRagRecordSync], error: &str) -> String {
+fn sync_progress_message(outcome: RagRecordSyncOutcome, label: impl AsRef<str>) -> String {
+    let label = label.as_ref();
+    match outcome {
+        RagRecordSyncOutcome::Added => format!("已新增{label}"),
+        RagRecordSyncOutcome::Updated => format!("已更新{label}"),
+        RagRecordSyncOutcome::Skipped => format!("已跳过未变化：{label}"),
+    }
+}
+
+fn batch_store_error(batch: &[(RagRecordSyncOutcome, String)], error: &str) -> String {
     let ids = batch
         .iter()
         .take(8)
-        .map(PreparedRagRecordSync::chunk_id)
+        .map(|(_, chunk_id)| chunk_id.as_str())
         .collect::<Vec<_>>()
         .join(", ");
     let remainder = batch.len().saturating_sub(8);

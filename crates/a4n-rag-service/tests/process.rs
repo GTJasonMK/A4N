@@ -1,5 +1,6 @@
 use a4n_service_protocol::{
-    CapabilityTaskEventKind, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+    CapabilityTaskEventKind, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_IDS_PATH,
+    SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };
 use a4n_test_support::process::{
     HttpRagClient, JsonRequest, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
@@ -14,7 +15,7 @@ use a4n_test_support::process::{
 use serde_json::{Value, json};
 use std::time::Duration;
 
-const COLLECTION: &str = "process-recovery";
+const COLLECTION: &str = "42";
 const MUTATION_MARKER: &str = ".a4n-rag-mutation-in-progress";
 
 fn rag_request(label: &str, payload: Value) -> a4n_test_support::process::JsonRequest {
@@ -34,7 +35,9 @@ async fn ingest_records(client: &HttpRagClient, request: JsonRequest) -> usize {
         .expect("RAG ingest events should cross the independent process");
     while let Some(event) = events_rx.recv().await {
         if event.event_kind == CapabilityTaskEventKind::Completed {
-            let written = event.payload.expect("RAG completed payload")["written"]
+            let written = event
+                .payload
+                .expect("RAG completed payload")
                 .as_u64()
                 .expect("RAG completed written count");
             return usize::try_from(written).expect("RAG written count fits usize");
@@ -53,19 +56,19 @@ fn canonical_records() -> Vec<Value> {
         json!({
             "id": "doc-1",
             "embedding": [1.0, 0.0, 0.0],
-            "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 1},
+            "metadata": {"data_type": "chapter", "chapter_number": 1},
             "content": "第一条重建哨兵正文"
         }),
         json!({
             "id": "doc-2",
             "embedding": [0.0, 1.0, 0.0],
-            "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 2},
+            "metadata": {"data_type": "chapter", "chapter_number": 2},
             "content": "第二条删除哨兵正文"
         }),
         json!({
             "id": "doc-3",
             "embedding": [0.0, 0.0, 1.0],
-            "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 3},
+            "metadata": {"data_type": "chapter", "chapter_number": 3},
             "content": "第三条断连哨兵正文"
         }),
     ]
@@ -156,11 +159,11 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         rag_env,
     );
     let process = start_sidecar(&manager, RAG_SERVICE_NAME).await;
-    assert_process_concurrency_saturation(addr, RAG_SERVICE_NAME, "/rag/metadata_by_ids").await;
+    assert_process_concurrency_saturation(addr, RAG_SERVICE_NAME, RAG_METADATA_BY_IDS_PATH).await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/rag/metadata_by_ids").await;
-    assert_route_rejects_malformed_json(&base_url, "/rag/metadata_by_ids").await;
-    assert_route_rejects_oversized_json(&base_url, "/rag/metadata_by_ids", 16 * 1024 * 1024).await;
+    assert_protected_route_rejects_invalid_auth(&base_url, RAG_METADATA_BY_IDS_PATH).await;
+    assert_route_rejects_malformed_json(&base_url, RAG_METADATA_BY_IDS_PATH).await;
+    assert_route_rejects_oversized_json(&base_url, RAG_METADATA_BY_IDS_PATH, 16 * 1024 * 1024).await;
     let client = HttpRagClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
         "rag-process-metadata",
@@ -170,7 +173,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
-        "/rag/metadata_by_ids",
+        RAG_METADATA_BY_IDS_PATH,
         &request,
     )
     .await;
@@ -179,7 +182,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .await
         .expect("typed RAG metadata lookup should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
-    assert!(response.payload.expect("RAG metadata payload")["metadata"].is_object());
+    assert!(response.payload.expect("RAG metadata payload").is_object());
 
     let records = canonical_records();
     let ingest_request = trusted_remote_request_context(
@@ -190,7 +193,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
-        "/rag/ingest/events",
+        RAG_INGEST_EVENTS_PATH,
         &ingest_request,
     )
     .await;
@@ -211,7 +214,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
                         "records": [{
                             "id": "doc-backpressure",
                             "embedding": [1.0, 1.0, 0.0],
-                            "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 4},
+                            "metadata": {"data_type": "chapter", "chapter_number": 4},
                             "content": "背压完成后仍应持久化"
                         }]
                     }),
@@ -293,7 +296,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         idle_records.push(json!({
             "id": id,
             "embedding": [0.0, 0.0, 1.0],
-            "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 3},
+            "metadata": {"data_type": "chapter", "chapter_number": 3},
             "content": format!("stream idle 索引一致性哨兵 {index}")
         }));
     }
@@ -386,9 +389,6 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             json!({
                 "collection": COLLECTION,
                 "filter": {
-                    "project_id": 1,
-                    "data_type": null,
-                    "chapter_number": null,
                     "ids": ["doc-2"],
                     "id_prefixes": []
                 }
@@ -397,10 +397,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .await
         .expect("RAG delete should cross the independent process");
     assert_eq!(deleted.status, ServiceStatus::Ok);
-    assert_eq!(
-        deleted.payload.expect("RAG delete payload")["deleted"],
-        json!(1)
-    );
+    assert_eq!(deleted.payload.expect("RAG delete payload"), json!(1));
     let remaining_after_delete = search_ids(&client, "删除").await;
     assert!(
         remaining_after_delete.is_empty(),
@@ -431,7 +428,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     assert_complete(&client, &["doc-1", "doc-2", "doc-3"]).await;
     finish_sidecar(recovered, &manager, RAG_SERVICE_NAME, addr).await;
 
-    std::fs::write(temp_dir.path().join(MUTATION_MARKER), b"ingest_events").unwrap();
+    std::fs::write(temp_dir.path().join(MUTATION_MARKER), b"").unwrap();
     assert!(manager.start_sidecar(RAG_SERVICE_NAME).await.is_err());
     // Qdrant 为外部存储；清理本地 mutation 标记后即可从 canonical records 显式重建
     std::fs::remove_file(temp_dir.path().join(MUTATION_MARKER)).unwrap();

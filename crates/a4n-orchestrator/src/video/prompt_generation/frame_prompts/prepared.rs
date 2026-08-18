@@ -50,7 +50,6 @@ pub(super) struct LoadedSharedSegmentPlan {
     pub(super) execution_identity: Value,
 }
 
-pub(super) const SHARED_SEGMENT_PLAN_PROMPT_TYPE: &str = "frame_segment_plan";
 pub(super) const SHARED_SEGMENT_PLAN_TITLE: &str = "视频片段规划";
 pub(super) const SHARED_SEGMENT_PLAN_CONTEXT: &str = "视频分段规划";
 pub(super) const SHARED_SEGMENT_PLAN_PROGRESS: &str = "正在规划视频片段";

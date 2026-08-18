@@ -28,6 +28,7 @@ pub(crate) fn run() {
             } else {
                 setup_local_runtime(app)?;
             }
+            #[cfg(debug_assertions)]
             window::open_devtools_in_debug(app);
             Ok(())
         })

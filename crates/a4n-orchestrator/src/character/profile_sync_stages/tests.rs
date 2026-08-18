@@ -431,7 +431,6 @@ async fn application_persists_restores_and_revalidates_all_stage_checkpoints() {
         .clone();
     let mut active: workflow_checkpoint::ActiveModel = first.into();
     active.checkpoint_json = Set(Some(json!({
-        "output": {"events": []},
         "parsed_output": {"events": []},
         "response_content": response_content,
         "usage": null,
@@ -449,7 +448,7 @@ async fn application_persists_restores_and_revalidates_all_stage_checkpoints() {
     assert!(
         error
             .to_string()
-            .contains("parsed_output 与 response_content 重新解析结果不一致")
+            .contains("checkpoint_parsed_output_mismatch")
     );
     assert_eq!(provider.captured_user_messages().len(), 5);
 }

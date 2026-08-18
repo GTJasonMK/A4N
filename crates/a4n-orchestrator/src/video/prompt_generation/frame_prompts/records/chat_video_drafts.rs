@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
+use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
 
 use super::super::super::super::CHAT_VIDEO_CONTRACT_VERSION;
@@ -66,7 +67,7 @@ pub(in crate::video) fn chat_video_prompt_drafts(
                 chapter_id,
                 workflow_mode: PromptWorkflowMode::ChatVideo,
                 style: Some(style),
-                prompt_type: "video_prompt",
+                prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO,
                 shot_number: prompt.shot_number,
                 title: Some(&prompt.title),
                 scene_summary: Some(&prompt.scene_summary),

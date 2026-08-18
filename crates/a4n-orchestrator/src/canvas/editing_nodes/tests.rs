@@ -11,6 +11,9 @@ use a4n_core::{
         media::media_asset,
         video_project::{assembly_clip, assembly_timeline},
     },
+    video_workflow::{
+        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
+    },
 };
 use a4n_db::{
     DatabaseConnection,
@@ -18,8 +21,13 @@ use a4n_db::{
         CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
         CanvasNodeRecordInput,
     },
+    generation::{
+        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+    },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_domain::image::IMAGE_TYPE_CANVAS_FRAME;
 use async_trait::async_trait;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde_json::{Value, json};
@@ -118,7 +126,8 @@ impl CanvasEditingNodeHostPort for TestEditingHost {
         let video = insert_generated_video(
             self.database.as_ref(),
             input.project_id,
-            "trimmed_clip",
+            generated_video::VIDEO_TYPE_TRIMMED_CLIP,
+            WORKFLOW_MODE_CANVAS_TRIM,
             "projects/output/trimmed-video.mp4",
         )
         .await;
@@ -135,7 +144,8 @@ impl CanvasEditingNodeHostPort for TestEditingHost {
         let video = insert_generated_video(
             self.database.as_ref(),
             input.project_id,
-            "canvas_assembly",
+            generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY,
+            WORKFLOW_MODE_CANVAS_ASSEMBLY,
             "projects/output/assembled-video.mp4",
         )
         .await;
@@ -176,7 +186,7 @@ fn canvas_editing_input_rules_are_owned_by_orchestrator() {
 
 #[tokio::test]
 async fn extract_frame_application_persists_spec_asset_checkpoint_and_workflow() {
-    let setup = setup_canvas("ExtractFrameNode", json!({"frame_kind": "last"}), 1).await;
+    let setup = setup_canvas("ExtractFrameNode", json!({"frame_kind": "tail"}), 1).await;
     let host = TestEditingHost::success(Arc::clone(&setup.database));
 
     let summary = run_node(&setup, &host, None, "single_node")
@@ -199,7 +209,10 @@ async fn extract_frame_application_persists_spec_asset_checkpoint_and_workflow()
 
     assert_eq!(summary.status, "completed");
     assert_eq!(host.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(spec.target_kind, "canvas_image");
+    assert_eq!(
+        spec.target_kind,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE
+    );
     assert_eq!(spec.status, "completed");
     assert_eq!(run.status, "completed");
     assert_eq!(checkpoint.status, "completed");
@@ -237,7 +250,10 @@ async fn trim_video_application_persists_video_asset_and_completed_lifecycle() {
         .expect("裁剪媒体资产应存在");
 
     assert_eq!(summary.status, "completed");
-    assert_eq!(spec.target_kind, "canvas_video");
+    assert_eq!(
+        spec.target_kind,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO
+    );
     assert_eq!(spec.status, "completed");
     assert_eq!(run.status, "completed");
     assert_eq!(checkpoint.status, "completed");
@@ -246,7 +262,12 @@ async fn trim_video_application_persists_video_asset_and_completed_lifecycle() {
 
 #[tokio::test]
 async fn trim_video_cancellation_marks_spec_and_checkpoint_cancelled() {
-    let setup = setup_canvas("TrimVideoNode", json!({"end_secs": 2.0}), 1).await;
+    let setup = setup_canvas(
+        "TrimVideoNode",
+        json!({"start_secs": 0.0, "end_secs": 2.0}),
+        1,
+    )
+    .await;
     let host = TestEditingHost::cancelling_trim(Arc::clone(&setup.database));
 
     let summary = run_node(&setup, &host, None, "single_node")
@@ -294,7 +315,10 @@ async fn assemble_application_persists_preview_asset_timeline_and_ordered_clips(
         .expect("应可查询 assembly assets");
 
     assert_eq!(summary.status, "completed");
-    assert_eq!(spec.target_kind, "canvas_assembly");
+    assert_eq!(
+        spec.target_kind,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY
+    );
     assert_eq!(spec.status, "completed");
     assert_eq!(run.status, "completed");
     assert_eq!(checkpoint.status, "completed");
@@ -310,7 +334,7 @@ async fn assemble_application_persists_preview_asset_timeline_and_ordered_clips(
 
 #[tokio::test]
 async fn editing_host_failure_marks_spec_workflow_and_checkpoint_failed() {
-    let setup = setup_canvas("ExtractFrameNode", json!({}), 1).await;
+    let setup = setup_canvas("ExtractFrameNode", json!({"frame_kind": "first"}), 1).await;
     let host = TestEditingHost::failure(Arc::clone(&setup.database), "extract_frame");
 
     let summary = run_node(&setup, &host, None, "single_node")
@@ -332,7 +356,7 @@ async fn editing_host_failure_marks_spec_workflow_and_checkpoint_failed() {
 
 #[tokio::test]
 async fn shared_graph_run_completes_editing_node_without_finalizing_workflow() {
-    let setup = setup_canvas("ExtractFrameNode", json!({}), 1).await;
+    let setup = setup_canvas("ExtractFrameNode", json!({"frame_kind": "first"}), 1).await;
     let host = TestEditingHost::success(Arc::clone(&setup.database));
     let step_key = format!("canvas_node:{}", setup.node.id);
     let graph_run = setup
@@ -413,6 +437,7 @@ async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> Ca
                 database.as_ref(),
                 project.id,
                 "canvas_source",
+                WORKFLOW_MODE_CANVAS_VIDEO,
                 &format!("projects/output/source-{index}.mp4"),
             )
             .await,
@@ -555,7 +580,7 @@ async fn insert_generated_image(
 ) -> generated_image::Model {
     generated_image::ActiveModel {
         project_id: Set(project_id),
-        image_type: Set("canvas_frame".to_string()),
+        image_type: Set(IMAGE_TYPE_CANVAS_FRAME.to_string()),
         file_path: Set(file_path.to_string()),
         prompt: Set("测试抽帧".to_string()),
         model: Set("test-host".to_string()),
@@ -579,6 +604,7 @@ async fn insert_generated_video(
     database: &DatabaseConnection,
     project_id: i64,
     video_type: &str,
+    workflow_mode: &str,
     file_path: &str,
 ) -> generated_video::Model {
     let now = chrono::Utc::now().naive_utc();
@@ -586,7 +612,7 @@ async fn insert_generated_video(
         project_id: Set(project_id),
         chapter_id: Set(None),
         video_type: Set(video_type.to_string()),
-        workflow_mode: Set(Some(video_type.to_string())),
+        workflow_mode: Set(Some(workflow_mode.to_string())),
         file_path: Set(Some(file_path.to_string())),
         thumbnail_path: Set(Some(format!("{file_path}.jpg"))),
         prompt: Set("测试视频".to_string()),

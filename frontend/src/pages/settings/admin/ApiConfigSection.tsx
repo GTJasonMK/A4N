@@ -79,7 +79,7 @@ export const ApiConfigSection: React.FC = () => {
           {panel === "llm" && <LlmTab scope="server" />}
           {panel === "image" && <ImageTab scope="server" />}
           {panel === "video" && <VideoTab scope="server" />}
-          {panel === "embedding" && <EmbeddingTab />}
+          {panel === "embedding" && <EmbeddingTab scope="server" />}
         </div>
       )}
     </div>
@@ -110,7 +110,7 @@ const ApiConfigOverview: React.FC = () => {
         listServerLlmConfig(),
         listServerImageConfigs(),
         listServerVideoConfigs(),
-        listEmbeddingConfig(),
+        listEmbeddingConfig("server"),
         getServerLlmMaxTokensConfig(),
         listModelProviderCatalog(),
       ]);

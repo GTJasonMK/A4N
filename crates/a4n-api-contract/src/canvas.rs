@@ -191,8 +191,6 @@ pub struct ImportCanvasMediaInput {
     pub mime_type: Option<String>,
     #[serde(default)]
     pub data_base64: Option<String>,
-    #[serde(default)]
-    pub prompt: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

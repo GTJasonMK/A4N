@@ -38,6 +38,11 @@ const LOCAL_RUNTIME_SETTINGS_KEYS = [
   "llm_max_tokens",
 ] as const;
 const LOCAL_RUNTIME_DEFAULT_SOURCE_KEYS = ["llm", "image", "video"] as const;
+const SYSTEM_API_KEY_FIELDS = {
+  llm: "system_llm_api_key_encrypted",
+  image: "system_image_api_key_encrypted",
+  video: "system_video_api_key_encrypted",
+} as const;
 
 interface LocalLlmConfig extends LlmConfigSummary {
   api_key_encrypted?: string | null;
@@ -76,6 +81,8 @@ interface LocalRuntimeDefaultSource {
   image: "system" | "local";
   video: "system" | "local";
 }
+
+type LocalRuntimeProviderKind = keyof LocalRuntimeDefaultSource;
 
 const LLM_MAX_TOKEN_KEYS = Object.keys(DEFAULT_LLM_MAX_TOKENS_CONFIG) as Array<
   keyof LlmMaxTokensConfig
@@ -787,18 +794,50 @@ function removeConfigById<T extends { id: number; is_default: boolean }>(
   items.splice(index, 1);
 }
 
+function activeLocalConfig<T extends { is_default: boolean }>(
+  items: T[],
+  source: "system" | "local",
+): T | null {
+  return source === "system"
+    ? null
+    : items.find((item) => item.is_default)!;
+}
+
 export function activeLocalLlmConfig(): LocalLlmConfig | null {
   const settings = readLocalRuntimeSettings();
-  if (settings.default_source.llm === "system") return null;
-  return settings.llm.find((item) => item.is_default)!;
+  return activeLocalConfig(settings.llm, settings.default_source.llm);
+}
+
+function usesSystemDefaultConfig(kind: LocalRuntimeProviderKind): boolean {
+  return readLocalRuntimeSettings().default_source[kind] === "system";
 }
 
 export function usesSystemDefaultLlmConfig(): boolean {
-  return readLocalRuntimeSettings().default_source.llm === "system";
+  return usesSystemDefaultConfig("llm");
+}
+
+function getSystemDefaultApiKey(kind: LocalRuntimeProviderKind): string | null {
+  return readLocalRuntimeSettings()[SYSTEM_API_KEY_FIELDS[kind]];
+}
+
+function updateSystemDefaultApiKey(
+  kind: LocalRuntimeProviderKind,
+  apiKey: string | null | undefined,
+): void {
+  mutateSettings((settings) => {
+    if (apiKey === undefined) return;
+    settings[SYSTEM_API_KEY_FIELDS[kind]] = apiKey?.trim() || null;
+  });
+}
+
+function setSystemDefaultConfig(kind: LocalRuntimeProviderKind): void {
+  mutateSettings((settings) => {
+    settings.default_source[kind] = "system";
+  });
 }
 
 export function getSystemDefaultLlmApiKey(): string | null {
-  return readLocalRuntimeSettings().system_llm_api_key_encrypted;
+  return getSystemDefaultApiKey("llm");
 }
 
 export function hasSystemDefaultLlmApiKey(): boolean {
@@ -808,14 +847,11 @@ export function hasSystemDefaultLlmApiKey(): boolean {
 export function updateSystemDefaultLlmApiKey(
   apiKey: string | null | undefined,
 ): void {
-  mutateSettings((settings) => {
-    if (apiKey === undefined) return;
-    settings.system_llm_api_key_encrypted = apiKey?.trim() || null;
-  });
+  updateSystemDefaultApiKey("llm", apiKey);
 }
 
 export function getSystemDefaultImageApiKey(): string | null {
-  return readLocalRuntimeSettings().system_image_api_key_encrypted;
+  return getSystemDefaultApiKey("image");
 }
 
 export function hasSystemDefaultImageApiKey(): boolean {
@@ -825,14 +861,11 @@ export function hasSystemDefaultImageApiKey(): boolean {
 export function updateSystemDefaultImageApiKey(
   apiKey: string | null | undefined,
 ): void {
-  mutateSettings((settings) => {
-    if (apiKey === undefined) return;
-    settings.system_image_api_key_encrypted = apiKey?.trim() || null;
-  });
+  updateSystemDefaultApiKey("image", apiKey);
 }
 
 export function getSystemDefaultVideoApiKey(): string | null {
-  return readLocalRuntimeSettings().system_video_api_key_encrypted;
+  return getSystemDefaultApiKey("video");
 }
 
 export function hasSystemDefaultVideoApiKey(): boolean {
@@ -842,10 +875,7 @@ export function hasSystemDefaultVideoApiKey(): boolean {
 export function updateSystemDefaultVideoApiKey(
   apiKey: string | null | undefined,
 ): void {
-  mutateSettings((settings) => {
-    if (apiKey === undefined) return;
-    settings.system_video_api_key_encrypted = apiKey?.trim() || null;
-  });
+  updateSystemDefaultApiKey("video", apiKey);
 }
 
 export function getLocalLlmConfig(id: number): LocalLlmConfig {
@@ -948,9 +978,7 @@ export function setDefaultLocalLlmConfig(id: number): void {
 }
 
 export function setSystemDefaultLlmConfig(): void {
-  mutateSettings((settings) => {
-    settings.default_source.llm = "system";
-  });
+  setSystemDefaultConfig("llm");
 }
 
 export function deleteLocalLlmConfig(id: number): void {
@@ -983,12 +1011,11 @@ export function updateLocalLlmMaxTokensConfig(
 
 export function activeLocalImageConfig(): ImageGenConfig | null {
   const settings = readLocalRuntimeSettings();
-  if (settings.default_source.image === "system") return null;
-  return settings.image.find((item) => item.is_default)!;
+  return activeLocalConfig(settings.image, settings.default_source.image);
 }
 
 export function usesSystemDefaultImageConfig(): boolean {
-  return readLocalRuntimeSettings().default_source.image === "system";
+  return usesSystemDefaultConfig("image");
 }
 
 export function getLocalImageConfig(id: number): ImageGenConfig {
@@ -1057,9 +1084,7 @@ export function setDefaultLocalImageConfig(id: number): void {
 }
 
 export function setSystemDefaultImageConfig(): void {
-  mutateSettings((settings) => {
-    settings.default_source.image = "system";
-  });
+  setSystemDefaultConfig("image");
 }
 
 export function deleteLocalImageConfig(id: number): void {
@@ -1074,12 +1099,11 @@ export function deleteLocalImageConfig(id: number): void {
 
 export function activeLocalVideoConfig(): VideoGenConfig | null {
   const settings = readLocalRuntimeSettings();
-  if (settings.default_source.video === "system") return null;
-  return settings.video.find((item) => item.is_default)!;
+  return activeLocalConfig(settings.video, settings.default_source.video);
 }
 
 export function usesSystemDefaultVideoConfig(): boolean {
-  return readLocalRuntimeSettings().default_source.video === "system";
+  return usesSystemDefaultConfig("video");
 }
 
 export function getLocalVideoConfig(id: number): VideoGenConfig {
@@ -1160,9 +1184,7 @@ export function setDefaultLocalVideoConfig(id: number): void {
 }
 
 export function setSystemDefaultVideoConfig(): void {
-  mutateSettings((settings) => {
-    settings.default_source.video = "system";
-  });
+  setSystemDefaultConfig("video");
 }
 
 export function deleteLocalVideoConfig(id: number): void {

@@ -18,13 +18,10 @@ pub async fn test_llm_config(state: &AppState, user_id: i64, config_id: i64) -> 
         .dynamic_llm_provider_for_profile()
         .map_err(|error| error.to_string())?;
     if state.runtime_profile().uses_sidecars() {
-        let connected = provider
+        return provider
             .probe_with_config(config, request)
             .await
-            .map_err(|error| error.to_string())?;
-        return connected
-            .then_some(())
-            .ok_or_else(|| "LLM 连接测试返回空响应".to_string());
+            .map_err(|error| error.to_string());
     }
     let response = provider
         .chat_with_config(config, request)

@@ -1,7 +1,7 @@
 use a4n_core::models::{
     asset::object_profile, character::protagonist_profile, scene::scene_profile,
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,

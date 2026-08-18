@@ -5,12 +5,6 @@ const mocks = vi.hoisted(() => ({ apiInvoke: vi.fn() }));
 
 vi.mock("./index", () => ({
   apiInvoke: mocks.apiInvoke,
-  extractErrorMessage: (error: unknown, fallback: string) =>
-    typeof error === "string"
-      ? error
-      : error instanceof Error
-        ? error.message
-        : fallback,
 }));
 
 import {
@@ -25,7 +19,6 @@ import {
   previewResumeChapterAnalysisSyncRequest,
   reorderChapterScenes,
   resumeChapterAnalysisSync,
-  shouldPropagateGenerationRagPrefetchError,
   updateChapterScene,
 } from "./chapter";
 
@@ -57,21 +50,6 @@ describe("chapter generation target", () => {
     expect(chapterGenerationNumber(summary("8:3"), 7)).toBeNull();
     expect(chapterGenerationNumber(summary("7:3:1"), 7)).toBeNull();
     expect(chapterGenerationNumber(summary("7:3", "image"), 7)).toBeNull();
-  });
-
-  it("propagates RAG contract errors but allows optional capability failures", () => {
-    expect(
-      shouldPropagateGenerationRagPrefetchError("Embedding identity 不匹配"),
-    ).toBe(true);
-    expect(
-      shouldPropagateGenerationRagPrefetchError("参数无效：query vector 维度不匹配"),
-    ).toBe(true);
-    expect(
-      shouldPropagateGenerationRagPrefetchError("嵌入计算失败：本机模型未安装"),
-    ).toBe(false);
-    expect(
-      shouldPropagateGenerationRagPrefetchError("向量检索失败：服务暂时不可用"),
-    ).toBe(false);
   });
 
   it("keeps a committed chapter successful when derived sync needs recovery", () => {

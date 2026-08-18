@@ -60,7 +60,10 @@ import {
 import { useStatusBarPermanent } from "../components/ui/StatusBar";
 import { useSmartBack } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
-import { getProjectHomeEntryRoute } from "../utils/projectRouting";
+import {
+  getProjectHomeEntryRoute,
+  getProjectPrimaryRoute,
+} from "../utils/projectRouting";
 import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
 import type { OptimizationPatchPreviewController } from "./novel-detail/optimize/patchPreviewTypes";
 import { useChapterAnalysisActions } from "./writing-desk/useChapterAnalysisActions";
@@ -288,7 +291,7 @@ export const WritingDesk: React.FC = () => {
         }
         if (!hasProjectEditorRole(p)) {
           addToast("当前账号没有编辑此项目的权限", "error");
-          navigate(`/novel/${projectId}`, { replace: true });
+          navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
         const [ch, ol] = await Promise.all([
@@ -997,7 +1000,7 @@ export const WritingDesk: React.FC = () => {
 
       {!lifecycleBlockedReason && outlines.length === 0 && chapters.length === 0 && (
         <MissingOutlineBanner
-          onOpenProjectDetail={() => safeNavigateTo(`/novel/${projectId}`)}
+          onOpenProjectDetail={() => safeNavigateTo(getProjectPrimaryRoute(project))}
         />
       )}
 
@@ -1016,7 +1019,7 @@ export const WritingDesk: React.FC = () => {
         rightPanelAvailable={rightPanelAvailable}
         rightPanelUnavailableTip={rightPanelUnavailableTip}
         onSmartBack={safeSmartBack}
-        onOpenProjectDetail={() => safeNavigateTo(`/novel/${projectId}`)}
+        onOpenProjectDetail={() => safeNavigateTo(getProjectPrimaryRoute(project))}
         onCreateChapter={handleCreateChapter}
         onPrev={handlePrev}
         onNext={handleNext}

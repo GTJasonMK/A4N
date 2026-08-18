@@ -1,6 +1,7 @@
 use serde_json::json;
 
 use super::*;
+use super::requests::service_request_with_context;
 
 #[test]
 fn provider_secret_detection_is_recursive_and_key_aware() {
@@ -17,31 +18,6 @@ fn provider_secret_detection_is_recursive_and_key_aware() {
     assert!(!payload_has_provider_secret(&json!({
         "content": "api_key=literal text"
     })));
-}
-
-#[test]
-fn local_secret_url_detection_accepts_only_loopback_http_urls() {
-    assert!(sidecar_url_allows_local_secrets("http://localhost:47642"));
-    assert!(sidecar_url_allows_local_secrets(
-        "http://api.localhost:47642"
-    ));
-    assert!(sidecar_url_allows_local_secrets("http://127.0.0.8:47642"));
-    assert!(sidecar_url_allows_local_secrets("http://[::1]:47642"));
-    assert!(sidecar_url_allows_local_secrets("https://localhost:47642"));
-    assert!(!sidecar_url_allows_local_secrets("http://[::1]evil:47642"));
-    assert!(!sidecar_url_allows_local_secrets(
-        "https://sidecar.example.com"
-    ));
-    assert!(!sidecar_url_allows_local_secrets("http://10.0.0.8:47642"));
-    assert!(!sidecar_url_allows_local_secrets("http://localhost:bad"));
-    assert!(!sidecar_url_allows_local_secrets("http://localhost:"));
-    assert!(!sidecar_url_allows_local_secrets("http://[::1]:bad"));
-    assert!(!sidecar_url_allows_local_secrets("http://[::1]:99999"));
-    assert!(!sidecar_url_allows_local_secrets(
-        "file://localhost/tmp/a4n"
-    ));
-    assert!(!sidecar_url_allows_local_secrets("ftp://localhost:47642"));
-    assert!(!sidecar_url_allows_local_secrets("not-a-url"));
 }
 
 #[test]
@@ -62,9 +38,12 @@ fn explicit_context_uses_protocol_only_schema_and_redacts_fields() {
         })))
         .with_secret_policy(SecretForwardingPolicy::deny_all());
 
-    let request =
-        service_request_with_context(context, "explicit-capability-v1", json!({ "x": 1 }))
-            .expect("service request should be created");
+    let request = service_request_with_context(
+        context,
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
+        json!({ "x": 1 }),
+    )
+    .expect("service request should be created");
 
     assert!(!request.request_id.is_empty());
     assert_eq!(request.trace_context.trace_id, "trace-1");
@@ -81,7 +60,10 @@ fn explicit_context_uses_protocol_only_schema_and_redacts_fields() {
     assert_eq!(request.project_id, Some(11));
     assert_eq!(request.root_project_id, Some(3));
     assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
-    assert_eq!(request.capability_version, "explicit-capability-v1");
+    assert_eq!(
+        request.capability_version,
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION
+    );
     assert_eq!(request.payload, json!({ "x": 1 }));
 
     let snapshot = request
@@ -99,7 +81,7 @@ fn explicit_context_uses_protocol_only_schema_and_redacts_fields() {
 fn request_builder_rejects_invalid_identity_and_project_scope() {
     let error = service_request_with_context(
         SidecarRequestContext::current_global().with_user_id(Some(0)),
-        "explicit-capability-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({}),
     )
     .expect_err("non-positive user ID must fail before transport");
@@ -108,7 +90,7 @@ fn request_builder_rejects_invalid_identity_and_project_scope() {
 
     let error = service_request_with_context(
         SidecarRequestContext::current_global().with_project_scope(None, Some(3)),
-        "explicit-capability-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({}),
     )
     .expect_err("root project without project must fail before transport");
@@ -119,7 +101,7 @@ fn request_builder_rejects_invalid_identity_and_project_scope() {
             trace_id: " ".to_string(),
             parent_span_id: None,
         }),
-        "explicit-capability-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({}),
     )
     .expect_err("blank trace ID must fail before transport");
@@ -129,7 +111,7 @@ fn request_builder_rejects_invalid_identity_and_project_scope() {
 #[tokio::test]
 async fn pure_transform_does_not_inherit_task_local_user() {
     runtime_config::request_scope(7, None, async {
-        let request = pure_transform_service_request(
+        let request = pure_transform_typed_service_request(
             a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
             json!({ "project_id": 11 }),
             Some(11),
@@ -149,7 +131,7 @@ async fn pure_transform_does_not_inherit_task_local_user() {
 #[test]
 fn global_no_secret_request_rejects_top_level_project_scope() {
     let error = global_service_request_without_secrets(
-        "pure-transform-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({
             "project_id": 21,
             "projectId": "21",
@@ -165,7 +147,7 @@ fn global_no_secret_request_rejects_top_level_project_scope() {
 #[test]
 fn null_payload_project_scope_is_treated_as_absent() {
     let request = global_service_request_without_secrets(
-        "pure-transform-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({ "project_id": null, "rootProjectId": null }),
     )
     .expect("optional null project scope should remain absent");
@@ -182,8 +164,11 @@ fn payload_project_scope_rejects_invalid_or_conflicting_aliases() {
         json!({ "project_id": 21, "projectId": 22 }),
         json!({ "root_project_id": 9, "rootProjectId": 10 }),
     ] {
-        let error = global_service_request_without_secrets("pure-transform-v1", payload)
-            .expect_err("invalid or conflicting project scope aliases must fail");
+        let error = global_service_request_without_secrets(
+            a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
+            payload,
+        )
+        .expect_err("invalid or conflicting project scope aliases must fail");
         assert!(
             error.contains("必须是正整数") || error.contains("别名字段不一致"),
             "unexpected error: {error}"
@@ -195,7 +180,7 @@ fn payload_project_scope_rejects_invalid_or_conflicting_aliases() {
 fn explicit_context_must_match_payload_project_scope() {
     let request = service_request_with_context(
         SidecarRequestContext::current_global().with_project_scope(Some(21), Some(9)),
-        "explicit-capability-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({ "project_id": 21, "root_project_id": 9 }),
     )
     .expect("matching context and payload scope should pass");
@@ -208,7 +193,7 @@ fn explicit_context_must_match_payload_project_scope() {
     ] {
         let error = service_request_with_context(
             SidecarRequestContext::current_global().with_project_scope(Some(21), Some(9)),
-            "explicit-capability-v1",
+            a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
             payload,
         )
         .expect_err("context and payload scope mismatch must fail");
@@ -222,7 +207,7 @@ fn explicit_context_must_match_payload_project_scope() {
 fn current_context_denies_secret_forwarding_by_default() {
     let request = service_request_with_context(
         SidecarRequestContext::current_global(),
-        "explicit-capability-v1",
+        a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
         json!({ "api_key": "secret" }),
     )
     .expect("service request should be created");
@@ -234,7 +219,6 @@ fn current_context_denies_secret_forwarding_by_default() {
 fn provider_secret_policy_allows_only_loopback_and_preserves_scope() {
     let request = service_request_with_context_provider_secret_policy_for_url(
         SidecarRequestContext::current_global().with_project_scope(Some(21), Some(9)),
-        "image",
         "http://localhost:47645",
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         json!({ "api_key": "secret" }),
@@ -249,7 +233,6 @@ fn provider_secret_policy_allows_only_loopback_and_preserves_scope() {
     );
 
     let error = global_provider_service_request_for_url(
-        "image",
         "https://sidecar.example.com",
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         json!({ "api_key": "secret" }),
@@ -259,7 +242,6 @@ fn provider_secret_policy_allows_only_loopback_and_preserves_scope() {
     assert!(!error.contains("sidecar.example.com"));
 
     let remote_without_secret = global_provider_service_request_for_url(
-        "image",
         "https://sidecar.example.com",
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         json!({ "api_key": null, "prompt": "content" }),
@@ -274,7 +256,6 @@ fn provider_secret_policy_allows_only_loopback_and_preserves_scope() {
 #[test]
 fn global_provider_request_rejects_project_scope_hidden_in_payload() {
     let error = global_provider_service_request_for_url(
-        "image",
         "http://localhost:47645",
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         json!({ "project_id": 21, "api_key": "secret" }),
@@ -287,7 +268,6 @@ fn global_provider_request_rejects_project_scope_hidden_in_payload() {
 #[test]
 fn provider_request_without_secret_uses_trusted_remote_without_secrets() {
     let request = global_provider_service_request_for_url(
-        "llm",
         "https://sidecar.example.com",
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         json!({ "api_key": null }),
@@ -329,12 +309,12 @@ fn llm_trace_prefers_generation_then_workflow_run() {
 }
 
 #[test]
-fn llm_trace_falls_back_to_normalized_components() {
-    let trace = LlmTraceContext {
+fn llm_trace_normalizes_components_and_rejects_blank_step() {
+    let mut trace = LlmTraceContext {
         project_id: Some(11),
         root_project_id: None,
         workflow: " ad hoc/chat ".to_string(),
-        step_key: " ".to_string(),
+        step_key: " draft step ".to_string(),
         generation_run_id: None,
         workflow_run_id: None,
         call_key: Some("manual#1".to_string()),
@@ -351,12 +331,17 @@ fn llm_trace_falls_back_to_normalized_components() {
 
     assert_eq!(
         request.trace_context.trace_id,
-        "llm:project:11:ad_hoc_chat:unknown:manual_1"
+        "llm:project:11:ad_hoc_chat:draft_step:manual_1"
     );
     assert_eq!(
         request.trace_context.parent_span_id.as_deref(),
-        Some("ad_hoc_chat:unknown:manual_1")
+        Some("ad_hoc_chat:draft_step:manual_1")
     );
+
+    trace.step_key = " ".to_string();
+    let error = sidecar_context_for_llm_trace(&trace)
+        .expect_err("blank LLM trace step must fail before request construction");
+    assert!(error.contains("step_key 不能为空"));
 }
 
 #[test]
@@ -364,7 +349,6 @@ fn provider_secret_policy_preserves_explicit_llm_trace() {
     let trace = llm_trace(Some(42), None, Some("draft call"));
     let request = service_request_with_context_provider_secret_policy_for_url(
         sidecar_context_for_llm_trace(&trace).expect("positive generation trace ID"),
-        "llm",
         "http://localhost:47642",
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         json!({ "provider": { "api_key": "secret" }, "project_id": 11 }),
@@ -380,7 +364,6 @@ fn provider_secret_policy_preserves_explicit_llm_trace() {
 
     let error = service_request_with_context_provider_secret_policy_for_url(
         sidecar_context_for_llm_trace(&trace).expect("positive generation trace ID"),
-        "llm",
         "http://localhost:47642",
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         json!({ "provider": { "api_key": "secret" }, "project_id": 99 }),
@@ -391,7 +374,6 @@ fn provider_secret_policy_preserves_explicit_llm_trace() {
 
     let error = service_request_with_context_provider_secret_policy_for_url(
         sidecar_context_for_llm_trace(&trace).expect("positive generation trace ID"),
-        "llm",
         "https://sidecar.example.com",
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         json!({ "provider": { "api_key": "secret" } }),

@@ -14,21 +14,19 @@ use a4n_service_protocol::{PROMPT_SERVICE_NAME, ServiceHealth, ServiceRequest, S
 use async_trait::async_trait;
 
 pub struct HttpPromptClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpPromptClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(PROMPT_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, PROMPT_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(PROMPT_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, PROMPT_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -52,28 +50,28 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptEmptyPayload>,
     ) -> CapabilityResult<ServiceResponse<PromptListOutput>> {
-        self.transport.post_typed("/prompt/list", request).await
+        self.transport.post("/prompt/list", request).await
     }
 
     async fn get(
         &self,
         request: ServiceRequest<PromptNamePayload>,
     ) -> CapabilityResult<ServiceResponse<PromptEntry>> {
-        self.transport.post_typed("/prompt/get", request).await
+        self.transport.post("/prompt/get", request).await
     }
 
     async fn render(
         &self,
         request: ServiceRequest<PromptRenderPayload>,
     ) -> CapabilityResult<ServiceResponse<PromptRenderOutput>> {
-        self.transport.post_typed("/prompt/render", request).await
+        self.transport.post("/prompt/render", request).await
     }
 
     async fn validate(
         &self,
         request: ServiceRequest<PromptValidatePayload>,
     ) -> CapabilityResult<ServiceResponse<PromptValidateOutput>> {
-        self.transport.post_typed("/prompt/validate", request).await
+        self.transport.post("/prompt/validate", request).await
     }
 
     async fn render_ab(
@@ -81,7 +79,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptRenderPayload>,
     ) -> CapabilityResult<ServiceResponse<PromptRenderAbOutput>> {
         self.transport
-            .post_typed("/prompt/render_ab", request)
+            .post("/prompt/render_ab", request)
             .await
     }
 
@@ -90,7 +88,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptHydrateOverridesPayload>,
     ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
-            .post_typed("/prompt/override/hydrate", request)
+            .post("/prompt/override/hydrate", request)
             .await
     }
 
@@ -99,7 +97,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptSetProjectOverridePayload>,
     ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
-            .post_typed("/prompt/override/set", request)
+            .post("/prompt/override/set", request)
             .await
     }
 
@@ -108,7 +106,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptNamePayload>,
     ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
-            .post_typed("/prompt/override/remove", request)
+            .post("/prompt/override/remove", request)
             .await
     }
 
@@ -117,7 +115,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptEmptyPayload>,
     ) -> CapabilityResult<ServiceResponse<CountOutput>> {
         self.transport
-            .post_typed("/prompt/load_defaults", request)
+            .post("/prompt/load_defaults", request)
             .await
     }
 
@@ -125,7 +123,7 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptUpdatePayload>,
     ) -> CapabilityResult<ServiceResponse<PromptEntry>> {
-        self.transport.post_typed("/prompt/update", request).await
+        self.transport.post("/prompt/update", request).await
     }
 
     async fn update_many(
@@ -133,7 +131,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptUpdateManyPayload>,
     ) -> CapabilityResult<ServiceResponse<Vec<PromptEntry>>> {
         self.transport
-            .post_typed("/prompt/update_many", request)
+            .post("/prompt/update_many", request)
             .await
     }
 
@@ -141,7 +139,7 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptNamePayload>,
     ) -> CapabilityResult<ServiceResponse<()>> {
-        self.transport.post_typed("/prompt/reset", request).await
+        self.transport.post("/prompt/reset", request).await
     }
 
     async fn version_history(
@@ -149,7 +147,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptNamePayload>,
     ) -> CapabilityResult<ServiceResponse<PromptVersionHistoryOutput>> {
         self.transport
-            .post_typed("/prompt/version_history", request)
+            .post("/prompt/version_history", request)
             .await
     }
 
@@ -158,7 +156,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptVersionDiffPayload>,
     ) -> CapabilityResult<ServiceResponse<PromptVersionDiffOutput>> {
         self.transport
-            .post_typed("/prompt/version_diff", request)
+            .post("/prompt/version_diff", request)
             .await
     }
 
@@ -167,7 +165,7 @@ impl PromptClient for HttpPromptClient {
         request: ServiceRequest<PromptEmptyPayload>,
     ) -> CapabilityResult<ServiceResponse<Vec<PromptCategory>>> {
         self.transport
-            .post_typed("/prompt/categories", request)
+            .post("/prompt/categories", request)
             .await
     }
 }

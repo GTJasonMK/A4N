@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
+use crate::generation::GeneratedMediaArtifactFile;
+
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,13 +182,6 @@ pub struct PersistedGeneratedImageFile {
     pub file_size: i64,
 }
 
-#[derive(Debug, Clone)]
-pub struct GeneratedImageArtifactFile {
-    pub content_type: String,
-    pub sha256: String,
-    pub byte_size: u64,
-}
-
 #[async_trait]
 pub trait ImageGenerationHostPort: Send + Sync {
     async fn resolve_image_config(
@@ -223,7 +218,7 @@ pub trait ImageGenerationHostPort: Send + Sync {
         &self,
         relative_path: &str,
         label: &str,
-    ) -> Result<GeneratedImageArtifactFile, AppError>;
+    ) -> Result<GeneratedMediaArtifactFile, AppError>;
 
     async fn remove_generated_image_file(
         &self,

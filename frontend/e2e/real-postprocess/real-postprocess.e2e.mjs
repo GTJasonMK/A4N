@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const screenshotDir = fileURLToPath(
+  new URL("../../../target/tmp/real-postprocess/", import.meta.url),
+);
+mkdirSync(screenshotDir, { recursive: true });
 
 describe("real A4N postprocess window", () => {
   it("reports the actual app route and postprocess controls", async () => {
@@ -126,7 +132,7 @@ describe("real A4N postprocess window", () => {
     );
     const nativeVideo = await browser.$("video");
     const screenshotHash = async (label) => {
-      const path = `/tmp/a4n-real-postprocess-${label}.png`;
+      const path = `${screenshotDir}a4n-real-postprocess-${label}.png`;
       await nativeVideo.saveScreenshot(path);
       return createHash("sha256").update(readFileSync(path)).digest("hex");
     };

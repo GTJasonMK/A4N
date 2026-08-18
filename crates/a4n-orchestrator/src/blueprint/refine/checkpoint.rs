@@ -1,43 +1,27 @@
 use super::super::json::parse_blueprint_optimization_json;
 use a4n_core::blueprint::ParsedBlueprintOptimization;
 use a4n_core::error::AppError;
-use a4n_prompt::blueprint_generation::ensure_blueprint_response_not_truncated;
 use serde_json::Value;
 
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
+
 pub(super) fn blueprint_refine_checkpoint_output(
-    checkpoint_json: &Value,
+    parsed_output: &Value,
+    response_content: &str,
+    usage: Option<Value>,
+    finish_reason: Option<String>,
     call_key: &str,
-) -> Result<(ParsedBlueprintOptimization, Option<Value>, Option<String>), AppError> {
-    checkpoint_json
-        .get("response_content")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!("{call_key}.response_content 缺失或不是字符串"),
-            operation: "恢复蓝图优化 LLM 调用断点".to_string(),
-        })?;
-    let parsed_output =
-        checkpoint_json
-            .get("parsed_output")
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!("{call_key}.parsed_output 缺失"),
-                operation: "恢复蓝图优化 LLM 调用断点".to_string(),
-            })?;
-    let parsed = parse_blueprint_optimization_json(&serde_json::to_string(parsed_output)?)?;
-    let usage = checkpoint_json
-        .get("usage")
-        .filter(|value| !value.is_null())
-        .cloned();
-    let finish_reason =
-        match checkpoint_json.get("finish_reason") {
-            Some(Value::Null) | None => None,
-            Some(value) => Some(value.as_str().map(ToString::to_string).ok_or_else(|| {
-                AppError::InvalidState {
-                    current: format!("{call_key}.finish_reason 必须是字符串或 null"),
-                    operation: "恢复蓝图优化 LLM 调用断点".to_string(),
-                }
-            })?),
-        };
-    ensure_blueprint_response_not_truncated(finish_reason.as_deref(), "蓝图优化 checkpoint")?;
+) -> Result<(ParsedBlueprintOptimization, Option<Value>, String), AppError> {
+    let parsed = parse_blueprint_optimization_json(response_content)?;
+    ensure_checkpoint_parsed_output_matches(
+        parsed_output,
+        &parsed.raw,
+        &format!("蓝图优化 {call_key}"),
+    )?;
+    let finish_reason = finish_reason.ok_or_else(|| AppError::InvalidState {
+        current: format!("{call_key} 断点缺少 finish_reason"),
+        operation: "恢复蓝图优化调用".to_string(),
+    })?;
     Ok((parsed, usage, finish_reason))
 }
 
@@ -49,51 +33,50 @@ mod tests {
 
     #[test]
     fn restores_matching_blueprint_refine_checkpoint() {
-        let checkpoint = json!({
-            "response_content": r#"{"style":"冷峻"}"#,
-            "parsed_output": {"style": "冷峻"},
-            "usage": {"prompt_tokens": 10},
-            "finish_reason": "stop"
-        });
-
-        let (response, usage, finish_reason) =
-            blueprint_refine_checkpoint_output(&checkpoint, "blueprint_refine:7").unwrap();
+        let (response, usage, finish_reason) = blueprint_refine_checkpoint_output(
+            &json!({"style": "冷峻"}),
+            r#"{"style":"冷峻"}"#,
+            Some(json!({"prompt_tokens": 10})),
+            Some("stop".to_string()),
+            "blueprint_refine:7",
+        )
+        .unwrap();
 
         assert_eq!(response.raw, json!({"style": "冷峻"}));
         assert_eq!(usage, Some(json!({"prompt_tokens": 10})));
-        assert_eq!(finish_reason.as_deref(), Some("stop"));
+        assert_eq!(finish_reason, "stop");
     }
 
     #[test]
-    fn restores_repaired_blueprint_refine_checkpoint_from_parsed_output() {
-        let checkpoint = json!({
-            "response_content": r#"{"style":"冷峻"}"#,
-            "parsed_output": {"style": "温暖"},
-            "finish_reason": null
-        });
-
-        let (response, _, _) =
-            blueprint_refine_checkpoint_output(&checkpoint, "blueprint_refine:7")
-                .expect("repaired checkpoint should restore parsed output");
-
-        assert_eq!(response.raw, json!({"style": "温暖"}));
-    }
-
-    #[test]
-    fn rejects_truncated_blueprint_refine_checkpoint() {
-        let checkpoint = json!({
-            "response_content": r#"{"style":"冷峻"}"#,
-            "parsed_output": {"style": "冷峻"},
-            "finish_reason": "length"
-        });
-
-        let error = blueprint_refine_checkpoint_output(&checkpoint, "blueprint_refine:7")
-            .expect_err("truncated checkpoint must fail");
+    fn rejects_mismatched_blueprint_refine_checkpoint() {
+        let error = blueprint_refine_checkpoint_output(
+            &json!({"style": "温暖"}),
+            r#"{"style":"冷峻"}"#,
+            None,
+            None,
+            "blueprint_refine:7",
+        )
+        .err()
+        .expect("mismatched checkpoint must fail");
 
         assert!(
             error
                 .to_string()
-                .contains("蓝图优化 checkpoint 输出达到当前蓝图 max_tokens 上限")
+                .contains("checkpoint_parsed_output_mismatch")
         );
+    }
+
+    #[test]
+    fn rejects_checkpoint_without_finish_reason() {
+        let error = blueprint_refine_checkpoint_output(
+            &json!({"style": "冷峻"}),
+            r#"{"style":"冷峻"}"#,
+            None,
+            None,
+            "blueprint_refine:7",
+        )
+        .expect_err("completed checkpoint must retain finish_reason");
+
+        assert!(error.to_string().contains("断点缺少 finish_reason"));
     }
 }

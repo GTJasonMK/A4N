@@ -31,7 +31,10 @@ import {
 } from "../../utils/generationEventReducer";
 import { logger } from "../../utils/logger";
 import { isImeCompositionActive } from "../../utils/ime";
-import { getProjectHomeEntryRoute } from "../../utils/projectRouting";
+import {
+  getProjectHomeEntryRoute,
+  getProjectPrimaryRoute,
+} from "../../utils/projectRouting";
 import {
   DEFAULT_INPUT_PLACEHOLDER,
   msgId,
@@ -191,7 +194,7 @@ export const useInspirationChatController = () => {
         }
         if (!canEditInspirationProject(p)) {
           addToast("当前账号没有编辑此项目的权限", "error");
-          navigate(`/novel/${projectId}`, { replace: true });
+          navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
         setProject(p);
@@ -471,7 +474,8 @@ export const useInspirationChatController = () => {
     } catch (err) {
       if (!isCurrentSend(requestProjectId, requestSeq)) return;
       logger.scoped("InspirationChat").error("converse failed", { err });
-      addToast(extractErrorMessage(err, "对话失败"), "error");
+      const message = extractErrorMessage(err, "对话失败");
+      addToast(message, "error");
       setMessages((prev) => {
         const cleared = prev.map((m) =>
           m.id === assistantId ? { ...m, streaming: false } : m,
@@ -481,7 +485,7 @@ export const useInspirationChatController = () => {
           {
             id: msgId(),
             role: "system",
-            content: `❌ ${extractErrorMessage(err)}`,
+            content: `❌ ${message}`,
             createdAt: Date.now(),
           },
         ];

@@ -5,16 +5,6 @@ use a4n_orchestrator::rag::{
     outline_rag_record, part_outline_rag_record,
 };
 
-pub(super) async fn append_story_records(
-    state: &AppState,
-    project_id: i64,
-    expected: &mut ExpectedRagRecords,
-) -> Result<(), String> {
-    append_chapter_records(state, project_id, expected).await?;
-    append_outline_records(state, project_id, expected).await?;
-    append_blueprint_records(state, project_id, expected).await
-}
-
 pub(super) async fn append_chapter_records(
     state: &AppState,
     project_id: i64,

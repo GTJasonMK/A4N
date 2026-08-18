@@ -12,11 +12,17 @@ use a4n_core::{
         media::media_asset,
         project::novel_project,
     },
+    video_workflow::WORKFLOW_MODE_CANVAS_VIDEO,
 };
-use a4n_db::project::{
-    CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, ProjectMediaCopyError,
-    ProjectMediaFileCopier, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT,
-    create_freeform_video_project_record,
+use a4n_db::{
+    generation::{
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+    },
+    project::{
+        CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, ProjectMediaCopyError,
+        ProjectMediaFileCopier, SOURCE_SYNC_CURRENT, create_freeform_video_project_record,
+    },
 };
 use a4n_domain::canvas_transfer_runtime_identity_key;
 use async_trait::async_trait;
@@ -86,7 +92,7 @@ impl ProjectDuplicationHostPort for TestProjectDuplicationHost {
 #[tokio::test]
 async fn duplicate_text_application_owns_lookup_permission_validation_and_dispatch() {
     let (context, database) = setup().await;
-    let source = insert_project(database.as_ref(), 7, PROJECT_KIND_TEXT, SOURCE_MODE_SELF).await;
+    let source = insert_project(database.as_ref(), 7, PROJECT_KIND_TEXT).await;
     let mut host = TestProjectDuplicationHost::default();
 
     let duplicated = context
@@ -252,8 +258,8 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
             project_id: source.id,
             target_entity_id: node.id,
             canvas_text_asset_id: None,
-            target_kind: "canvas_video".to_string(),
-            target_entity_kind: "canvas_node".to_string(),
+            target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO.to_string(),
+            target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
             status: "completed".to_string(),
             params_json: json!({
                 "source_material": {
@@ -382,8 +388,8 @@ async fn insert_generated_video(
     generated_video::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(None),
-        video_type: Set("canvas_video".to_string()),
-        workflow_mode: Set(Some("canvas_video".to_string())),
+        video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
+        workflow_mode: Set(Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string())),
         file_path: Set(None),
         thumbnail_path: Set(None),
         prompt: Set(format!("{status} video")),
@@ -422,7 +428,6 @@ async fn insert_project(
     database: &a4n_db::DatabaseConnection,
     user_id: i64,
     project_kind: &str,
-    source_mode: &str,
 ) -> novel_project::Model {
     let now = Utc::now().naive_utc();
     novel_project::ActiveModel {
@@ -431,7 +436,6 @@ async fn insert_project(
         description: Set("project duplication application test".to_string()),
         project_type: Set("novel_long".to_string()),
         project_kind: Set(project_kind.to_string()),
-        source_mode: Set(source_mode.to_string()),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),
         status: Set("draft".to_string()),
         target_chapters: Set(12),

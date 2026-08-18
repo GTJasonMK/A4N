@@ -72,9 +72,17 @@ where
         .column(chapter_video_prompt::Column::Id)
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::PromptType.eq("frame_segment_plan"))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq("shared_segment_plan"))
-        .filter(chapter_video_prompt::Column::Status.eq("completed"))
+        .filter(
+            chapter_video_prompt::Column::PromptType
+                .eq(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN),
+        )
+        .filter(
+            chapter_video_prompt::Column::WorkflowMode
+                .eq(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN),
+        )
+        .filter(
+            chapter_video_prompt::Column::Status.eq(chapter_video_prompt::STATUS_COMPLETED),
+        )
         .filter(
             Expr::col(chapter_video_prompt::Column::MetadataJson)
                 .get_json_field("video_execution_identity")
@@ -119,21 +127,4 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(not_found_message.to_string()))
-}
-
-pub async fn chapter_video_prompt_records_by_ids<C>(
-    db: &C,
-    prompt_ids: &[i64],
-) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    if prompt_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids.iter().copied()))
-        .all(db)
-        .await
-        .map_err(VideoDbError::Database)
 }

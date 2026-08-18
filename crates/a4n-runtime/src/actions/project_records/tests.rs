@@ -3,7 +3,8 @@ use a4n_core::models::{
     canvas::canvas_node,
     media::media_asset,
 };
-use a4n_domain::CanvasNodeRefKind;
+use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::{CanvasNodeRefKind, image::IMAGE_TYPE_CANVAS};
 use a4n_orchestrator::canvas::{
     MissingCanvasRef, clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
 };
@@ -30,7 +31,7 @@ fn canvas_image_row(
     generated_image::Model {
         id: 41,
         project_id: 9,
-        image_type: "canvas_image".to_string(),
+        image_type: IMAGE_TYPE_CANVAS.to_string(),
         file_path: "projects/9/images/imported.png".to_string(),
         prompt: "导入画布图片".to_string(),
         model: model.to_string(),
@@ -54,8 +55,8 @@ fn canvas_video_row(
         id: 42,
         project_id: 9,
         chapter_id: None,
-        video_type: "canvas_video".to_string(),
-        workflow_mode: Some("canvas_video".to_string()),
+        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+        workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
         file_path: Some("projects/9/videos/canvas.mp4".to_string()),
         thumbnail_path: Some("projects/9/videos/canvas.jpg".to_string()),
         prompt: "画布视频".to_string(),

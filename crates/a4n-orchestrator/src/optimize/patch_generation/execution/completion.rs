@@ -1,10 +1,9 @@
 use a4n_core::{error::AppError, models::ai::optimization_session};
-use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
 use serde_json::{Value, json};
 
 use crate::optimize::runtime_tools::EDIT_ARTICLE_TOOL;
 use crate::optimize::{AgentLoopExecutionError, OptimizationPatchProposal, OrchestratorContext};
-use crate::workflow::workflow_write_app_error;
+use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 
 use super::PatchGenerationCallResult;
 
@@ -64,25 +63,21 @@ pub(super) async fn prepare_patch_generation_completion(
             .map(serde_json::to_value)
             .transpose()
             .map_err(AppError::from)?;
-        workflow::save_completed_llm_call_checkpoint(
-            service.database.connection(),
-            CompletedLlmCallCheckpointInput {
+        service
+            .save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key,
                 call_order: 1,
                 input_fingerprint_json,
-                checkpoint_json: json!({
-                    "output": proposal.clone(),
-                    "parsed_output": proposal.clone(),
-                    "response_content": response_content.clone(),
-                    "usage": usage,
-                    "finish_reason": response.finish_reason,
-                }),
-                artifacts_json: None,
-            },
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: serde_json::to_value(&proposal).map_err(AppError::from)?,
+                    response_content: response_content.clone(),
+                    usage,
+                    finish_reason: response.finish_reason,
+                    artifacts_json: None,
+                },
+            })
+            .await?;
     }
     let tool_calls = json!({ "tool": EDIT_ARTICLE_TOOL, "chapter_id": chapter_id });
     let tool_content = serde_json::to_string_pretty(&json!({

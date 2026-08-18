@@ -20,86 +20,66 @@ use crate::{
         conflict_rules::character_conflict_call_fingerprint_json,
     },
     project::required_text,
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
+    workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
 use super::{
+    CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL,
     contracts::{
-        CharacterConflictCheckInput, CharacterConflictCheckResult,
-        CharacterConflictProgressReporter, CharacterConflictRequestPreview,
-        CharacterConflictTaskScope, PreparedCharacterConflictCheck, RequiredCharacterConflictInput,
+        CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictSummary,
+        PreparedCharacterConflictCheck, ValidatedCharacterConflictInput,
     },
     request::{
         BuildCharacterConflictRequestInput, build_character_conflict_request,
-        character_conflict_call_key,
     },
     workflow::character_conflict_workflow_run_input,
 };
 
 impl OrchestratorContext {
-    pub async fn character_conflict_task_scope_validated(
-        &self,
-        user_id: i64,
-        input: &CharacterConflictCheckInput,
-    ) -> Result<CharacterConflictTaskScope, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        let required = required_character_conflict_input(input)?;
-        Ok(CharacterConflictTaskScope {
-            project_id: required.project_id,
-            total: 4,
-        })
-    }
-
     pub async fn prepare_character_conflict_request_preview_validated(
         &self,
-        user_id: i64,
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<CharacterConflictRequestPreview, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        let input = validated_character_conflict_input(&input)?;
         let prepared = self
             .prepare_character_conflict_check(input, prompt_renderer)
             .await?;
-        Ok(CharacterConflictRequestPreview {
-            request: prepared.request,
-        })
+        Ok(prepared.request)
     }
 
     pub async fn check_character_conflict_validated(
         &self,
-        user_id: i64,
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterConflictProgressReporter<'_>,
         active_task_id: Option<&str>,
-    ) -> Result<Vec<Value>, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        progress(0, 4, "正在读取角色档案和章节内容")?;
+    ) -> Result<Vec<CharacterConflictSummary>, AppError> {
+        let input = validated_character_conflict_input(&input)?;
+        progress(
+            0,
+            CHARACTER_CONFLICT_PROGRESS_TOTAL,
+            "正在读取角色档案和章节内容",
+        )?;
         let prepared = self
             .prepare_character_conflict_check(input, prompt_renderer)
             .await?;
-        progress(1, 4, "正在构造一致性检查提示词")?;
-        progress(2, 4, "正在调用模型检查角色一致性")?;
+        progress(
+            1,
+            CHARACTER_CONFLICT_PROGRESS_TOTAL,
+            "正在构造一致性检查提示词",
+        )?;
+        progress(
+            2,
+            CHARACTER_CONFLICT_PROGRESS_TOTAL,
+            "正在调用模型检查角色一致性",
+        )?;
 
         let (workflow_input, workflow_fingerprint) = character_conflict_workflow_run_input(
-            prepared.project_id,
-            &prepared.name,
-            prepared.chapter_scope,
+            prepared.input.project_id,
+            prepared.profile_id,
+            &prepared.input.name,
+            prepared.input.chapter_scope,
             &prepared.call_key,
             &prepared.request,
             active_task_id,
@@ -119,25 +99,24 @@ impl OrchestratorContext {
 
     async fn prepare_character_conflict_check(
         &self,
-        input: CharacterConflictCheckInput,
+        input: ValidatedCharacterConflictInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<PreparedCharacterConflictCheck, AppError> {
-        let required = required_character_conflict_input(&input)?;
         let profile = self
-            .profile_by_project_name(required.project_id, &required.name)
+            .profile_by_project_name(input.project_id, &input.name)
             .await?
             .ok_or_else(|| {
                 AppError::NotFound(format!(
                     "角色不存在: project_id={}, name={}",
-                    required.project_id, required.name
+                    input.project_id, input.name
                 ))
             })?;
         let context_rows = self
             .character_conflict_context_rows(
-                required.project_id,
+                input.project_id,
                 profile.id,
-                required.chapter_scope.start_chapter,
-                required.chapter_scope.end_chapter,
+                input.chapter_scope.start_chapter,
+                input.chapter_scope.end_chapter,
             )
             .await?;
 
@@ -183,28 +162,26 @@ impl OrchestratorContext {
         );
         let system_prompt = prompt_renderer
             .render_prompt(
-                "character_conflict_check",
+                CHARACTER_CONFLICT_KIND,
                 &HashMap::new(),
-                Some(required.project_id),
+                Some(input.project_id),
             )
             .await?;
-        let call_key = character_conflict_call_key(profile.id, &required.name);
-        let request = build_character_conflict_request(BuildCharacterConflictRequestInput {
-            system_prompt,
-            project_id: required.project_id,
-            profile_id: profile.id,
-            profile_name: &required.name,
-            chapter_scope: required.chapter_scope,
-            role_attr: &role_attr,
-            chapter_context: &chapter_context,
-            state_timeline: &state_timeline,
-            attribute_events: &attribute_events,
-            call_key: call_key.clone(),
-        })?;
+        let (call_key, request) =
+            build_character_conflict_request(BuildCharacterConflictRequestInput {
+                system_prompt,
+                project_id: input.project_id,
+                profile_id: profile.id,
+                profile_name: &input.name,
+                chapter_scope: input.chapter_scope,
+                role_attr: &role_attr,
+                chapter_context: &chapter_context,
+                state_timeline: &state_timeline,
+                attribute_events: &attribute_events,
+            })?;
         Ok(PreparedCharacterConflictCheck {
-            project_id: required.project_id,
-            name: required.name,
-            chapter_scope: required.chapter_scope,
+            input,
+            profile_id: profile.id,
             call_key,
             request,
             source_ids,
@@ -217,7 +194,7 @@ impl OrchestratorContext {
         workflow_fingerprint: Value,
         mut prepared: PreparedCharacterConflictCheck,
         progress: CharacterConflictProgressReporter<'_>,
-    ) -> CharacterConflictCheckResult {
+    ) -> Result<Vec<CharacterConflictSummary>, AppError> {
         let fingerprint_json = character_conflict_call_fingerprint_json(
             &prepared.call_key,
             &workflow_fingerprint,
@@ -239,12 +216,14 @@ impl OrchestratorContext {
             )
             .await?
         {
-            progress(3, 4, "角色冲突检查已从断点恢复，正在解析矛盾项")?;
-            let checkpoint_json =
-                workflow::required_llm_call_checkpoint_json(checkpoint, &prepared.call_key)
-                    .map_err(workflow_checkpoint_contract_app_error)?;
+            progress(
+                3,
+                CHARACTER_CONFLICT_PROGRESS_TOTAL,
+                "角色冲突检查已从断点恢复，正在解析矛盾项",
+            )?;
             return restored_character_conflict_checkpoint(
-                checkpoint_json,
+                &checkpoint.parsed_output,
+                &checkpoint.response_content,
                 &prepared.call_key,
                 &prepared.source_ids,
             );
@@ -256,7 +235,11 @@ impl OrchestratorContext {
                 "角色冲突检查输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“JSON 标准”输出档位，或减少本次检查上下文后重试".to_string(),
             ));
         }
-        progress(3, 4, "模型已返回，正在解析矛盾项")?;
+        progress(
+            3,
+            CHARACTER_CONFLICT_PROGRESS_TOTAL,
+            "模型已返回，正在解析矛盾项",
+        )?;
         let conflicts =
             parse_conflict_output_with_source_ids(&response.message.content, &prepared.source_ids)?;
         let response_usage_json = response
@@ -269,23 +252,28 @@ impl OrchestratorContext {
             call_key: prepared.call_key,
             call_order: 1,
             input_fingerprint_json: fingerprint_json,
-            checkpoint_json: json!({
-                "output": conflicts.clone(),
-                "parsed_output": conflicts.clone(),
-                "response_content": response.message.content,
-                "finish_reason": response.finish_reason,
-                "usage": response_usage_json,
-            }),
-            artifacts_json: None,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: serde_json::to_value(&conflicts)?,
+                response_content: response.message.content,
+                usage: response_usage_json,
+                finish_reason: response.finish_reason,
+                artifacts_json: None,
+            },
         })
         .await?;
         Ok(conflicts)
     }
 }
 
-pub(super) fn required_character_conflict_input(
+pub fn validate_character_conflict_input(
     input: &CharacterConflictCheckInput,
-) -> Result<RequiredCharacterConflictInput, AppError> {
+) -> Result<(), AppError> {
+    validated_character_conflict_input(input).map(drop)
+}
+
+pub(super) fn validated_character_conflict_input(
+    input: &CharacterConflictCheckInput,
+) -> Result<ValidatedCharacterConflictInput, AppError> {
     if input.project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
     }
@@ -293,7 +281,7 @@ pub(super) fn required_character_conflict_input(
         .map_err(AppError::InvalidArgument)?
         .to_string();
     let chapter_scope = CharacterConflictChapterScope::new(input.start_chapter, input.end_chapter)?;
-    Ok(RequiredCharacterConflictInput {
+    Ok(ValidatedCharacterConflictInput {
         project_id: input.project_id,
         name,
         chapter_scope,

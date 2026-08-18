@@ -19,22 +19,18 @@ pub async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), St
 }
 
 pub async fn health_check(state: &AppState) -> Result<Value, String> {
-    let mut health = state
+    state
         .orchestrator()
-        .database_health()
+        .check_database_health()
         .await
         .map_err(app_error_message)?;
-    if let Value::Object(ref mut map) = health {
-        map.insert(
-            "runtime_profile".to_string(),
-            json!(state.runtime_profile().as_str()),
-        );
-        let services = state
-            .orchestrator()
-            .managed_service_health_summaries()
-            .await
-            .map_err(app_error_message)?;
-        map.insert("services".to_string(), json!(services));
-    }
-    Ok(health)
+    let services = state
+        .orchestrator()
+        .managed_service_health_summaries()
+        .await
+        .map_err(app_error_message)?;
+    Ok(json!({
+        "runtime_profile": state.runtime_profile().as_str(),
+        "services": services,
+    }))
 }

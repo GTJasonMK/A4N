@@ -96,7 +96,7 @@ fn object_generation_run(project_id: i64) -> a4n_db::generation::RecordCompleted
     a4n_db::generation::RecordCompletedGenerationRunInput {
         project_id,
         workflow: "object_discovery".to_string(),
-        step_key: "discover_object_profiles_for_chapters".to_string(),
+        step_key: "object_discovery.llm".to_string(),
         title: "物体档案发现".to_string(),
         model_kind: "llm".to_string(),
         provider: None,
@@ -127,7 +127,7 @@ fn character_discovery_generation_run(
 ) -> a4n_db::generation::RecordCompletedGenerationRunInput {
     let mut run = object_generation_run(project_id);
     run.workflow = "character_discovery".to_string();
-    run.step_key = "discover_character_profiles_for_chapters".to_string();
+    run.step_key = "character_discovery.llm".to_string();
     run.title = "角色发现".to_string();
     run
 }

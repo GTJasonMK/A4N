@@ -1,4 +1,9 @@
-use a4n_core::error::AppError;
+use std::sync::Arc;
+
+use a4n_core::{
+    blueprint::{BLUEPRINT_RAW_JSON_STREAM_ID, blueprint_stage_call_key},
+    error::AppError,
+};
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::ensure_blueprint_response_not_truncated;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +19,6 @@ use crate::generation::{
 use super::super::contracts::BlueprintStageSpec;
 use super::contracts::BlueprintStageLlmOutput;
 use super::rules::ensure_not_cancelled;
-use std::sync::Arc;
 
 pub(super) async fn generate_blueprint_stage_output(
     context: &OrchestratorContext,
@@ -26,19 +30,20 @@ pub(super) async fn generate_blueprint_stage_output(
     cancel_token: CancellationToken,
 ) -> Result<BlueprintStageLlmOutput, AppError> {
     ensure_not_cancelled(&cancel_token)?;
+    let call_key = blueprint_stage_call_key(spec.key);
     let output = execute_llm_generation(
         context.llm_backend(),
         publisher,
         LlmGenerationRequest {
             request,
-            stream_id: "raw_json".to_string(),
+            stream_id: BLUEPRINT_RAW_JSON_STREAM_ID.to_string(),
             cancellation: cancel_token,
             checkpoint: Some(LlmGenerationCheckpoint {
                 writer: checkpoint_writer,
                 session,
                 metadata: GenerationCheckpointMetadata {
-                    step_key: Some(format!("blueprint_generation.{}", spec.key)),
-                    call_key: Some(format!("blueprint_generation.{}", spec.key)),
+                    step_key: Some(call_key.clone()),
+                    call_key: Some(call_key),
                     provider_model: Some(context.llm_model_name()),
                     ..Default::default()
                 },

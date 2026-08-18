@@ -1,4 +1,7 @@
-use a4n_core::models::ai::generated_video;
+use a4n_core::{
+    models::{ai::generated_video, chapter::chapter_video_prompt},
+    video_execution::VideoSegmentWorkflowModeV1,
+};
 use serde_json::Value;
 
 use super::contract::{optional_snapshot_string, required_snapshot_string};
@@ -79,11 +82,11 @@ fn snapshot_note_for_video_record(
 ) -> Option<String> {
     let status = video.status.trim();
     let status_note = match status {
-        "completed" => None,
-        "running" | "pending" => Some(format!(
+        generated_video::STATUS_COMPLETED => None,
+        generated_video::STATUS_RUNNING | generated_video::STATUS_PENDING => Some(format!(
             "视频当前状态为 {status}；下方快照是生成流程已经构造出的 provider 请求，任务可能仍在处理中"
         )),
-        "failed" | "cancelled" => Some(format!(
+        generated_video::STATUS_FAILED | generated_video::STATUS_CANCELLED => Some(format!(
             "视频当前状态为 {status}；无法仅凭该状态确认 provider 是否实际接收请求，下方展示的是生成流程构造出的 provider 请求快照"
         )),
         other if !other.is_empty() => Some(format!(
@@ -105,17 +108,28 @@ pub(in crate::actions::video_generation) fn validate_video_provider_request_snap
     video: &generated_video::Model,
 ) -> Result<(), String> {
     match (video.video_type.as_str(), video.workflow_mode.as_deref()) {
-        ("chapter_video", Some("boundary_frames" | "first_frame_chain" | "storyboard"))
-        | ("reference_media_video", Some("reference_media")) => Ok(()),
-        ("chapter_video", Some(mode)) => Err(format!(
+        (
+            generated_video::VIDEO_TYPE_CHAPTER,
+            Some(
+                chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
+                    | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
+                    | chapter_video_prompt::WORKFLOW_MODE_STORYBOARD
+            ),
+        ) => Ok(()),
+        (generated_video::VIDEO_TYPE_REFERENCE_MEDIA, Some(mode))
+            if mode == VideoSegmentWorkflowModeV1::ReferenceMedia.as_str() => Ok(()),
+        (generated_video::VIDEO_TYPE_CHAPTER, Some(mode)) => Err(format!(
             "视频 #{} 的 workflow_mode={} 与 chapter_video 类型不匹配，无法直接预览 provider 请求",
             video.id, mode
         )),
-        ("reference_media_video", Some(mode)) => Err(format!(
+        (generated_video::VIDEO_TYPE_REFERENCE_MEDIA, Some(mode)) => Err(format!(
             "视频 #{} 的 workflow_mode={} 与 reference_media_video 类型不匹配，无法直接预览 provider 请求",
             video.id, mode
         )),
-        ("chapter_video" | "reference_media_video", None) => Err(format!(
+        (
+            generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA,
+            None,
+        ) => Err(format!(
             "视频 #{} 缺少 workflow_mode，无法直接预览 provider 请求",
             video.id
         )),

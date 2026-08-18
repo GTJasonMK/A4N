@@ -211,7 +211,7 @@ mod tests {
             image_type: "project_reference".to_string(),
             file_path: "images/1.png".to_string(),
             prompt: "reference".to_string(),
-            model: "external-import".to_string(),
+            model: a4n_domain::EXTERNAL_IMPORT_MODEL.to_string(),
             width: 1,
             height: 1,
             file_size: None,

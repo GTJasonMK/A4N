@@ -3,8 +3,7 @@ use super::prelude::*;
 pub(super) const MAX_UPLOAD_VIDEO_BYTES: usize = 512 * 1024 * 1024;
 
 pub use a4n_api_contract::video::{
-    ImportCanvasVideoInput, UploadAssemblyInsertVideoInput, UploadChapterVideoInput,
-    UploadReferenceMediaVideoInput,
+    UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
 };
 
 pub(in crate::actions::video_records) struct ImportedVideoSource {

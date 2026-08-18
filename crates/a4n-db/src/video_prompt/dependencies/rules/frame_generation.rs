@@ -1,14 +1,26 @@
 use super::chain::prompt_stage_label;
 use crate::video::VideoDbError;
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+    IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
+    IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
+};
 
 pub(in crate::video_prompt::dependencies) fn frame_image_generation_source_for_prompt(
     row: &chapter_video_prompt::Model,
 ) -> Option<&'static str> {
     match row.prompt_type.as_str() {
-        "frame_prompt" | "chat_video_frame_prompt" => Some("video_boundary_frame_prompt"),
-        "first_frame_prompt" => Some("video_first_frame_prompt"),
-        "storyboard_prompt" => Some("video_storyboard_prompt"),
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => {
+            Some(IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT)
+        }
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => {
+            Some(IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT)
+        }
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {
+            Some(IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT)
+        }
         _ => None,
     }
 }
@@ -23,7 +35,7 @@ pub(in crate::video_prompt::dependencies) fn ensure_frame_prompt_generation_sour
             prompt.id
         ))
     })?;
-    if generation_source.trim() != expected_source {
+    if generation_source != expected_source {
         return Err(VideoDbError::InvalidArgument(format!(
             "视频帧成图来源 {generation_source} 与{}不匹配",
             prompt_stage_label(prompt)
@@ -52,10 +64,18 @@ pub(in crate::video_prompt::dependencies) fn ensure_frame_prompt_workflow_matche
 
 fn expected_prompt_workflow_mode(prompt_type: &str) -> Option<&'static str> {
     match prompt_type {
-        "frame_prompt" => Some("boundary_frames"),
-        "first_frame_prompt" => Some("first_frame_chain"),
-        "chat_video_frame_prompt" => Some("chat_video"),
-        "storyboard_prompt" => Some("storyboard"),
+        chapter_video_prompt::PROMPT_TYPE_FRAME => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES)
+        }
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
+        }
+        chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO)
+        }
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {
+            Some(chapter_video_prompt::WORKFLOW_MODE_STORYBOARD)
+        }
         _ => None,
     }
 }

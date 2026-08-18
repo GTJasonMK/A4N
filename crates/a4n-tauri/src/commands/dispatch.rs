@@ -12,9 +12,12 @@ pub async fn invoke_host_command(
         a4n_server::dispatch_generation_start(&state, user_id, &args, &command).await
     {
         return match result {
-            Ok(handle) => serde_json::to_value(handle).map_err(|error| error.to_string().into()),
-            Err(error) => Err(serde_json::to_value(error)
-                .unwrap_or_else(|serialize_error| serialize_error.to_string().into())),
+            Ok(handle) => Ok(serde_json::to_value(handle)
+                .expect("generation task handle must serialize to JSON")),
+            Err(error) => {
+                Err(serde_json::to_value(error)
+                    .expect("generation host error must serialize to JSON"))
+            }
         };
     }
 

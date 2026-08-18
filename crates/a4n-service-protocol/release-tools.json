@@ -1,0 +1,5 @@
+[
+  {"package":"a4n-cli","binary":"a4n"},
+  {"package":"a4n-server","binary":"a4n-server"},
+  {"package":"a4n-migration","binary":"a4n-migration"}
+]

@@ -1,11 +1,11 @@
 use std::{
-    collections::BTreeMap,
     fs::{File, OpenOptions, TryLockError},
     future::Future,
     path::Path,
     sync::Arc,
 };
 
+use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_core::config::app_config::AppConfig;
 use a4n_core::event::bridge::BroadcastEventBus as CoreEventBus;
 use a4n_db::character::snapshot_store::Sha256SnapshotStore;
@@ -30,16 +30,10 @@ pub struct AppState {
     destructive_lifecycle: Arc<
         crate::actions::generation_tasks::destructive_lifecycle::DestructiveLifecycleCoordinator,
     >,
-    generation_executions: Arc<GenerationExecutionOwner>,
     _generation_owner_lock: Arc<sea_orm::DatabaseConnection>,
     /// ponytail: 本地 data directory 只允许一个写入 Host；明确支持共享写存储时再升级为 artifact 级数据库 lease。
     _data_dir_lock: Arc<File>,
-    _managed_sidecars: Arc<tokio::sync::Mutex<Vec<a4n_service_manager::ManagedSidecarProcess>>>,
-}
-
-#[derive(Default)]
-struct GenerationExecutionOwner {
-    workers: std::sync::Mutex<BTreeMap<String, tokio::task::JoinHandle<()>>>,
+    managed_sidecars: Arc<tokio::sync::Mutex<Vec<a4n_service_manager::ManagedSidecarProcess>>>,
 }
 
 fn inherit_generation_runtime_context<F>(future: F) -> impl Future<Output = F::Output>
@@ -59,23 +53,10 @@ where
     }
 }
 
-impl Drop for GenerationExecutionOwner {
-    fn drop(&mut self) {
-        for worker in self
-            .workers
-            .get_mut()
-            .expect("generation execution mutex poisoned")
-            .values()
-        {
-            worker.abort();
-        }
-    }
-}
-
 impl AppState {
     /// 在 Host 退出前停止其拥有的 managed sidecar；可重复调用。
     pub async fn shutdown_managed_sidecars(&self) -> Result<(), String> {
-        let processes = std::mem::take(&mut *self._managed_sidecars.lock().await);
+        let processes = std::mem::take(&mut *self.managed_sidecars.lock().await);
         let failures = futures::future::join_all(
             processes
                 .into_iter()
@@ -127,8 +108,8 @@ impl AppState {
         self.orchestrator.app_paths()
     }
 
-    pub(crate) fn default_fastembed_cache_dir(&self) -> std::path::PathBuf {
-        self.orchestrator.default_fastembed_cache_dir()
+    pub(crate) fn embedding_models_dir(&self) -> std::path::PathBuf {
+        self.orchestrator.embedding_models_dir()
     }
 
     pub(crate) fn configured_database_url(&self) -> &str {
@@ -137,40 +118,6 @@ impl AppState {
 
     pub(crate) fn required_jwt_secret(&self) -> Result<&str, a4n_core::error::AppError> {
         self.orchestrator.required_jwt_secret()
-    }
-
-    pub(crate) fn register_task_handle(
-        &self,
-        handle: a4n_core::event::channel::TaskHandle,
-    ) -> Arc<a4n_core::event::channel::TaskHandle> {
-        self.orchestrator.register_task_handle(handle)
-    }
-
-    pub(crate) fn remove_task_handle(
-        &self,
-        task_id: &str,
-    ) -> Option<Arc<a4n_core::event::channel::TaskHandle>> {
-        self.orchestrator.remove_task_handle(task_id)
-    }
-
-    pub(crate) fn task_handle(
-        &self,
-        task_id: &str,
-    ) -> Option<Arc<a4n_core::event::channel::TaskHandle>> {
-        self.orchestrator.task_handle(task_id)
-    }
-
-    pub(crate) fn cancel_task_handle(&self, task_id: &str) -> bool {
-        self.orchestrator.cancel_task_handle(task_id)
-    }
-
-    pub(crate) fn cancel_or_remember_task_handle(&self, task_id: &str, user_id: i64) -> bool {
-        self.orchestrator
-            .cancel_or_remember_task_handle(task_id, user_id)
-    }
-
-    pub(crate) fn active_task_snapshots(&self) -> Vec<a4n_core::event::channel::TaskSnapshot> {
-        self.orchestrator.active_task_snapshots()
     }
 
     pub fn subscribe_internal_events(
@@ -183,49 +130,84 @@ impl AppState {
         &self.orchestrator
     }
 
-    pub(crate) fn spawn_generation_execution(
+    pub(crate) fn spawn_generation_execution<F, Fut>(
         &self,
-        task_id: String,
-        future: impl Future<Output = ()> + Send + 'static,
-    ) {
-        self.spawn_generation_execution_scoped(task_id, a4n_queue::scope::with_llm_slot(future));
+        handle: GenerationTaskHandle,
+        worker_kind: &'static str,
+        worker: F,
+    )
+    where
+        F: FnOnce(GenerationTaskHandle) -> Fut,
+        Fut: Future<Output = Result<(), String>> + Send + 'static,
+    {
+        let task_id = handle.task_id.clone();
+        let attempt = handle.attempt;
+        self.spawn_generation_execution_scoped(
+            task_id,
+            attempt,
+            worker_kind,
+            a4n_queue::scope::with_llm_slot(worker(handle)),
+        );
     }
 
-    pub(crate) fn spawn_image_generation_execution(
+    pub(crate) fn spawn_image_generation_execution<F, Fut>(
         &self,
-        task_id: String,
-        future: impl Future<Output = ()> + Send + 'static,
-    ) {
-        self.spawn_generation_execution_scoped(task_id, a4n_queue::scope::with_image_slot(future));
+        handle: GenerationTaskHandle,
+        worker_kind: &'static str,
+        worker: F,
+    )
+    where
+        F: FnOnce(GenerationTaskHandle) -> Fut,
+        Fut: Future<Output = Result<(), String>> + Send + 'static,
+    {
+        let task_id = handle.task_id.clone();
+        let attempt = handle.attempt;
+        self.spawn_generation_execution_scoped(
+            task_id,
+            attempt,
+            worker_kind,
+            a4n_queue::scope::with_image_slot(worker(handle)),
+        );
     }
 
-    pub(crate) fn spawn_video_generation_execution(
+    pub(crate) fn spawn_video_generation_execution<F, Fut>(
         &self,
-        task_id: String,
-        future: impl Future<Output = ()> + Send + 'static,
-    ) {
-        self.spawn_generation_execution_scoped(task_id, a4n_queue::scope::with_video_slot(future));
+        handle: GenerationTaskHandle,
+        worker_kind: &'static str,
+        worker: F,
+    )
+    where
+        F: FnOnce(GenerationTaskHandle) -> Fut,
+        Fut: Future<Output = Result<(), String>> + Send + 'static,
+    {
+        let task_id = handle.task_id.clone();
+        let attempt = handle.attempt;
+        self.spawn_generation_execution_scoped(
+            task_id,
+            attempt,
+            worker_kind,
+            a4n_queue::scope::with_video_slot(worker(handle)),
+        );
     }
 
     fn spawn_generation_execution_scoped(
         &self,
         task_id: String,
-        future: impl Future<Output = ()> + Send + 'static,
+        attempt: u32,
+        worker_kind: &'static str,
+        future: impl Future<Output = Result<(), String>> + Send + 'static,
     ) {
-        let mut workers = self
-            .generation_executions
-            .workers
-            .lock()
-            .expect("generation execution mutex poisoned");
-        workers.retain(|_, worker| !worker.is_finished());
-        assert!(
-            !workers.contains_key(&task_id),
-            "generation execution owner 已存在: {task_id}"
-        );
-        workers.insert(
-            task_id,
-            tokio::spawn(inherit_generation_runtime_context(future)),
-        );
+        drop(tokio::spawn(inherit_generation_runtime_context(async move {
+            if let Err(error) = future.await {
+                tracing::error!(
+                    task_id = %task_id,
+                    attempt,
+                    worker = worker_kind,
+                    error = %error,
+                    "generation worker 失败"
+                );
+            }
+        })));
     }
 
     pub(crate) fn destructive_lifecycle(
@@ -290,13 +272,12 @@ impl AppState {
         let task_queue = Arc::new(PersistentTaskQueue::new(db.clone()).await?);
         let prompt_engine = create_prompt_engine(db.as_ref(), &config).await?;
         let chapter = ChapterGenerationService::new(db.clone());
-        let rag_store = create_rag_store(&config, runtime_profile, &capabilities).await?;
+        let rag_store = create_rag_store(runtime_profile, &capabilities).await?;
         let snapshot_store = Arc::new(Sha256SnapshotStore::new(db.clone()));
         let orchestrator = a4n_orchestrator::OrchestratorContext::bootstrap(
             a4n_db::DbHandle::new(db.clone()),
             capabilities.clone(),
             service_manager.clone(),
-            Some(config.data_dir.join("services")),
             config.clone(),
             event_bus.clone(),
             task_manager.clone(),
@@ -314,7 +295,7 @@ impl AppState {
         )
         .await
         .map_err(a4n_core::error::AppError::ConfigError)?;
-        let _managed_sidecars = Arc::new(tokio::sync::Mutex::new(managed_sidecar_processes));
+        let managed_sidecars = Arc::new(tokio::sync::Mutex::new(managed_sidecar_processes));
         let provider_facade = orchestrator.dynamic_provider_facade();
         let embedding = crate::sidecar_clients::create_embedding_provider(
             provider_facade.clone(),
@@ -335,10 +316,9 @@ impl AppState {
             destructive_lifecycle: Arc::new(
                 crate::actions::generation_tasks::destructive_lifecycle::DestructiveLifecycleCoordinator::default(),
             ),
-            generation_executions: Arc::new(GenerationExecutionOwner::default()),
             _generation_owner_lock: generation_owner_lock,
             _data_dir_lock: data_dir_lock,
-            _managed_sidecars,
+            managed_sidecars,
         };
         state
             .destructive_lifecycle()
@@ -413,7 +393,7 @@ mod tests {
         let snapshot = serde_json::from_value(json!({
             "schema_version": 1,
             "image": {
-                "id": null,
+                "id": 1,
                 "name": "request image config",
                 "backend": "openai-compatible-image",
                 "base_url": "https://example.test/v1",

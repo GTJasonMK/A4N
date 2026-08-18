@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::workflow::CancelWorkflowInput;
+use a4n_core::event::channel::normalize_task_id;
 use a4n_db::workflow::WorkflowRunSummary;
 use a4n_orchestrator::workflow::{
     cancel_workflow_requires_target, require_positive_workflow_run_id,
@@ -21,8 +22,10 @@ pub async fn cancel_workflow(
     let task_id = input
         .task_id
         .as_deref()
-        .map(str::trim)
-        .filter(|task_id| !task_id.is_empty());
+        .map(normalize_task_id)
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    let task_id = task_id.as_deref();
     cancel_workflow_requires_target(task_id.is_some(), input.workflow_run_id.is_some())?;
     if let Some(workflow_run_id) = input.workflow_run_id {
         require_positive_workflow_run_id(workflow_run_id)?;
@@ -43,7 +46,7 @@ pub async fn cancel_workflow(
             .persisted_task_by_id(task_id)
             .await
             .map_err(app_error_message)?;
-        task_handle = state.task_handle(task_id);
+        task_handle = state.orchestrator().task_handle(task_id);
 
         if let Some(task) = persisted_task.as_ref() {
             verify_task_access(state, user_id, task_id).await?;
@@ -68,7 +71,9 @@ pub async fn cancel_workflow(
         }
 
         if persisted_task.is_none() && task_handle.is_none() && !task_has_linked_workflow {
-            state.cancel_or_remember_task_handle(task_id, user_id);
+            state
+                .orchestrator()
+                .cancel_or_remember_task_handle(task_id, user_id);
         }
     }
 
@@ -90,7 +95,7 @@ pub async fn cancel_workflow(
         })
     {
         if task_handle.is_some() {
-            state.cancel_task_handle(task_id);
+            state.orchestrator().cancel_task_handle(task_id);
         }
         if persisted_task.is_some() {
             state

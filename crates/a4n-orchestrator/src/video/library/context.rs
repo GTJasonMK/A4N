@@ -26,7 +26,7 @@ impl OrchestratorContext {
             )));
         }
         let chapter = self.get_chapter(chapter_id).await?;
-        let allowed_project_ids = self.video_asset_project_ids_app(project_id).await?;
+        let allowed_project_ids = self.video_asset_project_ids(project_id).await?;
         let mut candidates = VideoAssetCandidates::default();
 
         let explicit_reference_ids = reference_image_ids

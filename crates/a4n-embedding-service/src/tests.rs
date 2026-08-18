@@ -1,23 +1,16 @@
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest,
-    ServiceResponse, ServiceStatus,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbedTextsPayload,
+    EmbeddingModelPayload, PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse,
+    ServiceStatus,
 };
 
 #[cfg(feature = "fastembed")]
-use crate::contracts::ModelPayload;
-#[cfg(feature = "fastembed")]
-use crate::handlers::events::{
-    completed_download_event, download_progress_event, event_line, failed_download_event,
-};
+use crate::handlers::models::required_model;
 #[cfg(feature = "fastembed")]
 use crate::protocol::service_error;
-use crate::protocol::{validate_embedding_request, validate_service_request};
-use crate::{contracts::EmbedTextsPayload, handlers::embedding::embedding_provider};
-#[cfg(feature = "fastembed")]
-use a4n_embedding::provider::DownloadProgress;
-#[cfg(feature = "fastembed")]
-use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
+use crate::handlers::embedding::embedding_provider;
+use crate::protocol::validate_embedding_request;
 
 #[tokio::test]
 async fn local_hash_embedding_runs_inside_sidecar_contract() {
@@ -89,7 +82,8 @@ fn embedding_payload_rejects_removed_host_cache_path() {
         "cache_dir": "/host/private/cache",
         "texts": ["测试"]
     }))
-    .expect_err("embedding v2 must reject host filesystem paths");
+    .err()
+    .expect("embedding v2 must reject host filesystem paths");
 
     assert!(error.to_string().contains("unknown field `cache_dir`"));
 }
@@ -102,7 +96,8 @@ fn embedding_payload_requires_batch_size() {
         "dimension": 64,
         "texts": ["测试"]
     }))
-    .expect_err("embedding v4 requires an explicit batch_size");
+    .err()
+    .expect("embedding v4 requires an explicit batch_size");
 
     assert!(error.to_string().contains("missing field `batch_size`"));
 }
@@ -110,13 +105,14 @@ fn embedding_payload_requires_batch_size() {
 #[test]
 #[cfg(feature = "fastembed")]
 fn model_operation_requires_a_nonblank_model() {
-    let missing = serde_json::from_value::<ModelPayload>(serde_json::json!({}))
-        .expect_err("model operation payload requires a model field");
+    let missing = serde_json::from_value::<EmbeddingModelPayload>(serde_json::json!({}))
+        .err()
+        .expect("model operation payload requires a model field");
     assert!(missing.to_string().contains("missing field `model`"));
 
-    let blank = serde_json::from_value::<ModelPayload>(serde_json::json!({ "model": "  " }))
+    let blank = serde_json::from_value::<EmbeddingModelPayload>(serde_json::json!({ "model": "  " }))
         .expect("blank model is validated after deserialization");
-    assert!(blank.required_model().is_err());
+    assert!(required_model(blank).is_err());
 }
 
 #[test]
@@ -130,7 +126,7 @@ fn api_key_requires_local_user_secret_policy() {
         batch_size: 8,
         texts: vec!["test".to_string()],
     };
-    let denied = service_request(payload.clone());
+    let denied = service_request(payload);
     assert_eq!(
         validate_embedding_request(&denied)
             .expect_err("deny-all request cannot carry an API key")
@@ -138,65 +134,18 @@ fn api_key_requires_local_user_secret_policy() {
         ServiceErrorCode::Unauthorized
     );
 
-    let mut allowed = service_request(payload);
+    let mut allowed = service_request(denied.payload);
     allowed.secret_policy = a4n_service_protocol::SecretForwardingPolicy::local_user_secret();
     validate_embedding_request(&allowed).expect("local provider sidecar may receive user key");
 }
 
 #[test]
 #[cfg(feature = "fastembed")]
-fn download_progress_event_preserves_progress_payload() {
-    let event = download_progress_event(
-        "download-1".to_string(),
-        1,
-        DownloadProgress {
-            downloaded_bytes: 512,
-            total_bytes: 1024,
-            message: "downloading".to_string(),
-        },
-    )
-    .expect("progress event");
-    assert_eq!(event.task_id, "download-1");
-    assert_eq!(event.event_kind, CapabilityTaskEventKind::Progress);
-    assert_eq!(event.sequence, 1);
-    assert!(event.error.is_none());
-    let payload = event.payload.expect("progress payload");
-    assert_eq!(payload["downloaded_bytes"], 512);
-    assert_eq!(payload["total_bytes"], 1024);
-    assert!(payload.get("percent").is_none());
-    assert_eq!(payload["message"], "downloading");
-}
-
-#[test]
-#[cfg(feature = "fastembed")]
-fn completed_download_event_wraps_model_list_without_error() {
-    let event = completed_download_event(
-        "download-1".to_string(),
-        2,
-        serde_json::json!([{ "model": "BAAI/bge-small-zh-v1.5" }]),
-    );
-    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
-    assert_eq!(event.sequence, 2);
-    assert!(event.error.is_none());
-    assert_eq!(
-        event.payload.expect("completed payload")["models"][0]["model"],
-        "BAAI/bge-small-zh-v1.5"
-    );
-}
-
-#[test]
-#[cfg(feature = "fastembed")]
-fn failed_download_event_redacts_secret_material() {
-    let event = failed_download_event(
-        "download-1".to_string(),
-        3,
-        service_error(&AppError::ConfigError(
-            "base_url=https://provider.example api_key=sk-test".to_string(),
-        )),
-    );
-    assert_eq!(event.event_kind, CapabilityTaskEventKind::Failed);
-    assert!(event.payload.is_none());
-    let message = event.error.expect("failed error").message;
+fn service_error_redacts_secret_material() {
+    let message = service_error(AppError::ConfigError(
+        "base_url=https://provider.example api_key=sk-test".to_string(),
+    ))
+    .message;
     assert!(message.contains("base_url=[REDACTED]"));
     assert!(message.contains("api_key=[REDACTED]"));
     assert!(!message.contains("provider.example"));
@@ -204,25 +153,12 @@ fn failed_download_event_redacts_secret_material() {
 }
 
 #[test]
-#[cfg(feature = "fastembed")]
-fn event_line_is_newline_delimited_json() {
-    let line = event_line(completed_download_event(
-        "download-1".to_string(),
-        1,
-        serde_json::json!([]),
-    ));
-    assert_eq!(line.last(), Some(&b'\n'));
-    let event: CapabilityTaskEvent =
-        serde_json::from_slice(&line[..line.len() - 1]).expect("event json");
-    assert_eq!(event.task_id, "download-1");
-    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
-}
-
-#[test]
 fn rejects_incompatible_capability_version() {
     let mut request = service_request(serde_json::json!({}));
     request.capability_version = "embedding-v0".to_string();
-    let error = validate_service_request(&request).expect_err("version mismatch");
+    let error = request
+        .validate_known_service(EMBEDDING_SERVICE_NAME)
+        .expect_err("version mismatch");
     assert_eq!(error.code, ServiceErrorCode::VersionMismatch);
     assert!(error.message.contains("embedding capability version"));
 }
@@ -231,8 +167,11 @@ fn rejects_incompatible_capability_version() {
 fn rejects_incompatible_protocol_version() {
     let mut request = service_request(serde_json::json!({}));
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
-    let response: ServiceResponse<()> =
-        request.error_response(validate_service_request(&request).unwrap_err());
+    let response: ServiceResponse<()> = request.error_response(
+        request
+            .validate_known_service(EMBEDDING_SERVICE_NAME)
+            .unwrap_err(),
+    );
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
     let error = response.error.expect("version mismatch error");

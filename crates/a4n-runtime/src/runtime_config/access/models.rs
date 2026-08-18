@@ -29,12 +29,12 @@ pub fn current_llm_model_for_id(config_id: Option<i64>) -> Option<llm_config::Mo
     match config_id {
         Some(id) => snapshot
             .llm
-            .filter(|config| config.id == Some(id))
+            .filter(|config| config.id == id)
             .or_else(|| {
                 snapshot
                     .llm_configs
                     .into_iter()
-                    .find(|config| config.id == Some(id))
+                    .find(|config| config.id == id)
             })
             .map(llm_model_from_runtime),
         None => snapshot.llm.map(llm_model_from_runtime),
@@ -46,12 +46,12 @@ pub fn current_image_model_for_id(config_id: Option<i64>) -> Option<image_gen_co
     match config_id {
         Some(id) => snapshot
             .image
-            .filter(|config| config.id == Some(id))
+            .filter(|config| config.id == id)
             .or_else(|| {
                 snapshot
                     .image_configs
                     .into_iter()
-                    .find(|config| config.id == Some(id))
+                    .find(|config| config.id == id)
             })
             .map(image_model_from_runtime),
         None => snapshot.image.map(image_model_from_runtime),
@@ -63,12 +63,12 @@ pub fn current_video_model_for_id(config_id: Option<i64>) -> Option<video_gen_co
     match config_id {
         Some(id) => snapshot
             .video
-            .filter(|config| config.id == Some(id))
+            .filter(|config| config.id == id)
             .or_else(|| {
                 snapshot
                     .video_configs
                     .into_iter()
-                    .find(|config| config.id == Some(id))
+                    .find(|config| config.id == id)
             })
             .map(video_model_from_runtime),
         None => snapshot.video.map(video_model_from_runtime),

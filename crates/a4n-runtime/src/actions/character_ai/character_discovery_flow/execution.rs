@@ -1,20 +1,21 @@
+use a4n_api_contract::character::{
+    DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
+};
 use a4n_core::error::AppError;
-use a4n_orchestrator::character::{CharacterDiscoveryInput, CharacterDiscoveryProgress};
-use serde_json::Value;
+use a4n_orchestrator::character::CharacterDiscoveryProgress;
 
 use crate::{
     AppState,
     actions::{access, character_ai::CharacterAiProgress},
 };
 
-pub async fn discover_character_profiles_for_chapters(
+pub async fn discover_character_profiles(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: Option<i32>,
+    input: DiscoverCharacterProfilesInput,
     progress: Option<&CharacterAiProgress<'_>>,
-) -> Result<Value, String> {
-    access::verify_project_editor(state, user_id, project_id)
+) -> Result<DiscoverCharacterProfilesResult, String> {
+    access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|err| err.to_string())?;
     let prompt_renderer = state;
@@ -36,14 +37,7 @@ pub async fn discover_character_profiles_for_chapters(
     });
     state
         .orchestrator()
-        .discover_character_profiles_validated(
-            CharacterDiscoveryInput {
-                project_id,
-                chapter_number,
-            },
-            prompt_renderer,
-            application_progress,
-        )
+        .discover_character_profiles_validated(input, prompt_renderer, application_progress)
         .await
         .map_err(|error| error.to_string())
 }

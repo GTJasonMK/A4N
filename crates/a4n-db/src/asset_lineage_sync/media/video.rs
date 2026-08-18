@@ -1,4 +1,5 @@
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt, media::media_asset};
+use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -63,6 +64,7 @@ where
         "metadata": row.metadata_json,
         "linked_chapter_video_prompt_id": prompt.map(|prompt| prompt.id),
     });
+    let imported_from_user = row.model == EXTERNAL_IMPORT_MODEL;
     let media = upsert_media_asset(
         db,
         family,
@@ -74,7 +76,7 @@ where
             source_chapter_id: source.source_chapter_id,
             source_snapshot_chapter_id: source.source_snapshot_chapter_id,
             media_kind: "video".to_string(),
-            origin: if row.video_type == "reference_media" {
+            origin: if imported_from_user {
                 "imported".to_string()
             } else {
                 "generated".to_string()
@@ -93,7 +95,7 @@ where
             provider_job_id: row.provider_job_id.clone(),
             source_media_asset_id,
             source_external_path: None,
-            imported_from_user: row.video_type == "reference_media",
+            imported_from_user,
             request_snapshot_json,
             created_at: row.created_at,
         },

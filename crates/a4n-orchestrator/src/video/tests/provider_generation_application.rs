@@ -29,13 +29,13 @@ use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::test_support::TestOrchestratorBuilder;
+use crate::generation::GeneratedMediaArtifactFile;
 use crate::video::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, GenerateChapterVideoInput,
     GenerateChapterVideosBatchInput, GenerateReferenceMediaVideoInput, PersistedVideoResult,
     ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort, ReferenceMediaVideoInput,
-    ResolvedChapterVideoImageInputs, SEEDANCE2_VIDEO_BACKEND, VideoArtifactFile,
-    VideoGenerationProgress, VideoProviderHostPort, VideoProviderRequestBody,
-    VideoProviderRequestInput,
+    ResolvedChapterVideoImageInputs, SEEDANCE2_VIDEO_BACKEND, VideoGenerationProgress,
+    VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
 };
 
 use super::*;
@@ -55,8 +55,8 @@ impl VideoProviderHostPort for TestVideoProviderHost {
         &self,
         _relative_path: &str,
         _label: &str,
-    ) -> Result<VideoArtifactFile, AppError> {
-        Ok(VideoArtifactFile {
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        Ok(GeneratedMediaArtifactFile {
             content_type: "video/mp4".to_string(),
             sha256: "provider-gen-sha256".to_string(),
             byte_size: 8,
@@ -98,7 +98,7 @@ impl VideoProviderHostPort for TestVideoProviderHost {
                 database.as_ref(),
                 video.id,
                 prompt_id,
-                crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED,
+                generated_video::STATUS_INTERRUPTED,
                 "测试模拟外部取消",
             )
             .await
@@ -633,10 +633,13 @@ async fn reference_media_generate_persists_completed_video() {
 
     assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_COMPLETED);
+    assert_eq!(video.status, generated_video::STATUS_COMPLETED);
     assert_eq!(video.project_id, project_id);
     assert_eq!(video.chapter_id, Some(chapter_id));
-    assert_eq!(video.video_type, "reference_media_video");
+    assert_eq!(
+        video.video_type,
+        generated_video::VIDEO_TYPE_REFERENCE_MEDIA
+    );
     assert!(
         video
             .file_path
@@ -650,7 +653,7 @@ async fn reference_media_generate_persists_completed_video() {
         .expect("正式视频应落库");
     assert_eq!(
         stored.status,
-        crate::video::GENERATED_VIDEO_STATUS_COMPLETED
+        generated_video::STATUS_COMPLETED
     );
 }
 
@@ -661,7 +664,7 @@ async fn video_provider_terminal_status_updates_existing_workflow() {
         .create_video_generation_record_validated(VideoGenerationRecordInput {
             project_id,
             chapter_id: Some(chapter_id),
-            video_type: "reference_media_video".to_string(),
+            video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
             workflow_mode: Some("reference_media".to_string()),
             prompt: long_reference_prompt(),
             negative_prompt: None,
@@ -748,7 +751,7 @@ async fn reference_media_generate_provider_failure_marks_failed() {
     assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 0);
     assert_eq!(
         video.status,
-        crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
+        generated_video::STATUS_FAILED
     );
     assert!(
         video
@@ -763,7 +766,7 @@ async fn reference_media_generate_provider_failure_marks_failed() {
         .expect("失败视频应落库");
     assert_eq!(
         stored.status,
-        crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
+        generated_video::STATUS_FAILED
     );
 }
 
@@ -805,7 +808,7 @@ async fn reference_media_cancel_before_provider_marks_records_cancelled() {
         .await
         .expect("查询取消视频")
         .expect("取消视频记录应保留");
-    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_CANCELLED);
+    assert_eq!(video.status, generated_video::STATUS_CANCELLED);
     let run = generation_run::Entity::find()
         .filter(generation_run::Column::ProjectId.eq(project_id))
         .one(database.as_ref())
@@ -848,7 +851,7 @@ async fn reference_media_cancel_during_provider_discards_late_result() {
         .await
         .expect("查询取消视频")
         .expect("取消视频记录应保留");
-    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_CANCELLED);
+    assert_eq!(video.status, generated_video::STATUS_CANCELLED);
 }
 
 #[tokio::test]
@@ -888,7 +891,7 @@ async fn reference_media_cancel_during_persist_cleans_file_and_stays_cancelled()
         .await
         .expect("查询取消视频")
         .expect("取消视频记录应保留");
-    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_CANCELLED);
+    assert_eq!(video.status, generated_video::STATUS_CANCELLED);
 }
 
 #[tokio::test]
@@ -928,7 +931,7 @@ async fn reference_media_external_interrupt_during_persist_is_not_downgraded_to_
         .expect("中断视频记录应保留");
     assert_eq!(
         video.status,
-        crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED
+        generated_video::STATUS_INTERRUPTED
     );
 }
 

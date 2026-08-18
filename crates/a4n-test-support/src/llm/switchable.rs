@@ -52,10 +52,6 @@ impl LlmProvider for SwitchableLlmProvider {
         self.delegate().chat_stream(request).await
     }
 
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        self.delegate().test_connection().await
-    }
-
     fn model_name(&self) -> &str {
         "switchable-test-llm"
     }

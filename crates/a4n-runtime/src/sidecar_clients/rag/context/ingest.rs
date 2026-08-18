@@ -1,4 +1,5 @@
 use super::scope::rag_operation_timestamp;
+use a4n_core::event::channel::normalize_task_id;
 
 pub(crate) fn rag_ingest_operation_trace_id(
     project_id: i64,
@@ -10,20 +11,7 @@ pub(crate) fn rag_ingest_operation_trace_id(
         ));
     }
     if let Some(task_id) = task_id {
-        let task_id = task_id.trim();
-        if task_id.is_empty() {
-            return Err("RAG ingest task_id 不能为空".to_string());
-        }
-        if task_id.len() > 160
-            || !task_id.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':')
-            })
-        {
-            return Err(
-                "RAG ingest task_id 只能包含 ASCII 字母、数字、-、_、.、:，且不能超过 160 字节"
-                    .to_string(),
-            );
-        }
+        let task_id = normalize_task_id(task_id).map_err(|error| error.to_string())?;
         return Ok(format!("task:{task_id}"));
     }
 

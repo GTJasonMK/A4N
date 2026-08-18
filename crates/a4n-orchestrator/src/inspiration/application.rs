@@ -204,7 +204,6 @@ impl OrchestratorContext {
                 content,
                 usage: None,
                 finish_reason: GenerationFinishReason::Stop,
-                chunk_count: 1,
             }
         } else {
             match execute_llm_generation(

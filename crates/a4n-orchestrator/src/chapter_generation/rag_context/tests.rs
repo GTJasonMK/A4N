@@ -9,17 +9,16 @@ use super::formatting::{
 };
 use super::fusion::fuse_generation_rag_results;
 use super::preparation::build_chapter_generation_rag_search_filter;
-use super::projection::generation_rag_context_from_results;
-use super::query::{GenerationRagQueries, build_generation_rag_queries};
+use super::query::{GenerationRagQuery, build_generation_rag_queries};
 use super::rules::{
-    generation_rag_query_fingerprint, generation_rag_search_data_types, metadata_i64,
-    previous_chapter_range, validate_generation_embedding_identity_match,
-    validate_generation_query_vectors, validate_generation_rag_query_fingerprint,
+    generation_rag_query_fingerprint, generation_rag_search_data_types, previous_chapter_range,
+    validate_generation_rag_query_fingerprint,
 };
 use a4n_core::models::{chapter::chapter_outline, character::foreshadowing_index};
 use a4n_core::rag::RagDataType;
 use a4n_core::text_location::extract_scene_location;
 use a4n_rag_core::{
+    metadata::metadata_i64,
     memory_store::MemoryVectorStore,
     vector_store::{EmbeddingRecord, SearchFilter, SearchResult, VectorStore},
 };
@@ -30,12 +29,10 @@ fn prepared_generation_search() -> PreparedGenerationRagSearch {
     PreparedGenerationRagSearch {
         project_id: 1,
         chapter_number: 6,
-        queries: GenerationRagQueries {
-            main_query: "密室线索".to_string(),
-            character_queries: Vec::new(),
-            foreshadowing_queries: Vec::new(),
-            location_query: None,
-        },
+        queries: vec![GenerationRagQuery {
+            text: "密室线索".to_string(),
+            weight: 1.0,
+        }],
         filter: SearchFilter {
             equals: None,
             chapter_range: None,
@@ -60,7 +57,7 @@ fn generation_rag_query_fingerprint_binds_query_order_and_identity() {
         .expect("matching fingerprint must pass");
 
     let mut changed_query = prepared_generation_search();
-    changed_query.queries.main_query.push_str("更新");
+    changed_query.queries[0].text.push_str("更新");
     assert!(
         validate_generation_rag_query_fingerprint(&fingerprint, &changed_query)
             .expect_err("changed query must invalidate client vectors")
@@ -135,8 +132,6 @@ fn rag_result(metadata: Value) -> SearchResult {
         id: "chapter-summary-1".to_string(),
         content: "主角发现密室线索。".to_string(),
         score: 0.42,
-        vector_score: None,
-        bm25_score: None,
         metadata,
     }
 }
@@ -162,10 +157,7 @@ fn search_result_with_type(
         id: id.to_string(),
         content: content.into(),
         score,
-        vector_score: Some(score),
-        bm25_score: None,
         metadata: json!({
-            "project_id": 1,
             "data_type": data_type,
             "chapter_number": source_chapter,
             "title": format!("第{source_chapter}章"),
@@ -183,18 +175,29 @@ fn generation_rag_queries_split_main_character_foreshadowing_and_location() {
         &[foreshadowing("旧钟在午夜倒走")],
     );
 
-    assert!(queries.main_query.contains("章节标题: 玄武暗线"));
-    assert!(queries.main_query.contains("写作要点: 强调悬疑感"));
-    assert!(!queries.main_query.contains("待处理伏笔"));
-    assert!(!queries.main_query.contains("旧钟在午夜倒走"));
-    assert_eq!(queries.character_queries.len(), 2);
-    assert!(queries.character_queries[0].contains("角色 林岚"));
-    assert_eq!(queries.foreshadowing_queries, vec!["伏笔: 旧钟在午夜倒走"]);
+    assert!(queries[0].text.contains("章节标题: 玄武暗线"));
+    assert!(queries[0].text.contains("写作要点: 强调悬疑感"));
+    assert!(!queries[0].text.contains("待处理伏笔"));
+    assert!(!queries[0].text.contains("旧钟在午夜倒走"));
     assert_eq!(
-        queries.location_query.as_deref(),
-        Some("场景 玄武门 中发生的事件和相关设定")
+        queries
+            .iter()
+            .filter(|query| query.text.starts_with("角色 "))
+            .count(),
+        2
     );
-    assert!(queries.weighted_queries().len() >= 4);
+    assert!(queries.iter().any(|query| query.text.contains("角色 林岚")));
+    assert!(
+        queries
+            .iter()
+            .any(|query| query.text == "伏笔: 旧钟在午夜倒走")
+    );
+    assert!(
+        queries
+            .iter()
+            .any(|query| query.text == "场景 玄武门 中发生的事件和相关设定")
+    );
+    assert!(queries.len() >= 4);
 }
 
 #[test]
@@ -219,7 +222,7 @@ fn previous_chapter_range_requires_a_chapter_after_the_first() {
 #[test]
 fn chapter_generation_filter_adds_previous_range_and_allowed_types() {
     let identity = test_embedding_identity("chapter-generation-filter");
-    let filter = build_chapter_generation_rag_search_filter(7, 4, identity)
+    let filter = build_chapter_generation_rag_search_filter(4, identity)
         .expect("chapter generation filter");
 
     assert_eq!(filter.chapter_range, Some((1, 3)));
@@ -227,26 +230,6 @@ fn chapter_generation_filter_adds_previous_range_and_allowed_types() {
     assert!(data_types.contains(&RagDataType::Chapter.as_str().to_string()));
     assert!(data_types.contains(&RagDataType::KeyEvent.as_str().to_string()));
     assert!(!data_types.contains(&RagDataType::Foreshadowing.as_str().to_string()));
-}
-
-#[test]
-fn generation_query_vectors_require_exact_finite_shape() {
-    assert!(validate_generation_query_vectors(&[vec![0.1, 0.2]], 1, 2).is_ok());
-    assert!(validate_generation_query_vectors(&[], 1, 2).is_err());
-    assert!(validate_generation_query_vectors(&[vec![0.1]], 1, 2).is_err());
-    assert!(validate_generation_query_vectors(&[vec![f32::NAN, 0.2]], 1, 2).is_err());
-}
-
-#[test]
-fn generation_embedding_identity_mismatch_keeps_original_error_contract() {
-    let expected = test_embedding_identity("expected");
-    let actual = test_embedding_identity("actual");
-
-    assert!(validate_generation_embedding_identity_match(&expected, &expected).is_ok());
-    let error = validate_generation_embedding_identity_match(&actual, &expected)
-        .expect_err("mismatched identity should reject");
-    assert!(error.contains("服务器期望"));
-    assert!(error.contains("客户端提交"));
 }
 
 #[tokio::test]
@@ -265,11 +248,9 @@ async fn generation_rag_provider_execution_returns_domain_context() {
 
     assert!(
         context
-            .text
             .as_deref()
             .is_some_and(|text| text.contains("密室发现旧钟线索"))
     );
-    assert_eq!(context.statistics.query_main.as_deref(), Some("密室线索"));
 }
 
 #[tokio::test]
@@ -296,7 +277,7 @@ async fn generation_rag_vector_execution_validates_identity_and_searches() {
     )
     .await
     .expect("vector generation RAG search");
-    assert!(context.text.is_some());
+    assert!(context.is_some());
 }
 
 #[test]
@@ -393,26 +374,23 @@ fn generation_location_extraction_handles_common_scene_cues() {
 #[test]
 fn format_generation_rag_result_rejects_missing_title() {
     let result = rag_result(json!({
-        "project_id": 1,
         "data_type": "chapter_summary",
         "chapter_number": 1
     }));
 
-    assert!(format_generation_rag_result(&result, 1, 2).is_none());
+    assert!(format_generation_rag_result(&result, 2).is_none());
 }
 
 #[test]
 fn format_generation_rag_result_uses_trimmed_title() {
     let result = rag_result(json!({
-        "project_id": 1,
         "data_type": "chapter_summary",
         "chapter_number": 1,
         "title": "  灰烬低语  "
     }));
 
-    let formatted = format_generation_rag_result(&result, 1, 2).expect("formatted result");
+    let formatted = format_generation_rag_result(&result, 2).expect("formatted result");
 
-    assert!(formatted.is_summary);
     assert!(formatted.line.contains("第1章《灰烬低语》"));
     assert!(!formatted.line.contains("无标题"));
 }
@@ -420,15 +398,13 @@ fn format_generation_rag_result_uses_trimmed_title() {
 #[test]
 fn format_generation_rag_result_includes_character_attribute_event() {
     let result = rag_result(json!({
-        "project_id": 1,
         "data_type": "character_attribute_event",
         "chapter_number": 3,
         "title": "林舟 第3章属性变更"
     }));
 
-    let formatted = format_generation_rag_result(&result, 1, 5).expect("formatted result");
+    let formatted = format_generation_rag_result(&result, 5).expect("formatted result");
 
-    assert!(!formatted.is_summary);
     assert!(formatted.line.contains("第3章《林舟 第3章属性变更》"));
     assert!(formatted.line.contains("[角色属性变更"));
 }
@@ -451,8 +427,8 @@ fn format_generation_rag_context_layers_continuity_summaries_and_passages() {
             0.8,
         ),
         search_result_with_type(
-            "foreshadowing",
-            RagDataType::Foreshadowing.as_str(),
+            "key-event",
+            RagDataType::KeyEvent.as_str(),
             1,
             "旧钟会在午夜倒走",
             0.7,
@@ -466,18 +442,14 @@ fn format_generation_rag_context_layers_continuity_summaries_and_passages() {
         ),
     ];
 
-    let formatted = format_generation_rag_context(&results, 1, 6);
-    let text = formatted.text.expect("formatted context");
+    let text = format_generation_rag_context(&results, 6).expect("formatted context");
 
-    assert_eq!(formatted.continuity_count, 2);
-    assert_eq!(formatted.summary_count, 1);
-    assert_eq!(formatted.chunk_count, 1);
     let continuity_pos = text.find("### 关键连续性").expect("continuity section");
     let summary_pos = text.find("### 相关摘要").expect("summary section");
     let passage_pos = text.find("### 参考片段").expect("passage section");
     assert!(continuity_pos < summary_pos);
     assert!(summary_pos < passage_pos);
-    assert!(text.contains("[伏笔"));
+    assert!(text.contains("[关键事件"));
     assert!(text.contains("[角色状态"));
 }
 
@@ -495,18 +467,19 @@ fn format_generation_rag_context_keeps_continuity_when_passages_arrive_first() {
         })
         .collect::<Vec<_>>();
     results.push(search_result_with_type(
-        "late-foreshadowing",
-        RagDataType::Foreshadowing.as_str(),
+        "late-key-event",
+        RagDataType::KeyEvent.as_str(),
         1,
         "必须保留的迟到伏笔",
         0.1,
     ));
 
-    let formatted = format_generation_rag_context(&results, 1, 6);
-    let text = formatted.text.expect("formatted context");
+    let text = format_generation_rag_context(&results, 6).expect("formatted context");
 
-    assert_eq!(formatted.continuity_count, 1);
-    assert_eq!(formatted.chunk_count, GENERATION_RAG_MAX_PASSAGE_RESULTS);
+    assert_eq!(
+        text.matches("普通正文片段").count(),
+        GENERATION_RAG_MAX_PASSAGE_RESULTS
+    );
     assert!(text.contains("必须保留的迟到伏笔"));
     assert!(text.contains("### 关键连续性"));
 }
@@ -517,7 +490,7 @@ fn format_generation_rag_context_respects_total_char_limit() {
     let results = vec![
         search_result_with_type(
             "long-continuity",
-            RagDataType::Foreshadowing.as_str(),
+            RagDataType::KeyEvent.as_str(),
             1,
             long_content.clone(),
             0.9,
@@ -538,51 +511,10 @@ fn format_generation_rag_context_respects_total_char_limit() {
         ),
     ];
 
-    let formatted = format_generation_rag_context(&results, 1, 6);
-    let text = formatted.text.expect("formatted context");
+    let text = format_generation_rag_context(&results, 6).expect("formatted context");
 
     assert!(text.chars().count() <= GENERATION_RAG_CONTEXT_CHAR_LIMIT + 3);
     assert!(text.contains("### 关键连续性"));
     assert!(text.contains("### 相关摘要"));
     assert!(text.contains("### 参考片段"));
-}
-
-#[test]
-fn generation_rag_context_projection_preserves_query_statistics() {
-    let queries = GenerationRagQueries {
-        main_query: "主查询".to_string(),
-        character_queries: vec!["角色 林岚".to_string()],
-        foreshadowing_queries: vec!["伏笔 旧钟".to_string()],
-        location_query: Some("场景 玄武门".to_string()),
-    };
-    let context = generation_rag_context_from_results(
-        vec![search_result_with_type(
-            "summary",
-            RagDataType::ChapterSummary.as_str(),
-            2,
-            "章节摘要",
-            0.8,
-        )],
-        &queries,
-        1,
-        6,
-    );
-
-    assert_eq!(context.statistics.summary_count, 1);
-    assert_eq!(context.statistics.chunk_count, 0);
-    assert_eq!(context.statistics.query_main.as_deref(), Some("主查询"));
-    assert_eq!(context.statistics.query_characters, vec!["角色 林岚"]);
-    assert_eq!(context.statistics.query_foreshadowing, vec!["伏笔 旧钟"]);
-    assert_eq!(
-        context.statistics.query_location.as_deref(),
-        Some("场景 玄武门")
-    );
-    assert_eq!(
-        context.statistics.context_length,
-        context
-            .text
-            .as_deref()
-            .map(|text| text.chars().count())
-            .unwrap_or(0)
-    );
 }

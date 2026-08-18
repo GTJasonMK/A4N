@@ -25,9 +25,6 @@ use persistence::{
 };
 
 const CANONICAL_SCHEMA_VERSION: u64 = 1;
-const PROJECT_KIND_TEXT: &str = "text";
-const SOURCE_MODE_SELF: &str = "self";
-const SOURCE_MODE_FREEFORM: &str = "freeform";
 
 mod types;
 #[cfg(test)]

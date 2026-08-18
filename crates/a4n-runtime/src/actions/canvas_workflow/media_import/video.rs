@@ -4,7 +4,7 @@ use crate::{
     actions::{
         app_error_message,
         video_generation::video_to_summary,
-        video_records::{ImportCanvasVideoInput, delete_video, import_canvas_video},
+        video_records::{delete_video, import_canvas_video},
     },
 };
 use a4n_core::{error::AppError, models::ai::generated_video};
@@ -28,7 +28,6 @@ pub(super) async fn import_canvas_video_media(
                 file_name: input.file_name,
                 mime_type: input.mime_type,
                 data_base64: input.data_base64,
-                prompt: input.prompt,
             },
         )
         .await
@@ -56,26 +55,9 @@ impl CanvasVideoImportHostPort for RuntimeCanvasVideoImportHostPort<'_> {
         &self,
         input: CanvasVideoImportHostInput,
     ) -> Result<generated_video::Model, AppError> {
-        let summary = import_canvas_video(
-            self.state,
-            self.user_id,
-            input.project_id,
-            ImportCanvasVideoInput {
-                file_path: input.file_path,
-                file_name: input.file_name,
-                mime_type: input.mime_type,
-                data_base64: input.data_base64,
-                prompt: input.prompt,
-            },
-        )
-        .await
-        .map_err(host_error)?;
-        self.state
-            .orchestrator()
-            .generated_video_by_id(summary.id)
+        import_canvas_video(self.state, input)
             .await
-            .map_err(|error| host_error(error.to_string()))?
-            .ok_or_else(|| AppError::NotFound(format!("画布导入视频不存在: {}", summary.id)))
+            .map_err(host_error)
     }
 
     async fn delete_canvas_video(&self, video_id: i64) -> Result<(), AppError> {

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+cd "$PROJECT_ROOT"
 
-config="$ROOT/.cargo/audit.toml"
+config="$PROJECT_ROOT/.cargo/audit.toml"
 [[ -r "$config" ]] || {
     echo "missing cargo-audit exception config: $config" >&2
     exit 1

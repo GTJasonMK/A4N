@@ -49,7 +49,7 @@ impl NewApiVideoProvider {
         }
     }
 
-    pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+    pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
         req.validate_dimensions()?;
         if req.media.last_frame().is_some() {
             return Err(AppError::InvalidArgument(
@@ -87,10 +87,6 @@ impl NewApiVideoProvider {
         }
 
         Ok(Value::Object(body))
-    }
-
-    pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        Self::request_body(req)
     }
 
     async fn decode_result(

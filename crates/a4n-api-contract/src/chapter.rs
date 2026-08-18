@@ -16,6 +16,20 @@ pub struct PreparedGenerationRagEmbeddingRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct PreviewChapterPromptInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_number: i32,
+    pub writing_notes: Option<String>,
+    #[schemars(range(min = 1))]
+    pub min_word_count: Option<i32>,
+    #[schemars(range(min = 1))]
+    pub max_word_count: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ImportChapterInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,

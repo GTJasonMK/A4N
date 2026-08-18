@@ -1,13 +1,21 @@
 use super::*;
 
 #[derive(Debug, Clone)]
+pub struct CompletedLlmCallCheckpoint {
+    pub parsed_output: Value,
+    pub response_content: String,
+    pub usage: Option<Value>,
+    pub finish_reason: Option<String>,
+    pub artifacts_json: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
 pub struct CompletedLlmCallCheckpointInput {
     pub workflow_run_id: i64,
     pub call_key: String,
     pub call_order: i32,
     pub input_fingerprint_json: Value,
-    pub checkpoint_json: Value,
-    pub artifacts_json: Option<Value>,
+    pub checkpoint: CompletedLlmCallCheckpoint,
 }
 
 pub fn llm_call_checkpoint_fingerprint_sha256(
@@ -32,74 +40,113 @@ fn is_truncated_finish_reason(finish_reason: Option<&str>) -> bool {
     matches!(finish_reason, Some("length" | "max_tokens"))
 }
 
-fn has_restorable_llm_call_result(checkpoint_json: &Value) -> bool {
-    checkpoint_json
-        .get("parsed_output")
-        .is_some_and(|value| !value.is_null())
-        || checkpoint_json
-            .get("response_content")
-            .and_then(Value::as_str)
-            .is_some_and(|value| !value.trim().is_empty())
-}
-
-pub fn validate_completed_llm_call_checkpoint_json(
-    checkpoint_json: &Value,
+fn completed_llm_call_checkpoint_from_json(
+    checkpoint_json: Value,
+    artifacts_json: Option<Value>,
     call_key: &str,
-) -> Result<(), WorkflowCheckpointContractError> {
-    let object = checkpoint_json.as_object().ok_or_else(|| {
-        WorkflowCheckpointContractError::Invalid(format!("{call_key} LLM 调用断点必须是对象"))
-    })?;
-    for field in [
-        "output",
+) -> Result<CompletedLlmCallCheckpoint, WorkflowCheckpointContractError> {
+    let mut object = match checkpoint_json {
+        Value::Object(object) => object,
+        _ => {
+            return Err(WorkflowCheckpointContractError::Invalid(format!(
+                "{call_key} LLM 调用断点必须是对象"
+            )));
+        }
+    };
+    const FIELDS: [&str; 4] = [
         "parsed_output",
         "response_content",
         "usage",
         "finish_reason",
-    ] {
+    ];
+    for field in FIELDS {
         if !object.contains_key(field) {
             return Err(WorkflowCheckpointContractError::Invalid(format!(
                 "{call_key} LLM 调用断点缺少必需字段 {field}"
             )));
         }
     }
-    if !matches!(object.get("response_content"), Some(Value::String(_))) {
+    if let Some(field) = object.keys().find(|field| !FIELDS.contains(&field.as_str())) {
         return Err(WorkflowCheckpointContractError::Invalid(format!(
-            "{call_key} LLM 调用断点 response_content 必须是字符串"
+            "{call_key} LLM 调用断点包含未知字段 {field}"
         )));
     }
-    let finish_reason = match object.get("finish_reason") {
+    let parsed_output = object.remove("parsed_output").ok_or_else(|| {
+        WorkflowCheckpointContractError::Invalid(format!(
+            "{call_key} LLM 调用断点缺少必需字段 parsed_output"
+        ))
+    })?;
+    if parsed_output.is_null() {
+        return Err(WorkflowCheckpointContractError::Invalid(format!(
+            "{call_key} LLM 调用断点 parsed_output 不能为 null"
+        )));
+    }
+    let response_content = match object.remove("response_content") {
+        Some(Value::String(value)) => value,
+        _ => {
+            return Err(WorkflowCheckpointContractError::Invalid(format!(
+                "{call_key} LLM 调用断点 response_content 必须是字符串"
+            )));
+        }
+    };
+    if response_content.trim().is_empty() {
+        return Err(WorkflowCheckpointContractError::Invalid(format!(
+            "{call_key} LLM 调用断点 response_content 不能为空"
+        )));
+    }
+    let usage = match object.remove("usage") {
         Some(Value::Null) => None,
-        Some(Value::String(value)) => Some(value.as_str()),
+        Some(value) => Some(value),
+        None => {
+            return Err(WorkflowCheckpointContractError::Invalid(format!(
+                "{call_key} LLM 调用断点缺少必需字段 usage"
+            )));
+        }
+    };
+    let finish_reason = match object.remove("finish_reason") {
+        Some(Value::Null) => None,
+        Some(Value::String(value)) => Some(value),
         _ => {
             return Err(WorkflowCheckpointContractError::Invalid(format!(
                 "{call_key} LLM 调用断点 finish_reason 必须是字符串或 null"
             )));
         }
     };
-    if is_truncated_finish_reason(finish_reason) {
+    if is_truncated_finish_reason(finish_reason.as_deref()) {
         return Err(WorkflowCheckpointContractError::Invalid(format!(
             "{call_key} LLM 调用断点标记为截断响应，不能保存或恢复"
         )));
     }
-    if !has_restorable_llm_call_result(checkpoint_json) {
-        return Err(WorkflowCheckpointContractError::Invalid(format!(
-            "{call_key} LLM 调用断点没有可恢复的响应内容"
-        )));
-    }
-    Ok(())
+    Ok(CompletedLlmCallCheckpoint {
+        parsed_output,
+        response_content,
+        usage,
+        finish_reason,
+        artifacts_json,
+    })
 }
 
-pub fn required_llm_call_checkpoint_json(
-    checkpoint: workflow_checkpoint::Model,
+pub fn validate_completed_llm_call_checkpoint_json(
+    checkpoint_json: &Value,
     call_key: &str,
-) -> Result<Value, WorkflowCheckpointContractError> {
-    let checkpoint_json = checkpoint.checkpoint_json.ok_or_else(|| {
-        WorkflowCheckpointContractError::MissingCheckpointJson {
-            call_key: call_key.to_string(),
-        }
+) -> Result<(), WorkflowCheckpointContractError> {
+    completed_llm_call_checkpoint_from_json(checkpoint_json.clone(), None, call_key).map(drop)
+}
+
+pub fn completed_llm_call_checkpoint_from_model(
+    checkpoint: &workflow_checkpoint::Model,
+    call_key: &str,
+) -> Result<CompletedLlmCallCheckpoint, WorkflowCheckpointContractError> {
+    let checkpoint_json = checkpoint.checkpoint_json.clone().ok_or_else(|| {
+        WorkflowCheckpointContractError::Invalid(format!(
+            "{call_key} LLM 调用断点缺少 checkpoint_json"
+        ))
     })?;
-    validate_completed_llm_call_checkpoint_json(&checkpoint_json, call_key)?;
-    Ok(checkpoint_json)
+    completed_llm_call_checkpoint_from_json(
+        checkpoint_json,
+        checkpoint.artifacts_json.clone(),
+        call_key,
+    )
 }
 
 pub async fn load_completed_llm_call_checkpoint(
@@ -107,7 +154,7 @@ pub async fn load_completed_llm_call_checkpoint(
     workflow_run_id: i64,
     call_key: &str,
     input_fingerprint_json: &Value,
-) -> Result<Option<workflow_checkpoint::Model>, WorkflowReadError> {
+) -> Result<Option<CompletedLlmCallCheckpoint>, WorkflowReadError> {
     let input_fingerprint_sha256 =
         llm_call_checkpoint_fingerprint_sha256(input_fingerprint_json)
             .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))?;
@@ -118,19 +165,30 @@ pub async fn load_completed_llm_call_checkpoint(
         &input_fingerprint_sha256,
     )
     .await?;
-    Ok(checkpoint.filter(|checkpoint| {
-        checkpoint
-            .checkpoint_json
-            .as_ref()
-            .is_none_or(has_restorable_llm_call_result)
-    }))
+    checkpoint
+        .map(|checkpoint| completed_llm_call_checkpoint_from_model(&checkpoint, call_key))
+        .transpose()
+        .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))
 }
 
 pub async fn save_completed_llm_call_checkpoint(
     db: &DatabaseConnection,
     input: CompletedLlmCallCheckpointInput,
 ) -> Result<(), WorkflowWriteError> {
-    validate_completed_llm_call_checkpoint_json(&input.checkpoint_json, &input.call_key)
+    let CompletedLlmCallCheckpoint {
+        parsed_output,
+        response_content,
+        usage,
+        finish_reason,
+        artifacts_json,
+    } = input.checkpoint;
+    let checkpoint_json = json!({
+        "parsed_output": parsed_output,
+        "response_content": response_content,
+        "usage": usage,
+        "finish_reason": finish_reason,
+    });
+    validate_completed_llm_call_checkpoint_json(&checkpoint_json, &input.call_key)
         .map_err(|error| WorkflowWriteError::InvalidArgument(error.to_string()))?;
     let input_fingerprint_sha256 =
         llm_call_checkpoint_fingerprint_sha256(&input.input_fingerprint_json)
@@ -144,8 +202,8 @@ pub async fn save_completed_llm_call_checkpoint(
             status: WORKFLOW_STATUS_COMPLETED.to_string(),
             input_fingerprint_sha256: Some(input_fingerprint_sha256),
             input_fingerprint_json: Some(input.input_fingerprint_json),
-            checkpoint_json: Some(input.checkpoint_json),
-            artifacts_json: input.artifacts_json,
+            checkpoint_json: Some(checkpoint_json),
+            artifacts_json,
             generation_run_ids_json: None,
             error_message: None,
             completed: true,

@@ -1,7 +1,7 @@
 use a4n_core::{models::chapter::part_outline, rag::RagDataType};
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn part_outline_rag_text(part: &part_outline::Model) -> Result<String, String> {
     let title = required_rag_text(
@@ -37,14 +37,10 @@ pub fn part_outline_rag_record(
     part: &part_outline::Model,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("part_outline:{project_id}:{}", part.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::PartOutline, part.id),
         text: part_outline_rag_text(part)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::PartOutline.as_str(),
-            "part_id": part.id,
-            "part_number": part.part_number,
-            "start_chapter": part.start_chapter,
-            "end_chapter": part.end_chapter,
         }),
     })
 }

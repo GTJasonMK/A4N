@@ -9,7 +9,10 @@ mod process;
 #[cfg(test)]
 mod tests;
 
-pub use config::{ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode};
+pub use config::{
+    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode,
+    is_loopback_http_url, normalize_remote_service_url,
+};
 pub use errors::ServiceManagerError;
 pub use manager::{HttpClientFactory, ServiceManager};
 pub use process::{ManagedSidecarProcess, ManagedSidecarState, ManagedSidecarStatus};

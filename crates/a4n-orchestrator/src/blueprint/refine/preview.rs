@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use a4n_core::{blueprint_context::blueprint_llm_context, error::AppError};
 use a4n_llm::provider::ChatRequest;
-use a4n_prompt::blueprint_generation::{
-    blueprint_refine_manifest_user_message, build_blueprint_refine_request,
-};
+use a4n_prompt::blueprint_generation::build_blueprint_refine_request;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
@@ -43,12 +41,13 @@ impl OrchestratorContext {
         let characters = self.load_blueprint_characters(project_id).await?;
         let relationships = self.load_blueprint_relationships(project_id).await?;
         let blueprint_context = blueprint_llm_context(&blueprint, &characters, &relationships);
-        let prompt_content = prompt_renderer
-            .render_prompt("blueprint_optimization", variables, Some(project_id))
-            .await?;
-        let user_message =
-            blueprint_refine_manifest_user_message(prompt_renderer, Some(project_id), focus)
-                .await?;
-        build_blueprint_refine_request(project_id, prompt_content, user_message, &blueprint_context)
+        build_blueprint_refine_request(
+            prompt_renderer,
+            project_id,
+            focus,
+            variables,
+            &blueprint_context,
+        )
+        .await
     }
 }

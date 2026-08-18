@@ -1,10 +1,10 @@
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::{CanvasFrameKind, CanvasNodeRefKind};
 use serde_json::Value;
 
 use crate::canvas::{
-    canvas_config_f32, canvas_config_string, canvas_edge_order_index, incoming_edges,
+    canvas_config_string, canvas_edge_order_index, incoming_edges,
     source_checkpoint::source_operation_checkpoint_output,
     source_text::source_canvas_text_asset_id, validate_canvas_clip_order,
 };
@@ -44,11 +44,18 @@ fn build_extract_frame_input(
 ) -> Result<CanvasExtractFrameNodeInput, String> {
     let (video_id, source_node_ids) =
         resolve_single_source_video(node, document, checkpoints, "ExtractFrameNode")?;
+    let frame_kind = node
+        .config_json
+        .get("frame_kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "ExtractFrameNode 缺少字符串 frame_kind".to_string())?
+        .parse::<CanvasFrameKind>()
+        .map_err(|error| error.to_string())?;
+    let at_secs = strict_canvas_config_f32(&node.config_json, "at_secs")?;
     Ok(CanvasExtractFrameNodeInput {
         video_id,
-        frame_kind: canvas_config_string(&node.config_json, &["frame_kind", "kind"])
-            .unwrap_or_else(|| "first".to_string()),
-        at_secs: canvas_config_f32(&node.config_json, "at_secs"),
+        frame_kind,
+        at_secs,
         canvas_text_asset_id: first_canvas_text_asset_id(node, document),
         source_node_ids,
     })
@@ -61,8 +68,9 @@ fn build_trim_video_input(
 ) -> Result<CanvasTrimVideoNodeInput, String> {
     let (video_id, source_node_ids) =
         resolve_single_source_video(node, document, checkpoints, "TrimVideoNode")?;
-    let start_secs = canvas_config_f32(&node.config_json, "start_secs").unwrap_or(0.0);
-    let end_secs = canvas_config_f32(&node.config_json, "end_secs")
+    let start_secs = strict_canvas_config_f32(&node.config_json, "start_secs")?
+        .ok_or_else(|| "TrimVideoNode 缺少 start_secs".to_string())?;
+    let end_secs = strict_canvas_config_f32(&node.config_json, "end_secs")?
         .ok_or_else(|| "TrimVideoNode 缺少 end_secs".to_string())?;
     Ok(CanvasTrimVideoNodeInput {
         video_id,
@@ -71,6 +79,21 @@ fn build_trim_video_input(
         canvas_text_asset_id: first_canvas_text_asset_id(node, document),
         source_node_ids,
     })
+}
+
+fn strict_canvas_config_f32(config: &Value, key: &str) -> Result<Option<f32>, String> {
+    config
+        .get(key)
+        .map(|value| {
+            let value = value
+                .as_f64()
+                .ok_or_else(|| format!("{key} 必须是有限 f32 数字"))?;
+            if !value.is_finite() || value < f32::MIN as f64 || value > f32::MAX as f64 {
+                return Err(format!("{key} 必须是有限 f32 数字"));
+            }
+            Ok(value as f32)
+        })
+        .transpose()
 }
 
 fn build_assemble_video_input(

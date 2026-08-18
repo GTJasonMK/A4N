@@ -8,7 +8,7 @@ use a4n_core::models::project::{
     project_source_snapshot, source_snapshot_chapter, source_snapshot_outline,
     source_snapshot_profile,
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -102,12 +102,11 @@ pub(in crate::project_family_import::import_rows) async fn insert_source_snapsho
             )?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.source_snapshot_outlines,
         outline,
         source_snapshot_outline::ActiveModel,
-        maps.source_snapshot_outline_ids,
         "导入源快照大纲失败",
         |active| {
             let (payload_json, payload_hash) =
@@ -123,12 +122,11 @@ pub(in crate::project_family_import::import_rows) async fn insert_source_snapsho
             active.payload_hash = Set(payload_hash);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.source_snapshot_profiles,
         profile,
         source_snapshot_profile::ActiveModel,
-        maps.source_snapshot_profile_ids,
         "导入源快照档案失败",
         |active| {
             let (payload_json, payload_hash) =

@@ -147,7 +147,7 @@ impl OrchestratorContext {
         let implicit_review_decisions = self
             .decide_implicit_reviews_for_sync_validated(
                 CharacterSyncImplicitReviewInput {
-                    workflow_run_id: Some(workflow_run_id),
+                    workflow_run_id,
                     profile: &prepared.profile,
                     start_chapter: prepared.start_chapter,
                     final_attributes: &classified.final_attributes,

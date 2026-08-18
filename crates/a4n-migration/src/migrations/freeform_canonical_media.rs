@@ -41,28 +41,32 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    project_source_mode TEXT;
+    project_kind TEXT;
+    project_root_project_id BIGINT;
+    project_source_snapshot_id BIGINT;
 BEGIN
-    SELECT project_row.source_mode INTO project_source_mode
+    SELECT project_row.project_kind,
+           project_row.root_project_id,
+           project_row.source_snapshot_id
+      INTO project_kind,
+           project_root_project_id,
+           project_source_snapshot_id
     FROM novel_project project_row
-    WHERE project_row.id = NEW.project_id
-      AND project_row.project_kind = 'video';
+    WHERE project_row.id = NEW.project_id;
 
-    IF project_source_mode = 'freeform' THEN
+    IF project_kind = 'video'
+       AND project_root_project_id IS NULL
+       AND project_source_snapshot_id IS NULL THEN
         IF NEW.root_project_id <> NEW.project_id THEN
             RAISE EXCEPTION 'freeform 视频片段 root_project_id 必须等于 project_id';
         END IF;
         IF NEW.source_chapter_id IS NOT NULL OR NEW.source_snapshot_chapter_id IS NOT NULL THEN
             RAISE EXCEPTION 'freeform 视频片段不能绑定源章节或源快照章节';
         END IF;
-    ELSE
-        IF NOT EXISTS (
-            SELECT 1 FROM novel_project project_row
-            WHERE project_row.id = NEW.project_id
-              AND project_row.project_kind = 'video'
-              AND project_row.source_mode = 'derived'
-              AND project_row.root_project_id = NEW.root_project_id
-        ) THEN
+    ELSIF project_kind = 'video'
+          AND project_root_project_id IS NOT NULL
+          AND project_source_snapshot_id IS NOT NULL THEN
+        IF project_root_project_id IS DISTINCT FROM NEW.root_project_id THEN
             RAISE EXCEPTION '视频片段 project_id 必须指向派生视频项目';
         END IF;
         IF NEW.source_snapshot_chapter_id IS NOT NULL AND NOT EXISTS (
@@ -73,6 +77,8 @@ BEGIN
         ) THEN
             RAISE EXCEPTION '视频片段 source_snapshot_chapter_id 必须属于根文本快照章节';
         END IF;
+    ELSE
+        RAISE EXCEPTION '视频片段 project_id 必须指向视频项目';
     END IF;
 
     IF NEW.source_generation_spec_id IS NOT NULL AND NOT EXISTS (
@@ -103,27 +109,28 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    project_source_mode TEXT;
+    project_kind TEXT;
+    project_root_project_id BIGINT;
+    project_source_snapshot_id BIGINT;
 BEGIN
-    SELECT project_row.source_mode INTO project_source_mode
+    SELECT project_row.project_kind,
+           project_row.root_project_id,
+           project_row.source_snapshot_id
+      INTO project_kind,
+           project_root_project_id,
+           project_source_snapshot_id
     FROM novel_project project_row
-    WHERE project_row.id = NEW.project_id
-      AND project_row.project_kind = 'video';
+    WHERE project_row.id = NEW.project_id;
 
-    IF project_source_mode = 'freeform' THEN
+    IF project_kind = 'video'
+       AND project_root_project_id IS NULL
+       AND project_source_snapshot_id IS NULL THEN
         IF NEW.source_chapter_id IS NOT NULL OR NEW.source_snapshot_chapter_id IS NOT NULL THEN
             RAISE EXCEPTION 'freeform 成片时间线不能绑定源章节或源快照章节';
         END IF;
-    ELSIF project_source_mode = 'derived' THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM novel_project project_row
-            WHERE project_row.id = NEW.project_id
-              AND project_row.project_kind = 'video'
-              AND project_row.source_mode = 'derived'
-              AND project_row.root_project_id IS NOT NULL
-        ) THEN
-            RAISE EXCEPTION '成片时间线 project_id 必须指向视频项目';
-        END IF;
+    ELSIF project_kind = 'video'
+          AND project_root_project_id IS NOT NULL
+          AND project_source_snapshot_id IS NOT NULL THEN
         IF NEW.source_snapshot_chapter_id IS NOT NULL AND NOT EXISTS (
             SELECT 1
             FROM novel_project project_row

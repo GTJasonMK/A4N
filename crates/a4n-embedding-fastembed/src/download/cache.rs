@@ -5,28 +5,50 @@ pub(super) fn cached_file_size(
     path: &str,
     etag: &str,
     size_bytes: u64,
-) -> u64 {
+) -> Result<u64, String> {
     if let Some(cached_path) = cache_repo.get(path) {
-        let cached_size = file_size(&cached_path);
-        if cached_size >= size_bytes {
-            return size_bytes;
+        let cached_size = file_size(&cached_path)?;
+        if cached_size > size_bytes {
+            return Err(format!(
+                "模型缓存文件大小超过上游元数据：{}，cached={cached_size}, expected={size_bytes}",
+                cached_path.display()
+            ));
+        }
+        if cached_size == size_bytes {
+            return Ok(size_bytes);
         }
     }
-    let blob_size = file_size(&cache_repo.blob_path(etag));
-    if blob_size >= size_bytes {
-        return size_bytes;
+    let blob_path = cache_repo.blob_path(etag);
+    let blob_size = file_size(&blob_path)?;
+    if blob_size > size_bytes {
+        return Err(format!(
+            "模型缓存 blob 大小超过上游元数据：{}，cached={blob_size}, expected={size_bytes}",
+            blob_path.display()
+        ));
+    }
+    if blob_size == size_bytes {
+        return Ok(size_bytes);
     }
 
-    let mut part_path = cache_repo.blob_path(etag);
+    let mut part_path = blob_path;
     part_path.set_extension("part");
-    let part_size = file_size(&part_path);
-    if part_size > size_bytes { 0 } else { part_size }
+    let part_size = file_size(&part_path)?;
+    if part_size > size_bytes {
+        return Err(format!(
+            "模型临时下载文件大小超过上游元数据：{}，cached={part_size}, expected={size_bytes}",
+            part_path.display()
+        ));
+    }
+    Ok(part_size)
 }
 
-pub(super) fn file_size(path: &Path) -> u64 {
-    std::fs::metadata(path)
-        .map(|metadata| metadata.len())
-        .unwrap_or(0)
+pub(super) fn file_size(path: &Path) -> Result<u64, String> {
+    match std::fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => Ok(metadata.len()),
+        Ok(_) => Err(format!("模型缓存路径不是文件：{}", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(error) => Err(format!("读取模型缓存文件状态失败：{}：{error}", path.display())),
+    }
 }
 
 pub(super) fn create_snapshot_pointer(

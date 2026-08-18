@@ -11,7 +11,7 @@ import {
 } from "../../utils/writingDraft";
 import { formatUiDateTime } from "../../utils/dateTime";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 
 const chapterContentForEditor = (chapter: ChapterSummary | null): string => {
   if (chapter == null) return "";

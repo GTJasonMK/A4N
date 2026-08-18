@@ -1016,12 +1016,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     actionSeqRef.current = actionSeq;
     setActing("generate-missing-portraits");
     try {
-      let createdCount = 0;
       const handle = await startPortraitGeneration({
         project_id: requestAssetProjectId,
         operation: { kind: "generate_missing" },
       });
-      await runGenerationProgressTaskThen(
+      const createdCount = await runGenerationProgressTaskThen(
         runPortraitProgressTask,
         handle,
         {
@@ -1033,24 +1032,17 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           cancelLabel: "停止生成",
         },
         async (task) => {
-          createdCount = task.artifacts.filter(
-            (artifact) => artifact.artifact_kind === "portrait_image",
-          ).length;
-          await verifyPortraitGenerationResult(task, requestAssetProjectId);
+          const generated = await verifyPortraitGenerationResult(task, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
           await loadCharacterAssets(requestProjectId, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
+          return generated.length;
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast(
-        createdCount > 0
-          ? `已生成 ${createdCount} 张缺失立绘`
-          : "角色立绘已齐全",
-        "success",
-      );
+      addToast(`已生成 ${createdCount} 张缺失立绘`, "success");
     } catch (err) {
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       const message = extractErrorMessage(err, "补齐立绘失败");

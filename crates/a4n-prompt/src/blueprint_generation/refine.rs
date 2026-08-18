@@ -1,17 +1,8 @@
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::error::AppError;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
-use a4n_llm::context::context_aware_system_user_request;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
-use serde_json::{Value, json};
-
 mod builder;
 mod context;
 mod user_message;
 
 pub use builder::build_blueprint_refine_request;
-use context::build_blueprint_refine_context_manifest;
-pub use user_message::blueprint_refine_manifest_user_message;
 
 #[cfg(test)]
 mod tests {
@@ -31,23 +22,29 @@ mod tests {
 
     #[tokio::test]
     async fn manifest_user_message_uses_context_refs_and_omits_missing_focus() {
-        let message = blueprint_refine_manifest_user_message(&prompt_engine(), None, None)
-            .await
-            .expect("message should render");
+        let message =
+            user_message::blueprint_refine_manifest_user_message(&prompt_engine(), None, None)
+                .await
+                .expect("message should render");
 
         assert!(message.contains(r#""context_refs""#));
         assert!(message.contains("existing_blueprint_context"));
         assert!(!message.contains("星潮档案"));
         assert!(!message.contains(r#""focus""#));
         assert!(!message.contains("全面优化"));
+        assert!(!message.contains(r#""title""#));
+        assert!(message.contains(r#""style""#));
     }
 
     #[tokio::test]
     async fn manifest_user_message_omits_blank_focus() {
-        let message =
-            blueprint_refine_manifest_user_message(&prompt_engine(), None, Some(" \n\t "))
-                .await
-                .expect("message should render");
+        let message = user_message::blueprint_refine_manifest_user_message(
+            &prompt_engine(),
+            None,
+            Some(" \n\t "),
+        )
+        .await
+        .expect("message should render");
 
         assert!(!message.contains(r#""focus""#));
         assert!(!message.contains("全面优化"));
@@ -55,10 +52,13 @@ mod tests {
 
     #[tokio::test]
     async fn manifest_user_message_includes_explicit_focus() {
-        let message =
-            blueprint_refine_manifest_user_message(&prompt_engine(), None, Some(" 强化主角动机 "))
-                .await
-                .expect("message should render");
+        let message = user_message::blueprint_refine_manifest_user_message(
+            &prompt_engine(),
+            None,
+            Some(" 强化主角动机 "),
+        )
+        .await
+        .expect("message should render");
 
         assert!(message.contains(r#""focus": "强化主角动机""#));
     }
@@ -66,17 +66,6 @@ mod tests {
     #[tokio::test]
     async fn request_moves_existing_blueprint_into_manifest() {
         let engine = prompt_engine();
-        let system_prompt = engine
-            .render(
-                "blueprint_optimization",
-                &std::collections::HashMap::new(),
-                Some(42),
-            )
-            .expect("system prompt should render");
-        let user_message =
-            blueprint_refine_manifest_user_message(&engine, Some(42), Some("强化主角动机"))
-                .await
-                .expect("user message should render");
         let blueprint_context = json!({
             "blueprint": {
                 "title": "星潮档案",
@@ -86,9 +75,15 @@ mod tests {
             "characters": [{"name": "林烬", "motivation": "查明真相"}],
             "relationships": [],
         });
-        let request =
-            build_blueprint_refine_request(42, system_prompt, user_message, &blueprint_context)
-                .expect("refine request should build");
+        let request = build_blueprint_refine_request(
+            &engine,
+            42,
+            Some("强化主角动机"),
+            &std::collections::HashMap::new(),
+            &blueprint_context,
+        )
+        .await
+        .expect("refine request should build");
 
         let manifest = request
             .context_manifest_json
@@ -116,7 +111,13 @@ mod tests {
             .trace_context
             .as_ref()
             .expect("trace context should be attached");
-        assert_eq!(trace_context.workflow, "blueprint_refine");
-        assert_eq!(trace_context.call_key.as_deref(), Some("blueprint_refine"));
+        assert_eq!(
+            trace_context.workflow,
+            a4n_core::blueprint::BLUEPRINT_REFINEMENT_WORKFLOW_KIND
+        );
+        assert_eq!(
+            trace_context.call_key.as_deref(),
+            Some("blueprint_refine:project:42")
+        );
     }
 }

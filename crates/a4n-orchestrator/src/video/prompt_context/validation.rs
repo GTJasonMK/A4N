@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use a4n_core::error::AppError;
+use a4n_domain::VideoAspectRatio;
 
 use super::super::ChapterVideoPromptOptions;
 use super::super::library::{MAX_REFERENCE_IMAGE_IDS, MAX_VIDEO_LIBRARY_IMAGE_IDS};
 
-const SUPPORTED_VIDEO_ASPECT_RATIOS: &[&str] = &["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
 const MAX_DURATION_OPTION_COUNT: usize = 12;
 
 pub(in crate::video) fn validate_prompt_options(
@@ -41,13 +41,16 @@ pub fn validate_prompt_options_with_reference_limit(
         capability.validate_duration(options.duration_secs)?;
         capability.validate_duration_options(&duration_secs_options)?;
     }
-    let aspect_ratio = options.aspect_ratio.trim();
-    if aspect_ratio.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "视频提示词生成 aspect_ratio 不能为空".to_string(),
-        ));
-    }
-    validate_video_aspect_ratio(aspect_ratio)?;
+    options
+        .aspect_ratio
+        .parse::<VideoAspectRatio>()
+        .map_err(|_| {
+            AppError::InvalidArgument(format!(
+                "视频提示词生成 aspect_ratio 无效: {}，必须是 {}",
+                options.aspect_ratio,
+                VideoAspectRatio::supported_values()
+            ))
+        })?;
     validate_positive_unique_ids("reference_image_ids", &options.reference_image_ids)?;
     validate_positive_unique_ids("video_library_image_ids", &options.video_library_image_ids)?;
     validate_id_count(
@@ -83,7 +86,7 @@ pub fn validate_prompt_options_with_reference_limit(
         segment_recipe: options.segment_recipe,
         duration_secs: options.duration_secs,
         duration_secs_options,
-        aspect_ratio: aspect_ratio.to_string(),
+        aspect_ratio: options.aspect_ratio,
         reference_image_ids: options.reference_image_ids,
         video_library_image_ids: options.video_library_image_ids,
         duration_capability: options.duration_capability,
@@ -128,16 +131,6 @@ fn validate_id_count(field: &str, count: usize, max: usize) -> Result<(), AppErr
         )));
     }
     Ok(())
-}
-
-fn validate_video_aspect_ratio(aspect_ratio: &str) -> Result<(), AppError> {
-    if SUPPORTED_VIDEO_ASPECT_RATIOS.contains(&aspect_ratio) {
-        return Ok(());
-    }
-    Err(AppError::InvalidArgument(format!(
-        "视频提示词生成 aspect_ratio 无效: {aspect_ratio}，必须是 {}",
-        SUPPORTED_VIDEO_ASPECT_RATIOS.join("、")
-    )))
 }
 
 fn validate_positive_unique_ids(field: &str, ids: &[i64]) -> Result<(), AppError> {

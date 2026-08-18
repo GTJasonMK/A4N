@@ -21,9 +21,6 @@ pub use create::*;
 pub use records::*;
 pub use references::*;
 
-pub(super) const IMAGE_TYPE_SCENE_MATERIAL: &str = "scene_material";
-pub(super) const IMAGE_TYPE_OBJECT_MATERIAL: &str = "object_material";
-
 pub struct CreateGeneratedImageRecordInput {
     pub project_id: i64,
     pub image_type: String,

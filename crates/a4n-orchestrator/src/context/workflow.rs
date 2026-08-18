@@ -4,15 +4,19 @@
 //! 编排侧只通过 `OrchestratorContext` 行为方法或 runtime 窄 facade 访问。
 
 use a4n_core::error::AppError;
-use a4n_core::models::generation::{workflow_checkpoint, workflow_progress_event, workflow_run};
+use a4n_core::models::{
+    ai::generated_video,
+    generation::{workflow_checkpoint, workflow_progress_event, workflow_run},
+};
 use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
 use crate::workflow::{
     CancelWorkflowRunPersistenceResult, ClaimExclusiveWorkflowRunInput,
-    CompletedLlmCallCheckpointInput, GetWorkflowRunInput, ListWorkflowRunsInput, PersistedTaskInfo,
-    TaskProgressEventSummary, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
-    WorkflowProgressEventInput, WorkflowRunDetailSummary, WorkflowRunSummary,
+    CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, GetWorkflowRunInput,
+    ListWorkflowRunsInput, PersistedTaskInfo, TaskProgressEventSummary,
+    UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowProgressEventInput,
+    WorkflowRunDetailSummary, WorkflowRunSummary,
     is_video_status_final_for_cancel_interrupt, workflow_read_app_error, workflow_write_app_error,
 };
 
@@ -189,7 +193,7 @@ impl WorkflowApplication {
         workflow_run_id: i64,
         call_key: &str,
         input_fingerprint_json: &serde_json::Value,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Option<CompletedLlmCallCheckpoint>, AppError> {
         a4n_db::workflow::load_completed_llm_call_checkpoint(
             self.database.connection(),
             workflow_run_id,
@@ -458,7 +462,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         call_key: &str,
         input_fingerprint_json: &serde_json::Value,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Option<CompletedLlmCallCheckpoint>, AppError> {
         self.workflow
             .load_completed_llm_call_checkpoint(workflow_run_id, call_key, input_fingerprint_json)
             .await
@@ -520,7 +524,7 @@ impl OrchestratorContext {
                     .mark_generated_video_error_status_and_prompt_record(
                         video.id,
                         crate::video::prompt_id_from_generated_video(&video),
-                        "interrupted",
+                        generated_video::STATUS_INTERRUPTED,
                         reason,
                     )
                     .await?;

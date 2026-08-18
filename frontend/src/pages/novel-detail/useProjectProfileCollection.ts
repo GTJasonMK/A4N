@@ -24,7 +24,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   canEditProfiles: boolean;
   entityLabel: string;
   listProfiles: (projectId: number) => Promise<T[]>;
-  addToast: (message: unknown, type: ToastType) => void;
+  addToast: (message: string, type: ToastType) => void;
 }) {
   const [profiles, setProfiles] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);

@@ -9,6 +9,7 @@ use a4n_api_contract::{
 };
 use a4n_core::{
     error::AppError,
+    models::chapter::chapter_video_prompt,
     prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language},
     video_execution::{resolve_video_segment_number, video_segment_recipe_from_metadata},
 };
@@ -71,8 +72,8 @@ impl OrchestratorContext {
         handle: GenerationTaskHandle,
         context: VideoPromptApplicationContext<'_>,
     ) -> Result<(), String> {
+        let operation_key = input.operation.generation_task_key();
         let task_input = prompt_task_input(input)?;
-        let operation_key = task_input.operation.operation_key();
         let batch_total = task_input.operation.batch_total();
         let Some(execution) = self
             .acquire_generation_task_execution(&handle)
@@ -281,7 +282,7 @@ impl OrchestratorContext {
                 progress(VideoPromptProgressUpdate::committed(
                     100,
                     100,
-                    "frame_segment_plan",
+                    chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
                     0,
                     1,
                     1,
@@ -415,7 +416,7 @@ impl OrchestratorContext {
         progress(VideoPromptProgressUpdate::committed(
             90,
             100,
-            "video_prompt",
+            chapter_video_prompt::PROMPT_TYPE_VIDEO,
             shot_number,
             1,
             1,
@@ -426,15 +427,6 @@ impl OrchestratorContext {
 }
 
 impl PromptTaskOperation {
-    fn operation_key(&self) -> &'static str {
-        match self {
-            Self::SegmentPlan(_) => "video_prompt_segment_plan",
-            Self::Inserted(_) => "video_prompt_inserted_segment",
-            Self::Frames(_) => "video_prompt_frames",
-            Self::Videos(_) => "video_prompt_videos",
-        }
-    }
-
     fn batch_total(&self) -> Option<u32> {
         matches!(self, Self::Frames(_) | Self::Videos(_)).then_some(1)
     }
@@ -589,46 +581,31 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
         operation,
     } = input;
     let retry_of_task_id = meta.retry_of_task_id;
-    let task = match operation {
+    let (chapter_id, operation) = match operation {
         VideoGenerationOperation::PromptSegmentPlan {
             chapter_id,
             options,
-        } => PromptTaskInput {
-            project_id,
-            chapter_id,
-            retry_of_task_id,
-            operation: PromptTaskOperation::SegmentPlan(options),
-        },
+        } => (chapter_id, PromptTaskOperation::SegmentPlan(options)),
         VideoGenerationOperation::PromptInsertedSegment {
             chapter_id,
             options,
-        } => PromptTaskInput {
-            project_id,
-            chapter_id,
-            retry_of_task_id,
-            operation: PromptTaskOperation::Inserted(options),
-        },
+        } => (chapter_id, PromptTaskOperation::Inserted(options)),
         VideoGenerationOperation::PromptFrames {
             chapter_id,
             options,
-        } => PromptTaskInput {
-            project_id,
-            chapter_id,
-            retry_of_task_id,
-            operation: PromptTaskOperation::Frames(options),
-        },
+        } => (chapter_id, PromptTaskOperation::Frames(options)),
         VideoGenerationOperation::PromptVideos {
             chapter_id,
             options,
-        } => PromptTaskInput {
-            project_id,
-            chapter_id,
-            retry_of_task_id,
-            operation: PromptTaskOperation::Videos(options),
-        },
+        } => (chapter_id, PromptTaskOperation::Videos(options)),
         _ => return Err("非视频提示词操作不能进入 LLM generation worker".to_string()),
     };
-    Ok(task)
+    Ok(PromptTaskInput {
+        project_id,
+        chapter_id,
+        retry_of_task_id,
+        operation,
+    })
 }
 
 fn validate_video_prompt_task_target(
@@ -674,11 +651,13 @@ fn video_prompt_matches(
     let Some(metadata) = row.metadata_json.as_ref() else {
         return false;
     };
-    let Some(contract_version) = expected_contract_version(&identity.workflow_mode, "video_prompt")
-    else {
+    let Some(contract_version) = expected_contract_version(
+        &identity.workflow_mode,
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
+    ) else {
         return false;
     };
-    row.prompt_type == "video_prompt"
+    row.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
         && row.workflow_mode == identity.workflow_mode
         && metadata
             .get("contract_version")
@@ -687,7 +666,7 @@ fn video_prompt_matches(
         && metadata
             .get("source_prompt_type")
             .and_then(serde_json::Value::as_str)
-            == Some("frame_segment_plan")
+            == Some(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN)
         && metadata_matches_prompt_output_language(Some(metadata), identity.prompt_output_language)
         && required_video_execution_identity(row.id, Some(metadata)).is_ok()
         && video_execution_segment_identity_matches(Some(metadata), &identity.execution_identity)
@@ -716,9 +695,10 @@ fn current_video_prompt_target_identity(
         .iter()
         .find(|row| {
             row.id == segment_plan_prompt_id
-                && row.prompt_type == "frame_segment_plan"
-                && row.workflow_mode == "shared_segment_plan"
-                && row.status == "completed"
+                && row.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+                && row.workflow_mode
+                    == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+                && row.status == chapter_video_prompt::STATUS_COMPLETED
         })
         .ok_or_else(|| AppError::InvalidArgument("当前共享片段规划不存在或已失效".to_string()))?;
     let plan_metadata = plan.metadata_json.as_ref().ok_or_else(|| {
@@ -733,13 +713,14 @@ fn current_video_prompt_target_identity(
         target_segment.segment_index_in_shot,
     )
     .map_err(AppError::InvalidArgument)?;
-    let expected_plan_contract =
-        expected_contract_version("shared_segment_plan", "frame_segment_plan").ok_or_else(
-            || AppError::InvalidState {
-                current: "missing_shared_segment_plan_contract".to_string(),
-                operation: "校验共享片段规划合同".to_string(),
-            },
-        )?;
+    let expected_plan_contract = expected_contract_version(
+        chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+    )
+    .ok_or_else(|| AppError::InvalidState {
+        current: "missing_shared_segment_plan_contract".to_string(),
+        operation: "校验共享片段规划合同".to_string(),
+    })?;
     if plan_metadata
         .get("contract_version")
         .and_then(serde_json::Value::as_str)
@@ -760,7 +741,7 @@ fn current_video_prompt_target_identity(
         ));
     }
     let prompt_output_language =
-        PromptOutputLanguage::from_optional_code(options.prompt_output_language.as_deref())?;
+        PromptOutputLanguage::from_code(&options.prompt_output_language)?;
     if prompt_output_language.as_str() != recipe.prompt_output_language {
         return Err(AppError::InvalidArgument(
             "片段提示词语言已变化，请刷新后重试".to_string(),
@@ -927,7 +908,7 @@ mod tests {
                     workflow_mode: Some("shared_segment_plan".to_string()),
                     segment_plan_prompt_id: None,
                     style: "写实".to_string(),
-                    prompt_output_language: Some("zh_cn".to_string()),
+                    prompt_output_language: "zh_cn".to_string(),
                     prompt_batch_size: 1,
                     target_segment: None,
                     target_narrative_unit_index: None,

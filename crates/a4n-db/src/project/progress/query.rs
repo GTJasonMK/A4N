@@ -4,8 +4,8 @@ use super::galgame::galgame_project_progress_by_project;
 use super::text::text_project_progress;
 use super::video::video_project_progress_by_project;
 use super::{ProjectProgressQuery, ProjectProgressReadError, ProjectProgressSummary};
-use crate::project::{SOURCE_MODE_FREEFORM, validate_positive_i64};
-use a4n_domain::project::ProjectKind;
+use crate::project::validate_positive_i64;
+use a4n_domain::project::{ProjectKind, ProjectSourceMode};
 use sea_orm::DatabaseConnection;
 use std::collections::{HashMap, HashSet};
 
@@ -46,7 +46,7 @@ pub async fn project_progress_summaries(
                 progress_by_project_id.insert(query.project_id, text_project_progress(query));
             }
             ProjectKind::Comic => comic_project_ids.push(query.project_id),
-            ProjectKind::Video if query.source_mode == SOURCE_MODE_FREEFORM => {
+            ProjectKind::Video if query.source_mode == ProjectSourceMode::Freeform => {
                 freeform_video_project_ids.push(query.project_id);
             }
             ProjectKind::Video => video_project_ids.push(query.project_id),

@@ -3,7 +3,10 @@ use super::ids::{
     remap_video_studio_json_i64_array_field, remap_video_studio_json_i64_field,
     remap_video_studio_required_id,
 };
-use a4n_domain::clear_canvas_transfer_runtime_identity;
+use a4n_domain::{
+    canvas_cache_key, clear_canvas_transfer_runtime_identity, parse_canvas_cache_key,
+    parse_generated_media_reference, GeneratedMediaReference,
+};
 use serde_json::Value;
 
 pub(in crate::canvas::transfer) fn remap_video_studio_canvas_metadata(
@@ -77,29 +80,19 @@ pub(in crate::canvas::transfer) fn remap_video_studio_source_external_path(
     let Some(raw) = value else {
         return Ok(None);
     };
-    if let Some(id) = raw
-        .strip_prefix("generated_video:")
-        .and_then(|suffix| suffix.parse::<i64>().ok())
-    {
-        let new_id = remap_video_studio_required_id(
-            &maps.video_ids,
-            id,
-            "media_provenance.source_external_path",
-        )?;
-        return Ok(Some(format!("generated_video:{new_id}")));
-    }
-    if let Some(id) = raw
-        .strip_prefix("generated_image:")
-        .and_then(|suffix| suffix.parse::<i64>().ok())
-    {
-        let new_id = remap_video_studio_required_id(
-            &maps.image_ids,
-            id,
-            "media_provenance.source_external_path",
-        )?;
-        return Ok(Some(format!("generated_image:{new_id}")));
-    }
-    Ok(Some(raw.to_string()))
+    let Some(reference) = parse_generated_media_reference(raw).ok().flatten() else {
+        return Ok(Some(raw.to_string()));
+    };
+    let ids = match reference {
+        GeneratedMediaReference::Video(_) => &maps.video_ids,
+        GeneratedMediaReference::Image(_) => &maps.image_ids,
+    };
+    let new_id = remap_video_studio_required_id(
+        ids,
+        reference.id(),
+        "media_provenance.source_external_path",
+    )?;
+    Ok(Some(reference.with_id(new_id).to_string()))
 }
 
 pub(in crate::canvas::transfer) fn remap_video_studio_canvas_cache_key(
@@ -109,7 +102,7 @@ pub(in crate::canvas::transfer) fn remap_video_studio_canvas_cache_key(
     let Some(raw) = value else {
         return Ok(None);
     };
-    let Some((graph_id, node_id)) = parse_video_studio_canvas_cache_key(raw) else {
+    let Some((graph_id, node_id)) = parse_canvas_cache_key(raw) else {
         return Ok(Some(raw.to_string()));
     };
     let new_graph_id = remap_video_studio_required_id(
@@ -122,19 +115,5 @@ pub(in crate::canvas::transfer) fn remap_video_studio_canvas_cache_key(
         node_id,
         "assembly_timeline.preview_cache_key node_id",
     )?;
-    Ok(Some(format!(
-        "canvas_graph:{new_graph_id}:node:{new_node_id}"
-    )))
-}
-
-fn parse_video_studio_canvas_cache_key(value: &str) -> Option<(i64, i64)> {
-    let parts = value.split(':').collect::<Vec<_>>();
-    if parts.len() == 4
-        && parts[0] == "canvas_graph"
-        && parts[2] == "node"
-        && let (Ok(graph_id), Ok(node_id)) = (parts[1].parse::<i64>(), parts[3].parse::<i64>())
-    {
-        return Some((graph_id, node_id));
-    }
-    None
+    Ok(Some(canvas_cache_key(new_graph_id, new_node_id)))
 }

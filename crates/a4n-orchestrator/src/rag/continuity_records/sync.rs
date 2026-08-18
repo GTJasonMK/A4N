@@ -7,24 +7,24 @@ use super::{
 use crate::{OrchestratorContext, rag::RagRecord, rag::RagSyncContext};
 
 impl OrchestratorContext {
-    pub async fn sync_character_state_rag(
+    pub(crate) async fn sync_character_state_rag(
         &self,
         project_id: i64,
         state_index: &character_state_index::Model,
         character_name: &str,
     ) -> Result<(), String> {
         let record = character_state_rag_record(project_id, state_index, character_name)?;
-        self.sync_single_rag_record(project_id, &record).await
+        self.sync_single_rag_record(project_id, record).await
     }
 
-    pub async fn sync_character_attribute_event_rag(
+    pub(crate) async fn sync_character_attribute_event_rag(
         &self,
         project_id: i64,
         event: &attribute_event::Model,
         character_name: &str,
     ) -> Result<(), String> {
         let record = character_attribute_event_rag_record(project_id, event, character_name)?;
-        self.sync_single_rag_record(project_id, &record).await
+        self.sync_single_rag_record(project_id, record).await
     }
 
     pub async fn sync_foreshadowing_rag(
@@ -33,10 +33,10 @@ impl OrchestratorContext {
         item: &foreshadowing_index::Model,
     ) -> Result<(), String> {
         let record = foreshadowing_rag_record(project_id, item)?;
-        self.sync_single_rag_record(project_id, &record).await
+        self.sync_single_rag_record(project_id, record).await
     }
 
-    pub async fn reingest_foreshadowing_rag_by_ids(
+    pub(crate) async fn reingest_foreshadowing_rag_by_ids(
         &self,
         project_id: i64,
         foreshadowing_ids: &[i64],
@@ -48,16 +48,35 @@ impl OrchestratorContext {
             .foreshadowing_items_by_ids(project_id, foreshadowing_ids)
             .await
             .map_err(|error| format!("查询需更新的伏笔 RAG 失败: {error}"))?;
-        for item in &items {
-            self.sync_foreshadowing_rag(project_id, item).await?;
+        if items.is_empty() {
+            return Ok(());
         }
+        let records = items
+            .iter()
+            .map(|item| foreshadowing_rag_record(project_id, item))
+            .collect::<Result<Vec<_>, _>>()?;
+        let ids = records
+            .iter()
+            .map(|record| record.chunk_id.clone())
+            .collect::<Vec<_>>();
+        let mut sync = RagSyncContext::for_ids(self, project_id, &ids)
+            .await
+            .map_err(|error| error.to_string())?;
+        let prepared = records
+            .into_iter()
+            .map(|record| sync.prepare_record(record))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        self.store_prepared_rag_records(project_id, prepared)
+            .await
+            .map_err(|error| error.to_string())?;
         Ok(())
     }
 
     async fn sync_single_rag_record(
         &self,
         project_id: i64,
-        record: &RagRecord,
+        record: RagRecord,
     ) -> Result<(), String> {
         let mut sync =
             RagSyncContext::for_ids(self, project_id, std::slice::from_ref(&record.chunk_id))

@@ -1,14 +1,9 @@
 use a4n_core::error::AppError;
 use a4n_db::{
     generation::generation_checkpoint_fingerprint_sha256,
-    workflow::{
-        UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED,
-        completed_workflow_checkpoint_by_fingerprint, upsert_workflow_checkpoint,
-    },
+    workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED},
 };
 use serde_json::Value;
-
-use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
 
 use super::super::OrchestratorContext;
 
@@ -20,23 +15,22 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_completed_v
 ) -> Result<Option<Value>, AppError> {
     let input_fingerprint_sha256 =
         generation_checkpoint_fingerprint_sha256(input_fingerprint_json)?;
-    completed_workflow_checkpoint_by_fingerprint(
-        service.database.connection(),
-        workflow_run_id,
-        step_key,
-        &input_fingerprint_sha256,
-    )
-    .await
-    .map_err(workflow_read_app_error)?
-    .map(|checkpoint| {
-        checkpoint
-            .checkpoint_json
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_checkpoint_json".to_string(),
-                operation: format!("读取视频工作流断点 {step_key}"),
-            })
-    })
-    .transpose()
+    service
+        .completed_workflow_checkpoint_by_fingerprint(
+            workflow_run_id,
+            step_key,
+            &input_fingerprint_sha256,
+        )
+        .await?
+        .map(|checkpoint| {
+            checkpoint
+                .checkpoint_json
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "missing_checkpoint_json".to_string(),
+                    operation: format!("读取视频工作流断点 {step_key}"),
+                })
+        })
+        .transpose()
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn save_completed_video_workflow_checkpoint(
@@ -50,9 +44,8 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn save_completed_v
 ) -> Result<(), AppError> {
     let input_fingerprint_sha256 =
         generation_checkpoint_fingerprint_sha256(&input_fingerprint_json)?;
-    upsert_workflow_checkpoint(
-        service.database.connection(),
-        UpsertWorkflowCheckpointInput {
+    service
+        .upsert_workflow_checkpoint(UpsertWorkflowCheckpointInput {
             workflow_run_id,
             step_key,
             step_order,
@@ -64,9 +57,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn save_completed_v
             generation_run_ids_json: None,
             error_message: None,
             completed: true,
-        },
-    )
-    .await
-    .map_err(workflow_write_app_error)?;
+        })
+        .await?;
     Ok(())
 }

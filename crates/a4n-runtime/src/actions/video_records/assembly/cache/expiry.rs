@@ -1,4 +1,7 @@
-use crate::{AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project};
+use crate::{
+    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    file_utils::data_dir_relative_file_path,
+};
 use std::{
     io::ErrorKind,
     path::Path,
@@ -13,16 +16,17 @@ pub(in crate::actions::video_records) fn assembly_cache_is_fresh(
     let modified = std::fs::metadata(manifest_path)
         .and_then(|metadata| metadata.modified())
         .map_err(|error| format!("读取成片预览缓存时间失败：{error}"))?;
-    Ok(SystemTime::now()
+    let age = SystemTime::now()
         .duration_since(modified)
-        .map(|age| age <= ASSEMBLY_CACHE_TTL)
-        .unwrap_or(true))
+        .map_err(|_| "成片预览缓存修改时间晚于当前系统时间".to_string())?;
+    Ok(age <= ASSEMBLY_CACHE_TTL)
 }
 
 pub(crate) async fn recover_expired_assembly_caches(state: &AppState) {
-    let cutoff = SystemTime::now()
-        .checked_sub(ASSEMBLY_CACHE_TTL)
-        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let Some(cutoff) = SystemTime::now().checked_sub(ASSEMBLY_CACHE_TTL) else {
+        tracing::error!("当前系统时间无法计算成片缓存过期边界");
+        return;
+    };
     let caches = match expired_assembly_cache_files(state.data_dir(), cutoff) {
         Ok(caches) => caches,
         Err(error) => {
@@ -141,25 +145,27 @@ fn collect_expired_manifests(
                 continue;
             }
             let output = path.with_file_name(name.trim_end_matches(".cache.json"));
-            let mut paths = vec![relative_path(data_dir, &path)?];
+            let mut paths = vec![data_dir_relative_file_path(
+                data_dir,
+                &path,
+                "成片缓存清单",
+            )?];
             if output.is_file() {
-                paths.push(relative_path(data_dir, &output)?);
+                paths.push(data_dir_relative_file_path(
+                    data_dir,
+                    &output,
+                    "成片缓存文件",
+                )?);
             }
             caches.push(ExpiredAssemblyCache {
                 project_id,
                 version: modified
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .map(|value| value.as_nanos())
-                    .unwrap_or_default(),
+                    .map_err(|_| "成片缓存修改时间早于 UNIX_EPOCH".to_string())?,
                 paths,
             });
         }
     }
     Ok(())
-}
-
-fn relative_path(data_dir: &Path, path: &Path) -> Result<String, String> {
-    path.strip_prefix(data_dir)
-        .map(crate::file_utils::path_to_db_string)
-        .map_err(|_| format!("成片缓存不在数据目录内：{}", path.display()))
 }

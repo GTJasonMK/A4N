@@ -3,7 +3,11 @@ use crate::workflow::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
 };
-use a4n_core::models::generation::workflow_run;
+use a4n_core::models::{
+    ai::generated_video,
+    chapter::chapter_video_prompt,
+    generation::workflow_run,
+};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -29,9 +33,23 @@ impl ProgressCounts {
                 status,
                 "pending" | "generating" | "completed" | "failed" | "cancelled"
             ),
-            "chapter_video_prompt" | "generated_video" => matches!(
+            "chapter_video_prompt" => matches!(
                 status,
-                "pending" | "running" | "completed" | "failed" | "interrupted" | "cancelled"
+                chapter_video_prompt::STATUS_PENDING
+                    | chapter_video_prompt::STATUS_RUNNING
+                    | chapter_video_prompt::STATUS_COMPLETED
+                    | chapter_video_prompt::STATUS_FAILED
+                    | chapter_video_prompt::STATUS_INTERRUPTED
+                    | chapter_video_prompt::STATUS_CANCELLED
+            ),
+            "generated_video" => matches!(
+                status,
+                generated_video::STATUS_PENDING
+                    | generated_video::STATUS_RUNNING
+                    | generated_video::STATUS_COMPLETED
+                    | generated_video::STATUS_FAILED
+                    | generated_video::STATUS_INTERRUPTED
+                    | generated_video::STATUS_CANCELLED
             ),
             _ => false,
         };

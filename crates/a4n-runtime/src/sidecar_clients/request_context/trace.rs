@@ -10,7 +10,7 @@ pub(crate) fn sidecar_context_for_llm_trace(
         .with_project_scope(trace_context.project_id, trace_context.root_project_id)
         .with_trace_context(TraceContext {
             trace_id: llm_service_trace_id(trace_context)?,
-            parent_span_id: Some(llm_service_parent_span_id(trace_context)),
+            parent_span_id: Some(llm_service_parent_span_id(trace_context)?),
         }))
 }
 
@@ -32,15 +32,8 @@ pub(in crate::sidecar_clients) fn sidecar_context_for_workflow_operation_with_ro
     }
     Ok(context.with_trace_context(TraceContext {
         trace_id: format!("workflow_run:{workflow_run_id}"),
-        parent_span_id: Some(trace_id_component(operation)),
+        parent_span_id: Some(trace_id_component("operation", operation)?),
     }))
-}
-
-pub(super) fn request_id() -> String {
-    let nanos = chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros());
-    format!("a4n-{nanos}")
 }
 
 fn llm_service_trace_id(trace_context: &LlmTraceContext) -> Result<String, String> {
@@ -61,16 +54,17 @@ fn llm_service_trace_id(trace_context: &LlmTraceContext) -> Result<String, Strin
         .project_id
         .map(|value| value.to_string())
         .unwrap_or_else(|| "global".to_string());
-    Ok(format!(
-        "llm:project:{project}:{}:{}:{}",
-        trace_id_component(&trace_context.workflow),
-        trace_id_component(&trace_context.step_key),
-        trace_context
-            .call_key
-            .as_deref()
-            .map(trace_id_component)
-            .unwrap_or_else(|| "call".to_string())
-    ))
+    let mut parts = vec![
+        "llm".to_string(),
+        "project".to_string(),
+        project,
+        trace_id_component("workflow", &trace_context.workflow)?,
+        trace_id_component("step_key", &trace_context.step_key)?,
+    ];
+    if let Some(call_key) = trace_context.call_key.as_deref() {
+        parts.push(trace_id_component("call_key", call_key)?);
+    }
+    Ok(parts.join(":"))
 }
 
 fn validate_positive_trace_run_id(field: &str, value: i64) -> Result<(), String> {
@@ -80,20 +74,23 @@ fn validate_positive_trace_run_id(field: &str, value: i64) -> Result<(), String>
     Ok(())
 }
 
-fn llm_service_parent_span_id(trace_context: &LlmTraceContext) -> String {
+fn llm_service_parent_span_id(trace_context: &LlmTraceContext) -> Result<String, String> {
     let mut parts = vec![
-        trace_id_component(&trace_context.workflow),
-        trace_id_component(&trace_context.step_key),
+        trace_id_component("workflow", &trace_context.workflow)?,
+        trace_id_component("step_key", &trace_context.step_key)?,
     ];
     if let Some(call_key) = trace_context.call_key.as_deref() {
-        parts.push(trace_id_component(call_key));
+        parts.push(trace_id_component("call_key", call_key)?);
     }
-    parts.join(":")
+    Ok(parts.join(":"))
 }
 
-fn trace_id_component(value: &str) -> String {
+fn trace_id_component(field: &str, value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(format!("LLM trace {field} 不能为空"));
+    }
     let component = value
-        .trim()
         .chars()
         .map(|ch| {
             if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
@@ -103,9 +100,5 @@ fn trace_id_component(value: &str) -> String {
             }
         })
         .collect::<String>();
-    if component.is_empty() {
-        "unknown".to_string()
-    } else {
-        component
-    }
+    Ok(component)
 }

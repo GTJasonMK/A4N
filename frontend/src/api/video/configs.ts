@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import {
-  withLocalRuntimeDiscoveryKey,
+  detectConfigModels,
+  type ModelConfigScope,
   type ModelDiscoveryInput,
   type ModelDiscoveryResult,
 } from "../modelDiscovery";
@@ -28,7 +29,9 @@ import {
   mergeLocalRuntimeConfigs,
   normalizeOptionalProviderConfigId,
   providerConfigIdOrSystem,
+  requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
+  systemDefaultProviderConfig,
 } from "../config/shared";
 
 export const SYSTEM_VIDEO_CONFIG_ID = -1;
@@ -58,23 +61,21 @@ export function normalizeVideoConfigId(configId?: Id | null): number | null {
 function systemDefaultVideoConfig(
   configs: VideoGenConfig[],
 ): VideoGenConfig | null {
-  const config = configs.find((item) => item.is_default) ?? null;
-  if (!config) return null;
-  return {
-    ...config,
-    id: SYSTEM_VIDEO_CONFIG_ID,
-    name: `系统默认：${config.name}`,
-    has_api_key: hasSystemDefaultVideoApiKey(),
-    is_default: usesSystemDefaultVideoConfig(),
-  };
+  return systemDefaultProviderConfig(
+    configs,
+    SYSTEM_VIDEO_CONFIG_ID,
+    hasSystemDefaultVideoApiKey(),
+    usesSystemDefaultVideoConfig(),
+  );
 }
 
 function requiredSystemDefaultVideoConfig(
   configs: VideoGenConfig[],
 ): VideoGenConfig {
-  const config = systemDefaultVideoConfig(configs);
-  if (!config) throw new Error("服务器尚未配置系统默认视频模板");
-  return config;
+  return requireSystemDefaultProviderConfig(
+    systemDefaultVideoConfig(configs),
+    "服务器尚未配置系统默认视频模板",
+  );
 }
 
 export async function listServerVideoConfigs(): Promise<VideoGenConfig[]> {
@@ -165,23 +166,14 @@ export async function setDefaultVideoConfig(configId: Id): Promise<void> {
   return setDefaultServerVideoConfig(configId);
 }
 
-export async function detectServerVideoConfigModels(
-  input: ModelDiscoveryInput,
-): Promise<ModelDiscoveryResult> {
-  return apiInvoke<ModelDiscoveryResult>("detect_video_config_models", {
-    input,
-  });
-}
-
 export async function detectVideoConfigModels(
   input: ModelDiscoveryInput,
+  scope: ModelConfigScope,
 ): Promise<ModelDiscoveryResult> {
-  return detectServerVideoConfigModels(
-    withLocalRuntimeDiscoveryKey(input, {
-      systemConfigId: SYSTEM_VIDEO_CONFIG_ID,
-      getSystemDefaultApiKey: getSystemDefaultVideoApiKey,
-      getLocalConfigApiKey: (configId) =>
-        getLocalVideoConfig(configId).api_key_encrypted,
-    }),
-  );
+  return detectConfigModels("detect_video_config_models", input, scope, {
+    systemConfigId: SYSTEM_VIDEO_CONFIG_ID,
+    getSystemDefaultApiKey: getSystemDefaultVideoApiKey,
+    getLocalConfigApiKey: (configId) =>
+      getLocalVideoConfig(configId).api_key_encrypted,
+  });
 }

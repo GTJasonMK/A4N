@@ -1,24 +1,26 @@
-use a4n_capabilities::{A4nCapabilities, EmbeddingModelOperation, JsonResponse};
+use a4n_capabilities::{
+    A4nCapabilities, EmbeddingClient, EmbeddingModelOperation, JsonResponse,
+};
+use a4n_api_contract::embedding::{
+    EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary,
+};
 use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::DownloadProgress;
 use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION, ServiceErrorCode,
+    CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
 };
-use serde::Deserialize;
-use serde::de::DeserializeOwned;
-use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 use super::super::{
     global_provider_service_request, global_service_request_without_secrets,
     missing_sidecar_capability_message, service_app_error, service_error_app_error,
-    service_response_payload, service_response_unit,
+    response_payload,
 };
 use super::contracts::{
-    EmbeddingTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
-    positive_usize, validate_embedding_connectivity_output,
+    EmbedTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
+    validate_embedding_connectivity_output,
 };
 
 async fn embedding_model_operation<P: serde::Serialize>(
@@ -26,10 +28,7 @@ async fn embedding_model_operation<P: serde::Serialize>(
     operation: EmbeddingModelOperation,
     payload: P,
 ) -> Result<JsonResponse, AppError> {
-    let client = capabilities
-        .embedding
-        .clone()
-        .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
+    let client = required_embedding_client(capabilities)?;
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
     client
@@ -38,25 +37,25 @@ async fn embedding_model_operation<P: serde::Serialize>(
         .map_err(service_error_app_error)
 }
 
-pub(crate) async fn list_embedding_models<T: DeserializeOwned>(
+pub(crate) async fn list_embedding_models(
     capabilities: &A4nCapabilities,
-) -> Result<T, AppError> {
+) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
     let response =
         embedding_model_operation(capabilities, EmbeddingModelOperation::List, ()).await?;
-    service_response_payload(response, "embedding").map_err(service_app_error)
+    response_payload(response, "embedding").map_err(service_app_error)
 }
 
-pub(crate) async fn embedding_model_download_info<T: DeserializeOwned>(
+pub(crate) async fn embedding_model_download_info(
     capabilities: &A4nCapabilities,
     model: &str,
-) -> Result<T, AppError> {
+) -> Result<EmbeddingModelDownloadInfoSummary, AppError> {
     let response = embedding_model_operation(
         capabilities,
         EmbeddingModelOperation::DownloadInfo,
         embedding_model_payload(model),
     )
     .await?;
-    service_response_payload(response, "embedding").map_err(service_app_error)
+    response_payload(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn delete_embedding_model(
@@ -69,21 +68,17 @@ pub(crate) async fn delete_embedding_model(
         embedding_model_payload(model),
     )
     .await?;
-    service_response_unit(response, "embedding").map_err(service_app_error)
+    response_payload(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn test_embedding_config_via_sidecar(
     capabilities: &A4nCapabilities,
     model: &embedding_config::Model,
 ) -> Result<(), AppError> {
-    let expected_dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
-    let client = capabilities
-        .embedding
-        .clone()
-        .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
+    let client = required_embedding_client(capabilities)?;
     let payload = embedding_connectivity_test_payload(model)?;
+    let expected_dimension = payload.dimension;
     let request = global_provider_service_request(
-        a4n_service_protocol::EMBEDDING_SERVICE_NAME,
         EMBEDDING_CAPABILITY_VERSION,
         payload,
     )
@@ -92,8 +87,8 @@ pub(crate) async fn test_embedding_config_via_sidecar(
         .embed(request)
         .await
         .map_err(service_error_app_error)?;
-    let output: EmbeddingTextsOutput =
-        service_response_payload(response, "embedding").map_err(service_app_error)?;
+    let output: EmbedTextsOutput =
+        response_payload(response, "embedding").map_err(service_app_error)?;
     validate_embedding_connectivity_output(&output, expected_dimension)
 }
 
@@ -101,19 +96,15 @@ pub(crate) async fn download_embedding_model_events(
     capabilities: &A4nCapabilities,
     model: &str,
     progress_tx: Option<UnboundedSender<DownloadProgress>>,
-    cancel_token: Option<CancellationToken>,
-) -> Result<Value, AppError> {
-    let client = capabilities
-        .embedding
-        .clone()
-        .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
+    cancel_token: CancellationToken,
+) -> Result<LocalEmbeddingModelSummary, AppError> {
+    let client = required_embedding_client(capabilities)?;
     let payload = embedding_model_payload(model);
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
     let (event_tx, mut event_rx) =
-        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.download_model_events(request, event_tx));
-    let cancel_token = cancel_token.unwrap_or_default();
     let mut transport_complete = false;
 
     loop {
@@ -127,74 +118,62 @@ pub(crate) async fn download_embedding_model_events(
                 let event = event.ok_or_else(|| AppError::ConfigError(
                     "embedding sidecar 下载事件流结束但缺少终止事件".to_string()
                 ))?;
-                if let Some(models) = handle_embedding_download_event(event, progress_tx.as_ref())? {
-                    return Ok(models);
+                if let Some(model) = handle_embedding_download_event(event, progress_tx.as_ref())? {
+                    return Ok(model);
                 }
             }
         }
     }
 }
 
+fn required_embedding_client(
+    capabilities: &A4nCapabilities,
+) -> Result<std::sync::Arc<dyn EmbeddingClient>, AppError> {
+    capabilities
+        .embedding
+        .clone()
+        .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))
+}
+
 pub(super) fn handle_embedding_download_event(
     event: CapabilityTaskEvent,
     progress_tx: Option<&UnboundedSender<DownloadProgress>>,
-) -> Result<Option<Value>, AppError> {
+) -> Result<Option<LocalEmbeddingModelSummary>, AppError> {
     match event.event_kind {
-        CapabilityTaskEventKind::Progress | CapabilityTaskEventKind::StructuredProgress => {
+        CapabilityTaskEventKind::Progress => {
             let payload = event.payload.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar progress 事件缺少 payload".to_string())
             })?;
-            let progress: SidecarEmbeddingDownloadProgress = serde_json::from_value(payload)
+            let progress: DownloadProgress = serde_json::from_value(payload)
                 .map_err(|error| {
                     AppError::ConfigError(format!(
                         "embedding sidecar progress payload 解析失败: {error}"
                     ))
                 })?;
             if let Some(progress_tx) = progress_tx {
-                let _ = progress_tx.send(progress.into());
+                let _ = progress_tx.send(progress);
             }
             Ok(None)
         }
         CapabilityTaskEventKind::Completed => {
-            let mut payload = event.payload.ok_or_else(|| {
+            let payload = event.payload.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar completed 事件缺少 payload".to_string())
             })?;
-            let models = payload.get_mut("models").map(Value::take).ok_or_else(|| {
-                AppError::ConfigError("embedding sidecar completed 事件缺少 models".to_string())
+            let model = serde_json::from_value(payload).map_err(|error| {
+                AppError::ConfigError(format!(
+                    "embedding sidecar completed 模型解析失败: {error}"
+                ))
             })?;
-            Ok(Some(models))
+            Ok(Some(model))
         }
         CapabilityTaskEventKind::Failed => {
             let error = event.error.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar failed 事件缺少 error".to_string())
             })?;
-            if error.code == ServiceErrorCode::Cancelled {
-                Err(AppError::Cancelled)
-            } else {
-                Err(service_error_app_error(error))
-            }
+            Err(service_error_app_error(error))
         }
-        CapabilityTaskEventKind::CancelAck => Err(AppError::Cancelled),
         other => Err(AppError::ConfigError(format!(
             "embedding sidecar 下载事件类型不符合合同: {other:?}"
         ))),
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SidecarEmbeddingDownloadProgress {
-    downloaded_bytes: u64,
-    total_bytes: u64,
-    message: String,
-}
-
-impl From<SidecarEmbeddingDownloadProgress> for DownloadProgress {
-    fn from(value: SidecarEmbeddingDownloadProgress) -> Self {
-        Self {
-            downloaded_bytes: value.downloaded_bytes,
-            total_bytes: value.total_bytes,
-            message: value.message,
-        }
     }
 }

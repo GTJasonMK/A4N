@@ -1,15 +1,14 @@
 use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_rag_core::{
-    metadata::normalize_metadata,
     validation::{required_chunk_id, required_content, validate_embedding_batch},
-    vector_store::{EmbeddingRecord, VectorStore},
+    vector_store::VectorStore,
 };
 
 use super::contracts::RagEmbeddedInput;
-use super::records::store_rag_embedding_records;
+use super::records::{embedding_record, store_rag_embedding_records};
 
-pub async fn store_embedded_rag_records_in_store(
+pub(crate) async fn store_embedded_rag_records_in_store(
     vector_store: &dyn VectorStore,
     project_id: i64,
     inputs: Vec<RagEmbeddedInput>,
@@ -37,12 +36,7 @@ pub async fn store_embedded_rag_records_in_store(
     let records = inputs
         .into_iter()
         .map(|(id, text, metadata, embedding)| {
-            Ok(EmbeddingRecord {
-                id,
-                embedding,
-                metadata: normalize_metadata(project_id, &text, metadata, &embedding_identity)?,
-                content: text,
-            })
+            embedding_record(id, text, metadata, embedding, &embedding_identity)
         })
         .collect::<Result<Vec<_>, AppError>>()?;
     store_rag_embedding_records(vector_store, project_id, records).await

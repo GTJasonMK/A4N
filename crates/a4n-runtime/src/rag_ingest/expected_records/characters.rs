@@ -84,7 +84,7 @@ async fn append_character_timeline_records(
     }
     let profile_names = profiles
         .iter()
-        .map(|profile| (profile.id, profile.name.clone()))
+        .map(|profile| (profile.id, profile.name.as_str()))
         .collect::<HashMap<_, _>>();
     let states = state
         .orchestrator()
@@ -92,12 +92,15 @@ async fn append_character_timeline_records(
         .await
         .map_err(|error| error.to_string())?;
     for state_index in &states {
-        let name = profile_names.get(&state_index.profile_id).ok_or_else(|| {
-            format!(
-                "角色状态 {} 找不到 profile_id={} 对应角色，无法构造 RAG 预期记录",
-                state_index.id, state_index.profile_id
-            )
-        })?;
+        let name = profile_names
+            .get(&state_index.profile_id)
+            .copied()
+            .ok_or_else(|| {
+                format!(
+                    "角色状态 {} 找不到 profile_id={} 对应角色，无法构造 RAG 预期记录",
+                    state_index.id, state_index.profile_id
+                )
+            })?;
         expected.add_rag_record(character_state_rag_record(project_id, state_index, name)?)?;
     }
 
@@ -107,12 +110,15 @@ async fn append_character_timeline_records(
         .await
         .map_err(|error| error.to_string())?;
     for event in &events {
-        let name = profile_names.get(&event.profile_id).ok_or_else(|| {
-            format!(
-                "角色属性事件 {} 找不到 profile_id={} 对应角色，无法构造 RAG 预期记录",
-                event.id, event.profile_id
-            )
-        })?;
+        let name = profile_names
+            .get(&event.profile_id)
+            .copied()
+            .ok_or_else(|| {
+                format!(
+                    "角色属性事件 {} 找不到 profile_id={} 对应角色，无法构造 RAG 预期记录",
+                    event.id, event.profile_id
+                )
+            })?;
         expected.add_rag_record(character_attribute_event_rag_record(
             project_id, event, name,
         )?)?;

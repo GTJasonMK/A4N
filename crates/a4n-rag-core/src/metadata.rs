@@ -7,8 +7,6 @@ use sha2::{Digest, Sha256};
 
 use crate::validation::required_content;
 
-mod family;
-
 #[cfg(test)]
 mod tests;
 
@@ -18,24 +16,15 @@ pub fn content_hash(text: &str) -> Result<String, AppError> {
 }
 
 pub fn normalize_metadata(
-    project_id: i64,
     text: &str,
     metadata: serde_json::Value,
     embedding_identity: &EmbeddingModelIdentity,
 ) -> Result<serde_json::Value, AppError> {
     let text = required_content(text)?;
     let content_hash = content_sha256(&text);
-    let content_length = text.chars().count();
     match metadata {
         serde_json::Value::Object(mut object) => {
-            family::validate_project_family_metadata(project_id, &object)?;
-            object.insert("project_id".to_string(), serde_json::json!(project_id));
             object.insert("content_hash".to_string(), serde_json::json!(content_hash));
-            object.insert("hash_algorithm".to_string(), serde_json::json!("sha256"));
-            object.insert(
-                "source_generation".to_string(),
-                serde_json::json!(content_hash),
-            );
             object.insert(
                 "index_format_version".to_string(),
                 serde_json::json!(RAG_INDEX_FORMAT_VERSION),
@@ -43,10 +32,6 @@ pub fn normalize_metadata(
             object.insert(
                 "text_index_version".to_string(),
                 serde_json::json!(RAG_TEXT_INDEX_VERSION),
-            );
-            object.insert(
-                "content_length".to_string(),
-                serde_json::json!(content_length),
             );
             object.insert(
                 "embedding_backend".to_string(),
@@ -63,7 +48,7 @@ pub fn normalize_metadata(
             Ok(serde_json::Value::Object(object))
         }
         _ => Err(AppError::InvalidArgument(
-            "RAG metadata 必须是 JSON 对象并包含项目族上下文".to_string(),
+            "RAG metadata 必须是 JSON 对象".to_string(),
         )),
     }
 }
@@ -72,6 +57,14 @@ pub fn metadata_content_hash(metadata: &serde_json::Value) -> Option<&str> {
     metadata
         .get("content_hash")
         .and_then(serde_json::Value::as_str)
+}
+
+pub fn metadata_i64(metadata: &serde_json::Value, key: &str) -> Option<i64> {
+    metadata.get(key).and_then(|value| {
+        value
+            .as_i64()
+            .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+    })
 }
 
 pub fn metadata_matches_current_text_index(metadata: &serde_json::Value) -> bool {
@@ -86,16 +79,6 @@ pub fn metadata_matches_current_index_format(metadata: &serde_json::Value) -> bo
         .get("index_format_version")
         .and_then(serde_json::Value::as_u64)
         == Some(u64::from(RAG_INDEX_FORMAT_VERSION))
-}
-
-pub fn metadata_matches_source_generation(
-    metadata: &serde_json::Value,
-    source_generation: &str,
-) -> bool {
-    metadata
-        .get("source_generation")
-        .and_then(serde_json::Value::as_str)
-        == Some(source_generation)
 }
 
 pub fn metadata_matches_embedding_identity(

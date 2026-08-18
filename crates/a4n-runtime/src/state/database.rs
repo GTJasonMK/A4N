@@ -81,13 +81,10 @@ pub(super) async fn run_startup_migrations(
 }
 
 pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_core::error::AppError> {
-    if !config.database_url.starts_with("postgres://")
-        && !config.database_url.starts_with("postgresql://")
-    {
-        return Err(a4n_core::error::AppError::ConfigError(
-            "A4N_DATABASE_URL 必须是 postgres:// 或 postgresql:// 连接串".to_string(),
-        ));
-    }
+    a4n_core::config::env::validate_postgres_database_url(
+        "A4N_DATABASE_URL",
+        &config.database_url,
+    )?;
     if config
         .security
         .jwt_secret

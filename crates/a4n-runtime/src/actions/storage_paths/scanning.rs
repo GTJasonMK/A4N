@@ -29,7 +29,10 @@ pub(super) fn orphan_project_data_dirs(
         let Ok(project_id) = name.parse::<i64>() else {
             continue;
         };
-        if project_id <= 0 || existing_project_ids.contains(&project_id) {
+        if project_id <= 0
+            || name != project_id.to_string()
+            || existing_project_ids.contains(&project_id)
+        {
             continue;
         }
         let path = entry.path();

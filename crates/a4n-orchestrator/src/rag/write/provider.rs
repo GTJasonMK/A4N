@@ -2,15 +2,14 @@ use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
 use a4n_rag_core::{
     errors::embedding_provider_error,
-    metadata::normalize_metadata,
     validation::{required_chunk_id, required_content, validate_embedding_batch},
-    vector_store::{EmbeddingRecord, VectorStore},
+    vector_store::VectorStore,
 };
 
 use super::contracts::RagEmbeddingInput;
-use super::records::store_rag_embedding_records;
+use super::records::{embedding_record, store_rag_embedding_records};
 
-pub async fn embed_and_store_rag_record_in_store(
+pub(crate) async fn embed_and_store_rag_record_in_store(
     vector_store: &dyn VectorStore,
     project_id: i64,
     chunk_id: &str,
@@ -29,17 +28,18 @@ pub async fn embed_and_store_rag_record_in_store(
         .into_iter()
         .next()
         .expect("validated one embedding");
-    let record = EmbeddingRecord {
-        id: chunk_id,
-        embedding: vector.clone(),
-        metadata: normalize_metadata(project_id, &text, metadata, &embedding_identity)?,
-        content: text,
-    };
+    let record = embedding_record(
+        chunk_id,
+        text,
+        metadata,
+        vector.clone(),
+        &embedding_identity,
+    )?;
     store_rag_embedding_records(vector_store, project_id, vec![record]).await?;
     Ok(vector)
 }
 
-pub async fn embed_and_store_rag_records_in_store(
+pub(crate) async fn embed_and_store_rag_records_in_store(
     vector_store: &dyn VectorStore,
     project_id: i64,
     inputs: Vec<RagEmbeddingInput>,
@@ -71,12 +71,7 @@ pub async fn embed_and_store_rag_records_in_store(
         .into_iter()
         .zip(embeddings)
         .map(|((id, text, metadata), embedding)| {
-            Ok(EmbeddingRecord {
-                id,
-                embedding,
-                metadata: normalize_metadata(project_id, &text, metadata, &embedding_identity)?,
-                content: text,
-            })
+            embedding_record(id, text, metadata, embedding, &embedding_identity)
         })
         .collect::<Result<Vec<_>, AppError>>()?;
     store_rag_embedding_records(vector_store, project_id, records).await

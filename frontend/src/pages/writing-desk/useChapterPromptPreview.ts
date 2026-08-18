@@ -6,7 +6,7 @@ import type { ToastType } from "../../components/feedback/Toast";
 import { nonEmptyText } from "../../utils/text";
 import type { GenerationWordCountRange } from "./generationWordCount";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 
 interface UseChapterPromptPreviewParams {
   projectId: number;

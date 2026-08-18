@@ -29,10 +29,8 @@ use super::validation::{
 #[test]
 fn restored_galgame_llm_stage_output_revalidates_parsed_output() {
     let restored = restored_galgame_llm_stage_output(
-        &json!({
-            "parsed_output": { "value": 1 },
-            "response_content": r#"{"value":1}"#
-        }),
+        &json!({ "value": 1 }),
+        r#"{"value":1}"#,
         "scenes",
         "galgame_test",
         Ok,
@@ -43,19 +41,22 @@ fn restored_galgame_llm_stage_output_revalidates_parsed_output() {
 }
 
 #[test]
-fn restored_galgame_llm_stage_output_allows_repaired_response_content() {
-    let restored = restored_galgame_llm_stage_output(
-        &json!({
-            "parsed_output": { "value": 2 },
-            "response_content": r#"{"value":1}"#
-        }),
+fn restored_galgame_llm_stage_output_rejects_mismatched_checkpoint() {
+    let error = restored_galgame_llm_stage_output(
+        &json!({ "value": 2 }),
+        r#"{"value":1}"#,
         "scenes",
         "galgame_test",
         Ok,
     )
-    .expect("repaired checkpoint should restore parsed_output");
+    .err()
+    .expect("mismatched checkpoint must fail");
 
-    assert_eq!(restored, json!({ "value": 2 }));
+    assert!(
+        error
+            .to_string()
+            .contains("checkpoint_parsed_output_mismatch")
+    );
 }
 
 #[test]

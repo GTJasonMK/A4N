@@ -3,37 +3,18 @@ use a4n_core::models::ai::llm_config;
 use a4n_llm::provider::ChatRequest;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 
-use super::super::budget::{ensure_max_tokens_within_model_cap, llm_probe_succeeded};
+use super::super::budget::ensure_max_tokens_within_model_cap;
 use super::super::config::probe_llm_via_sidecar;
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 
 impl DynamicLlmProvider {
-    pub async fn probe_with_config_id(
-        &self,
-        config_id: Option<i64>,
-        request: ChatRequest,
-    ) -> Result<bool, AppError> {
-        let resolved_model = self.resolve_runtime_model_by_id(config_id).await?;
-        self.probe_resolved_model(config_id, resolved_model, request)
-            .await
-    }
-
     pub(crate) async fn probe_with_config(
         &self,
         config: llm_config::Model,
-        request: ChatRequest,
-    ) -> Result<bool, AppError> {
-        let config_id = Some(config.id);
-        self.probe_resolved_model(config_id, ResolvedLlmModel::new(config)?, request)
-            .await
-    }
-
-    async fn probe_resolved_model(
-        &self,
-        config_id: Option<i64>,
-        resolved_model: ResolvedLlmModel,
         mut request: ChatRequest,
-    ) -> Result<bool, AppError> {
+    ) -> Result<(), AppError> {
+        let config_id = config.id;
+        let resolved_model = ResolvedLlmModel::new(config)?;
         let client = self.sidecar_client.clone().ok_or_else(|| {
             AppError::ConfigError(
                 "LLM sidecar capability 未配置，无法执行 sidecar connectivity probe".to_string(),
@@ -55,17 +36,16 @@ impl DynamicLlmProvider {
                 probe_llm_via_sidecar(client, resolved_model, request).await
             })
             .await?;
-        let succeeded = llm_probe_succeeded(&output);
         tracing::debug!(
             target: "a4n::llm",
             model = %model_name,
-            config_id = ?config_id,
+            config_id = %config_id,
             profile = ?profile,
-            ok = output.ok,
+            response_preview = %output.response_preview,
             finish_reason = ?output.finish_reason,
             usage = ?output.usage,
             "LLM sidecar probe 响应"
         );
-        Ok(succeeded)
+        Ok(())
     }
 }

@@ -1,13 +1,5 @@
 use super::*;
 
-pub(super) fn llm_probe_succeeded(output: &LlmProbeOutput) -> bool {
-    output.ok
-        && output
-            .response_preview
-            .as_deref()
-            .is_some_and(|preview| !preview.trim().is_empty())
-}
-
 pub fn resolve_effective_llm_preview_budget_for_config(
     model: llm_config::Model,
     request: &ChatRequest,

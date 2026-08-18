@@ -2,8 +2,8 @@ import React from "react";
 import { Check, CheckCheck, Eye, Sparkles, Square, Trash2, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type {
-  ImportReview,
   ImportReviewStatus,
+  ImportReviewSummary,
   ProjectImportAnalysisProgress,
 } from "../../../api/import";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
@@ -15,7 +15,7 @@ import { EmptyHint } from "../shared";
 export type ReviewAction = "accept" | "reject" | "delete";
 
 interface ImportReviewQueuePanelProps {
-  reviews: ImportReview[];
+  reviews: ImportReviewSummary[];
   loading: boolean;
   projectProgress: ProjectImportAnalysisProgress | null;
   selected: Set<number>;

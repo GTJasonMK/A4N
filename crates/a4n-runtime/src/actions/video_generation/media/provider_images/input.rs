@@ -5,8 +5,7 @@ use crate::actions::video_generation::media::types::{
     MAX_REFERENCE_IMAGE_BYTES, MAX_REFERENCE_IMAGE_TOTAL_BYTES, ProviderImageInputTransport,
 };
 use crate::file_utils::canonicalize_data_file_path;
-use a4n_core::models::ai::generated_image;
-use a4n_orchestrator::video::image_mime_from_path;
+use a4n_core::{media::image_mime_from_path, models::ai::generated_image};
 use a4n_service_protocol::GenerationArtifactRef;
 use base64::Engine as _;
 use std::path::Path;

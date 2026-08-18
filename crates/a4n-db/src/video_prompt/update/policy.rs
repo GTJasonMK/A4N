@@ -57,7 +57,7 @@ where
     } = input;
     validate_prompt_duration_update(duration_secs)?;
     let prompt = video::chapter_video_prompt_record(db, prompt_id).await?;
-    if prompt.status == "running" {
+    if prompt.status == chapter_video_prompt::STATUS_RUNNING {
         return Err(VideoDbError::InvalidState {
             current: prompt.status,
             operation: "编辑视频提示词".to_string(),
@@ -82,7 +82,7 @@ where
         .transpose()?;
     let motion_prompt = motion_prompt.map(normalize_optional_prompt_text);
     let negative_prompt = negative_prompt.map(normalize_optional_prompt_text);
-    let was_video_prompt = prompt.prompt_type == "video_prompt";
+    let was_video_prompt = prompt.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO;
     let content_changed = visual_prompt
         .as_ref()
         .is_some_and(|value| prompt.visual_prompt != *value)
@@ -199,9 +199,9 @@ where
             "视频提示词归属在更新期间发生变化，请重试".to_string(),
         ));
     }
-    if plan.prompt_type != "frame_segment_plan"
-        || plan.workflow_mode != "shared_segment_plan"
-        || plan.status != "completed"
+    if plan.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+        || plan.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+        || plan.status != chapter_video_prompt::STATUS_COMPLETED
     {
         return Err(VideoDbError::InvalidArgument(
             "片段执行方案只能写入当前已完成的共享片段规划".to_string(),
@@ -269,7 +269,7 @@ where
         .ok_or_else(|| VideoDbError::NotFound(format!("视频 #{video_id} 不存在")))?;
     let valid = video.project_id == plan.project_id
         && video.chapter_id == Some(plan.chapter_id)
-        && video.status == "completed"
+        && video.status == generated_video::STATUS_COMPLETED
         && video
             .file_path
             .as_deref()

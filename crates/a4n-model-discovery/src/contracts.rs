@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-pub use a4n_domain::{DiscoveredModel, ModelDiscoveryResult};
+pub(crate) use a4n_domain::DiscoveredModel;
+pub use a4n_domain::ModelDiscoveryResult;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelDiscoveryRequest {
     pub provider: String,
     pub base_url: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
 }
 
@@ -22,7 +23,8 @@ mod tests {
             "base_url": "http://127.0.0.1:1",
             "legacy_model": "test"
         }))
-        .expect_err("unknown discovery fields must fail");
+        .err()
+        .expect("unknown discovery fields must fail");
         assert!(error.to_string().contains("unknown field `legacy_model`"));
     }
 }

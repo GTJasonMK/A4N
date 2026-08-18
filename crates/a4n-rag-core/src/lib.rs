@@ -2,7 +2,9 @@
 //!
 //! Persistent index implementations are intentionally kept in
 //! `a4n-rag-index` so host minimal builds can depend on these contracts
-//! without compiling LanceDB or Tantivy.
+//! without compiling persistent index backends.
+
+pub const DEFAULT_QDRANT_COLLECTION: &str = "a4n_rag";
 
 pub mod chunk_strategy;
 pub mod errors;

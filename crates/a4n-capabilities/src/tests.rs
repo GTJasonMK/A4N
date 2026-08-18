@@ -6,29 +6,34 @@ use super::package_io::*;
 use super::prompt::*;
 use super::rag::*;
 use super::transport::*;
-use a4n_export_core::ExportRenderZipOutput;
-use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use a4n_service_protocol::{
-    CapabilityTaskEventKind, EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, HealthStatus,
-    IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME,
-    PROTOCOL_VERSION, RAG_SERVICE_NAME, SIDECAR_REQUEST_ID_HEADER, SIDECAR_TRACE_ID_HEADER,
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, TraceContext,
-    VIDEO_SERVICE_NAME, expected_capability_version_for_service,
+    CapabilityTaskEventKind, EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH, EMBEDDING_SERVICE_NAME,
+    HealthStatus, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME,
+    PROTOCOL_VERSION, RAG_SERVICE_NAME, SIDECAR_EVENT_CONTENT_TYPE, SIDECAR_EVENT_QUEUE_CAPACITY,
+    SIDECAR_HEALTH_PATH, SIDECAR_REQUEST_ID_HEADER, SIDECAR_TRACE_ID_HEADER, ServiceErrorCode,
+    ServiceRequest, TraceContext, VIDEO_SERVICE_NAME,
+    expected_capability_version_for_service,
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 
 #[test]
 fn sidecar_transport_joins_paths_without_double_slashes() {
-    let transport = HttpSidecarTransport::new("http://127.0.0.1:47641/");
+    let transport = HttpSidecarTransport::new("http://127.0.0.1:47641/", LLM_SERVICE_NAME);
 
-    assert_eq!(transport.url("/healthz"), "http://127.0.0.1:47641/healthz");
+    assert_eq!(
+        transport.url(SIDECAR_HEALTH_PATH),
+        "http://127.0.0.1:47641/healthz"
+    );
 }
 
 #[test]
 fn sidecar_transport_debug_never_exposes_url_or_token() {
-    let transport = HttpSidecarTransport::new("https://user:secret@sidecar.example.test")
-        .with_auth_token("manager-issued-secret-token");
+    let transport = HttpSidecarTransport::new(
+        "https://user:secret@sidecar.example.test",
+        LLM_SERVICE_NAME,
+    )
+    .with_auth_token("manager-issued-secret-token");
     let debug = format!("{transport:?}");
     assert!(!debug.contains("sidecar.example.test"));
     assert!(!debug.contains("manager-issued-secret-token"));
@@ -38,7 +43,8 @@ fn sidecar_transport_debug_never_exposes_url_or_token() {
 #[test]
 fn sidecar_transport_propagates_request_and_trace_headers_without_body_duplication() {
     let transport =
-        HttpSidecarTransport::new("http://127.0.0.1:47641").with_auth_token("manager-token");
+        HttpSidecarTransport::new("http://127.0.0.1:47641", LLM_SERVICE_NAME)
+            .with_auth_token("manager-token");
     let request = ServiceRequest {
         request_id: "request-42".to_string(),
         trace_context: TraceContext {
@@ -56,6 +62,7 @@ fn sidecar_transport_propagates_request_and_trace_headers_without_body_duplicati
     };
     let built = transport
         .authorize_request(transport.client.post(transport.url("/trace")), &request)
+        .expect("request context IDs should be valid HTTP headers")
         .json(&request)
         .build()
         .unwrap();
@@ -87,9 +94,10 @@ fn sidecar_transport_propagates_request_and_trace_headers_without_body_duplicati
 #[test]
 fn sidecar_transport_authorizes_health_requests() {
     let transport =
-        HttpSidecarTransport::new("https://sidecar.example.test").with_auth_token("manager-token");
+        HttpSidecarTransport::new("https://sidecar.example.test", LLM_SERVICE_NAME)
+            .with_auth_token("manager-token");
     let request = transport
-        .authorize(transport.client.get(transport.url("/healthz")))
+        .authorize(transport.client.get(transport.url(SIDECAR_HEALTH_PATH)))
         .build()
         .expect("health request should build");
 
@@ -106,13 +114,13 @@ fn sidecar_transport_authorizes_health_requests() {
 async fn event_stream_response_headers_have_a_connect_deadline() {
     let (addr, server) =
         delayed_http_server(Duration::from_millis(100), Vec::new(), Duration::ZERO).await;
-    let transport = HttpSidecarTransport::new(format!("http://{addr}")).with_test_timeouts(
+    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
         Duration::from_millis(20),
         Duration::from_secs(1),
         Duration::from_secs(1),
         Duration::from_secs(1),
     );
-    let (events, _receiver) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
+    let (events, _receiver) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = transport
         .post_event_stream("/events", test_json_request(), events)
@@ -132,17 +140,15 @@ async fn non_streaming_responses_have_a_request_deadline() {
         Duration::ZERO,
     )
     .await;
-    let transport = HttpSidecarTransport::new(format!("http://{addr}")).with_test_timeouts(
+    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
         Duration::from_secs(1),
         Duration::from_millis(20),
         Duration::from_secs(1),
         Duration::from_secs(1),
     );
 
-    let error = transport
-        .post_json("/json", test_json_request())
-        .await
-        .expect_err("a delayed JSON response must hit the request deadline");
+    let result: CapabilityResult<JsonResponse> = transport.post("/json", test_json_request()).await;
+    let error = result.expect_err("a delayed JSON response must hit the request deadline");
 
     assert_eq!(error.code, ServiceErrorCode::ServiceUnavailable);
     assert!(error.message.contains("sidecar request timeout"));
@@ -154,7 +160,7 @@ async fn event_stream_chunks_have_an_idle_deadline() {
     let (addr, server) = delayed_http_server(
         Duration::ZERO,
         vec![
-            r#"{"task_id":"task","event_kind":"chunk","sequence":1,"chunk_delta":"x"}
+            r#"{"task_id":"task","event_kind":"chunk","sequence":1,"payload":{"text":"x"}}
 "#,
             r#"{"task_id":"task","event_kind":"completed","sequence":2}
 "#,
@@ -162,13 +168,13 @@ async fn event_stream_chunks_have_an_idle_deadline() {
         Duration::from_millis(100),
     )
     .await;
-    let transport = HttpSidecarTransport::new(format!("http://{addr}")).with_test_timeouts(
+    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
         Duration::from_secs(1),
         Duration::from_secs(1),
         Duration::from_millis(20),
         Duration::from_secs(1),
     );
-    let (events, mut receiver) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
+    let (events, mut receiver) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = transport
         .post_event_stream("/events", test_json_request(), events)
@@ -196,8 +202,8 @@ fn health_validation_rejects_protocol_mismatch() {
             PROTOCOL_VERSION + 1,
             prompt_capability_version,
         ),
-        Some(PROMPT_SERVICE_NAME),
-        Some(prompt_capability_version),
+        PROMPT_SERVICE_NAME,
+        prompt_capability_version,
     )
     .unwrap_err();
 
@@ -211,8 +217,8 @@ fn health_validation_rejects_expected_capability_mismatch() {
     let prompt_capability_version = capability_version_for(PROMPT_SERVICE_NAME);
     let err = validate_service_health(
         &health(PROMPT_SERVICE_NAME, PROTOCOL_VERSION, "prompt-render-v0"),
-        Some(PROMPT_SERVICE_NAME),
-        Some(prompt_capability_version),
+        PROMPT_SERVICE_NAME,
+        prompt_capability_version,
     )
     .unwrap_err();
 
@@ -230,8 +236,8 @@ fn health_validation_rejects_expected_service_identity_mismatch() {
             PROTOCOL_VERSION,
             prompt_capability_version,
         ),
-        Some(PROMPT_SERVICE_NAME),
-        Some(prompt_capability_version),
+        PROMPT_SERVICE_NAME,
+        prompt_capability_version,
     )
     .unwrap_err();
 
@@ -251,134 +257,16 @@ fn health_validation_rejects_unhealthy_status() {
                 service_version: "test".to_string(),
                 protocol_version: PROTOCOL_VERSION,
                 capability_version: prompt_capability_version.to_string(),
-                compatibility: None,
             },
         },
-        Some(PROMPT_SERVICE_NAME),
-        Some(prompt_capability_version),
+        PROMPT_SERVICE_NAME,
+        prompt_capability_version,
     )
     .unwrap_err();
 
     assert_eq!(err.code, ServiceErrorCode::ServiceUnavailable);
     assert!(err.message.contains("unhealthy"));
     assert_eq!(err.retryable, Some(true));
-}
-
-#[test]
-fn health_validation_allows_unknown_capability_when_no_expectation_is_set() {
-    validate_service_health(&health("demo", PROTOCOL_VERSION, "demo-v1"), None, None)
-        .expect("generic transport should not reject unknown capabilities");
-}
-
-#[test]
-fn typed_transport_rejects_unregistered_service_contract_without_panicking() {
-    let error = validate_health_expectation(Some("unknown"), None)
-        .expect_err("typed transport must require a registered capability version");
-
-    assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
-    assert!(error.message.contains("unknown"));
-    assert!(error.message.contains("未注册 capability version"));
-    assert_eq!(error.retryable, Some(false));
-}
-
-#[test]
-fn typed_http_clients_set_expected_service_names_and_capability_versions() {
-    assert_eq!(
-        HttpPromptClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(PROMPT_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpPromptClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(PROMPT_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpLlmClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(LLM_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpLlmClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(LLM_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpEmbeddingClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(EMBEDDING_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpEmbeddingClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(EMBEDDING_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpRagClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(RAG_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpRagClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(RAG_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpImageClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(IMAGE_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpImageClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(IMAGE_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpVideoClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(VIDEO_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpVideoClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(VIDEO_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpImportClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(IMPORT_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpImportClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(IMPORT_SERVICE_NAME))
-    );
-    assert_eq!(
-        HttpExportClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_service_name,
-        Some(EXPORT_SERVICE_NAME)
-    );
-    assert_eq!(
-        HttpExportClient::new("http://127.0.0.1:1")
-            .transport
-            .expected_capability_version,
-        Some(capability_version_for(EXPORT_SERVICE_NAME))
-    );
 }
 
 #[test]
@@ -391,100 +279,21 @@ fn import_export_typed_clients_are_trait_object_safe() {
 }
 
 #[test]
-fn typed_import_request_conversion_preserves_context_and_payload() {
-    let request = typed_test_request(
-        capability_version_for(IMPORT_SERVICE_NAME),
-        ImportReadMediaPackageZipInput {
-            zip_bytes_base64: "UEsDBAo=".to_string(),
-            manifest_path: "manifest.json".to_string(),
-            package_label: "项目包".to_string(),
-            manifest_label: "项目包清单".to_string(),
-        },
-    );
-
-    let json_request = into_json_request(request).expect("typed request should serialize");
-
-    assert_eq!(json_request.request_id, "request-1");
-    assert_eq!(json_request.trace_context.trace_id, "trace-1");
-    assert_eq!(json_request.project_id, Some(42));
-    assert_eq!(json_request.root_project_id, Some(7));
-    assert_eq!(
-        json_request.capability_version,
-        capability_version_for(IMPORT_SERVICE_NAME)
-    );
-    assert!(json_request.secret_policy.is_deny_all());
-    assert_eq!(json_request.payload["manifest_path"], "manifest.json");
-    assert_eq!(json_request.payload["package_label"], "项目包");
-}
-
-#[test]
-fn typed_request_conversion_rejects_invalid_context_before_transport() {
+fn request_serialization_rejects_invalid_context_before_transport() {
     let mut request = typed_test_request(
         capability_version_for(IMPORT_SERVICE_NAME),
-        ImportReadMediaPackageZipInput {
-            zip_bytes_base64: "UEsDBAo=".to_string(),
-            manifest_path: "manifest.json".to_string(),
-            package_label: "项目包".to_string(),
-            manifest_label: "项目包清单".to_string(),
-        },
+        serde_json::json!({}),
     );
     request.runtime_config_snapshot = Some(serde_json::json!({
         "api_key": "sk-unredacted"
     }));
 
-    let error = into_json_request(request)
-        .expect_err("typed request conversion must reject unredacted context");
+    let error = serialize_request(&request)
+        .expect_err("request serialization must reject unredacted context");
     assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
     assert!(error.message.contains("unredacted sensitive fields"));
     assert_eq!(error.retryable, Some(false));
     assert!(!error.message.contains("sk-unredacted"));
-}
-
-#[test]
-fn typed_export_response_conversion_deserializes_payload() {
-    let response = ServiceResponse {
-        status: a4n_service_protocol::ServiceStatus::Ok,
-        trace_id: Some("trace-1".to_string()),
-        usage: None,
-        artifact_refs: Vec::new(),
-        payload: Some(serde_json::json!({
-            "bytes_base64": "UEsDBAo=",
-            "content_type": "application/zip"
-        })),
-        error: None,
-    };
-
-    let typed: ServiceResponse<ExportRenderZipOutput> =
-        from_json_response(response).expect("typed response should deserialize");
-
-    let payload = typed.payload.expect("typed payload");
-    assert_eq!(payload.bytes_base64, "UEsDBAo=");
-    assert_eq!(payload.content_type, "application/zip");
-}
-
-#[test]
-fn typed_response_conversion_preserves_error_without_payload_deserialization() {
-    let response = ServiceResponse {
-        status: a4n_service_protocol::ServiceStatus::Error,
-        trace_id: Some("trace-1".to_string()),
-        usage: None,
-        artifact_refs: Vec::new(),
-        payload: None,
-        error: Some(ServiceError {
-            code: ServiceErrorCode::ConfigurationError,
-            message: "bad package".to_string(),
-            retryable: Some(false),
-        }),
-    };
-
-    let typed: ServiceResponse<ImportReadMediaPackageZipOutput> =
-        from_json_response(response).expect("error response should not require payload");
-
-    assert!(typed.payload.is_none());
-    assert_eq!(
-        typed.error.expect("service error").code,
-        ServiceErrorCode::ConfigurationError
-    );
 }
 
 #[test]
@@ -509,9 +318,9 @@ fn embedding_model_operation_paths_are_explicit() {
 
 #[tokio::test]
 async fn drains_ndjson_events_across_chunks() {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     let mut buffer =
-        br#"{"task_id":"task","event_kind":"chunk","sequence":1,"chunk_delta":"he"}"#.to_vec();
+        br#"{"task_id":"task","event_kind":"chunk","sequence":1,"payload":{"text":"he"}}"#.to_vec();
 
     let terminal = drain_event_lines(&mut buffer, &tx)
         .await
@@ -534,7 +343,10 @@ async fn drains_ndjson_events_across_chunks() {
         first.event_kind,
         a4n_service_protocol::CapabilityTaskEventKind::Chunk
     );
-    assert_eq!(first.chunk_delta.as_deref(), Some("he"));
+    assert_eq!(
+        first.payload.as_ref().and_then(|value| value["text"].as_str()),
+        Some("he")
+    );
 
     let second = rx.try_recv().expect("completed event");
     assert_eq!(
@@ -545,9 +357,9 @@ async fn drains_ndjson_events_across_chunks() {
 
 #[tokio::test]
 async fn drain_event_lines_stops_after_terminal_event() {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     let mut buffer = br#"{"task_id":"task","event_kind":"completed","sequence":1}
-{"task_id":"task","event_kind":"chunk","sequence":2,"chunk_delta":"late"}
+{"task_id":"task","event_kind":"chunk","sequence":2,"payload":{"text":"late"}}
 "#
     .to_vec();
 
@@ -568,7 +380,7 @@ async fn drain_event_lines_stops_after_terminal_event() {
 #[tokio::test]
 async fn drain_event_lines_waits_for_queue_capacity() {
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    let mut buffer = br#"{"task_id":"task","event_kind":"chunk","sequence":1,"chunk_delta":"a"}
+    let mut buffer = br#"{"task_id":"task","event_kind":"chunk","sequence":1,"payload":{"text":"a"}}
 {"task_id":"task","event_kind":"completed","sequence":2}
 "#
     .to_vec();
@@ -590,18 +402,6 @@ async fn drain_event_lines_waits_for_queue_capacity() {
         .await
         .expect("terminal event after capacity frees");
     assert_eq!(terminal.event_kind, CapabilityTaskEventKind::Completed);
-}
-
-#[test]
-fn parse_event_line_rejects_remote_local_artifact_path() {
-    let err = parse_event_line(
-        br#"{"task_id":"task","event_kind":"artifact","sequence":1,"artifact_refs":[{"artifact_id":"artifact-1","artifact_kind":"package","content_type":"application/zip","sha256":"abc","byte_size":10,"location":{"local_path":"/tmp/package.zip"},"ownership":"remote"}]}"#,
-    )
-    .unwrap_err();
-
-    assert_eq!(err.code, a4n_service_protocol::ServiceErrorCode::Internal);
-    assert!(err.message.contains("artifact ref 非法"));
-    assert!(err.message.contains("remote sidecar artifact"));
 }
 
 #[test]
@@ -639,7 +439,7 @@ async fn delayed_http_server(
         tokio::time::sleep(header_delay).await;
         let body_len = chunks.iter().map(|chunk| chunk.len()).sum::<usize>();
         let headers = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nContent-Length: {body_len}\r\nConnection: close\r\n\r\n"
+            "HTTP/1.1 200 OK\r\nContent-Type: {SIDECAR_EVENT_CONTENT_TYPE}\r\nContent-Length: {body_len}\r\nConnection: close\r\n\r\n"
         );
         if socket.write_all(headers.as_bytes()).await.is_err() {
             return;
@@ -707,7 +507,6 @@ fn health(
             service_version: "test".to_string(),
             protocol_version,
             capability_version: capability_version.to_string(),
-            compatibility: None,
         },
     }
 }

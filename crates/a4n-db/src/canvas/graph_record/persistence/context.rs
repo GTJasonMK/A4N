@@ -1,8 +1,9 @@
 use a4n_core::models::project::novel_project;
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 use super::GRAPH_KIND_VIDEO_STUDIO;
-use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO, SOURCE_MODE_DERIVED, SOURCE_MODE_FREEFORM};
+use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO};
 
 const GRAPH_KIND_DERIVED_VIDEO: &str = "derived_video";
 const GRAPH_KIND_TEMPLATE: &str = "template";
@@ -23,11 +24,9 @@ where
             "画布工作台当前只支持视频项目".to_string(),
         ));
     }
-    if project.source_mode != SOURCE_MODE_FREEFORM && project.source_mode != SOURCE_MODE_DERIVED {
-        return Err(CanvasDbError::InvalidArgument(
-            "视频画布只支持 derived 或 freeform 视频项目".to_string(),
-        ));
-    }
+    project.source_mode().map_err(|error| {
+        CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
+    })?;
     Ok(project)
 }
 
@@ -44,10 +43,16 @@ pub(super) fn normalize_canvas_record_graph_kind(
     }
 }
 
-pub(super) fn default_canvas_record_graph_kind(project: &novel_project::Model) -> &'static str {
-    if project.source_mode == SOURCE_MODE_DERIVED {
-        GRAPH_KIND_DERIVED_VIDEO
-    } else {
-        GRAPH_KIND_VIDEO_STUDIO
+pub(super) fn default_canvas_record_graph_kind(
+    project: &novel_project::Model,
+) -> Result<&'static str, CanvasDbError> {
+    match project.source_mode().map_err(|error| {
+        CanvasDbError::InvalidArgument(format!("项目 {}: {error}", project.id))
+    })? {
+        ProjectSourceMode::Derived => Ok(GRAPH_KIND_DERIVED_VIDEO),
+        ProjectSourceMode::Freeform => Ok(GRAPH_KIND_VIDEO_STUDIO),
+        ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(
+            "视频画布不支持文本项目".to_string(),
+        )),
     }
 }

@@ -165,8 +165,14 @@ where
 
     let deleted_image_ids = image_ids.iter().copied().collect::<BTreeSet<_>>();
     let plans = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::PromptType.eq("frame_segment_plan"))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq("shared_segment_plan"))
+        .filter(
+            chapter_video_prompt::Column::PromptType
+                .eq(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN),
+        )
+        .filter(
+            chapter_video_prompt::Column::WorkflowMode
+                .eq(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN),
+        )
         .all(db)
         .await?;
     for plan in plans {

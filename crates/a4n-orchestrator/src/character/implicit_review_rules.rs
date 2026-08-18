@@ -1,18 +1,18 @@
 //! 角色隐性属性复审参数纯规则。
 
 /// 默认复审 threshold。
-pub const AUTO_IMPLICIT_REVIEW_THRESHOLD: usize = 5;
+pub(crate) const AUTO_IMPLICIT_REVIEW_THRESHOLD: usize = 5;
 /// 默认窗口章节数。
-pub const AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS: usize = 10;
+pub(crate) const AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS: usize = 10;
 /// 默认证据条数上限。
-pub const AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT: usize = 10;
+pub(crate) const AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT: usize = 10;
 /// 窗口章节数上限（仅校验用）。
 const MAX_IMPLICIT_REVIEW_WINDOW_CHAPTERS: usize = 50;
 /// 证据条数上限（仅校验用）。
 const MAX_IMPLICIT_REVIEW_EVIDENCE_LIMIT: usize = 50;
 
 /// 校验隐性复审 threshold / 窗口 / 证据上限。
-pub fn validate_implicit_review_params(
+pub(crate) fn validate_implicit_review_params(
     threshold: usize,
     window_chapters: usize,
     evidence_limit: usize,

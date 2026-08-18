@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #=============================================================================
-# Prepare Tauri externalBin sidecar binaries.
+# Prepare Tauri externalBin binaries.
 #
 # Usage:
 #   ./scripts/dev/prepare-tauri-external-bin.sh
@@ -10,7 +10,7 @@
 #   ./scripts/dev/prepare-tauri-external-bin.sh --dry-run
 #
 # Tauri appends "-<target-triple>{.exe}" to every bundle.externalBin entry.
-# This script builds each sidecar and copies it to target/tauri-sidecars with
+# This script builds each bundled binary and copies it to target/tauri-sidecars with
 # the exact suffixed filename Tauri expects.
 #=============================================================================
 
@@ -20,19 +20,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-SERVICE_CATALOG="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
-require_command ruby
-sidecar_package_lines="$(ruby -rjson -e 'JSON.parse(File.read(ARGV.fetch(0))).each { |entry| puts entry.fetch("binary") }' "$SERVICE_CATALOG")"
+sidecar_package_lines="$(sidecar_catalog_binaries)"
 SIDECAR_PACKAGES=()
 while IFS= read -r package; do
     [[ -z "$package" ]] || SIDECAR_PACKAGES+=("$package")
 done <<<"$sidecar_package_lines"
-[[ "${#SIDECAR_PACKAGES[@]}" -gt 0 ]] || die "sidecar service catalog 为空"
-TOOL_SPECS=(
-    "a4n-cli:a4n"
-    "a4n-server:a4n-server"
-    "a4n-migration:a4n-migration"
-)
+tool_rows="$(release_tool_rows)"
+TOOL_SPECS=()
+while IFS=$'\t' read -r package binary; do
+    TOOL_SPECS+=("$package:$binary")
+done <<<"$tool_rows"
 
 BUILD_MODE="release"
 TARGET_TRIPLE=""
@@ -87,14 +84,6 @@ host_target_triple() {
     rustc -vV | sed -n 's/^host: //p'
 }
 
-target_root() {
-    local root="${CARGO_TARGET_DIR:-$PROJECT_ROOT/target}"
-    case "$root" in
-        /*) printf '%s\n' "$root" ;;
-        *) printf '%s/%s\n' "$PROJECT_ROOT" "$root" ;;
-    esac
-}
-
 cargo_profile_dir() {
     local root="$1"
     if [[ -n "$TARGET_TRIPLE" ]]; then
@@ -115,7 +104,7 @@ if [[ -z "$TARGET_TRIPLE" ]]; then
 fi
 [[ -n "$TARGET_TRIPLE" ]] || die "无法确定 Rust target triple"
 
-TARGET_ROOT="$(target_root)"
+TARGET_ROOT="$CARGO_TARGET_DIR"
 PROFILE_DIR="$(cargo_profile_dir "$TARGET_ROOT")"
 EXTERNAL_BIN_DIR="$TARGET_ROOT/tauri-sidecars"
 BINARY_EXT="$(binary_extension)"
@@ -140,9 +129,9 @@ if ! $DRY_RUN; then
 fi
 
 if $DRY_RUN; then
-    log_section "准备 Tauri externalBin sidecar dry-run"
+    log_section "准备 Tauri externalBin dry-run"
 else
-    log_section "准备 Tauri externalBin sidecar"
+    log_section "准备 Tauri externalBin"
 fi
 log_info "target: $TARGET_TRIPLE"
 log_info "profile: $BUILD_MODE"
@@ -150,9 +139,6 @@ log_info "output: $EXTERNAL_BIN_DIR"
 
 if ! $DRY_RUN; then
     require_onnxruntime
-fi
-if ! $SKIP_BUILD && ! $DRY_RUN; then
-    guard_build_cache
 fi
 
 prepare_external_binary() {

@@ -1,7 +1,7 @@
 use a4n_core::models::generation::{
     generation_spec, generation_spec_entity_ref, generation_spec_text_anchor, prompt_artifact,
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,

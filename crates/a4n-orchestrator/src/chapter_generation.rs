@@ -7,10 +7,8 @@ pub(crate) mod rag_context;
 #[path = "chapter_generation/service/mod.rs"]
 pub mod service;
 
-pub use a4n_api_contract::chapter::PreparedGenerationRagEmbeddingRequest;
 pub use application::{
     ChapterGenerationApplicationContext, ChapterGenerationRequestPreview,
-    PreviewChapterGenerationInput,
 };
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;
 pub use preparation::{
@@ -19,11 +17,8 @@ pub use preparation::{
     outline_character_names, resolve_generation_word_count_range, truncate_text_chars,
     upsert_chapter_generation_variables,
 };
-pub use rag_context::{
-    GenerationRagContext, GenerationRagQueries, GenerationRagStatistics,
-    PreparedGenerationRagSearch, WeightedGenerationQuery, build_generation_rag_queries,
-    fuse_generation_rag_results, generation_rag_context_from_results,
-    generation_rag_query_fingerprint, generation_rag_search_data_types, previous_chapter_range,
-    validate_generation_query_vectors, validate_generation_rag_query_fingerprint,
+pub(crate) use rag_context::{
+    PreparedGenerationRagSearch, generation_rag_query_fingerprint,
+    validate_generation_rag_query_fingerprint,
 };
 pub use service::ChapterGenerationService;

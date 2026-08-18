@@ -94,7 +94,7 @@ async fn completed_generated_video_record(
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
-            video_type: "chapter_video".to_string(),
+            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("storyboard".to_string()),
             prompt: "reset outcome test video".to_string(),
             negative_prompt: None,

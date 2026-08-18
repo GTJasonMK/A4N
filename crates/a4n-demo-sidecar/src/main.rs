@@ -2,7 +2,6 @@ use a4n_service_protocol::{HealthStatus, PROTOCOL_VERSION, ServiceHealth, Servic
 use axum::{
     Json, Router,
     http::{HeaderMap, StatusCode},
-    middleware,
     routing::{get, post},
 };
 #[tokio::main]
@@ -13,12 +12,11 @@ async fn main() -> anyhow::Result<()> {
     )?;
     let addr = a4n_sidecar_bootstrap::socket_addr("A4N_DEMO_SIDECAR_ADDR", "127.0.0.1:47631")?;
     let app = Router::new()
-        .route("/healthz", get(healthz))
+        .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route("/slow", post(slow))
         .route("/counted-slow", post(counted_slow))
         .route("/crash", post(crash))
-        .route("/trace", get(trace_headers))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+        .route("/trace", get(trace_headers));
     a4n_sidecar_bootstrap::serve_sidecar(app, addr, "demo").await
 }
 
@@ -59,7 +57,6 @@ async fn healthz() -> Json<ServiceHealth> {
             service_version: env!("CARGO_PKG_VERSION").to_string(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: "demo".to_string(),
-            compatibility: None,
         },
     })
 }

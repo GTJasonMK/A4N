@@ -80,7 +80,6 @@ pub fn outline_generation_source_snapshot(rows: &OutlineGenerationSourceRows) ->
             "title": rows.project.title,
             "description": rows.project.description,
             "project_type": rows.project.project_type,
-            "source_mode": rows.project.source_mode,
             "target_chapters": rows.project.target_chapters,
             "total_chapters": rows.project.total_chapters,
             "chapters_per_part": rows.project.chapters_per_part,

@@ -119,12 +119,11 @@ pub(super) async fn insert_assembly_rows(
             )?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.assembly_clips,
         clip,
         assembly_clip::ActiveModel,
-        maps.assembly_clip_ids,
         "导入成片 clip 失败",
         |active| {
             active.timeline_id = Set(map_required(

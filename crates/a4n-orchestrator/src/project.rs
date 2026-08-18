@@ -20,9 +20,8 @@ pub use a4n_db::project::{
     ProjectMediaCopyError, ProjectMediaFileCopier, ProjectMutationError,
     ProjectOptimizationCleanupResult, ProjectProgressQuery, ProjectProgressReadError,
     ProjectProgressSummary, ProjectTaskQueueCleanupResult, ProjectTextAnchorCleanupResult,
-    ProjectTextAnchorDeleteScope, ProjectWorkflowCleanupResult, SOURCE_MODE_DERIVED,
-    SOURCE_MODE_FREEFORM, SOURCE_MODE_SELF, SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT,
-    SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED, UpdateProjectRecordInput,
+    ProjectTextAnchorDeleteScope, ProjectWorkflowCleanupResult, SOURCE_SYNC_CONFLICT,
+    SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED, UpdateProjectRecordInput,
     duplicate_freeform_project_record, is_freeform_generated_media_asset,
     is_freeform_imported_canvas_image, is_freeform_imported_canvas_video,
     is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
@@ -32,6 +31,7 @@ pub use a4n_db::project_family_import::*;
 pub use a4n_db::project_reset::{
     ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult,
 };
+pub use a4n_domain::project::ProjectSourceMode;
 pub use a4n_domain::project::SourceSnapshotChapterSummary;
 
 use a4n_core::models::character::protagonist_profile;
@@ -174,13 +174,13 @@ pub use json_field_rules::{
     required_optional_json_string_field,
 };
 pub use package_rules::{
-    MEDIA_FILE_FIELD_FILE, MEDIA_FILE_FIELD_THUMBNAIL, hash_json, hash_text,
-    is_valid_snapshot_outline_kind, is_valid_snapshot_profile_kind, media_asset_path,
-    media_file_key, parse_canvas_cache_key, parse_chapter_scope_json, required_package_extension,
+    hash_json, hash_text, is_valid_snapshot_outline_kind, is_valid_snapshot_profile_kind,
+    media_asset_path, media_file_key, parse_chapter_scope_json, required_package_extension,
     required_path_extension, sha256_bytes, validate_freeform_video_project,
     validate_import_unique_ids, validate_import_unique_key_strings,
-    validate_snapshot_payload_identity, validate_unique_ids,
+    validate_snapshot_payload_identity,
 };
+pub(crate) use package_rules::collect_unique_ids;
 pub(crate) use package_transfer::import_result_with_file_rollback;
 pub use package_transfer::{
     ExportedProjectPackage, ImportProjectPackageApplicationInput, ProjectPackageFileHostPort,
@@ -205,8 +205,7 @@ pub(crate) use family_transfer::{
 };
 
 pub use video_studio_package::{
-    ImportMediaPayload, MANIFEST_PATH, MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_IMAGE,
-    MEDIA_OWNER_MEDIA_ASSET, MEDIA_OWNER_VIDEO, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION,
+    ImportMediaPayload, MANIFEST_PATH, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION,
     VideoStudioMediaFileEntry, VideoStudioProjectPackage, assemble_video_studio_export_package,
     media_file_key as video_studio_media_file_key, validate_media_entry_bytes,
     validate_media_entry_owner, validate_package_manifest,

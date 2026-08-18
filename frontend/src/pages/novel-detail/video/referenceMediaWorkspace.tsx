@@ -3,9 +3,11 @@ import { Check, Eye, Images, Plus, Trash2, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedImage } from "../../../api/image";
-import type {
-  SegmentReferenceMediaRecipe,
-  VideoGenConfig,
+import {
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+  type SegmentReferenceMediaRecipe,
+  type VideoGenConfig,
+  type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import type { ReferenceMediaUploadInput } from "../../../api/generated/generationContracts";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -23,7 +25,6 @@ import {
   MAX_REFERENCE_IMAGES,
   MAX_VIDEO_LIBRARY_IMAGES,
   referenceImageScopeLabel,
-  type ChapterVideoWorkflowMode,
   type VideoAspectRatio,
   type VideoDurationLimits,
 } from "./videoTabUtils";
@@ -318,7 +319,7 @@ type ReferenceImageFilter =
 export const VideoReferenceInputSlots: React.FC<{
   images: GeneratedImage[];
   chapter: ChapterRow;
-  workflowMode: ChapterVideoWorkflowMode;
+  workflowMode: VideoSegmentWorkflowMode;
   currentContentHash: string | null;
   generationReferenceIds: number[];
   videoLibraryImageIds: number[];
@@ -350,7 +351,7 @@ export const VideoReferenceInputSlots: React.FC<{
 }) => {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<ReferenceImageFilter>("all");
-  const chatVideoMode = workflowMode === "chat_video";
+  const chatVideoMode = workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO;
   const generationReferenceLabel = chatVideoMode ? "Chat上传" : "生成参考";
   const generationReferenceLimit = chatVideoMode
     ? MAX_CHAT_REFERENCE_IMAGES

@@ -28,8 +28,6 @@ import type {
   SaveChapterOutlineResult,
   SavePartOutlineInput,
   SavePartOutlineResult,
-  UpdateChapterOutlineInput,
-  UpdateChapterOutlineResult,
 } from "./generated/host";
 
 export type { ChapterOutlinePacing, OutlineGenerationProgressSummary };
@@ -217,14 +215,6 @@ export async function previewRegenerateChapterOutlineRequest(
   input: RegenerateChapterOutlineInput,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_chapter_outline_request", {
-    input,
-  });
-}
-
-export async function updateChapterOutline(
-  input: UpdateChapterOutlineInput,
-): Promise<UpdateChapterOutlineResult> {
-  return apiInvoke<UpdateChapterOutlineResult>("update_chapter_outline", {
     input,
   });
 }

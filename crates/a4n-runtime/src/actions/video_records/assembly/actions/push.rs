@@ -6,9 +6,7 @@ use crate::AppState;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_generation::video_to_summary;
-use crate::actions::video_records::imports::{
-    import_video_output_path, mark_imported_video_completed,
-};
+use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use a4n_orchestrator::video::{ASSEMBLY_PUSH_STATUS_PENDING, AssemblyPushClipInput};
 
 pub async fn push_assembled_chapter_video(
@@ -27,10 +25,8 @@ pub async fn push_assembled_chapter_video(
         workflow_mode,
         "推送成片片段",
     )
-    .await?;
-    if context.clips.is_empty() {
-        return Err("当前视频生成流程还没有可推送的成片片段".to_string());
-    }
+    .await?
+    .ok_or_else(|| "当前视频生成流程还没有可推送的成片片段".to_string())?;
     let prepared = state
         .orchestrator()
         .create_assembly_push_record_validated(
@@ -80,10 +76,10 @@ pub async fn push_assembled_chapter_video(
         state,
         record.id,
         || {
-            import_video_output_path(
+            video_record_output_path(
                 state.data_dir(),
                 project_id,
-                chapter_id,
+                Some(chapter_id),
                 record.id,
                 "assembly_push",
                 "mp4",
@@ -111,7 +107,7 @@ pub async fn push_assembled_chapter_video(
         record.id,
         &output,
     );
-    let updated = mark_imported_video_completed(
+    let updated = complete_video_record(
         state,
         record.id,
         &output_path_str,

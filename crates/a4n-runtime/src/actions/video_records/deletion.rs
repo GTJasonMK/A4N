@@ -6,6 +6,17 @@ use a4n_core::error::AppError;
 use a4n_orchestrator::video::VideoRecordLifecycleHostPort;
 use async_trait::async_trait;
 
+pub(in crate::actions::video_records) async fn delete_video_record_cleanup_error(
+    video: &a4n_orchestrator::OrchestratorContext,
+    record_id: i64,
+) -> Option<String> {
+    video
+        .delete_generated_video_record_with_cleanup(record_id)
+        .await
+        .err()
+        .map(crate::actions::app_error_message)
+}
+
 struct VideoRecordLifecycleHost<'a> {
     state: &'a AppState,
 }

@@ -40,6 +40,17 @@ where
     C: ConnectionTrait,
 {
     ensure_video_config_name_available(db, &input.name, None).await?;
+    insert_video_config_record(db, input, false).await
+}
+
+pub(crate) async fn insert_video_config_record<C>(
+    db: &C,
+    input: VideoConfigRecordInput,
+    is_default: bool,
+) -> Result<video_gen_config::Model, AppError>
+where
+    C: ConnectionTrait,
+{
     let now = Utc::now().naive_utc();
     video_gen_config::ActiveModel {
         name: Set(input.name),
@@ -56,7 +67,7 @@ where
         duration_mode: Set(input.duration_mode),
         supported_durations_json: Set(input.supported_durations_json),
         default_fps: Set(input.default_fps),
-        is_default: Set(false),
+        is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

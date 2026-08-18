@@ -14,7 +14,7 @@ import type {
 import { type ApiId as Id, idNum } from "../shared";
 
 export const formatRagIngestResultSummary = (result: RagIngestResult): string =>
-  `写入 ${result.chunk_count}，新增 ${result.added_count}，更新 ${result.updated_count}，跳过 ${result.skipped_count}，删除 ${result.deleted_count}`;
+  `新增 ${result.added_count}，更新 ${result.updated_count}，跳过 ${result.skipped_count}，删除 ${result.deleted_count}`;
 
 export async function ragIngestAll(
   projectId: Id,
@@ -67,7 +67,7 @@ async function ragIngestAllWithLocalDesktopEmbedding(
     input: {
       operation_trace_id: prepared.operation_trace_id,
       embedding_identity: prepared.embedding_identity,
-      rebuild: prepared.rebuild,
+      rebuild,
       embeddings: uploaded,
     },
   });

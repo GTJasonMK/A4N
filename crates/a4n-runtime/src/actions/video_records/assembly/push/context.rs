@@ -1,6 +1,4 @@
-use super::super::cache::{
-    assembled_video_output_path, assembly_cache_manifest_path, build_assembly_cache_manifest,
-};
+use super::super::cache::build_assembly_cache_manifest;
 use super::super::contracts::{AssemblyClip, AssemblyRequestContext};
 use crate::AppState;
 use crate::actions::access;
@@ -13,7 +11,7 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
     chapter_id: i64,
     workflow_mode: String,
     action: &str,
-) -> Result<AssemblyRequestContext, String> {
+) -> Result<Option<AssemblyRequestContext>, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let prepared = state
         .orchestrator()
@@ -44,19 +42,27 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let first = clips.first();
-    let (width, height) = a4n_orchestrator::video::normalized_assembly_dimensions(
-        first.map(|clip| clip.width),
-        first.map(|clip| clip.height),
-    );
-    let fps = a4n_orchestrator::video::normalized_assembly_fps(first.map(|clip| clip.fps));
+    if clips.is_empty() {
+        return Ok(None);
+    }
+    let (width, height, fps, duration_secs) = a4n_orchestrator::video::assembly_media_properties(
+        clips.iter().map(|clip| {
+            (
+                clip.video_id,
+                clip.duration_secs,
+                clip.width,
+                clip.height,
+                clip.fps,
+            )
+        }),
+    )?;
     let chapter_videos_dir = crate::actions::video_generation::media::ensure_chapter_videos_dir(
         state.data_dir(),
         project_id,
         chapter_id,
     )?;
-    let output_path = assembled_video_output_path(&chapter_videos_dir, &prepared.workflow_mode)?;
-    let manifest_path = assembly_cache_manifest_path(&output_path);
+    let output_path = chapter_videos_dir.join(format!("assembled_{}.mp4", prepared.workflow_mode));
+    let manifest_path = output_path.with_extension("mp4.cache.json");
     let manifest = build_assembly_cache_manifest(
         project_id,
         chapter_id,
@@ -66,10 +72,11 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
         fps,
         &clips,
     )?;
-    Ok(AssemblyRequestContext {
+    Ok(Some(AssemblyRequestContext {
         clips,
+        duration_secs,
         output_path,
         manifest_path,
         manifest,
-    })
+    }))
 }

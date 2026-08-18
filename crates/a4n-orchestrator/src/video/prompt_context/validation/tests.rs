@@ -13,7 +13,7 @@ fn options() -> ChapterVideoPromptOptions {
         segment_recipe: None,
         duration_secs: 8,
         duration_secs_options: vec![4, 8],
-        aspect_ratio: " 16:9 ".to_string(),
+        aspect_ratio: "16:9".to_string(),
         reference_image_ids: vec![6, 1, 2],
         video_library_image_ids: vec![9, 4],
         duration_capability: None,
@@ -93,4 +93,8 @@ fn validate_prompt_options_rejects_unsupported_aspect_ratio() {
 
     assert!(err.to_string().contains("aspect_ratio 无效: 2:1"));
     assert!(err.to_string().contains("21:9、16:9、4:3、1:1、3:4、9:16"));
+
+    let mut padded = options();
+    padded.aspect_ratio = " 16:9 ".to_string();
+    assert!(validate_prompt_options(padded).is_err());
 }

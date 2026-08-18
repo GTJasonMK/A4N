@@ -38,10 +38,6 @@ const resolveProjectPrefetchTarget = (
   project: RoutedProject,
 ): { key: string; load: () => Promise<unknown> } => {
   const route = getProjectHomeEntryRoute(project);
-  if (route.startsWith("/inspiration/")) {
-    return { key: "page:inspiration", load: () => import("../pages/InspirationChat") };
-  }
-
   if (route.startsWith("/write/")) {
     return { key: "page:writing-desk", load: () => import("../pages/WritingDesk") };
   }

@@ -5,9 +5,10 @@
 
 use a4n_core::error::AppError;
 use a4n_db::DbHandle;
-use a4n_db::import_reverse::{ImportReverseDbError, ReverseContextRows};
+use a4n_db::import_reverse::ReverseContextRows;
 
 use super::OrchestratorContext;
+use crate::import_reverse::ReverseEngineeringTarget;
 
 #[derive(Clone)]
 pub(super) struct ImportReverseApplication {
@@ -34,16 +35,7 @@ impl ImportReverseApplication {
             include_blueprint_context,
         )
         .await
-        .map_err(import_reverse_db_error)
-    }
-}
-
-fn import_reverse_db_error(error: ImportReverseDbError) -> AppError {
-    match error {
-        ImportReverseDbError::Database(error) => AppError::Database(error),
-        ImportReverseDbError::NotFound(message) => AppError::NotFound(message),
-        ImportReverseDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        ImportReverseDbError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
+        .map_err(crate::import_reverse::import_reverse_db_error)
     }
 }
 
@@ -62,7 +54,7 @@ impl OrchestratorContext {
     pub(crate) async fn begin_import_reverse_workflow_validated(
         &self,
         project_id: i64,
-        prompt_name: &str,
+        target: ReverseEngineeringTarget,
         content_sample: &str,
         auto_context: bool,
         context_limit: Option<i64>,
@@ -72,7 +64,7 @@ impl OrchestratorContext {
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let input = crate::import_reverse::import_reverse_workflow_run_input(
             project_id,
-            prompt_name,
+            target,
             content_sample,
             auto_context,
             context_limit,

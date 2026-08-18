@@ -1,7 +1,6 @@
 use super::contracts::{ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError};
 use super::projection::build_project_family_metadata;
 use super::queries::{project_family_metadata, project_family_metadata_batch};
-use crate::project::{SOURCE_MODE_DERIVED, SOURCE_MODE_SELF};
 use a4n_core::models::project::{novel_project, project_source_snapshot};
 use chrono::{NaiveDate, NaiveDateTime};
 use sea_orm::{DatabaseConnection, DbErr};
@@ -25,7 +24,6 @@ fn preserves_family_fields() {
         project_id: 10,
         root_project_id: Some(7),
         source_snapshot_id: Some(20),
-        source_mode: SOURCE_MODE_DERIVED.to_string(),
     };
 
     let metadata = build_project_family_metadata(
@@ -54,7 +52,6 @@ fn keeps_missing_reference_errors() {
             project_id: 10,
             root_project_id: Some(7),
             source_snapshot_id: None,
-            source_mode: SOURCE_MODE_SELF.to_string(),
         },
         &HashMap::new(),
         &HashMap::new(),
@@ -70,7 +67,6 @@ fn keeps_missing_reference_errors() {
             project_id: 10,
             root_project_id: None,
             source_snapshot_id: Some(20),
-            source_mode: SOURCE_MODE_SELF.to_string(),
         },
         &HashMap::new(),
         &HashMap::new(),
@@ -113,7 +109,6 @@ async fn validates_ids_and_empty_batch_before_database_access() {
                 project_id: 0,
                 root_project_id: None,
                 source_snapshot_id: None,
-                source_mode: SOURCE_MODE_SELF.to_string(),
             },
             "project_id 必须大于 0",
         ),
@@ -122,7 +117,6 @@ async fn validates_ids_and_empty_batch_before_database_access() {
                 project_id: 1,
                 root_project_id: Some(0),
                 source_snapshot_id: None,
-                source_mode: SOURCE_MODE_DERIVED.to_string(),
             },
             "root_project_id 必须大于 0",
         ),
@@ -131,7 +125,6 @@ async fn validates_ids_and_empty_batch_before_database_access() {
                 project_id: 1,
                 root_project_id: None,
                 source_snapshot_id: Some(0),
-                source_mode: SOURCE_MODE_DERIVED.to_string(),
             },
             "source_snapshot_id 必须大于 0",
         ),
@@ -161,7 +154,6 @@ fn project() -> novel_project::Model {
         description: String::new(),
         project_type: "novel_long".to_string(),
         project_kind: "text".to_string(),
-        source_mode: SOURCE_MODE_SELF.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
         source_sync_status: "current".to_string(),

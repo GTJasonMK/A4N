@@ -40,7 +40,6 @@ pub async fn video_segment_plan_draft_checkpoints(
             .eq(true),
         )
         .filter(workflow_checkpoint::Column::StepKey.ne(shot_step_key_prefix))
-        .filter(Expr::col(workflow_checkpoint::Column::StepKey).not_like("%:%"))
         .into_model::<VideoSegmentPlanDraftCheckpoint>()
         .all(db)
         .await

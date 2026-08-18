@@ -12,7 +12,7 @@ impl MemoryVectorStore {
         };
         let to_delete = coll
             .iter()
-            .filter(|record| filters::matches_delete_filter(&record.id, &record.metadata, &filter))
+            .filter(|record| filters::matches_delete_filter(&record.id, &filter))
             .map(|record| record.id.clone())
             .collect::<Vec<_>>();
         let count = to_delete.len();

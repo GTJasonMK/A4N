@@ -10,11 +10,8 @@ pub(super) async fn build_blueprint_stage_manifest_user_message(
     project_id: Option<i64>,
     stage_key: &str,
     stage_name: &str,
-    output_schema: &str,
+    output_schema: &Value,
 ) -> Result<String, AppError> {
-    let output_schema: Value = serde_json::from_str(output_schema).map_err(|error| {
-        AppError::InvalidArgument(format!("{stage_name} 输出 schema 不是合法 JSON: {error}"))
-    })?;
     let payload = json!({
         "context_refs": {
             "source_input": "稳定上下文包 blueprint_project_seed_context.source_input",
@@ -32,6 +29,10 @@ pub(super) async fn build_blueprint_stage_manifest_user_message(
         ("payload".to_string(), json!(payload)),
     ]);
     prompt_renderer
-        .render_prompt("blueprint_stage_user", &variables, project_id)
+        .render_prompt(
+            a4n_core::blueprint::BLUEPRINT_STAGE_USER_PROMPT,
+            &variables,
+            project_id,
+        )
         .await
 }

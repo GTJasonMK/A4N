@@ -11,7 +11,6 @@ use axum::{Json, body::Bytes};
 use futures::{Stream, StreamExt, stream};
 
 use crate::handlers::{discover_models, llm_event_stream, probe_existing_provider, stream_chat};
-use crate::protocol::validate_provider_secret_policy;
 use a4n_service_protocol::{SchemaVersion, SecretForwardingPolicy, TraceContext};
 use a4n_test_support::llm::CountingLlmProvider;
 use std::convert::Infallible;
@@ -61,19 +60,17 @@ async fn probe_with_request_calls_stream_once() {
     let provider = CountingLlmProvider::default();
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
-    let output = probe_existing_provider(&provider, Some(request))
+    let output = probe_existing_provider(&provider, request)
         .await
         .expect("probe with request should collect chat_stream");
 
-    assert!(output.ok);
-    assert_eq!(output.response_preview.as_deref(), Some("probe ok"));
+    assert_eq!(output.response_preview, "probe ok");
     assert_eq!(output.finish_reason.as_deref(), Some("stop"));
     assert_eq!(
         output.usage.as_ref().map(|usage| usage.total_tokens),
         Some(5)
     );
     assert_eq!(provider.stream_call_count(), 1);
-    assert_eq!(provider.test_connection_call_count(), 0);
 }
 
 #[tokio::test]
@@ -85,9 +82,10 @@ async fn probe_rejects_empty_stream_response() {
     });
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
-    let error = probe_existing_provider(&provider, Some(request))
+    let error = probe_existing_provider(&provider, request)
         .await
-        .expect_err("empty probe response must fail");
+        .err()
+        .expect("empty probe response must fail");
 
     assert!(error.to_string().contains("未收到有效响应"));
 }
@@ -163,50 +161,6 @@ async fn stream_response_headers_do_not_wait_for_provider_connection() {
     provider.abort();
 }
 
-#[test]
-fn secret_policy_allows_deny_all_when_no_api_key_is_forwarded() {
-    validate_provider_secret_policy(None, &SecretForwardingPolicy::deny_all())
-        .expect("no API key should not require user secret forwarding");
-    validate_provider_secret_policy(Some("  "), &SecretForwardingPolicy::deny_all())
-        .expect("blank API key should not count as forwarded secret");
-}
-
-#[test]
-fn secret_policy_rejects_api_key_for_trusted_remote_sidecar() {
-    let policy = SecretForwardingPolicy {
-        scope: a4n_service_protocol::SecretMaterialScope::TrustedRemote,
-        allow_system_secret: false,
-        allow_user_secret: true,
-        allow_upload_token: false,
-    };
-
-    let error = validate_provider_secret_policy(Some("secret-key"), &policy)
-        .expect_err("remote sidecar must not receive forwarded user secret");
-
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("local_sidecar_only"));
-}
-
-#[test]
-fn secret_policy_rejects_api_key_with_unrelated_secret_permissions() {
-    for policy in [
-        SecretForwardingPolicy {
-            allow_upload_token: true,
-            ..SecretForwardingPolicy::local_user_secret()
-        },
-        SecretForwardingPolicy {
-            allow_system_secret: true,
-            ..SecretForwardingPolicy::local_user_secret()
-        },
-    ] {
-        let error = validate_provider_secret_policy(Some("secret-key"), &policy)
-            .expect_err("provider API key must use the exact user-secret-only policy");
-
-        assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-        assert!(error.message.contains("user-secret-only"));
-    }
-}
-
 #[tokio::test]
 async fn stream_rejects_incompatible_protocol_version_as_failed_event() {
     let mut request = service_request(LlmGatewayPayload {
@@ -231,7 +185,7 @@ async fn stream_rejects_incompatible_protocol_version_as_failed_event() {
 }
 
 #[tokio::test]
-async fn llm_stream_emits_chunks_and_completed_final_usage() {
+async fn llm_stream_emits_typed_chunks_and_completed_marker() {
     let usage = UsageInfo {
         prompt_tokens: 11,
         completion_tokens: 7,
@@ -239,7 +193,6 @@ async fn llm_stream_emits_chunks_and_completed_final_usage() {
         prompt_cache_hit_tokens: Some(3),
         prompt_cache_miss_tokens: Some(8),
     };
-    let usage_json = serde_json::to_value(&usage).expect("usage should serialize");
     let chunks = stream::iter(vec![
         Ok(ChatChunk {
             content: Some("hel".to_string()),
@@ -264,25 +217,25 @@ async fn llm_stream_emits_chunks_and_completed_final_usage() {
     assert_eq!(events.len(), 3);
     assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].sequence, 1);
-    assert_eq!(events[0].chunk_index, Some(0));
-    assert_eq!(events[0].chunk_delta.as_deref(), Some("hel"));
-    assert_eq!(events[0].usage_delta, None);
+    let first = event_chunk(&events[0]);
+    assert_eq!(first.index, 0);
+    assert_eq!(first.content.as_deref(), Some("hel"));
+    assert!(first.usage.is_none());
 
     assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[1].sequence, 2);
-    assert_eq!(events[1].chunk_index, Some(1));
-    assert_eq!(events[1].chunk_delta.as_deref(), Some("lo"));
-    assert_eq!(events[1].usage_delta, Some(usage_json.clone()));
-    assert_eq!(events[1].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[1].is_truncated_finish_reason, Some(false));
+    let second = event_chunk(&events[1]);
+    assert_eq!(second.index, 1);
+    assert_eq!(second.content.as_deref(), Some("lo"));
+    assert_eq!(
+        second.usage.as_ref().map(|usage| usage.total_tokens),
+        Some(18)
+    );
+    assert_eq!(second.finish_reason.as_deref(), Some("stop"));
 
     assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(events[2].sequence, 3);
-    assert_eq!(events[2].chunk_delta, None);
-    assert_eq!(events[2].usage_delta, None);
-    assert_eq!(events[2].final_usage, Some(usage_json));
-    assert_eq!(events[2].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[2].is_truncated_finish_reason, Some(false));
+    assert_eq!(events[2].payload, None);
     assert_eq!(events[2].error, None);
 }
 
@@ -299,7 +252,7 @@ async fn llm_stream_error_emits_failed_event_without_completed() {
         events[0].error.as_ref().map(|error| error.code.clone()),
         Some(ServiceErrorCode::ProviderError)
     );
-    assert_eq!(events[0].final_usage, None);
+    assert_eq!(events[0].payload, None);
 }
 
 async fn collect_events(
@@ -313,4 +266,9 @@ async fn collect_events(
         })
         .collect::<Vec<_>>()
         .await
+}
+
+fn event_chunk(event: &CapabilityTaskEvent) -> ChatChunk {
+    serde_json::from_value(event.payload.clone().expect("chunk payload"))
+        .expect("typed chunk payload")
 }

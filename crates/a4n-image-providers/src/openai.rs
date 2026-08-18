@@ -34,14 +34,19 @@ impl OpenAiCompatibleImageProvider {
         })
     }
 
+    fn validate_generation_request(req: &ImageGenerationRequest) -> Result<(), AppError> {
+        if !req.reference_images.is_empty() {
+            return Err(internal_error(
+                "当前 openai-compatible-image 后端只支持 /images/generations 文字生图；参考图输入请改用 openai-compatible-image-edit、openai-chat-image 或 cliproxy-image",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn request_body_preview(
         req: &ImageGenerationRequest,
     ) -> Result<serde_json::Value, AppError> {
-        if !req.reference_images.is_empty() {
-            return Err(internal_error(
-                "openai-compatible-image 使用 /images/generations，真实请求不支持参考图输入",
-            ));
-        }
+        Self::validate_generation_request(req)?;
         Ok(Self::generation_body(req))
     }
 }
@@ -52,11 +57,7 @@ impl ImageProvider for OpenAiCompatibleImageProvider {
         &self,
         req: ImageGenerationRequest,
     ) -> Result<ImageGenerationResult, AppError> {
-        if !req.reference_images.is_empty() {
-            return Err(internal_error(
-                "当前 openai-compatible-image 后端只支持 /images/generations 文字生图；参考图输入请改用 openai-compatible-image-edit、openai-chat-image 或 cliproxy-image",
-            ));
-        }
+        Self::validate_generation_request(&req)?;
         let url = format!("{}/images/generations", self.base_url);
         let body = Self::generation_body(&req);
 

@@ -2,7 +2,7 @@ import React from "react";
 import { AlertTriangle } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
-import type { CharacterProfile } from "../../api/character";
+import type { CharacterConflictSummary, CharacterProfile } from "../../api/character";
 import { ArcView, ConflictView, VoiceView } from "./views";
 import { ManageView } from "./ManageView";
 import type {
@@ -15,7 +15,7 @@ interface CharacterDetailContentProps {
   loadingTab: CharacterDetailTab | null;
   arc: unknown;
   voice: unknown;
-  conflicts: unknown[] | null;
+  conflicts: CharacterConflictSummary[] | null;
   character: CharacterProfile;
   initialManageSection?: "event";
   initialEventFilter?: CharacterDetailInitialEventFilter | null;

@@ -1,5 +1,5 @@
 use a4n_core::models::project::novel_project;
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,

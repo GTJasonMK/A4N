@@ -177,15 +177,13 @@ impl ErrorInfo {
                 _ => ("server", 8),
             };
             return Self {
-                code: api.code.clone().unwrap_or_else(|| format!("http_{status}")),
+                code: api.code.clone(),
                 kind,
                 message: api.message.clone(),
-                retryable: api
-                    .retryable
-                    .unwrap_or(matches!(status, 408 | 425 | 429 | 500..=599)),
+                retryable: api.retryable,
                 http_status: Some(status),
                 trace_id: api.trace_id.clone(),
-                details: api.details.clone().unwrap_or_else(|| json!({})),
+                details: api.details.clone(),
                 exit_code,
             };
         }

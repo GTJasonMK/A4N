@@ -1,10 +1,10 @@
-import type { ProjectKind, ProjectStatus } from "../api/project";
+import type { ProjectKind, ProjectSourceMode, ProjectStatus } from "../api/project";
 
 export interface RoutedProject {
   id: number | string;
   status: ProjectStatus;
   project_kind: ProjectKind;
-  source_mode?: string | null;
+  source_mode: ProjectSourceMode;
 }
 
 export interface DerivedProjectPresentation {
@@ -78,16 +78,26 @@ export const getDerivedProjectSubtitle = (
   return parts.join(" · ") || fallback;
 };
 
-export const getProjectPrimaryRoute = (project: RoutedProject): string => {
+export const getProjectStudioRoute = (id: number | string): string =>
+  `/video-project/${id}/studio`;
+
+const projectRoute = (
+  project: RoutedProject,
+  textRoute: "novel" | "write",
+): string => {
   const id = project.id;
-  if (project.project_kind === "video" && project.source_mode === "freeform") {
-    return `/video-project/${id}/studio`;
+  if (project.project_kind === "video") {
+    return project.source_mode === "freeform"
+      ? getProjectStudioRoute(id)
+      : `/video-project/${id}`;
   }
-  if (project.project_kind === "video") return `/video-project/${id}`;
   if (project.project_kind === "comic") return `/comic-project/${id}`;
   if (project.project_kind === "galgame") return `/galgame-project/${id}`;
-  return `/novel/${id}`;
+  return `/${textRoute}/${id}`;
 };
+
+export const getProjectPrimaryRoute = (project: RoutedProject): string =>
+  projectRoute(project, "novel");
 
 export const getProjectPrimaryLabel = (project: RoutedProject): string =>
   project.project_kind === "video"
@@ -98,16 +108,8 @@ export const getProjectPrimaryLabel = (project: RoutedProject): string =>
         ? "进入 GALGame 项目"
         : "进入项目详情";
 
-export const getProjectWorkspaceRoute = (project: RoutedProject): string => {
-  const id = project.id;
-  if (project.project_kind === "video" && project.source_mode === "freeform") {
-    return `/video-project/${id}/studio`;
-  }
-  if (project.project_kind === "video") return `/video-project/${id}`;
-  if (project.project_kind === "comic") return `/comic-project/${id}`;
-  if (project.project_kind === "galgame") return `/galgame-project/${id}`;
-  return `/write/${id}`;
-};
+export const getProjectWorkspaceRoute = (project: RoutedProject): string =>
+  projectRoute(project, "write");
 
 export const getProjectWorkspaceLabel = (project: RoutedProject): string =>
   project.project_kind === "video"

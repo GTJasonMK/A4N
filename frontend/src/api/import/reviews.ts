@@ -1,9 +1,9 @@
 import { apiInvoke } from "../index";
-import type { ImportReview } from "./types";
+import type { ImportReviewSummary } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
 
-export async function listImportQueue(projectId: Id): Promise<ImportReview[]> {
-  return apiInvoke<ImportReview[]>("list_import_queue", {
+export async function listImportQueue(projectId: Id): Promise<ImportReviewSummary[]> {
+  return apiInvoke<ImportReviewSummary[]>("list_import_queue", {
     input: { project_id: idNum(projectId) },
   });
 }
@@ -17,8 +17,8 @@ export async function deleteImportReview(reviewId: Id): Promise<void> {
 export async function acceptImportReview(
   reviewId: Id,
   analysisResult?: unknown,
-): Promise<ImportReview> {
-  return apiInvoke<ImportReview>("accept_import_review", {
+): Promise<ImportReviewSummary> {
+  return apiInvoke<ImportReviewSummary>("accept_import_review", {
     input: {
       review_id: idNum(reviewId),
       ...(analysisResult === undefined ? {} : { analysis_result: analysisResult }),
@@ -26,14 +26,14 @@ export async function acceptImportReview(
   });
 }
 
-export async function rejectImportReview(reviewId: Id): Promise<ImportReview> {
-  return apiInvoke<ImportReview>("reject_import_review", {
+export async function rejectImportReview(reviewId: Id): Promise<ImportReviewSummary> {
+  return apiInvoke<ImportReviewSummary>("reject_import_review", {
     input: { review_id: idNum(reviewId) },
   });
 }
 
-export async function batchAcceptReviews(reviewIds: number[]): Promise<ImportReview[]> {
-  return apiInvoke<ImportReview[]>("batch_accept_reviews", {
+export async function batchAcceptReviews(reviewIds: number[]): Promise<ImportReviewSummary[]> {
+  return apiInvoke<ImportReviewSummary[]>("batch_accept_reviews", {
     input: { review_ids: reviewIds },
   });
 }

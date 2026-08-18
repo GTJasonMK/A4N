@@ -16,7 +16,7 @@ import {
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../../components/feedback/Toast";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 
 interface UseVideoImageActionsParams {
   addToast: AddToast;

@@ -46,7 +46,8 @@ prompts:
     tags: ["blueprint", "worldbuilding", "character"]
     version: "1.0"
     used_by:
-      - "BlueprintPipeline.execute"
+      - "OrchestratorContext.run_blueprint_generation_task"
+      - "OrchestratorContext.preview_blueprint_generation_request"
     dependencies:
       - "inspiration"
     description: "根据灵感对话记录生成完整故事蓝图（世界观/角色/剧情/主题）"
@@ -58,8 +59,7 @@ prompts:
     tags: ["blueprint", "staged-generation", "system"]
     version: "1.0"
     used_by:
-      - "BlueprintService.generate"
-      - "BlueprintService.preview_generate_requests"
+      - "a4n_prompt::blueprint_generation::build_blueprint_stage_request"
     dependencies:
       - "blueprint"
     description: "在完整蓝图提示词上叠加当前分阶段生成约束，确保模型只完成一个蓝图子阶段"
@@ -71,8 +71,7 @@ prompts:
     tags: ["blueprint", "staged-generation", "user-request"]
     version: "1.0"
     used_by:
-      - "BlueprintService.generate"
-      - "BlueprintService.preview_generate_requests"
+      - "a4n_prompt::blueprint_generation::build_blueprint_stage_request"
     dependencies:
       - "blueprint_stage_system"
     description: "将蓝图阶段输入、上游阶段上下文和当前输出 schema 渲染为严格 JSON 用户请求"
@@ -84,7 +83,7 @@ prompts:
     tags: ["blueprint", "optimization"]
     version: "1.0"
     used_by:
-      - "BlueprintService.refine"
+      - "a4n_prompt::blueprint_generation::build_blueprint_refine_request"
     dependencies:
       - "blueprint"
     description: "对现有蓝图按 focus 方向迭代优化，保持主线连贯"
@@ -96,8 +95,7 @@ prompts:
     tags: ["blueprint", "optimization", "user-request"]
     version: "1.0"
     used_by:
-      - "BlueprintService.refine"
-      - "BlueprintService.preview_refine_request"
+      - "a4n_prompt::blueprint_generation::build_blueprint_refine_request"
     dependencies:
       - "blueprint_optimization"
     description: "将当前蓝图上下文和用户优化重点整理为严格 JSON 优化请求"
@@ -275,7 +273,7 @@ prompts:
     tags: ["asset", "object", "discovery"]
     version: "1.0"
     used_by:
-      - "ObjectProfileDiscovery.discover_object_profiles_for_chapters"
+      - "object_discovery::request::build_object_discovery_request"
     dependencies:
       - "chapter_fact_extraction"
       - "chapter_summary_synthesis"
@@ -364,17 +362,6 @@ prompts:
       - "OptimizeService.prepare_analysis_session"
     dependencies: []
     description: "显式内容优化 Agent Loop：逐步读取上下文、调用工具并最终输出 issues JSON"
-
-  structured_json_field_repair:
-    path: "novel/05_analysis/structured_json_field_repair.md"
-    title: "结构化 JSON 字段补丁"
-    category: "analysis"
-    tags: ["system", "json", "schema", "repair", "patch"]
-    version: "1.0"
-    used_by:
-      - "OrchestratorContext.parse_validate_or_repair_structured_output"
-    dependencies: []
-    description: "依据 Rust DTO 派生的 JSON Schema 诊断，只返回被授权字段路径的最小补丁"
 
   chapter_screenplay_skeleton:
     path: "novel/05_analysis/chapter_screenplay_skeleton.md"
@@ -600,7 +587,7 @@ prompts:
     tags: ["protagonist", "character", "discovery"]
     version: "1.0"
     used_by:
-      - "character_ai::discover_character_profiles"
+      - "character::discovery::request::build_character_discovery_request"
     dependencies: []
     description: "从章节内容中识别出现角色，并为缺失角色生成初始档案"
 
@@ -711,8 +698,7 @@ prompts:
     tags: ["protagonist", "consistency", "conflict"]
     version: "1.0"
     used_by:
-      - "character_ai::check_character_conflict"
-      - "character_ai::preview_character_conflict_request"
+      - "character::conflict::request::build_character_conflict_request"
     dependencies:
       - "character_sync_evidence_events"
       - "character_sync_attribute_changes"
@@ -755,7 +741,6 @@ prompts:
       - "chapter_video_first_frame_video_prompt"
       - "chapter_video_storyboard_video_prompt"
       - "chapter_video_chat_prompt"
-      - "chapter_video_prompt_targeted_repair"
     description: "视频提示词 builder 注入到 JSON payload 的可编辑业务规则集合"
 
   chapter_video_inserted_segment:
@@ -890,12 +875,16 @@ prompts:
     title: "视频提示词优化"
     category: "video"
     tags: ["video", "prompt", "optimization"]
-    version: "1.0"
+    version: "2.0"
     used_by:
       - "video_prompts::optimize_chapter_video_prompt"
     dependencies:
+      - "chapter_video_frame_prompts"
+      - "chapter_video_first_frame_prompts"
+      - "chapter_video_storyboard_prompts"
       - "chapter_video_prompt"
       - "chapter_video_first_frame_video_prompt"
+      - "chapter_video_storyboard_video_prompt"
       - "chapter_video_chat_prompt"
     description: "按用户要求优化已有视频文字资产，保留剧情事实、人物身份、空间关系、参考素材约束、时长和工作流意图"
 
@@ -922,23 +911,6 @@ prompts:
     dependencies:
       - "chapter_video_segment_plan"
     description: "生成可复制到外部 Chat 视频模型的单段视频提示词"
-
-  chapter_video_prompt_targeted_repair:
-    path: "novel/08_video/chapter_video_prompt_targeted_repair.md"
-    title: "视频提示词失败字段局部修复"
-    category: "video"
-    tags: ["video", "prompt", "repair", "targeted"]
-    version: "1.0"
-    used_by:
-      - "video::prompt_generation::unit_execution"
-    dependencies:
-      - "chapter_video_builder_rules"
-      - "chapter_video_segment_plan"
-      - "chapter_video_prompt"
-      - "chapter_video_first_frame_video_prompt"
-      - "chapter_video_storyboard_video_prompt"
-      - "chapter_video_chat_prompt"
-    description: "主生成未通过校验时，只返回并回填失败字段；禁止完整对象重写"
 
   # ============= 09 Galgame =============
   galgame_pipeline_session:

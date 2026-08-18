@@ -1,14 +1,14 @@
 //! 项目族/视频画布导入包纯校验与哈希工具（无 DB、无 Host）。
 
 use std::collections::HashSet;
+use std::hash::Hash;
 use std::path::Path;
 
-use a4n_core::models::media::media_asset;
+use a4n_core::models::media::media_asset::{self, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::project::novel_project;
+use a4n_domain::project::ProjectSourceMode;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-
-use super::{PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM};
 
 /// 字节 SHA-256 十六进制。
 pub fn sha256_bytes(bytes: &[u8]) -> String {
@@ -117,27 +117,38 @@ pub fn validate_freeform_video_project(
     project: &novel_project::Model,
     label: &str,
 ) -> Result<(), String> {
-    if project.project_kind != PROJECT_KIND_VIDEO || project.source_mode != SOURCE_MODE_FREEFORM {
-        return Err(format!("{label}必须是 source_mode=freeform 的 video 项目"));
-    }
-    if project.root_project_id.is_some() || project.source_snapshot_id.is_some() {
-        return Err(format!("{label}不能包含文本派生项目引用字段"));
+    if project
+        .source_mode()
+        .map_err(|error| format!("{label}{error}"))?
+        != ProjectSourceMode::Freeform
+    {
+        return Err(format!("{label}必须是 freeform video 项目"));
     }
     Ok(())
 }
 
 /// ID 列表唯一性（视频画布包文案）。
-pub fn validate_unique_ids<I>(ids: I, label: &str) -> Result<(), String>
+pub(crate) fn collect_unique_ids<I>(ids: I, label: &str) -> Result<HashSet<i64>, String>
 where
     I: IntoIterator<Item = i64>,
 {
+    collect_unique_values(ids, |id| format!("视频画布项目包 ID 重复: {label}={id}"))
+}
+
+fn collect_unique_values<I, T, F>(values: I, duplicate_error: F) -> Result<HashSet<T>, String>
+where
+    I: IntoIterator<Item = T>,
+    T: Eq + Hash,
+    F: Fn(&T) -> String,
+{
     let mut seen = HashSet::new();
-    for id in ids {
-        if !seen.insert(id) {
-            return Err(format!("视频画布项目包 ID 重复: {label}={id}"));
+    for value in values {
+        if seen.contains(&value) {
+            return Err(duplicate_error(&value));
         }
+        seen.insert(value);
     }
-    Ok(())
+    Ok(seen)
 }
 
 /// 导入包（family package）ID 唯一性。
@@ -145,13 +156,8 @@ pub fn validate_import_unique_ids<I>(ids: I, label: &str) -> Result<(), String>
 where
     I: IntoIterator<Item = i64>,
 {
-    let mut seen = HashSet::new();
-    for id in ids {
-        if !seen.insert(id) {
-            return Err(format!("导入包包含重复 {label}: {id}"));
-        }
-    }
-    Ok(())
+    collect_unique_values(ids, |id| format!("导入包包含重复 {label}: {id}"))
+        .map(|_| ())
 }
 
 /// 导入包复合 key 字符串唯一性。
@@ -159,31 +165,9 @@ pub fn validate_import_unique_key_strings<I>(keys: I, label: &str) -> Result<(),
 where
     I: IntoIterator<Item = String>,
 {
-    let mut seen = HashSet::new();
-    for key in keys {
-        if !seen.insert(key.clone()) {
-            return Err(format!("导入包包含重复 {label}: {key}"));
-        }
-    }
-    Ok(())
+    collect_unique_values(keys, |key| format!("导入包包含重复 {label}: {key}"))
+        .map(|_| ())
 }
-
-/// 解析 `canvas_graph:{id}:node:{id}` 缓存键。
-pub fn parse_canvas_cache_key(value: &str) -> Option<(i64, i64)> {
-    let parts = value.split(':').collect::<Vec<_>>();
-    if parts.len() == 4
-        && parts[0] == "canvas_graph"
-        && parts[2] == "node"
-        && let (Ok(graph_id), Ok(node_id)) = (parts[1].parse::<i64>(), parts[3].parse::<i64>())
-    {
-        return Some((graph_id, node_id));
-    }
-    None
-}
-
-/// 媒体资产路径字段名常量（与导入包约定一致）。
-pub const MEDIA_FILE_FIELD_FILE: &str = "file_path";
-pub const MEDIA_FILE_FIELD_THUMBNAIL: &str = "thumbnail_path";
 
 /// 按字段取媒体资产路径。
 pub fn media_asset_path<'a>(
@@ -191,8 +175,8 @@ pub fn media_asset_path<'a>(
     field: &str,
 ) -> Result<Option<&'a str>, String> {
     match field {
-        MEDIA_FILE_FIELD_FILE => Ok(asset.file_path.as_deref()),
-        MEDIA_FILE_FIELD_THUMBNAIL => Ok(asset.thumbnail_path.as_deref()),
+        FILE_PATH_FIELD => Ok(asset.file_path.as_deref()),
+        THUMBNAIL_PATH_FIELD => Ok(asset.thumbnail_path.as_deref()),
         _ => Err(format!("媒体文件字段无效: {field}")),
     }
 }
@@ -241,18 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn canvas_cache_key() {
-        assert_eq!(
-            parse_canvas_cache_key("canvas_graph:1:node:2"),
-            Some((1, 2))
-        );
-        assert_eq!(parse_canvas_cache_key("other"), None);
-    }
-
-    #[test]
     fn unique_ids() {
-        assert!(validate_unique_ids([1, 2, 3], "id").is_ok());
-        assert!(validate_unique_ids([1, 1], "id").is_err());
         assert!(validate_import_unique_ids([1, 2], "row.id").is_ok());
         let err = validate_import_unique_ids([1, 1], "row.id").unwrap_err();
         assert!(err.contains("导入包包含重复"));

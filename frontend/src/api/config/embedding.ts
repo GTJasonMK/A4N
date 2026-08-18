@@ -20,25 +20,40 @@ import {
   updateLocalEmbeddingConfig,
 } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
+import type { ModelConfigScope } from "../modelDiscovery";
 import {
   canUseLocalDesktopEmbedding,
   usesLocalRuntimeSettings,
 } from "../../utils/runtimeMode";
 
-export async function listEmbeddingConfig(): Promise<EmbeddingConfig[]> {
-  if (usesLocalRuntimeSettings()) return listLocalEmbeddingConfigs();
+function usesScopedLocalEmbeddingSettings(scope: ModelConfigScope): boolean {
+  return scope === "local" && usesLocalRuntimeSettings();
+}
+
+function usesScopedLocalDesktopEmbedding(scope: ModelConfigScope): boolean {
+  return scope === "local" && canUseLocalDesktopEmbedding();
+}
+
+export async function listEmbeddingConfig(
+  scope: ModelConfigScope,
+): Promise<EmbeddingConfig[]> {
+  if (usesScopedLocalEmbeddingSettings(scope)) return listLocalEmbeddingConfigs();
   return apiInvoke<EmbeddingConfig[]>("list_embedding_config");
 }
 
 export async function createEmbeddingConfig(
   input: CreateEmbeddingInput,
+  scope: ModelConfigScope,
 ): Promise<EmbeddingConfig> {
-  if (usesLocalRuntimeSettings()) return createLocalEmbeddingConfig(input);
+  if (usesScopedLocalEmbeddingSettings(scope)) return createLocalEmbeddingConfig(input);
   return apiInvoke<EmbeddingConfig>("create_embedding_config", { input });
 }
 
-export async function setDefaultEmbeddingConfig(configId: Id): Promise<void> {
-  if (usesLocalRuntimeSettings()) {
+export async function setDefaultEmbeddingConfig(
+  configId: Id,
+  scope: ModelConfigScope,
+): Promise<void> {
+  if (usesScopedLocalEmbeddingSettings(scope)) {
     setDefaultLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"));
     return;
   }
@@ -47,8 +62,11 @@ export async function setDefaultEmbeddingConfig(configId: Id): Promise<void> {
   });
 }
 
-export async function deleteEmbeddingConfig(configId: Id): Promise<void> {
-  if (usesLocalRuntimeSettings()) {
+export async function deleteEmbeddingConfig(
+  configId: Id,
+  scope: ModelConfigScope,
+): Promise<void> {
+  if (usesScopedLocalEmbeddingSettings(scope)) {
     deleteLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"));
     return;
   }
@@ -60,8 +78,9 @@ export async function deleteEmbeddingConfig(configId: Id): Promise<void> {
 export async function updateEmbeddingConfig(
   configId: Id,
   input: UpdateEmbeddingInput,
+  scope: ModelConfigScope,
 ): Promise<EmbeddingConfig> {
-  if (usesLocalRuntimeSettings()) {
+  if (usesScopedLocalEmbeddingSettings(scope)) {
     return updateLocalEmbeddingConfig(
       idNum(configId, "Embedding 配置 ID"),
       input,
@@ -73,56 +92,63 @@ export async function updateEmbeddingConfig(
   });
 }
 
-export async function testEmbeddingConfig(configId: Id): Promise<void> {
-  if (usesLocalRuntimeSettings()) {
-    const id = idNum(configId, "Embedding 配置 ID");
-    if (canUseLocalDesktopEmbedding()) {
-      return runtimeInvoke<void>("local_test_embedding_config", {
-        input: localEmbeddingConfigInput(getLocalEmbeddingConfig(id)),
-      });
-    }
-    return apiInvoke<void>("test_embedding_config", {
-      configId: id,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot({
-        embedding: getLocalEmbeddingConfig(id),
-      }),
+function resolveEmbeddingConnectivityTarget(
+  configId: Id,
+  scope: ModelConfigScope,
+): {
+  configId: number;
+  config: EmbeddingConfig | null;
+} {
+  const id = idNum(configId, "Embedding 配置 ID");
+  return {
+    configId: id,
+    config: usesScopedLocalEmbeddingSettings(scope)
+      ? getLocalEmbeddingConfig(id)
+      : null,
+  };
+}
+
+export async function testEmbeddingConfig(
+  configId: Id,
+  scope: ModelConfigScope,
+): Promise<void> {
+  const target = resolveEmbeddingConnectivityTarget(configId, scope);
+  if (target.config && usesScopedLocalDesktopEmbedding(scope)) {
+    return runtimeInvoke<void>("local_test_embedding_config", {
+      input: localEmbeddingConfigInput(target.config),
     });
   }
   return apiInvoke<void>("test_embedding_config", {
-    configId: idNum(configId, "Embedding 配置 ID"),
+    configId: target.configId,
+    runtime_config_snapshot: target.config
+      ? buildRuntimeConfigSnapshot({ embedding: target.config })
+      : null,
   });
 }
 
 export async function previewTestEmbeddingConfigRequest(
   configId: Id,
+  scope: ModelConfigScope,
 ): Promise<ModelRequestPreview> {
-  if (usesLocalRuntimeSettings()) {
-    const id = idNum(configId, "Embedding 配置 ID");
-    return apiInvoke<ModelRequestPreview>(
-      "preview_test_embedding_config_request",
-      {
-        configId: id,
-        runtime_config_snapshot: buildRuntimeConfigSnapshot(
-          {
-            embedding: getLocalEmbeddingConfig(id),
-          },
-          { includeProviderApiKeys: false },
-        ),
-      },
-    );
-  }
+  const target = resolveEmbeddingConnectivityTarget(configId, scope);
   return apiInvoke<ModelRequestPreview>(
     "preview_test_embedding_config_request",
     {
-      configId: idNum(configId, "Embedding 配置 ID"),
+      configId: target.configId,
+      runtime_config_snapshot: target.config
+        ? buildRuntimeConfigSnapshot(
+            { embedding: target.config },
+            { includeProviderApiKeys: false },
+          )
+        : null,
     },
   );
 }
 
-export async function listLocalEmbeddingModels(): Promise<
-  LocalEmbeddingModel[]
-> {
-  if (canUseLocalDesktopEmbedding()) {
+export async function listLocalEmbeddingModels(
+  scope: ModelConfigScope,
+): Promise<LocalEmbeddingModel[]> {
+  if (usesScopedLocalDesktopEmbedding(scope)) {
     return runtimeInvoke<LocalEmbeddingModel[]>("local_list_embedding_models");
   }
   return apiInvoke<LocalEmbeddingModel[]>("list_local_embedding_models");
@@ -130,8 +156,9 @@ export async function listLocalEmbeddingModels(): Promise<
 
 export async function getEmbeddingModelDownloadInfo(
   model: string,
+  scope: ModelConfigScope,
 ): Promise<EmbeddingModelDownloadInfo> {
-  if (canUseLocalDesktopEmbedding()) {
+  if (usesScopedLocalDesktopEmbedding(scope)) {
     return runtimeInvoke<EmbeddingModelDownloadInfo>(
       "local_get_embedding_model_download_info",
       {
@@ -149,25 +176,27 @@ export async function getEmbeddingModelDownloadInfo(
 
 export async function downloadEmbeddingModel(
   model: string,
-  taskId?: string | null,
+  taskId: string,
+  scope: ModelConfigScope,
 ): Promise<LocalEmbeddingModel> {
-  if (canUseLocalDesktopEmbedding()) {
+  if (usesScopedLocalDesktopEmbedding(scope)) {
     return runtimeInvoke<LocalEmbeddingModel>(
       "local_download_embedding_model",
       {
-        input: { model, task_id: taskId ?? null },
+        input: { model, task_id: taskId },
       },
     );
   }
   return apiInvoke<LocalEmbeddingModel>("download_embedding_model", {
-    input: { model, task_id: taskId ?? null },
+    input: { model, task_id: taskId },
   });
 }
 
 export async function cancelEmbeddingModelDownload(
   taskId: string,
+  scope: ModelConfigScope,
 ): Promise<void> {
-  if (canUseLocalDesktopEmbedding()) {
+  if (usesScopedLocalDesktopEmbedding(scope)) {
     return runtimeInvoke<void>("local_cancel_embedding_model_download", {
       input: { task_id: taskId },
     });
@@ -177,8 +206,11 @@ export async function cancelEmbeddingModelDownload(
   });
 }
 
-export async function deleteLocalEmbeddingModel(model: string): Promise<void> {
-  if (canUseLocalDesktopEmbedding()) {
+export async function deleteLocalEmbeddingModel(
+  model: string,
+  scope: ModelConfigScope,
+): Promise<void> {
+  if (usesScopedLocalDesktopEmbedding(scope)) {
     return runtimeInvoke<void>("local_delete_embedding_model", {
       input: { model },
     });

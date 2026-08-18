@@ -1,4 +1,5 @@
-use super::merge::{merge_missing_seed_attributes, seed_value_is_empty};
+use super::merge::merge_missing_seed_attributes;
+use a4n_core::json_contract::is_empty_json_value;
 use serde_json::{Value, json};
 
 #[test]
@@ -32,10 +33,10 @@ fn merge_missing_seed_attributes_only_fills_empty_values() {
 
 #[test]
 fn seed_value_empty_contract_preserves_false_and_zero() {
-    assert!(seed_value_is_empty(&Value::Null));
-    assert!(seed_value_is_empty(&json!("  ")));
-    assert!(seed_value_is_empty(&json!([])));
-    assert!(seed_value_is_empty(&json!({})));
-    assert!(!seed_value_is_empty(&json!(false)));
-    assert!(!seed_value_is_empty(&json!(0)));
+    assert!(is_empty_json_value(&Value::Null));
+    assert!(is_empty_json_value(&json!("  ")));
+    assert!(is_empty_json_value(&json!([])));
+    assert!(is_empty_json_value(&json!({})));
+    assert!(!is_empty_json_value(&json!(false)));
+    assert!(!is_empty_json_value(&json!(0)));
 }

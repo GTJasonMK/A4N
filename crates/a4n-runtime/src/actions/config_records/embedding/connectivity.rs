@@ -44,7 +44,7 @@ pub async fn test_embedding_config(
     }
     let provider = crate::dynamic_embedding::make_provider_from_model(
         &config,
-        state.default_fastembed_cache_dir(),
+        state.embedding_models_dir(),
     )
     .map_err(|e| e.to_string())?;
     state

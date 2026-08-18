@@ -1,5 +1,6 @@
 use crate::video::{VideoDbError, validate_positive_video_i64};
 use a4n_core::models::{chapter::chapter, project::novel_project};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 pub async fn video_project_record<C>(
@@ -65,7 +66,11 @@ where
     let project = video_project_record(db, project_id).await?;
     match project.project_kind.as_str() {
         "text" => Ok(vec![project.id]),
-        "video" if project.source_mode == crate::project::SOURCE_MODE_FREEFORM => {
+        "video"
+            if project.source_mode().map_err(|error| {
+                VideoDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
+            })? == ProjectSourceMode::Freeform =>
+        {
             Ok(vec![project.id])
         }
         "video" => Ok(vec![

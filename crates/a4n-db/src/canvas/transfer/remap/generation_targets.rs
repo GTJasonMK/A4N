@@ -3,6 +3,7 @@ use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps,
 };
 use super::ids::remap_video_studio_required_id;
+use crate::generation::GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE;
 use a4n_core::models::generation::generation_spec;
 
 #[cfg(test)]
@@ -33,14 +34,16 @@ pub(in crate::canvas::transfer) fn initial_video_studio_generation_spec_target_e
         });
     };
     match spec.target_entity_kind.as_str() {
-        "canvas_node" => Ok(InitialVideoStudioGenerationSpecTarget {
-            target_entity_id: Some(remap_video_studio_required_id(
-                &maps.node_ids,
-                old_id,
-                "generation_spec.target_entity_id",
-            )?),
-            deferred: None,
-        }),
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE => {
+            Ok(InitialVideoStudioGenerationSpecTarget {
+                target_entity_id: Some(remap_video_studio_required_id(
+                    &maps.node_ids,
+                    old_id,
+                    "generation_spec.target_entity_id",
+                )?),
+                deferred: None,
+            })
+        }
         "media_asset" | "video_segment" | "assembly_timeline" => {
             Ok(InitialVideoStudioGenerationSpecTarget {
                 target_entity_id: None,
@@ -61,7 +64,7 @@ pub(in crate::canvas::transfer) fn remap_video_studio_generation_spec_target_ent
     maps: &VideoStudioProjectImportIdMaps,
 ) -> Result<i64, VideoStudioProjectImportError> {
     let map = match target_entity_kind {
-        "canvas_node" => &maps.node_ids,
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE => &maps.node_ids,
         "media_asset" => &maps.media_asset_ids,
         "video_segment" => &maps.video_segment_ids,
         "assembly_timeline" => &maps.assembly_timeline_ids,

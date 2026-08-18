@@ -1,11 +1,10 @@
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::super::{
     ApiError, ServerState, TaskKind, character_ai_actions, character_conflict_actions,
-    command_input, finish_web_task, i64_arg, optional_i32_field, optional_string_field,
-    register_web_task, reject_unknown_command_args, sanitize_optional_task_id, sanitize_task_id,
-    string_action_result, string_arg, to_value, web_fire_and_forget_progress_reporter,
-    web_progress_reporter,
+    command_input, finish_web_task, register_web_task, reject_unknown_command_args,
+    sanitize_task_id, string_action_result, string_arg, to_value,
+    web_fire_and_forget_progress_reporter,
 };
 
 macro_rules! character_ai_web_task_command {
@@ -40,7 +39,7 @@ macro_rules! character_ai_web_task_command {
                 scope.project_id,
                 scope.total,
                 $start_message,
-            );
+            )?;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
             let runtime_progress = character_ai_actions::CharacterAiProgress::new(
@@ -52,7 +51,7 @@ macro_rules! character_ai_web_task_command {
             let result = $run.await;
             let value = finish_web_task(
                 $state,
-                Some(task_id),
+                task.as_ref(),
                 string_action_result(
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
@@ -81,68 +80,29 @@ macro_rules! character_ai_web_preview_command {
     };
 }
 
-pub(in crate::routes::commands) async fn discover_character_profiles(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_number = optional_i32_field(args, "chapterNumber")?;
-    let scope = character_ai_actions::character_discovery_task_scope(
+character_ai_web_task_command!(
+    discover_character_profiles,
+    |state, user_id, args, input, progress|,
+    character_ai_actions::DiscoverCharacterProfilesInput,
+    character_ai_actions::character_discovery_task_scope,
+    "正在准备角色发现",
+    character_ai_actions::discover_character_profiles(
         state.runtime(),
         user_id,
-        project_id,
-        chapter_number,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
-    let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
-    let task = register_web_task(
-        state,
-        user_id,
-        task_id.clone(),
-        TaskKind::LlmCall,
-        scope.project_id,
-        scope.total,
-        "正在准备角色发现",
-    );
-    let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let reporter = web_fire_and_forget_progress_reporter(task.clone());
-    let runtime_progress = character_ai_actions::CharacterAiProgress::new(
-        Some(&reporter),
-        cancel_token.as_ref(),
-        task_id.as_deref(),
-    );
-    let result = character_ai_actions::discover_character_profiles_for_chapters(
-        state.runtime(),
-        user_id,
-        project_id,
-        chapter_number,
-        Some(&runtime_progress),
-    )
-    .await;
-    finish_web_task(
-        state,
-        task_id,
-        string_action_result(
-            result,
-            task.as_ref().is_some_and(|handle| handle.is_cancelled()),
-        ),
-    )
-}
+        input,
+        Some(progress),
+    ),
+);
 
 character_ai_web_preview_command!(
     preview_discover_character_profiles_request,
     |state, user_id, args|,
-    (
-        project_id: i64 = i64_arg(args, "projectId")?,
-        chapter_number: Option<i32> = optional_i32_field(args, "chapterNumber")?,
-    ),
+    (input: character_ai_actions::DiscoverCharacterProfilesInput =
+        command_input(args, "preview_discover_character_profiles_request")?),
     character_ai_actions::preview_discover_character_profiles_request(
         state.runtime(),
         user_id,
-        project_id,
-        chapter_number,
+        input,
     ),
 );
 
@@ -198,69 +158,28 @@ character_ai_web_preview_command!(
     ),
 );
 
-pub(in crate::routes::commands) async fn check_character_conflict(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let name = string_arg(args, "name")?;
-    let start_chapter = optional_i32_field(args, "startChapter")?;
-    let end_chapter = optional_i32_field(args, "endChapter")?;
-    let scope = character_conflict_actions::character_conflict_task_scope(
+character_ai_web_task_command!(
+    check_character_conflict,
+    |state, user_id, args, input, progress|,
+    character_conflict_actions::CharacterConflictCheckInput,
+    character_conflict_actions::character_conflict_task_scope,
+    "正在准备角色一致性检查",
+    character_conflict_actions::check_character_conflict(
         state.runtime(),
         user_id,
-        project_id,
-        &name,
-        start_chapter,
-        end_chapter,
-    )
-    .await
-    .map_err(|err| ApiError::bad_request(err.to_string()))?;
-    let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
-    let task = register_web_task(
-        state,
-        user_id,
-        task_id.clone(),
-        TaskKind::LlmCall,
-        scope.project_id,
-        scope.total,
-        "正在准备角色一致性检查",
-    );
-    let progress = web_progress_reporter(task);
-    let result = character_conflict_actions::check_character_conflict(
-        state.runtime(),
-        user_id,
-        project_id,
-        &name,
-        start_chapter,
-        end_chapter,
-        &progress,
-        task_id.as_deref(),
-    )
-    .await;
-    let rows = finish_web_task(state, task_id, result)?;
-    Ok(json!(rows))
-}
+        input,
+        Some(progress),
+    ),
+);
 
-pub(in crate::routes::commands) async fn preview_check_character_conflict_request(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let name = string_arg(args, "name")?;
-    let start_chapter = optional_i32_field(args, "startChapter")?;
-    let end_chapter = optional_i32_field(args, "endChapter")?;
-    to_value(
-        character_conflict_actions::preview_character_conflict_request(
-            state.runtime(),
-            user_id,
-            project_id,
-            &name,
-            start_chapter,
-            end_chapter,
-        )
-        .await?,
-    )
-}
+character_ai_web_preview_command!(
+    preview_check_character_conflict_request,
+    |state, user_id, args|,
+    (input: character_conflict_actions::CharacterConflictCheckInput =
+        command_input(args, "preview_check_character_conflict_request")?),
+    character_conflict_actions::preview_character_conflict_request(
+        state.runtime(),
+        user_id,
+        input,
+    ),
+);

@@ -3,14 +3,17 @@ import { Check, ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import type { DedupResult, ReverseEngineeringCandidate } from "../../../api/import";
-import type { ReverseType } from "./importTabUtils";
+import type {
+  DedupResult,
+  ReverseEngineeringCandidate,
+  ReverseEngineeringTarget,
+} from "../../../api/import";
 
 interface ImportToolsPanelProps {
   dedupText: string;
   dedupResult: DedupResult | null;
   dedupBusy: boolean;
-  reverseType: ReverseType;
+  reverseType: ReverseEngineeringTarget;
   reverseSample: string;
   reverseAutoContext: boolean;
   reverseResult: ReverseEngineeringCandidate | null;
@@ -19,7 +22,7 @@ interface ImportToolsPanelProps {
   externalBusy: boolean;
   onDedupTextChange: (value: string) => void;
   onDedup: () => void | Promise<void>;
-  onReverseTypeChange: (value: ReverseType) => void;
+  onReverseTypeChange: (value: ReverseEngineeringTarget) => void;
   onReverseSampleChange: (value: string) => void;
   onReverseAutoContextChange: (value: boolean) => void;
   onPreviewReverseRequest: () => void | Promise<void>;
@@ -144,7 +147,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             <select
               value={reverseType}
               disabled={toolsBusy}
-              onChange={(e) => onReverseTypeChange(e.target.value as ReverseType)}
+              onChange={(e) =>
+                onReverseTypeChange(e.target.value as ReverseEngineeringTarget)
+              }
               className="pyqt-input !px-2 !py-1 text-xs"
             >
               <option value="blueprint">故事蓝图</option>

@@ -28,10 +28,6 @@ impl LlmProvider for CancellingLlmProvider {
         future::pending().await
     }
 
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        Ok(true)
-    }
-
     fn model_name(&self) -> &str {
         "cancelling-test-llm"
     }

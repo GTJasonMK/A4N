@@ -8,8 +8,8 @@ use crate::actions::access;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
-use crate::actions::video_records::imports::{
-    import_video_output_path, mark_imported_video_completed, probe_video_properties,
+use crate::actions::video_records::{
+    complete_video_record, probe_video_properties, video_record_output_path,
 };
 use crate::file_utils::canonicalize_data_file_path;
 use a4n_orchestrator::video::AssemblyPostprocessEditRecordInput;
@@ -22,7 +22,7 @@ pub async fn apply_assembly_postprocess_edit(
 ) -> Result<GeneratedVideoSummary, String> {
     let plan = state
         .orchestrator()
-        .prepare_assembly_postprocess_edit_validated(push_video_id, input.operation.as_str())
+        .prepare_assembly_postprocess_edit_validated(push_video_id, input.operation)
         .await
         .map_err(app_error_message)?;
     access::verify_project_editor_string(state, user_id, plan.push.project_id).await?;
@@ -74,10 +74,10 @@ pub async fn apply_assembly_postprocess_edit(
         state,
         record.id,
         || {
-            import_video_output_path(
+            video_record_output_path(
                 state.data_dir(),
                 project_id,
-                chapter_id,
+                Some(chapter_id),
                 record.id,
                 "postprocess_edit",
                 "mp4",
@@ -110,7 +110,7 @@ pub async fn apply_assembly_postprocess_edit(
         record.id,
         &output,
     );
-    let updated = mark_imported_video_completed(
+    let updated = complete_video_record(
         state,
         record.id,
         &output_path_str,

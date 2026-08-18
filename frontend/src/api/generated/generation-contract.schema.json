@@ -1120,6 +1120,10 @@
         "code": {
           "$ref": "#/$defs/GenerationErrorCode"
         },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
         "message": {
           "maxLength": 4096,
           "type": "string"
@@ -1138,7 +1142,9 @@
       "required": [
         "code",
         "message",
-        "retryable"
+        "retryable",
+        "trace_id",
+        "details"
       ],
       "type": "object"
     },
@@ -2927,11 +2933,7 @@
           ]
         },
         "prompt_output_language": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "reference_image_ids": {
           "default": [],
@@ -2959,6 +2961,7 @@
         "expected_timeline_revision",
         "user_prompt",
         "style",
+        "prompt_output_language",
         "duration_secs",
         "duration_secs_options",
         "aspect_ratio"
@@ -2992,11 +2995,7 @@
           "type": "integer"
         },
         "prompt_output_language": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "reference_image_ids": {
           "default": [],
@@ -3062,6 +3061,7 @@
       },
       "required": [
         "style",
+        "prompt_output_language",
         "prompt_batch_size",
         "duration_secs",
         "aspect_ratio"

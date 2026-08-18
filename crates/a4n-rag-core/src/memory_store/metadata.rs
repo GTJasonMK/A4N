@@ -33,9 +33,7 @@ impl MemoryVectorStore {
             return HashMap::new();
         };
         coll.iter()
-            .filter(|record| {
-                filters::matches_delete_filter(record.key(), &record.metadata, &filter)
-            })
+            .filter(|record| filters::matches_delete_filter(record.key(), &filter))
             .map(|record| (record.id.clone(), record.metadata.clone()))
             .collect()
     }

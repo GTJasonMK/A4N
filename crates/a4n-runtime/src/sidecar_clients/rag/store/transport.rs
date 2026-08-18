@@ -4,10 +4,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 use super::SidecarVectorStore;
-use crate::sidecar_clients::rag::events::{handle_rag_ingest_event, rag_service_error_app_error};
+use crate::sidecar_clients::rag::events::handle_rag_ingest_event;
 use crate::sidecar_clients::rag::request::rag_service_request;
 use crate::sidecar_clients::{
-    service_app_error, service_error_app_error, service_response_payload,
+    response_payload, service_app_error, service_error_app_error,
 };
 
 impl SidecarVectorStore {
@@ -25,21 +25,21 @@ impl SidecarVectorStore {
         )
         .map_err(service_app_error)?;
         let (event_tx, mut event_rx) =
-            tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+            tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
         let mut request_future = Box::pin(self.client.ingest_events(request, event_tx));
         let mut transport_complete = false;
         loop {
             tokio::select! {
                 result = &mut request_future, if !transport_complete => {
-                    result.map_err(rag_service_error_app_error)?;
+                    result.map_err(service_error_app_error)?;
                     transport_complete = true;
                 }
                 event = event_rx.recv() => {
                     let event = event.ok_or_else(|| {
                         service_app_error("rag sidecar ingest 事件流结束但缺少终止事件")
                     })?;
-                    if let Some(output) = handle_rag_ingest_event(event)? {
-                        return Ok(output.written);
+                    if let Some(written) = handle_rag_ingest_event(event)? {
+                        return Ok(written);
                     }
                 }
             }
@@ -66,7 +66,7 @@ impl SidecarVectorStore {
             }
         }
         .map_err(service_error_app_error)?;
-        service_response_payload(response, "rag").map_err(service_app_error)
+        response_payload(response, "rag").map_err(service_app_error)
     }
 }
 

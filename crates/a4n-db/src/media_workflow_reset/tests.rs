@@ -1,4 +1,5 @@
 use a4n_core::models::{ai::generated_image, task::cleanup_outbox};
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter};
 
 use super::rules::{
@@ -44,7 +45,7 @@ async fn media_workflow_reset_commits_file_cleanup_intent_with_record_deletion()
         &db,
         crate::video::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: path.clone(),
             prompt: "reset cleanup".to_string(),
             model: "test".to_string(),

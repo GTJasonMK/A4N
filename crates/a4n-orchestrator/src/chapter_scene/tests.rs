@@ -146,11 +146,8 @@ fn normalize_scene_generation_output_rejects_invalid_shapes() {
 #[test]
 fn restored_chapter_scene_checkpoint_revalidates_response_content() {
     let restored = restored_chapter_scene_checkpoint(
-        json!({
-            "output": "主角抵达城门，雨水沿着旧铜钉滑落。",
-            "parsed_output": "主角抵达城门，雨水沿着旧铜钉滑落。",
-            "response_content": "  主角抵达城门，雨水沿着旧铜钉滑落。  ",
-        }),
+        &json!("主角抵达城门，雨水沿着旧铜钉滑落。"),
+        "  主角抵达城门，雨水沿着旧铜钉滑落。  ",
         "chapter_scene_generation:3:1",
     )
     .expect("valid checkpoint should restore");
@@ -159,16 +156,13 @@ fn restored_chapter_scene_checkpoint_revalidates_response_content() {
 }
 
 #[test]
-fn restored_chapter_scene_checkpoint_rejects_mismatched_output() {
+fn restored_chapter_scene_checkpoint_rejects_mismatched_parsed_output() {
     let error = restored_chapter_scene_checkpoint(
-        json!({
-            "output": "主角抵达城门。",
-            "parsed_output": "主角抵达城门。",
-            "response_content": "主角已经离开城门。",
-        }),
+        &json!("主角抵达城门。"),
+        "主角已经离开城门。",
         "chapter_scene_generation:3:1",
     )
-    .expect_err("checkpoint output mismatch must fail");
+    .expect_err("checkpoint parsed output mismatch must fail");
 
     assert!(
         error

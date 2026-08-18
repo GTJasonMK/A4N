@@ -7,10 +7,13 @@ mod execution;
 mod request;
 mod workflow;
 
+pub const CHARACTER_CONFLICT_KIND: &str = "character_conflict_check";
+pub const CHARACTER_CONFLICT_PROGRESS_TOTAL: u32 = 4;
+
 pub use contracts::{
-    CharacterConflictCheckInput, CharacterConflictProgressReporter,
-    CharacterConflictRequestPreview, CharacterConflictTaskScope,
+    CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictSummary,
 };
+pub use execution::validate_character_conflict_input;
 
 #[cfg(test)]
 mod tests;

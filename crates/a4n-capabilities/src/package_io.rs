@@ -8,21 +8,19 @@ use a4n_service_protocol::{
 use async_trait::async_trait;
 
 pub struct HttpImportClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpImportClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(IMPORT_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, IMPORT_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(IMPORT_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, IMPORT_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -47,28 +45,26 @@ impl ImportClient for HttpImportClient {
         request: ServiceRequest<ImportReadMediaPackageZipInput>,
     ) -> CapabilityResult<ServiceResponse<ImportReadMediaPackageZipOutput>> {
         self.transport
-            .post_typed("/import/read_media_package_zip", request)
+            .post("/import/read_media_package_zip", request)
             .await
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct HttpExportClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpExportClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(EXPORT_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, EXPORT_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(EXPORT_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, EXPORT_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -93,7 +89,7 @@ impl ExportClient for HttpExportClient {
         request: ServiceRequest<ExportRenderJsonInput>,
     ) -> CapabilityResult<ServiceResponse<String>> {
         self.transport
-            .post_typed("/export/render_json", request)
+            .post("/export/render_json", request)
             .await
     }
 
@@ -102,7 +98,7 @@ impl ExportClient for HttpExportClient {
         request: ServiceRequest<ExportRenderZipInput>,
     ) -> CapabilityResult<ServiceResponse<ExportRenderZipOutput>> {
         self.transport
-            .post_typed("/export/render_zip", request)
+            .post("/export/render_zip", request)
             .await
     }
 }

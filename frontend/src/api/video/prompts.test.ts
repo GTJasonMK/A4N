@@ -16,6 +16,7 @@ import {
 const options: GeneratePromptOptions = {
   workflow_mode: "boundary_frames",
   style: "电影感写实",
+  prompt_output_language: "zh_cn",
   prompt_batch_size: 1,
   duration_secs: 6,
   aspect_ratio: "16:9",

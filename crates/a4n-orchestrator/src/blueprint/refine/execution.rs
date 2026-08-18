@@ -2,7 +2,6 @@ mod call;
 mod contracts;
 mod persistence;
 mod preparation;
-mod schema;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -10,13 +9,14 @@ use std::sync::{Arc, Mutex};
 use a4n_api_contract::{
     blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
 };
+use a4n_core::blueprint::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND};
 use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
 
 use crate::OrchestratorContext;
-use crate::blueprint::BlueprintRefinementApplicationContext;
 use crate::context::fail_generation_workflow_execution;
 use crate::generation::{
     events::GenerationEventPublisher, generation_progress, generation_public_error,
@@ -24,17 +24,13 @@ use crate::generation::{
 };
 
 use self::call::execute_blueprint_refine_call;
-use self::contracts::BlueprintRefinementPersistenceInput;
-use self::persistence::{
-    BlueprintRefinementCompletionOutcome, persist_blueprint_refinement_in_transaction,
-};
+use self::persistence::persist_blueprint_refinement_in_transaction;
 use self::preparation::prepare_blueprint_refine;
 
 impl OrchestratorContext {
     pub async fn run_blueprint_refinement_task(
         &self,
-        context: BlueprintRefinementApplicationContext<'_>,
-        _user_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
         input: StartBlueprintRefinementInput,
         handle: GenerationTaskHandle,
     ) -> Result<(), String> {
@@ -49,9 +45,13 @@ impl OrchestratorContext {
         let cancel_token = execution.permit.cancellation_token();
         let publisher = execution.publisher.clone();
         let checkpoint_writer = execution.checkpoint_writer.clone();
-        let variables = input
-            .variables
-            .clone()
+        let StartBlueprintRefinementInput {
+            meta: _,
+            project_id,
+            focus,
+            variables,
+        } = input;
+        let variables = variables
             .unwrap_or_default()
             .into_iter()
             .collect::<HashMap<_, _>>();
@@ -67,10 +67,10 @@ impl OrchestratorContext {
         }
         let prepared = match prepare_blueprint_refine(
             self,
-            input.project_id,
+            project_id,
             &handle.task_id,
-            input.focus.as_deref(),
-            context.prompt_renderer,
+            focus.as_deref(),
+            prompt_renderer,
             &variables,
         )
         .await
@@ -137,7 +137,7 @@ impl OrchestratorContext {
             .persist_if_due(
                 &session,
                 crate::generation::checkpoint::GenerationCheckpointMetadata {
-                    step_key: Some("blueprint_refinement".to_string()),
+                    step_key: Some(BLUEPRINT_REFINEMENT_WORKFLOW_KIND.to_string()),
                     call_key: Some(prepared.call_key.clone()),
                     provider_model: Some(self.llm_model_name()),
                     ..Default::default()
@@ -171,19 +171,16 @@ impl OrchestratorContext {
             .await;
         }
 
-        let completion_slot: Arc<Mutex<Option<BlueprintRefinementCompletionOutcome>>> =
+        let completion_slot: Arc<Mutex<Option<a4n_core::models::project::novel_blueprint::Model>>> =
             Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
-        let completion_input = BlueprintRefinementPersistenceInput {
-            project_id: input.project_id,
-            expected_source_snapshot: prepared.expected_source_snapshot.clone(),
-            parsed: output.parsed,
-        };
+        let expected_source_snapshot = prepared.expected_source_snapshot.clone();
+        let parsed = output.parsed;
         let snapshot = session.snapshot();
         let final_text_hashes = snapshot
             .streams
             .iter()
-            .find(|stream| stream.stream_id == "raw_json")
+            .find(|stream| stream.stream_id == BLUEPRINT_RAW_JSON_STREAM_ID)
             .map(|stream| StreamTextHash {
                 stream_id: stream.stream_id.clone(),
                 utf8_bytes: stream.text.len() as u64,
@@ -197,13 +194,18 @@ impl OrchestratorContext {
             .terminal
             .complete_with(&session, move |tx| {
                 Box::pin(async move {
-                    let outcome =
-                        persist_blueprint_refinement_in_transaction(tx, completion_input).await?;
+                    let blueprint = persist_blueprint_refinement_in_transaction(
+                        tx,
+                        project_id,
+                        expected_source_snapshot,
+                        parsed,
+                    )
+                    .await?;
                     let descriptor = CompletionDescriptor {
                         result_ref: Some(GenerationResultRef {
                             kind: "novel_blueprint".to_string(),
-                            id: outcome.blueprint.id.to_string(),
-                            revision: outcome.blueprint.current_version.clone(),
+                            id: blueprint.id.to_string(),
+                            revision: blueprint.current_version.clone(),
                         }),
                         final_text_hashes,
                         final_usage,
@@ -216,7 +218,7 @@ impl OrchestratorContext {
                         .map_err(|_| AppError::InvalidState {
                             current: "completion_slot_poisoned".to_string(),
                             operation: "保存蓝图优化结果".to_string(),
-                        })? = Some(outcome);
+                        })? = Some(blueprint);
                     Ok(descriptor)
                 }) as BoxFuture<'_, Result<CompletionDescriptor, AppError>>
             })
@@ -231,14 +233,14 @@ impl OrchestratorContext {
             .await;
         }
         execution.finish();
-        let outcome = completion_slot
+        let blueprint = completion_slot
             .lock()
             .map_err(|_| "蓝图优化结果槽位损坏".to_string())?
             .take()
             .ok_or_else(|| "generation completed 但缺少蓝图优化结果".to_string())?;
         self.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
-            project_id: input.project_id,
-            version: outcome.blueprint.current_version.clone(),
+            project_id,
+            version: blueprint.current_version.clone(),
         })
         .map_err(|error| format!("蓝图优化已保存，但蓝图更新事件发布失败: {error}"))?;
         self.complete_workflow_run_validated(workflow_run_id)

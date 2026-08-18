@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::project::ProjectSourceMode;
 use std::collections::BTreeMap;
 
 fn snapshot(id: i64) -> project_source_snapshot::Model {
@@ -45,7 +46,7 @@ fn family_with_snapshot_chapters(
             ProjectLineageContext {
                 project_id: 2,
                 root_project_id: 1,
-                source_mode: "derived".to_string(),
+                source_mode: ProjectSourceMode::Derived,
                 snapshot,
                 snapshot_chapters_by_source: chapters,
             },
@@ -90,9 +91,11 @@ fn normalizes_legacy_statuses_for_canonical_chain() {
     assert_eq!(canonical_spec_status("pending"), Some("ready"));
     assert_eq!(canonical_spec_status("generating"), Some("running"));
     assert_eq!(canonical_spec_status("completed"), Some("completed"));
+    assert_eq!(canonical_spec_status("interrupted"), Some("failed"));
     assert_eq!(canonical_spec_status("queued"), None);
     assert_eq!(canonical_media_status("generating"), Some("running"));
     assert_eq!(canonical_media_status("failed"), Some("failed"));
+    assert_eq!(canonical_media_status("interrupted"), Some("failed"));
     assert_eq!(canonical_media_status("queued"), None);
 }
 
@@ -199,7 +202,7 @@ fn media_source_context_allows_freeform_media_without_snapshot() {
         .contexts_by_project_id
         .get_mut(&2)
         .unwrap()
-        .source_mode = SOURCE_MODE_FREEFORM.to_string();
+        .source_mode = ProjectSourceMode::Freeform;
     let project_context = family.contexts_by_project_id.get(&2).unwrap();
     let mut summary = AssetLineageBackfillSummary::default();
 

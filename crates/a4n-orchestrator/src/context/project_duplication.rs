@@ -93,7 +93,7 @@ impl OrchestratorContext {
         let new_title =
             required_text(&input.new_title, "新项目标题").map_err(AppError::InvalidArgument)?;
 
-        match resolve_project_duplicate_path(&original) {
+        match resolve_project_duplicate_path(&original).map_err(AppError::InvalidArgument)? {
             ProjectDuplicatePath::Text => {
                 self.project_duplication
                     .duplicate_text(&original, input.user_id, new_title)

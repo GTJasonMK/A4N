@@ -15,6 +15,7 @@ import {
   previewCheckCharacterConflictRequest,
   previewSyncCharacterFromChaptersRequest,
   syncCharacterFromChapters,
+  type CharacterConflictSummary,
   type CharacterConflictScope,
   type CharacterProfile,
 } from "../api/character";
@@ -38,7 +39,7 @@ export type { CharacterDetailInitialEventFilter } from "./character-detail-dialo
  * 暴露 character 域的深度分析能力：
  *  - getCharacterArcStatus(project_id, name) —— 角色弧光状态
  *  - getCharacterVoiceFingerprint(project_id, name) —— 声音指纹
- *  - checkCharacterConflict(project_id, name, scope) —— LLM 检测档案与章节的矛盾
+ *  - checkCharacterConflict(project_id, name, task_id, scope) —— LLM 检测档案与章节的矛盾
  *  - syncCharacterFromChapters(project_id, name, chapterNumber) —— 从章节同步角色变化到档案
  *
  * 各子视图实现在 `./character-detail-dialog/`。
@@ -78,8 +79,8 @@ const conflictScopeKey = (draft: ConflictScopeDraft): string => {
 };
 
 const conflictScopeFromDraft = (draft: ConflictScopeDraft): CharacterConflictScope => ({
-  startChapter: optionalChapterInput(draft.startChapter, "起始章节"),
-  endChapter: optionalChapterInput(draft.endChapter, "结束章节"),
+  start_chapter: optionalChapterInput(draft.startChapter, "起始章节"),
+  end_chapter: optionalChapterInput(draft.endChapter, "结束章节"),
 });
 
 const optionalChapterInput = (value: string, label: string): number | null => {
@@ -174,7 +175,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const [tab, setTab] = useState<CharacterDetailTab>("arc");
   const [arc, setArc] = useState<CharacterCacheValue<unknown> | null>(null);
   const [voice, setVoice] = useState<CharacterCacheValue<unknown> | null>(null);
-  const [conflicts, setConflicts] = useState<CharacterCacheValue<unknown[]> | null>(null);
+  const [conflicts, setConflicts] =
+    useState<CharacterCacheValue<CharacterConflictSummary[]> | null>(null);
   const [conflictScopeDraft, setConflictScopeDraft] = useState<ConflictScopeDraft>(
     emptyConflictScopeDraft,
   );

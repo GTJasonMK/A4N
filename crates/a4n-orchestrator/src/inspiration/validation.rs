@@ -42,21 +42,6 @@ pub(super) fn validate_inspiration_response_json(raw: &str) -> Result<String, Ap
     Ok(trimmed.to_string())
 }
 
-pub(super) fn required_checkpoint_string(
-    checkpoint_json: &Value,
-    call_key: &str,
-    field: &str,
-) -> Result<String, AppError> {
-    checkpoint_json
-        .get(field)
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!("missing_or_invalid_checkpoint_field:{field}"),
-            operation: format!("读取灵感对话 LLM 调用断点 {call_key}"),
-        })
-}
-
 fn inspiration_response_preview(raw: &str) -> String {
     if raw.is_empty() {
         return "<empty>".to_string();

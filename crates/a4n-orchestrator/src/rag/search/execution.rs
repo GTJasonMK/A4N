@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
+use a4n_embedding::provider::EmbeddingProvider;
 use a4n_rag_core::{
     errors::{embedding_provider_error, vector_store_error},
     validation::validate_embedding_batch,
@@ -22,8 +22,8 @@ pub(crate) async fn hybrid_rag_search_filtered_in_store(
     let query_embedding = query_embedding
         .into_iter()
         .next()
-        .ok_or_else(|| embedding_provider_error("Embedding provider 未返回已验证的查询向量"))?;
-    execute_hybrid_rag_search(
+        .expect("validated one query embedding");
+    hybrid_rag_search_with_validated_embedding_in_store(
         vector_store,
         project_id,
         query,
@@ -34,32 +34,7 @@ pub(crate) async fn hybrid_rag_search_filtered_in_store(
     .await
 }
 
-pub(crate) async fn hybrid_rag_search_with_embedding_in_store(
-    vector_store: &dyn VectorStore,
-    project_id: i64,
-    query: &str,
-    query_embedding: Vec<f32>,
-    embedding_identity: &EmbeddingModelIdentity,
-    top_k: usize,
-    filter: Option<SearchFilter>,
-) -> Result<Vec<SearchResult>, AppError> {
-    validate_embedding_batch(
-        std::slice::from_ref(&query_embedding),
-        1,
-        embedding_identity.dimension,
-    )?;
-    execute_hybrid_rag_search(
-        vector_store,
-        project_id,
-        query,
-        query_embedding,
-        top_k,
-        filter,
-    )
-    .await
-}
-
-async fn execute_hybrid_rag_search(
+pub(crate) async fn hybrid_rag_search_with_validated_embedding_in_store(
     vector_store: &dyn VectorStore,
     project_id: i64,
     query: &str,
@@ -74,7 +49,6 @@ async fn execute_hybrid_rag_search(
             query_embedding,
             top_k,
             filter,
-            None,
         )
         .await
         .map_err(vector_store_error)

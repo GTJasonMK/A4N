@@ -1,4 +1,6 @@
 use super::super::*;
+use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
+use crate::project::media_file_key;
 
 pub(in crate::project::family_package::tests) fn media_asset_with_checksum(
     bytes: &[u8],
@@ -42,10 +44,10 @@ pub(in crate::project::family_package::tests) fn media_payload_for_assets(
         if let Some(file_path) = asset.file_path.as_ref() {
             let package_path = format!("media/{}/file", asset.id);
             payload.entries.insert(
-                media_file_key(asset.id, MEDIA_FILE_FIELD_FILE),
+                media_file_key(asset.id, FILE_PATH_FIELD),
                 MediaFileEntry {
                     media_asset_id: asset.id,
-                    field: MEDIA_FILE_FIELD_FILE.to_string(),
+                    field: FILE_PATH_FIELD.to_string(),
                     original_path: file_path.clone(),
                     package_path: package_path.clone(),
                 },

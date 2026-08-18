@@ -1,5 +1,4 @@
-use a4n_domain::character::ForeshadowingStatus;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::rag::RagDataType;
 
@@ -16,10 +15,8 @@ pub fn analysis_rag_items(analysis: &Value) -> Vec<AnalysisRagItem> {
 fn metadata_item(analysis: &Value) -> Option<AnalysisRagItem> {
     metadata_text(analysis).map(|text| AnalysisRagItem {
         id_suffix: "metadata".to_string(),
-        data_type: RagDataType::ChapterMetadata.as_str().to_string(),
-        content_kind: "metadata".to_string(),
+        data_type: RagDataType::ChapterMetadata,
         text,
-        metadata: json!({}),
     })
 }
 
@@ -61,10 +58,8 @@ fn key_event_items(analysis: &Value) -> impl Iterator<Item = AnalysisRagItem> + 
         .filter_map(|(index, event)| {
             first_string(event, &["description"]).map(|text| AnalysisRagItem {
                 id_suffix: format!("event{}", index + 1),
-                data_type: RagDataType::KeyEvent.as_str().to_string(),
-                content_kind: "key_event".to_string(),
+                data_type: RagDataType::KeyEvent,
                 text,
-                metadata: event.clone(),
             })
         })
 }
@@ -75,14 +70,7 @@ fn foreshadowing_items(analysis: &Value) -> impl Iterator<Item = AnalysisRagItem
         .enumerate()
         .map(|(index, entry)| AnalysisRagItem {
             id_suffix: format!("foreshadow{}", index + 1),
-            data_type: RagDataType::Foreshadowing.as_str().to_string(),
-            content_kind: "foreshadowing".to_string(),
+            data_type: RagDataType::Foreshadowing,
             text: entry.description,
-            metadata: json!({
-                "category": entry.category,
-                "priority": entry.priority,
-                "status": ForeshadowingStatus::Pending.as_str(),
-                "related_entities": entry.related_entities,
-            }),
         })
 }

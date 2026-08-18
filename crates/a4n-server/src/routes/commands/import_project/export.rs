@@ -30,14 +30,14 @@ macro_rules! export_web_read_command {
             let task = register_web_task(
                 $state,
                 $user_id,
-                Some(task_id.clone()),
+                Some(task_id),
                 TaskKind::ExportGeneration,
                 project_id,
                 total,
                 $start_message,
-            )
+            )?
             .expect("required export task ID must register a task");
-            let progress = web_progress_reporter(Some(task));
+            let progress = web_progress_reporter(Some(task.clone()));
             let result = async {
                 progress(0, total, $progress_message)?;
                 let value = $run.await?;
@@ -45,7 +45,7 @@ macro_rules! export_web_read_command {
                 Ok(value)
             }
             .await;
-            let value = finish_web_task($state, Some(task_id), result)?;
+            let value = finish_web_task($state, Some(&task), result)?;
             Ok(json!(value))
         }
     };
@@ -78,19 +78,19 @@ macro_rules! export_web_progress_command {
             let task = register_web_task(
                 $state,
                 $user_id,
-                Some(task_id.clone()),
+                Some(task_id),
                 TaskKind::ExportGeneration,
                 project_id,
                 total,
                 $start_message,
-            )
+            )?
             .expect("required export task ID must register a task");
             let cancel_token = task.cancel_token.clone();
             let reporter = web_fire_and_forget_progress_reporter(Some(task.clone()));
             let $progress =
                 export_files_actions::ExportProgress::new(Some(&reporter), Some(&cancel_token));
             let result = $run.await;
-            let value = finish_web_task($state, Some(task_id), result)?;
+            let value = finish_web_task($state, Some(&task), result)?;
             Ok(json!(value))
         }
     };

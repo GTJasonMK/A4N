@@ -17,12 +17,18 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { GeneratedImage } from "../../../api/image";
-import type {
-  ChapterVideoPrompt,
-  GeneratedVideo,
-  UpdateVideoInput,
-  VideoSegmentExecutionRecipe,
-  VideoTimelineSummary,
+import {
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
+  type ChapterVideoPrompt,
+  type GeneratedVideo,
+  type UpdateVideoInput,
+  type VideoSegmentExecutionRecipe,
+  type VideoSegmentWorkflowMode,
+  type VideoTimelineSummary,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -44,8 +50,8 @@ import {
   videoTailFrameSourceVideoId,
   videoTailFrameBoundaryNumber,
   isVideoPromptFrameImage,
+  VIDEO_FINAL_PROMPT_TYPE,
   VIDEO_WORKFLOW_MODE_LABELS,
-  type ChapterVideoWorkflowMode,
   type PromptDraft,
   type VideoDurationLimits,
   type VideoSegmentCardPlan,
@@ -53,10 +59,7 @@ import {
 import { VideoPromptSetupPanel } from "./VideoPromptSetupPanel";
 import type { InsertedSegmentGap } from "./InsertedSegmentTimelinePanel";
 import { VideoResultsPane } from "./VideoResultsPane";
-import {
-  directorSections,
-  isVideoTailFrameImage,
-} from "./videoGenerationDisplay";
+import { directorSections } from "./videoGenerationDisplay";
 
 interface VideoGenerationWorkspaceProps {
   prompts: ChapterVideoPrompt[];
@@ -99,7 +102,7 @@ interface VideoGenerationWorkspaceProps {
   onInsertSegment: (gap: InsertedSegmentGap) => void;
   onOpenInsertedSegment: (timelineItemId: number) => void;
   onWorkflowModeChange: (
-    mode: ChapterVideoWorkflowMode,
+    mode: VideoSegmentWorkflowMode,
     shotNumber: number,
   ) => void | Promise<void>;
   onFirstFrameSourceChange: (
@@ -297,9 +300,7 @@ export const VideoGenerationWorkspace: React.FC<
           boundaryByFrameNumber.set(tailBoundaryNumber, image);
         }
       }
-      const sourceVideoId = isVideoTailFrameImage(image)
-        ? videoTailFrameSourceVideoId(image)
-        : null;
+      const sourceVideoId = videoTailFrameSourceVideoId(image);
       if (sourceVideoId != null && !tailByVideoId.has(sourceVideoId)) {
         tailByVideoId.set(sourceVideoId, image);
       }
@@ -499,7 +500,7 @@ export const VideoGenerationWorkspace: React.FC<
 
   const renderFirstFrameSourceSelector = () => {
     if (
-      workflowMode !== "first_frame_chain" ||
+      workflowMode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
       segmentRecipe == null ||
       selectedSegmentNumber == null ||
       selectedSegmentNumber <= 1
@@ -542,9 +543,10 @@ export const VideoGenerationWorkspace: React.FC<
     prompt: ChapterVideoPrompt,
     recipe: VideoSegmentExecutionRecipe,
   ) => {
-    const firstFrameChainMode = workflowMode === "first_frame_chain";
-    const chatVideoMode = workflowMode === "chat_video";
-    const storyboardMode = workflowMode === "storyboard";
+    const firstFrameChainMode =
+      workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN;
+    const chatVideoMode = workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO;
+    const storyboardMode = workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD;
     const usesContinuity =
       firstFrameChainMode && recipe.guidance_mode === "continuity";
     const { startFrameNumber, endFrameNumber } = videoPromptSourceFrameNumbers(
@@ -594,7 +596,7 @@ export const VideoGenerationWorkspace: React.FC<
           : "请先点击首帧槽位生成当前片段首帧图片。"
         : null;
     const boundaryFrameMissingMessage =
-      workflowMode === "boundary_frames"
+      workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
         ? [
             startFramePrompt
               ? generatedStartFrameImage
@@ -690,12 +692,13 @@ export const VideoGenerationWorkspace: React.FC<
       const mode = segmentRecipe.workflow_mode;
       const startFramePrompt =
         framePromptByNumber.get(
-          mode === "boundary_frames" || mode === "first_frame_chain"
+          mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES ||
+            mode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
             ? 1
             : selectedSegmentNumber,
         ) ?? null;
       const endFramePrompt =
-        mode === "boundary_frames"
+        mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
           ? (framePromptByNumber.get(2) ?? null)
           : null;
       const startFrameImage = startFramePrompt
@@ -756,7 +759,7 @@ export const VideoGenerationWorkspace: React.FC<
               </div>
             </section>
 
-            {mode !== "chat_video" ? (
+            {mode !== VIDEO_WORKFLOW_MODE_CHAT_VIDEO ? (
               <section
                 aria-label="必需输入"
                 className="a4n-flat-surface p-3 sm:p-4"
@@ -771,7 +774,7 @@ export const VideoGenerationWorkspace: React.FC<
                 </div>
                 {renderFirstFrameSourceSelector()}
                 <div className={MEDIA_SLOT_GRID_CLASS}>
-                  {mode === "boundary_frames" ? (
+                  {mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES ? (
                     <>
                       {renderFrameSlot(
                         "首帧",
@@ -780,7 +783,7 @@ export const VideoGenerationWorkspace: React.FC<
                       )}
                       {renderFrameSlot("尾帧", endFramePrompt, endFrameImage)}
                     </>
-                  ) : mode === "storyboard" ? (
+                  ) : mode === VIDEO_WORKFLOW_MODE_STORYBOARD ? (
                     renderFrameSlot(
                       "分镜板",
                       startFramePrompt,
@@ -825,9 +828,10 @@ export const VideoGenerationWorkspace: React.FC<
       );
     }
 
-    const chatVideoMode = workflowMode === "chat_video";
-    const firstFrameChainMode = workflowMode === "first_frame_chain";
-    const storyboardMode = workflowMode === "storyboard";
+    const chatVideoMode = workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO;
+    const firstFrameChainMode =
+      workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN;
+    const storyboardMode = workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD;
     const guidanceConfigurationError = videoGuidanceConfigurationError(
       workflowMode,
       selectedSegmentNumber,
@@ -863,7 +867,7 @@ export const VideoGenerationWorkspace: React.FC<
       acting === `generate-video-${selectedPrompt.id}`;
     const selectedGenerateBlockedReason =
       durationConfigError ??
-      (selectedPrompt.prompt_type !== "video_prompt"
+      (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE
         ? "当前记录不是视频生成提示词"
         : undefined) ??
       (selectedPromptStale ? "当前视频提示词已过期，请重新生成" : undefined) ??
@@ -879,7 +883,7 @@ export const VideoGenerationWorkspace: React.FC<
       (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
       (!chapterContentReady ? "当前章节正文为空，不能生成视频" : undefined);
     const selectedImportBlockedReason =
-      (selectedPrompt.prompt_type !== "video_prompt"
+      (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE
         ? "当前记录不是视频生成提示词"
         : undefined) ??
       (selectedPromptStale ? "当前视频提示词已过期，请重新生成" : undefined) ??
@@ -936,7 +940,7 @@ export const VideoGenerationWorkspace: React.FC<
                 variant="primary"
                 size="sm"
                 onClick={() => void onCopyPrompt(selectedPrompt)}
-                disabled={selectedPrompt.prompt_type !== "video_prompt"}
+                disabled={selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE}
                 className="!min-h-9 !px-3 sm:!min-h-7"
               >
                 <span className="inline-flex items-center gap-1">
@@ -988,7 +992,7 @@ export const VideoGenerationWorkspace: React.FC<
                         label: "查看模型请求",
                         icon: <Eye size={13} />,
                         disabled:
-                          selectedPrompt.prompt_type !== "video_prompt" ||
+                          selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE ||
                           staleSavedReferenceCount > 0 ||
                           savedReferenceIdsError != null,
                         onClick: () => void onPreviewGenerateVideo(),
@@ -1441,7 +1445,7 @@ export const VideoGenerationWorkspace: React.FC<
               aria-label="片段生成工作区"
               className="flex min-h-[36rem] flex-1 flex-col overflow-hidden lg:min-h-0"
             >
-              {workflowMode === "reference_media" ? (
+              {workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? (
                 referenceMediaWorkspace
               ) : (
                 <div className="flex h-full min-h-0 flex-col overflow-hidden p-3">

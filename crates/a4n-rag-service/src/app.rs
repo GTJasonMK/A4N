@@ -6,16 +6,18 @@ use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_core::error::AppError;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_rag_index::QdrantVectorStore;
+use a4n_service_protocol::{
+    RAG_COMPLETENESS_REPORT_BY_IDS_PATH, RAG_DELETE_PATH, RAG_DROP_COLLECTION_PATH,
+    RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_FILTER_PATH, RAG_METADATA_BY_IDS_PATH,
+    RAG_QUERY_PATH, RAG_SEARCH_PATH, RAG_SEARCH_TEXT_PATH,
+};
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    middleware,
     routing::{get, post},
 };
 use std::{
     future::Future,
-    io::Write,
-    net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -32,11 +34,10 @@ pub(crate) struct RagServiceState {
 impl RagServiceState {
     pub(crate) async fn persist_mutation<T>(
         &self,
-        operation: &'static str,
         mutation: impl Future<Output = Result<T, AppError>>,
     ) -> Result<T, AppError> {
         let _lock = self.mutation_lock.lock().await;
-        let marker = RagMutationMarker::begin(&self.data_dir, operation)?;
+        let marker = RagMutationMarker::begin(&self.data_dir)?;
         let output = mutation.await;
         marker.complete()?;
         output
@@ -59,13 +60,12 @@ impl RagMutationMarker {
         Ok(())
     }
 
-    fn begin(data_dir: &Path, operation: &'static str) -> Result<Self, AppError> {
+    fn begin(data_dir: &Path) -> Result<Self, AppError> {
         let path = data_dir.join(RAG_MUTATION_MARKER_FILE);
-        let mut file = std::fs::OpenOptions::new()
+        let file = std::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
             .open(&path)?;
-        file.write_all(operation.as_bytes())?;
         file.sync_all()?;
         Ok(Self { path })
     }
@@ -97,7 +97,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         mutation_lock: Arc::new(tokio::sync::Mutex::new(())),
         data_dir: data_dir.clone(),
     };
-    let addr = service_addr()?;
+    let addr = a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::RAG_SERVICE_NAME)?;
 
     tracing::info!(%addr, data_dir = ?data_dir, "starting rag sidecar (qdrant backend)");
     a4n_sidecar_bootstrap::serve_sidecar(
@@ -115,39 +115,34 @@ fn init_tracing() -> anyhow::Result<()> {
     )
 }
 
-fn data_dir() -> anyhow::Result<PathBuf> {
-    Ok(optional_non_empty_env_path("A4N_RAG_SERVICE_DATA_DIR")?
-        .unwrap_or_else(|| PathBuf::from("data")))
-}
-
-fn service_addr() -> anyhow::Result<SocketAddr> {
-    a4n_sidecar_bootstrap::socket_addr("A4N_RAG_SERVICE_ADDR", "127.0.0.1:47644")
+fn data_dir() -> Result<PathBuf, AppError> {
+    optional_non_empty_env_path("A4N_RAG_SERVICE_DATA_DIR")?.ok_or_else(|| {
+        AppError::ConfigError("A4N_RAG_SERVICE_DATA_DIR 未设置".to_string())
+    })
 }
 
 fn router(state: RagServiceState) -> Router {
-    let policy = a4n_service_protocol::sidecar_resource_policy("rag")
-        .expect("rag sidecar must have a resource policy");
+    let policy = a4n_service_protocol::sidecar_resource_policy(
+        a4n_service_protocol::RAG_SERVICE_NAME,
+    )
+    .expect("rag sidecar must have a resource policy");
     Router::new()
-        .route("/healthz", get(healthz))
-        .route("/rag/query", post(query))
-        .route("/rag/search_text", post(search_text))
-        .route("/rag/ingest/events", post(ingest_events))
-        .route("/rag/search", post(search))
-        .route("/rag/delete", post(delete_records))
-        .route("/rag/drop_collection", post(drop_collection))
-        .route("/rag/metadata_by_ids", post(metadata_by_ids))
-        .route("/rag/metadata_by_filter", post(metadata_by_filter))
-        .route(
-            "/rag/completeness_report_by_ids",
-            post(completeness_report_by_ids),
-        )
+        .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
+        .route(RAG_QUERY_PATH, post(query))
+        .route(RAG_SEARCH_TEXT_PATH, post(search_text))
+        .route(RAG_INGEST_EVENTS_PATH, post(ingest_events))
+        .route(RAG_SEARCH_PATH, post(search))
+        .route(RAG_DELETE_PATH, post(delete_records))
+        .route(RAG_DROP_COLLECTION_PATH, post(drop_collection))
+        .route(RAG_METADATA_BY_IDS_PATH, post(metadata_by_ids))
+        .route(RAG_METADATA_BY_FILTER_PATH, post(metadata_by_filter))
+        .route(RAG_COMPLETENESS_REPORT_BY_IDS_PATH, post(completeness_report_by_ids))
         .layer(DefaultBodyLimit::max(
             policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),
         ))
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
         ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth))
         .with_state(state)
 }
 
@@ -162,7 +157,7 @@ mod mutation_marker_tests {
     #[test]
     fn interrupted_mutation_marker_survives_drop_until_explicit_rebuild() {
         let data_dir = SidecarProcessTestDir::new("rag-mutation-marker");
-        let marker = RagMutationMarker::begin(data_dir.path(), "ingest").unwrap();
+        let marker = RagMutationMarker::begin(data_dir.path()).unwrap();
         drop(marker);
         assert!(RagMutationMarker::require_clean(data_dir.path()).is_err());
     }
@@ -177,7 +172,7 @@ mod mutation_marker_tests {
         };
 
         let error = state
-            .persist_mutation("ingest", async {
+            .persist_mutation(async {
                 Err::<(), _>(AppError::ConfigError("expected".into()))
             })
             .await

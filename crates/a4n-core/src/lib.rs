@@ -11,6 +11,7 @@ pub mod event;
 pub mod files;
 pub mod import_reverse;
 pub mod json_contract;
+pub mod media;
 pub mod models;
 pub mod profile_ownership;
 pub mod profile_text;

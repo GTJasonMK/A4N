@@ -91,7 +91,6 @@ pub(super) struct VideoStudioProjectImportIdMaps {
     pub(super) generation_spec_ids: HashMap<i64, i64>,
     pub(super) prompt_artifact_ids: HashMap<i64, i64>,
     pub(super) media_asset_ids: HashMap<i64, i64>,
-    pub(super) media_binding_ids: HashMap<i64, i64>,
     pub(super) video_segment_ids: HashMap<i64, i64>,
     pub(super) assembly_timeline_ids: HashMap<i64, i64>,
     pub(super) assembly_clip_ids: HashMap<i64, i64>,

@@ -3,6 +3,9 @@ use a4n_core::models::{
     chapter::{chapter, chapter_manga_prompt, chapter_video_prompt},
     project::novel_project,
 };
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, IMAGE_TYPE_VIDEO_KEY_FRAME,
+};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use serde_json::json;
@@ -203,7 +206,7 @@ async fn create_boundary_frame_image_does_not_mutate_next_frame_references() {
         &db,
         CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "video_key_frame".to_string(),
+            image_type: IMAGE_TYPE_VIDEO_KEY_FRAME.to_string(),
             file_path: "images/frame-1.png".to_string(),
             prompt: "边界帧提示词".to_string(),
             model: "image-model".to_string(),
@@ -214,7 +217,7 @@ async fn create_boundary_frame_image_does_not_mutate_next_frame_references() {
             panel_id: None,
             metadata_json: Some(json!({
                 "generation_context": {
-                    "source": "video_boundary_frame_prompt",
+                    "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                     "prompt_id": first.id,
                 }
             })),

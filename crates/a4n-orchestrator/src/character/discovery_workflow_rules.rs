@@ -4,27 +4,10 @@ use a4n_core::models::{chapter::chapter, project::text_anchor};
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 
-use crate::discovery_workflow::{
-    discovery_business_key, discovery_call_fingerprint_json, discovery_workflow_run_input,
-};
+use crate::discovery_workflow::{discovery_call_fingerprint_json, discovery_workflow_run_input};
 use crate::workflow::UpsertWorkflowRunInput;
 
-const CHARACTER_DISCOVERY_WORKFLOW_KIND: &str = "character_discovery";
-
-/// 角色发现 LLM 调用键。
-pub(in crate::character) const CHARACTER_DISCOVERY_CALL_KEY: &str = "character_discovery.llm";
-
-/// 角色发现 exclusive workflow business key。
-pub(in crate::character) fn character_discovery_business_key(
-    project_id: i64,
-    chapter_number: Option<i32>,
-) -> String {
-    discovery_business_key(
-        CHARACTER_DISCOVERY_WORKFLOW_KIND,
-        project_id,
-        chapter_number,
-    )
-}
+use super::discovery::{CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND};
 
 /// 角色发现单次 LLM 调用指纹。
 pub(in crate::character) fn character_discovery_call_fingerprint_json(
@@ -33,7 +16,7 @@ pub(in crate::character) fn character_discovery_call_fingerprint_json(
     request: &ChatRequest,
 ) -> Result<Value, String> {
     discovery_call_fingerprint_json(
-        CHARACTER_DISCOVERY_WORKFLOW_KIND,
+        CHARACTER_DISCOVERY_KIND,
         CHARACTER_DISCOVERY_CALL_KEY,
         project_id,
         chapter_number,
@@ -51,7 +34,7 @@ pub(in crate::character) fn character_discovery_workflow_run_input(
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
     discovery_workflow_run_input(
-        CHARACTER_DISCOVERY_WORKFLOW_KIND,
+        CHARACTER_DISCOVERY_KIND,
         CHARACTER_DISCOVERY_CALL_KEY,
         project_id,
         chapter_number,
@@ -66,18 +49,6 @@ pub(in crate::character) fn character_discovery_workflow_run_input(
 mod tests {
     use super::*;
     use a4n_llm::provider::ChatMessage;
-
-    #[test]
-    fn business_key_distinguishes_chapter_and_all() {
-        assert_eq!(
-            character_discovery_business_key(3, Some(2)),
-            "character_discovery:3:chapter:2"
-        );
-        assert_eq!(
-            character_discovery_business_key(3, None),
-            "character_discovery:3:all"
-        );
-    }
 
     #[test]
     fn workflow_run_input_rejects_non_positive_project() {

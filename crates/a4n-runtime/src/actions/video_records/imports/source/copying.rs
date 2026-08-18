@@ -2,7 +2,7 @@ use super::super::prelude::{
     Path, PathBuf, append_secondary_error, data_dir_relative_file_path,
     remove_created_file_on_error_sync,
 };
-use super::delete_video_record_error;
+use crate::actions::video_records::delete_video_record_cleanup_error;
 
 pub(in crate::actions::video_records::imports) async fn persist_imported_video_file<F>(
     video: &a4n_orchestrator::OrchestratorContext,
@@ -32,7 +32,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => Err(append_secondary_error(
             error,
-            delete_video_record_error(video, record_id).await,
+            delete_video_record_cleanup_error(video, record_id).await,
         )),
     }
 }

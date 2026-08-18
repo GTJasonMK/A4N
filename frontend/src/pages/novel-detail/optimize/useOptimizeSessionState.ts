@@ -24,7 +24,7 @@ import {
   latestPendingPatchSet,
 } from "./optimizeTabUtils";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 
 interface UseOptimizeSessionStateParams {
   projectId: number;

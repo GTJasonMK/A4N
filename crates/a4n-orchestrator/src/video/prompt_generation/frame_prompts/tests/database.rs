@@ -90,7 +90,7 @@ async fn boundary_frame_image_lookup_accepts_root_project_images_for_video_proje
         panel_id: Set(None),
         metadata_json: Set(Some(json!({
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": prompt.id
             }
         }))),

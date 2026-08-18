@@ -1,12 +1,10 @@
-use super::events::handle_image_generation_event;
 use super::operations::{generate_image, preview_image_provider_request};
 use crate::state::RuntimeProfile;
 use a4n_capabilities::{A4nCapabilities, JsonResponse};
-use a4n_core::error::AppError;
 use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode, ServiceResponse, ServiceStatus,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceResponse, ServiceStatus,
 };
 use a4n_test_support::capability::RecordingImageClient;
 use serde_json::json;
@@ -116,51 +114,6 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
     assert!(request.payload.get("project_id").is_none());
 }
 
-#[test]
-fn image_generation_terminal_events_preserve_failure_and_cancel_semantics() {
-    let failed = CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(a4n_service_protocol::ServiceError {
-            code: ServiceErrorCode::ProviderError,
-            message: "provider failed".to_string(),
-            retryable: Some(false),
-        }),
-        payload: None,
-    };
-    let error = handle_image_generation_event(failed, None)
-        .expect_err("provider failure must terminate generation");
-    assert!(error.contains("provider failed"));
-
-    let cancelled = CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::CancelAck,
-        sequence: 2,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: None,
-        payload: None,
-    };
-    let error = handle_image_generation_event(cancelled, None)
-        .expect_err("cancel ack must terminate generation");
-    assert_eq!(error, AppError::Cancelled.to_string());
-}
-
 #[tokio::test]
 async fn image_provider_preview_uses_typed_capability_request() {
     let client = Arc::new(
@@ -180,7 +133,7 @@ async fn image_provider_preview_uses_typed_capability_request() {
 
     assert_eq!(client.preview_call_count(), 1);
     assert_eq!(client.generate_call_count(), 0);
-    assert_eq!(preview["request"]["model"], "image-model");
+    assert_eq!(preview["model"], "image-model");
     let request = client
         .last_preview_request()
         .expect("recorded preview request");
@@ -213,8 +166,6 @@ fn successful_image_generation_events() -> Vec<CapabilityTaskEvent> {
             CapabilityTaskEventKind::Progress,
             1,
             json!({
-                "current": 1,
-                "total": 2,
                 "message": "image sidecar 正在调用 provider"
             }),
         ),
@@ -231,9 +182,7 @@ fn successful_image_generation_events() -> Vec<CapabilityTaskEvent> {
 }
 
 fn successful_image_preview_response() -> JsonResponse {
-    image_response(json!({
-        "request": {"model": "image-model", "prompt": "test image"}
-    }))
+    image_response(json!({"model": "image-model", "prompt": "test image"}))
 }
 
 fn image_response(payload: serde_json::Value) -> JsonResponse {
@@ -256,14 +205,6 @@ fn image_event(
         task_id: "configured-task".to_string(),
         event_kind,
         sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
         error: None,
         payload: Some(payload),
     }

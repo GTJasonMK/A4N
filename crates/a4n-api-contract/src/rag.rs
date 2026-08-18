@@ -8,8 +8,6 @@ pub struct RagSearchResult {
     pub id: String,
     pub content: String,
     pub score: f32,
-    pub vector_score: Option<f32>,
-    pub bm25_score: Option<f32>,
     pub metadata: Value,
 }
 
@@ -26,9 +24,8 @@ pub struct EnhancedSearchInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct RagEnhancedQuerySummary {
-    pub kind: String,
+    pub label: String,
     pub query: String,
-    pub weight: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -40,11 +37,8 @@ pub struct RagEnhancedSearchOutput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct RagPreparedEnhancedSearchOutput {
-    pub queries: Vec<RagEnhancedQuerySummary>,
     pub query_texts: Vec<String>,
     pub embedding_identity: EmbeddingModelIdentity,
-    pub top_k: usize,
-    pub pull_k: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -74,7 +68,6 @@ pub struct PreparedClientRagIngestRecord {
 pub struct ClientRagIngestPrepareOutput {
     pub operation_trace_id: String,
     pub embedding_identity: EmbeddingModelIdentity,
-    pub rebuild: bool,
     pub records: Vec<PreparedClientRagIngestRecord>,
 }
 
@@ -98,7 +91,6 @@ pub struct ClientRagIngestUploadInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct RagIngestResult {
-    pub chunk_count: u32,
     pub added_count: u32,
     pub updated_count: u32,
     pub skipped_count: u32,

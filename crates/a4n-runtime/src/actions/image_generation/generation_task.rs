@@ -11,28 +11,23 @@ pub async fn start_image_generation_typed(
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
         .orchestrator()
-        .start_image_generation_task(user_id, input.clone())
+        .start_image_generation_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
     }
 
     let worker_state = state.clone();
-    let handle = start.handle.clone();
-    state.spawn_image_generation_execution(handle.task_id.clone(), async move {
-        let host_port = RuntimeImageGenerationHostPort::new(&worker_state);
-        if let Err(error) = worker_state
-            .orchestrator()
-            .run_image_generation_task(user_id, input, handle.clone(), &host_port)
-            .await
-        {
-            tracing::error!(
-                task_id = %handle.task_id,
-                attempt = handle.attempt,
-                error = %error,
-                "图片 generation worker 失败"
-            );
-        }
-    });
+    state.spawn_image_generation_execution(
+        start.handle.clone(),
+        "image_generation",
+        move |handle| async move {
+            let host_port = RuntimeImageGenerationHostPort::new(&worker_state);
+            worker_state
+                .orchestrator()
+                .run_image_generation_task(user_id, input, handle, &host_port)
+                .await
+        },
+    );
     Ok(start.handle)
 }

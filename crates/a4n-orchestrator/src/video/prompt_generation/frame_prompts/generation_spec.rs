@@ -1,4 +1,6 @@
-use super::{PromptWorkflowMode, SHARED_SEGMENT_PLAN_PROMPT_TYPE};
+use a4n_core::models::chapter::chapter_video_prompt;
+
+use super::PromptWorkflowMode;
 
 pub(super) struct FramePromptGenerationSpec {
     pub(super) workflow_mode: PromptWorkflowMode,
@@ -40,7 +42,7 @@ impl FramePromptGenerationSpec {
     }
 
     pub(super) fn segment_storage_prompt_type(&self) -> &'static str {
-        SHARED_SEGMENT_PLAN_PROMPT_TYPE
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
     }
 
     pub(super) fn frame_source_prompt_type(&self) -> &'static str {
@@ -51,8 +53,8 @@ impl FramePromptGenerationSpec {
 pub(super) const BOUNDARY_FRAME_PROMPT_GENERATION: FramePromptGenerationSpec =
     FramePromptGenerationSpec {
         workflow_mode: PromptWorkflowMode::BoundaryFrames,
-        frame_prompt_type: "frame_prompt",
-        frame_source_prompt_type: SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        frame_prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME,
+        frame_source_prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         frame_check_progress: "视频片段已规划，正在检查边界帧断点",
         reused_frame_label: "边界帧提示词",
         frame_generate_progress: "正在生成边界帧提示词",
@@ -71,8 +73,8 @@ pub(super) const BOUNDARY_FRAME_PROMPT_GENERATION: FramePromptGenerationSpec =
 pub(super) const FIRST_FRAME_PROMPT_GENERATION: FramePromptGenerationSpec =
     FramePromptGenerationSpec {
         workflow_mode: PromptWorkflowMode::FirstFrameChain,
-        frame_prompt_type: "first_frame_prompt",
-        frame_source_prompt_type: SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        frame_prompt_type: chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME,
+        frame_source_prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         frame_check_progress: "视频片段已规划，正在检查初始首帧提示词",
         reused_frame_label: "初始首帧提示词",
         frame_generate_progress: "正在生成初始首帧提示词",
@@ -91,8 +93,8 @@ pub(super) const FIRST_FRAME_PROMPT_GENERATION: FramePromptGenerationSpec =
 pub(super) const CHAT_VIDEO_PROMPT_GENERATION: FramePromptGenerationSpec =
     FramePromptGenerationSpec {
         workflow_mode: PromptWorkflowMode::ChatVideo,
-        frame_prompt_type: "chat_video_frame_prompt",
-        frame_source_prompt_type: SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        frame_prompt_type: chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME,
+        frame_source_prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         frame_check_progress: "Chat 视频片段已规划，正在检查首尾帧断点",
         reused_frame_label: "Chat 首尾帧提示词",
         frame_generate_progress: "正在生成 Chat 首尾帧提示词",
@@ -111,8 +113,8 @@ pub(super) const CHAT_VIDEO_PROMPT_GENERATION: FramePromptGenerationSpec =
 pub(super) const STORYBOARD_PROMPT_GENERATION: FramePromptGenerationSpec =
     FramePromptGenerationSpec {
         workflow_mode: PromptWorkflowMode::Storyboard,
-        frame_prompt_type: "storyboard_prompt",
-        frame_source_prompt_type: SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        frame_prompt_type: chapter_video_prompt::PROMPT_TYPE_STORYBOARD,
+        frame_source_prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
         frame_check_progress: "视频片段已规划，正在检查分镜提示词",
         reused_frame_label: "分镜提示词",
         frame_generate_progress: "正在生成分镜提示词",

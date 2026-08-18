@@ -3,7 +3,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
   ragEnhancedSearch,
-  type RagEnhancedQuerySummary,
+  type RagEnhancedSearchOutput,
   type RagSearchResult,
 } from "../../api/rag";
 import { useToast } from "../../components/feedback/Toast";
@@ -17,54 +17,34 @@ interface RagQuickPanelProps {
 export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapterNumber }) => {
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<RagSearchResult[] | null>(null);
-  const [queries, setQueries] = useState<RagEnhancedQuerySummary[]>([]);
-  const [candidateCount, setCandidateCount] = useState(0);
+  const [searchResult, setSearchResult] = useState<RagEnhancedSearchOutput | null>(null);
   const [busy, setBusy] = useState(false);
+  const results = searchResult?.results ?? null;
+  const queries = searchResult?.queries ?? [];
+  const candidateCount = searchResult?.candidate_count ?? 0;
   const queryReady = query.trim().length > 0;
-  const mountedRef = useRef(false);
-  const activeScopeRef = useRef({ projectId, chapterNumber });
-  const queryRef = useRef(query);
   const searchSeqRef = useRef(0);
   const searchBusyRef = useRef(false);
 
-  const clearResults = () => {
-    setResults(null);
-    setQueries([]);
-    setCandidateCount(0);
-  };
+  const clearResults = () => setSearchResult(null);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
+  useEffect(
+    () => () => {
       searchSeqRef.current += 1;
-      searchBusyRef.current = false;
-    };
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    activeScopeRef.current = { projectId, chapterNumber };
     searchSeqRef.current += 1;
     searchBusyRef.current = false;
     setBusy(false);
-    clearResults();
+    setSearchResult(null);
   }, [projectId, chapterNumber]);
 
-  const isCurrentSearch = (
-    requestProjectId: number,
-    requestChapterNumber: number | null,
-    requestQuery: string,
-    requestSeq: number,
-  ) =>
-    mountedRef.current &&
-    searchSeqRef.current === requestSeq &&
-    activeScopeRef.current.projectId === requestProjectId &&
-    activeScopeRef.current.chapterNumber === requestChapterNumber &&
-    queryRef.current.trim() === requestQuery;
+  const isCurrentSearch = (requestSeq: number) => searchSeqRef.current === requestSeq;
 
   const handleQueryChange = (value: string) => {
-    queryRef.current = value;
     setQuery(value);
     searchSeqRef.current += 1;
     searchBusyRef.current = false;
@@ -74,57 +54,27 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
 
   const handleSearch = async () => {
     if (searchBusyRef.current) return;
-    const requestQuery = queryRef.current.trim();
-    if (!requestQuery) {
-      addToast("请输入查询文本", "error");
-      return;
-    }
-    const requestProjectId = projectId;
-    const requestChapterNumber = chapterNumber;
-    activeScopeRef.current = { projectId: requestProjectId, chapterNumber: requestChapterNumber };
+    const requestQuery = query.trim();
     const requestSeq = searchSeqRef.current + 1;
     searchSeqRef.current = requestSeq;
     searchBusyRef.current = true;
     setBusy(true);
     try {
-      const data = await ragEnhancedSearch(requestProjectId, {
+      const data = await ragEnhancedSearch(projectId, {
         query: requestQuery,
         top_k: 10,
-        chapter_number: requestChapterNumber,
+        chapter_number: chapterNumber,
       });
-      if (
-        !isCurrentSearch(
-          requestProjectId,
-          requestChapterNumber,
-          requestQuery,
-          requestSeq,
-        )
-      ) {
+      if (!isCurrentSearch(requestSeq)) {
         return;
       }
-      setResults(data.results);
-      setQueries(data.queries);
-      setCandidateCount(data.candidate_count);
+      setSearchResult(data);
     } catch (err) {
-      if (
-        isCurrentSearch(
-          requestProjectId,
-          requestChapterNumber,
-          requestQuery,
-          requestSeq,
-        )
-      ) {
+      if (isCurrentSearch(requestSeq)) {
         addToast(extractErrorMessage(err, "资料检索失败"), "error");
       }
     } finally {
-      if (
-        isCurrentSearch(
-          requestProjectId,
-          requestChapterNumber,
-          requestQuery,
-          requestSeq,
-        )
-      ) {
+      if (isCurrentSearch(requestSeq)) {
         setBusy(false);
         searchBusyRef.current = false;
       }
@@ -193,8 +143,8 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
               <div className="mt-1.5 space-y-1 border-l-2 border-book-border/60 pl-2">
                 {candidateCount > 0 ? <div>候选资料 {candidateCount} 条</div> : null}
                 {queries.map((item) => (
-                  <div key={`${item.kind}-${item.query}`} className="leading-relaxed">
-                    <span className="font-medium text-book-text-sub">{formatQueryKind(item.kind)}：</span>
+                  <div key={`${item.label}-${item.query}`} className="leading-relaxed">
+                    <span className="font-medium text-book-text-sub">{item.label}：</span>
                     {item.query}
                   </div>
                 ))}
@@ -206,21 +156,6 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
     </div>
   );
 };
-
-function formatQueryKind(kind: string): string {
-  switch (kind) {
-    case "main":
-      return "主查询";
-    case "character":
-      return "角色";
-    case "foreshadowing":
-      return "伏笔";
-    case "location":
-      return "场景";
-    default:
-      return "其他查询";
-  }
-}
 
 function searchResultTitle(result: RagSearchResult, index: number): string {
   if (result.metadata && typeof result.metadata === "object" && !Array.isArray(result.metadata)) {

@@ -8,7 +8,6 @@ use reqwest::Client;
 use serde_json::{Map, Value};
 
 pub(super) const DEFAULT_TIMEOUT_SECS: u64 = 120;
-const CONNECTION_TEST_MAX_TOKENS: usize = 8;
 
 pub struct HttpLlmProvider {
     client: Client,

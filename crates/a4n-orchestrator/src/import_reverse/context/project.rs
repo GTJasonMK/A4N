@@ -112,7 +112,6 @@ mod tests {
                 description: String::new(),
                 project_type: "novel_long".to_string(),
                 project_kind: "text".to_string(),
-                source_mode: "self".to_string(),
                 root_project_id: None,
                 source_snapshot_id: None,
                 source_sync_status: "current".to_string(),

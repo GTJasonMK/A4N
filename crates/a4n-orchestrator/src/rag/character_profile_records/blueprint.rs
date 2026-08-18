@@ -3,7 +3,7 @@ use a4n_rag_core::record_text::{
     DimensionRagSection, dimension_fields_section, optional_json_text, required_rag_text,
 };
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn blueprint_character_rag_sections(
     character: &blueprint_character::Model,
@@ -115,22 +115,17 @@ pub fn blueprint_character_rag_records(
     let sections = blueprint_character_rag_sections(character)?;
     Ok(sections
         .into_iter()
-        .enumerate()
-        .map(|(section_index, section)| {
+        .map(|section| {
             let title = format!("{name} 角色设定: {}", section.label);
             RagRecord {
-                chunk_id: format!(
-                    "character:{project_id}:blueprint:{}:{}",
-                    character.id, section.dimension
+                chunk_id: rag_chunk_id(
+                    project_id,
+                    RagDataType::Character,
+                    format_args!("blueprint:{}:{}", character.id, section.dimension),
                 ),
                 text: section.text,
                 metadata: serde_json::json!({
                     "data_type": RagDataType::Character.as_str(),
-                    "source": "blueprint_character",
-                    "character_id": character.id,
-                    "character_name": name,
-                    "dimension": section.dimension,
-                    "section_index": section_index,
                     "title": title,
                 }),
             }

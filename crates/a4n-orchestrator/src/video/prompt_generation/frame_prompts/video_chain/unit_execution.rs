@@ -12,7 +12,6 @@ use super::super::{
 
 mod draft;
 mod prompts;
-mod targeted_repair;
 mod workflow;
 
 pub(super) use self::workflow::execute_video_prompt_unit;

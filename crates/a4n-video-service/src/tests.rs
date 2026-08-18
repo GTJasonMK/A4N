@@ -1,53 +1,13 @@
-use crate::contracts::*;
-use crate::events::*;
-use crate::protocol::*;
-use a4n_model_discovery::ModelDiscoveryRequest;
+use crate::contracts::{VideoPollPayload, VideoProviderPayload};
+use crate::protocol::{
+    validate_video_poll_request, validate_video_provider_request,
+};
 use a4n_service_protocol::{
-    CapabilityTaskEventKind, PROTOCOL_VERSION, ServiceError, ServiceErrorCode, ServiceRequest,
-    ServiceResponse, ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
+    PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
+    VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
 };
 use a4n_video::VideoGenerationRequest;
 use serde_json::json;
-
-#[test]
-fn video_generation_events_distinguish_submission_completion_from_failure() {
-    let progress = progress_generation_event("task-1".to_string(), 1);
-    assert_eq!(progress.event_kind, CapabilityTaskEventKind::Progress);
-    assert_eq!(
-        progress.payload.as_ref().unwrap()["message"],
-        "video sidecar 正在提交 provider 请求"
-    );
-
-    let completed = completed_generation_event(
-        "task-1".to_string(),
-        2,
-        VideoGenerationOutput {
-            bytes_base64: String::new(),
-            format: "mp4".to_string(),
-            provider_job_id: Some("provider-job-1".to_string()),
-            metadata: json!({"submitted": true}),
-        },
-    )
-    .expect("completed event");
-    assert_eq!(completed.event_kind, CapabilityTaskEventKind::Completed);
-    assert_eq!(
-        completed.payload.as_ref().unwrap()["provider_job_id"],
-        "provider-job-1"
-    );
-    assert!(completed.error.is_none());
-
-    let failed = failed_generation_event(
-        "task-1".to_string(),
-        2,
-        ServiceError {
-            code: ServiceErrorCode::ProviderError,
-            message: "provider failed".to_string(),
-            retryable: Some(false),
-        },
-    );
-    assert_eq!(failed.event_kind, CapabilityTaskEventKind::Failed);
-    assert_eq!(failed.error.unwrap().code, ServiceErrorCode::ProviderError);
-}
 
 #[test]
 fn rejects_incompatible_capability_version() {
@@ -116,31 +76,6 @@ fn rejects_poll_api_key_when_secret_policy_is_trusted_remote() {
     );
 
     let error = validate_video_poll_request(&request).expect_err("remote user secret denied");
-
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("local_sidecar_only"));
-}
-
-#[test]
-fn rejects_model_discovery_api_key_when_user_secret_forwarding_is_denied() {
-    let request = service_request(model_discovery_payload("sk-test"), false);
-
-    let error =
-        validate_model_discovery_request(&request).expect_err("model discovery user secret denied");
-
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("allow_user_secret"));
-}
-
-#[test]
-fn rejects_model_discovery_api_key_when_secret_policy_is_trusted_remote() {
-    let request = service_request_with_policy(
-        model_discovery_payload("sk-test"),
-        trusted_remote_user_secret_policy(),
-    );
-
-    let error = validate_model_discovery_request(&request)
-        .expect_err("model discovery remote user secret denied");
 
     assert_eq!(error.code, ServiceErrorCode::Unauthorized);
     assert!(error.message.contains("local_sidecar_only"));
@@ -270,13 +205,5 @@ fn video_poll_payload(api_key: &str) -> VideoPollPayload {
         api_key: api_key.to_string(),
         project_id: None,
         job_id: "job-1".to_string(),
-    }
-}
-
-fn model_discovery_payload(api_key: &str) -> ModelDiscoveryRequest {
-    ModelDiscoveryRequest {
-        provider: "openai".to_string(),
-        base_url: "https://provider.example/v1".to_string(),
-        api_key: Some(api_key.to_string()),
     }
 }

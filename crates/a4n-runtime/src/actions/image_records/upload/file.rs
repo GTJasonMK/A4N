@@ -1,9 +1,5 @@
-use a4n_core::files::paths::ProjectPaths;
-use chrono::Utc;
-use std::{
-    io::ErrorKind,
-    path::{Path, PathBuf},
-};
+use a4n_core::files::{create_unique_timestamped_file, paths::ProjectPaths};
+use std::path::{Path, PathBuf};
 
 pub(super) fn create_imported_image_output(
     data_dir: &Path,
@@ -23,23 +19,6 @@ pub(super) fn create_imported_image_output(
         None => ProjectPaths::new(data_dir, project_id).images_dir(),
     };
     std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建导入图片目录：{err}"))?;
-    let stamp = Utc::now().timestamp_micros();
-    for attempt in 0..20 {
-        let suffix = if attempt == 0 {
-            String::new()
-        } else {
-            format!("_{attempt}")
-        };
-        let path = dir.join(format!("imported_image_{stamp}{suffix}.{extension}"));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(file) => return Ok((path, file)),
-            Err(err) if err.kind() == ErrorKind::AlreadyExists => continue,
-            Err(err) => return Err(format!("创建导入图片失败：{err}")),
-        }
-    }
-    Err("创建导入图片失败：文件名冲突过多".to_string())
+    create_unique_timestamped_file(&dir, "imported_image", extension)
+        .map_err(|error| format!("创建导入图片失败：{error}"))
 }

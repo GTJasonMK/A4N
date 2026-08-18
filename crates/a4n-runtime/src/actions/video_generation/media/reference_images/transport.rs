@@ -1,52 +1,13 @@
 use crate::actions::video_generation::media::types::{
     REMOTE_TEMP_UPLOAD_TOKEN_ENV, REMOTE_TEMP_UPLOAD_URL_ENV,
 };
-
-pub(crate) fn remote_temp_upload_configured() -> Result<bool, String> {
-    let url = remote_temp_upload_env(REMOTE_TEMP_UPLOAD_URL_ENV)?;
-    let token = remote_temp_upload_env(REMOTE_TEMP_UPLOAD_TOKEN_ENV)?;
-    remote_temp_upload_configured_values(url.as_deref(), token.as_deref())
-}
-
-fn remote_temp_upload_configured_values(
-    url: Option<&str>,
-    token: Option<&str>,
-) -> Result<bool, String> {
-    match (url, token) {
-        (None, None) => Ok(false),
-        (Some(_), Some(_)) => Ok(true),
-        _ => Err(format!(
-            "{REMOTE_TEMP_UPLOAD_URL_ENV} 与 {REMOTE_TEMP_UPLOAD_TOKEN_ENV} 必须同时设置"
-        )),
-    }
-}
-
-fn remote_temp_upload_env(key: &str) -> Result<Option<String>, String> {
-    match std::env::var(key) {
-        Ok(value) => {
-            let value = value.trim().to_string();
-            if value.is_empty() {
-                Err(format!("{key} 不能为空"))
-            } else {
-                Ok(Some(value))
-            }
-        }
-        Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(error) => Err(format!("读取 {key} 失败：{error}")),
-    }
-}
+use a4n_core::config::env::required_non_empty_env_string;
 
 pub(crate) fn remote_temp_upload_config() -> Result<(String, String), String> {
-    let upload_url = remote_temp_upload_env(REMOTE_TEMP_UPLOAD_URL_ENV)?.ok_or_else(|| {
-        format!(
-            "{REMOTE_TEMP_UPLOAD_URL_ENV} 不能为空，remote_temp_upload 需要远端临时媒体上传地址"
-        )
-    })?;
-    let token = remote_temp_upload_env(REMOTE_TEMP_UPLOAD_TOKEN_ENV)?.ok_or_else(|| {
-        format!(
-            "{REMOTE_TEMP_UPLOAD_TOKEN_ENV} 不能为空，remote_temp_upload 需要远端临时媒体上传令牌"
-        )
-    })?;
+    let upload_url = required_non_empty_env_string(REMOTE_TEMP_UPLOAD_URL_ENV)
+        .map_err(|error| error.to_string())?;
+    let token = required_non_empty_env_string(REMOTE_TEMP_UPLOAD_TOKEN_ENV)
+        .map_err(|error| error.to_string())?;
     let upload_url = validate_remote_temp_upload_url(&upload_url)?;
     Ok((upload_url, token))
 }
@@ -88,17 +49,6 @@ fn is_loopback_host(host: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn remote_upload_configuration_requires_both_values() {
-        assert!(!remote_temp_upload_configured_values(None, None).unwrap());
-        assert!(
-            remote_temp_upload_configured_values(Some("https://upload.test"), Some("token"))
-                .unwrap()
-        );
-        assert!(remote_temp_upload_configured_values(Some("https://upload.test"), None).is_err());
-        assert!(remote_temp_upload_configured_values(None, Some("token")).is_err());
-    }
 
     #[test]
     fn remote_upload_url_rejects_non_http_and_credentials() {

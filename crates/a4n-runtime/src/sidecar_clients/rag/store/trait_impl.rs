@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use super::SidecarVectorStore;
-use super::outputs::{DeletedOutput, EmptyOutput, MetadataOutput};
 use super::transport::RagOperation;
 
 #[async_trait]
@@ -66,7 +65,6 @@ impl VectorStore for SidecarVectorStore {
         query_embedding: Vec<f32>,
         top_k: usize,
         filters: Option<SearchFilter>,
-        vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError> {
         self.call(
             RagOperation::Search,
@@ -75,31 +73,26 @@ impl VectorStore for SidecarVectorStore {
                 "query_text": query_text,
                 "query_embedding": query_embedding,
                 "top_k": top_k,
-                "filters": filters,
-                "vector_weight": vector_weight
+                "filters": filters
             }),
         )
         .await
     }
 
     async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, AppError> {
-        let output: DeletedOutput = self
-            .call(
-                RagOperation::Delete,
-                json!({ "collection": collection, "filter": filter }),
-            )
-            .await?;
-        Ok(output.deleted)
+        self.call(
+            RagOperation::Delete,
+            json!({ "collection": collection, "filter": filter }),
+        )
+        .await
     }
 
     async fn drop_collection(&self, collection: &str) -> Result<(), AppError> {
-        let _: EmptyOutput = self
-            .call(
-                RagOperation::DropCollection,
-                json!({ "collection": collection }),
-            )
-            .await?;
-        Ok(())
+        self.call(
+            RagOperation::DropCollection,
+            json!({ "collection": collection }),
+        )
+        .await
     }
 
     async fn metadata_by_ids(
@@ -107,13 +100,11 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         ids: &[String],
     ) -> Result<HashMap<String, Value>, AppError> {
-        let output: MetadataOutput = self
-            .call(
-                RagOperation::MetadataByIds,
-                json!({ "collection": collection, "ids": ids }),
-            )
-            .await?;
-        Ok(output.metadata)
+        self.call(
+            RagOperation::MetadataByIds,
+            json!({ "collection": collection, "ids": ids }),
+        )
+        .await
     }
 
     async fn metadata_by_filter(
@@ -121,13 +112,11 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         filter: DeleteFilter,
     ) -> Result<HashMap<String, Value>, AppError> {
-        let output: MetadataOutput = self
-            .call(
-                RagOperation::MetadataByFilter,
-                json!({ "collection": collection, "filter": filter }),
-            )
-            .await?;
-        Ok(output.metadata)
+        self.call(
+            RagOperation::MetadataByFilter,
+            json!({ "collection": collection, "filter": filter }),
+        )
+        .await
     }
 
     async fn completeness_report_by_ids(

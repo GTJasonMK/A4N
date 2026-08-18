@@ -1,32 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::artifacts::ArtifactRef;
 use crate::response::{ServiceError, ServiceErrorCode};
 use crate::sanitization::redact_sensitive_message;
 
 /// Sidecar capability 传输事件；它承载 provider 原始响应，不是 Host generation 领域事件。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityTaskEvent {
     pub task_id: String,
     pub event_kind: CapabilityTaskEventKind,
     pub sequence: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunk_index: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunk_delta: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub usage_delta: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub final_usage: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub finish_reason: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_truncated_finish_reason: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub checkpoint_key: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub artifact_refs: Vec<ArtifactRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ServiceError>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -34,36 +18,21 @@ pub struct CapabilityTaskEvent {
 }
 
 impl CapabilityTaskEvent {
-    pub fn new(task_id: String, event_kind: CapabilityTaskEventKind, sequence: u64) -> Self {
+    fn empty(task_id: String, event_kind: CapabilityTaskEventKind, sequence: u64) -> Self {
         Self {
             task_id,
             event_kind,
             sequence,
-            chunk_index: None,
-            chunk_delta: None,
-            usage_delta: None,
-            final_usage: None,
-            finish_reason: None,
-            is_truncated_finish_reason: None,
-            checkpoint_key: None,
-            artifact_refs: Vec::new(),
             error: None,
             payload: None,
         }
     }
 
-    pub fn with_payload(mut self, payload: serde_json::Value) -> Self {
-        self.payload = Some(payload);
-        self
-    }
-
-    pub fn with_serialized_payload(
-        self,
+    fn serialized_payload(
         payload: impl Serialize,
         serialization_context: &str,
-    ) -> Result<Self, ServiceError> {
+    ) -> Result<serde_json::Value, ServiceError> {
         serde_json::to_value(payload)
-            .map(|payload| self.with_payload(payload))
             .map_err(|error| {
                 ServiceError::non_retryable(
                     ServiceErrorCode::Internal,
@@ -72,8 +41,74 @@ impl CapabilityTaskEvent {
             })
     }
 
+    pub fn progress(task_id: String, sequence: u64) -> Self {
+        Self::empty(task_id, CapabilityTaskEventKind::Progress, sequence)
+    }
+
+    pub fn progress_with_payload(
+        task_id: String,
+        sequence: u64,
+        payload: impl Serialize,
+        serialization_context: &str,
+    ) -> Result<Self, ServiceError> {
+        Self::serialized_payload(payload, serialization_context).map(|payload| Self {
+            payload: Some(payload),
+            ..Self::progress(task_id, sequence)
+        })
+    }
+
+    pub fn progress_message(
+        task_id: String,
+        sequence: u64,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            payload: Some(serde_json::json!({ "message": message.into() })),
+            ..Self::progress(task_id, sequence)
+        }
+    }
+
+    pub fn chunk(
+        task_id: String,
+        sequence: u64,
+        payload: impl Serialize,
+        serialization_context: &str,
+    ) -> Result<Self, ServiceError> {
+        Self::serialized_payload(payload, serialization_context).map(|payload| Self {
+            payload: Some(payload),
+            ..Self::empty(task_id, CapabilityTaskEventKind::Chunk, sequence)
+        })
+    }
+
+    pub fn completed_or_failed(
+        task_id: String,
+        sequence: u64,
+        payload: impl Serialize,
+        serialization_context: &str,
+    ) -> Self {
+        match Self::serialized_payload(payload, serialization_context) {
+            Ok(payload) => Self::completed_value(task_id, sequence, payload),
+            Err(error) => Self::failed(task_id, sequence, error),
+        }
+    }
+
+    fn completed_value(
+        task_id: String,
+        sequence: u64,
+        payload: serde_json::Value,
+    ) -> Self {
+        Self {
+            payload: Some(payload),
+            ..Self::completed_empty(task_id, sequence)
+        }
+    }
+
+    pub fn completed_empty(task_id: String, sequence: u64) -> Self {
+        Self::empty(task_id, CapabilityTaskEventKind::Completed, sequence)
+    }
+
     pub fn failed(task_id: String, sequence: u64, error: ServiceError) -> Self {
-        let mut event = Self::new(task_id, CapabilityTaskEventKind::Failed, sequence);
+        let mut event = Self::empty(task_id, CapabilityTaskEventKind::Failed, sequence);
         event.error = Some(error);
         event
     }
@@ -84,17 +119,12 @@ impl CapabilityTaskEvent {
 pub enum CapabilityTaskEventKind {
     Progress,
     Chunk,
-    StructuredProgress,
-    Usage,
-    Checkpoint,
-    Artifact,
     Completed,
     Failed,
-    CancelAck,
 }
 
 impl CapabilityTaskEventKind {
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::CancelAck)
+        matches!(self, Self::Completed | Self::Failed)
     }
 }

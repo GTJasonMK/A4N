@@ -190,7 +190,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
         .await
         .expect("video preview should cross the independent process");
     assert_eq!(preview.status, ServiceStatus::Ok);
-    assert!(preview.payload.expect("video preview payload")["request"].is_object());
+    assert!(preview.payload.expect("video preview payload").is_object());
     preview_provider.stop().await;
 
     let remote_secret_events = video_generation_events(

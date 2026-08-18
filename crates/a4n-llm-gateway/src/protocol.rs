@@ -1,31 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    LLM_SERVICE_NAME, SecretForwardingPolicy, ServiceError, ServiceErrorCode, ServiceRequest,
-    ServiceResponse, redact_sensitive_message, validate_known_service_request,
-    validate_provider_api_key_secret_policy,
+    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, redact_sensitive_message,
 };
-
-pub(super) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request(request, LLM_SERVICE_NAME)
-}
-
-pub(super) fn validate_provider_secret_policy(
-    api_key: Option<&str>,
-    policy: &SecretForwardingPolicy,
-) -> Result<(), ServiceError> {
-    validate_provider_api_key_secret_policy(api_key, policy, LLM_SERVICE_NAME)
-}
-
-pub(super) fn result_response<T>(
-    request: &ServiceRequest<impl Sized>,
-    result: Result<T, AppError>,
-) -> ServiceResponse<T> {
-    ServiceResponse::from_result(
-        request.trace_context.trace_id.clone(),
-        result,
-        service_error,
-    )
-}
 
 pub(super) fn error_response<T>(
     request: &ServiceRequest<impl Sized>,

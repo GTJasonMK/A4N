@@ -1,6 +1,6 @@
 use crate::file_utils::persist_created_media_file;
-use a4n_core::files::paths::ProjectPaths;
-use std::io::{ErrorKind, Write};
+use a4n_core::files::{create_unique_timestamped_file, paths::ProjectPaths};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub(in crate::actions::image_generation) fn persist_generated_image_file(
@@ -46,26 +46,8 @@ fn create_image_output(
 ) -> Result<(PathBuf, std::fs::File), String> {
     let dir = image_output_dir(data_dir, project_id, chapter_id)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建图片目录 {dir:?}：{e}"))?;
-    let timestamp = chrono::Utc::now().timestamp_micros();
-    for attempt in 0..20 {
-        let collision_suffix = if attempt == 0 {
-            String::new()
-        } else {
-            format!("_{attempt}")
-        };
-        let filename = format!("{kind}{suffix}_{timestamp}{collision_suffix}.{format}");
-        let path = dir.join(filename);
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(file) => return Ok((path, file)),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(format!("无法创建图片文件：{error}")),
-        }
-    }
-    Err("无法创建图片文件：文件名冲突过多".to_string())
+    create_unique_timestamped_file(&dir, &format!("{kind}{suffix}"), format)
+        .map_err(|error| format!("无法创建图片文件：{error}"))
 }
 
 fn image_output_dir(

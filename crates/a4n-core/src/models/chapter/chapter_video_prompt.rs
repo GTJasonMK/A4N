@@ -3,6 +3,41 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub const PROMPT_TYPE_FRAME_SEGMENT_PLAN: &str = "frame_segment_plan";
+pub const PROMPT_TYPE_FRAME: &str = "frame_prompt";
+pub const PROMPT_TYPE_FIRST_FRAME: &str = "first_frame_prompt";
+pub const PROMPT_TYPE_CHAT_VIDEO_FRAME: &str = "chat_video_frame_prompt";
+pub const PROMPT_TYPE_STORYBOARD: &str = "storyboard_prompt";
+pub const PROMPT_TYPE_VIDEO: &str = "video_prompt";
+pub const PROMPT_TYPES: [&str; 6] = [
+    PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+    PROMPT_TYPE_FRAME,
+    PROMPT_TYPE_FIRST_FRAME,
+    PROMPT_TYPE_CHAT_VIDEO_FRAME,
+    PROMPT_TYPE_STORYBOARD,
+    PROMPT_TYPE_VIDEO,
+];
+
+pub const WORKFLOW_MODE_SHARED_SEGMENT_PLAN: &str = "shared_segment_plan";
+pub const WORKFLOW_MODE_BOUNDARY_FRAMES: &str = "boundary_frames";
+pub const WORKFLOW_MODE_FIRST_FRAME_CHAIN: &str = "first_frame_chain";
+pub const WORKFLOW_MODE_CHAT_VIDEO: &str = "chat_video";
+pub const WORKFLOW_MODE_STORYBOARD: &str = "storyboard";
+pub const WORKFLOW_MODES: [&str; 5] = [
+    WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+    WORKFLOW_MODE_BOUNDARY_FRAMES,
+    WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+    WORKFLOW_MODE_CHAT_VIDEO,
+    WORKFLOW_MODE_STORYBOARD,
+];
+
+pub const STATUS_PENDING: &str = "pending";
+pub const STATUS_RUNNING: &str = "running";
+pub const STATUS_FAILED: &str = "failed";
+pub const STATUS_INTERRUPTED: &str = "interrupted";
+pub const STATUS_COMPLETED: &str = "completed";
+pub const STATUS_CANCELLED: &str = "cancelled";
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "chapter_video_prompt")]
 pub struct Model {
@@ -13,10 +48,11 @@ pub struct Model {
 
     pub style: Option<String>,
 
-    /// analysis / shot_plan / video_prompt
+    /// frame_segment_plan / frame_prompt / first_frame_prompt /
+    /// chat_video_frame_prompt / storyboard_prompt / video_prompt
     pub prompt_type: String,
 
-    /// boundary_frames / first_frame_chain
+    /// shared_segment_plan / boundary_frames / first_frame_chain / chat_video / storyboard
     pub workflow_mode: String,
 
     pub shot_number: i32,
@@ -40,7 +76,7 @@ pub struct Model {
     #[sea_orm(column_type = "Json")]
     pub reference_image_ids_json: Option<serde_json::Value>,
 
-    /// pending / running / completed / failed / cancelled
+    /// pending / running / interrupted / completed / failed / cancelled
     pub status: String,
 
     pub generated_video_id: Option<i64>,

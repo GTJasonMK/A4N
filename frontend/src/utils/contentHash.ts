@@ -5,3 +5,7 @@ export async function sha256Hex(text: string): Promise<string | null> {
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 }
+
+export function sha256Json(value: unknown): Promise<string | null> {
+  return sha256Hex(JSON.stringify(value));
+}

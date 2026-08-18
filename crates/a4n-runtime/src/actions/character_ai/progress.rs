@@ -62,4 +62,8 @@ impl<'a> CharacterAiProgress<'a> {
         self.cancel_token
             .is_some_and(CancellationToken::is_cancelled)
     }
+
+    pub(crate) fn task_id(&self) -> Option<&str> {
+        self.task_id
+    }
 }

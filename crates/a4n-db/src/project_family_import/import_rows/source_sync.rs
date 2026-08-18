@@ -75,12 +75,11 @@ pub(super) async fn insert_source_sync_rows(
             active.decision_json = Set(remap_conflict_decision_json(conflict, maps)?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.source_sync_decisions,
         decision,
         source_sync_decision::ActiveModel,
-        maps.source_sync_decision_ids,
         "导入源同步决策失败",
         |active| {
             active.conflict_id = Set(map_required(

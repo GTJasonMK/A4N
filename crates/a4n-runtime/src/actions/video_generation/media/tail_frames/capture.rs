@@ -3,8 +3,9 @@ use crate::actions::video_generation::media::video_files::{
     capture_video_tail_frame, video_tail_frame_path,
 };
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
-use crate::file_utils::data_dir_relative_file_path;
+use crate::file_utils::{data_dir_relative_file_path, data_file_record_facts};
 use a4n_core::models::ai::generated_video;
+use a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE;
 use a4n_orchestrator::video::video_shot_number;
 use serde_json::{Value, json};
 use std::path::Path;
@@ -13,23 +14,19 @@ pub(crate) async fn capture_video_tail_frame_asset(
     state: &AppState,
     video: &generated_video::Model,
     chapter_id: i64,
-    prompt_id: Option<i64>,
     video_path: &Path,
 ) -> Result<Value, String> {
     let shot_number = video_shot_number(video)?;
     let output = video_tail_frame_path(state.data_dir(), video.project_id, chapter_id, video.id)?;
     let result = async {
         capture_video_tail_frame(video_path, &output)?;
-        let output_path_str = data_dir_relative_file_path(state.data_dir(), &output, "尾帧图片")?;
-        let file_size = std::fs::metadata(&output)
-            .map_err(|err| format!("无法读取尾帧图片元数据：{err}"))?
-            .len() as i64;
+        let (output_path_str, file_size) =
+            data_file_record_facts(state.data_dir(), &output, "尾帧图片", "尾帧图片")?;
         let image = state
             .orchestrator()
             .create_video_tail_frame_record_validated(
                 video,
                 chapter_id,
-                prompt_id,
                 output_path_str,
                 file_size,
             )
@@ -40,7 +37,7 @@ pub(crate) async fn capture_video_tail_frame_asset(
             "image_id": image.id,
             "file_path": image.file_path,
             "shot_number": shot_number,
-            "source": "video_tail_frame_capture",
+            "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
         }))
     }
     .await;

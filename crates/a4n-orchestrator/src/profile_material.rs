@@ -3,26 +3,30 @@ use a4n_api_contract::profile::{
     ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
 };
 pub use a4n_db::profile_material::{
-    IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, ProfileMaterialDbError,
-    ProfileMaterialListRows, generated_image_profile_material_identity,
-    is_project_reusable_video_material_image, is_video_frame_input_metadata,
-    profile_material_identity,
+    ProfileMaterialDbError, ProfileMaterialListRows, generated_image_profile_material_identity,
+    is_project_reusable_video_material_image, profile_material_identity,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
 use a4n_core::{
-    error::AppError,
+    error::{AppError, append_secondary_message},
+    files::{
+        paths::ProjectPaths,
+        create_unique_timestamped_file, persist_created_media_file, remove_existing_data_file,
+    },
     models::{ai::generated_image, asset::object_profile, scene::scene_profile},
     source_spans::source_text_hash as source_content_sha256,
 };
 use a4n_db::video::CreateGeneratedImageRecordDraftInput;
-use a4n_domain::profile_material::{
-    ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
-    ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
+use a4n_domain::{
+    image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
+    profile_material::{
+        ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
+        ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
+    },
 };
 use chrono::{NaiveDateTime, Utc};
 use serde_json::{Value, json};
@@ -316,15 +320,18 @@ impl OrchestratorContext {
         {
             Ok(image) => image,
             Err(error) => {
-                let cleanup_error =
-                    remove_profile_material_file(self.data_dir(), &persisted.relative_path)
-                        .err()
-                        .map(|error| error.to_string());
+                let cleanup_error = remove_existing_data_file(
+                    self.data_dir(),
+                    &persisted.relative_path,
+                    "未提交素材图",
+                )
+                .err();
                 return Err(AppError::InvalidState {
                     current: "profile_material_upload".to_string(),
-                    operation: append_cleanup_error(
+                    operation: append_secondary_message(
                         format!("素材图记录创建失败：{error}"),
-                        cleanup_error,
+                        cleanup_error
+                            .map(|cleanup| format!("后续清理也失败：{cleanup}")),
                     ),
                 });
             }
@@ -347,7 +354,10 @@ impl OrchestratorContext {
                 .map(|error| format!("素材图记录回滚失败：{error}"));
             return Err(AppError::InvalidState {
                 current: "profile_material_upload".to_string(),
-                operation: append_cleanup_error(error.to_string(), cleanup_error),
+                operation: append_secondary_message(
+                    error.to_string(),
+                    cleanup_error.map(|cleanup| format!("后续清理也失败：{cleanup}")),
+                ),
             });
         }
 
@@ -877,10 +887,8 @@ fn persist_profile_material_image(
     data_dir: &Path,
     input: PersistProfileMaterialImageInput<'_>,
 ) -> Result<PersistedProfileMaterialImage, AppError> {
-    let dir = data_dir
-        .join("projects")
-        .join(input.project_id.to_string())
-        .join("images")
+    let dir = ProjectPaths::new(data_dir, input.project_id)
+        .images_dir()
         .join("profile_materials");
     std::fs::create_dir_all(&dir).map_err(|err| AppError::InvalidState {
         current: "profile_material_upload".to_string(),
@@ -895,118 +903,26 @@ fn persist_profile_material_image(
         current: "profile_material_upload".to_string(),
         operation: format!("创建上传素材图失败：{error}"),
     })?;
-    output_file
-        .write_all(input.bytes)
-        .map_err(|err| AppError::InvalidState {
-            current: "profile_material_upload".to_string(),
-            operation: format!("写入上传素材图失败：{err}"),
-        })?;
-    let metadata = std::fs::metadata(&path).map_err(|err| AppError::InvalidState {
+    let (relative_path, file_size) = persist_created_media_file(
+        data_dir,
+        &path,
+        move |_| {
+            output_file
+                .write_all(input.bytes)
+                .map_err(|err| format!("写入上传素材图失败：{err}"))
+        },
+        "上传素材图",
+        "上传素材图",
+        "上传素材图",
+    )
+    .map_err(|operation| AppError::InvalidState {
         current: "profile_material_upload".to_string(),
-        operation: format!("无法读取上传素材图元数据：{err}"),
+        operation,
     })?;
-    let file_size = i64::try_from(metadata.len()).map_err(|_| AppError::InvalidState {
-        current: "profile_material_upload".to_string(),
-        operation: "上传素材图过大，无法记录文件大小".to_string(),
-    })?;
-    let relative_path =
-        data_dir_relative_path(data_dir, &path).map_err(|operation| AppError::InvalidState {
-            current: "profile_material_upload".to_string(),
-            operation,
-        })?;
     Ok(PersistedProfileMaterialImage {
         relative_path,
         file_size,
     })
-}
-
-fn remove_profile_material_file(data_dir: &Path, relative_path: &str) -> Result<(), AppError> {
-    let raw = Path::new(relative_path);
-    if raw.is_absolute() {
-        return Err(AppError::InvalidArgument(
-            "素材图路径必须是应用数据目录内的相对路径".to_string(),
-        ));
-    }
-    let canonical_data_dir = data_dir
-        .canonicalize()
-        .map_err(|error| AppError::InvalidState {
-            current: "profile_material_upload".to_string(),
-            operation: format!("解析应用数据目录失败：{error}"),
-        })?;
-    let path = data_dir
-        .join(raw)
-        .canonicalize()
-        .map_err(|error| AppError::InvalidState {
-            current: "profile_material_upload".to_string(),
-            operation: format!("解析素材图路径失败：{error}"),
-        })?;
-    if !path.starts_with(&canonical_data_dir) {
-        return Err(AppError::InvalidArgument(
-            "素材图路径超出应用数据目录".to_string(),
-        ));
-    }
-    if path.is_file() {
-        std::fs::remove_file(&path).map_err(|error| AppError::InvalidState {
-            current: "profile_material_upload".to_string(),
-            operation: format!("删除未提交素材图失败：{error}"),
-        })?;
-    }
-    Ok(())
-}
-
-fn data_dir_relative_path(data_dir: &Path, path: &Path) -> Result<String, String> {
-    let canonical_data_dir = data_dir
-        .canonicalize()
-        .map_err(|error| format!("解析应用数据目录失败：{error}"))?;
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|error| format!("解析文件路径失败：{error}"))?;
-    canonical_path
-        .strip_prefix(&canonical_data_dir)
-        .map_err(|_| "文件不在应用数据目录内".to_string())?
-        .to_str()
-        .map(str::to_string)
-        .ok_or_else(|| "文件相对路径包含非 UTF-8 字符".to_string())
-}
-
-fn create_unique_timestamped_file(
-    directory: &Path,
-    prefix: &str,
-    extension: &str,
-) -> Result<(PathBuf, std::fs::File), std::io::Error> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?
-        .as_nanos();
-    for attempt in 0..20u32 {
-        let suffix = if attempt == 0 {
-            String::new()
-        } else {
-            format!("_{attempt}")
-        };
-        let path = directory.join(format!("{prefix}_{timestamp}{suffix}.{extension}"));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(file) => return Ok((path, file)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
-        }
-    }
-    Err(std::io::Error::new(
-        std::io::ErrorKind::AlreadyExists,
-        "文件名冲突过多",
-    ))
-}
-fn append_cleanup_error(primary: String, cleanup_error: Option<String>) -> String {
-    match cleanup_error {
-        Some(cleanup_error) if !cleanup_error.trim().is_empty() => {
-            format!("{primary}；后续清理也失败：{cleanup_error}")
-        }
-        _ => primary,
-    }
 }
 
 fn compact_json_hint(value: &Value, empty_text: &str) -> String {

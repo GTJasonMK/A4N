@@ -10,13 +10,8 @@ use crate::{
 fn capability_task_event_kind_marks_only_stream_terminal_events() {
     assert!(!CapabilityTaskEventKind::Progress.is_terminal());
     assert!(!CapabilityTaskEventKind::Chunk.is_terminal());
-    assert!(!CapabilityTaskEventKind::StructuredProgress.is_terminal());
-    assert!(!CapabilityTaskEventKind::Usage.is_terminal());
-    assert!(!CapabilityTaskEventKind::Checkpoint.is_terminal());
-    assert!(!CapabilityTaskEventKind::Artifact.is_terminal());
     assert!(CapabilityTaskEventKind::Completed.is_terminal());
     assert!(CapabilityTaskEventKind::Failed.is_terminal());
-    assert!(CapabilityTaskEventKind::CancelAck.is_terminal());
 }
 
 #[test]
@@ -59,63 +54,19 @@ fn validate_artifact_refs_allows_sidecar_local_path() {
 }
 
 #[test]
-fn sanitize_capability_task_event_rejects_remote_local_path() {
-    let mut event = CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::Artifact,
-        sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: vec![ArtifactRef {
-            artifact_id: "artifact-1".to_string(),
-            artifact_kind: "package".to_string(),
-            owner_user_id: None,
-            project_id: None,
-            content_type: "application/zip".to_string(),
-            sha256: "abc".to_string(),
-            byte_size: 10,
-            location: ArtifactLocation::LocalPath("/tmp/package.zip".to_string()),
-            expires_at: None,
-            ownership: ArtifactOwnership::Remote,
-        }],
-        error: None,
-        payload: None,
-    };
-
-    let err = sanitize_capability_task_event(&mut event).unwrap_err();
-
-    assert!(err.to_string().contains("remote sidecar artifact"));
-}
-
-#[test]
 fn sanitize_capability_task_event_redacts_error_message() {
-    let mut event = CapabilityTaskEvent {
-        task_id: "task-1".to_string(),
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence: 1,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(ServiceError {
+    let mut event = CapabilityTaskEvent::failed(
+        "task-1".to_string(),
+        1,
+        ServiceError {
             code: ServiceErrorCode::ProviderError,
             message: "provider failed: base_url=https://provider.example api_key=sk-test"
                 .to_string(),
             retryable: Some(false),
-        }),
-        payload: None,
-    };
+        },
+    );
 
-    sanitize_capability_task_event(&mut event).unwrap();
+    sanitize_capability_task_event(&mut event);
 
     let message = &event.error.unwrap().message;
     assert!(message.contains("base_url=[REDACTED]"));

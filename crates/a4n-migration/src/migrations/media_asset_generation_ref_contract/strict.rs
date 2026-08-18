@@ -5,14 +5,14 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     project_kind TEXT;
-    project_source_mode TEXT;
+    project_root_project_id BIGINT;
     project_source_snapshot_id BIGINT;
 BEGIN
     SELECT project_row.project_kind,
-           project_row.source_mode,
+           project_row.root_project_id,
            project_row.source_snapshot_id
       INTO project_kind,
-           project_source_mode,
+           project_root_project_id,
            project_source_snapshot_id
     FROM novel_project project_row
     WHERE project_row.id = NEW.project_id;
@@ -21,7 +21,9 @@ BEGIN
         RAISE EXCEPTION '媒体资产 project_id 不存在';
     END IF;
 
-    IF project_source_mode = 'freeform' THEN
+    IF project_kind = 'video'
+       AND project_root_project_id IS NULL
+       AND project_source_snapshot_id IS NULL THEN
         IF NEW.root_project_id <> NEW.project_id THEN
             RAISE EXCEPTION 'freeform 媒体资产 root_project_id 必须等于 project_id';
         END IF;
@@ -35,7 +37,8 @@ BEGIN
             SELECT 1 FROM novel_project root
             WHERE root.id = NEW.root_project_id
               AND root.project_kind = 'text'
-              AND root.source_mode = 'self'
+              AND root.root_project_id IS NULL
+              AND root.source_snapshot_id IS NULL
         ) THEN
             RAISE EXCEPTION '媒体资产 root_project_id 必须指向文本项目';
         END IF;
@@ -45,9 +48,9 @@ BEGIN
               AND (
                   (project_row.project_kind = 'text' AND project_row.id = NEW.root_project_id)
                   OR (
-                      project_row.project_kind <> 'text'
-                      AND project_row.source_mode = 'derived'
+                      project_row.project_kind IN ('comic','video','galgame')
                       AND project_row.root_project_id = NEW.root_project_id
+                      AND project_row.source_snapshot_id IS NOT NULL
                   )
               )
         ) THEN

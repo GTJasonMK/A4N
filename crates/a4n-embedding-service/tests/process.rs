@@ -1,5 +1,8 @@
 #[cfg(feature = "fastembed")]
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
+use a4n_service_protocol::{
+    EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH,
+};
 #[cfg(feature = "fastembed")]
 use a4n_test_support::process::force_finish_sidecar;
 use a4n_test_support::process::{
@@ -18,7 +21,7 @@ use tokio::{io::AsyncReadExt, sync::oneshot, task::JoinHandle};
 #[allow(unused_mut)]
 fn embedding_process_env(cache_dir: &std::path::Path) -> Vec<(String, String)> {
     let mut env = vec![(
-        "A4N_EMBEDDING_CACHE_DIR".to_string(),
+        EMBEDDING_CACHE_DIR_ENV.to_string(),
         cache_dir.to_string_lossy().into_owned(),
     )];
     #[cfg(feature = "fastembed")]
@@ -236,13 +239,21 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         embedding_env,
     );
     let process = start_sidecar(&manager, EMBEDDING_SERVICE_NAME).await;
-    assert_process_concurrency_saturation(addr, EMBEDDING_SERVICE_NAME, "/embedding/embed_texts")
+    assert_process_concurrency_saturation(
+        addr,
+        EMBEDDING_SERVICE_NAME,
+        EMBEDDING_EMBED_TEXTS_PATH,
+    )
         .await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/embedding/embed_texts").await;
-    assert_route_rejects_malformed_json(&base_url, "/embedding/embed_texts").await;
-    assert_route_rejects_oversized_json(&base_url, "/embedding/embed_texts", 16 * 1024 * 1024)
-        .await;
+    assert_protected_route_rejects_invalid_auth(&base_url, EMBEDDING_EMBED_TEXTS_PATH).await;
+    assert_route_rejects_malformed_json(&base_url, EMBEDDING_EMBED_TEXTS_PATH).await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        EMBEDDING_EMBED_TEXTS_PATH,
+        16 * 1024 * 1024,
+    )
+    .await;
     let client = HttpEmbeddingClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
         "embedding-process-embed",
@@ -258,13 +269,13 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
-        "/embedding/embed_texts",
+        EMBEDDING_EMBED_TEXTS_PATH,
         &request,
     )
     .await;
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
-        "/embedding/embed_texts",
+        EMBEDDING_EMBED_TEXTS_PATH,
         &request,
     )
     .await;
@@ -303,7 +314,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         Some(8)
     );
 
-    disconnect_during_request_body(addr, "/embedding/embed_texts").await;
+    disconnect_during_request_body(addr, EMBEDDING_EMBED_TEXTS_PATH).await;
     let failed = client
         .embed(request_context(
             "embedding-process-failure",

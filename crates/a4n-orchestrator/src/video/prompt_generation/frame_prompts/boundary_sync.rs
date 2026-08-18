@@ -41,11 +41,7 @@ pub(super) async fn sync_boundary_frame_previous_image_ref(
     let Some(last_ref_id) = refs.last().copied() else {
         return Ok(row);
     };
-    let last_ref_exists =
-        a4n_db::video::generated_image_by_id(service.database.connection(), last_ref_id)
-            .await
-            .map_err(AppError::Database)?
-            .is_some();
+    let last_ref_exists = service.generated_image_by_id(last_ref_id).await?.is_some();
     if last_ref_exists {
         return Ok(row);
     }
@@ -147,7 +143,7 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
     .await
     .map_err(AppError::Database)?;
     for row in rows {
-        if row.status == "running" {
+        if row.status == chapter_video_prompt::STATUS_RUNNING {
             return Err(AppError::InvalidArgument(format!(
                 "当前章节已有边界帧提示词 #{} 正在运行，不能继续生成边界帧提示词",
                 row.shot_number

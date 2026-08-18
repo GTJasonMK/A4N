@@ -96,11 +96,7 @@ pub(in crate::routes::commands) async fn cancel_task(
 ) -> Result<Value, ApiError> {
     let input = serde_json::from_value::<CancelTaskInput>(args.clone())
         .map_err(|error| ApiError::bad_request(format!("cancel_task 参数无效: {error}")))?;
-    let task_id = input.task_id.trim();
-    if task_id.is_empty() {
-        return Err(ApiError::bad_request("taskId 不能为空"));
-    }
-    task_records_actions::cancel_task(state.runtime(), user_id, task_id)
+    task_records_actions::cancel_task(state.runtime(), user_id, &input.task_id)
         .await
         .map_err(ApiError::bad_request)?;
     to_value(())

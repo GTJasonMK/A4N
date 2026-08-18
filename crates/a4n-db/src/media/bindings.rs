@@ -1,9 +1,7 @@
 use a4n_core::models::media::{media_asset, media_binding};
+use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::BTreeSet;
-
-const MEDIA_TARGET_GENERATED_IMAGE: &str = "generated_image";
-const MEDIA_TARGET_GENERATED_VIDEO: &str = "generated_video";
 
 pub(crate) async fn delete_generated_image_target_media_bindings<C>(
     db: &C,
@@ -12,7 +10,8 @@ pub(crate) async fn delete_generated_image_target_media_bindings<C>(
 where
     C: ConnectionTrait,
 {
-    delete_generated_target_media_bindings(db, MEDIA_TARGET_GENERATED_IMAGE, image_ids).await
+    delete_generated_target_media_bindings(db, CanvasNodeRefKind::GeneratedImage.as_str(), image_ids)
+        .await
 }
 
 pub(crate) async fn delete_generated_video_target_media_bindings<C>(
@@ -22,7 +21,8 @@ pub(crate) async fn delete_generated_video_target_media_bindings<C>(
 where
     C: ConnectionTrait,
 {
-    delete_generated_target_media_bindings(db, MEDIA_TARGET_GENERATED_VIDEO, video_ids).await
+    delete_generated_target_media_bindings(db, CanvasNodeRefKind::GeneratedVideo.as_str(), video_ids)
+        .await
 }
 
 pub(crate) async fn generated_video_target_media_binding_project_ids<C>(
@@ -39,7 +39,9 @@ where
     let media_asset_ids = media_binding::Entity::find()
         .select_only()
         .column(media_binding::Column::MediaAssetId)
-        .filter(media_binding::Column::TargetKind.eq(MEDIA_TARGET_GENERATED_VIDEO))
+        .filter(
+            media_binding::Column::TargetKind.eq(CanvasNodeRefKind::GeneratedVideo.as_str()),
+        )
         .filter(media_binding::Column::TargetId.is_in(target_ids))
         .into_tuple::<i64>()
         .all(db)

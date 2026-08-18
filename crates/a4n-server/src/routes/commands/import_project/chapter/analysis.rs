@@ -34,7 +34,7 @@ macro_rules! chapter_analysis_web_task_command {
                 ch.project_id,
                 CHAPTER_ANALYSIS_PROGRESS_TOTAL,
                 $start_message,
-            );
+            )?;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
             // 与桌面端对称：活体信号必须双端一致。
@@ -48,7 +48,7 @@ macro_rules! chapter_analysis_web_task_command {
             let result = $run(state.runtime(), user_id, input.chapter_id, Some(&progress)).await;
             let value = finish_web_task(
                 state,
-                task_id,
+                task.as_ref(),
                 string_action_result(
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),

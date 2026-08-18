@@ -43,9 +43,10 @@ import type { ChapterRow } from "../shared";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
 import { promptTitle } from "./videoGenerationDisplay";
 import {
-  extractPromptSourceHash,
+  extractSourceContentHash,
   hasPendingProviderJob,
   isDurationAllowed,
+  isVideoFramePromptImageGenerationSource,
   isVideoFramePromptType,
   readSavedReferenceImageIds,
   staleVideoPromptMessage,
@@ -54,11 +55,13 @@ import {
   videoImageGenerationSource,
   videoPromptSupportsProviderGeneration,
   videoProviderRequestPreviewBlockedReason,
+  VIDEO_FINAL_PROMPT_TYPE,
+  VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
   type PromptDraft,
   type VideoDurationLimits,
 } from "./videoTabUtils";
 
-type AddToast = (message: unknown, type: ToastType) => void;
+type AddToast = (message: string, type: ToastType) => void;
 
 const promptPreviewOverride = (
   draft: PromptDraft,
@@ -70,9 +73,9 @@ const promptPreviewOverride = (
 });
 
 const videoPromptStage = (prompt: ChapterVideoPrompt): number | null => {
-  if (prompt.prompt_type === "frame_segment_plan") return 1;
+  if (prompt.prompt_type === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE) return 1;
   if (isVideoFramePromptType(prompt.prompt_type)) return 2;
-  if (prompt.prompt_type === "video_prompt") return 3;
+  if (prompt.prompt_type === VIDEO_FINAL_PROMPT_TYPE) return 3;
   return null;
 };
 
@@ -82,9 +85,7 @@ const frameImageBelongsToPrompt = (
 ): boolean => {
   const source = videoImageGenerationSource(image);
   return (
-    (source === "video_boundary_frame_prompt" ||
-      source === "video_first_frame_prompt" ||
-      source === "video_storyboard_prompt") &&
+    isVideoFramePromptImageGenerationSource(source) &&
     videoImageGenerationPromptId(image) === promptId
   );
 };
@@ -195,18 +196,18 @@ export function useVideoRecordActions({
   const requestPreviewScopeRef = useRef(0);
   const requestPreviewBusyScopeRef = useRef<number | null>(null);
   const [trimStart, setTrimStart] = useState("0");
-  const [trimEnd, setTrimEnd] = useState("3");
+  const [trimEnd, setTrimEnd] = useState("");
 
   const videoPromptGenerateBlockedReason = (
     prompt: ChapterVideoPrompt,
   ): string | null => {
-    if (prompt.prompt_type !== "video_prompt")
+    if (prompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE)
       return "请选择 video_prompt 类型的提示词";
     if (!videoPromptSupportsProviderGeneration(prompt)) {
       return "Chat 生视频模式不使用应用内 provider 生成，请复制提示词到外部 Chat 后导入视频";
     }
     if (prompt.status === "running") return `视频提示词 #${prompt.id} 正在运行`;
-    const promptSourceHash = extractPromptSourceHash(prompt.metadata_json);
+    const promptSourceHash = extractSourceContentHash(prompt.metadata_json);
     if (
       promptSourceHash &&
       currentContentHash &&
@@ -260,7 +261,7 @@ export function useVideoRecordActions({
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
     setTrimStart("0");
-    setTrimEnd("3");
+    setTrimEnd("");
   }, [previewScopeKey]);
 
   const wrapAct = async (
@@ -505,7 +506,6 @@ export function useVideoRecordActions({
             projectId,
             chapter.id,
           );
-          if (!row) throw new Error("视频生成已结束，但没有正式视频结果");
           if (!isCurrentActionScope(requestScope)) return;
           setSelectedVideoId(row.id);
           setPendingVideoId(null);
@@ -528,7 +528,7 @@ export function useVideoRecordActions({
 
   const handleImportVideo = async (): Promise<void> => {
     if (!chapter || !selectedPrompt) return;
-    if (selectedPrompt.prompt_type !== "video_prompt") {
+    if (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE) {
       addToast("请选择 video_prompt 类型的提示词导入视频", "error");
       return;
     }
@@ -638,7 +638,7 @@ export function useVideoRecordActions({
 
   const handlePreviewGenerateVideoRequest = async () => {
     if (!selectedPrompt) return;
-    if (selectedPrompt.prompt_type !== "video_prompt") {
+    if (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE) {
       addToast("请选择 video_prompt 类型的提示词", "error");
       return;
     }

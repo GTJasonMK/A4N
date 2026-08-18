@@ -1,5 +1,12 @@
 use a4n_core::error::AppError;
-use a4n_db::canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput};
+use a4n_db::{
+    canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput},
+    generation::{
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
+    },
+};
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_image::ImageGenerationRequest;
 use serde_json::json;
 
@@ -9,7 +16,7 @@ use crate::{
         ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
         ImageGenerationProgress, ImageGenerationWorkflowBinding,
     },
-    project::SOURCE_MODE_FREEFORM,
+    project::ProjectSourceMode,
     workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
 };
 
@@ -61,7 +68,7 @@ impl OrchestratorContext {
             let metadata_json = Some(json!({
                 "config_id": config.id,
                 "backend": config.backend,
-                "image_type": "canvas_image",
+                "image_type": IMAGE_TYPE_CANVAS,
                 "canvas": {
                     "graph_id": input.graph_id,
                     "node_id": input.node.id,
@@ -76,7 +83,7 @@ impl OrchestratorContext {
                     ImageGenerationExecutionInput {
                         project_id: input.project_id,
                         chapter_id: None,
-                        image_type: "canvas_image".to_string(),
+                        image_type: IMAGE_TYPE_CANVAS.to_string(),
                         command: "generate_canvas_image".to_string(),
                         file_extra: None,
                         file_context: "图片文件".to_string(),
@@ -140,7 +147,10 @@ impl OrchestratorContext {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
-        if project.source_mode != SOURCE_MODE_FREEFORM {
+        if project.source_mode().map_err(|error| {
+            AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
+        })? != ProjectSourceMode::Freeform
+        {
             return Ok(None);
         }
         let source_material_json = json!({
@@ -152,8 +162,8 @@ impl OrchestratorContext {
                 project_id: input.project_id,
                 target_entity_id: input.node.id,
                 canvas_text_asset_id: image_input.canvas_text_asset_id,
-                target_kind: "canvas_image".to_string(),
-                target_entity_kind: "canvas_node".to_string(),
+                target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE.to_string(),
+                target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
                 status: WORKFLOW_STATUS_RUNNING.to_string(),
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,

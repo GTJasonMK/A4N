@@ -13,7 +13,13 @@ use a4n_core::{
         source_text_hash as source_content_sha256,
     },
 };
-use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_domain::{
+    image::{
+        IMAGE_TYPE_CANVAS, IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL,
+        video_frame_image_generation_context,
+    },
+    profile_material::ProfileMaterialKind,
+};
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use serde_json::{Value, json};
 
@@ -27,10 +33,7 @@ use crate::{
         profile_material_metadata, scene_profile_content, scene_profile_image_prompt,
     },
     project::ChapterMangaSourceSummary,
-    video::{
-        batch_item_reference_image_ids, video_frame_generation_label,
-        video_frame_image_generation_context,
-    },
+    video::batch_item_reference_image_ids,
 };
 
 use super::{
@@ -97,12 +100,12 @@ struct ProfileImageSpec {
 
 const OBJECT_PROFILE_IMAGE_SPEC: ProfileImageSpec = ProfileImageSpec {
     profile_kind: ProfileMaterialKind::Object,
-    image_type: "object_material",
+    image_type: IMAGE_TYPE_OBJECT_MATERIAL,
     command: "image_object_profile",
 };
 const SCENE_PROFILE_IMAGE_SPEC: ProfileImageSpec = ProfileImageSpec {
     profile_kind: ProfileMaterialKind::Scene,
-    image_type: "scene_material",
+    image_type: IMAGE_TYPE_SCENE_MATERIAL,
     command: "image_scene_profile",
 };
 
@@ -804,16 +807,16 @@ impl OrchestratorContext {
                 .map(|context| {
                     (
                         context.source.to_string(),
+                        context.generation_label,
                         context.prompt_id,
-                        context.request_preview_note.map(ToString::to_string),
                     )
                 });
-            if let Some((source, prompt_id, request_preview_note)) = &video_frame_context {
+            if let Some((source, generation_label, prompt_id)) = &video_frame_context {
                 let key = (source.clone(), *prompt_id);
                 if !video_frame_requests.insert(key) {
                     return Err(AppError::InvalidArgument(format!(
                         "批量成图包含重复的{}请求：视频帧提示词 #{}",
-                        video_frame_generation_label(source),
+                        generation_label,
                         prompt_id
                     )));
                 }
@@ -823,12 +826,9 @@ impl OrchestratorContext {
                 } else {
                     preview_notes.push(format!(
                         "{}绑定视频帧提示词 #{}；预览按当前有效参考图构造图片 provider 请求。",
-                        video_frame_generation_label(source),
+                        generation_label,
                         prompt_id
                     ));
-                    if let Some(note) = request_preview_note {
-                        preview_notes.push(note.clone());
-                    }
                 }
                 let effective_ids = self
                     .effective_frame_prompt_image_reference_ids(
@@ -861,17 +861,14 @@ impl OrchestratorContext {
                     .map_err(AppError::InvalidArgument)?;
                 preview_notes.push(format!("参考图数量：{}", reference_images.len()));
             }
-            let aspect_ratio = batch_image_aspect_ratio(item, metadata_json.as_ref())
+            let aspect_ratio = batch_image_aspect_ratio(item)
                 .map_err(AppError::InvalidArgument)?;
-            let (width, height) = match aspect_ratio {
-                Some(aspect_ratio) => image_dimensions_for_aspect_ratio(
-                    config.default_width,
-                    config.default_height,
-                    &aspect_ratio,
-                )
-                .map_err(AppError::InvalidArgument)?,
-                None => (config.default_width, config.default_height),
-            };
+            let (width, height) = image_dimensions_for_aspect_ratio(
+                config.default_width,
+                config.default_height,
+                aspect_ratio,
+            )
+            .map_err(AppError::InvalidArgument)?;
             jobs.push(PreparedBatchImageJob {
                 execution: BatchImageExecutionItem {
                     index,
@@ -997,7 +994,7 @@ fn canvas_image_plan(input: GenerateCanvasImageInput) -> DirectImagePlan {
     DirectImagePlan {
         project_id: input.project_id,
         prompt: input.prompt,
-        image_type: "canvas_image".to_string(),
+        image_type: IMAGE_TYPE_CANVAS.to_string(),
         config_id: input.config_id,
         chapter_id: None,
         panel_id: None,

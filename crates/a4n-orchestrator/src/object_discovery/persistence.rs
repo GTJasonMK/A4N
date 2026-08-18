@@ -12,6 +12,7 @@ use crate::{
 use super::contracts::{
     ObjectDiscoveryCallResult, ObjectDiscoveryProgress, ObjectDiscoveryRequestContext,
 };
+use super::{OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND};
 
 impl OrchestratorContext {
     pub(super) async fn persist_discovered_object_profiles(
@@ -25,7 +26,6 @@ impl OrchestratorContext {
         let ObjectDiscoveryRequestContext {
             chapters,
             text_anchors,
-            request: _,
         } = request_context;
         let ObjectDiscoveryCallResult {
             parsed_drafts,
@@ -62,13 +62,13 @@ impl OrchestratorContext {
                 profile_evidence,
                 RecordCompletedGenerationRunInput {
                     project_id,
-                    workflow: "object_discovery".to_string(),
-                    step_key: "discover_object_profiles_for_chapters".to_string(),
+                    workflow: OBJECT_DISCOVERY_KIND.to_string(),
+                    step_key: OBJECT_DISCOVERY_CALL_KEY.to_string(),
                     title: "物体档案发现".to_string(),
                     model_kind: "llm".to_string(),
                     provider: None,
                     model: None,
-                    prompt_template_names_json: Some(json!(["object_discovery"])),
+                    prompt_template_names_json: Some(json!([OBJECT_DISCOVERY_KIND])),
                     prompt_template_hashes_json: None,
                     rendered_messages_json: Some(messages_json),
                     rendered_prompts_json: None,

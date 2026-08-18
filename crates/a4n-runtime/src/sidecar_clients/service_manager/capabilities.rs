@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
 use a4n_capabilities::{
-    A4nCapabilities, HttpClientFactory, HttpEmbeddingClient, HttpExportClient, HttpImageClient,
-    HttpImportClient, HttpLlmClient, HttpPromptClient, HttpRagClient, HttpVideoClient,
+    A4nCapabilities, HttpEmbeddingClient, HttpExportClient, HttpImageClient, HttpImportClient,
+    HttpLlmClient, HttpPromptClient, HttpRagClient, HttpVideoClient,
 };
 use a4n_service_manager::ServiceManager;
+use a4n_service_protocol::{
+    EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME,
+    LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, RAG_SERVICE_NAME, VIDEO_SERVICE_NAME,
+};
 
 use crate::state::RuntimeProfile;
 
@@ -16,23 +20,14 @@ pub(crate) fn runtime_capabilities(
         return Ok(A4nCapabilities::empty());
     }
 
-    let prompt_url = service_url(service_manager, "prompt")?;
-    let llm_url = service_url(service_manager, "llm")?;
-    let embedding_url = service_url(service_manager, "embedding")?;
-    let rag_url = service_url(service_manager, "rag")?;
-    let image_url = service_url(service_manager, "image")?;
-    let video_url = service_url(service_manager, "video")?;
-    let import_url = service_url(service_manager, "import")?;
-    let export_url = service_url(service_manager, "export")?;
-
-    let prompt = http_prompt(service_manager, prompt_url)?;
-    let llm = http_llm(service_manager, llm_url)?;
-    let embedding = http_embedding(service_manager, embedding_url)?;
-    let rag = http_rag(service_manager, rag_url)?;
-    let image = http_image(service_manager, image_url)?;
-    let video = http_video(service_manager, video_url)?;
-    let import_client = http_import(service_manager, import_url)?;
-    let export = http_export(service_manager, export_url)?;
+    let prompt = http_prompt(service_manager)?;
+    let llm = http_llm(service_manager)?;
+    let embedding = http_embedding(service_manager)?;
+    let rag = http_rag(service_manager)?;
+    let image = http_image(service_manager)?;
+    let video = http_video(service_manager)?;
+    let import_client = http_import(service_manager)?;
+    let export = http_export(service_manager)?;
 
     Ok(A4nCapabilities::empty()
         .with_prompt(Arc::new(prompt))
@@ -54,79 +49,31 @@ fn service_url(manager: &ServiceManager, name: &str) -> Result<String, String> {
         .ok_or_else(|| format!("sidecar service {name} 缺少 URL"))
 }
 
-fn auth_token(manager: &ServiceManager, name: &str) -> Option<String> {
-    manager.auth_token(name)
-}
-
-fn capability_http_client_factory(
-    manager: &ServiceManager,
-    name: &str,
-) -> Result<HttpClientFactory, String> {
-    manager
-        .capability_http_client_factory(name)
-        .map_err(|error| error.to_string())
-}
-
-fn http_prompt(manager: &ServiceManager, url: String) -> Result<HttpPromptClient, String> {
-    let capability = match auth_token(manager, "prompt") {
-        Some(token) => HttpPromptClient::new_with_auth_token(url, token),
-        None => HttpPromptClient::new(url),
+macro_rules! http_capability {
+    ($function:ident, $client:ty, $service:expr) => {
+        fn $function(manager: &ServiceManager) -> Result<$client, String> {
+            let url = service_url(manager, $service)?;
+            let capability = match manager.auth_token($service).map_err(|error| error.to_string())? {
+                Some(token) => <$client>::new_with_auth_token(url, token),
+                None => <$client>::new(url),
+            };
+            let factory = manager
+                .capability_http_client_factory($service)
+                .map_err(|error| error.to_string())?;
+            Ok(capability.with_http_client_factory(factory))
+        }
     };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "prompt")?))
 }
 
-fn http_llm(manager: &ServiceManager, url: String) -> Result<HttpLlmClient, String> {
-    let capability = match auth_token(manager, "llm") {
-        Some(token) => HttpLlmClient::new_with_auth_token(url, token),
-        None => HttpLlmClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "llm")?))
-}
-
-fn http_embedding(manager: &ServiceManager, url: String) -> Result<HttpEmbeddingClient, String> {
-    let capability = match auth_token(manager, "embedding") {
-        Some(token) => HttpEmbeddingClient::new_with_auth_token(url, token),
-        None => HttpEmbeddingClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "embedding")?))
-}
-
-fn http_rag(manager: &ServiceManager, url: String) -> Result<HttpRagClient, String> {
-    let capability = match auth_token(manager, "rag") {
-        Some(token) => HttpRagClient::new_with_auth_token(url, token),
-        None => HttpRagClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "rag")?))
-}
-
-fn http_image(manager: &ServiceManager, url: String) -> Result<HttpImageClient, String> {
-    let capability = match auth_token(manager, "image") {
-        Some(token) => HttpImageClient::new_with_auth_token(url, token),
-        None => HttpImageClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "image")?))
-}
-
-fn http_video(manager: &ServiceManager, url: String) -> Result<HttpVideoClient, String> {
-    let capability = match auth_token(manager, "video") {
-        Some(token) => HttpVideoClient::new_with_auth_token(url, token),
-        None => HttpVideoClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "video")?))
-}
-
-fn http_import(manager: &ServiceManager, url: String) -> Result<HttpImportClient, String> {
-    let capability = match auth_token(manager, "import") {
-        Some(token) => HttpImportClient::new_with_auth_token(url, token),
-        None => HttpImportClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "import")?))
-}
-
-fn http_export(manager: &ServiceManager, url: String) -> Result<HttpExportClient, String> {
-    let capability = match auth_token(manager, "export") {
-        Some(token) => HttpExportClient::new_with_auth_token(url, token),
-        None => HttpExportClient::new(url),
-    };
-    Ok(capability.with_http_client_factory(capability_http_client_factory(manager, "export")?))
-}
+http_capability!(http_prompt, HttpPromptClient, PROMPT_SERVICE_NAME);
+http_capability!(http_llm, HttpLlmClient, LLM_SERVICE_NAME);
+http_capability!(
+    http_embedding,
+    HttpEmbeddingClient,
+    EMBEDDING_SERVICE_NAME
+);
+http_capability!(http_rag, HttpRagClient, RAG_SERVICE_NAME);
+http_capability!(http_image, HttpImageClient, IMAGE_SERVICE_NAME);
+http_capability!(http_video, HttpVideoClient, VIDEO_SERVICE_NAME);
+http_capability!(http_import, HttpImportClient, IMPORT_SERVICE_NAME);
+http_capability!(http_export, HttpExportClient, EXPORT_SERVICE_NAME);

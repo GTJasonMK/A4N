@@ -23,9 +23,10 @@ import {
   reverseEngineer,
   runImportProjectAnalysis,
   type DedupResult,
-  type ImportReview,
+  type ImportReviewSummary,
   type ProjectImportAnalysisProgress,
   type ReverseEngineeringCandidate,
+  type ReverseEngineeringTarget,
 } from "../../api/import";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { cancelWorkflowTask } from "../../api/streaming";
@@ -47,7 +48,6 @@ import {
   formalReverseNotice,
   importAnalysisDialogFromProgress,
   type ImportAnalysisDialogState,
-  type ReverseType,
 } from "./imports/importTabUtils";
 import { readFileAsBase64 } from "../../utils/fileUpload";
 
@@ -62,7 +62,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { runProgressTask: runReverseProgressTask } = useProgressTask();
-  const [reviews, setReviews] = useState<ImportReview[]>([]);
+  const [reviews, setReviews] = useState<ImportReviewSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [projectProgress, setProjectProgress] =
     useState<ProjectImportAnalysisProgress | null>(null);
@@ -71,15 +71,15 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [cancelBusy, setCancelBusy] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
-  const [activeReview, setActiveReview] = useState<ImportReview | null>(null);
+  const [activeReview, setActiveReview] = useState<ImportReviewSummary | null>(null);
   const [activeReviewJson, setActiveReviewJson] = useState("");
   const [activeReviewJsonError, setActiveReviewJsonError] = useState<
     string | null
   >(null);
   const [activeReviewJsonDirty, setActiveReviewJsonDirty] = useState(false);
-  const activeReviewRef = useRef<ImportReview | null>(null);
+  const activeReviewRef = useRef<ImportReviewSummary | null>(null);
   const activeReviewJsonDirtyRef = useRef(false);
-  const reviewsRef = useRef<ImportReview[]>([]);
+  const reviewsRef = useRef<ImportReviewSummary[]>([]);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const loadRequestRef = useRef(0);
@@ -107,7 +107,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [dedupText, setDedupText] = useState("");
   const [dedupResult, setDedupResult] = useState<DedupResult | null>(null);
   const [dedupBusy, setDedupBusy] = useState(false);
-  const [reverseType, setReverseType] = useState<ReverseType>("blueprint");
+  const [reverseType, setReverseType] =
+    useState<ReverseEngineeringTarget>("blueprint");
   const [reverseSample, setReverseSample] = useState("");
   const [reverseAutoContext, setReverseAutoContext] = useState(true);
   const [reverseResult, setReverseResult] =
@@ -147,7 +148,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     [onBusyChange],
   );
 
-  const setActiveReviewState = (review: ImportReview | null) => {
+  const setActiveReviewState = (review: ImportReviewSummary | null) => {
     activeReviewRef.current = review;
     setActiveReview(review);
   };
@@ -297,7 +298,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const restoreLatestReverseCandidate = async (
     requestProjectId: number,
-    requestReverseType: ReverseType,
+    requestReverseType: ReverseEngineeringTarget,
   ) => {
     const requestSeq = nextSequence(reverseSeqRef);
     try {
@@ -818,7 +819,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const buildReverseInput = (
     requestProjectId: number,
-    requestReverseType: ReverseType,
+    requestReverseType: ReverseEngineeringTarget,
     requestSample: string,
     requestAutoContext: boolean,
   ) => ({
@@ -1017,7 +1018,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     }
   };
 
-  const handleReverseTypeChange = (value: ReverseType) => {
+  const handleReverseTypeChange = (value: ReverseEngineeringTarget) => {
     setReverseType(value);
     setReverseResult(null);
     void restoreLatestReverseCandidate(projectId, value);

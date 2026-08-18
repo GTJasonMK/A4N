@@ -5,13 +5,13 @@ mod response;
 pub use path::{relative_media_path, relative_media_uri_path};
 pub use range::{requested_byte_range, requested_byte_range_header};
 pub use response::{
-    MediaFileResponse, MediaResponseStatus, content_type_for_path, read_media_file_response,
+    MediaFileResponse, MediaFileResponseError, MediaResponseStatus, read_media_file_response,
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     #[test]
     fn relative_media_uri_path_decodes_convert_file_src_path() {
@@ -74,14 +74,4 @@ mod tests {
         assert_eq!(requested_byte_range_header(absent, 100), None);
     }
 
-    #[test]
-    fn content_type_for_known_media_extensions() {
-        assert_eq!(content_type_for_path(Path::new("image.PNG")), "image/png");
-        assert_eq!(content_type_for_path(Path::new("clip.mp4")), "video/mp4");
-        assert_eq!(content_type_for_path(Path::new("voice.ogg")), "audio/ogg");
-        assert_eq!(
-            content_type_for_path(Path::new("archive.bin")),
-            "application/octet-stream"
-        );
-    }
 }

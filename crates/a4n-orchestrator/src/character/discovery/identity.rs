@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use a4n_api_contract::character::DiscoveredCharacterProfileSummary;
 use a4n_core::models::character::protagonist_profile;
 use serde_json::{Value, json};
 
@@ -31,25 +32,27 @@ pub(super) fn existing_profile_for_prompt(
     }))
 }
 
-pub(super) fn profile_for_result(profile: &protagonist_profile::Model) -> Result<Value, String> {
-    Ok(json!({
-        "id": profile.id,
-        "project_id": profile.project_id,
-        "name": profile.name,
-        "gender": profile.gender,
-        "age": profile.age,
-        "base_attributes": profile.base_attributes,
-        "current_state": profile.current_state,
-        "character_arc": profile.character_arc,
-        "voice_fingerprint": profile.voice_fingerprint,
-        "appearance": profile.appearance,
-        "background": profile.background,
-        "personality": profile.personality,
-        "last_synced_chapter": profile.last_synced_chapter,
-        "attribute_counts": attribute_counts(&profile.current_state)?,
-        "created_at": profile.created_at.to_string(),
-        "updated_at": profile.updated_at.to_string(),
-    }))
+pub(super) fn profile_for_result(
+    profile: &protagonist_profile::Model,
+) -> Result<DiscoveredCharacterProfileSummary, String> {
+    Ok(DiscoveredCharacterProfileSummary {
+        id: profile.id,
+        project_id: profile.project_id,
+        name: profile.name.clone(),
+        gender: profile.gender.clone(),
+        age: profile.age.clone(),
+        base_attributes: profile.base_attributes.clone(),
+        current_state: profile.current_state.clone(),
+        character_arc: profile.character_arc.clone(),
+        voice_fingerprint: profile.voice_fingerprint.clone(),
+        appearance: profile.appearance.clone(),
+        background: profile.background.clone(),
+        personality: profile.personality.clone(),
+        last_synced_chapter: profile.last_synced_chapter,
+        attribute_counts: attribute_counts(&profile.current_state)?,
+        created_at: profile.created_at.to_string(),
+        updated_at: profile.updated_at.to_string(),
+    })
 }
 
 pub(super) fn existing_character_keys(profiles: &[protagonist_profile::Model]) -> BTreeSet<String> {

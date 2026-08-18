@@ -1,16 +1,44 @@
 export type PromptOutputLanguage = "zh_cn" | "en";
+
+export const VIDEO_TYPE_CHAPTER = "chapter_video" as const;
+export const VIDEO_TYPE_REFERENCE_MEDIA = "reference_media_video" as const;
+export const VIDEO_TYPE_TRIMMED_CLIP = "trimmed_clip" as const;
+export const VIDEO_TYPE_ASSEMBLY_INSERT = "assembly_insert" as const;
+export const VIDEO_TYPE_ASSEMBLY_PUSH = "assembly_push" as const;
+export const VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT =
+  "assembly_postprocess_edit" as const;
+export const VIDEO_TYPE_CANVAS = "canvas_video" as const;
+export const VIDEO_TYPE_CANVAS_ASSEMBLY = "canvas_assembly" as const;
+
+export const VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN =
+  "shared_segment_plan" as const;
+export const VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES = "boundary_frames" as const;
+export const VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN =
+  "first_frame_chain" as const;
+export const VIDEO_WORKFLOW_MODE_STORYBOARD = "storyboard" as const;
+export const VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA = "reference_media" as const;
+export const VIDEO_WORKFLOW_MODE_CHAT_VIDEO = "chat_video" as const;
+export const VIDEO_WORKFLOW_MODE_MIXED = "mixed" as const;
+export const VIDEO_WORKFLOW_MODE_CANVAS_VIDEO = "canvas_video" as const;
+export const VIDEO_WORKFLOW_MODE_CANVAS_TRIM = "canvas_trim" as const;
+export const VIDEO_WORKFLOW_MODE_CANVAS_ASSEMBLY = "canvas_assembly" as const;
+export const VIDEO_SEGMENT_WORKFLOW_MODES = [
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
+  VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+] as const;
+
+export type VideoSegmentWorkflowMode =
+  (typeof VIDEO_SEGMENT_WORKFLOW_MODES)[number];
 export type VideoWorkflowMode =
-  | "shared_segment_plan"
-  | "boundary_frames"
-  | "first_frame_chain"
-  | "storyboard"
-  | "reference_media"
-  | "chat_video"
-  | "mixed"
-  | "canvas_video"
-  | "canvas_reference_media"
-  | "canvas_trim"
-  | "canvas_assembly";
+  | typeof VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+  | VideoSegmentWorkflowMode
+  | typeof VIDEO_WORKFLOW_MODE_MIXED
+  | typeof VIDEO_WORKFLOW_MODE_CANVAS_VIDEO
+  | typeof VIDEO_WORKFLOW_MODE_CANVAS_TRIM
+  | typeof VIDEO_WORKFLOW_MODE_CANVAS_ASSEMBLY;
 export type {
   AssemblyPushAction,
   ChapterVideoPrompt,

@@ -80,7 +80,7 @@ async fn insert_boundary_frame_images(
             Some(chapter_id),
             Some(json!({
                 "generation_context": {
-                    "source": "video_boundary_frame_prompt",
+                    "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                     "prompt_id": row.id
                 },
                 "source": source_metadata.clone()

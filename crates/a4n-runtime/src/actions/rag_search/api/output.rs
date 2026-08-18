@@ -1,16 +1,28 @@
 use a4n_orchestrator::rag::EnhancedRagSearchResult;
 
-use super::super::{RagEnhancedSearchOutput, rag_enhanced_query_summary, rag_search_result};
+use super::super::{RagEnhancedQuerySummary, RagEnhancedSearchOutput, RagSearchResult};
 
 pub(super) fn project_enhanced_rag_search_output(
     result: EnhancedRagSearchResult,
 ) -> RagEnhancedSearchOutput {
     RagEnhancedSearchOutput {
-        results: result.results.into_iter().map(rag_search_result).collect(),
+        results: result
+            .results
+            .into_iter()
+            .map(|result| RagSearchResult {
+                id: result.id,
+                content: result.content,
+                score: result.score,
+                metadata: result.metadata,
+            })
+            .collect(),
         queries: result
             .queries
-            .iter()
-            .map(rag_enhanced_query_summary)
+            .into_iter()
+            .map(|query| RagEnhancedQuerySummary {
+                label: query.label.to_string(),
+                query: query.query,
+            })
             .collect(),
         candidate_count: result.candidate_count,
     }

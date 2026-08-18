@@ -52,6 +52,7 @@ pub(in crate::actions::video_records) struct AssemblyCacheClip {
 
 pub(super) struct AssemblyRequestContext {
     pub(super) clips: Vec<AssemblyClip>,
+    pub(super) duration_secs: f32,
     pub(super) output_path: PathBuf,
     pub(super) manifest_path: PathBuf,
     pub(super) manifest: AssemblyCacheManifest,

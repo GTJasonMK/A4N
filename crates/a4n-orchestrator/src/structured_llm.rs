@@ -3,14 +3,6 @@ use a4n_llm::provider::ChatRequest;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 
-mod schema_repair;
-
-pub(crate) use schema_repair::json_shape_schema_from_example;
-pub use schema_repair::{
-    StructuredOutputRepairInput, StructuredOutputRepairResult, StructuredRepairCheckpointContext,
-    StructuredRepairMode, StructuredValueRepairInput,
-};
-
 pub use a4n_llm::structured_stream::StructuredLlmProgress;
 pub use a4n_llm::structured_stream::StructuredLlmStreamResult;
 
@@ -47,6 +39,20 @@ where
             json_response_preview(trimmed)
         ))
     })
+}
+
+pub(crate) fn ensure_checkpoint_parsed_output_matches<T: PartialEq + ?Sized>(
+    checkpoint_parsed_output: &T,
+    reparsed_output: &T,
+    context: &str,
+) -> Result<(), AppError> {
+    if checkpoint_parsed_output != reparsed_output {
+        return Err(AppError::InvalidState {
+            current: "checkpoint_parsed_output_mismatch".to_string(),
+            operation: format!("校验{context} checkpoint"),
+        });
+    }
+    Ok(())
 }
 
 pub(crate) fn llm_response_preview(raw: &str) -> String {

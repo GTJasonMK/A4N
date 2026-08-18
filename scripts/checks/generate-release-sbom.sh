@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
 OUTPUT_DIR="${1:-}"
 RELEASE_ID="${2:-}"
 
@@ -10,11 +12,10 @@ if [[ -z "$OUTPUT_DIR" || ! "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
     exit 2
 fi
 
-cd "$ROOT"
+cd "$PROJECT_ROOT"
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 SBOM_DIR="$OUTPUT_DIR/sbom"
-CATALOG="$ROOT/crates/a4n-service-protocol/service-catalog.json"
 METADATA="$OUTPUT_DIR/cargo-metadata.json"
 
 mkdir -p "$SBOM_DIR"
@@ -23,39 +24,41 @@ if find "$SBOM_DIR" -mindepth 1 -print -quit | rg -q .; then
     exit 1
 fi
 
-cargo metadata --no-deps --locked --format-version 1 > "$METADATA"
-mapfile -t PACKAGES < <(
-    ruby -rjson -e '
-      catalog = JSON.parse(File.read(ARGV.fetch(0)))
-      metadata = JSON.parse(File.read(ARGV.fetch(1)))
-      binaries = ["a4n-tauri", *catalog.map { |service| service.fetch("binary") }]
-      packages = binaries.map do |binary|
-        matches = metadata.fetch("packages").select do |package|
-          package.fetch("targets").any? do |target|
-            target.fetch("name") == binary && target.fetch("kind").include?("bin")
-          end
-        end
-        abort "expected one workspace package for binary #{binary}" unless matches.size == 1
-        matches.first.fetch("name")
-      end.uniq
-      abort "expected host and eight sidecar packages" unless packages.size == 9
-      puts packages
-    ' "$CATALOG" "$METADATA"
-)
+sidecar_binary_lines="$(sidecar_catalog_binaries)"
+mapfile -t SIDECAR_BINARIES <<<"$sidecar_binary_lines"
+tool_binary_lines="$(release_tool_binaries)"
+mapfile -t TOOL_BINARIES <<<"$tool_binary_lines"
+RELEASE_BINARIES=("a4n-tauri" "${SIDECAR_BINARIES[@]}" "${TOOL_BINARIES[@]}")
 
-mapfile -t GENERATED < <(
-    ruby -rjson -e '
-      metadata = JSON.parse(File.read(ARGV.fetch(0)))
-      members = metadata.fetch("workspace_members").to_h { |id| [id, true] }
-      metadata.fetch("packages").each do |package|
-        next unless members.key?(package.fetch("id"))
-        puts File.join(
-          File.dirname(package.fetch("manifest_path")),
-          "#{package.fetch("name")}.cdx.json"
-        )
+cargo metadata --no-deps --locked --format-version 1 > "$METADATA"
+package_lines="$(ruby -rjson -e '
+  metadata = JSON.parse(File.read(ARGV.fetch(0)))
+  binaries = ARGV.drop(1)
+  packages = binaries.map do |binary|
+    matches = metadata.fetch("packages").select do |package|
+      package.fetch("targets").any? do |target|
+        target.fetch("name") == binary && target.fetch("kind").include?("bin")
       end
-    ' "$METADATA"
-)
+    end
+    abort "expected one workspace package for binary #{binary}" unless matches.size == 1
+    matches.first.fetch("name")
+  end.uniq
+  puts packages
+' "$METADATA" "${RELEASE_BINARIES[@]}")"
+mapfile -t PACKAGES <<<"$package_lines"
+
+generated_lines="$(ruby -rjson -e '
+  metadata = JSON.parse(File.read(ARGV.fetch(0)))
+  members = metadata.fetch("workspace_members").to_h { |id| [id, true] }
+  metadata.fetch("packages").each do |package|
+    next unless members.key?(package.fetch("id"))
+    puts File.join(
+      File.dirname(package.fetch("manifest_path")),
+      "#{package.fetch("name")}.cdx.json"
+    )
+  end
+' "$METADATA")"
+mapfile -t GENERATED <<<"$generated_lines"
 for generated in "${GENERATED[@]}"; do
     [[ ! -e "$generated" ]] || {
         echo "stale generated SBOM exists: $generated" >&2
@@ -68,7 +71,7 @@ cleanup_generated() {
 trap cleanup_generated EXIT
 
 cargo cyclonedx \
-    --manifest-path "$ROOT/Cargo.toml" \
+    --manifest-path "$PROJECT_ROOT/Cargo.toml" \
     --format json \
     --all-features \
     --target all
@@ -88,11 +91,6 @@ for package in "${PACKAGES[@]}"; do
     }
     mv "$generated" "$SBOM_DIR/$filename"
 done
-
-[[ "$(find "$SBOM_DIR" -maxdepth 1 -type f -name '*.cdx.json' | wc -l | tr -d ' ')" -eq 9 ]] || {
-    echo "release SBOM set must contain host and eight sidecars" >&2
-    exit 1
-}
 
 archive="$OUTPUT_DIR/A4N-${RELEASE_ID}-cyclonedx.tar.gz"
 tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \

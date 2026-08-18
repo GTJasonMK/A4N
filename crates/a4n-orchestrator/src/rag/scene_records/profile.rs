@@ -1,7 +1,7 @@
 use a4n_core::{models::scene::scene_profile, rag::RagDataType};
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn scene_profile_rag_text(profile: &scene_profile::Model) -> Result<String, String> {
     let name = required_rag_text(
@@ -45,16 +45,11 @@ pub fn scene_profile_rag_record(
     profile: &scene_profile::Model,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("scene_profile:{project_id}:{}", profile.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::SceneProfile, profile.id),
         text: scene_profile_rag_text(profile)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::SceneProfile.as_str(),
-            "scene_profile_id": profile.id,
             "name": profile.name,
-            "scene_type": profile.scene_type,
-            "importance": profile.importance,
-            "first_seen_chapter": profile.first_seen_chapter,
-            "last_seen_chapter": profile.last_seen_chapter,
         }),
     })
 }

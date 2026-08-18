@@ -163,7 +163,7 @@ async fn create_prompt_video_record_starts_prompt_and_generation_run_together() 
         .expect("video, prompt lock, and generation run should commit together");
 
     assert_eq!(video.status, "running");
-    assert_eq!(video.video_type, "chapter_video");
+    assert_eq!(video.video_type, generated_video::VIDEO_TYPE_CHAPTER);
     assert_eq!(generated_video_count(db.as_ref()).await, 1);
 
     let stored_prompt = chapter_video_prompt::Entity::find_by_id(prompt.id)
@@ -190,7 +190,10 @@ async fn create_prompt_video_record_starts_prompt_and_generation_run_together() 
         .unwrap()
         .expect("generation run should target the created video");
     assert_eq!(target.target_table, "generated_video");
-    assert_eq!(target.target_kind, "chapter_video");
+    assert_eq!(
+        target.target_kind,
+        generated_video::VIDEO_TYPE_CHAPTER
+    );
     assert_eq!(target.target_id, video.id);
     assert_eq!(target.role, "output");
 }

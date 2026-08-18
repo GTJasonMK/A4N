@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #=============================================================================
-# Build native Tauri bundle with sidecar externalBin enabled.
+# Build native Tauri bundle with release externalBin enabled.
 #
 # Usage:
 #   ./scripts/dev/build-tauri-bundle.sh
@@ -20,7 +20,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-SERVICE_CATALOG="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
 TAURI_SIDECAR_CONFIG="$PROJECT_ROOT/crates/a4n-tauri/tauri.sidecars.conf.json"
 PREPARE_ARGS=()
 TAURI_ARGS=()
@@ -56,7 +55,7 @@ while [[ $# -gt 0 ]]; do
             PREPARE_ARGS+=(--release)
             shift
             ;;
-        --full|--embedded)
+        --full)
             FULL_HOST=true
             shift
             ;;
@@ -73,11 +72,11 @@ while [[ $# -gt 0 ]]; do
             cat <<'EOF'
 
 默认行为:
-  build-tauri-bundle.sh 默认构建 no-default-features host，并合并 sidecar
+  build-tauri-bundle.sh 默认构建带启动迁移的 minimal host，并合并发布
   externalBin 配置。生成的 minimal Tauri host 未显式设置 A4N_RUNTIME_PROFILE
   时会以 sidecar + managed sidecars 启动。
 
-  如需构建旧 embedded/full host，追加 --full 或 --embedded。
+  如需构建 embedded/full host，追加 --full。
 EOF
             exit 0
             ;;
@@ -90,18 +89,25 @@ done
 
 if $FULL_HOST; then
     CARGO_BUILD_ARGS+=(--features embedded-capabilities)
-else
-    CARGO_BUILD_ARGS+=(--no-default-features)
 fi
 
 prepare_command=("$SCRIPT_DIR/prepare-tauri-external-bin.sh" "${PREPARE_ARGS[@]}")
-require_command ruby
+sidecar_package_lines="$(sidecar_catalog_binaries)"
+BUNDLE_BINARIES=()
+while IFS= read -r package; do
+    [[ -z "$package" ]] || BUNDLE_BINARIES+=("$package")
+done <<<"$sidecar_package_lines"
+tool_binary_lines="$(release_tool_binaries)"
+while IFS= read -r binary; do
+    BUNDLE_BINARIES+=("$binary")
+done <<<"$tool_binary_lines"
 tauri_config="$(ruby -rjson -e '
   config = JSON.parse(File.read(ARGV.fetch(0)))
-  sidecars = JSON.parse(File.read(ARGV.fetch(1))).map { |entry| "../../target/tauri-sidecars/#{entry.fetch("binary")}" }
-  config.fetch("bundle").fetch("externalBin").unshift(*sidecars)
+  binaries = ARGV.drop(1)
+  abort "release externalBin entries are duplicated" unless binaries.uniq.length == binaries.length
+  config.fetch("bundle")["externalBin"] = binaries.map { |binary| "../../target/tauri-sidecars/#{binary}" }
   print JSON.generate(config)
-' "$TAURI_SIDECAR_CONFIG" "$SERVICE_CATALOG")"
+' "$TAURI_SIDECAR_CONFIG" "${BUNDLE_BINARIES[@]}")"
 tauri_command=(cargo tauri build --config "$tauri_config" "${TAURI_ARGS[@]}")
 if [[ ${#CARGO_BUILD_ARGS[@]} -gt 0 ]]; then
     tauri_command+=(-- "${CARGO_BUILD_ARGS[@]}")
@@ -112,12 +118,10 @@ if $DRY_RUN; then
     log_info "prepare sidecars:"
     print_command "${prepare_command[@]}"
     log_info "build tauri:"
-    log_info "config: tauri.sidecars.conf.json + service-catalog.json"
+    log_info "config: tauri.sidecars.conf.json + service-catalog.json + release-tools.json"
     print_command cargo tauri build --config '<generated>' "${TAURI_ARGS[@]}"
     exit 0
 fi
-
-guard_build_cache
 
 "${prepare_command[@]}"
 

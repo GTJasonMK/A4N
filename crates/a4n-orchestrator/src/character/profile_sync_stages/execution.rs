@@ -5,11 +5,12 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    character::{
-        CharacterProfileSyncProgress, optional_character_sync_checkpoint_string,
-        required_character_sync_checkpoint_string, validate_contiguous_character_sync_range,
+    character::{CharacterProfileSyncProgress, validate_contiguous_character_sync_range},
+    structured_llm::ensure_checkpoint_parsed_output_matches,
+    workflow::{
+        self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+        workflow_checkpoint_contract_app_error,
     },
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
 };
 
 use super::{
@@ -101,13 +102,12 @@ impl OrchestratorContext {
             );
             match parsed {
                 Ok(stage_value) => {
-                    if let Some(parsed_output) = call.restored_parsed_output {
-                        if parsed_output != stage_value {
-                            return Err(AppError::InvalidArgument(format!(
-                                "{} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致",
-                                call.call_key
-                            )));
-                        }
+                    if let Some(parsed_output) = call.restored_parsed_output.as_ref() {
+                        ensure_checkpoint_parsed_output_matches(
+                            parsed_output,
+                            &stage_value,
+                            &format!("角色同步阶段 {}", call.call_key),
+                        )?;
                     } else {
                         let call_order = i32::try_from(index)
                             .map_err(|_| {
@@ -126,14 +126,13 @@ impl OrchestratorContext {
                             call_key: call.call_key.clone(),
                             call_order,
                             input_fingerprint_json: call.input_fingerprint_json.clone(),
-                            checkpoint_json: json!({
-                                "output": stage_value.clone(),
-                                "parsed_output": stage_value.clone(),
-                                "response_content": call.response_content.clone(),
-                                "usage": call.response_usage_json.clone(),
-                                "finish_reason": call.response_finish_reason.clone(),
-                            }),
-                            artifacts_json: None,
+                            checkpoint: CompletedLlmCallCheckpoint {
+                                parsed_output: stage_value.clone(),
+                                response_content: call.response_content.clone(),
+                                usage: call.response_usage_json.clone(),
+                                finish_reason: call.response_finish_reason.clone(),
+                                artifacts_json: None,
+                            },
                         })
                         .await?;
                     }
@@ -231,43 +230,18 @@ impl OrchestratorContext {
                 )
                 .await?
             {
-                let checkpoint_json =
-                    workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
-                        .map_err(workflow_checkpoint_contract_app_error)?;
-                let parsed_output =
-                    checkpoint_json
-                        .get("parsed_output")
-                        .cloned()
-                        .ok_or_else(|| {
-                            AppError::InvalidArgument(format!("{call_key}.parsed_output 缺失"))
-                        })?;
-                let response_content = required_character_sync_checkpoint_string(
-                    &checkpoint_json,
-                    &call_key,
-                    "response_content",
+                (
+                    checkpoint.response_content,
+                    checkpoint.usage,
+                    checkpoint.finish_reason,
+                    Some(checkpoint.parsed_output),
                 )
-                .map_err(AppError::InvalidArgument)?;
-                let finish_reason =
-                    optional_character_sync_checkpoint_string(&checkpoint_json, "finish_reason")
-                        .map_err(AppError::InvalidArgument)?;
-                ensure_response_not_truncated(
-                    finish_reason.as_deref(),
-                    &input.profile_name,
-                    stage,
-                    true,
-                )?;
-                let usage = checkpoint_json
-                    .get("usage")
-                    .filter(|value| !value.is_null())
-                    .cloned();
-                (response_content, usage, finish_reason, Some(parsed_output))
             } else {
                 let response = self.stream_complete_llm(request.clone()).await?;
                 ensure_response_not_truncated(
                     response.finish_reason.as_deref(),
                     &input.profile_name,
                     stage,
-                    false,
                 )?;
                 let usage = response
                     .usage
@@ -350,18 +324,14 @@ fn ensure_response_not_truncated(
     finish_reason: Option<&str>,
     profile_name: &str,
     stage: CharacterProfileSyncStage,
-    restored: bool,
 ) -> Result<(), AppError> {
     if !is_truncated_finish_reason(finish_reason) {
         return Ok(());
     }
     let scope = format!("{profile_name} {}", stage.title());
-    let suffix = if restored {
-        "checkpoint 标记为截断响应，不能用于恢复"
-    } else {
-        "输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色同步”输出档位，或减少本次同步章节后重试"
-    };
-    Err(AppError::InvalidArgument(format!("{scope} {suffix}")))
+    Err(AppError::InvalidArgument(format!(
+        "{scope} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色同步”输出档位，或减少本次同步章节后重试"
+    )))
 }
 
 fn record_trace(

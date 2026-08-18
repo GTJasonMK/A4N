@@ -1,7 +1,7 @@
 use a4n_core::{models::scene::scene_occurrence, rag::RagDataType};
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn scene_occurrence_rag_text(
     occurrence: &scene_occurrence::Model,
@@ -51,15 +51,11 @@ pub fn scene_occurrence_rag_record(
     scene_name: &str,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
-        chunk_id: format!("scene_occurrence:{project_id}:{}", occurrence.id),
+        chunk_id: rag_chunk_id(project_id, RagDataType::SceneOccurrence, occurrence.id),
         text: scene_occurrence_rag_text(occurrence, scene_name)?,
         metadata: serde_json::json!({
             "data_type": RagDataType::SceneOccurrence.as_str(),
-            "scene_occurrence_id": occurrence.id,
-            "scene_profile_id": occurrence.scene_profile_id,
-            "scene_name": scene_name,
             "chapter_number": occurrence.chapter_number,
-            "occurrence_order": occurrence.occurrence_order,
         }),
     })
 }

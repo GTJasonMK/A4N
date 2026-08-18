@@ -27,7 +27,7 @@ pub fn validate_prompt_artifact_text(
     validate_final_prompt_text(prompt_text)?;
     if matches!(
         normalize_prompt_kind(prompt_kind)?,
-        "video_prompt" | "chat_video_prompt" | "provider_video_prompt"
+        GENERATION_PROMPT_KIND_VIDEO_PROMPT | "chat_video_prompt" | "provider_video_prompt"
     ) {
         for section in VIDEO_PROMPT_REQUIRED_SECTIONS {
             if !prompt_text.contains(section) {
@@ -45,11 +45,13 @@ pub fn render_prompt_text(
     prompt_kind: &str,
 ) -> Result<String, GenerationDbError> {
     match prompt_kind {
-        "image_prompt" => Ok(required_json_string(&spec.params_json, "image_prompt")?.to_string()),
+        GENERATION_PROMPT_KIND_IMAGE_PROMPT => {
+            Ok(required_json_string(&spec.params_json, "image_prompt")?.to_string())
+        }
         "negative_prompt" => {
             Ok(required_json_string(&spec.params_json, "negative_prompt")?.to_string())
         }
-        "video_prompt" | "chat_video_prompt" | "provider_video_prompt" => {
+        GENERATION_PROMPT_KIND_VIDEO_PROMPT | "chat_video_prompt" | "provider_video_prompt" => {
             let input_images = required_json_string(&spec.params_json, "input_image_introduction")?;
             let segment_context = required_json_string(&spec.params_json, "segment_context")?;
             let time_distribution = required_time_distribution(&spec.params_json)?;
@@ -139,7 +141,7 @@ pub fn normalize_video_prompt_kind(value: &str) -> Result<&str, GenerationDbErro
     let value = normalize_prompt_kind(value)?;
     if matches!(
         value,
-        "video_prompt" | "chat_video_prompt" | "provider_video_prompt"
+        GENERATION_PROMPT_KIND_VIDEO_PROMPT | "chat_video_prompt" | "provider_video_prompt"
     ) {
         Ok(value)
     } else {

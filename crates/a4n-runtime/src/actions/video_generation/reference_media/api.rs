@@ -10,10 +10,9 @@ pub async fn preview_video_provider_request_by_video_id(
 ) -> Result<ModelRequestPreview, String> {
     let video = state
         .orchestrator()
-        .generated_video_by_id(video_id)
+        .required_video_record(video_id)
         .await
-        .map_err(crate::actions::app_error_message)?
-        .ok_or_else(|| "视频记录不存在".to_string())?;
+        .map_err(crate::actions::app_error_message)?;
     access::verify_project_editor_string(state, user_id, video.project_id).await?;
     resolve_project_chapter_video_source(
         state,

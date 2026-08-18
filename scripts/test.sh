@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A4N Rust 测试入口
-# 用法: ./scripts/test.sh [--crate NAME] [--nocapture] [--release]
+# 用法: ./scripts/test.sh [--crate NAME] [--nocapture]
 
 set -euo pipefail
 
@@ -24,10 +24,6 @@ while (($# > 0)); do
             test_args+=(--nocapture)
             shift
             ;;
-        --release)
-            cargo_args+=(--release)
-            shift
-            ;;
         --help|-h)
             print_script_usage "$0" 3
             exit 0
@@ -37,12 +33,13 @@ while (($# > 0)); do
 done
 
 require_command cargo
-if [[ -z "$target_crate" || "$target_crate" =~ ^a4n-(embedding-fastembed|embedding-service|runtime|server|tauri)$ ]]; then
+target_args=()
+[[ -z "$target_crate" ]] || target_args=(-p "$target_crate")
+if cargo_graph_uses_onnxruntime normal,build,dev "${target_args[@]}"; then
     require_onnxruntime
 fi
-guard_build_cache
 
-[[ -z "$target_crate" ]] || cargo_args+=(-p "$target_crate")
+cargo_args+=("${target_args[@]}")
 cd "$PROJECT_ROOT"
 if ((${#test_args[@]} > 0)); then
     exec cargo "${cargo_args[@]}" -- "${test_args[@]}"

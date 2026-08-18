@@ -1,5 +1,11 @@
 use a4n_core::error::AppError;
-use a4n_db::canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput};
+use a4n_db::{
+    canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput},
+    generation::{
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT,
+    },
+};
 use a4n_llm::{
     provider::{UsageInfo, is_truncated_finish_reason},
     trace::context_aware_chat_request_trace_json,
@@ -9,10 +15,11 @@ use serde_json::{Value, json};
 use crate::{
     OrchestratorContext,
     canvas::WORKFLOW_KIND_VIDEO_CANVAS_GRAPH,
-    project::SOURCE_MODE_FREEFORM,
+    project::ProjectSourceMode,
+    structured_llm::ensure_checkpoint_parsed_output_matches,
     workflow::{
-        self, CompletedLlmCallCheckpointInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING,
-        workflow_checkpoint_contract_app_error,
+        self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+        WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING, workflow_checkpoint_contract_app_error,
     },
 };
 
@@ -241,7 +248,10 @@ impl OrchestratorContext {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
-        if project.source_mode != SOURCE_MODE_FREEFORM {
+        if project.source_mode().map_err(|error| {
+            AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
+        })? != ProjectSourceMode::Freeform
+        {
             return Ok(None);
         }
         self.upsert_freeform_canvas_generation_spec_record(
@@ -249,8 +259,8 @@ impl OrchestratorContext {
                 project_id: input.project_id,
                 target_entity_id: input.node.id,
                 canvas_text_asset_id,
-                target_kind: "canvas_prompt".to_string(),
-                target_entity_kind: "canvas_node".to_string(),
+                target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT.to_string(),
+                target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
                 status: status.to_string(),
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,
@@ -306,10 +316,13 @@ impl OrchestratorContext {
             .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &input_fingerprint_json)
             .await?
         {
-            let checkpoint_json =
-                workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
-                    .map_err(workflow_checkpoint_contract_app_error)?;
-            return validate_restored_canvas_llm_text_checkpoint(checkpoint_json, &call_key);
+            return validate_restored_canvas_llm_text_checkpoint(
+                &checkpoint.parsed_output,
+                &checkpoint.response_content,
+                checkpoint.usage,
+                checkpoint.finish_reason,
+                &call_key,
+            );
         }
 
         let response = llm_port
@@ -343,14 +356,13 @@ impl OrchestratorContext {
             call_key,
             call_order,
             input_fingerprint_json,
-            checkpoint_json: json!({
-                "output": {"text": transformed_text},
-                "parsed_output": {"text": transformed_text},
-                "response_content": response.message.content,
-                "usage": usage_json,
-                "finish_reason": response.finish_reason,
-            }),
-            artifacts_json: None,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: json!({"text": transformed_text}),
+                response_content: response.message.content,
+                usage: usage_json,
+                finish_reason: response.finish_reason.clone(),
+                artifacts_json: None,
+            },
         })
         .await?;
         Ok(ValidatedCanvasLlmText {
@@ -369,55 +381,25 @@ pub(super) fn map_canvas_llm_error(error: AppError) -> AppError {
 }
 
 fn validate_restored_canvas_llm_text_checkpoint(
-    checkpoint_json: Value,
+    parsed_output: &Value,
+    response_content: &str,
+    usage: Option<Value>,
+    finish_reason: Option<String>,
     call_key: &str,
 ) -> Result<ValidatedCanvasLlmText, AppError> {
-    let response_content = checkpoint_json
-        .get("response_content")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::InvalidArgument(format!("{call_key}.response_content 必须是字符串"))
-        })?;
-    let parsed_text = checkpoint_json
-        .get("parsed_output")
-        .and_then(|value| value.get("text"))
+    let parsed_text = parsed_output
+        .get("text")
         .and_then(Value::as_str)
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("{call_key}.parsed_output.text 必须是字符串"))
         })?;
-    let finish_reason = match checkpoint_json.get("finish_reason") {
-        Some(Value::Null) | None => None,
-        Some(value) => Some(
-            value
-                .as_str()
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!(
-                        "{call_key}.finish_reason 必须是字符串或 null"
-                    ))
-                })?
-                .to_string(),
-        ),
-    };
-    if is_truncated_finish_reason(finish_reason.as_deref()) {
-        return Err(AppError::InvalidArgument(format!(
-            "{call_key} checkpoint 标记为截断响应，不能用于恢复"
-        )));
-    }
     let transformed_text = response_content.trim().to_string();
-    if parsed_text != transformed_text {
-        return Err(AppError::InvalidArgument(format!(
-            "{call_key} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致"
-        )));
-    }
-    if transformed_text.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "LlmTextNode 返回空文本".to_string(),
-        ));
-    }
-    let usage = checkpoint_json
-        .get("usage")
-        .filter(|value| !value.is_null())
-        .cloned()
+    ensure_checkpoint_parsed_output_matches(
+        parsed_text,
+        transformed_text.as_str(),
+        &format!("画布文本生成 {call_key}"),
+    )?;
+    let usage = usage
         .map(serde_json::from_value)
         .transpose()
         .map_err(|error| {
@@ -432,9 +414,16 @@ fn validate_restored_canvas_llm_text_checkpoint(
 
 #[cfg(test)]
 pub(super) fn validate_restored_checkpoint_for_test(
-    checkpoint_json: Value,
+    parsed_output: Value,
+    response_content: &str,
     call_key: &str,
 ) -> Result<String, AppError> {
-    validate_restored_canvas_llm_text_checkpoint(checkpoint_json, call_key)
+    validate_restored_canvas_llm_text_checkpoint(
+        &parsed_output,
+        response_content,
+        None,
+        None,
+        call_key,
+    )
         .map(|validated| validated.transformed_text)
 }

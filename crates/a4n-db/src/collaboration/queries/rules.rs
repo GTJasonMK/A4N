@@ -1,30 +1,23 @@
 use super::lookups::find_user;
 use crate::collaboration::{CollaborationDbError, ProjectAccessRole, ProjectMemberRole};
-use crate::project::{SOURCE_MODE_FREEFORM, SOURCE_MODE_SELF};
 use a4n_core::models::{
     project::{novel_project, project_member},
     user::role::ROLE_READ_ONLY,
 };
-use a4n_domain::project::ProjectKind;
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 pub(in crate::collaboration) fn validate_collaboration_root(
     root: &novel_project::Model,
 ) -> Result<(), CollaborationDbError> {
-    if root.project_kind != ProjectKind::Text.as_str()
-        && !(root.project_kind == ProjectKind::Video.as_str()
-            && root.source_mode == SOURCE_MODE_FREEFORM)
-    {
-        return Err(CollaborationDbError::InvalidArgument(
+    match root.source_mode().map_err(|error| {
+        CollaborationDbError::InvalidArgument(format!("项目 {}: {error}", root.id))
+    })? {
+        ProjectSourceMode::Self_ | ProjectSourceMode::Freeform => Ok(()),
+        ProjectSourceMode::Derived => Err(CollaborationDbError::InvalidArgument(
             "协作权限只能绑定到文本根项目或自由视频项目".to_string(),
-        ));
+        )),
     }
-    if root.project_kind == ProjectKind::Text.as_str() && root.source_mode != SOURCE_MODE_SELF {
-        return Err(CollaborationDbError::InvalidArgument(
-            "文本协作根项目 source_mode 必须为 self".to_string(),
-        ));
-    }
-    Ok(())
 }
 
 pub(in crate::collaboration) fn parse_stored_member_role(

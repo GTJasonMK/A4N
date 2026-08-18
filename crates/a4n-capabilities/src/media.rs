@@ -10,21 +10,19 @@ use async_trait::async_trait;
 use std::time::Duration;
 
 pub struct HttpImageClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpImageClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(IMAGE_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, IMAGE_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(IMAGE_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, IMAGE_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -73,31 +71,29 @@ impl ImageClient for HttpImageClient {
 
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/image/request_preview", request)
+            .post("/image/request_preview", request)
             .await
     }
 
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/image/models", request).await
+        self.transport.post("/image/models", request).await
     }
 }
 
 pub struct HttpVideoClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpVideoClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(VIDEO_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, VIDEO_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(VIDEO_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, VIDEO_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -145,24 +141,24 @@ impl VideoClient for HttpVideoClient {
     }
 
     async fn poll(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/video/poll", request).await
+        self.transport.post("/video/poll", request).await
     }
 
     async fn status(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/video/status", request).await
+        self.transport.post("/video/status", request).await
     }
 
     async fn delete(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/video/delete", request).await
+        self.transport.post("/video/delete", request).await
     }
 
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/video/request_preview", request)
+            .post("/video/request_preview", request)
             .await
     }
 
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/video/models", request).await
+        self.transport.post("/video/models", request).await
     }
 }

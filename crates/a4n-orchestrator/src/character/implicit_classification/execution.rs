@@ -13,7 +13,8 @@ use crate::{
             apply_character_sync_change_to_state, project_character_attribute_changes,
         },
     },
-    workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
+    structured_llm::ensure_checkpoint_parsed_output_matches,
+    workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
 use super::{
@@ -133,36 +134,12 @@ impl OrchestratorContext {
             .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &input_fingerprint_json)
             .await?
         {
-            let checkpoint_json =
-                workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
-                    .map_err(workflow_checkpoint_contract_app_error)?;
-            let response_text = crate::character::required_character_sync_checkpoint_string(
-                &checkpoint_json,
-                &call_key,
-                "response_content",
+            (
+                checkpoint.response_content,
+                checkpoint.usage,
+                checkpoint.finish_reason,
+                Some(checkpoint.parsed_output),
             )
-            .map_err(AppError::InvalidArgument)?;
-            let finish_reason = crate::character::optional_character_sync_checkpoint_string(
-                &checkpoint_json,
-                "finish_reason",
-            )
-            .map_err(AppError::InvalidArgument)?;
-            if is_truncated_finish_reason(finish_reason.as_deref()) {
-                return Err(AppError::InvalidArgument(
-                    "行为隐性属性分类 checkpoint 标记为截断响应，不能用于恢复".to_string(),
-                ));
-            }
-            let parsed_output = checkpoint_json
-                .get("parsed_output")
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!("{call_key}.parsed_output 缺失"))
-                })?;
-            let usage = checkpoint_json
-                .get("usage")
-                .filter(|value| !value.is_null())
-                .cloned();
-            (response_text, usage, finish_reason, Some(parsed_output))
         } else {
             let response = self.stream_complete_llm(request).await?;
             if is_truncated_finish_reason(response.finish_reason.as_deref()) {
@@ -189,11 +166,11 @@ impl OrchestratorContext {
                 AppError::InvalidArgument(format!("行为隐性属性分类输出不符合契约：{error}"))
             })?;
         if let Some(parsed_output) = restored_parsed_output {
-            if parsed_output != parsed {
-                return Err(AppError::InvalidArgument(format!(
-                    "{call_key} checkpoint 的 parsed_output 与 response_content 重新解析结果不一致"
-                )));
-            }
+            ensure_checkpoint_parsed_output_matches(
+                &parsed_output,
+                &parsed,
+                &format!("行为隐性属性分类 {call_key}"),
+            )?;
         } else {
             let call_order = i32::try_from(behavior_index)
                 .map_err(|_| {
@@ -212,14 +189,13 @@ impl OrchestratorContext {
                 call_key,
                 call_order,
                 input_fingerprint_json,
-                checkpoint_json: json!({
-                    "output": parsed.clone(),
-                    "parsed_output": parsed.clone(),
-                    "response_content": response_text,
-                    "usage": usage,
-                    "finish_reason": finish_reason,
-                }),
-                artifacts_json: None,
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: parsed.clone(),
+                    response_content: response_text,
+                    usage,
+                    finish_reason,
+                    artifacts_json: None,
+                },
             })
             .await?;
         }

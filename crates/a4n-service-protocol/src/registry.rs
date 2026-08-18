@@ -1,5 +1,4 @@
 use crate::EgressDataType;
-use crate::compatibility::{capability_major, capability_name, service_compatibility_for_host};
 use crate::health::{HealthStatus, ServiceHealth, ServiceVersion};
 use crate::validation::RequiredSecretPolicy;
 
@@ -22,6 +21,17 @@ pub const VIDEO_SERVICE_NAME: &str = "video";
 pub const IMPORT_SERVICE_NAME: &str = "import";
 pub const EXPORT_SERVICE_NAME: &str = "export";
 
+pub(crate) const REGISTERED_SERVICE_NAMES: &[&str] = &[
+    PROMPT_SERVICE_NAME,
+    LLM_SERVICE_NAME,
+    EMBEDDING_SERVICE_NAME,
+    RAG_SERVICE_NAME,
+    IMAGE_SERVICE_NAME,
+    VIDEO_SERVICE_NAME,
+    IMPORT_SERVICE_NAME,
+    EXPORT_SERVICE_NAME,
+];
+
 pub fn expected_capability_version_for_service(service: &str) -> Option<&'static str> {
     match service {
         PROMPT_SERVICE_NAME => Some(PROMPT_RENDER_CAPABILITY_VERSION),
@@ -37,24 +47,12 @@ pub fn expected_capability_version_for_service(service: &str) -> Option<&'static
 }
 
 pub fn service_for_capability_version(capability_version: &str) -> Option<&'static str> {
-    let name = capability_name(capability_version)?;
-    let major = capability_major(capability_version)?;
-    [
-        PROMPT_SERVICE_NAME,
-        LLM_SERVICE_NAME,
-        EMBEDDING_SERVICE_NAME,
-        RAG_SERVICE_NAME,
-        IMAGE_SERVICE_NAME,
-        VIDEO_SERVICE_NAME,
-        IMPORT_SERVICE_NAME,
-        EXPORT_SERVICE_NAME,
-    ]
-    .into_iter()
-    .find(|service| {
-        expected_capability_version_for_service(service).is_some_and(|expected| {
-            capability_name(expected) == Some(name) && capability_major(expected) == Some(major)
+    REGISTERED_SERVICE_NAMES
+        .iter()
+        .copied()
+        .find(|service| {
+            expected_capability_version_for_service(service) == Some(capability_version)
         })
-    })
 }
 
 pub fn egress_data_type_for_service(service: &str) -> Option<EgressDataType> {
@@ -68,11 +66,10 @@ pub fn egress_data_type_for_service(service: &str) -> Option<EgressDataType> {
     }
 }
 
-pub fn known_service_health_for_host(
+pub fn known_service_health(
     service: &'static str,
     service_version: impl Into<String>,
     status: HealthStatus,
-    host_protocol_version: Option<u32>,
 ) -> ServiceHealth {
     let capability_version = expected_capability_version_for_service(service)
         .expect("known sidecar service must have protocol capability version");
@@ -83,7 +80,6 @@ pub fn known_service_health_for_host(
             service_version: service_version.into(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: capability_version.to_string(),
-            compatibility: service_compatibility_for_host(service, host_protocol_version),
         },
     }
 }
@@ -128,11 +124,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn additive_capability_suffix_resolves_to_the_registered_service() {
+    fn only_exact_capability_version_resolves_to_the_registered_service() {
         assert_eq!(
-            service_for_capability_version("prompt-render-v4.1"),
+            service_for_capability_version(PROMPT_RENDER_CAPABILITY_VERSION),
             Some(PROMPT_SERVICE_NAME)
         );
+        assert_eq!(service_for_capability_version("prompt-render-v4.1"), None);
         assert_eq!(service_for_capability_version("prompt-render-v5"), None);
         assert_eq!(service_for_capability_version("unknown-v2.1"), None);
     }

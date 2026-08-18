@@ -12,7 +12,7 @@ pub use self::orchestration::{rag_ingest_all, rag_ingest_task_scope, sync_scene_
 pub(crate) use self::orchestration::{
     sync_blueprint_material_rag_records, sync_outline_rag_records, sync_protagonist_rag_records,
 };
-pub use self::sync::{RagIngestProgress, RagProgressReporter};
+pub use self::sync::RagIngestProgress;
 pub use a4n_api_contract::rag::{
     ClientRagIngestPrepareOutput, ClientRagIngestUploadInput, PreparedClientRagIngestRecord,
     RagIngestOptions, RagIngestResult, UploadedRagEmbedding,

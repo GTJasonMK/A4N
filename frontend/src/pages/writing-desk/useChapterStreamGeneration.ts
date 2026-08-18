@@ -42,7 +42,7 @@ interface UseChapterStreamGenerationParams {
   writingNotes: string;
   wordCountRange: GenerationWordCountRange | null;
   wordCountRangeError: string | null;
-  addToast: (message: unknown, type: ToastType) => void;
+  addToast: (message: string, type: ToastType) => void;
   setEditorState: (content: string, isDirty: boolean) => void;
   getCurrentEditorContent: () => string;
   dirtyRef: { current: boolean };

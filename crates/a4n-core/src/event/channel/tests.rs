@@ -167,7 +167,7 @@ fn task_byte_progress_keeps_host_bytes_and_records_scaled_progress() {
 #[test]
 fn task_manager_cancels_the_registered_task_identity() {
     let manager = TaskManager::new();
-    let handle = manager.register(test_handle());
+    let handle = manager.register(test_handle()).unwrap();
 
     assert!(manager.cancel("task-1"));
     assert!(handle.is_cancelled());
@@ -190,14 +190,59 @@ fn task_manager_applies_only_the_owners_pre_registration_cancel() {
     let manager = TaskManager::new();
     assert!(!manager.cancel_or_remember("task-1", 7));
 
-    let handle = manager.register(test_handle());
+    let handle = manager.register(test_handle()).unwrap();
     assert!(handle.is_cancelled());
 
     assert!(!manager.cancel_or_remember("task-2", 8));
     let mut other = test_handle();
     other.task_id = "task-2".to_string();
-    let other = manager.register(other);
+    let other = manager.register(other).unwrap();
     assert!(!other.is_cancelled());
+}
+
+#[test]
+fn task_manager_rejects_duplicate_ids_without_replacing_the_owner() {
+    let manager = TaskManager::new();
+    let first = manager.register(test_handle()).unwrap();
+
+    assert!(manager.register(test_handle()).is_err());
+    assert!(Arc::ptr_eq(&manager.get("task-1").unwrap(), &first));
+}
+
+#[test]
+fn task_manager_keeps_pre_registration_cancellations_separate_by_owner() {
+    let manager = TaskManager::new();
+    assert!(!manager.cancel_or_remember("task-1", 7));
+    assert!(!manager.cancel_or_remember("task-1", 8));
+
+    let handle = manager.register(test_handle()).unwrap();
+    assert!(handle.is_cancelled());
+
+    assert!(manager.remove(&handle).is_ok());
+    let mut other = test_handle();
+    other.owner_user_id = Some(8);
+    let other = manager.register(other).unwrap();
+    assert!(!other.is_cancelled());
+}
+
+#[test]
+fn stale_handle_cannot_remove_a_new_registration_with_the_same_id() {
+    let manager = TaskManager::new();
+    let first = manager.register(test_handle()).unwrap();
+    assert!(manager.remove(&first).is_ok());
+
+    let second = manager.register(test_handle()).unwrap();
+    assert!(manager.remove(&first).is_err());
+    assert!(Arc::ptr_eq(&manager.get("task-1").unwrap(), &second));
+}
+
+#[test]
+fn task_id_normalization_has_one_strict_contract() {
+    assert_eq!(normalize_task_id(" task-1 ").unwrap(), "task-1");
+    for task_id in ["", "task/path", "任务"] {
+        assert!(normalize_task_id(task_id).is_err());
+    }
+    assert!(normalize_task_id(&"a".repeat(161)).is_err());
 }
 
 fn test_handle() -> TaskHandle {

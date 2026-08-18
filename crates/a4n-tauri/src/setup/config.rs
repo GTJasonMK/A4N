@@ -3,11 +3,10 @@ mod file_io;
 
 use self::environment::apply_env_overrides;
 #[cfg(test)]
-use self::environment::validate_env_value;
-#[cfg(test)]
 use self::file_io::write_config_file;
-use self::file_io::{config_file_path, load_config_from_file, validate_postgres_database_url};
+use self::file_io::{config_file_path, load_config_from_file};
 use a4n_core::config::app_config::{AppConfig, portable_home_dir};
+use a4n_core::config::env::validate_postgres_database_url;
 use a4n_core::error::AppError;
 use tauri::AppHandle;
 
@@ -18,7 +17,7 @@ pub(super) fn load_config(_app: &AppHandle) -> Result<AppConfig, AppError> {
     let mut config = load_config_from_file(default_config, &config_path, &portable_home)?;
 
     apply_env_overrides(&mut config, &portable_home)?;
-    validate_postgres_database_url(&config.database_url)?;
+    validate_postgres_database_url("A4N_DATABASE_URL", &config.database_url)?;
     Ok(config)
 }
 
@@ -181,17 +180,5 @@ mod tests {
         assert_eq!(persisted.data_dir, PathBuf::from("data"));
 
         let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn env_override_values_must_not_be_empty() {
-        let err = validate_env_value("A4N_DATA_DIR", "  ".into()).unwrap_err();
-        assert!(err.to_string().contains("A4N_DATA_DIR 不能为空"));
-    }
-
-    #[test]
-    fn env_override_values_are_trimmed() {
-        let value = validate_env_value("A4N_DATA_DIR", " /tmp/a4n-data ".into()).unwrap();
-        assert_eq!(value, "/tmp/a4n-data");
     }
 }

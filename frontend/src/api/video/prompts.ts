@@ -20,6 +20,7 @@ import type { WorkflowRunSummary } from "../streaming";
 import type {
   ChapterVideoPrompt,
   PromptOutputLanguage,
+  VideoSegmentWorkflowMode,
   VideoWorkflowMode,
 } from "./types";
 
@@ -27,7 +28,7 @@ export interface GeneratePromptOptions {
   workflow_mode: VideoWorkflowMode;
   segment_plan_prompt_id?: number;
   style: string;
-  prompt_output_language?: PromptOutputLanguage;
+  prompt_output_language: PromptOutputLanguage;
   prompt_batch_size: number;
   target_segment?: {
     source_shot_id: string;
@@ -56,13 +57,6 @@ export type {
 export type SegmentGuidanceMode =
   "system_frames" | "keyframes" | "none" | "continuity";
 
-type SegmentWorkflowMode =
-  | "boundary_frames"
-  | "first_frame_chain"
-  | "storyboard"
-  | "reference_media"
-  | "chat_video";
-
 interface SegmentReferenceMediaBinding {
   url: string;
   usage: string;
@@ -81,7 +75,7 @@ export interface SegmentReferenceMediaRecipe {
 export interface VideoSegmentExecutionRecipe {
   schema_version: "video_segment_execution_recipe_v1";
   segment_number: number;
-  workflow_mode: SegmentWorkflowMode;
+  workflow_mode: VideoSegmentWorkflowMode;
   style: string;
   prompt_output_language: PromptOutputLanguage;
   duration_secs: number;
@@ -142,9 +136,7 @@ export async function startChapterVideoSegmentPlan(
       options,
     },
   };
-  return retryOfTaskId == null
-    ? startVideoGeneration(input)
-    : startVideoGeneration(input, retryOfTaskId);
+  return startVideoGeneration(input, retryOfTaskId);
 }
 
 export async function startChapterVideoInsertedSegmentDraft(
@@ -161,9 +153,7 @@ export async function startChapterVideoInsertedSegmentDraft(
       options,
     },
   };
-  return retryOfTaskId == null
-    ? startVideoGeneration(input)
-    : startVideoGeneration(input, retryOfTaskId);
+  return startVideoGeneration(input, retryOfTaskId);
 }
 
 export async function getChapterVideoTimeline(

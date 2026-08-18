@@ -37,7 +37,123 @@ impl CanvasNodeRefKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasFrameKind {
+    First,
+    Tail,
+    Time,
+}
+
+impl CanvasFrameKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::First => "first",
+            Self::Tail => "tail",
+            Self::Time => "time",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedMediaReference {
+    Video(i64),
+    Image(i64),
+}
+
+impl GeneratedMediaReference {
+    pub const fn id(self) -> i64 {
+        match self {
+            Self::Video(id) | Self::Image(id) => id,
+        }
+    }
+
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Self::Video(_) => "generated_video",
+            Self::Image(_) => "generated_image",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Video(_) => "生成视频",
+            Self::Image(_) => "生成图片",
+        }
+    }
+
+    pub const fn with_id(self, id: i64) -> Self {
+        match self {
+            Self::Video(_) => Self::Video(id),
+            Self::Image(_) => Self::Image(id),
+        }
+    }
+}
+
+impl fmt::Display for GeneratedMediaReference {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}:{}", self.kind(), self.id())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedMediaReferenceParseError {
+    InvalidVideoId,
+    InvalidImageId,
+}
+
+impl GeneratedMediaReferenceParseError {
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Self::InvalidVideoId => "generated_video",
+            Self::InvalidImageId => "generated_image",
+        }
+    }
+}
+
+pub fn parse_generated_media_reference(
+    value: &str,
+) -> Result<Option<GeneratedMediaReference>, GeneratedMediaReferenceParseError> {
+    if let Some(suffix) = value.strip_prefix("generated_video:") {
+        return suffix
+            .parse()
+            .map(GeneratedMediaReference::Video)
+            .map(Some)
+            .map_err(|_| GeneratedMediaReferenceParseError::InvalidVideoId);
+    }
+    if let Some(suffix) = value.strip_prefix("generated_image:") {
+        return suffix
+            .parse()
+            .map(GeneratedMediaReference::Image)
+            .map(Some)
+            .map_err(|_| GeneratedMediaReferenceParseError::InvalidImageId);
+    }
+    Ok(None)
+}
+
+/// 画布成片预览缓存键的唯一格式。
+pub fn canvas_cache_key(graph_id: i64, node_id: i64) -> String {
+    format!("canvas_graph:{graph_id}:node:{node_id}")
+}
+
+/// 解析画布成片预览缓存键。
+pub fn parse_canvas_cache_key(value: &str) -> Option<(i64, i64)> {
+    let mut parts = value.split(':');
+    match (parts.next(), parts.next(), parts.next(), parts.next(), parts.next()) {
+        (Some("canvas_graph"), Some(graph_id), Some("node"), Some(node_id), None) => {
+            Some((graph_id.parse().ok()?, node_id.parse().ok()?))
+        }
+        _ => None,
+    }
+}
+
 impl fmt::Display for CanvasNodeRefKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl fmt::Display for CanvasFrameKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
     }
@@ -59,6 +175,21 @@ impl FromStr for CanvasNodeRefKind {
             "generated_image" => Ok(Self::GeneratedImage),
             "generated_video" => Ok(Self::GeneratedVideo),
             _ => Err(DomainError::InvalidCanvasNodeRefKind {
+                value: value.to_string(),
+            }),
+        }
+    }
+}
+
+impl FromStr for CanvasFrameKind {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "first" => Ok(Self::First),
+            "tail" => Ok(Self::Tail),
+            "time" => Ok(Self::Time),
+            _ => Err(DomainError::InvalidCanvasFrameKind {
                 value: value.to_string(),
             }),
         }
@@ -107,8 +238,9 @@ pub fn canvas_transfer_runtime_identity_key(value: &serde_json::Value) -> Option
 #[cfg(test)]
 mod tests {
     use super::{
-        CanvasNodeRefKind, canvas_transfer_runtime_identity_key,
-        clear_canvas_transfer_runtime_identity,
+        CanvasNodeRefKind, canvas_cache_key, canvas_transfer_runtime_identity_key,
+        clear_canvas_transfer_runtime_identity, parse_canvas_cache_key,
+        parse_generated_media_reference,
     };
     use serde_json::json;
 
@@ -128,6 +260,19 @@ mod tests {
                 .is_err()
         );
         assert!(" generated_video".parse::<CanvasNodeRefKind>().is_err());
+    }
+
+    #[test]
+    fn canvas_cache_key_has_one_canonical_shape() {
+        assert_eq!(canvas_cache_key(1, 2), "canvas_graph:1:node:2");
+        assert_eq!(parse_canvas_cache_key("canvas_graph:1:node:2"), Some((1, 2)));
+        assert_eq!(parse_canvas_cache_key("canvas_graph:1:node:2:extra"), None);
+        assert_eq!(parse_canvas_cache_key("custom-cache-key"), None);
+        assert_eq!(
+            parse_generated_media_reference("generated_video:7").unwrap(),
+            Some(super::GeneratedMediaReference::Video(7))
+        );
+        assert!(parse_generated_media_reference("generated_image:no-id").is_err());
     }
 
     #[test]

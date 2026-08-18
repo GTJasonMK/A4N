@@ -1,3 +1,4 @@
+use a4n_core::config::env::optional_non_empty_env_string;
 use a4n_core::error::AppError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,13 +10,13 @@ pub enum RuntimeProfile {
 
 impl RuntimeProfile {
     pub fn from_env() -> Result<Self, AppError> {
-        match std::env::var("A4N_RUNTIME_PROFILE") {
-            Ok(value) => Self::parse(&value),
-            Err(std::env::VarError::NotPresent) => Ok(Self::default_for_build()),
-            Err(err) => Err(AppError::ConfigError(format!(
-                "读取 A4N_RUNTIME_PROFILE 失败：{err}"
-            ))),
-        }
+        Ok(Self::configured_from_env()?.unwrap_or_else(Self::default_for_build))
+    }
+
+    pub fn configured_from_env() -> Result<Option<Self>, AppError> {
+        optional_non_empty_env_string("A4N_RUNTIME_PROFILE")?
+            .map(|value| Self::parse(&value))
+            .transpose()
     }
 
     pub fn default_for_build() -> Self {

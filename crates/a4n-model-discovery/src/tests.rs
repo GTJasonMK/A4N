@@ -2,7 +2,7 @@ use reqwest::StatusCode;
 use serde_json::json;
 
 use crate::endpoints::{
-    ModelDiscoveryAuth, ModelDiscoveryParser, model_discovery_endpoints, openai_model_list_urls,
+    ModelDiscoveryAuth, ModelDiscoveryParser, model_discovery_endpoint, openai_model_list_url,
 };
 use crate::http::model_discovery_status_error;
 use crate::parsing::parse_discovered_models;
@@ -10,38 +10,34 @@ use crate::parsing::parse_discovered_models;
 #[test]
 fn strips_known_openai_suffixes() {
     assert_eq!(
-        openai_model_list_urls("https://api.example.com/v1/chat/completions"),
-        vec!["https://api.example.com/v1/models"]
+        openai_model_list_url("https://api.example.com/v1/chat/completions"),
+        "https://api.example.com/v1/models"
     );
 }
 
 #[test]
 fn routes_anthropic_to_native_model_endpoint_and_auth() {
-    let endpoints = model_discovery_endpoints("anthropic", "https://api.anthropic.com");
+    let endpoint = model_discovery_endpoint("anthropic", "https://api.anthropic.com");
 
-    assert_eq!(endpoints.len(), 1);
-    assert_eq!(endpoints[0].url, "https://api.anthropic.com/v1/models");
-    assert!(matches!(endpoints[0].auth, ModelDiscoveryAuth::Anthropic));
+    assert_eq!(endpoint.url, "https://api.anthropic.com/v1/models");
+    assert!(matches!(endpoint.auth, ModelDiscoveryAuth::Anthropic));
 }
 
 #[test]
-fn parses_openai_model_shapes() {
+fn parses_provider_data_list() {
     let models = parse_discovered_models(
         &json!({
             "data": [
                 {"id": "gpt-a", "owned_by": "owner"},
-                {"name": "gpt-b", "display_name": "GPT B"},
-                "gpt-c"
+                {"id": "gpt-b", "display_name": "GPT B"}
             ]
         }),
-        ModelDiscoveryParser::OpenAi,
-    )
-    .expect("openai models");
+        ModelDiscoveryParser::DataList,
+    ).expect("provider data list");
 
-    assert_eq!(models.len(), 3);
+    assert_eq!(models.len(), 2);
     assert_eq!(models[0].id, "gpt-a");
-    assert_eq!(models[1].name.as_deref(), Some("gpt-b"));
-    assert_eq!(models[2].id, "gpt-c");
+    assert_eq!(models[1].name.as_deref(), Some("GPT B"));
 }
 
 #[test]
@@ -57,7 +53,7 @@ fn parses_gemini_model_names_without_prefix() {
     .expect("gemini models");
 
     assert_eq!(models[0].id, "gemini-2.0-flash");
-    assert_eq!(models[0].owned_by.as_deref(), Some("google"));
+    assert_eq!(models[0].name.as_deref(), Some("Gemini Flash"));
 }
 
 #[test]

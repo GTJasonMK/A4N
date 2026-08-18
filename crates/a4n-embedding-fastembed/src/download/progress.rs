@@ -1,22 +1,19 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use tokio::sync::mpsc::UnboundedSender;
 
 use a4n_embedding::provider::DownloadProgress;
 
-pub(super) struct AggregatedDownloadProgress {
+pub(super) struct AggregatedDownloadProgress<'a> {
     tx: Option<UnboundedSender<DownloadProgress>>,
-    completed: Arc<AtomicU64>,
+    completed: &'a mut u64,
     total_bytes: u64,
     file_name: String,
     last_emitted_bytes: u64,
 }
 
-impl AggregatedDownloadProgress {
+impl<'a> AggregatedDownloadProgress<'a> {
     pub(super) fn new(
         tx: Option<UnboundedSender<DownloadProgress>>,
-        completed: Arc<AtomicU64>,
+        completed: &'a mut u64,
         total_bytes: u64,
         file_name: String,
     ) -> Self {
@@ -31,13 +28,11 @@ impl AggregatedDownloadProgress {
 
     pub(super) fn update(&mut self, size: u64) -> Result<(), String> {
         let total_bytes = self.total_bytes;
-        self.completed
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |completed| {
-                completed
-                    .checked_add(size)
-                    .filter(|next| *next <= total_bytes)
-            })
-            .map_err(|completed| {
+        let completed = *self.completed;
+        *self.completed = completed
+            .checked_add(size)
+            .filter(|next| *next <= total_bytes)
+            .ok_or_else(|| {
                 format!("fastembed 下载进度超过声明总量：{completed} + {size} > {total_bytes}")
             })?;
         self.emit(false);
@@ -45,7 +40,7 @@ impl AggregatedDownloadProgress {
     }
 
     pub(super) fn emit(&mut self, force: bool) {
-        let downloaded = self.completed.load(Ordering::Relaxed);
+        let downloaded = *self.completed;
         let delta = downloaded
             .checked_sub(self.last_emitted_bytes)
             .expect("fastembed aggregated download progress must be monotonic");
@@ -99,11 +94,12 @@ mod tests {
 
     #[test]
     fn aggregated_progress_rejects_bytes_beyond_declared_total() {
-        let completed = Arc::new(AtomicU64::new(4));
-        let mut progress =
-            AggregatedDownloadProgress::new(None, completed.clone(), 5, "model.onnx".to_string());
-
-        assert!(progress.update(2).is_err());
-        assert_eq!(completed.load(Ordering::Relaxed), 4);
+        let mut completed = 4;
+        {
+            let mut progress =
+                AggregatedDownloadProgress::new(None, &mut completed, 5, "model.onnx".to_string());
+            assert!(progress.update(2).is_err());
+        }
+        assert_eq!(completed, 4);
     }
 }

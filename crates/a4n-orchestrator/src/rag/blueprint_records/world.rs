@@ -2,7 +2,7 @@ use a4n_core::{models::project::novel_blueprint, rag::RagDataType};
 use a4n_rag_core::record_text::format_json_for_rag;
 use serde_json::Value;
 
-use super::super::RagRecord;
+use super::super::{RagRecord, rag_chunk_id};
 
 fn blueprint_world_setting_sections(
     blueprint: &novel_blueprint::Model,
@@ -30,15 +30,15 @@ pub fn blueprint_world_setting_rag_records(
     let sections = blueprint_world_setting_sections(blueprint)?;
     Ok(sections
         .into_iter()
-        .enumerate()
-        .map(|(section_index, (field, text))| RagRecord {
-            chunk_id: format!("world_setting:{project_id}:{}:{field}", blueprint.id),
+        .map(|(field, text)| RagRecord {
+            chunk_id: rag_chunk_id(
+                project_id,
+                RagDataType::WorldSetting,
+                format_args!("{}:{field}", blueprint.id),
+            ),
             text,
             metadata: serde_json::json!({
                 "data_type": RagDataType::WorldSetting.as_str(),
-                "blueprint_id": blueprint.id,
-                "field": field,
-                "section_index": section_index,
             }),
         })
         .collect())

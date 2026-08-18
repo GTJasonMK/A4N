@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-use parking_lot::RwLock;
+use a4n_runtime::host_api::logging::LogFilterReloader;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling;
-use tracing_subscriber::reload::Handle;
-use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*};
 
 const DEFAULT_LOG_FILTER: &str = "info,a4n=debug,sqlx=warn,hyper=warn";
 
@@ -14,8 +13,7 @@ static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 /// 当前日志根目录，供命令侧读取。
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-type ReloadHandle = Handle<EnvFilter, Registry>;
-static FILTER_HANDLE: OnceLock<RwLock<Option<ReloadHandle>>> = OnceLock::new();
+pub(super) static FILTER_RELOADER: LogFilterReloader = LogFilterReloader::new();
 
 /// 初始化 stdout、滚动文件和可热更新的 tracing subscriber。
 pub fn init(log_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +21,8 @@ pub fn init(log_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
     let file_appender = rolling::daily(&log_dir, "a4n.log");
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
-    let env_filter = env_filter_from_environment()?;
+    let env_filter = a4n_runtime::host_api::logging::build_log_filter_from_env(DEFAULT_LOG_FILTER)
+        .map_err(invalid_log_filter)?;
     let (filter_layer, reload_handle) = tracing_subscriber::reload::Layer::new(env_filter);
 
     let stdout_layer = fmt::layer()
@@ -53,9 +52,9 @@ pub fn init(log_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     LOG_DIR
         .set(log_dir.clone())
         .map_err(|_| std::io::Error::other("日志目录已初始化"))?;
-    FILTER_HANDLE
-        .set(RwLock::new(Some(reload_handle)))
-        .map_err(|_| std::io::Error::other("日志 reload handle 已初始化"))?;
+    FILTER_RELOADER
+        .install(reload_handle)
+        .map_err(std::io::Error::other)?;
 
     install_panic_hook();
     tracing::info!(target: "a4n::logging", log_dir = ?log_dir, "日志系统初始化完成");
@@ -64,38 +63,6 @@ pub fn init(log_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
 pub(super) fn log_dir() -> Option<&'static PathBuf> {
     LOG_DIR.get()
-}
-
-pub(super) fn reload_filter(new_filter: EnvFilter) -> Result<(), String> {
-    let handle_lock = FILTER_HANDLE
-        .get()
-        .ok_or_else(|| "日志系统尚未初始化".to_string())?;
-    let handle_guard = handle_lock.read();
-    let handle = handle_guard
-        .as_ref()
-        .ok_or_else(|| "日志系统尚未初始化".to_string())?;
-    handle
-        .reload(new_filter)
-        .map_err(|e| format!("应用新级别失败: {e}"))
-}
-
-fn env_filter_from_environment() -> Result<EnvFilter, std::io::Error> {
-    match std::env::var("RUST_LOG") {
-        Ok(value) => build_env_filter(Some(&value)),
-        Err(std::env::VarError::NotPresent) => build_env_filter(None),
-        Err(err) => Err(invalid_log_filter(format!("读取 RUST_LOG 失败：{err}"))),
-    }
-}
-
-fn build_env_filter(raw: Option<&str>) -> Result<EnvFilter, std::io::Error> {
-    let (label, filter) = match raw {
-        Some(value) => ("RUST_LOG", value.trim()),
-        None => ("默认日志过滤表达式", DEFAULT_LOG_FILTER),
-    };
-    if filter.is_empty() {
-        return Err(invalid_log_filter(format!("{label} 不能为空")));
-    }
-    EnvFilter::try_new(filter).map_err(|err| invalid_log_filter(format!("{label} 非法：{err}")))
 }
 
 fn invalid_log_filter(message: String) -> std::io::Error {
@@ -124,33 +91,4 @@ fn install_panic_hook() {
         );
         prev_hook(info);
     }));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn log_filter_uses_default_only_when_rust_log_is_missing() {
-        let filter = build_env_filter(None).expect("default filter must parse");
-        let rendered = filter.to_string();
-        for directive in ["info", "a4n=debug", "sqlx=warn", "hyper=warn"] {
-            assert!(
-                rendered.split(',').any(|part| part == directive),
-                "default filter should contain {directive}, got {rendered}"
-            );
-        }
-    }
-
-    #[test]
-    fn log_filter_rejects_empty_rust_log() {
-        let err = build_env_filter(Some("  ")).unwrap_err();
-        assert!(err.to_string().contains("RUST_LOG 不能为空"));
-    }
-
-    #[test]
-    fn log_filter_rejects_invalid_rust_log() {
-        let err = build_env_filter(Some("a4n=[bad")).unwrap_err();
-        assert!(err.to_string().contains("RUST_LOG 非法"));
-    }
 }

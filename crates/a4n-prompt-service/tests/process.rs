@@ -1,10 +1,10 @@
 use a4n_prompt::contracts::{PromptEmptyPayload, PromptRenderPayload};
-use a4n_service_protocol::ServiceRequest;
+use a4n_service_protocol::{PROMPT_SERVICE_PROMPTS_DIR_ENV, ServiceRequest};
 use a4n_test_support::process::{
     HttpPromptClient, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PromptClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_accepts_unknown_envelope_field, assert_route_rejects_malformed_json,
+    assert_route_rejects_malformed_json, assert_route_rejects_unknown_envelope_field,
     assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
     assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
     disconnect_during_request_body, finish_sidecar, force_finish_sidecar, request_context,
@@ -16,13 +16,10 @@ use serde::de::DeserializeOwned;
 fn typed_request<T: DeserializeOwned>(
     request: a4n_test_support::process::JsonRequest,
 ) -> ServiceRequest<T> {
-    let (context, capability_version, payload) = request.into_context_and_payload();
-    context
-        .with_payload(
-            capability_version,
-            serde_json::from_value(payload).expect("test payload must match the typed contract"),
-        )
-        .expect("typed test request context should be valid")
+    serde_json::from_value(
+        serde_json::to_value(request).expect("JSON test request should serialize"),
+    )
+    .expect("test request must match the typed contract")
 }
 
 fn project_request_context(
@@ -66,7 +63,7 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     let temp_dir = SidecarProcessTestDir::new("prompt");
     let prompt_env = [
         (
-            "A4N_PROMPT_SERVICE_PROMPTS_DIR".to_string(),
+            PROMPT_SERVICE_PROMPTS_DIR_ENV.to_string(),
             prompts_dir.to_string_lossy().into_owned(),
         ),
         (
@@ -96,7 +93,11 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     let process = start_sidecar(&manager, PROMPT_SERVICE_NAME).await;
     assert_process_concurrency_saturation(addr, PROMPT_SERVICE_NAME, "/prompt/list").await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/shutdown").await;
+    assert_protected_route_rejects_invalid_auth(
+        &base_url,
+        a4n_service_protocol::SIDECAR_SHUTDOWN_PATH,
+    )
+    .await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/prompt/list").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/prompt/render").await;
     assert_route_rejects_malformed_json(&base_url, "/prompt/list").await;
@@ -109,7 +110,7 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
         serde_json::json!({}),
     );
     assert_route_rejects_version_mismatch(&sidecar_base_url(addr), "/prompt/list", &request).await;
-    assert_route_accepts_unknown_envelope_field(&sidecar_base_url(addr), "/prompt/list", &request)
+    assert_route_rejects_unknown_envelope_field(&sidecar_base_url(addr), "/prompt/list", &request)
         .await;
     let response = client
         .list(typed_request::<PromptEmptyPayload>(request))

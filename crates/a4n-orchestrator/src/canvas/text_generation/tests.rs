@@ -13,6 +13,9 @@ use a4n_db::{
         CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
         CanvasNodeRecordInput,
     },
+    generation::{
+        GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT, GENERATION_PROMPT_KIND_VIDEO_PROMPT,
+    },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
 use a4n_llm::provider::{ChatMessage, ChatResponse, UsageInfo};
@@ -185,7 +188,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         ref_id: None,
         config_json: json!({
             "instruction": "改写为三条镜头脚本",
-            "output_kind": "shot_script",
+            "output_kind": GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
             "llm_config_id": 12,
             "temperature": 0.3,
             "max_tokens": 800,
@@ -200,7 +203,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         node_kind: "RenderTextNode".to_string(),
         config_json: json!({
             "template": "模板 {{context}}",
-            "output_kind": "video_prompt",
+            "output_kind": GENERATION_PROMPT_KIND_VIDEO_PROMPT,
         }),
         ..llm.clone()
     };
@@ -229,14 +232,17 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         build_canvas_rendered_prompt(&render, &document, None).expect("Render 输入应构造成功");
 
     assert_eq!(llm_input.config_id, Some(12));
-    assert_eq!(llm_input.output_kind, "shot_script");
+    assert_eq!(
+        llm_input.output_kind,
+        GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT
+    );
     assert_eq!(llm_input.max_tokens, Some(800));
     assert!(llm_input.user_prompt.contains("雨夜追逐"));
     assert_eq!(request.max_tokens, Some(800));
     let trace = request.trace_context.expect("预览请求应携带 trace 上下文");
     assert_eq!(trace.workflow_run_id, None);
     assert_eq!(trace.step_key, "canvas_node:11");
-    assert_eq!(rendered.prompt_kind, "video_prompt");
+    assert_eq!(rendered.prompt_kind, GENERATION_PROMPT_KIND_VIDEO_PROMPT);
     assert_eq!(rendered.prompt_text, "模板 雨夜追逐");
 }
 
@@ -253,42 +259,18 @@ fn canvas_llm_error_mapping_preserves_cancellation() {
 }
 
 #[test]
-fn restored_checkpoint_rejects_mismatch_truncation_and_empty_output() {
+fn restored_checkpoint_rejects_mismatch() {
     let mismatch = validate_restored_checkpoint_for_test(
-        json!({
-            "response_content": "新文本",
-            "parsed_output": {"text": "旧文本"},
-            "usage": null,
-            "finish_reason": "stop",
-        }),
+        json!({"text": "旧文本"}),
+        "新文本",
         "canvas_node:1:llm_transform",
     )
     .expect_err("parsed_output 不一致必须失败");
-    assert!(mismatch.to_string().contains("重新解析结果不一致"));
-
-    let truncated = validate_restored_checkpoint_for_test(
-        json!({
-            "response_content": "未完成",
-            "parsed_output": {"text": "未完成"},
-            "usage": null,
-            "finish_reason": "length",
-        }),
-        "canvas_node:1:llm_transform",
-    )
-    .expect_err("截断 checkpoint 必须失败");
-    assert!(truncated.to_string().contains("不能用于恢复"));
-
-    let empty = validate_restored_checkpoint_for_test(
-        json!({
-            "response_content": "  \n ",
-            "parsed_output": {"text": ""},
-            "usage": null,
-            "finish_reason": "stop",
-        }),
-        "canvas_node:1:llm_transform",
-    )
-    .expect_err("空输出必须失败");
-    assert!(empty.to_string().contains("返回空文本"));
+    assert!(
+        mismatch
+            .to_string()
+            .contains("checkpoint_parsed_output_mismatch")
+    );
 }
 
 #[tokio::test]
@@ -300,7 +282,7 @@ async fn llm_text_application_persists_complete_trace() {
         "LlmTextNode",
         json!({
             "instruction": "改写为镜头脚本",
-            "output_kind": "shot_script",
+            "output_kind": GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
             "llm_config_id": 7,
         }),
     )
@@ -351,7 +333,10 @@ async fn llm_text_application_persists_complete_trace() {
 
     assert_eq!(spec.status, "completed");
     assert_eq!(artifact.prompt_text, "第一镜：仓库门被推开。");
-    assert_eq!(artifact.prompt_kind, "shot_script");
+    assert_eq!(
+        artifact.prompt_kind,
+        GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT
+    );
     assert_eq!(run.status, "completed");
     assert_eq!(checkpoints.len(), 2);
     assert!(
@@ -373,7 +358,10 @@ async fn llm_port_failure_marks_spec_and_workflow_failed() {
         database.as_ref(),
         &context,
         "LlmTextNode",
-        json!({"instruction": "改写", "output_kind": "shot_script"}),
+        json!({
+            "instruction": "改写",
+            "output_kind": GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT
+        }),
     )
     .await;
     let node = target_node(&document);
@@ -426,7 +414,10 @@ async fn fresh_truncated_llm_response_marks_failed_without_artifact() {
         database.as_ref(),
         &context,
         "LlmTextNode",
-        json!({"instruction": "改写", "output_kind": "shot_script"}),
+        json!({
+            "instruction": "改写",
+            "output_kind": GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT
+        }),
     )
     .await;
     let node = target_node(&document);
@@ -481,7 +472,7 @@ async fn render_text_application_persists_prompt_artifact() {
         "RenderTextNode",
         json!({
             "template": "视频提示词：{{context}}",
-            "output_kind": "video_prompt",
+            "output_kind": GENERATION_PROMPT_KIND_VIDEO_PROMPT,
         }),
     )
     .await;
@@ -515,6 +506,6 @@ async fn render_text_application_persists_prompt_artifact() {
 
     assert_eq!(summary.status, "completed");
     assert_eq!(spec.status, "completed");
-    assert_eq!(artifact.prompt_kind, "video_prompt");
+    assert_eq!(artifact.prompt_kind, GENERATION_PROMPT_KIND_VIDEO_PROMPT);
     assert_eq!(artifact.prompt_text, "视频提示词：雨夜里，角色推开仓库门。");
 }

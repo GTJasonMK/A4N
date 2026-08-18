@@ -11,8 +11,6 @@ pub use transfer::*;
 use sea_orm::DbErr;
 
 const PROJECT_KIND_VIDEO: &str = "video";
-const SOURCE_MODE_DERIVED: &str = "derived";
-const SOURCE_MODE_FREEFORM: &str = "freeform";
 
 #[derive(Debug, thiserror::Error)]
 pub enum CanvasDbError {

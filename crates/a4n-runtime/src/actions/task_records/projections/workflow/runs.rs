@@ -4,7 +4,7 @@ use a4n_api_contract::workflow::{
 };
 use a4n_db::workflow as db;
 
-pub(in crate::actions::task_records) fn workflow_run_summary(
+pub(crate) fn workflow_run_summary(
     run: db::WorkflowRunSummary,
 ) -> WorkflowRunSummary {
     WorkflowRunSummary {

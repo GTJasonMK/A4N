@@ -1,4 +1,4 @@
-use super::core::{log_dir, reload_filter};
+use super::core::{FILTER_RELOADER, log_dir};
 use super::{LogReadResult, ReadLogsInput, SetLogLevelInput};
 use a4n_runtime::host_api::logging as logging_actions;
 use serde::Deserialize;
@@ -36,8 +36,7 @@ pub async fn set_log_level(
     logging_actions::ensure_log_diagnostics_admin(&state, caller_user_id)
         .await
         .map_err(|err| err.to_string())?;
-    let new_filter = logging_actions::build_log_filter(&input.filter)?;
-    reload_filter(new_filter)?;
+    FILTER_RELOADER.reload(&input.filter)?;
     tracing::info!(target: "a4n::logging", filter = %input.filter, "日志级别已更新");
     Ok(())
 }

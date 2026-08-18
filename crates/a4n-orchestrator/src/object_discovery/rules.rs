@@ -5,23 +5,10 @@ use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-use crate::discovery_workflow::{
-    discovery_business_key, discovery_call_fingerprint_json, discovery_workflow_run_input,
-};
+use crate::discovery_workflow::{discovery_call_fingerprint_json, discovery_workflow_run_input};
 use crate::workflow::UpsertWorkflowRunInput;
 
-const OBJECT_DISCOVERY_WORKFLOW_KIND: &str = "object_discovery";
-
-/// 物体发现 LLM 调用键。
-pub(super) const OBJECT_DISCOVERY_CALL_KEY: &str = "object_discovery.llm";
-
-/// 物体发现 exclusive workflow business key。
-pub(super) fn object_discovery_business_key(
-    project_id: i64,
-    chapter_number: Option<i32>,
-) -> String {
-    discovery_business_key(OBJECT_DISCOVERY_WORKFLOW_KIND, project_id, chapter_number)
-}
+use super::{OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND};
 
 /// 物体发现单次 LLM 调用指纹。
 pub(super) fn object_discovery_call_fingerprint_json(
@@ -30,7 +17,7 @@ pub(super) fn object_discovery_call_fingerprint_json(
     request: &ChatRequest,
 ) -> Result<Value, String> {
     discovery_call_fingerprint_json(
-        OBJECT_DISCOVERY_WORKFLOW_KIND,
+        OBJECT_DISCOVERY_KIND,
         OBJECT_DISCOVERY_CALL_KEY,
         project_id,
         chapter_number,
@@ -38,18 +25,12 @@ pub(super) fn object_discovery_call_fingerprint_json(
     )
 }
 
-/// 从可分析章节中选择本次物体发现范围，并在 IO 前后的 application 边界统一校验输入。
+/// 从可分析章节中选择本次物体发现范围。
 pub(super) fn select_object_discovery_chapters(
     mut chapters: Vec<chapter::Model>,
     project_id: i64,
     chapter_number: Option<i32>,
 ) -> Result<Vec<chapter::Model>, String> {
-    if project_id <= 0 {
-        return Err("物体档案发现 project_id 必须大于 0".to_string());
-    }
-    if chapter_number.is_some_and(|value| value <= 0) {
-        return Err("物体档案发现章节号必须大于 0".to_string());
-    }
     if let Some(chapter_number) = chapter_number {
         chapters.retain(|chapter| chapter.chapter_number == chapter_number);
         if chapters.is_empty() {
@@ -76,11 +57,8 @@ pub(super) fn object_discovery_workflow_run_input(
     request: &ChatRequest,
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
-    if chapter_number.is_some_and(|value| value <= 0) {
-        return Err("物体档案发现章节号必须大于 0".to_string());
-    }
     discovery_workflow_run_input(
-        OBJECT_DISCOVERY_WORKFLOW_KIND,
+        OBJECT_DISCOVERY_KIND,
         OBJECT_DISCOVERY_CALL_KEY,
         project_id,
         chapter_number,
@@ -131,18 +109,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn business_key_covers_chapter_and_all_scope() {
-        assert_eq!(
-            object_discovery_business_key(5, Some(1)),
-            "object_discovery:5:chapter:1"
-        );
-        assert_eq!(
-            object_discovery_business_key(5, None),
-            "object_discovery:5:all"
-        );
-    }
-
-    #[test]
     fn chapter_scope_requires_analyzed_and_bounds() {
         let analyzed = BTreeSet::from([1, 2, 3]);
         validate_object_discovery_chapter_scope(&[(1, 2)], &analyzed).unwrap();
@@ -154,6 +120,10 @@ mod tests {
 
     #[test]
     fn chapter_selection_validates_scope_and_content() {
+        use super::super::{
+            contracts::ObjectDiscoveryInput, execution::validate_object_discovery_input,
+        };
+
         let now = chrono::Utc::now().naive_utc();
         let chapter = chapter::Model {
             id: 1,
@@ -178,7 +148,19 @@ mod tests {
         );
         assert!(select_object_discovery_chapters(vec![chapter], 5, Some(3)).is_err());
         assert!(select_object_discovery_chapters(Vec::new(), 5, None).is_err());
-        assert!(select_object_discovery_chapters(Vec::new(), 0, None).is_err());
-        assert!(select_object_discovery_chapters(Vec::new(), 5, Some(0)).is_err());
+        assert!(
+            validate_object_discovery_input(&ObjectDiscoveryInput {
+                project_id: 0,
+                chapter_number: None,
+            })
+            .is_err()
+        );
+        assert!(
+            validate_object_discovery_input(&ObjectDiscoveryInput {
+                project_id: 5,
+                chapter_number: Some(0),
+            })
+            .is_err()
+        );
     }
 }

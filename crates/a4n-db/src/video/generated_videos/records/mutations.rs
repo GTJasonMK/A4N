@@ -20,7 +20,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    if video.status == "running" {
+    if video.status == generated_video::STATUS_RUNNING {
         return Err(VideoDbError::InvalidArgument(
             "视频生成中，不能编辑视频记录".to_string(),
         ));
@@ -70,7 +70,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    if video.status == "running" {
+    if video.status == generated_video::STATUS_RUNNING {
         return Err(VideoDbError::InvalidArgument(
             "视频生成中，不能回写视频实际时长".to_string(),
         ));

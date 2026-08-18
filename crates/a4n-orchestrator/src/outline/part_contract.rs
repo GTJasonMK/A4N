@@ -8,10 +8,7 @@ pub mod validation;
 #[cfg(test)]
 pub use model::PartGenerationPlan;
 pub use model::PartOutlineDraft;
-pub use parsing::{
-    parse_part_outline_single_response, part_outline_single_response_schema,
-    validate_materialized_part_outline,
-};
+pub use parsing::parse_part_outline_single_response;
 #[cfg(test)]
 pub use persistence::{
     chapter_outline_ids_in_part_range, chapter_outline_ids_in_part_ranges,

@@ -55,6 +55,23 @@ impl VideoTimelineGap {
         }
         Ok(self)
     }
+
+    /// 稳定间隙身份；0 位于合法正整数 ID 域之外，只编码开放边界。
+    pub fn canonical_key(self) -> Result<String, TimelineError> {
+        let gap = self.validate()?;
+        Ok(format!(
+            "{}:{}",
+            gap_anchor_key(gap.previous_item_id),
+            gap_anchor_key(gap.next_item_id),
+        ))
+    }
+}
+
+fn gap_anchor_key(item_id: Option<i64>) -> i64 {
+    match item_id {
+        Some(item_id) => item_id,
+        None => 0,
+    }
 }
 
 /// 时间线项顺序错误。
@@ -188,6 +205,15 @@ mod tests {
     #[test]
     fn insertion_preserves_native_order_and_supports_all_edges() {
         let order = [1, 2, 3];
+        assert_eq!(
+            VideoTimelineGap {
+                previous_item_id: None,
+                next_item_id: Some(1),
+            }
+            .canonical_key()
+            .unwrap(),
+            "0:1"
+        );
         assert_eq!(
             insert_timeline_item(
                 &order,

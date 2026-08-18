@@ -1,5 +1,4 @@
 mod attribute_lifecycle;
-mod checkpoint_rules;
 mod conflict;
 mod conflict_context_rules;
 mod conflict_output_rules;
@@ -83,32 +82,27 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
 
 pub use attribute_lifecycle::implicit_review_attribute_event;
 
-pub use checkpoint_rules::{
-    optional_character_sync_checkpoint_string, required_character_sync_checkpoint_string,
-};
 pub use conflict::{
-    CharacterConflictCheckInput, CharacterConflictProgressReporter,
-    CharacterConflictRequestPreview, CharacterConflictTaskScope,
+    CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictCheckInput,
+    CharacterConflictProgressReporter, CharacterConflictSummary, validate_character_conflict_input,
 };
 pub use discovery::{
-    CharacterDiscoveryInput, CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview,
-    CharacterDiscoveryTaskScope, character_identity_key, character_llm_chapter_context,
-    profile_character_keys,
+    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
+    CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview, DiscoverCharacterProfilesInput,
+    character_identity_key, character_llm_chapter_context, profile_character_keys,
+    validate_character_discovery_input,
 };
 pub use implicit_classification::{
     CharacterImplicitClassificationInput, CharacterImplicitClassificationOutput,
     IMPLICIT_CLASSIFICATION_PROMPT_NAME,
 };
 pub use implicit_review::{
-    ApplyImplicitUpdateDecisionInput, CharacterSyncImplicitReviewInput, CheckImplicitUpdateInput,
-    GetImplicitReviewInput, IMPLICIT_UPDATE_PROMPT_NAME, ImplicitAttributeReviewSummary,
-    ImplicitEvidenceSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
-    ImplicitUpdateReviewRequestPreview,
+    ApplyImplicitUpdateDecisionInput, CheckImplicitUpdateInput, GetImplicitReviewInput,
+    IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND, ImplicitAttributeReviewSummary,
+    ImplicitEvidenceSummary,
+    ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
 };
-pub use implicit_review_rules::{
-    AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT, AUTO_IMPLICIT_REVIEW_THRESHOLD,
-    AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS, validate_implicit_review_params,
-};
+pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncProgress, CharacterProfileSyncSubject,
@@ -151,10 +145,6 @@ pub struct CharacterSyncConflictReadModel {
     pub available_snapshot_chapters: Vec<i32>,
 }
 
-pub use conflict_rules::{
-    character_conflict_business_key, character_conflict_call_fingerprint_json,
-    character_conflict_workflow_fingerprint,
-};
 pub use json_field_rules::{
     attribute_counts, category_attributes, category_storage_key, optional_string,
     optional_string_or_null, required_array, required_attribute_change_operation,

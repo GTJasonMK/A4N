@@ -60,6 +60,7 @@ import { nonEmptyText } from "../utils/text";
 import {
   getProjectHomeEntryLabel,
   getProjectHomeEntryRoute,
+  getProjectPrimaryRoute,
   getProjectWorkspaceLabel,
   getProjectWorkspaceRoute,
 } from "../utils/projectRouting";
@@ -277,6 +278,7 @@ export const NovelDetail: React.FC = () => {
   if (!project) return null;
 
   const homeEntryRoute = getProjectHomeEntryRoute(project);
+  const primaryRoute = getProjectPrimaryRoute(project);
   const homeEntryLabel = getProjectHomeEntryLabel(project);
   const canEditProject = canEditProjectMaterials(project);
   const canOwnProject = project.my_role === "owner" && !lifecycleBlockedReason;
@@ -289,7 +291,7 @@ export const NovelDetail: React.FC = () => {
   const workspaceLabel = getProjectWorkspaceLabel(project);
   const showHomeEntryButton =
     canEditProject &&
-    homeEntryRoute !== `/novel/${projectId}` &&
+    homeEntryRoute !== primaryRoute &&
     homeEntryRoute !== workspaceRoute;
   const statusMachineDescription = canOwnProject
     ? "查看状态历史，推进或回滚项目阶段。"

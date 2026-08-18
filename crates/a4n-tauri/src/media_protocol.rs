@@ -33,21 +33,31 @@ pub fn handle_request<R: Runtime>(
 
     match file_response(&path, request.headers().get(header::RANGE)) {
         Ok(response) => response,
-        Err(err) => text_response(StatusCode::INTERNAL_SERVER_ERROR, &err),
+        Err((status, message)) => text_response(status, &message),
     }
 }
 
 fn file_response(
     path: &Path,
     range_header: Option<&header::HeaderValue>,
-) -> Result<Response<Vec<u8>>, String> {
+) -> Result<Response<Vec<u8>>, (StatusCode, String)> {
     let media = media_file::read_media_file_response(
         path,
         range_header.map(header::HeaderValue::to_str),
         MEDIA_LABEL,
-    )?;
+    )
+    .map_err(|error| {
+        let status = match &error {
+            media_file::MediaFileResponseError::UnsupportedMediaType(_) => StatusCode::BAD_REQUEST,
+            media_file::MediaFileResponseError::Read(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        (status, error.to_string())
+    })?;
     let mut response = Response::builder()
-        .status(StatusCode::from_u16(media.status.as_u16()).map_err(|err| err.to_string())?)
+        .status(
+            StatusCode::from_u16(media.status.as_u16())
+                .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?,
+        )
         .header(header::CONTENT_TYPE, media.content_type)
         .header(header::ACCEPT_RANGES, "bytes");
     if let Some(content_length) = media.content_length {
@@ -56,7 +66,9 @@ fn file_response(
     if let Some(content_range) = media.content_range {
         response = response.header(header::CONTENT_RANGE, content_range);
     }
-    response.body(media.body).map_err(|err| err.to_string())
+    response
+        .body(media.body)
+        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
 }
 
 fn text_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {

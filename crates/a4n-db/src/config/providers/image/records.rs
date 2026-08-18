@@ -39,6 +39,17 @@ where
     C: ConnectionTrait,
 {
     ensure_image_config_name_available(db, &input.name, None).await?;
+    insert_image_config_record(db, input, false).await
+}
+
+pub(crate) async fn insert_image_config_record<C>(
+    db: &C,
+    input: ImageConfigRecordInput,
+    is_default: bool,
+) -> Result<image_gen_config::Model, AppError>
+where
+    C: ConnectionTrait,
+{
     let now = Utc::now().naive_utc();
     image_gen_config::ActiveModel {
         name: Set(input.name),
@@ -49,7 +60,7 @@ where
         max_concurrent: Set(input.max_concurrent),
         default_width: Set(input.default_width),
         default_height: Set(input.default_height),
-        is_default: Set(false),
+        is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

@@ -3,27 +3,29 @@ use super::contracts::{
     JsonResponse,
 };
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_service_protocol::{CapabilityTaskEvent, EMBEDDING_SERVICE_NAME, ServiceHealth};
+use a4n_service_protocol::{
+    CapabilityTaskEvent, EMBEDDING_EMBED_TEXTS_PATH, EMBEDDING_MODELS_PATH,
+    EMBEDDING_MODEL_DELETE_PATH, EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH,
+    EMBEDDING_MODEL_DOWNLOAD_INFO_PATH, EMBEDDING_SERVICE_NAME, ServiceHealth,
+};
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
 pub struct HttpEmbeddingClient {
-    pub(super) transport: HttpSidecarTransport,
+    transport: HttpSidecarTransport,
 }
 
 impl HttpEmbeddingClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(EMBEDDING_SERVICE_NAME),
+            transport: HttpSidecarTransport::new(base_url, EMBEDDING_SERVICE_NAME),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url)
-                .with_expected_service(EMBEDDING_SERVICE_NAME)
+            transport: HttpSidecarTransport::new(base_url, EMBEDDING_SERVICE_NAME)
                 .with_auth_token(token),
         }
     }
@@ -62,7 +64,7 @@ impl CapabilityClient for HttpEmbeddingClient {
 impl EmbeddingClient for HttpEmbeddingClient {
     async fn embed(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json("/embedding/embed_texts", request)
+            .post(EMBEDDING_EMBED_TEXTS_PATH, request)
             .await
     }
 
@@ -72,7 +74,7 @@ impl EmbeddingClient for HttpEmbeddingClient {
         request: JsonRequest,
     ) -> CapabilityResult<JsonResponse> {
         self.transport
-            .post_json(embedding_model_operation_path(operation), request)
+            .post(embedding_model_operation_path(operation), request)
             .await
     }
 
@@ -87,12 +89,10 @@ impl EmbeddingClient for HttpEmbeddingClient {
     }
 }
 
-pub(super) const EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH: &str = "/embedding/model/download/events";
-
 pub(super) fn embedding_model_operation_path(operation: EmbeddingModelOperation) -> &'static str {
     match operation {
-        EmbeddingModelOperation::List => "/embedding/models",
-        EmbeddingModelOperation::DownloadInfo => "/embedding/model/download_info",
-        EmbeddingModelOperation::Delete => "/embedding/model/delete",
+        EmbeddingModelOperation::List => EMBEDDING_MODELS_PATH,
+        EmbeddingModelOperation::DownloadInfo => EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
+        EmbeddingModelOperation::Delete => EMBEDDING_MODEL_DELETE_PATH,
     }
 }

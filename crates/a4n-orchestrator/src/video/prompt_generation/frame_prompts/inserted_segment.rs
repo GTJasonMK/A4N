@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use a4n_api_contract::video::VideoInsertedSegmentGenerationOptions;
 use a4n_core::{
     error::AppError,
+    models::chapter::chapter_video_prompt,
     prompt_language::PromptOutputLanguage,
     source_spans::source_text_hash,
-    video_execution::{VideoSegmentGuidanceModeV1, timeline_gap_index},
+    video_execution::{VideoSegmentGuidanceModeV1, VideoTimelineGap, timeline_gap_index},
 };
+use a4n_domain::VideoAspectRatio;
 use a4n_llm::context::LlmContextLedger;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::GenerationResultRef;
@@ -36,12 +38,9 @@ pub(crate) fn validate_video_inserted_segment_generation_options(
             "插入片段必须提供有效的时间线 ID 和 revision".to_string(),
         ));
     }
-    a4n_core::video_execution::VideoTimelineGap {
-        previous_item_id: options.previous_item_id,
-        next_item_id: options.next_item_id,
-    }
-    .validate()
-    .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+    inserted_segment_gap(options)
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
     if options.user_prompt.trim().is_empty() {
         return Err(AppError::InvalidArgument(
             "插入片段用户提示词不能为空".to_string(),
@@ -67,16 +66,20 @@ pub(crate) fn validate_video_inserted_segment_generation_options(
             "插入片段 duration_secs_options 不能为空且必须全部在 1 到 60 秒之间".to_string(),
         ));
     }
-    let duration_options = normalized_duration_options(options);
-    if !duration_options.contains(&options.duration_secs) {
+    if !options
+        .duration_secs_options
+        .contains(&options.duration_secs)
+    {
         return Err(AppError::InvalidArgument(
             "插入片段 duration_secs 必须包含在 duration_secs_options 中".to_string(),
         ));
     }
-    if options.aspect_ratio.trim().is_empty() {
-        return Err(AppError::InvalidArgument(
-            "插入片段 aspect_ratio 不能为空".to_string(),
-        ));
+    if options.aspect_ratio.parse::<VideoAspectRatio>().is_err() {
+        return Err(AppError::InvalidArgument(format!(
+            "插入片段 aspect_ratio 无效：{}，必须是 {}",
+            options.aspect_ratio,
+            VideoAspectRatio::supported_values()
+        )));
     }
     crate::video::ensure_reference_image_ids_valid(&options.reference_image_ids)
         .map_err(AppError::InvalidArgument)?;
@@ -98,6 +101,10 @@ pub(crate) async fn generate_inserted_segment_draft(
     cancel_token: &CancellationToken,
 ) -> Result<GenerationResultRef, AppError> {
     validate_video_inserted_segment_generation_options(&options)?;
+    let gap = inserted_segment_gap(&options);
+    let gap_key = gap
+        .canonical_key()
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
     service
         .verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
         .await?;
@@ -113,19 +120,18 @@ pub(crate) async fn generate_inserted_segment_draft(
             "插入片段时间线不属于当前项目章节".to_string(),
         ));
     }
-    if snapshot.timeline.workflow_mode != crate::video::timeline::SHARED_VIDEO_TIMELINE_MODE {
+    if snapshot.timeline.workflow_mode
+        != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+    {
         return Err(AppError::InvalidArgument(
             "插入片段只支持当前共享片段规划时间线".to_string(),
         ));
     }
     if snapshot.timeline.revision != options.expected_timeline_revision {
-        return Err(AppError::InvalidState {
-            current: format!(
-                "timeline_revision_conflict:current={}",
-                snapshot.timeline.revision
-            ),
-            operation: format!("expected={}", options.expected_timeline_revision),
-        });
+        return Err(crate::video::timeline::timeline_revision_conflict(
+            snapshot.timeline.revision,
+            options.expected_timeline_revision,
+        ));
     }
     let order = a4n_db::video::active_timeline_order(&snapshot).map_err(|error| {
         AppError::InvalidState {
@@ -134,16 +140,10 @@ pub(crate) async fn generate_inserted_segment_draft(
         }
     })?;
     // 只借用核心 gap 规则校验相邻关系，不写入任何 canonical 项。
-    timeline_gap_index(
-        &order,
-        a4n_core::video_execution::VideoTimelineGap {
-            previous_item_id: options.previous_item_id,
-            next_item_id: options.next_item_id,
-        },
-    )
-    .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+    timeline_gap_index(&order, gap)
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
 
-    let reference_ids = options.reference_image_ids.clone();
+    let reference_ids = &options.reference_image_ids;
     if !reference_ids.is_empty() {
         let reference_json = json!(reference_ids);
         service
@@ -189,12 +189,14 @@ pub(crate) async fn generate_inserted_segment_draft(
         None
     };
     let prompt_output_language =
-        PromptOutputLanguage::from_optional_code(options.prompt_output_language.as_deref())?;
-    let duration_options = normalized_duration_options(&options);
+        PromptOutputLanguage::from_code(&options.prompt_output_language)?;
+    let mut duration_options = options.duration_secs_options.clone();
+    duration_options.sort_unstable();
+    duration_options.dedup();
     let constraints = json!({
         "selected_duration_secs": options.duration_secs,
         "duration_secs_options": duration_options,
-        "aspect_ratio": options.aspect_ratio.trim(),
+        "aspect_ratio": &options.aspect_ratio,
         "guidance_mode": guidance_mode.as_str(),
         "continuity_source_video_id": continuity_source_video_id,
         "reference_image_ids": reference_ids,
@@ -223,7 +225,7 @@ pub(crate) async fn generate_inserted_segment_draft(
         "motion_prompt_required_sections": prompt_output_language.motion_sections(),
         "visual_prompt_min_chars": crate::video::MIN_PROVIDER_VISUAL_PROMPT_CHARS,
         "motion_prompt_min_chars": crate::video::MIN_PROVIDER_MOTION_PROMPT_CHARS,
-        "constraints": constraints.clone(),
+        "constraints": constraints,
     });
     let context_sha256 = neighbor_context.sha256;
     let input_fingerprint = json!({
@@ -251,17 +253,15 @@ pub(crate) async fn generate_inserted_segment_draft(
         .claim_exclusive_workflow_run(ClaimExclusiveWorkflowRunInput {
             run: UpsertWorkflowRunInput {
                 business_key: format!(
-                    "video_inserted_segment:{project_id}:{chapter_id}:timeline:{}:gap:{}:{}:{}",
+                    "video_inserted_segment:{project_id}:{chapter_id}:timeline:{}:gap:{}:{gap_key}",
                     options.timeline_id,
                     options.expected_timeline_revision,
-                    options.previous_item_id.unwrap_or(0),
-                    options.next_item_id.unwrap_or(0),
                 ),
                 workflow_kind: crate::video::timeline::INSERTED_SEGMENT_WORKFLOW_KIND.to_string(),
                 project_id: Some(project_id),
                 root_project_id: Some(root_project_id),
                 source_snapshot_id: None,
-                scope_table: Some("chapter_video_timeline".to_string()),
+                scope_table: Some(crate::video::timeline::VIDEO_TIMELINE_SCOPE_TABLE.to_string()),
                 scope_id: Some(options.timeline_id),
                 chapter_id: Some(chapter_id),
                 mode: Some(workflow_mode.as_str().to_string()),
@@ -279,12 +279,12 @@ pub(crate) async fn generate_inserted_segment_draft(
         })
         .await?;
     let workflow_run_id = workflow.id;
-    let mut variables = HashMap::new();
-    variables.insert("payload".to_string(), payload.clone());
     let manifest = LlmContextLedger::new().into_manifest(
         serde_json::to_string_pretty(&payload).map_err(AppError::Serialization)?,
-        Some("chapter_video_inserted_segment".to_string()),
+        Some(INSERTED_SEGMENT_PROMPT_NAME.to_string()),
     );
+    let mut variables = HashMap::new();
+    variables.insert("payload".to_string(), payload);
     let mut progress = progress;
     let mut chunks = chunks;
     report_video_prompt_progress(&mut progress, 10, 100, "已准备插入片段前后项和视觉锚点")?;
@@ -308,12 +308,7 @@ pub(crate) async fn generate_inserted_segment_draft(
             structured_progress: None,
             checkpoint_context: "插入片段草稿断点",
         },
-        |raw| {
-            let draft = serde_json::from_str::<InsertedSegmentDraft>(raw).map_err(|error| {
-                AppError::InvalidArgument(format!("插入片段草稿 JSON 无效: {error}"))
-            })?;
-            draft.validate(prompt_output_language)
-        },
+        |raw| InsertedSegmentDraft::parse_and_validate(raw, prompt_output_language),
         |draft| serde_json::to_value(draft).map_err(AppError::Serialization),
     )
     .await;
@@ -334,11 +329,11 @@ pub(crate) async fn generate_inserted_segment_draft(
     Ok(result)
 }
 
-fn normalized_duration_options(options: &VideoInsertedSegmentGenerationOptions) -> Vec<i32> {
-    let mut values = options.duration_secs_options.clone();
-    values.sort_unstable();
-    values.dedup();
-    values
+fn inserted_segment_gap(options: &VideoInsertedSegmentGenerationOptions) -> VideoTimelineGap {
+    VideoTimelineGap {
+        previous_item_id: options.previous_item_id,
+        next_item_id: options.next_item_id,
+    }
 }
 
 fn content_excerpt(content: &str) -> String {

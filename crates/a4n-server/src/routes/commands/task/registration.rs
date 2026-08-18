@@ -4,7 +4,8 @@ use std::sync::Arc;
 use a4n_core::event::channel::{TaskHandle, TaskKind, TaskProgress};
 use a4n_runtime::host_api::task_records as task_records_actions;
 
-use super::super::ServerState;
+use super::super::{ApiError, ServerState};
+
 pub(in crate::routes::commands) fn register_web_task(
     state: &ServerState,
     owner_user_id: i64,
@@ -13,8 +14,10 @@ pub(in crate::routes::commands) fn register_web_task(
     project_id: impl Into<Option<i64>>,
     total: u32,
     message: &str,
-) -> Option<Arc<TaskHandle>> {
-    let task_id = task_id?;
+) -> Result<Option<Arc<TaskHandle>>, ApiError> {
+    let Some(task_id) = task_id else {
+        return Ok(None);
+    };
     let handle = task_records_actions::register_task_handle(
         state.runtime(),
         TaskHandle {
@@ -34,6 +37,6 @@ pub(in crate::routes::commands) fn register_web_task(
             source_snapshot_id: None,
             task_scope: None,
         },
-    );
-    Some(handle)
+    )?;
+    Ok(Some(handle))
 }

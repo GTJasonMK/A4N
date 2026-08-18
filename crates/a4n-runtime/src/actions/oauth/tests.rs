@@ -1,19 +1,16 @@
 use a4n_core::error::AppError;
 use a4n_orchestrator::auth::required_authorization_code;
+use crate::oauth_provider::{GitHubOAuth2, OAuth2Provider};
 
-use super::provider::{
-    DEFAULT_OAUTH2_REDIRECT_URI, oauth2_provider_from_credentials, oauth2_provider_from_env,
-};
+use super::provider::{DEFAULT_OAUTH2_REDIRECT_URI, oauth2_provider_from_env};
 
 #[test]
 fn authorize_url_uses_provider_specific_endpoint_and_redirect_uri() {
-    let provider = oauth2_provider_from_credentials(
-        "github",
+    let provider = GitHubOAuth2::new(
         "github-client".to_string(),
         "github-secret".to_string(),
         "http://localhost:1420/auth/callback".to_string(),
-    )
-    .expect("provider");
+    );
 
     let url = provider.authorize_url("state-1");
 

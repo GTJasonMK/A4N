@@ -165,7 +165,8 @@ fn build_common_provider_prompt_variables(
     prompt: &chapter_video_prompt::Model,
     image_binding: ProviderPromptImageBinding,
 ) -> Result<HashMap<String, Value>, String> {
-    let prompt_output_language = PromptOutputLanguage::from_metadata(prompt.metadata_json.as_ref());
+    let prompt_output_language = PromptOutputLanguage::from_metadata(prompt.metadata_json.as_ref())
+        .map_err(|error| format!("视频提示词 #{} {error}", prompt.id))?;
     let visual_prompt = validate_provider_model_text(
         &prompt.visual_prompt,
         "visual_prompt",
@@ -311,13 +312,17 @@ pub(crate) fn chapter_video_provider_descriptor(
     let source = format!("{source_label}；");
     let descriptor = match context.config.backend.as_str() {
         NEWAPI_VIDEO_BACKEND => {
-            let note = if context.workflow_mode == "storyboard" {
+            let note = if context.workflow_mode
+                == chapter_video_prompt::WORKFLOW_MODE_STORYBOARD
+            {
                 format!(
                     "{source}New API 的 `image` 字段只作为视频首帧/初始图，不支持分镜模式需要的 reference_images；provider 参考图 ID 数量：{}，参数不发送；预览省略真实媒体输入，真实生成会被阻止，请切换到支持参考图输入的视频 provider。{input_note}；{prompt_length}",
                     context.provider_reference_image_count
                 )
             } else {
-                let image_source = if context.workflow_mode == "first_frame_chain" {
+                let image_source = if context.workflow_mode
+                    == chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
+                {
                     "首帧串联起始帧"
                 } else {
                     "首尾帧模式首帧"
@@ -438,7 +443,9 @@ pub(crate) fn sanitized_chapter_video_request_for_snapshot(
         .enumerate()
         .take(context.request.media.reference_images().len())
         .map(|(index, id)| {
-            let role = if context.workflow_mode == "storyboard" && index == 0 {
+            let role = if context.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_STORYBOARD
+                && index == 0
+            {
                 "分镜图"
             } else {
                 "参考图"

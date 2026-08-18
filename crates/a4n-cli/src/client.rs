@@ -4,6 +4,9 @@ use a4n_api_contract::auth::{
     AuthResult, LoginInput, RefreshTokenInput, RegisterInput, RevokeSessionInput, TokenPairSummary,
     UserSummary,
 };
+use a4n_api_contract::error::ApiErrorResponse;
+use a4n_api_contract::generation_tasks::HostErrorResponse;
+use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use anyhow::{Context, Result, anyhow, bail};
 use reqwest::header::{ACCEPT, HeaderValue};
 use reqwest::{Method, Response, StatusCode};
@@ -30,11 +33,11 @@ pub(crate) struct ApiBody {
 #[derive(Debug)]
 pub(crate) struct ApiRequestError {
     pub(crate) status: StatusCode,
-    pub(crate) code: Option<String>,
+    pub(crate) code: String,
     pub(crate) message: String,
-    pub(crate) retryable: Option<bool>,
+    pub(crate) retryable: bool,
     pub(crate) trace_id: Option<String>,
-    pub(crate) details: Option<Value>,
+    pub(crate) details: Value,
 }
 
 impl std::fmt::Display for ApiRequestError {
@@ -48,16 +51,12 @@ impl std::error::Error for ApiRequestError {}
 impl ApiRequestError {
     fn redact(&mut self, secrets: &[String]) {
         let secrets = sorted_secret_refs(secrets);
-        if let Some(code) = &mut self.code {
-            *code = redact_text(code, &secrets);
-        }
+        self.code = redact_text(&self.code, &secrets);
         self.message = redact_text(&self.message, &secrets);
         if let Some(trace_id) = &mut self.trace_id {
             *trace_id = redact_text(trace_id, &secrets);
         }
-        if let Some(details) = &mut self.details {
-            redact_value(details, &secrets);
-        }
+        redact_value(&mut self.details, &secrets);
     }
 }
 
@@ -163,6 +162,33 @@ impl ApiClient {
             .flatten()
             .map(str::trim)
             .filter(|session_id| !session_id.is_empty())
+    }
+
+    pub(crate) fn runtime_config_snapshot(&self) -> Option<&RuntimeConfigSnapshot> {
+        self.stored.runtime_config_snapshot.as_ref()
+    }
+
+    pub(crate) fn set_runtime_config_snapshot(
+        &mut self,
+        snapshot: RuntimeConfigSnapshot,
+    ) -> Result<()> {
+        let _lock = lock_config(&self.config_path)?;
+        let mut stored = StoredConfig::load_unlocked(&self.config_path)?;
+        self.ensure_stored_server_matches(&stored)?;
+        stored.runtime_config_snapshot = Some(snapshot);
+        stored.save_unlocked(&self.config_path)?;
+        self.stored = stored;
+        Ok(())
+    }
+
+    pub(crate) fn clear_runtime_config_snapshot(&mut self) -> Result<()> {
+        let _lock = lock_config(&self.config_path)?;
+        let mut stored = StoredConfig::load_unlocked(&self.config_path)?;
+        self.ensure_stored_server_matches(&stored)?;
+        stored.runtime_config_snapshot = None;
+        stored.save_unlocked(&self.config_path)?;
+        self.stored = stored;
+        Ok(())
     }
 
     pub(crate) fn set_server(&mut self, server: &str) -> Result<()> {
@@ -543,7 +569,21 @@ impl ApiClient {
             access_token: Some(tokens.access_token.clone()),
             refresh_token: Some(tokens.refresh_token.clone()),
             session_id: Some(tokens.session_id.clone()),
+            runtime_config_snapshot: self.stored.runtime_config_snapshot.clone(),
         }
+    }
+
+    fn ensure_stored_server_matches(&self, stored: &StoredConfig) -> Result<()> {
+        if stored
+            .server
+            .as_deref()
+            .map(normalize_api_base)
+            .transpose()?
+            .is_some_and(|server| server != self.api_base)
+        {
+            bail!("CLI 配置中的 Server 已被另一进程修改；请重试当前命令");
+        }
+        Ok(())
     }
 
     fn auth_fingerprint(&self) -> (Option<String>, Option<String>, Option<String>) {
@@ -638,43 +678,63 @@ async fn ensure_success_response(response: Response) -> Result<Response> {
 }
 
 fn api_request_error(status: StatusCode, bytes: &[u8]) -> ApiRequestError {
-    let value = serde_json::from_slice::<Value>(bytes).ok();
-    let field = |key: &str| {
-        value
-            .as_ref()
-            .and_then(|value| value.get(key))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-    };
+    if let Ok(body) = serde_json::from_slice::<ApiErrorResponse>(bytes) {
+        return validated_api_request_error(
+            status,
+            body.code,
+            body.message,
+            body.retryable,
+            body.trace_id,
+            Value::Object(body.details),
+        );
+    }
+    if let Ok(body) = serde_json::from_slice::<HostErrorResponse>(bytes) {
+        return validated_api_request_error(
+            status,
+            body.code.as_str().to_string(),
+            body.message,
+            body.retryable,
+            body.trace_id,
+            Value::Object(body.details),
+        );
+    }
+    invalid_api_error_contract(status)
+}
+
+fn validated_api_request_error(
+    status: StatusCode,
+    code: String,
+    message: String,
+    retryable: bool,
+    trace_id: Option<String>,
+    details: Value,
+) -> ApiRequestError {
+    if code.trim().is_empty()
+        || message.trim().is_empty()
+        || trace_id
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+    {
+        return invalid_api_error_contract(status);
+    }
     ApiRequestError {
         status,
-        code: field("code"),
-        message: error_message(value.as_ref(), bytes),
-        retryable: value
-            .as_ref()
-            .and_then(|value| value.get("retryable"))
-            .and_then(Value::as_bool),
-        trace_id: field("trace_id"),
-        details: value
-            .as_ref()
-            .and_then(|value| value.get("details"))
-            .cloned(),
+        code,
+        message,
+        retryable,
+        trace_id,
+        details,
     }
 }
 
-fn error_message(value: Option<&Value>, bytes: &[u8]) -> String {
-    if let Some(message) = value
-        .and_then(|value| value.get("message"))
-        .and_then(Value::as_str)
-    {
-        return message.to_string();
-    }
-    let text = String::from_utf8_lossy(bytes);
-    let message = text.trim();
-    if message.is_empty() {
-        "Server 未返回错误详情".into()
-    } else {
-        message.chars().take(4096).collect()
+fn invalid_api_error_contract(status: StatusCode) -> ApiRequestError {
+    ApiRequestError {
+        status,
+        code: "invalid_server_error_contract".to_string(),
+        message: format!("Server 返回的 HTTP {status} 错误体不符合 A4N API 合同"),
+        retryable: false,
+        trace_id: None,
+        details: json!({}),
     }
 }
 
@@ -820,32 +880,55 @@ mod tests {
             reqwest::StatusCode::CONFLICT,
             br#"{"code":"state_conflict","message":"failed","retryable":false,"trace_id":"trace-1","details":{"state":"busy"}}"#,
         );
-        assert_eq!(error.code.as_deref(), Some("state_conflict"));
+        assert_eq!(error.code, "state_conflict");
         assert_eq!(error.message, "failed");
         assert_eq!(error.trace_id.as_deref(), Some("trace-1"));
-        assert_eq!(error.retryable, Some(false));
-        assert_eq!(error.details.unwrap()["state"], "busy");
+        assert!(!error.retryable);
+        assert_eq!(error.details["state"], "busy");
+    }
+
+    #[test]
+    fn extracts_generation_api_error_contract() {
+        let error = api_request_error(
+            reqwest::StatusCode::NOT_FOUND,
+            br#"{"code":"generation_task_not_found","message":"missing","retryable":false,"trace_id":null,"details":{"task_id":"missing"}}"#,
+        );
+        assert_eq!(error.code, "generation_task_not_found");
+        assert_eq!(error.message, "missing");
+        assert_eq!(error.details["task_id"], "missing");
+    }
+
+    #[test]
+    fn rejects_noncanonical_api_error_contract_without_guessing_fields() {
+        let error = api_request_error(
+            reqwest::StatusCode::BAD_GATEWAY,
+            br#"{"code":"upstream_error","message":"upstream unavailable","retryable":true,"details":{}}"#,
+        );
+        assert_eq!(error.code, "invalid_server_error_contract");
+        assert!(!error.retryable);
+        assert_eq!(error.trace_id, None);
+        assert_eq!(error.details, json!({}));
     }
 
     #[test]
     fn redacts_known_secrets_from_api_errors() {
         let mut error = api_request_error(
             reqwest::StatusCode::BAD_REQUEST,
-            br#"{"code":"invalid-top-secret","message":"rejected top-secret","trace_id":"trace-top-secret","details":{"key-top-secret":["top-secret"]}}"#,
+            br#"{"code":"invalid-top-secret","message":"rejected top-secret","retryable":false,"trace_id":"trace-top-secret","details":{"key-top-secret":["top-secret"]}}"#,
         );
         error.redact(&["top-secret".into()]);
 
-        assert_eq!(error.code.as_deref(), Some("invalid-[REDACTED]"));
+        assert_eq!(error.code, "invalid-[REDACTED]");
         assert_eq!(error.message, "rejected [REDACTED]");
         assert_eq!(error.trace_id.as_deref(), Some("trace-[REDACTED]"));
-        assert_eq!(error.details.unwrap()["key-[REDACTED]"][0], "[REDACTED]");
+        assert_eq!(error.details["key-[REDACTED]"][0], "[REDACTED]");
     }
 
     #[test]
     fn redacts_overlapping_secrets_longest_first() {
         let mut error = api_request_error(
             reqwest::StatusCode::BAD_REQUEST,
-            br#"{"message":"rejected token-extended"}"#,
+            br#"{"code":"invalid_request","message":"rejected token-extended","retryable":false,"trace_id":null,"details":{}}"#,
         );
         error.redact(&["token".into(), "token-extended".into()]);
 
@@ -881,6 +964,7 @@ mod tests {
             access_token: Some("access".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            runtime_config_snapshot: None,
         };
         let mut client = ApiClient::new(config_path, stored, None).unwrap();
 
@@ -920,6 +1004,7 @@ mod tests {
             access_token: Some("access".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
         let mut stale = ApiClient::new(config_path.clone(), stored.clone(), None).unwrap();
@@ -943,6 +1028,7 @@ mod tests {
             access_token: Some("access".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
         let mut client =
@@ -994,6 +1080,7 @@ mod tests {
             access_token: Some("old".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
         let mut client = ApiClient::new(config_path.clone(), stored, None).unwrap();
@@ -1083,6 +1170,7 @@ mod tests {
             access_token: Some("old".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
         let mut first_client = ApiClient::new(
@@ -1139,6 +1227,7 @@ mod tests {
             access_token: Some("old".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
         let mut client = ApiClient::new(config_path.clone(), stored, None).unwrap();
@@ -1159,6 +1248,7 @@ mod tests {
             access_token: Some("stored-access".into()),
             refresh_token: Some("stored-refresh".into()),
             session_id: Some("stored-session".into()),
+            runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
         let mut client = ApiClient::new(config_path.clone(), stored, None).unwrap();

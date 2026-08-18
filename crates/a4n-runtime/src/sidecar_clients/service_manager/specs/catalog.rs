@@ -1,9 +1,7 @@
+pub(in crate::sidecar_clients::service_manager) use a4n_service_protocol::{
+    MANAGED_SIDECARS_ENV, SIDECAR_BIN_DIR_ENV,
+};
 use a4n_service_protocol::{ServiceCatalogEntry, service_catalog};
-
-pub(in crate::sidecar_clients::service_manager) const SIDECAR_BIN_DIR_ENV: &str =
-    "A4N_SIDECAR_BIN_DIR";
-pub(in crate::sidecar_clients::service_manager) const MANAGED_SIDECARS_ENV: &str =
-    "A4N_MANAGED_SIDECARS";
 
 pub(in crate::sidecar_clients::service_manager) type SidecarServiceSpec = ServiceCatalogEntry;
 

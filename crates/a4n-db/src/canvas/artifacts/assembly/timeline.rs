@@ -1,4 +1,5 @@
 use a4n_core::models::video_project::assembly_timeline;
+use a4n_domain::canvas_cache_key;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
@@ -19,7 +20,7 @@ where
     C: ConnectionTrait,
 {
     let now = Utc::now().naive_utc();
-    let cache_key = format!("canvas_graph:{graph_id}:node:{node_id}");
+    let cache_key = canvas_cache_key(graph_id, node_id);
     let existing = assembly_timeline::Entity::find()
         .filter(assembly_timeline::Column::ProjectId.eq(project_id))
         .filter(assembly_timeline::Column::PreviewCacheKey.eq(cache_key.clone()))

@@ -1,4 +1,5 @@
 use a4n_core::models::{ai::generated_image, chapter::chapter_manga_prompt, media::media_asset};
+use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -45,7 +46,11 @@ where
         "canonical_key": legacy_key("generated_image", row.id, "media"),
         "legacy_table": "generated_image",
         "legacy_id": row.id,
-        "asset_family": if row.image_type == "video_tail_frame" { "video" } else { "manga" },
+        "asset_family": if row.image_type == IMAGE_TYPE_VIDEO_TAIL_FRAME {
+            "video"
+        } else {
+            "manga"
+        },
         "image_type": row.image_type,
         "prompt": row.prompt,
         "model": row.model,
@@ -65,7 +70,7 @@ where
             source_chapter_id: source.source_chapter_id,
             source_snapshot_chapter_id: source.source_snapshot_chapter_id,
             media_kind: "image".to_string(),
-            origin: if row.image_type == "video_tail_frame" {
+            origin: if row.image_type == IMAGE_TYPE_VIDEO_TAIL_FRAME {
                 "extracted_frame".to_string()
             } else {
                 "generated".to_string()
@@ -108,7 +113,7 @@ where
             media.id,
             "chapter",
             chapter_id,
-            if row.image_type == "video_tail_frame" {
+            if row.image_type == IMAGE_TYPE_VIDEO_TAIL_FRAME {
                 "end_frame"
             } else {
                 "generated_result"

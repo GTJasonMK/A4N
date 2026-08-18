@@ -85,7 +85,7 @@ pub(super) fn video_prompt_shot_draft(
         chapter_id: common.chapter_id,
         workflow_mode,
         style: Some(common.style),
-        prompt_type: "video_prompt",
+        prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO,
         shot_number: prompt.shot_number,
         title: Some(&prompt.title),
         scene_summary: Some(&prompt.scene_summary),
@@ -185,7 +185,7 @@ pub(in crate::video) fn first_frame_prompt_drafts(
             frame_prompt_draft(
                 common,
                 PromptWorkflowMode::FirstFrameChain,
-                "first_frame_prompt",
+                chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME,
                 frame,
                 metadata,
             )
@@ -237,7 +237,7 @@ pub(in crate::video) fn storyboard_prompt_drafts(
             frame_prompt_draft(
                 common,
                 PromptWorkflowMode::Storyboard,
-                "storyboard_prompt",
+                chapter_video_prompt::PROMPT_TYPE_STORYBOARD,
                 frame,
                 metadata,
             )

@@ -58,7 +58,7 @@ fn embedding_shared_field_contracts_preserve_errors() {
         Err(AppError::ConfigError(message)) if message == "嵌入配置 bad 的批量大小必须为正整数"
     ));
     assert!(matches!(
-        required_text("  ", "模型名", "bad"),
+        required_text(Some("  "), "模型名", "bad"),
         Err(AppError::ConfigError(message)) if message == "嵌入配置 bad 缺少模型名"
     ));
 }

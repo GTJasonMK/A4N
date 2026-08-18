@@ -62,8 +62,6 @@ fn semantic_config() -> SemanticChunkConfig {
         max_chunk_sentences: 4,
         min_chunk_chars: 1,
         max_chunk_chars: 500,
-        with_overlap: false,
-        overlap_sentences: 0,
     }
 }
 
@@ -89,32 +87,26 @@ fn splits_novel_sentences_with_quotes_and_long_sentence_secondary_boundaries() {
 #[tokio::test]
 async fn semantic_dp_uses_sentence_embeddings_for_topic_cut_points() {
     let config = semantic_config();
-    let chunker = SemanticChunker::new(config);
     let text = "星门亮起。星门震动。星门关闭。厨房起火。厨房冒烟。厨房沉寂。";
 
-    let chunks = chunker
-        .chunk_text(text, &TopicEmbeddingProvider)
+    let chunks = chunk_text(text, &TopicEmbeddingProvider, &config)
         .await
         .expect("semantic chunking should succeed");
 
     assert_eq!(chunks.len(), 2);
-    assert!(chunks[0].content.contains("星门亮起"));
-    assert!(!chunks[0].content.contains("厨房起火"));
-    assert!(chunks[1].content.contains("厨房起火"));
-    assert_eq!(chunks[0].sentence_count, 3);
-    assert!(chunks[0].density_score > 0.0);
+    assert!(chunks[0].contains("星门亮起"));
+    assert!(!chunks[0].contains("厨房起火"));
+    assert!(chunks[1].contains("厨房起火"));
 }
 
 #[tokio::test]
 async fn semantic_dp_rejects_embedding_dimension_mismatch() {
     let config = semantic_config();
-    let chunker = SemanticChunker::new(config);
     let text = "星门亮起。星门震动。厨房起火。厨房冒烟。";
 
-    let err = chunker
-        .chunk_text(text, &WrongDimensionEmbeddingProvider)
+    let err = chunk_text(text, &WrongDimensionEmbeddingProvider, &config)
         .await
         .expect_err("wrong embedding dimension should reject");
 
-    assert!(err.to_string().contains("语义分块句子嵌入维度不匹配"));
+    assert!(err.to_string().contains("嵌入返回维度不匹配"));
 }

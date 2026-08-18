@@ -113,7 +113,7 @@ pub(super) async fn finalize_video_prompt_chain(
                 attach_generation_trace_to_draft(
                     drafts,
                     spec.workflow_mode,
-                    "video_prompt",
+                    chapter_video_prompt::PROMPT_TYPE_VIDEO,
                     *shot_number,
                     trace.clone(),
                 )

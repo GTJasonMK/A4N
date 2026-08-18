@@ -7,9 +7,8 @@ pub struct BlueprintStageSpec {
     pub key: &'static str,
     pub title: &'static str,
     pub validate: fn(&Value) -> Result<(), AppError>,
-    pub progress_current: u32,
+    pub progress_current: u8,
     pub progress_message: &'static str,
     pub restored_message: &'static str,
     pub output_schema: &'static str,
-    pub expected_top_level_keys: &'static [&'static str],
 }

@@ -100,6 +100,10 @@ fn normalize_video_provider_job_id(value: Option<&str>) -> Result<Option<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_core::video_workflow::{
+        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM,
+        WORKFLOW_MODE_CANVAS_VIDEO, WORKFLOW_MODE_MIXED,
+    };
 
     #[test]
     fn generated_video_workflow_mode_accepts_current_modes_and_rejects_missing_or_unknown() {
@@ -109,11 +113,10 @@ mod tests {
             "reference_media",
             "chat_video",
             "storyboard",
-            "mixed",
-            "canvas_video",
-            "canvas_reference_media",
-            "canvas_trim",
-            "canvas_assembly",
+            WORKFLOW_MODE_MIXED,
+            WORKFLOW_MODE_CANVAS_VIDEO,
+            WORKFLOW_MODE_CANVAS_TRIM,
+            WORKFLOW_MODE_CANVAS_ASSEMBLY,
         ] {
             assert_eq!(
                 validate_video_workflow_mode(Some(format!("  {mode}  ")))

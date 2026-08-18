@@ -1,31 +1,25 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-use super::super::super::chapter_contract::validate_materialized_chapter_outline_batch;
+use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
+
+use super::super::super::chapter_contract::parse_chapter_outline_batch;
 use super::preparation::PreparedBeatMapping;
 
 pub(super) fn restored_beat_mapping_checkpoint(
-    checkpoint_json: Value,
+    parsed_output: &Value,
+    response_content: &str,
     prepared: &PreparedBeatMapping,
 ) -> Result<Vec<Value>, AppError> {
-    let parsed_output = checkpoint_json
-        .get("parsed_output")
-        .cloned()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_checkpoint_parsed_output".to_string(),
-            operation: format!("读取第 {} 部节拍映射调用级断点", prepared.part.part_number),
-        })?;
-    checkpoint_json
-        .get("response_content")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_checkpoint_response_content".to_string(),
-            operation: format!("读取第 {} 部节拍映射调用级断点", prepared.part.part_number),
-        })?;
-    let parsed = validate_materialized_chapter_outline_batch(
-        &parsed_output,
+    let parsed = parse_chapter_outline_batch(
+        response_content,
         prepared.part.start_chapter,
         prepared.count,
+    )?;
+    ensure_checkpoint_parsed_output_matches(
+        parsed_output,
+        &Value::Array(parsed.clone()),
+        &format!("第 {} 部节拍映射", prepared.part.part_number),
     )?;
     Ok(parsed)
 }

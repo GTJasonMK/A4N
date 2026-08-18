@@ -4,10 +4,12 @@ use std::collections::HashMap;
 pub(in super::super) fn required_generation_spec_source_snapshot_id(
     spec: &generation_spec::Model,
 ) -> Result<i64, String> {
-    let context_kind = spec
-        .source_context_kind
-        .as_deref()
-        .unwrap_or("snapshot_backed");
+    let context_kind = spec.source_context_kind.as_deref().ok_or_else(|| {
+        format!(
+            "项目族导入包生成意图缺少 source_context_kind: generation_spec_id={}",
+            spec.id
+        )
+    })?;
     if context_kind != "snapshot_backed" {
         return Err(format!(
             "项目族导入包生成意图只支持 snapshot_backed 上下文: generation_spec_id={}, source_context_kind={context_kind}",

@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::OrchestratorContext;
-use crate::workflow::{CompletedLlmCallCheckpointInput, required_llm_call_checkpoint_json};
+use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 
 use super::super::super::types::SceneProfileStageCheckpoint;
 
@@ -18,20 +18,9 @@ pub(super) async fn load_completed_scene_profile_stage_checkpoint(
     else {
         return Ok(None);
     };
-    let checkpoint_json =
-        required_llm_call_checkpoint_json(checkpoint, call_key).map_err(|err| err.to_string())?;
-    let response_content = checkpoint_json
-        .get("response_content")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| format!("{call_key}.response_content 必须是字符串"))?;
-    let parsed_output = checkpoint_json
-        .get("parsed_output")
-        .cloned()
-        .ok_or_else(|| format!("{call_key}.parsed_output 缺失"))?;
     Ok(Some(SceneProfileStageCheckpoint {
-        response_content,
-        parsed_output,
+        response_content: checkpoint.response_content,
+        parsed_output: checkpoint.parsed_output,
     }))
 }
 
@@ -50,13 +39,13 @@ pub(super) async fn save_completed_scene_profile_stage_checkpoint(
             call_key,
             call_order,
             input_fingerprint_json,
-            checkpoint_json: serde_json::json!({
-                "output": parsed_output.clone(),
-                "parsed_output": parsed_output,
-                "response_content": response_content,
-                "usage": null,
-                "finish_reason": null}),
-            artifacts_json: None,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output,
+                response_content: response_content.to_string(),
+                usage: None,
+                finish_reason: None,
+                artifacts_json: None,
+            },
         })
         .await
         .map_err(|err| err.to_string())

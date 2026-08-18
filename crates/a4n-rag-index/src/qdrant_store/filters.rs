@@ -1,25 +1,17 @@
-//! SearchFilter / DeleteFilter → Qdrant Filter。
+//! SearchFilter / ID selector → Qdrant Filter。
 
 use a4n_core::error::AppError;
-use a4n_rag_core::vector_store::{DeleteFilter, SearchFilter};
+use a4n_rag_core::vector_store::SearchFilter;
 use qdrant_client::qdrant::{Condition, Filter, Range, r#match::MatchValue};
 use serde_json::Value;
 
-/// 逻辑 collection 名（业务侧多为 project_id 字符串，测试可任意）。
-pub const KEY_LOGICAL_COLLECTION: &str = "logical_collection";
-pub const KEY_PROJECT_ID: &str = "project_id";
 pub const KEY_DATA_TYPE: &str = "data_type";
 pub const KEY_CHAPTER: &str = "chapter_number";
 pub const KEY_CHUNK_ID: &str = "chunk_id";
 pub const KEY_ID_PREFIX: &str = "id_prefix";
 
-fn collection_condition(collection: &str) -> Condition {
-    Condition::matches(KEY_LOGICAL_COLLECTION, collection.to_string())
-}
-
-/// 检索过滤：强制逻辑 collection + 可选 SearchFilter。
-pub fn search_filter(collection: &str, filter: Option<&SearchFilter>) -> Result<Filter, AppError> {
-    let mut must = vec![collection_condition(collection)];
+pub fn search_filter(filter: Option<&SearchFilter>) -> Result<Filter, AppError> {
+    let mut must = Vec::new();
     if let Some(f) = filter {
         if let Some(eq) = &f.equals {
             let mut entries = eq.iter().collect::<Vec<_>>();
@@ -104,57 +96,24 @@ fn unsupported_equals_value(key: &str, reason: &str) -> AppError {
     ))
 }
 
-/// 删除过滤基础。
-pub fn delete_filter_base(collection: &str, filter: &DeleteFilter) -> Filter {
-    let mut must = vec![collection_condition(collection)];
-    // 若 collection 即 project_id 字符串，与 filter.project_id 对齐校验在 store 层
-    must.push(Condition::matches(KEY_PROJECT_ID, filter.project_id));
-    if let Some(ref dt) = filter.data_type {
-        must.push(Condition::matches(KEY_DATA_TYPE, dt.clone()));
+pub fn delete_filter(ids: &[String], prefixes: &[String]) -> Filter {
+    if ids.is_empty() && prefixes.is_empty() {
+        return Filter::default();
     }
-    if let Some(ch) = filter.chapter_number {
-        must.push(Condition::matches(KEY_CHAPTER, i64::from(ch)));
-    }
-    Filter {
-        must,
-        ..Default::default()
-    }
-}
-
-pub fn with_chunk_ids(base: Filter, ids: &[String]) -> Filter {
-    if ids.is_empty() {
-        return base;
-    }
-    let should: Vec<Condition> = ids
+    let should = ids
         .iter()
         .map(|id| Condition::matches(KEY_CHUNK_ID, id.clone()))
+        .chain(
+            prefixes
+                .iter()
+                .map(|prefix| Condition::matches(KEY_ID_PREFIX, prefix.clone())),
+        )
         .collect();
-    let mut must = base.must;
-    must.push(Condition::from(Filter {
-        should,
-        ..Default::default()
-    }));
     Filter {
-        must,
-        ..Default::default()
-    }
-}
-
-pub fn with_id_prefixes(base: Filter, prefixes: &[String]) -> Filter {
-    if prefixes.is_empty() {
-        return base;
-    }
-    let should: Vec<Condition> = prefixes
-        .iter()
-        .map(|p| Condition::matches(KEY_ID_PREFIX, p.clone()))
-        .collect();
-    let mut must = base.must;
-    must.push(Condition::from(Filter {
-        should,
-        ..Default::default()
-    }));
-    Filter {
-        must,
+        must: vec![Condition::from(Filter {
+            should,
+            ..Default::default()
+        })],
         ..Default::default()
     }
 }
@@ -214,7 +173,7 @@ mod tests {
             ("embedding_dimension", json!(768)),
         ]);
 
-        let qdrant = search_filter("42", Some(&filter)).expect("supported equals filter");
+        let qdrant = search_filter(Some(&filter)).expect("supported equals filter");
 
         assert_eq!(
             field_match(&qdrant, "metadata.project_id"),
@@ -252,7 +211,7 @@ mod tests {
             equals_filter([("analysis", json!({"tone": "紧张"}))]),
             equals_filter([("score", json!(0.5))]),
         ] {
-            let error = search_filter("42", Some(&filter))
+            let error = search_filter(Some(&filter))
                 .expect_err("unrepresentable equals must fail instead of being ignored");
             assert!(error.to_string().contains("Qdrant SearchFilter.equals"));
         }
@@ -266,8 +225,29 @@ mod tests {
             data_types: Some(Vec::new()),
         };
 
-        let error = search_filter("42", Some(&filter))
+        let error = search_filter(Some(&filter))
             .expect_err("empty data type scope must not be ignored");
         assert!(error.to_string().contains("data_types 不能为空"));
+    }
+
+    #[test]
+    fn exact_ids_and_prefixes_share_one_union_group() {
+        let filter = delete_filter(
+            &["chapter:42:1".to_string()],
+            &["outline:42:".to_string()],
+        );
+        let Some(ConditionOneOf::Filter(selectors)) = filter.must[0].condition_one_of.as_ref()
+        else {
+            panic!("id selectors must be grouped in one nested filter");
+        };
+        let keys = selectors
+            .should
+            .iter()
+            .map(|condition| match condition.condition_one_of.as_ref() {
+                Some(ConditionOneOf::Field(field)) => field.key.as_str(),
+                _ => panic!("id selector must be a field condition"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec![KEY_CHUNK_ID, KEY_ID_PREFIX]);
     }
 }

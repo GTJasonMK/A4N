@@ -1,4 +1,3 @@
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -15,7 +14,7 @@ pub(in crate::video) struct ChatVideoPromptShot {
     pub reference_image_ids: Vec<i64>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ChatVideoPromptShotInput {
     pub title: String,
@@ -24,7 +23,7 @@ pub(super) struct ChatVideoPromptShotInput {
     pub negative_prompt: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video::prompt_json) struct ChatVideoPromptResponse {
     pub(super) shots: Vec<ChatVideoPromptShotInput>,

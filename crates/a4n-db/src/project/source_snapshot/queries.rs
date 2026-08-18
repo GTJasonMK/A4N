@@ -1,8 +1,9 @@
 use super::{
-    super::{PROJECT_KIND_TEXT, ProjectMutationError, SOURCE_MODE_FREEFORM, validate_positive_i64},
+    super::{ProjectMutationError, validate_positive_i64},
     types::SourceSnapshotChapterSummary,
 };
 use a4n_core::models::project::{novel_project, source_snapshot_chapter};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn source_snapshot_chapters(
@@ -43,19 +44,22 @@ pub async fn source_snapshot_chapter_by_snapshot_and_source(
 pub(super) fn source_snapshot_id_for_project(
     project: &novel_project::Model,
 ) -> Result<i64, ProjectMutationError> {
-    if project.project_kind == PROJECT_KIND_TEXT {
-        return Err(ProjectMutationError::InvalidArgument(
+    match project.source_mode().map_err(|error| {
+        ProjectMutationError::InvalidArgument(format!("项目 {}: {error}", project.id))
+    })? {
+        ProjectSourceMode::Self_ => Err(ProjectMutationError::InvalidArgument(
             "文本项目没有源文本快照章节".to_string(),
-        ));
-    }
-    if project.source_mode == SOURCE_MODE_FREEFORM {
-        return Err(ProjectMutationError::InvalidArgument(
+        )),
+        ProjectSourceMode::Freeform => Err(ProjectMutationError::InvalidArgument(
             "自由视频项目没有源文本快照章节".to_string(),
-        ));
+        )),
+        ProjectSourceMode::Derived => project.source_snapshot_id.ok_or_else(|| {
+            ProjectMutationError::NotFound(format!(
+                "派生项目缺少源文本快照: {}",
+                project.id
+            ))
+        }),
     }
-    project.source_snapshot_id.ok_or_else(|| {
-        ProjectMutationError::NotFound(format!("派生项目缺少源文本快照: {}", project.id))
-    })
 }
 
 pub(super) fn source_snapshot_chapter_summary(

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub const RELEASE_MANIFEST_SCHEMA_VERSION: u32 = 3;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ReleaseManifest {
@@ -9,9 +11,19 @@ pub struct ReleaseManifest {
     pub target: String,
     pub protocol_version: u32,
     pub binaries: Vec<ReleaseBinaryManifest>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<ReleaseToolManifest>,
     pub runtime_files: Vec<ReleaseRuntimeFileManifest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseToolCatalogEntry {
+    pub package: String,
+    pub binary: String,
+}
+
+pub fn release_tool_catalog() -> Result<Vec<ReleaseToolCatalogEntry>, serde_json::Error> {
+    serde_json::from_str(include_str!("../release-tools.json"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -44,10 +56,4 @@ pub struct ReleaseToolManifest {
     pub version: String,
     pub target: String,
     pub sha256: String,
-}
-
-impl ReleaseManifest {
-    pub fn binary(&self, name: &str) -> Option<&ReleaseBinaryManifest> {
-        self.binaries.iter().find(|entry| entry.name == name)
-    }
 }

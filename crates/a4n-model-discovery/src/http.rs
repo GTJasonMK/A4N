@@ -4,7 +4,7 @@ use reqwest::{Client, StatusCode};
 use serde_json::Value;
 
 use crate::contracts::{DiscoveredModel, ModelDiscoveryRequest, ModelDiscoveryResult};
-use crate::endpoints::{ModelDiscoveryAuth, ModelDiscoveryEndpoint, model_discovery_endpoints};
+use crate::endpoints::{ModelDiscoveryAuth, ModelDiscoveryEndpoint, model_discovery_endpoint};
 use crate::parsing::parse_discovered_models;
 
 const MODEL_DISCOVERY_CONNECT_TIMEOUT_SECS: u64 = 20;
@@ -28,28 +28,18 @@ pub async fn discover_models(
     api_key: Option<&str>,
 ) -> Result<ModelDiscoveryResult, String> {
     let base_url = required_model_discovery_base_url(base_url)?;
-    let endpoints = model_discovery_endpoints(provider, &base_url);
-    if endpoints.is_empty() {
-        return Err(format!("{} 不支持自动探测模型列表", provider.trim()));
-    }
+    let endpoint = model_discovery_endpoint(provider, &base_url);
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(MODEL_DISCOVERY_CONNECT_TIMEOUT_SECS))
         .read_timeout(Duration::from_secs(MODEL_DISCOVERY_READ_TIMEOUT_SECS))
-        .pool_idle_timeout(Duration::from_secs(30))
         .build()
         .map_err(|error| format!("模型探测 HTTP 客户端初始化失败：{error}"))?;
 
-    let mut errors = Vec::new();
-    for endpoint in endpoints {
-        match fetch_discovered_models(&client, &endpoint, api_key).await {
-            Ok(models) if !models.is_empty() => {
-                return Ok(ModelDiscoveryResult { models });
-            }
-            Ok(_) => errors.push(format!("{}：响应中没有可识别模型", endpoint.label)),
-            Err(error) => errors.push(error),
-        }
+    let models = fetch_discovered_models(&client, &endpoint, api_key).await?;
+    if models.is_empty() {
+        return Err(format!("{}：响应中没有可识别模型", endpoint.label));
     }
-    Err(format!("模型探测失败：{}", errors.join("；")))
+    Ok(ModelDiscoveryResult { models })
 }
 
 fn required_model_discovery_base_url(base_url: &str) -> Result<String, String> {

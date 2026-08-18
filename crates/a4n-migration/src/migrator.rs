@@ -86,6 +86,13 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::source_sync_regenerate_scene_strategy::Migration),
             Box::new(crate::migrations::shooting_script_transition_type_contract::Migration),
             Box::new(crate::migrations::project_derivation_identity_cleanup::Migration),
+            Box::new(crate::migrations::project_source_mode_identity_cleanup::Migration),
+            Box::new(crate::migrations::canvas_extract_frame_contract::Migration),
+            Box::new(crate::migrations::canvas_trim_contract::Migration),
+            Box::new(crate::migrations::external_import_model_identity_cleanup::Migration),
+            Box::new(
+                crate::migrations::chapter_video_prompt_output_language_contract::Migration,
+            ),
         ]
     }
 }
@@ -135,7 +142,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(29)
+                .take(34)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -169,6 +176,11 @@ mod tests {
                 "source_sync_regenerate_scene_strategy",
                 "shooting_script_transition_type_contract",
                 "project_derivation_identity_cleanup",
+                "project_source_mode_identity_cleanup",
+                "canvas_extract_frame_contract",
+                "canvas_trim_contract",
+                "external_import_model_identity_cleanup",
+                "chapter_video_prompt_output_language_contract",
             ],
             "deployed migration history must remain registered in execution order"
         );

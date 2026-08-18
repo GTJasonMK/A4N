@@ -2,6 +2,7 @@ use super::generic::{lineage_ref, optional_prompt_sources, prompt_source};
 use super::json_records::db_record_result;
 use crate::project_dependency_graph::{AssetLineageRecord, AssetLineageRef};
 use a4n_core::models::ai::generated_image;
+use a4n_domain::GeneratedMediaReference;
 use serde_json::Value;
 
 pub(in crate::project_dependency_graph) fn generated_image_result(
@@ -16,7 +17,7 @@ pub(in crate::project_dependency_graph) fn generated_image_record(
     origin: &str,
 ) -> AssetLineageRecord {
     AssetLineageRecord {
-        id: format!("generated_image:{}", image.id),
+        id: GeneratedMediaReference::Image(image.id).to_string(),
         label: format!("{} #{}", image.image_type, image.id),
         asset_kind: asset_kind.to_string(),
         asset_id: Some(image.id),
@@ -72,7 +73,7 @@ pub(in crate::project_dependency_graph) fn generated_image_media_sources(
     {
         refs.extend(ids.iter().filter_map(Value::as_i64).map(|id| {
             lineage_ref(
-                &format!("generated_image:{id}"),
+                &GeneratedMediaReference::Image(id).to_string(),
                 "参考图片",
                 "image",
                 "generated_image",
@@ -88,7 +89,7 @@ pub(in crate::project_dependency_graph) fn generated_image_media_sources(
     {
         refs.extend(ids.iter().filter_map(Value::as_i64).map(|id| {
             lineage_ref(
-                &format!("generated_image:{id}"),
+                &GeneratedMediaReference::Image(id).to_string(),
                 "参考图片",
                 "image",
                 "generated_image",

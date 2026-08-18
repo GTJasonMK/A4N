@@ -6,7 +6,7 @@
 #   ./scripts/dev/setup-onnxruntime.sh
 #   ./scripts/dev/setup-onnxruntime.sh --force
 #
-# 默认安装到 ~/.local/share/a4n/onnxruntime/1.24.2，不依赖 Cargo target。
+# 默认安装到 ~/.local/share/a4n/onnxruntime/<VERSION>，不依赖 Cargo target。
 # 可通过 A4N_ONNXRUNTIME_ROOT 覆盖安装目录。
 #=============================================================================
 
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-VERSION="1.24.2"
+VERSION="$(onnxruntime_version)"
 FORCE=false
 
 while [[ $# -gt 0 ]]; do
@@ -99,13 +99,7 @@ else
     die "未找到下载工具: wget 或 curl"
 fi
 
-if command -v sha256sum >/dev/null 2>&1; then
-    actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
-elif command -v shasum >/dev/null 2>&1; then
-    actual_sha256="$(shasum -a 256 "$archive" | awk '{print $1}')"
-else
-    die "未找到 SHA-256 工具: sha256sum 或 shasum"
-fi
+actual_sha256="$(sha256_file "$archive")"
 if [[ "$actual_sha256" != "$ARCHIVE_SHA256" ]]; then
     die "ONNX Runtime 安装包校验失败：得到 $actual_sha256，预期 $ARCHIVE_SHA256"
 fi

@@ -26,19 +26,19 @@ const CHECKPOINT_RETRY_DELAYS: [Duration; 3] = [
 ];
 
 #[derive(Debug, Clone, Default)]
-pub struct GenerationCheckpointMetadata {
-    pub step_key: Option<String>,
-    pub call_key: Option<String>,
-    pub provider_kind: Option<String>,
-    pub provider_model: Option<String>,
-    pub provider_job_id: Option<String>,
-    pub provider_idempotency_key_sha256: Option<String>,
-    pub resume_metadata_version: Option<i32>,
-    pub execution_checkpoint_json: Option<Value>,
+pub(crate) struct GenerationCheckpointMetadata {
+    pub(crate) step_key: Option<String>,
+    pub(crate) call_key: Option<String>,
+    pub(crate) provider_kind: Option<String>,
+    pub(crate) provider_model: Option<String>,
+    pub(crate) provider_job_id: Option<String>,
+    pub(crate) provider_idempotency_key_sha256: Option<String>,
+    pub(crate) resume_metadata_version: Option<i32>,
+    pub(crate) execution_checkpoint_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GenerationCheckpointWriteOutcome {
+pub(crate) enum GenerationCheckpointWriteOutcome {
     Skipped,
     Persisted {
         checkpoint_revision: i64,
@@ -49,7 +49,7 @@ pub enum GenerationCheckpointWriteOutcome {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum GenerationCheckpointError {
+pub(crate) enum GenerationCheckpointError {
     #[error(transparent)]
     Session(#[from] GenerationSessionError),
     #[error(transparent)]
@@ -57,7 +57,7 @@ pub enum GenerationCheckpointError {
 }
 
 impl GenerationCheckpointError {
-    pub fn code(&self) -> &'static str {
+    pub(crate) fn code(&self) -> &'static str {
         match self {
             Self::Session(error) => error.code(),
             Self::Persistence(error) => error.code(),
@@ -66,16 +66,16 @@ impl GenerationCheckpointError {
 }
 
 #[derive(Clone)]
-pub struct GenerationCheckpointWriter {
+pub(crate) struct GenerationCheckpointWriter {
     db: SharedDatabaseConnection,
 }
 
-pub struct DatabaseGenerationSequenceLeaseReplenisher {
+pub(crate) struct DatabaseGenerationSequenceLeaseReplenisher {
     db: SharedDatabaseConnection,
 }
 
 impl DatabaseGenerationSequenceLeaseReplenisher {
-    pub fn new(db: SharedDatabaseConnection) -> Self {
+    pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
         Self { db }
     }
 }
@@ -121,11 +121,11 @@ impl GenerationSequenceLeaseReplenisher for DatabaseGenerationSequenceLeaseReple
 }
 
 impl GenerationCheckpointWriter {
-    pub fn new(db: SharedDatabaseConnection) -> Self {
+    pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
         Self { db }
     }
 
-    pub async fn persist_if_due(
+    pub(crate) async fn persist_if_due(
         &self,
         session: &Arc<GenerationTaskSession>,
         metadata: GenerationCheckpointMetadata,
@@ -189,7 +189,7 @@ impl GenerationCheckpointWriter {
         }
     }
 
-    pub async fn persist_checkpoint_event(
+    pub(crate) async fn persist_checkpoint_event(
         &self,
         session: &Arc<GenerationTaskSession>,
         metadata: GenerationCheckpointMetadata,

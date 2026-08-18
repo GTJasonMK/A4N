@@ -1,8 +1,10 @@
 use std::time::Duration;
 
-use a4n_capabilities::{EVENT_QUEUE_CAPACITY, LlmClient};
+use a4n_capabilities::LlmClient;
 use a4n_llm::provider::ChatRequest;
-use a4n_service_protocol::{CapabilityTaskEventKind, LLM_SERVICE_NAME, ServiceErrorCode};
+use a4n_service_protocol::{
+    CapabilityTaskEventKind, LLM_SERVICE_NAME, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+};
 use serde_json::json;
 use tokio::time::timeout;
 
@@ -26,7 +28,7 @@ async fn closed_receiver_cancels_stream_across_independent_gateway_process() {
         .await
         .expect("manager should start the independent gateway binary");
     let client = gateway_client(addr);
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     drop(event_rx);
 
     let error = timeout(
@@ -200,7 +202,7 @@ async fn stream_idle_timeout_releases_provider_body_across_independent_process()
         ChatRequest::system_user("system", "stream idle ping", None, Some(16), None),
     );
     request.payload["provider"]["timeout_secs"] = json!(120);
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = timeout(Duration::from_secs(5), client.stream(request, event_tx))
         .await

@@ -87,22 +87,13 @@ const useConfirmDialog = create<ConfirmDialogStore>((set, get) => ({
   },
 }));
 
-/**
- * 全局确认弹窗（Promise 风格）
- *
- * 说明：
- * - 用于替代浏览器原生确认框，统一桌面端与 Web 端的确认体验。
- * - 对于必须“同步阻塞”的场景（如 popstate/浏览器后退拦截），仍可能需要保留原生 confirm。
- */
+/** 全局确认弹窗（Promise 风格）。 */
 export const confirmDialog = (opts: ConfirmDialogOptions): Promise<boolean> => {
   return useConfirmDialog
     .getState()
     .open(opts)
     .then((result) => result === "confirm");
 };
-
-/** 浏览器后退等必须同步决策的导航事件。 */
-export const confirmNavigationSync = (message: string): boolean => window.confirm(message);
 
 export const choiceDialog = (
   opts: ChoiceDialogOptions,

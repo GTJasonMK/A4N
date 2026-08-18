@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import {
-  withLocalRuntimeDiscoveryKey,
+  detectConfigModels,
+  type ModelConfigScope,
   type ModelDiscoveryInput,
   type ModelDiscoveryResult,
 } from "../modelDiscovery";
@@ -31,7 +32,9 @@ import {
   mergeLocalRuntimeConfigs,
   normalizeOptionalProviderConfigId,
   providerConfigIdOrSystem,
+  requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
+  systemDefaultProviderConfig,
 } from "../config/shared";
 
 export const SYSTEM_IMAGE_CONFIG_ID = -1;
@@ -60,23 +63,21 @@ export function normalizeImageConfigId(configId?: Id | null): number | null {
 function systemDefaultImageConfig(
   configs: ImageGenConfig[],
 ): ImageGenConfig | null {
-  const config = configs.find((item) => item.is_default) ?? null;
-  if (!config) return null;
-  return {
-    ...config,
-    id: SYSTEM_IMAGE_CONFIG_ID,
-    name: `系统默认：${config.name}`,
-    has_api_key: hasSystemDefaultImageApiKey(),
-    is_default: usesSystemDefaultImageConfig(),
-  };
+  return systemDefaultProviderConfig(
+    configs,
+    SYSTEM_IMAGE_CONFIG_ID,
+    hasSystemDefaultImageApiKey(),
+    usesSystemDefaultImageConfig(),
+  );
 }
 
 function requiredSystemDefaultImageConfig(
   configs: ImageGenConfig[],
 ): ImageGenConfig {
-  const config = systemDefaultImageConfig(configs);
-  if (!config) throw new Error("服务器尚未配置系统默认图片模板");
-  return config;
+  return requireSystemDefaultProviderConfig(
+    systemDefaultImageConfig(configs),
+    "服务器尚未配置系统默认图片模板",
+  );
 }
 
 function systemDefaultRuntimeImageConfig(
@@ -201,87 +202,64 @@ export async function setDefaultImageConfig(configId: Id): Promise<void> {
   return setDefaultServerImageConfig(configId);
 }
 
-export async function testServerImageConfig(configId: Id): Promise<void> {
-  return apiInvoke<void>("test_image_config", {
-    configId: imageConfigId(configId),
-    runtime_config_snapshot: null,
-  });
-}
-
-export async function testImageConfig(configId: Id): Promise<void> {
-  if (isSystemDefaultImageConfigId(configId)) {
-    const image = await loadSystemDefaultRuntimeImageConfig();
-    return apiInvoke<void>("test_image_config", {
-      configId: SYSTEM_IMAGE_CONFIG_ID,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot({ image }),
-    });
-  }
-  if (usesLocalRuntimeSettings()) {
-    const id = imageConfigId(configId);
-    return apiInvoke<void>("test_image_config", {
-      configId: id,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot({
-        image: getLocalImageConfig(id),
-      }),
-    });
-  }
-  return testServerImageConfig(configId);
-}
-
-export async function previewServerTestImageConfigRequest(
+async function resolveImageConnectivityTarget(
   configId: Id,
-): Promise<ModelRequestPreview> {
-  return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
-    configId: imageConfigId(configId),
-    runtime_config_snapshot: null,
+  scope: ModelConfigScope,
+  requireApiKey: boolean,
+): Promise<{ configId: number; config: ImageGenConfig | null }> {
+  if (scope === "server") {
+    return { configId: imageConfigId(configId), config: null };
+  }
+  if (isSystemDefaultImageConfigId(configId)) {
+    return {
+      configId: SYSTEM_IMAGE_CONFIG_ID,
+      config: await loadSystemDefaultRuntimeImageConfig({ requireApiKey }),
+    };
+  }
+  const id = imageConfigId(configId);
+  return {
+    configId: id,
+    config: usesLocalRuntimeSettings() ? getLocalImageConfig(id) : null,
+  };
+}
+
+export async function testImageConfig(
+  configId: Id,
+  scope: ModelConfigScope,
+): Promise<void> {
+  const target = await resolveImageConnectivityTarget(configId, scope, true);
+  return apiInvoke<void>("test_image_config", {
+    configId: target.configId,
+    runtime_config_snapshot: target.config
+      ? buildRuntimeConfigSnapshot({ image: target.config })
+      : null,
   });
 }
 
 export async function previewTestImageConfigRequest(
   configId: Id,
+  scope: ModelConfigScope,
 ): Promise<ModelRequestPreview> {
-  if (isSystemDefaultImageConfigId(configId)) {
-    const image = await loadSystemDefaultRuntimeImageConfig({
-      requireApiKey: false,
-    });
-    return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
-      configId: SYSTEM_IMAGE_CONFIG_ID,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot(
-        { image },
-        { includeProviderApiKeys: false },
-      ),
-    });
-  }
-  if (usesLocalRuntimeSettings()) {
-    const id = imageConfigId(configId);
-    return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
-      configId: id,
-      runtime_config_snapshot: buildRuntimeConfigSnapshot(
-        { image: getLocalImageConfig(id) },
-        { includeProviderApiKeys: false },
-      ),
-    });
-  }
-  return previewServerTestImageConfigRequest(configId);
-}
-
-export async function detectServerImageConfigModels(
-  input: ModelDiscoveryInput,
-): Promise<ModelDiscoveryResult> {
-  return apiInvoke<ModelDiscoveryResult>("detect_image_config_models", {
-    input,
+  const target = await resolveImageConnectivityTarget(configId, scope, false);
+  return apiInvoke<ModelRequestPreview>("preview_test_image_config_request", {
+    configId: target.configId,
+    runtime_config_snapshot: target.config
+      ? buildRuntimeConfigSnapshot(
+          { image: target.config },
+          { includeProviderApiKeys: false },
+        )
+      : null,
   });
 }
 
 export async function detectImageConfigModels(
   input: ModelDiscoveryInput,
+  scope: ModelConfigScope,
 ): Promise<ModelDiscoveryResult> {
-  return detectServerImageConfigModels(
-    withLocalRuntimeDiscoveryKey(input, {
-      systemConfigId: SYSTEM_IMAGE_CONFIG_ID,
-      getSystemDefaultApiKey: getSystemDefaultImageApiKey,
-      getLocalConfigApiKey: (configId) =>
-        getLocalImageConfig(configId).api_key_encrypted,
-    }),
-  );
+  return detectConfigModels("detect_image_config_models", input, scope, {
+    systemConfigId: SYSTEM_IMAGE_CONFIG_ID,
+    getSystemDefaultApiKey: getSystemDefaultImageApiKey,
+    getLocalConfigApiKey: (configId) =>
+      getLocalImageConfig(configId).api_key_encrypted,
+  });
 }

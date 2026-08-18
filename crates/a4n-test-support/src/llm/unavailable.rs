@@ -10,7 +10,7 @@ pub struct UnavailableLlmProvider {
 }
 
 impl UnavailableLlmProvider {
-    pub fn new(_chat_error: impl Into<String>, stream_error: impl Into<String>) -> Self {
+    pub fn new(stream_error: impl Into<String>) -> Self {
         Self {
             stream_error: stream_error.into(),
         }
@@ -24,10 +24,6 @@ impl LlmProvider for UnavailableLlmProvider {
         _request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         Err(AppError::LlmError(self.stream_error.clone()))
-    }
-
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        Ok(false)
     }
 
     fn model_name(&self) -> &str {

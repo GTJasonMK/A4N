@@ -63,7 +63,6 @@ serde_json_canonicalizer = "0.3.2"
 serde_yaml = "0.9"
 base64 = "0.22"
 schemars = "1"
-jsonschema = { version = "0.40", default-features = false }
 
 # ORM 与数据库
 sea-orm = { version = "1", features = ["sqlx-postgres", "runtime-tokio", "macros"] }

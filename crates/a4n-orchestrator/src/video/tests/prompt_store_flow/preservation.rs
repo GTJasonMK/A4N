@@ -298,7 +298,7 @@ async fn sync_chapter_prompts_preserving_generated_frame_prompts_keeps_changed_b
         Some(chapter_id),
         Some(json!({
             "generation_context": {
-                "source": "video_boundary_frame_prompt",
+                "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
                 "prompt_id": kept.id
             }
         })),

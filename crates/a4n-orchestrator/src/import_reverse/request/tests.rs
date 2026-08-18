@@ -3,10 +3,11 @@
 use serde_json::json;
 
 use super::{build_reverse_engineer_user_message, reverse_engineer_source_artifact};
+use crate::import_reverse::ReverseEngineeringTarget;
 
 #[test]
 fn user_message_references_source_artifact() {
-    let message = build_reverse_engineer_user_message("reverse_outline", "生成大纲")
+    let message = build_reverse_engineer_user_message(ReverseEngineeringTarget::Outline)
         .expect("reverse message should serialize");
 
     assert!(message.contains(r#""prompt_name": "reverse_outline""#));
@@ -39,7 +40,7 @@ fn source_artifact_accepts_plain_text_sample() {
 
 #[test]
 fn blueprint_user_message_keeps_contract() {
-    let message = build_reverse_engineer_user_message("reverse_blueprint", "生成蓝图")
+    let message = build_reverse_engineer_user_message(ReverseEngineeringTarget::Blueprint)
         .expect("reverse message should serialize");
 
     assert!(message.contains(r#""system_derived_or_downstream_fields_do_not_output""#));

@@ -3,22 +3,7 @@ use crate::outline::chapter_contract::{
     required_string,
 };
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
-
-pub fn part_outline_single_response_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["title", "summary", "theme", "key_events", "character_focus"],
-        "properties": {
-            "title": {"type": "string"},
-            "summary": {"type": "string"},
-            "theme": {"type": "string"},
-            "key_events": {"type": "array", "items": {}},
-            "character_focus": {"type": "object"}
-        }
-    })
-}
+use serde_json::Value;
 
 pub fn parse_part_outline_single_response(
     content: &str,
@@ -60,38 +45,4 @@ pub fn parse_part_outline_single_response(
     );
     materialized.insert("end_chapter".to_string(), Value::Number(end_chapter.into()));
     Ok(Value::Object(materialized))
-}
-
-pub fn validate_materialized_part_outline(
-    value: &Value,
-    part_number: i32,
-    start_chapter: i32,
-    end_chapter: i32,
-) -> Result<Value, AppError> {
-    let mut raw = value.as_object().cloned().ok_or_else(|| {
-        AppError::InvalidArgument("部大纲断点 parsed_output 必须是 JSON 对象".to_string())
-    })?;
-    for (key, expected) in [
-        ("part_number", part_number),
-        ("start_chapter", start_chapter),
-        ("end_chapter", end_chapter),
-    ] {
-        let actual = raw
-            .remove(key)
-            .and_then(|value| value.as_i64())
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!("部大纲断点 parsed_output 缺少整数 {key}"))
-            })?;
-        if actual != i64::from(expected) {
-            return Err(AppError::InvalidArgument(format!(
-                "部大纲断点 parsed_output.{key} 必须等于 {expected}"
-            )));
-        }
-    }
-    parse_part_outline_single_response(
-        &serde_json::to_string(&Value::Object(raw))?,
-        part_number,
-        start_chapter,
-        end_chapter,
-    )
 }

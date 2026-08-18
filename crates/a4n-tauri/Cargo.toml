@@ -6,13 +6,14 @@ default-run = "a4n-tauri"
 license.workspace = true
 
 [features]
-default = []
+default = ["migration"]
+migration = ["a4n-runtime/migration"]
 embedded-capabilities = [
-    "a4n-runtime/migration",
+    "migration",
     "a4n-runtime/embedded-capabilities",
 ]
 embedded-media-providers = [
-    "a4n-runtime/migration",
+    "migration",
     "a4n-runtime/embedded-media-providers",
 ]
 video-scrub-e2e-host = ["dep:base64"]

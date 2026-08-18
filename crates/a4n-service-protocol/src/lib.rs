@@ -5,7 +5,7 @@
 
 mod artifacts;
 mod catalog;
-mod compatibility;
+mod embedding;
 mod egress;
 pub mod events;
 mod health;
@@ -24,17 +24,40 @@ pub use artifacts::{
 };
 pub const SIDECAR_AUTH_TOKEN_ENV: &str = "A4N_SIDECAR_AUTH_TOKEN";
 pub const SIDECAR_AUTH_HEADER: &str = "x-a4n-sidecar-token";
-pub const SIDECAR_HOST_PROTOCOL_VERSION_HEADER: &str = "x-a4n-host-protocol-version";
+pub const SIDECAR_HEALTH_PATH: &str = "/healthz";
+pub const SIDECAR_METRICS_PATH: &str = "/metrics";
+pub const SIDECAR_SHUTDOWN_PATH: &str = "/shutdown";
+pub const SIDECAR_EVENT_CONTENT_TYPE: &str = "application/x-ndjson";
+pub const EMBEDDING_EMBED_TEXTS_PATH: &str = "/embedding/embed_texts";
+pub const EMBEDDING_MODELS_PATH: &str = "/embedding/models";
+pub const EMBEDDING_MODEL_DOWNLOAD_INFO_PATH: &str = "/embedding/model/download_info";
+pub const EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH: &str = "/embedding/model/download/events";
+pub const EMBEDDING_MODEL_DELETE_PATH: &str = "/embedding/model/delete";
+pub const RAG_QUERY_PATH: &str = "/rag/query";
+pub const RAG_SEARCH_TEXT_PATH: &str = "/rag/search_text";
+pub const RAG_INGEST_EVENTS_PATH: &str = "/rag/ingest/events";
+pub const RAG_SEARCH_PATH: &str = "/rag/search";
+pub const RAG_DELETE_PATH: &str = "/rag/delete";
+pub const RAG_DROP_COLLECTION_PATH: &str = "/rag/drop_collection";
+pub const RAG_METADATA_BY_IDS_PATH: &str = "/rag/metadata_by_ids";
+pub const RAG_METADATA_BY_FILTER_PATH: &str = "/rag/metadata_by_filter";
+pub const RAG_COMPLETENESS_REPORT_BY_IDS_PATH: &str = "/rag/completeness_report_by_ids";
 pub const SIDECAR_REQUEST_ID_HEADER: &str = "x-a4n-request-id";
 pub const SIDECAR_TRACE_ID_HEADER: &str = "x-a4n-trace-id";
 pub const SIDECAR_RESTART_COUNT_ENV: &str = "A4N_SIDECAR_RESTART_COUNT";
 pub const SIDECAR_LAST_ERROR_ENV: &str = "A4N_SIDECAR_LAST_ERROR";
+pub const MANAGED_SIDECARS_ENV: &str = "A4N_MANAGED_SIDECARS";
+pub const SIDECAR_BIN_DIR_ENV: &str = "A4N_SIDECAR_BIN_DIR";
+pub const EMBEDDING_CACHE_DIR_ENV: &str = "A4N_EMBEDDING_CACHE_DIR";
+pub const PROMPT_SERVICE_PROMPTS_DIR_ENV: &str = "A4N_PROMPT_SERVICE_PROMPTS_DIR";
 pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
-pub use catalog::{ServiceCatalogEntry, service_catalog, service_catalog_entry};
-pub use compatibility::{ServiceCompatibility, VersionRange, service_compatibility};
+pub use catalog::{
+    ServiceCatalogEntry, parse_service_socket_addr, service_catalog, service_catalog_entry,
+};
 pub use egress::{
     EgressAuditEvent, EgressDataType, EgressPolicy, egress_policy_for, validate_egress_scope,
 };
+pub use embedding::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 pub use events::*;
 pub use health::{
     HealthStatus, ServiceHealth, ServiceHealthValidationError, ServiceVersion,
@@ -47,11 +70,12 @@ pub use registry::{
     LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PROTOCOL_VERSION,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, VIDEO_PROVIDER_CAPABILITY_VERSION,
     VIDEO_SERVICE_NAME, egress_data_type_for_service, expected_capability_label_for_service,
-    expected_capability_version_for_service, known_service_health_for_host,
+    expected_capability_version_for_service, known_service_health,
     required_secret_policy_for_service, service_for_capability_version,
 };
 pub use release::{
-    ReleaseBinaryManifest, ReleaseManifest, ReleaseRuntimeFileManifest, ReleaseToolManifest,
+    RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
+    ReleaseRuntimeFileManifest, ReleaseToolCatalogEntry, ReleaseToolManifest, release_tool_catalog,
 };
 pub use request::{
     SchemaVersion, SecretForwardingPolicy, SecretMaterialScope, ServiceRequest,

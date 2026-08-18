@@ -29,12 +29,13 @@ import {
   listModelProviderCatalog,
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
+import type { ModelConfigScope } from "../../api/modelDiscovery";
 
 interface VideoTabProps {
-  scope?: "user" | "server";
+  scope?: ModelConfigScope;
 }
 
-export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
+export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<VideoForm>[];
@@ -87,7 +88,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
           form={form}
           setForm={setForm}
           configId={context.selectedId}
-          serverScope={serverScope}
+          scope={scope}
           readonly={context.readonly}
           templateLocked={
             !serverScope && context.selectedId === SYSTEM_VIDEO_CONFIG_ID

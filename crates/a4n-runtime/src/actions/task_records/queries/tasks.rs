@@ -1,5 +1,6 @@
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::task::{QueueStatsSummary, TaskInfoSummary};
+use a4n_core::event::channel::normalize_task_id;
 use a4n_orchestrator::workflow::{validate_optional_project_id, validate_task_history_limit};
 
 use super::super::{
@@ -8,10 +9,11 @@ use super::super::{
 };
 
 pub async fn cancel_task(state: &AppState, user_id: i64, task_id: &str) -> Result<(), String> {
-    verify_task_access(state, user_id, task_id).await?;
+    let task_id = normalize_task_id(task_id).map_err(|error| error.to_string())?;
+    verify_task_access(state, user_id, &task_id).await?;
     state
         .orchestrator()
-        .queue_cancel(task_id)
+        .queue_cancel(&task_id)
         .await
         .map_err(|err| err.to_string())
 }

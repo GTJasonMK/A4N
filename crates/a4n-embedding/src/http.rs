@@ -140,9 +140,6 @@ impl HttpEmbeddingProvider {
 #[async_trait]
 impl EmbeddingProvider for HttpEmbeddingProvider {
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
-        if texts.is_empty() {
-            return Ok(vec![]);
-        }
         if self.batch == 0 {
             return Err(internal_error("嵌入批量大小不能为 0"));
         }

@@ -1,5 +1,5 @@
 use a4n_core::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, NotSet, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
@@ -33,12 +33,11 @@ pub(super) async fn insert_scene_rows(
             )?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.text_core.scene_transitions,
         transition,
         scene_transition::ActiveModel,
-        maps.scene_transition_ids,
         "导入场景位移失败",
         |active| {
             active.project_id = Set(root_project_id);
@@ -64,12 +63,11 @@ pub(super) async fn insert_scene_rows(
             )?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.text_core.scene_entity_states,
         state,
         scene_entity_state::ActiveModel,
-        maps.scene_entity_state_ids,
         "导入场景实体状态失败",
         |active| {
             active.project_id = Set(root_project_id);

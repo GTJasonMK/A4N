@@ -1,15 +1,16 @@
-use a4n_core::models::{
-    ai::{generated_image, generated_video},
-    media::media_asset,
+use a4n_core::{
+    models::{
+        ai::{generated_image, generated_video},
+        media::media_asset,
+    },
+    video_workflow::WORKFLOW_MODE_CANVAS_VIDEO,
 };
+use a4n_domain::{EXTERNAL_IMPORT_MODEL, image::IMAGE_TYPE_CANVAS};
 
-const EXTERNAL_IMPORT_MODEL: &str = "external-import";
-const CANVAS_IMAGE_TYPE: &str = "canvas_image";
-const CANVAS_VIDEO_TYPE: &str = "canvas_video";
 const MEDIA_ORIGIN_IMPORTED: &str = "imported";
 
 pub fn is_freeform_imported_canvas_image(image: &generated_image::Model) -> bool {
-    image.image_type == CANVAS_IMAGE_TYPE
+    image.image_type == IMAGE_TYPE_CANVAS
         && image.model == EXTERNAL_IMPORT_MODEL
         && image
             .metadata_json
@@ -20,8 +21,8 @@ pub fn is_freeform_imported_canvas_image(image: &generated_image::Model) -> bool
 }
 
 pub fn is_freeform_imported_canvas_video(video: &generated_video::Model) -> bool {
-    video.video_type == CANVAS_VIDEO_TYPE
-        && video.workflow_mode.as_deref() == Some(CANVAS_VIDEO_TYPE)
+    video.video_type == generated_video::VIDEO_TYPE_CANVAS
+        && video.workflow_mode.as_deref() == Some(WORKFLOW_MODE_CANVAS_VIDEO)
         && video.model == EXTERNAL_IMPORT_MODEL
         && video
             .metadata_json

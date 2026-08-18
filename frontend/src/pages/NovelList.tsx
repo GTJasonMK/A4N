@@ -4,6 +4,7 @@ import { usePersistedTab } from "../hooks/usePersistedTab";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import {
   getProjectHomeEntryRoute,
+  getProjectPrimaryRoute,
   getProjectWorkspaceRoute,
 } from "../utils/projectRouting";
 import { isCancelledOperation } from "../utils/cancellation";
@@ -326,9 +327,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (requestMode === "ai") {
         navigate(`/inspiration/${project.id}`);
       } else if (requestMode === "free") {
-        navigate(`/novel/${project.id}`);
+        navigate(getProjectPrimaryRoute(project));
       } else if (requestMode === "video_canvas") {
-        navigate(`/video-project/${project.id}/studio`);
+        navigate(getProjectPrimaryRoute(project));
       }
     } catch (err) {
       if (mountedRef.current && createSeqRef.current === requestSeq) {
@@ -666,7 +667,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const handleOpenProject = (project: NovelProject) => {
     if (project.lifecycle_gate !== "active" && project.project_kind === "text") {
-      navigate(`/novel/${project.id}`);
+      navigate(getProjectPrimaryRoute(project));
       return;
     }
     navigate(getProjectHomeEntryRoute(project));
@@ -678,7 +679,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const projectActions = (project: NovelProject) =>
     createProjectActions(project, {
-      onOpenDetails: (item) => navigate(`/novel/${item.id}`),
+      onOpenDetails: (item) => navigate(getProjectPrimaryRoute(item)),
       onOpenInspiration: (item) => navigate(`/inspiration/${item.id}`),
       onDuplicate: (item) => void handleDuplicate(item),
       onCreateDerivedProject: (item, kind) => void handleCreateDerivedProject(item, kind),

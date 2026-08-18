@@ -6,11 +6,7 @@ mod request;
 pub(in crate::optimize) use contracts::{
     AGENT_LOOP_RUNAWAY_GUARD_STEPS, AgentLoopAction, AgentLoopDecision, ThinkingObservation,
 };
-#[cfg(test)]
-pub(in crate::optimize) use decision::parse_agent_loop_decision;
-pub(in crate::optimize) use decision::{
-    agent_loop_decision_schema, parse_agent_loop_decision_value,
-};
+pub(in crate::optimize) use decision::parse_agent_loop_decision_response;
 pub(in crate::optimize) use observations::{
     failed_tool_observation, final_issues, final_reply, final_response_from_issues,
     insert_current_chapter_content, run_tool_arguments, thinking_observation, tool_observation,

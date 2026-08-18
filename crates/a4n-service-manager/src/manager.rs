@@ -92,24 +92,8 @@ impl ServiceManager {
         configs
     }
 
-    pub fn auth_token(&self, name: &str) -> Option<String> {
-        let config = self.configs.get(name)?;
-        let env_name = config
-            .remote_security
-            .auth_token_env
-            .as_deref()
-            .or_else(|| {
-                config
-                    .env
-                    .contains_key(a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV)
-                    .then_some(a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV)
-            })?;
-        config
-            .env
-            .get(env_name)
-            .cloned()
-            .or_else(|| std::env::var(env_name).ok())
-            .filter(|token| !token.trim().is_empty())
+    pub fn auth_token(&self, name: &str) -> Result<Option<String>, ServiceManagerError> {
+        configured_auth_token(self.config(name)?)
     }
 
     /// Build a capability client factory that reloads changed remote TLS material
@@ -317,24 +301,7 @@ fn build_remote_client(
         builder = builder.identity(identity);
     }
 
-    let token = security
-        .auth_token_env
-        .as_deref()
-        .map(|env_name| {
-            config
-                .env
-                .get(env_name)
-                .cloned()
-                .or_else(|| std::env::var(env_name).ok())
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| {
-                    ServiceManagerError::InvalidConfig(format!(
-                        "remote service {} credential environment is unavailable",
-                        config.name
-                    ))
-                })
-        })
-        .transpose()?;
+    let token = configured_auth_token(config)?;
 
     let client = builder.build().map_err(|_| {
         ServiceManagerError::InvalidConfig(format!(
@@ -343,6 +310,41 @@ fn build_remote_client(
         ))
     })?;
     Ok((client, token))
+}
+
+pub(crate) fn configured_auth_token(
+    config: &ManagedServiceConfig,
+) -> Result<Option<String>, ServiceManagerError> {
+    let env_name = config
+        .remote_security
+        .auth_token_env
+        .as_deref()
+        .or_else(|| {
+            config
+                .env
+                .contains_key(a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV)
+                .then_some(a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV)
+        });
+    let Some(env_name) = env_name else {
+        return Ok(None);
+    };
+    let value = match config.env.get(env_name) {
+        Some(value) => value.clone(),
+        None => std::env::var(env_name).map_err(|_| {
+            ServiceManagerError::InvalidConfig(format!(
+                "service {} credential environment is unavailable",
+                config.name
+            ))
+        })?,
+    };
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(ServiceManagerError::InvalidConfig(format!(
+            "service {} credential environment is empty",
+            config.name
+        )));
+    }
+    Ok(Some(value.to_string()))
 }
 
 #[cfg(test)]

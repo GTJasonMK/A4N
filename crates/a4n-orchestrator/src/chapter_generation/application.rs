@@ -5,7 +5,10 @@ use std::sync::{
 };
 
 use a4n_api_contract::{
-    chapter::{PreparedGenerationRagEmbeddingRequest, StartChapterGenerationInput},
+    chapter::{
+        PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
+        StartChapterGenerationInput,
+    },
     generation_tasks::GenerationTaskHandle,
 };
 use a4n_core::{error::AppError, models::chapter::chapter_outline};
@@ -16,7 +19,6 @@ use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
-use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
@@ -48,20 +50,11 @@ use super::service::{
 };
 
 use super::{
-    ChapterGenerationWordCountRange, GenerationRagQueries, PreparedGenerationRagSearch,
-    generation_chapter_title, generation_rag_query_fingerprint, merge_generation_outline_text,
-    non_empty_trimmed, resolve_generation_word_count_range, upsert_chapter_generation_variables,
-    validate_generation_query_vectors, validate_generation_rag_query_fingerprint,
+    ChapterGenerationWordCountRange, generation_chapter_title, generation_rag_query_fingerprint,
+    merge_generation_outline_text, non_empty_trimmed, resolve_generation_word_count_range,
+    upsert_chapter_generation_variables, validate_generation_rag_query_fingerprint,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PreviewChapterGenerationInput {
-    pub project_id: i64,
-    pub chapter_number: i32,
-    pub writing_notes: Option<String>,
-    pub min_word_count: Option<i32>,
-    pub max_word_count: Option<i32>,
-}
+use crate::rag::search::enhanced::validate_query_vectors;
 
 pub struct ChapterGenerationApplicationContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
@@ -630,7 +623,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         context: ChapterGenerationApplicationContext<'_>,
-        input: PreviewChapterGenerationInput,
+        input: PreviewChapterPromptInput,
     ) -> Result<ChapterGenerationRequestPreview, String> {
         self.validate_chapter_generation_application_access(
             user_id,
@@ -684,7 +677,7 @@ impl OrchestratorContext {
     pub async fn prepare_chapter_generation_rag_embedding_validated(
         &self,
         user_id: i64,
-        input: PreviewChapterGenerationInput,
+        input: PreviewChapterPromptInput,
         runtime_embedding_identity: Option<EmbeddingModelIdentity>,
     ) -> Result<PreparedGenerationRagEmbeddingRequest, String> {
         self.validate_chapter_generation_application_access(
@@ -698,11 +691,10 @@ impl OrchestratorContext {
             .effective_chapter_generation_embedding_identity(runtime_embedding_identity)
             .await?;
         if input.chapter_number <= 1 {
-            let queries = GenerationRagQueries::default();
             let query_fingerprint = generation_rag_query_fingerprint(
                 input.project_id,
                 input.chapter_number,
-                &queries,
+                &[],
                 &embedding_identity,
             )?;
             return Ok(PreparedGenerationRagEmbeddingRequest {
@@ -729,22 +721,24 @@ impl OrchestratorContext {
                 outline.as_ref(),
                 &rag_query_outline_text,
                 writing_instruction.as_deref(),
-                embedding_identity.clone(),
+                embedding_identity,
             )
             .await?;
+        let query_fingerprint = generation_rag_query_fingerprint(
+            prepared.project_id,
+            prepared.chapter_number,
+            &prepared.queries,
+            &prepared.embedding_identity,
+        )?;
+        let query_texts = prepared
+            .queries
+            .into_iter()
+            .map(|query| query.text)
+            .collect();
+        let embedding_identity = prepared.embedding_identity;
         Ok(PreparedGenerationRagEmbeddingRequest {
-            query_fingerprint: generation_rag_query_fingerprint(
-                prepared.project_id,
-                prepared.chapter_number,
-                &prepared.queries,
-                &prepared.embedding_identity,
-            )?,
-            query_texts: prepared
-                .queries
-                .weighted_queries()
-                .into_iter()
-                .map(|query| query.text.to_string())
-                .collect(),
+            query_fingerprint,
+            query_texts,
             embedding_identity: a4n_api_contract::embedding::EmbeddingModelIdentity {
                 backend: embedding_identity.backend,
                 model: embedding_identity.model,
@@ -778,11 +772,12 @@ impl OrchestratorContext {
             )
             .await?;
         validate_generation_rag_query_fingerprint(&client_rag.query_fingerprint, &prepared)?;
-        validate_generation_query_vectors(
+        validate_query_vectors(
             &client_rag.query_vectors,
-            prepared.queries.weighted_queries().len(),
+            prepared.queries.len(),
             prepared.embedding_identity.dimension,
         )
+        .map_err(|error| error.to_string())
     }
 
     pub(crate) async fn validate_chapter_generation_application_access(
@@ -974,7 +969,6 @@ impl OrchestratorContext {
             &prepared.queries,
             &prepared.embedding_identity,
         )?;
-        let embedding_identity = prepared.embedding_identity.clone();
         let context = match client_rag {
             Some(client_rag) => {
                 validate_generation_rag_query_fingerprint(
@@ -993,8 +987,9 @@ impl OrchestratorContext {
                     .await?
             }
         };
+        let embedding_identity = prepared.embedding_identity;
         Ok(ResolvedChapterGenerationRagContext {
-            text: context.text,
+            text: context,
             embedding_identity: Some(embedding_identity),
             query_fingerprint: Some(query_fingerprint),
         })
@@ -1122,33 +1117,6 @@ impl OrchestratorContext {
         workflow::llm_call_checkpoint_fingerprint_sha256(&sources)
             .map(Some)
             .map_err(|error| format!("构建章节生成正式 RAG 来源 fingerprint 失败: {error}"))
-    }
-
-    async fn prepare_generation_rag_search(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-        outline: Option<&chapter_outline::Model>,
-        outline_text: &str,
-        writing_instruction: Option<&str>,
-        embedding_identity: EmbeddingModelIdentity,
-    ) -> Result<PreparedGenerationRagSearch, String> {
-        let queries = self
-            .prepare_chapter_generation_rag_queries(
-                project_id,
-                chapter_number,
-                outline,
-                outline_text,
-                writing_instruction,
-            )
-            .await?;
-        self.prepare_chapter_generation_rag_search(
-            project_id,
-            chapter_number,
-            queries,
-            embedding_identity,
-        )
-        .await
     }
 
     pub(crate) async fn validate_chapter_generation_plan_input(

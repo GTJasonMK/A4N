@@ -112,12 +112,11 @@ pub(super) async fn insert_galgame_rows(
             )?);
         }
     );
-    insert_mapped_import_rows!(
+    insert_import_rows!(
         txn,
         &package.galgame_choices,
         choice,
         galgame_choice::ActiveModel,
-        maps.galgame_choice_ids,
         "导入 Galgame 选项失败",
         |active| {
             active.line_id = Set(map_required(

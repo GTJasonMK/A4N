@@ -1,7 +1,4 @@
 use super::super::contracts::{AssemblyCacheManifest, AssemblyClip};
-use crate::actions::video_generation::media::{
-    append_secondary_error, ensure_ffmpeg, remove_partial_video_file,
-};
 use std::path::Path;
 
 pub(in crate::actions::video_records) fn run_ffmpeg_assemble_videos(
@@ -12,7 +9,6 @@ pub(in crate::actions::video_records) fn run_ffmpeg_assemble_videos(
     fps: i32,
     manifest: &AssemblyCacheManifest,
 ) -> Result<(), String> {
-    ensure_ffmpeg().map_err(|err| format!("{err}，无法拼接成片"))?;
     if clips.len() != manifest.clips.len() {
         return Err("成片缓存清单与片段数量不一致，无法拼接成片".to_string());
     }
@@ -41,12 +37,13 @@ pub(in crate::actions::video_records) fn run_ffmpeg_assemble_videos(
         a4n_media::VideoAssemblyError::InvalidFps { fps } => {
             format!("成片帧率无效：{fps}")
         }
+        a4n_media::VideoAssemblyError::InvalidClipDuration {
+            index,
+            duration_secs,
+        } => format!("成片片段 #{} 时长无效：{duration_secs}", index + 1),
         a4n_media::VideoAssemblyError::Unavailable { source } => {
             format!("拼接成片失败：未能启动 FFmpeg：{source}")
         }
-        a4n_media::VideoAssemblyError::Failed { stderr } => {
-            let cleanup_error = remove_partial_video_file(output_path, "成片预览文件").err();
-            append_secondary_error(format!("拼接成片失败：{stderr}"), cleanup_error)
-        }
+        a4n_media::VideoAssemblyError::Failed { stderr } => format!("拼接成片失败：{stderr}"),
     })
 }

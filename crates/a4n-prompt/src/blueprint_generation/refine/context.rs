@@ -1,8 +1,10 @@
-use a4n_core::error::AppError;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_core::{
+    blueprint::BLUEPRINT_REFINEMENT_FIELDS, error::AppError,
+    source_spans::source_text_hash as source_content_sha256,
+};
 use a4n_llm::context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, LlmContextLedgerPackInput, LlmContextManifest,
+    COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger, LlmContextLedgerPackDraft,
+    LlmContextLedgerPackInput, LlmContextManifest,
 };
 use serde_json::{Value, json};
 
@@ -34,20 +36,19 @@ pub(super) fn build_blueprint_refine_context_manifest(
                 json!({"kind": "existing_blueprint_context", "blueprint_context": blueprint_context}),
             ),
             LlmContextLedgerPackDraft::new(
-                COMPRESSION_FOCUSED_RAW,
-                json!({"kind": "existing_blueprint_context", "blueprint_context": blueprint_context}),
-            ),
-            LlmContextLedgerPackDraft::new(
                 COMPRESSION_MINIMAL,
                 json!({
                     "kind": "existing_blueprint_context",
-                    "blueprint_context": minimal_blueprint_refine_context(blueprint_context),
+                    "blueprint_context": minimal_blueprint_refine_context(blueprint_context)?,
                 }),
             ),
         ],
     })?;
     Ok(ledger.into_manifest(
         dynamic_user_content,
-        Some("蓝图优化必须返回严格 JSON 对象；允许字段为 title, genre, style, tone, target_audience, one_sentence_summary, full_synopsis, world_setting, characters, relationships。".to_string()),
+        Some(format!(
+            "蓝图优化必须返回严格 JSON 对象；允许字段为 {}。",
+            BLUEPRINT_REFINEMENT_FIELDS.join(", ")
+        )),
     ))
 }

@@ -5,13 +5,13 @@ use crate::handlers::{
 };
 use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_prompt::tera_engine::TeraPromptEngine;
+use a4n_service_protocol::PROMPT_SERVICE_PROMPTS_DIR_ENV;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    middleware,
     routing::{get, post},
 };
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 const PROMPT_GIT_OWNER: &str = "prompt-git";
 const PROMPT_GIT_CLASSIFICATION: &str = "persistent_business_data";
@@ -34,7 +34,8 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let state = PromptServiceState {
         engine: Arc::new(engine),
     };
-    let addr = service_addr()?;
+    let addr =
+        a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::PROMPT_SERVICE_NAME)?;
 
     tracing::info!(%addr, prompts_dir = ?prompts_dir, git_dir = ?git_dir, "starting prompt sidecar");
     a4n_sidecar_bootstrap::serve_sidecar(
@@ -90,8 +91,8 @@ fn init_tracing() -> anyhow::Result<()> {
 }
 
 fn prompts_dir() -> anyhow::Result<PathBuf> {
-    optional_non_empty_env_path("A4N_PROMPT_SERVICE_PROMPTS_DIR")?.ok_or_else(|| {
-        anyhow::anyhow!("缺少 A4N_PROMPT_SERVICE_PROMPTS_DIR，无法定位随包 prompts 目录")
+    optional_non_empty_env_path(PROMPT_SERVICE_PROMPTS_DIR_ENV)?.ok_or_else(|| {
+        anyhow::anyhow!("缺少 {PROMPT_SERVICE_PROMPTS_DIR_ENV}，无法定位随包 prompts 目录")
     })
 }
 
@@ -132,15 +133,13 @@ fn prompt_git_manifest_details() -> serde_json::Value {
     serde_json::json!({"contents": "prompt templates and version history"})
 }
 
-fn service_addr() -> anyhow::Result<SocketAddr> {
-    a4n_sidecar_bootstrap::socket_addr("A4N_PROMPT_SERVICE_ADDR", "127.0.0.1:47641")
-}
-
 fn router(state: PromptServiceState) -> Router {
-    let policy = a4n_service_protocol::sidecar_resource_policy("prompt")
-        .expect("prompt sidecar must have a resource policy");
+    let policy = a4n_service_protocol::sidecar_resource_policy(
+        a4n_service_protocol::PROMPT_SERVICE_NAME,
+    )
+    .expect("prompt sidecar must have a resource policy");
     Router::new()
-        .route("/healthz", get(healthz))
+        .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route("/prompt/list", post(list_prompts))
         .route("/prompt/get", post(get_prompt))
         .route("/prompt/render", post(render_prompt))
@@ -162,6 +161,5 @@ fn router(state: PromptServiceState) -> Router {
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
         ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth))
         .with_state(state)
 }

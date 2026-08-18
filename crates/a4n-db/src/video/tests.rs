@@ -6,6 +6,8 @@ use a4n_core::models::{
     chapter::{chapter, chapter_video_prompt},
     project::novel_project,
 };
+use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -165,7 +167,7 @@ async fn delete_generated_image_removes_only_generated_target_binding() {
         &db,
         CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: format!("projects/{}/images/delete-binding.png", project.id),
             prompt: "delete binding".to_string(),
             model: "test".to_string(),
@@ -362,7 +364,7 @@ async fn delete_generated_image_with_cleanup_commits_record_and_file_intent_toge
         &db,
         CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: format!("projects/{}/images/atomic.png", project.id),
             prompt: "atomic cleanup".to_string(),
             model: "test".to_string(),
@@ -403,8 +405,8 @@ async fn delete_generated_video_with_cleanup_records_video_and_thumbnail_paths()
         CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "cleanup".to_string(),
             negative_prompt: None,
             model: "test".to_string(),
@@ -457,8 +459,8 @@ async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding(
         CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "missing video".to_string(),
             negative_prompt: None,
             model: "test".to_string(),
@@ -578,7 +580,6 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
                 "extra": { "shot_index": 1, "total_shots": 1 }
             })),
             checkpoint_json: Some(json!({
-                "output": [{ "segment_number": 1 }],
                 "parsed_output": [{ "segment_number": 1 }],
                 "response_content": "x".repeat(10_000)
             })),
@@ -587,24 +588,6 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
                 "preserved": true
             })),
             generation_run_ids_json: Some(json!([9])),
-            error_message: None,
-            completed: true,
-        },
-    )
-    .await
-    .unwrap();
-    crate::workflow::upsert_workflow_checkpoint(
-        &db,
-        crate::workflow::UpsertWorkflowCheckpointInput {
-            workflow_run_id: run.id,
-            step_key: "video_segment_plan.shot.unit_1_shot_1:schema_repair".to_string(),
-            step_order: 201,
-            status: crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string(),
-            input_fingerprint_sha256: None,
-            input_fingerprint_json: None,
-            checkpoint_json: Some(json!({ "parsed_output": [] })),
-            artifacts_json: None,
-            generation_run_ids_json: None,
             error_message: None,
             completed: true,
         },

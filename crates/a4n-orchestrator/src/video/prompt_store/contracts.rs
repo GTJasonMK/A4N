@@ -16,21 +16,21 @@ pub(in crate::video) enum PromptWorkflowMode {
 impl PromptWorkflowMode {
     pub(in crate::video) fn as_str(self) -> &'static str {
         match self {
-            Self::SharedSegmentPlan => "shared_segment_plan",
-            Self::BoundaryFrames => "boundary_frames",
-            Self::FirstFrameChain => "first_frame_chain",
-            Self::ChatVideo => "chat_video",
-            Self::Storyboard => "storyboard",
+            Self::SharedSegmentPlan => chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+            Self::BoundaryFrames => chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+            Self::FirstFrameChain => chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+            Self::ChatVideo => chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            Self::Storyboard => chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
         }
     }
 
     pub(in crate::video) fn from_row(row: &chapter_video_prompt::Model) -> Result<Self, AppError> {
         match row.workflow_mode.as_str() {
-            "shared_segment_plan" => Ok(Self::SharedSegmentPlan),
-            "boundary_frames" => Ok(Self::BoundaryFrames),
-            "first_frame_chain" => Ok(Self::FirstFrameChain),
-            "chat_video" => Ok(Self::ChatVideo),
-            "storyboard" => Ok(Self::Storyboard),
+            chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN => Ok(Self::SharedSegmentPlan),
+            chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => Ok(Self::BoundaryFrames),
+            chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN => Ok(Self::FirstFrameChain),
+            chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO => Ok(Self::ChatVideo),
+            chapter_video_prompt::WORKFLOW_MODE_STORYBOARD => Ok(Self::Storyboard),
             other => Err(AppError::InvalidArgument(format!(
                 "章节视频提示词 #{} workflow_mode 无效: {}",
                 row.id, other

@@ -22,6 +22,11 @@ import {
   loadCachedAssembledChapterVideoPreview,
   pushAssembledChapterVideo,
   uploadAssemblyInsertVideo,
+  VIDEO_TYPE_ASSEMBLY_INSERT,
+  VIDEO_TYPE_ASSEMBLY_PUSH,
+  VIDEO_TYPE_CHAPTER,
+  VIDEO_TYPE_REFERENCE_MEDIA,
+  VIDEO_WORKFLOW_MODE_MIXED,
   type AssembledChapterVideoPreview,
   type GeneratedVideo,
   type VideoTimelineSummary,
@@ -43,7 +48,6 @@ import {
 } from "../../../utils/videoPlayback";
 import { EmptyHint, type ChapterRow } from "../shared";
 import {
-  ASSEMBLY_WORKFLOW_MODE,
   assemblyPushSourceIds,
   assemblyPushStatus,
   formatVideoCreatedAt,
@@ -57,14 +61,10 @@ interface VideoAssemblyWorkspaceProps {
   timeline: VideoTimelineSummary | null;
   adoptedVideoIds: ReadonlySet<number>;
   unavailableSegmentNumbers?: number[];
-  onToast: (message: unknown, type: ToastType) => void;
+  onToast: (message: string, type: ToastType) => void;
   onRefresh: () => Promise<void> | void;
 }
 
-const CHAPTER_VIDEO_TYPE = "chapter_video";
-const REFERENCE_MEDIA_VIDEO_TYPE = "reference_media_video";
-const ASSEMBLY_INSERT_VIDEO_TYPE = "assembly_insert";
-const ASSEMBLY_PUSH_VIDEO_TYPE = "assembly_push";
 const ASSEMBLY_ORDER_STEP = 1000;
 
 const assemblyInsertMetadata = (
@@ -82,13 +82,13 @@ const assemblyClipSortOrder = (
   timelineDisplayIndexByVideoId: ReadonlyMap<number, number>,
 ): number | null => {
   if (
-    video.video_type === CHAPTER_VIDEO_TYPE ||
-    video.video_type === REFERENCE_MEDIA_VIDEO_TYPE
+    video.video_type === VIDEO_TYPE_CHAPTER ||
+    video.video_type === VIDEO_TYPE_REFERENCE_MEDIA
   ) {
     const displayIndex = timelineDisplayIndexByVideoId.get(video.id);
     return displayIndex == null ? null : displayIndex * ASSEMBLY_ORDER_STEP;
   }
-  if (video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE) {
+  if (video.video_type === VIDEO_TYPE_ASSEMBLY_INSERT) {
     const value = assemblyInsertMetadata(video)?.sort_order;
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
@@ -99,7 +99,7 @@ const assemblyClipLabel = (
   video: GeneratedVideo,
   timelineDisplayIndexByVideoId: ReadonlyMap<number, number>,
 ): string => {
-  if (video.video_type !== ASSEMBLY_INSERT_VIDEO_TYPE) {
+  if (video.video_type !== VIDEO_TYPE_ASSEMBLY_INSERT) {
     const displayIndex = timelineDisplayIndexByVideoId.get(video.id);
     return displayIndex == null ? "顺序缺失" : `时间线 ${displayIndex}`;
   }
@@ -186,11 +186,11 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       videos
         .filter(
           (video) =>
-            (video.video_type === CHAPTER_VIDEO_TYPE ||
-              video.video_type === REFERENCE_MEDIA_VIDEO_TYPE ||
-              video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE) &&
-            (video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE
-              ? video.workflow_mode === ASSEMBLY_WORKFLOW_MODE
+            (video.video_type === VIDEO_TYPE_CHAPTER ||
+              video.video_type === VIDEO_TYPE_REFERENCE_MEDIA ||
+              video.video_type === VIDEO_TYPE_ASSEMBLY_INSERT) &&
+            (video.video_type === VIDEO_TYPE_ASSEMBLY_INSERT
+              ? video.workflow_mode === VIDEO_WORKFLOW_MODE_MIXED
               : adoptedVideoIds.has(video.id)) &&
             video.status === "completed" &&
             Boolean(video.file_path?.trim()) &&
@@ -213,8 +213,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       const status = assemblyPushStatus(video);
       const sourceIds = assemblyPushSourceIds(video);
       if (
-        video.video_type !== ASSEMBLY_PUSH_VIDEO_TYPE ||
-        video.workflow_mode !== ASSEMBLY_WORKFLOW_MODE ||
+        video.video_type !== VIDEO_TYPE_ASSEMBLY_PUSH ||
+        video.workflow_mode !== VIDEO_WORKFLOW_MODE_MIXED ||
         status == null ||
         status === "rejected" ||
         sourceIds == null
@@ -229,8 +229,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     () =>
       videos.some(
         (video) =>
-          video.video_type === ASSEMBLY_PUSH_VIDEO_TYPE &&
-          video.workflow_mode === ASSEMBLY_WORKFLOW_MODE &&
+          video.video_type === VIDEO_TYPE_ASSEMBLY_PUSH &&
+          video.workflow_mode === VIDEO_WORKFLOW_MODE_MIXED &&
           video.status === "completed" &&
           assemblyPushStatus(video) === "pending",
       ),
@@ -322,7 +322,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     void loadCachedAssembledChapterVideoPreview(
       projectId,
       chapter.id,
-      ASSEMBLY_WORKFLOW_MODE,
+      VIDEO_WORKFLOW_MODE_MIXED,
     )
       .then((data) => {
         if (cancelled || !data) return;
@@ -371,7 +371,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       const data = await assembleChapterVideos(
         projectId,
         chapter.id,
-        ASSEMBLY_WORKFLOW_MODE,
+        VIDEO_WORKFLOW_MODE_MIXED,
       );
       if (!isCurrentScope(requestScope)) return;
       const objectUrl = videoPlaybackDataToObjectUrl(data);
@@ -401,7 +401,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     setError(null);
     try {
       downloadBlob(
-        `a4n-chapter-${chapter.chapter_number}-${ASSEMBLY_WORKFLOW_MODE}-assembled.mp4`,
+        `a4n-chapter-${chapter.chapter_number}-${VIDEO_WORKFLOW_MODE_MIXED}-assembled.mp4`,
         videoPlaybackDataToBlob(preview),
       );
       if (!isCurrentScope(requestScope)) return;
@@ -427,7 +427,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       const result = await pushAssembledChapterVideo(
         projectId,
         chapter.id,
-        ASSEMBLY_WORKFLOW_MODE,
+        VIDEO_WORKFLOW_MODE_MIXED,
         { end_video_id: selectedPushEndVideo.id },
       );
       if (!isCurrentScope(requestScope)) return;
@@ -484,7 +484,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       await uploadAssemblyInsertVideo(
         projectId,
         chapter.id,
-        ASSEMBLY_WORKFLOW_MODE,
+        VIDEO_WORKFLOW_MODE_MIXED,
         {
           file_name: file.name,
           mime_type: mimeType,
@@ -796,7 +796,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
           <ul className="divide-y divide-book-border/35">
             {clips.map((video, index) => {
-              const isInsert = video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE;
+              const isInsert = video.video_type === VIDEO_TYPE_ASSEMBLY_INSERT;
               const insertAfterVideoId = assemblyInsertAfterVideoId(video);
               const pushed = pushedSourceIds.has(video.id);
               const inSelectedPushRange = selectedPushRangeIds.has(video.id);

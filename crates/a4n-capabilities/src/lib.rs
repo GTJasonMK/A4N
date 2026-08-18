@@ -11,8 +11,6 @@ mod rag;
 mod tests;
 mod transport;
 
-pub use a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY as EVENT_QUEUE_CAPACITY;
-
 pub use contracts::{
     A4nCapabilities, CapabilityClient, CapabilityResult, EmbeddingClient, EmbeddingModelOperation,
     ExportClient, ImageClient, ImportClient, JsonRequest, JsonResponse, LlmClient, PromptClient,
@@ -24,4 +22,4 @@ pub use media::{HttpImageClient, HttpVideoClient};
 pub use package_io::{HttpExportClient, HttpImportClient};
 pub use prompt::HttpPromptClient;
 pub use rag::HttpRagClient;
-pub use transport::HttpClientFactory;
+pub use transport::{HttpClientFactory, sidecar_response_payload};

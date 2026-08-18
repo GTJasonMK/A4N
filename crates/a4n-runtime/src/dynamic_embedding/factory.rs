@@ -18,13 +18,13 @@ use super::contracts::{
 
 pub fn make_provider_from_model(
     model: &embedding_config::Model,
-    default_fastembed_cache_dir: PathBuf,
+    embedding_models_dir: PathBuf,
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     let dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
     let batch_size = positive_usize(model.batch_size, "批量大小", &model.name)?;
     let fastembed_cache_dir = resolve_fastembed_cache_dir(
         model.local_model_path.as_deref(),
-        default_fastembed_cache_dir,
+        embedding_models_dir,
     )?;
     make_provider(ResolvedEmbeddingConfig {
         name: model.name.clone(),
@@ -40,10 +40,10 @@ pub fn make_provider_from_model(
 
 pub(super) fn make_provider_from_default_model(
     model: Option<embedding_config::Model>,
-    default_fastembed_cache_dir: PathBuf,
+    embedding_models_dir: PathBuf,
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     let model = model.ok_or_else(missing_default_embedding_config_error)?;
-    make_provider_from_model(&model, default_fastembed_cache_dir)
+    make_provider_from_model(&model, embedding_models_dir)
 }
 
 fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
@@ -53,17 +53,17 @@ fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingPro
             config.name, config.backend
         ))
     })?;
-    let model = required_text(&config.model, "模型名", &config.name)?;
+    let model = required_text(Some(&config.model), "模型名", &config.name)?;
 
     match backend.kind {
         EmbeddingBackendKind::Api => {
             let base_url = required_text(
-                config.base_url.as_deref().unwrap_or(""),
+                config.base_url.as_deref(),
                 "API Base URL",
                 &config.name,
             )?;
             Ok(Arc::new(HttpEmbeddingProvider::new_with_batch(
-                normalize_api_base_url(base_url),
+                base_url,
                 model,
                 config.dimension,
                 config.api_key,
@@ -115,18 +115,6 @@ fn make_fastembed_provider(
     Err(AppError::ConfigError(format!(
         "嵌入配置 {config_name} 使用 fastembed，但当前 runtime 未启用 local-embedding；请使用 embedding sidecar 或启用该 feature"
     )))
-}
-
-fn normalize_api_base_url(base_url: String) -> String {
-    let trimmed = base_url.trim_end_matches('/').to_string();
-    let lower = trimmed.to_ascii_lowercase();
-    let looks_like_ollama = lower.contains("localhost:11434")
-        || lower.contains("127.0.0.1:11434")
-        || lower.contains(":11434");
-    if looks_like_ollama && !trimmed.ends_with("/v1") {
-        return format!("{trimmed}/v1");
-    }
-    trimmed
 }
 
 fn missing_default_embedding_config_error() -> AppError {

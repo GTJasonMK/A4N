@@ -47,6 +47,61 @@ impl ProjectKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectSourceMode {
+    #[serde(rename = "self")]
+    Self_,
+    Derived,
+    Freeform,
+}
+
+impl ProjectSourceMode {
+    pub fn from_identity(
+        project_kind: &str,
+        root_project_id: Option<i64>,
+        source_snapshot_id: Option<i64>,
+    ) -> Result<Self, ProjectSourceModeError> {
+        let project_kind = ProjectKind::parse(project_kind).ok_or_else(|| {
+            ProjectSourceModeError::InvalidProjectKind {
+                value: project_kind.to_string(),
+            }
+        })?;
+        match (
+            project_kind,
+            root_project_id.is_some(),
+            source_snapshot_id.is_some(),
+        ) {
+            (ProjectKind::Text, false, false) => Ok(Self::Self_),
+            (ProjectKind::Video, false, false) => Ok(Self::Freeform),
+            (
+                ProjectKind::Comic | ProjectKind::Video | ProjectKind::Galgame,
+                true,
+                true,
+            ) => Ok(Self::Derived),
+            _ => Err(ProjectSourceModeError::InvalidIdentity {
+                project_kind,
+                root_project_id,
+                source_snapshot_id,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ProjectSourceModeError {
+    #[error("项目族无效: {value}")]
+    InvalidProjectKind { value: String },
+    #[error(
+        "项目来源身份无效: project_kind={project_kind:?}, root_project_id={root_project_id:?}, source_snapshot_id={source_snapshot_id:?}"
+    )]
+    InvalidIdentity {
+        project_kind: ProjectKind,
+        root_project_id: Option<i64>,
+        source_snapshot_id: Option<i64>,
+    },
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
@@ -295,10 +350,28 @@ pub struct GenerationInputSource {
 mod tests {
     use super::{
         BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_GENERATION_CHAPTERS,
-        BLUEPRINT_MIN_TOTAL_CHAPTERS, PART_OUTLINE_THRESHOLD, ProjectStatus,
+        BLUEPRINT_MIN_TOTAL_CHAPTERS, PART_OUTLINE_THRESHOLD, ProjectSourceMode, ProjectStatus,
         ProjectStatusArtifacts, is_valid_blueprint_generation_chapters,
         is_valid_blueprint_total_chapters, needs_part_outlines_for_chapters,
     };
+
+    #[test]
+    fn project_source_mode_is_derived_from_the_identity_shape() {
+        assert_eq!(
+            ProjectSourceMode::from_identity("text", None, None),
+            Ok(ProjectSourceMode::Self_)
+        );
+        assert_eq!(
+            ProjectSourceMode::from_identity("video", None, None),
+            Ok(ProjectSourceMode::Freeform)
+        );
+        assert_eq!(
+            ProjectSourceMode::from_identity("video", Some(1), Some(2)),
+            Ok(ProjectSourceMode::Derived)
+        );
+        assert!(ProjectSourceMode::from_identity("comic", None, None).is_err());
+        assert!(ProjectSourceMode::from_identity("text", Some(1), Some(2)).is_err());
+    }
 
     #[test]
     fn project_status_order_matches_all_and_artifact_progress() {

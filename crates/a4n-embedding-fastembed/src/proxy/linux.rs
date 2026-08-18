@@ -9,27 +9,26 @@ pub(super) fn read_gnome_system_proxy() -> Option<SystemProxy> {
         return None;
     }
 
-    let http_host = gsettings_string("org.gnome.system.proxy.http", "host").unwrap_or_default();
-    let http_port = gsettings_u16("org.gnome.system.proxy.http", "port").unwrap_or(0);
-    let https_host = gsettings_string("org.gnome.system.proxy.https", "host").unwrap_or_default();
-    let https_port = gsettings_u16("org.gnome.system.proxy.https", "port").unwrap_or(0);
-    let socks_host = gsettings_string("org.gnome.system.proxy.socks", "host").unwrap_or_default();
-    let socks_port = gsettings_u16("org.gnome.system.proxy.socks", "port").unwrap_or(0);
-    let use_same_proxy =
-        gsettings_bool("org.gnome.system.proxy.http", "use-same-proxy").unwrap_or(false);
-
-    let http_proxy = proxy_url("http", &http_host, http_port);
-    let mut https_proxy = proxy_url("http", &https_host, https_port);
-    if https_proxy.is_none() && use_same_proxy {
+    let http_proxy = gsettings_proxy_url("http", "org.gnome.system.proxy.http");
+    let mut https_proxy = gsettings_proxy_url("http", "org.gnome.system.proxy.https");
+    if https_proxy.is_none()
+        && gsettings_bool("org.gnome.system.proxy.http", "use-same-proxy") == Some(true)
+    {
         https_proxy = http_proxy.clone();
     }
 
     Some(SystemProxy {
         http_proxy,
         https_proxy,
-        all_proxy: proxy_url("socks5h", &socks_host, socks_port),
+        all_proxy: gsettings_proxy_url("socks5h", "org.gnome.system.proxy.socks"),
         no_proxy: gsettings_ignore_hosts("org.gnome.system.proxy", "ignore-hosts"),
     })
+}
+
+fn gsettings_proxy_url(scheme: &str, schema: &str) -> Option<String> {
+    let host = gsettings_string(schema, "host")?;
+    let port = gsettings_u16(schema, "port")?;
+    proxy_url(scheme, &host, port)
 }
 
 fn gsettings_value(schema: &str, key: &str) -> Option<String> {
@@ -81,7 +80,6 @@ pub(crate) fn parse_gsettings_array(value: &str) -> Vec<String> {
         .trim_end_matches(']')
         .split(',')
         .map(parse_gsettings_string)
-        .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .collect()
 }

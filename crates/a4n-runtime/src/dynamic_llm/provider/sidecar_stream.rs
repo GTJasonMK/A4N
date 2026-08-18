@@ -9,13 +9,10 @@ use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
 
 use super::super::budget::ensure_max_tokens_within_model_cap;
-use super::super::config::require_sidecar_business_trace;
+use super::super::config::{require_sidecar_business_trace, sidecar_chat_request};
 use super::super::contracts::DynamicLlmProvider;
-use super::super::streams::{QueueTrackedSidecarLlmStream, sidecar_failed_event};
+use super::super::streams::QueueTrackedSidecarLlmStream;
 use super::super::trace::prepare_dynamic_llm_trace_context;
-use crate::sidecar_clients::{
-    service_request_with_context_provider_secret_policy, sidecar_context_for_llm_trace,
-};
 
 impl DynamicLlmProvider {
     pub(in crate::dynamic_llm) async fn chat_stream_via_sidecar(
@@ -43,7 +40,6 @@ impl DynamicLlmProvider {
         let trace_context =
             require_sidecar_business_trace(trace_context.as_ref(), "LLM sidecar stream 请求")?
                 .clone();
-        request.stream_include_usage = true;
         tracing::debug!(
             target: "a4n::llm",
             model = %model_name,
@@ -55,17 +51,8 @@ impl DynamicLlmProvider {
             "LLM sidecar stream 请求"
         );
 
-        let payload = resolved_model.sidecar_payload(request);
-        let sidecar_context = sidecar_context_for_llm_trace(&trace_context).map_err(|err| {
-            AppError::ConfigError(format!("LLM sidecar stream 请求构造失败：{err}"))
-        })?;
-        let sidecar_request = service_request_with_context_provider_secret_policy(
-            sidecar_context,
-            "llm",
-            a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
-            payload,
-        )
-        .map_err(|err| AppError::ConfigError(format!("LLM sidecar stream 请求构造失败：{err}")))?;
+        let sidecar_request =
+            sidecar_chat_request(resolved_model, request, &trace_context, "LLM sidecar stream")?;
         let sidecar_request_id = sidecar_request.request_id.clone();
         let started = Instant::now();
         let running_task = self
@@ -73,12 +60,17 @@ impl DynamicLlmProvider {
             .queue_start_task(TaskKind::LlmCall, TaskPriority::Medium, None)
             .await?;
 
-        let (tx, rx) = tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
+        let (tx, rx) =
+            tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
         let stream_tx = tx.clone();
         tokio::spawn(async move {
             if let Err(error) = client.stream(sidecar_request, stream_tx.clone()).await {
                 let _ = stream_tx
-                    .send(sidecar_failed_event(sidecar_request_id, error))
+                    .send(a4n_service_protocol::CapabilityTaskEvent::failed(
+                        sidecar_request_id,
+                        0,
+                        error,
+                    ))
                     .await;
             }
         });

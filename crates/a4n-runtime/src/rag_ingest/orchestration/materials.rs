@@ -21,9 +21,14 @@ pub(crate) async fn sync_outline_rag_records(
     project_id: i64,
 ) -> Result<(), String> {
     let expected = expected_outline_rag_records(state, project_id).await?;
-    sync_data_type_records(state, project_id, OUTLINE_RAG_DATA_TYPES, expected.records)
-        .await
-        .map(|_| ())
+    sync_data_type_records(
+        state,
+        project_id,
+        OUTLINE_RAG_DATA_TYPES,
+        expected.into_records(),
+    )
+    .await
+    .map(|_| ())
 }
 
 pub(crate) async fn sync_blueprint_material_rag_records(
@@ -35,7 +40,7 @@ pub(crate) async fn sync_blueprint_material_rag_records(
         state,
         project_id,
         BLUEPRINT_RAG_DATA_TYPES,
-        expected.records,
+        expected.into_records(),
     )
     .await
     .map(|_| ())
@@ -50,7 +55,7 @@ pub(crate) async fn sync_protagonist_rag_records(
         state,
         project_id,
         &[RagDataType::Protagonist],
-        expected.records,
+        expected.into_records(),
     )
     .await
     .map(|_| ())

@@ -1,14 +1,12 @@
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
-use schemars::JsonSchema;
 use serde::{Serialize, de::DeserializeOwned};
-use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext,
     structured_llm::{
-        StructuredLlmProgress, StructuredOutputRepairInput, StructuredRepairCheckpointContext,
+        StructuredLlmProgress, ensure_checkpoint_parsed_output_matches,
         parse_strict_json_response,
     },
     workflow::{llm_call_checkpoint_fingerprint_sha256, workflow_checkpoint_contract_app_error},
@@ -30,7 +28,7 @@ impl OrchestratorContext {
         validate_output: impl Fn(&T) -> Result<(), AppError>,
     ) -> Result<Option<T>, AppError>
     where
-        T: DeserializeOwned,
+        T: Serialize + DeserializeOwned,
     {
         let fingerprint_json = a4n_llm::trace::context_aware_chat_request_trace_json(request)?;
         let Some(checkpoint) = self
@@ -39,17 +37,13 @@ impl OrchestratorContext {
         else {
             return Ok(None);
         };
-        let checkpoint_json =
-            crate::workflow::required_llm_call_checkpoint_json(checkpoint, step_key)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        let value = checkpoint_json
-            .get("parsed_output")
-            .filter(|value| !value.is_null())
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!("{step_key}.parsed_output 必须是结构化输出"))
-            })?;
-        let output = serde_json::from_value(value.clone())?;
+        let output = parse_strict_json_response::<T>(&checkpoint.response_content, step_key)?;
         validate_output(&output)?;
+        ensure_checkpoint_parsed_output_matches(
+            &checkpoint.parsed_output,
+            &serde_json::to_value(&output)?,
+            &format!("分镜脚本 {step_key}"),
+        )?;
         Ok(Some(output))
     }
 
@@ -68,7 +62,7 @@ impl OrchestratorContext {
         validate_output: impl Fn(&T) -> Result<(), AppError>,
     ) -> Result<ShootingScriptStageResult<T>, AppError>
     where
-        T: Serialize + DeserializeOwned + JsonSchema + PartialEq,
+        T: Serialize + DeserializeOwned,
     {
         self.ensure_shooting_script_running(workflow_run_id).await?;
         let fingerprint_json = a4n_llm::trace::context_aware_chat_request_trace_json(&request)?;
@@ -82,7 +76,7 @@ impl OrchestratorContext {
                 workflow_run_id,
                 step_key,
                 &fingerprint_json,
-                request.clone(),
+                request,
                 label,
                 Some(structured_progress),
                 progress_total,
@@ -91,87 +85,29 @@ impl OrchestratorContext {
                 cancel_token,
             )
             .await?;
-        let parsed = if let Some(saved) = raw.restored_parsed_output.as_ref() {
-            let output: T = serde_json::from_value(saved.clone())?;
-            validate_output(&output).map(|()| output)
-        } else {
-            parse_strict_json_response::<T>(&raw.response_content, label)
-                .and_then(|output| validate_output(&output).map(|()| output))
-        };
-
-        match parsed {
-            Ok(output) => {
-                if raw.restored_parsed_output.is_some() {
-                    return Ok(ShootingScriptStageResult {
-                        output,
-                        restored: true,
-                    });
-                }
-                self.persist_parsed_shooting_call(
-                    workflow_run_id,
-                    step_key,
-                    step_order,
-                    fingerprint_json,
-                    &raw.response_content,
-                    &output,
-                    raw.usage,
-                    raw.finish_reason,
-                    None,
-                )
-                .await?;
-                Ok(ShootingScriptStageResult {
-                    output,
-                    restored: false,
-                })
-            }
-            Err(_initial_error) => {
-                let repair_progress = structured_progress.span.end();
-                let report_repair_progress =
-                    |message: &str| progress(repair_progress, progress_total, message);
-                let repaired = self
-                    .parse_validate_or_repair_structured_output::<T, _>(
-                        StructuredOutputRepairInput {
-                            request,
-                            raw_response: &raw.response_content,
-                            label,
-                            checkpoint: Some(StructuredRepairCheckpointContext {
-                                workflow_run_id,
-                                base_call_key: step_key.to_string(),
-                                call_order: step_order,
-                            }),
-                            cancel_token,
-                            progress: Some(&report_repair_progress),
-                            validate_output: &validate_output,
-                        },
-                    )
-                    .await?;
-                self.persist_parsed_shooting_call(
-                    workflow_run_id,
-                    step_key,
-                    step_order,
-                    fingerprint_json,
-                    &raw.response_content,
-                    &repaired.output,
-                    raw.usage,
-                    raw.finish_reason,
-                    Some(json!({
-                        "structured_repair": repaired.artifact_summary_with([
-                            ("status".to_string(), json!("completed")),
-                            (
-                                "base_response_sha256".to_string(),
-                                json!(a4n_core::source_spans::source_text_hash(
-                                    &raw.response_content
-                                )),
-                            ),
-                        ]),
-                    })),
-                )
-                .await?;
-                Ok(ShootingScriptStageResult {
-                    output: repaired.output,
-                    restored: false,
-                })
-            }
+        let restored = raw.restored_parsed_output.is_some();
+        let output = parse_strict_json_response::<T>(&raw.response_content, label)
+            .and_then(|output| validate_output(&output).map(|()| output))?;
+        if let Some(saved) = raw.restored_parsed_output.as_ref() {
+            ensure_checkpoint_parsed_output_matches(
+                saved,
+                &serde_json::to_value(&output)?,
+                &format!("分镜脚本 {step_key}"),
+            )?;
         }
+        if !restored {
+            self.persist_parsed_shooting_call(
+                workflow_run_id,
+                step_key,
+                step_order,
+                fingerprint_json,
+                &raw.response_content,
+                &output,
+                raw.usage,
+                raw.finish_reason,
+            )
+            .await?;
+        }
+        Ok(ShootingScriptStageResult { output, restored })
     }
 }

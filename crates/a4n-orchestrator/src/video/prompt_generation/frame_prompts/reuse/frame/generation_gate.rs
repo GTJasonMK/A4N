@@ -1,4 +1,5 @@
 use a4n_core::error::AppError;
+use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_core::prompt_language::metadata_matches_prompt_output_language;
 
 use crate::video::prompt_store::PromptWorkflowMode;
@@ -18,7 +19,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_video_pro
         project_id,
         chapter_id,
         workflow_mode.as_str(),
-        "video_prompt",
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
         shot_number,
     )
     .await
@@ -30,7 +31,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_video_pro
         ) {
             continue;
         }
-        if row.status == "running" {
+        if row.status == chapter_video_prompt::STATUS_RUNNING {
             return Err(AppError::InvalidArgument(format!(
                 "当前章节已有{label}正在运行，不能重新生成视频提示词"
             )));

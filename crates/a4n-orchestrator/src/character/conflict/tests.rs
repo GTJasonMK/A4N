@@ -4,7 +4,7 @@ use crate::character::conflict_context_rules::CharacterConflictChapterScope;
 
 use super::{
     contracts::CharacterConflictCheckInput,
-    execution::required_character_conflict_input,
+    execution::validated_character_conflict_input,
     request::{
         BuildCharacterConflictRequestInput, PACK_KIND_CHARACTER_CONFLICT_SOURCE_CONTEXT,
         build_character_conflict_request, character_conflict_call_key,
@@ -13,20 +13,20 @@ use super::{
 };
 
 #[test]
-fn required_input_normalizes_name_and_validates_scope() {
-    let required = required_character_conflict_input(&CharacterConflictCheckInput {
+fn input_contract_normalizes_name_and_validates_scope() {
+    let validated = validated_character_conflict_input(&CharacterConflictCheckInput {
         project_id: 9,
         name: " 陈恪 ".to_string(),
         start_chapter: Some(2),
         end_chapter: Some(5),
     })
     .expect("valid character conflict input");
-    assert_eq!(required.name, "陈恪");
-    assert_eq!(required.chapter_scope.start_chapter, Some(2));
-    assert_eq!(required.chapter_scope.end_chapter, Some(5));
+    assert_eq!(validated.name, "陈恪");
+    assert_eq!(validated.chapter_scope.start_chapter, Some(2));
+    assert_eq!(validated.chapter_scope.end_chapter, Some(5));
 
     assert!(
-        required_character_conflict_input(&CharacterConflictCheckInput {
+        validated_character_conflict_input(&CharacterConflictCheckInput {
             project_id: 0,
             name: "陈恪".to_string(),
             start_chapter: None,
@@ -35,7 +35,7 @@ fn required_input_normalizes_name_and_validates_scope() {
         .is_err()
     );
     assert!(
-        required_character_conflict_input(&CharacterConflictCheckInput {
+        validated_character_conflict_input(&CharacterConflictCheckInput {
             project_id: 9,
             name: "  ".to_string(),
             start_chapter: None,
@@ -44,7 +44,7 @@ fn required_input_normalizes_name_and_validates_scope() {
         .is_err()
     );
     assert!(
-        required_character_conflict_input(&CharacterConflictCheckInput {
+        validated_character_conflict_input(&CharacterConflictCheckInput {
             project_id: 9,
             name: "陈恪".to_string(),
             start_chapter: Some(5),
@@ -61,21 +61,22 @@ fn request_uses_stable_context_manifest_and_json_contract() {
     let chapters = vec![json!({"source_id": "chapter:3", "summary": "主角已经离城"})];
     let states = vec![json!({"source_id": "state:3", "current_goal": "离城"})];
     let events = vec![json!({"source_id": "attribute_event:7", "key": "goal"})];
-    let call_key = character_conflict_call_key(17, "陈恪");
-    let request = build_character_conflict_request(BuildCharacterConflictRequestInput {
-        system_prompt: "system".to_string(),
-        project_id: 9,
-        profile_id: 17,
-        profile_name: "陈恪",
-        chapter_scope: scope,
-        role_attr: &role_attr,
-        chapter_context: &chapters,
-        state_timeline: &states,
-        attribute_events: &events,
-        call_key: call_key.clone(),
-    })
-    .expect("request should build");
+    let expected_call_key = character_conflict_call_key(17);
+    let (call_key, request) =
+        build_character_conflict_request(BuildCharacterConflictRequestInput {
+            system_prompt: "system".to_string(),
+            project_id: 9,
+            profile_id: 17,
+            profile_name: "陈恪",
+            chapter_scope: scope,
+            role_attr: &role_attr,
+            chapter_context: &chapters,
+            state_timeline: &states,
+            attribute_events: &events,
+        })
+        .expect("request should build");
 
+    assert_eq!(call_key, expected_call_key);
     assert_eq!(request.max_tokens_profile.as_deref(), Some("json_standard"));
     assert_eq!(
         request
@@ -108,34 +109,33 @@ fn request_uses_stable_context_manifest_and_json_contract() {
 #[test]
 fn workflow_input_uses_canonical_fingerprint_and_call_key() {
     let scope = CharacterConflictChapterScope::new(None, Some(8)).unwrap();
-    let request = build_character_conflict_request(BuildCharacterConflictRequestInput {
-        system_prompt: "system".to_string(),
-        project_id: 9,
-        profile_id: 17,
-        profile_name: "陈恪",
-        chapter_scope: scope,
-        role_attr: &json!({"source_id": "profile"}),
-        chapter_context: &[json!({"source_id": "chapter:3", "summary": "摘要"})],
-        state_timeline: &[],
-        attribute_events: &[],
-        call_key: "character_conflict:17:陈恪".to_string(),
-    })
-    .unwrap();
+    let (call_key, request) =
+        build_character_conflict_request(BuildCharacterConflictRequestInput {
+            system_prompt: "system".to_string(),
+            project_id: 9,
+            profile_id: 17,
+            profile_name: "陈恪",
+            chapter_scope: scope,
+            role_attr: &json!({"source_id": "profile"}),
+            chapter_context: &[json!({"source_id": "chapter:3", "summary": "摘要"})],
+            state_timeline: &[],
+            attribute_events: &[],
+        })
+        .unwrap();
     let (input, fingerprint) = character_conflict_workflow_run_input(
         9,
+        17,
         "陈恪",
         scope,
-        "character_conflict:17:陈恪",
+        &call_key,
         &request,
         Some("character-conflict-task"),
     )
     .expect("workflow input should build");
 
     assert_eq!(input.workflow_kind, "character_conflict_check");
-    assert_eq!(
-        input.current_step_key.as_deref(),
-        Some("character_conflict:17:陈恪")
-    );
+    assert_eq!(input.current_step_key.as_deref(), Some(call_key.as_str()));
+    assert_eq!(input.scope_id, Some(17));
     assert_eq!(fingerprint["project_id"], json!(9));
     assert_eq!(fingerprint["character_name"], json!("陈恪"));
     assert_eq!(fingerprint["chapter_scope"]["end_chapter"], json!(8));

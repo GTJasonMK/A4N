@@ -14,7 +14,14 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
-import type { GeneratedVideo, UpdateVideoInput } from "../../../api/video";
+import {
+  VIDEO_TYPE_CANVAS,
+  VIDEO_TYPE_CHAPTER,
+  VIDEO_TYPE_REFERENCE_MEDIA,
+  VIDEO_TYPE_TRIMMED_CLIP,
+  type GeneratedVideo,
+  type UpdateVideoInput,
+} from "../../../api/video";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -57,14 +64,14 @@ const videoRecordTitle = (video: GeneratedVideo): string => {
       ? (video.metadata_json as Record<string, unknown>)
       : null;
   const shotNumber = metadata?.shot_number;
-  if (video.video_type === "chapter_video") {
+  if (video.video_type === VIDEO_TYPE_CHAPTER) {
     return typeof shotNumber === "number" && Number.isInteger(shotNumber) && shotNumber > 0
       ? `镜头 ${shotNumber}`
       : "章节视频";
   }
-  if (video.video_type === "reference_media_video") return "参考媒体视频";
-  if (video.video_type === "trimmed_clip") return "裁剪片段";
-  if (video.video_type === "canvas_video") return "画布视频";
+  if (video.video_type === VIDEO_TYPE_REFERENCE_MEDIA) return "参考媒体视频";
+  if (video.video_type === VIDEO_TYPE_TRIMMED_CLIP) return "裁剪片段";
+  if (video.video_type === VIDEO_TYPE_CANVAS) return "画布视频";
   return "生成视频";
 };
 

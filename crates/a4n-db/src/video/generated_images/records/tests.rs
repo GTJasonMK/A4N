@@ -1,4 +1,7 @@
 use a4n_core::models::ai::generated_image;
+use a4n_domain::image::{
+    IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_VIDEO_TAIL_FRAME,
+};
 use serde_json::json;
 
 use crate::video::UpdateGeneratedImageRecordInput;
@@ -86,8 +89,8 @@ fn update_record_image_type_rejects_system_managed_type_transitions() {
     let cases = [
         ("manga_page", "custom_reference"),
         ("custom_reference", "manga_page"),
-        ("scene_material", "object_material"),
-        ("video_tail_frame", "project_reference"),
+        (IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_OBJECT_MATERIAL),
+        (IMAGE_TYPE_VIDEO_TAIL_FRAME, "project_reference"),
     ];
     for (current, next) in cases {
         let err = crate::video::validate_generated_image_update_image_type(current, next)

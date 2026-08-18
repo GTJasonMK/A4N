@@ -19,7 +19,7 @@ pub(super) use self::contracts::*;
 
 pub(super) use self::chat_prompts::{
     ChatVideoPromptShot, parse_chat_video_prompt_shots,
-    validate_chat_video_prompt_shot_against_segment,
+    validate_chat_video_prompt_shot_against_segment, validate_chat_video_prompt_text,
 };
 pub(super) use self::cross_validation::{
     validate_model_video_prompt_shot_against_segment,
@@ -36,33 +36,6 @@ pub(super) use self::segment_parser::{
 pub(super) use self::shot_parser::{
     derived_prompt_shot_number, ordered_segment_numbers, parse_video_prompt_shots,
 };
-
-pub(super) fn video_llm_output_schema(prompt_name: &str) -> Result<Value, AppError> {
-    let schema = match prompt_name {
-        "chapter_video_segment_plan" => schemars::schema_for!(VideoSegmentPlanResponse),
-        "chapter_video_frame_prompts" | "chapter_video_first_frame_prompts" => {
-            schemars::schema_for!(StaticVideoFramePromptResponse)
-        }
-        "chapter_video_storyboard_prompts" => {
-            schemars::schema_for!(StoryboardVideoFramePromptResponse)
-        }
-        "chapter_video_chat_prompt" => chat_prompts::chat_video_prompt_response_schema(),
-        "chapter_video_prompt"
-        | "chapter_video_first_frame_video_prompt"
-        | "chapter_video_storyboard_video_prompt" => {
-            schemars::schema_for!(VideoPromptResponse)
-        }
-        "chapter_video_prompt_targeted_repair" => {
-            schemars::schema_for!(VideoPromptTargetedRepairResponse)
-        }
-        other => {
-            return Err(AppError::ConfigError(format!(
-                "未注册的视频结构化输出合同: {other}"
-            )));
-        }
-    };
-    serde_json::to_value(schema).map_err(AppError::Serialization)
-}
 pub(in crate::video) use self::validation::direct_prompt_internal_reference_term;
 pub use self::validation::{
     validate_direct_prompt_text, validate_reference_label_text,

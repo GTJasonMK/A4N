@@ -1,6 +1,7 @@
 use serde_json::{Value, json};
 
 use crate::video::VideoDbError;
+use a4n_core::models::chapter::chapter_video_prompt;
 
 pub fn sync_chapter_video_prompt_metadata_after_update(
     prompt_type: &str,
@@ -10,7 +11,7 @@ pub fn sync_chapter_video_prompt_metadata_after_update(
     duration_secs: i32,
     reference_image_ids_json: Option<&Value>,
 ) -> Result<Option<Value>, VideoDbError> {
-    if prompt_type == "video_prompt" {
+    if prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO {
         let metadata = metadata_json.ok_or_else(|| {
             VideoDbError::InvalidArgument(
                 "视频提示词缺少 video_execution_identity，不能编辑；请重新生成该提示词".to_string(),
@@ -94,9 +95,14 @@ pub fn sync_chapter_video_prompt_metadata_after_update(
 
 fn frame_prompt_metadata_key(prompt_type: &str) -> Option<(&'static str, &'static str)> {
     match prompt_type {
-        "frame_prompt" | "chat_video_frame_prompt" => Some(("boundary_frame", "边界帧提示词")),
-        "first_frame_prompt" => Some(("first_frame", "首帧提示词")),
-        "storyboard_prompt" => Some(("storyboard_frame", "分镜提示词")),
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => {
+            Some(("boundary_frame", "边界帧提示词"))
+        }
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => Some(("first_frame", "首帧提示词")),
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {
+            Some(("storyboard_frame", "分镜提示词"))
+        }
         _ => None,
     }
 }

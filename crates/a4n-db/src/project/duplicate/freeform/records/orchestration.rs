@@ -9,7 +9,7 @@ use super::{
 };
 use crate::project::duplicate::{
     ProjectDuplicateError,
-    freeform::{FreeformProjectMediaCopyResult, ensure_freeform_source_mode},
+    freeform::FreeformProjectMediaCopyResult,
     shared::{ProjectCopyInsert, ProjectMediaFileCopier, insert_project_copy_record},
 };
 
@@ -28,7 +28,6 @@ where
     C: ConnectionTrait,
     Copier: ProjectMediaFileCopier,
 {
-    ensure_freeform_source_mode(&original.source_mode)?;
     let source_videos = freeform_generated_videos_for_copy_record(db, original.id).await?;
     let project = insert_project_copy_record(
         db,

@@ -2,7 +2,7 @@ use std::{io, path::Path, process::Command};
 
 use thiserror::Error;
 
-use crate::ffmpeg::stderr_preview;
+use crate::ffmpeg::{seconds_literal, stderr_preview};
 
 const ASSEMBLY_STDERR_PREVIEW_CHARS: usize = 800;
 
@@ -31,6 +31,8 @@ pub enum VideoAssemblyError {
     InvalidDimensions { width: i32, height: i32 },
     #[error("video assembly fps must be positive: {fps}")]
     InvalidFps { fps: i32 },
+    #[error("video assembly clip #{index} duration must be positive and finite: {duration_secs}")]
+    InvalidClipDuration { index: usize, duration_secs: f32 },
     #[error("failed to start ffmpeg video assembly: {source}")]
     Unavailable {
         #[source]
@@ -65,7 +67,7 @@ pub fn build_video_assembly_filter(
             } else {
                 filter.push_str(&format!(
                     "anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration={},asetpts=N/SR/TB[a{index}];",
-                    ffmpeg_duration_literal(clip.duration_secs)
+                    seconds_literal(clip.duration_secs)
                 ));
             }
         }
@@ -144,15 +146,6 @@ pub fn assemble_videos(request: VideoAssemblyRequest<'_>) -> Result<(), VideoAss
     }
 }
 
-pub fn ffmpeg_duration_literal(value: f32) -> String {
-    let value = if value.is_finite() && value > 0.0 {
-        value
-    } else {
-        0.1
-    };
-    format!("{value:.3}")
-}
-
 fn validate_assembly(
     clips: &[VideoAssemblyClip<'_>],
     width: i32,
@@ -167,6 +160,16 @@ fn validate_assembly(
     }
     if fps <= 0 {
         return Err(VideoAssemblyError::InvalidFps { fps });
+    }
+    if let Some((index, clip)) = clips
+        .iter()
+        .enumerate()
+        .find(|(_, clip)| !clip.duration_secs.is_finite() || clip.duration_secs <= 0.0)
+    {
+        return Err(VideoAssemblyError::InvalidClipDuration {
+            index,
+            duration_secs: clip.duration_secs,
+        });
     }
     Ok(())
 }

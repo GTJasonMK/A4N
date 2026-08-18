@@ -1,14 +1,12 @@
 use std::error::Error;
 
+use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use sea_orm::DbErr;
 use serde_json::json;
 
 use super::{
     contracts::ProfileMaterialDbError,
-    identity::{
-        IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, PROFILE_KIND_OBJECT,
-        is_project_reusable_video_material_image, profile_material_identity,
-    },
+    identity::{PROFILE_KIND_OBJECT, profile_material_identity},
     validation::{require_positive, require_text},
 };
 
@@ -74,17 +72,4 @@ fn profile_material_identity_rejects_conflicting_profile_kind() {
         ),
         None
     );
-}
-
-#[test]
-fn project_reusable_material_excludes_video_frame_inputs() {
-    let metadata = json!({
-        "profile_kind": "object",
-        "profile_id": 7,
-        "video_frame_role": "start_frame"
-    });
-    assert!(!is_project_reusable_video_material_image(
-        IMAGE_TYPE_OBJECT_MATERIAL,
-        Some(&metadata),
-    ));
 }

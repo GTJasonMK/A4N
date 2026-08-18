@@ -1,3 +1,4 @@
+use a4n_core::json_contract::is_empty_json_value;
 use serde_json::{Map, Value};
 
 pub(super) fn merge_missing_seed_attributes(target: &mut Value, seed: &Value) -> bool {
@@ -26,8 +27,8 @@ pub(super) fn merge_missing_seed_attributes(target: &mut Value, seed: &Value) ->
             continue;
         };
         for (key, value) in seed_attributes {
-            if seed_value_is_empty(value)
-                || !seed_value_is_empty(target_attributes.get(key).unwrap_or(&Value::Null))
+            if is_empty_json_value(value)
+                || !is_empty_json_value(target_attributes.get(key).unwrap_or(&Value::Null))
             {
                 continue;
             }
@@ -36,14 +37,4 @@ pub(super) fn merge_missing_seed_attributes(target: &mut Value, seed: &Value) ->
         }
     }
     changed
-}
-
-pub(super) fn seed_value_is_empty(value: &Value) -> bool {
-    match value {
-        Value::Null => true,
-        Value::String(text) => text.trim().is_empty(),
-        Value::Array(items) => items.is_empty(),
-        Value::Object(items) => items.is_empty(),
-        Value::Bool(_) | Value::Number(_) => false,
-    }
 }

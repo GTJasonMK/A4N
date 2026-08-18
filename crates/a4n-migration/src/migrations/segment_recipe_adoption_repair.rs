@@ -310,7 +310,6 @@ mod tests {
             description: Set(String::new()),
             project_type: Set("novel_long".to_string()),
             project_kind: Set("text".to_string()),
-            source_mode: Set("self".to_string()),
             root_project_id: Set(None),
             source_snapshot_id: Set(None),
             source_sync_status: Set("current".to_string()),

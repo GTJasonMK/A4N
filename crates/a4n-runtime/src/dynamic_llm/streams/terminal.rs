@@ -72,14 +72,6 @@ impl QueueTrackedStreamTerminal {
         }
     }
 
-    pub(super) fn replace_usage(&mut self, usage: UsageInfo) {
-        self.usage = Some(usage);
-    }
-
-    pub(super) fn replace_finish_reason(&mut self, finish_reason: String) {
-        self.finish_reason = Some(finish_reason);
-    }
-
     pub(super) fn start_success(&mut self) {
         if self.finished || self.terminal_task.is_some() {
             return;

@@ -1,9 +1,10 @@
 use super::super::prelude::{
     AppState, AssemblyClip, GeneratedVideoSummary, Path, PathBuf, access, append_secondary_error,
-    build_assembly_cache_manifest_with_audio_probe, canonicalize_data_file_path,
-    persist_created_media_file, run_ffmpeg_assemble_videos, video_to_summary,
+    build_assembly_cache_manifest, canonicalize_data_file_path, persist_created_media_file,
+    run_ffmpeg_assemble_videos, video_to_summary,
 };
-use super::super::source::{import_project_video_output_path, mark_imported_video_completed};
+use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use a4n_core::models::ai::generated_video;
 
 pub async fn assemble_canvas_videos(
     state: &AppState,
@@ -53,7 +54,7 @@ pub async fn assemble_canvas_videos(
         .create_canvas_assembly_record_validated(project_id, plan)
         .await
         .map_err(crate::actions::app_error_message)?;
-    let manifest = build_assembly_cache_manifest_with_audio_probe(
+    let manifest = build_assembly_cache_manifest(
         project_id,
         0,
         "canvas_assembly",
@@ -61,15 +62,15 @@ pub async fn assemble_canvas_videos(
         height,
         fps,
         &clips,
-        &|_| Ok(false),
     )?;
     let (output_path_str, file_size) = persist_canvas_assembly_output(
         state,
         record.id,
         || {
-            import_project_video_output_path(
+            video_record_output_path(
                 state.data_dir(),
                 project_id,
+                None,
                 record.id,
                 "canvas_assembly",
                 "mp4",
@@ -78,7 +79,7 @@ pub async fn assemble_canvas_videos(
         |output| run_ffmpeg_assemble_videos(&clips, output, width, height, fps, &manifest),
     )
     .await?;
-    let updated = mark_imported_video_completed(
+    let updated = complete_video_record(
         state,
         record.id,
         &output_path_str,
@@ -117,7 +118,12 @@ where
         Err(error) => {
             let mark_failed_error = state
                 .orchestrator()
-                .mark_generated_video_error_status_and_prompt(record_id, None, "failed", &error)
+                .mark_generated_video_error_status_and_prompt(
+                    record_id,
+                    None,
+                    generated_video::STATUS_FAILED,
+                    &error,
+                )
                 .await
                 .map_err(crate::actions::app_error_message)
                 .err();

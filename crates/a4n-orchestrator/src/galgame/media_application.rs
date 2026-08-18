@@ -1,31 +1,30 @@
 use a4n_core::error::AppError;
-use a4n_core::files::paths::ProjectPaths;
+use a4n_core::files::{
+    paths::{ProjectPaths, data_dir_relative_file_path},
+    create_unique_timestamped_file, remove_created_file_on_error_sync, remove_existing_data_file,
+};
 use chrono::Utc;
 use serde_json::json;
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{io::Write, path::Path};
 
 use crate::{
     OrchestratorContext,
     media::{
-        CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO, MEDIA_ORIGIN_IMPORTED,
-        MEDIA_STATUS_COMPLETED, galgame_media_binding_required_media_kind,
+        CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO,
+        MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_COMPLETED, decode_uploaded_audio_data,
+        galgame_media_binding_required_media_kind,
     },
 };
 
 use super::{
     BindGalgameMediaInput, GalgameAudioRole, GalgameMediaBindingSummary, GalgameMediaRole,
     GalgameMediaTargetKind, GalgameTargetContext, ImportGalgameAudioInput, UnbindGalgameMediaInput,
-    media_rules::ImportedAudioSource, read_models::galgame_media_binding_summary,
+    read_models::galgame_media_binding_summary,
 };
 
 #[derive(Debug, Clone)]
 struct PersistedGalgameAudioFile {
     pub relative_path: String,
-    pub file_size: i64,
     pub duration_secs: f32,
 }
 
@@ -112,12 +111,18 @@ impl OrchestratorContext {
                 input.target_line_id,
             )
             .await?;
-        let source = ImportedAudioSource::from_upload(
+        let source = decode_uploaded_audio_data(
             &input.file_name,
             &input.mime_type,
             &input.data_base64,
         )
         .map_err(AppError::InvalidArgument)?;
+        if !matches!(source.extension, "mp3" | "wav" | "ogg") {
+            return Err(AppError::InvalidArgument(format!(
+                "Galgame 音频格式不支持: {}",
+                input.mime_type.trim()
+            )));
+        }
         let persisted = persist_galgame_audio_file(
             self.data_dir(),
             input.project_id,
@@ -159,7 +164,7 @@ impl OrchestratorContext {
                         "role": role,
                         "file_name": source.file_name,
                         "mime_type": source.mime_type,
-                        "file_size": persisted.file_size,
+                        "file_size": source.bytes.len(),
                         "duration_secs": persisted.duration_secs,
                         "imported_at": Utc::now().to_rfc3339(),
                     })),
@@ -171,7 +176,12 @@ impl OrchestratorContext {
             Err(error) => {
                 return Err(append_cleanup_error(
                     error,
-                    remove_galgame_audio_file(self.data_dir(), &persisted.relative_path).err(),
+                    remove_existing_data_file(
+                        self.data_dir(),
+                        &persisted.relative_path,
+                        "Galgame 音频",
+                    )
+                    .err(),
                 ));
             }
         };
@@ -192,7 +202,11 @@ impl OrchestratorContext {
                     .delete_media_asset_with_provenance_records(asset.id)
                     .await
                 {
-                    Ok(()) => remove_galgame_audio_file(self.data_dir(), &persisted.relative_path),
+                    Ok(()) => remove_existing_data_file(
+                        self.data_dir(),
+                        &persisted.relative_path,
+                        "Galgame 音频",
+                    ),
                     Err(error) => Err(error.to_string()),
                 };
                 Err(append_cleanup_error(error, cleanup_result.err()))
@@ -207,103 +221,30 @@ fn persist_galgame_audio_file(
     extension: &str,
     bytes: &[u8],
 ) -> Result<PersistedGalgameAudioFile, String> {
-    let dir = ProjectPaths::new(data_dir, project_id).root().join("audio");
+    let dir = ProjectPaths::new(data_dir, project_id).audio_dir();
     std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建 Galgame 音频目录：{err}"))?;
     let (path, mut output_file) = create_unique_timestamped_file(&dir, "galgame_audio", extension)
         .map_err(|error| format!("创建 Galgame 音频文件失败：{error}"))?;
-    output_file
-        .write_all(bytes)
-        .map_err(|err| format!("写入 Galgame 音频文件失败：{err}"))?;
-    let metadata = std::fs::metadata(&path)
-        .map_err(|err| format!("无法读取 Galgame 音频文件元数据：{err}"))?;
-    let file_size = i64::try_from(metadata.len())
-        .map_err(|_| "Galgame 音频文件过大，无法记录文件大小".to_string())?;
-    let relative_path = data_dir_relative_path(data_dir, &path)?;
-    let duration_secs = a4n_media::probe_audio_duration_secs(&path).map_err(|error| {
-        let _ = std::fs::remove_file(&path);
-        format!("无法读取 Galgame 音频文件时长：{error}")
-    })?;
-    Ok(PersistedGalgameAudioFile {
-        relative_path,
-        file_size,
-        duration_secs,
+    remove_created_file_on_error_sync(&path, "Galgame 音频文件", || {
+        output_file
+            .write_all(bytes)
+            .map_err(|err| format!("写入 Galgame 音频文件失败：{err}"))?;
+        let relative_path = data_dir_relative_file_path(data_dir, &path, "Galgame 音频文件")?;
+        let duration_secs = a4n_media::probe_audio_duration_secs(&path)
+            .map_err(|error| format!("无法读取 Galgame 音频文件时长：{error}"))?;
+        Ok(PersistedGalgameAudioFile {
+            relative_path,
+            duration_secs,
+        })
     })
-}
-
-fn remove_galgame_audio_file(data_dir: &Path, relative_path: &str) -> Result<(), String> {
-    let raw = Path::new(relative_path);
-    if raw.is_absolute() {
-        return Err("Galgame 音频路径必须是相对路径".to_string());
-    }
-    let canonical_data_dir = data_dir
-        .canonicalize()
-        .map_err(|error| format!("解析应用数据目录失败：{error}"))?;
-    let path = data_dir
-        .join(raw)
-        .canonicalize()
-        .map_err(|error| format!("解析 Galgame 音频路径失败：{error}"))?;
-    if !path.starts_with(&canonical_data_dir) {
-        return Err("Galgame 音频路径超出应用数据目录".to_string());
-    }
-    if path.is_file() {
-        std::fs::remove_file(&path).map_err(|error| format!("删除 Galgame 音频失败：{error}"))?;
-    }
-    Ok(())
-}
-
-fn data_dir_relative_path(data_dir: &Path, path: &Path) -> Result<String, String> {
-    let canonical_data_dir = data_dir
-        .canonicalize()
-        .map_err(|error| format!("解析应用数据目录失败：{error}"))?;
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|error| format!("解析文件路径失败：{error}"))?;
-    canonical_path
-        .strip_prefix(&canonical_data_dir)
-        .map_err(|_| "文件不在应用数据目录内".to_string())?
-        .to_str()
-        .map(str::to_string)
-        .ok_or_else(|| "文件相对路径包含非 UTF-8 字符".to_string())
-}
-
-fn create_unique_timestamped_file(
-    directory: &Path,
-    prefix: &str,
-    extension: &str,
-) -> Result<(PathBuf, std::fs::File), std::io::Error> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?
-        .as_nanos();
-    for attempt in 0..20u32 {
-        let suffix = if attempt == 0 {
-            String::new()
-        } else {
-            format!("_{attempt}")
-        };
-        let path = directory.join(format!("{prefix}_{timestamp}{suffix}.{extension}"));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(file) => return Ok((path, file)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
-        }
-    }
-    Err(std::io::Error::new(
-        std::io::ErrorKind::AlreadyExists,
-        "文件名冲突过多",
-    ))
 }
 
 fn append_cleanup_error(primary: AppError, cleanup_error: Option<String>) -> AppError {
     match cleanup_error.filter(|error| !error.trim().is_empty()) {
-        Some(cleanup_error) => AppError::InvalidState {
-            current: primary.to_string(),
-            operation: format!("后续清理也失败：{cleanup_error}"),
-        },
+        Some(cleanup_error) => crate::errors::app_error_with_secondary(
+            primary,
+            format!("后续清理也失败：{cleanup_error}"),
+        ),
         None => primary,
     }
 }
@@ -311,18 +252,6 @@ fn append_cleanup_error(primary: AppError, cleanup_error: Option<String>) -> App
 #[cfg(test)]
 mod tests {
     use super::*;
-    use base64::Engine as _;
-
-    #[test]
-    fn audio_upload_rejects_extension_mismatch_and_oversize() {
-        let mismatch = ImportedAudioSource::from_upload(
-            "voice.wav",
-            "audio/mpeg",
-            &base64::engine::general_purpose::STANDARD.encode(b"audio"),
-        )
-        .expect_err("extension mismatch must fail");
-        assert!(mismatch.contains("扩展名与 MIME 不一致"));
-    }
 
     #[test]
     fn cleanup_error_keeps_primary_and_compensation_failures_visible() {

@@ -5,13 +5,10 @@ mod secrets;
 mod trace;
 
 pub(crate) use context::SidecarRequestContext;
-#[cfg(test)]
-pub(crate) use requests::pure_transform_service_request;
 pub(crate) use requests::{
     global_service_request_without_secrets, pure_transform_typed_service_request,
-    service_request_with_context,
 };
-pub(super) use scope::value_as_i64;
+pub(super) use requests::service_request_with_value_context;
 pub(crate) use secrets::{
     global_provider_service_request, service_request_with_context_provider_secret_policy,
 };
@@ -27,7 +24,7 @@ use a4n_service_protocol::{SecretForwardingPolicy, TraceContext};
 #[cfg(test)]
 use secrets::{
     global_provider_service_request_for_url, payload_has_provider_secret,
-    service_request_with_context_provider_secret_policy_for_url, sidecar_url_allows_local_secrets,
+    service_request_with_context_provider_secret_policy_for_url,
 };
 
 #[cfg(test)]

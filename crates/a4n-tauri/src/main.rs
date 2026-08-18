@@ -9,9 +9,6 @@ mod media_protocol;
 mod setup;
 mod window;
 
-#[cfg(test)]
-mod tests;
-
 fn main() {
     app::run();
 }

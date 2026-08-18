@@ -1,10 +1,7 @@
 import { extractErrorMessage } from "../../api";
 import type { NovelProject, ProjectKind } from "../../api/project";
 import { isCancelledOperation } from "../../utils/cancellation";
-import {
-  PROJECT_ACCESS_ROLE_LABELS,
-  PROJECT_KIND_LABELS,
-} from "../../utils/projectRouting";
+import { PROJECT_KIND_LABELS } from "../../utils/projectRouting";
 
 export { PROJECT_KIND_LABELS };
 
@@ -71,8 +68,6 @@ export const PROJECT_KIND_FILTER_LABELS: Record<ProjectKindFilter, string> = {
   all: "全部类型",
   ...PROJECT_KIND_LABELS,
 };
-
-export const PROJECT_ROLE_LABELS = PROJECT_ACCESS_ROLE_LABELS;
 
 export const pickRandomQuote = (): Quote =>
   CREATIVE_QUOTES[Math.floor(Math.random() * CREATIVE_QUOTES.length)];

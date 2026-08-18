@@ -51,9 +51,6 @@ pub fn character_state_rag_record(
         text,
         metadata: serde_json::json!({
             "data_type": RagDataType::CharacterState.as_str(),
-            "state_id": state_index.id,
-            "profile_id": state_index.profile_id,
-            "character_name": name,
             "chapter_number": state_index.chapter_number,
             "title": title,
         }),

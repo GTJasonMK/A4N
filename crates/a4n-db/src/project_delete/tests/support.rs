@@ -4,6 +4,8 @@ use a4n_core::models::{
     media::media_asset,
     project::novel_project,
 };
+use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 
@@ -102,7 +104,7 @@ pub(super) async fn generated_image_with_asset(
         db,
         crate::video::CreateGeneratedImageRecordDraftInput {
             project_id,
-            image_type: "canvas_image".to_string(),
+            image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: format!("projects/{project_id}/images/{file_name}"),
             prompt: "project cleanup image".to_string(),
             model: "test".to_string(),
@@ -141,8 +143,8 @@ pub(super) async fn generated_video_with_asset(
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
-            video_type: "canvas_video".to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
+            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "project cleanup video".to_string(),
             negative_prompt: None,
             model: "test".to_string(),

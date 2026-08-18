@@ -36,7 +36,7 @@ impl OrchestratorContext {
             source_spans,
             workflow_run_id,
         } = input;
-        self.mark_chapter_analysis_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_FINAL)
+        self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_STEP_FINAL)
             .await?;
         progress.report(
             96,

@@ -1,12 +1,8 @@
+use super::{BlueprintSummary, BlueprintVersionSummary};
 use a4n_core::{
     error::AppError,
     models::project::{blueprint_version, novel_blueprint},
 };
-use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
-
-use crate::actions::request_preview::ChatStatusPreviewStep;
-
-use super::{BlueprintSummary, BlueprintVersionSummary};
 
 pub(super) fn blueprint_summary(
     bp: &novel_blueprint::Model,
@@ -67,17 +63,4 @@ fn persisted_version_text(
         });
     }
     Ok(value.to_string())
-}
-
-pub(super) fn blueprint_preview_step(
-    stage: BlueprintGenerationPreviewStep,
-) -> ChatStatusPreviewStep {
-    ChatStatusPreviewStep::llm(
-        stage.key,
-        stage.title,
-        Some(stage.prompt_name),
-        stage.state,
-        stage.note,
-        stage.request,
-    )
 }

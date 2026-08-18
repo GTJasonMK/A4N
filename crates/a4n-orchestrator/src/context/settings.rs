@@ -1,6 +1,5 @@
 use super::OrchestratorContext;
 use crate::config::{
-    BaselineImageConfigSeed, BaselineLlmConfigSeed, BaselineVideoConfigSeed,
     DefaultLlmOutputCapRow, ProviderConfigKind, SettingsAllConfigImportCounts,
     SettingsAllConfigImportInput, SettingsAllConfigRows,
 };
@@ -451,25 +450,35 @@ impl ConfigApplication {
 
     async fn insert_baseline_llm_config_if_empty(
         &self,
-        seed: BaselineLlmConfigSeed,
+        config: NormalizedLlmConfig,
     ) -> Result<bool, AppError> {
-        a4n_db::config::insert_baseline_llm_config_if_empty(self.database.connection(), seed).await
+        a4n_db::config::insert_baseline_llm_config_if_empty(
+            self.database.connection(),
+            llm_record_input(config),
+        )
+        .await
     }
 
     async fn insert_baseline_image_config_if_empty(
         &self,
-        seed: BaselineImageConfigSeed,
+        config: CreateImageConfigParams,
     ) -> Result<bool, AppError> {
-        a4n_db::config::insert_baseline_image_config_if_empty(self.database.connection(), seed)
-            .await
+        a4n_db::config::insert_baseline_image_config_if_empty(
+            self.database.connection(),
+            image_record_input(config),
+        )
+        .await
     }
 
     async fn insert_baseline_video_config_if_empty(
         &self,
-        seed: BaselineVideoConfigSeed,
+        config: VideoConfigParams,
     ) -> Result<bool, AppError> {
-        a4n_db::config::insert_baseline_video_config_if_empty(self.database.connection(), seed)
-            .await
+        a4n_db::config::insert_baseline_video_config_if_empty(
+            self.database.connection(),
+            video_record_input(config),
+        )
+        .await
     }
 
     async fn settings_all_config_rows(&self) -> Result<SettingsAllConfigRows, AppError> {
@@ -833,28 +842,28 @@ impl OrchestratorContext {
 
     pub async fn insert_baseline_llm_config_if_empty(
         &self,
-        seed: BaselineLlmConfigSeed,
+        config: NormalizedLlmConfig,
     ) -> Result<bool, AppError> {
         self.settings
-            .insert_baseline_llm_config_if_empty(seed)
+            .insert_baseline_llm_config_if_empty(config)
             .await
     }
 
     pub async fn insert_baseline_image_config_if_empty(
         &self,
-        seed: BaselineImageConfigSeed,
+        config: CreateImageConfigParams,
     ) -> Result<bool, AppError> {
         self.settings
-            .insert_baseline_image_config_if_empty(seed)
+            .insert_baseline_image_config_if_empty(config)
             .await
     }
 
     pub async fn insert_baseline_video_config_if_empty(
         &self,
-        seed: BaselineVideoConfigSeed,
+        config: VideoConfigParams,
     ) -> Result<bool, AppError> {
         self.settings
-            .insert_baseline_video_config_if_empty(seed)
+            .insert_baseline_video_config_if_empty(config)
             .await
     }
 

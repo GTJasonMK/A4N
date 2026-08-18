@@ -1,43 +1,18 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
+use crate::structured_llm::parse_strict_json_response;
+
 use super::{AgentLoopAction, AgentLoopDecision};
 
-#[cfg(test)]
-pub(in crate::optimize) fn parse_agent_loop_decision(
+pub(in crate::optimize) fn parse_agent_loop_decision_response(
     raw: &str,
 ) -> Result<AgentLoopDecision, AppError> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "content_optimization_agent_loop 模型返回空内容，无法解析为 JSON 决策".to_string(),
-        ));
-    }
-    let value: Value = serde_json::from_str(trimmed).map_err(|err| {
-        AppError::InvalidArgument(format!(
-            "content_optimization_agent_loop 必须返回严格 JSON 决策对象: {err}"
-        ))
-    })?;
+    let value = parse_strict_json_response(raw, "content_optimization_agent_loop")?;
     parse_agent_loop_decision_value(&value)
 }
 
-pub(in crate::optimize) fn agent_loop_decision_schema() -> Value {
-    serde_json::json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["thought", "public_update", "action", "arguments"],
-        "properties": {
-            "thought": {"type": "string"},
-            "public_update": {"type": ["string", "null"]},
-            "action": {"enum": ["think", "run_tool", "final"]},
-            "arguments": {"type": "object"}
-        }
-    })
-}
-
-pub(in crate::optimize) fn parse_agent_loop_decision_value(
-    value: &Value,
-) -> Result<AgentLoopDecision, AppError> {
+fn parse_agent_loop_decision_value(value: &Value) -> Result<AgentLoopDecision, AppError> {
     let object = value.as_object().ok_or_else(|| {
         AppError::InvalidArgument(
             "content_optimization_agent_loop 输出必须是 JSON 对象".to_string(),

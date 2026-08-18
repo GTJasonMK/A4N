@@ -1,18 +1,28 @@
 import { useMemo } from "react";
-import type { GeneratedImage } from "../../../api/image";
-import type {
-  ChapterVideoPrompt,
-  GeneratedVideo,
-  SegmentGuidanceMode,
-  VideoGenConfig,
-  PromptOutputLanguage,
+import {
+  IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+  type GeneratedImage,
+} from "../../../api/image";
+import {
+  VIDEO_TYPE_ASSEMBLY_INSERT,
+  VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT,
+  VIDEO_TYPE_ASSEMBLY_PUSH,
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
+  type ChapterVideoPrompt,
+  type GeneratedVideo,
+  type SegmentGuidanceMode,
+  type VideoGenConfig,
+  type PromptOutputLanguage,
+  type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import {
-  type ChapterVideoWorkflowMode,
   currentFinalVideoPromptMatchesSegment,
-  extractPromptSourceHash,
+  extractSourceContentHash,
   isSelectableReferenceImage,
+  isVideoFramePromptImageGenerationSource,
   promptHasVideoWorkflowContract,
   promptOutputLanguageOfPrompt,
   promptSourcePromptType,
@@ -43,7 +53,7 @@ interface UseVideoTabDerivedStateParams {
   chapter: ChapterRow | null;
   selectedPromptId: number | null;
   selectedVideoId: number | null;
-  workflowMode: ChapterVideoWorkflowMode | null;
+  workflowMode: VideoSegmentWorkflowMode | null;
   promptOutputLanguage: PromptOutputLanguage;
   currentContentHash: string | null;
   frameSegmentPlanPrompt: ChapterVideoPrompt | null;
@@ -74,19 +84,19 @@ export const useVideoTabDerivedState = ({
   continuitySourceVideoId,
 }: UseVideoTabDerivedStateParams) => {
   const framePromptType =
-    workflowMode === "storyboard"
+    workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
       ? VIDEO_STORYBOARD_PROMPT_TYPE
-      : workflowMode === "first_frame_chain"
+      : workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
         ? VIDEO_FIRST_FRAME_PROMPT_TYPE
-        : workflowMode === "boundary_frames"
+        : workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
           ? VIDEO_FRAME_PROMPT_TYPE
           : null;
   const framePromptContractVersion =
-    workflowMode === "storyboard"
+    workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
       ? VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION
-      : workflowMode === "first_frame_chain"
+      : workflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
         ? VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION
-        : workflowMode === "boundary_frames"
+        : workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
           ? VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION
           : null;
   const finalVideoPrompts = useMemo(
@@ -128,7 +138,8 @@ export const useVideoTabDerivedState = ({
           framePromptContractVersion != null &&
           prompt.prompt_type === framePromptType &&
           videoWorkflowModeOfPrompt(prompt) === workflowMode &&
-          (workflowMode !== "first_frame_chain" || prompt.shot_number === 1) &&
+          (workflowMode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
+            prompt.shot_number === 1) &&
           promptHasVideoWorkflowContract(prompt, framePromptContractVersion) &&
           promptSourcePromptType(prompt) ===
             VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE &&
@@ -180,9 +191,9 @@ export const useVideoTabDerivedState = ({
       )
         continue;
       if (
-        video.video_type === "assembly_insert" ||
-        video.video_type === "assembly_push" ||
-        video.video_type === "assembly_postprocess_edit"
+        video.video_type === VIDEO_TYPE_ASSEMBLY_INSERT ||
+        video.video_type === VIDEO_TYPE_ASSEMBLY_PUSH ||
+        video.video_type === VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT
       ) {
         continue;
       }
@@ -213,7 +224,7 @@ export const useVideoTabDerivedState = ({
     [selectedVideo?.file_path],
   );
   const promptSourceHash = useMemo(
-    () => extractPromptSourceHash(selectedPrompt?.metadata_json),
+    () => extractSourceContentHash(selectedPrompt?.metadata_json),
     [selectedPrompt?.metadata_json],
   );
   const selectedPromptStale = Boolean(
@@ -226,9 +237,13 @@ export const useVideoTabDerivedState = ({
     () => new Set(framePrompts.map((prompt) => prompt.id)),
     [framePrompts],
   );
-  const finalVideoPromptIdSet = useMemo(
-    () => new Set(finalVideoPrompts.map((prompt) => prompt.id)),
-    [finalVideoPrompts],
+  const tailFrameSourceVideoIds = useMemo(
+    () => {
+      const ids = new Set(workflowVideos.map((video) => video.id));
+      if (continuitySourceVideoId != null) ids.add(continuitySourceVideoId);
+      return ids;
+    },
+    [continuitySourceVideoId, workflowVideos],
   );
   const { videoFrameImages, systemPromptReferenceIds } = useMemo(() => {
     const rows: GeneratedImage[] = [];
@@ -238,36 +253,31 @@ export const useVideoTabDerivedState = ({
       const promptId = videoImageGenerationPromptId(image);
       let matches = false;
       if (
-        (source === "video_boundary_frame_prompt" ||
-          source === "video_first_frame_prompt" ||
-          source === "video_storyboard_prompt") &&
+        isVideoFramePromptImageGenerationSource(source) &&
         promptId != null
       ) {
         matches = framePromptIdSet.has(promptId);
-      } else if (
-        source === "video_tail_frame_capture" &&
-        workflowMode !== "storyboard"
-      ) {
+      } else if (workflowMode !== VIDEO_WORKFLOW_MODE_STORYBOARD) {
+        const sourceVideoId = videoTailFrameSourceVideoId(image);
         matches =
-          (promptId != null && finalVideoPromptIdSet.has(promptId)) ||
-          videoTailFrameSourceVideoId(image) === continuitySourceVideoId;
+          sourceVideoId != null && tailFrameSourceVideoIds.has(sourceVideoId);
       }
       if (!matches) continue;
       rows.push(image);
       if (
         guidanceMode === "system_frames" ||
-        (guidanceMode === "continuity" && source === "video_tail_frame_capture")
+        (guidanceMode === "continuity" &&
+          source === IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
       ) {
         ids.add(image.id);
       }
     }
     return { videoFrameImages: rows, systemPromptReferenceIds: ids };
   }, [
-    continuitySourceVideoId,
-    finalVideoPromptIdSet,
     framePromptIdSet,
     guidanceMode,
     images,
+    tailFrameSourceVideoIds,
     workflowMode,
   ]);
   const { selectableReferenceImages, selectableReferenceIds } = useMemo(() => {

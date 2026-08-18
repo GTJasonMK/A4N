@@ -15,6 +15,7 @@ pub async fn project_summary_with_family_for_user(
 ) -> Result<ProjectSummary, String> {
     let progress_query = project_progress_query(project)?;
     let project_kind = progress_query.project_kind;
+    let source_mode = progress_query.source_mode;
     let status = progress_query.status;
     let progress = state
         .orchestrator()
@@ -36,6 +37,7 @@ pub async fn project_summary_with_family_for_user(
         &metadata,
         &info,
         project_kind,
+        source_mode,
         status,
         progress,
     ))

@@ -1,11 +1,17 @@
 import React, { useMemo } from "react";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type {
-  ChapterVideoPrompt,
-  VideoSegmentExecutionRecipe,
-  VideoTimelineItemSummary,
-  VideoTimelineSummary,
+import {
+  VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
+  VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+  VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+  VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
+  VIDEO_WORKFLOW_MODE_STORYBOARD,
+  type ChapterVideoPrompt,
+  type VideoSegmentExecutionRecipe,
+  type VideoSegmentWorkflowMode,
+  type VideoTimelineItemSummary,
+  type VideoTimelineSummary,
 } from "../../../api/video";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
@@ -16,12 +22,12 @@ import {
   PROMPT_OUTPUT_LANGUAGE_LABELS,
   videoGuidanceConfigurationError,
   VIDEO_WORKFLOW_MODE_LABELS,
-  type ChapterVideoWorkflowMode,
   type VideoSegmentCardPlan,
 } from "./videoTabUtils";
 import { promptTitle } from "./videoGenerationDisplay";
 import {
   gapLabel,
+  insertedSegmentGapKey,
   timelineGaps,
   type InsertedSegmentGap,
 } from "./InsertedSegmentTimelinePanel";
@@ -43,7 +49,7 @@ interface VideoPromptSetupPanelProps {
   onSelectPrompt: (id: number) => void | Promise<void>;
   onSelectSegment: (segmentNumber: number) => void | Promise<void>;
   onWorkflowModeChange: (
-    mode: ChapterVideoWorkflowMode,
+    mode: VideoSegmentWorkflowMode,
     shotNumber: number,
   ) => void | Promise<void>;
   onDeletePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
@@ -85,9 +91,12 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
 
   const renderPromptRow = (prompt: ChapterVideoPrompt) => {
     const selected = selectedPromptId === prompt.id;
+    const promptOutputLanguage = promptOutputLanguageOfPrompt(prompt);
     const metadata = [
       `${prompt.duration_secs} 秒`,
-      PROMPT_OUTPUT_LANGUAGE_LABELS[promptOutputLanguageOfPrompt(prompt)],
+      promptOutputLanguage == null
+        ? "输出语言无效"
+        : PROMPT_OUTPUT_LANGUAGE_LABELS[promptOutputLanguage],
       getOperationStatusLabel(prompt.status),
       prompt.generated_video_id != null ? "已生成视频" : null,
     ].filter((value): value is string => Boolean(value));
@@ -212,22 +221,30 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             onChange={(mode) => void onWorkflowModeChange(mode, shotNumber)}
             options={[
               {
-                id: "boundary_frames",
+                id: VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
                 label: "首尾帧",
                 disabled: busy,
               },
               {
-                id: "first_frame_chain",
+                id: VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
                 label: "首帧续接",
                 disabled: busy,
               },
-              { id: "storyboard", label: "分镜", disabled: busy },
               {
-                id: "reference_media",
+                id: VIDEO_WORKFLOW_MODE_STORYBOARD,
+                label: "分镜",
+                disabled: busy,
+              },
+              {
+                id: VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
                 label: "参考媒体",
                 disabled: busy,
               },
-              { id: "chat_video", label: "Chat", disabled: busy },
+              {
+                id: VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
+                label: "Chat",
+                disabled: busy,
+              },
             ]}
           />
           <div className="flex min-w-[12rem] flex-1 items-center gap-2 text-caption">
@@ -241,7 +258,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
               </span>
             ) : (
               <span className="text-book-text-muted">
-                {recipe.workflow_mode === "reference_media"
+                {recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
                   ? "在下方配置媒体并生成视频"
                   : "在下方填充素材并继续生成"}
               </span>
@@ -315,7 +332,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           ? "已有候选视频"
           : variants.length > 0
             ? `${variants.length} 条提示词`
-            : recipe?.workflow_mode === "reference_media"
+            : recipe?.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
               ? "无需最终提示词"
               : finalPromptBlockedReason
                 ? "待补充输入"
@@ -440,13 +457,15 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     );
   };
 
-  const renderGap = (gap: InsertedSegmentGap) => {
+  const renderGap = (
+    gap: InsertedSegmentGap,
+    items: VideoTimelineItemSummary[],
+  ) => {
     const blocked = gapBlocked(gap);
     return (
       <button
-        key={`gap-${gap.previous_item_id ?? 0}-${gap.next_item_id ?? 0}`}
         type="button"
-        aria-label={`在${gapLabel(gap, timeline?.items ?? [])}插入片段`}
+        aria-label={`在${gapLabel(gap, items)}插入片段`}
         title={blocked ? "请先重新定位相邻的插入片段" : "插入片段"}
         disabled={loading || acting != null || blocked}
         onClick={() => onInsertSegment(gap)}
@@ -485,9 +504,9 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
                   : (timelineItemById.get(gap.next_item_id) ?? null);
               return (
                 <React.Fragment
-                  key={`timeline-gap-${gap.previous_item_id ?? 0}-${gap.next_item_id ?? 0}`}
+                  key={`timeline-gap-${insertedSegmentGapKey(gap)}`}
                 >
-                  {renderGap(gap)}
+                  {renderGap(gap, timeline.items)}
                   {nextItem?.kind === "inserted"
                     ? renderInsertedCard(nextItem)
                     : nextItem?.segment_number != null

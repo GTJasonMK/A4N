@@ -1,15 +1,6 @@
-use a4n_core::files::paths::ProjectPaths;
+use a4n_core::files::{create_unique_timestamped_file, paths::ProjectPaths};
 use a4n_core::models::ai::generated_video;
 use std::path::{Path, PathBuf};
-
-pub(in crate::actions::video_generation::media) fn required_trim_chapter_id(
-    source: &generated_video::Model,
-) -> Result<i64, String> {
-    source
-        .chapter_id
-        .filter(|id| *id > 0)
-        .ok_or_else(|| format!("源视频 #{} 缺少 chapter_id，无法裁剪", source.id))
-}
 
 pub(crate) fn ensure_chapter_videos_dir(
     data_dir: &Path,
@@ -18,6 +9,16 @@ pub(crate) fn ensure_chapter_videos_dir(
 ) -> Result<PathBuf, String> {
     let dir = chapter_videos_dir(data_dir, project_id, chapter_id)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建视频目录 {dir:?}：{e}"))?;
+    Ok(dir)
+}
+
+pub(crate) fn ensure_project_videos_dir(
+    data_dir: &Path,
+    project_id: i64,
+) -> Result<PathBuf, String> {
+    let dir = ProjectPaths::new(data_dir, project_id).videos_dir();
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| format!("无法创建项目视频目录 {}：{error}", dir.display()))?;
     Ok(dir)
 }
 
@@ -35,25 +36,19 @@ pub(in crate::actions::video_generation::media) fn video_tail_frame_path(
 pub(crate) fn trimmed_video_path(
     data_dir: &Path,
     source: &generated_video::Model,
-    start_secs: f32,
-    end_secs: f32,
 ) -> Result<PathBuf, String> {
-    let chapter_id = required_trim_chapter_id(source)?;
-    let dir = ensure_chapter_videos_dir(data_dir, source.project_id, chapter_id)?;
-    Ok(dir.join(format!(
-        "trim_{}_{}_{}.mp4",
-        source.id,
-        millis_label(start_secs)?,
-        millis_label(end_secs)?
-    )))
-}
-
-fn millis_label(value: f32) -> Result<i32, String> {
-    let millis = (f64::from(value) * 1000.0).round();
-    if !millis.is_finite() || millis < f64::from(i32::MIN) || millis > f64::from(i32::MAX) {
-        return Err(format!("视频时间无法转换为 i32 毫秒标签：{value}"));
-    }
-    Ok(millis as i32)
+    let dir = match source.chapter_id {
+        Some(chapter_id) => ensure_chapter_videos_dir(data_dir, source.project_id, chapter_id)?,
+        None => ensure_project_videos_dir(data_dir, source.project_id)?,
+    };
+    let (path, file) = create_unique_timestamped_file(
+        &dir,
+        &format!("trim_{}", source.id),
+        "mp4",
+    )
+    .map_err(|error| format!("创建裁剪视频文件失败：{error}"))?;
+    drop(file);
+    Ok(path)
 }
 
 pub(in crate::actions::video_generation::media) fn chapter_videos_dir(

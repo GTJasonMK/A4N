@@ -1,6 +1,8 @@
+const LONG_SENTENCE_THRESHOLD_CHARS: usize = 200;
+const LONG_SENTENCE_CHUNK_CHARS: usize = 150;
+
 pub fn split_novel_sentences(text: &str) -> Vec<String> {
-    text.replace('\r', "")
-        .lines()
+    text.lines()
         .flat_map(split_paragraph_to_sentences)
         .collect()
 }
@@ -72,8 +74,8 @@ fn split_paragraph_to_sentences(paragraph: &str) -> Vec<String> {
     sentences
         .into_iter()
         .flat_map(|sentence| {
-            if sentence.chars().count() > 200 {
-                split_long_sentence_for_semantic(&sentence, 150)
+            if sentence.chars().count() > LONG_SENTENCE_THRESHOLD_CHARS {
+                split_long_sentence_for_semantic(&sentence)
             } else {
                 vec![sentence]
             }
@@ -89,16 +91,12 @@ fn flush_sentence_for_semantic(current: &mut String, sentences: &mut Vec<String>
     current.clear();
 }
 
-fn split_long_sentence_for_semantic(sentence: &str, max_len: usize) -> Vec<String> {
-    if sentence.chars().count() <= max_len {
-        return vec![sentence.to_string()];
-    }
-
+fn split_long_sentence_for_semantic(sentence: &str) -> Vec<String> {
     let chars = sentence.chars().collect::<Vec<_>>();
     let mut result = Vec::new();
     let mut start = 0usize;
     while start < chars.len() {
-        let hard_end = (start + max_len).min(chars.len());
+        let hard_end = (start + LONG_SENTENCE_CHUNK_CHARS).min(chars.len());
         if hard_end >= chars.len() {
             break;
         }
@@ -108,9 +106,7 @@ fn split_long_sentence_for_semantic(sentence: &str, max_len: usize) -> Vec<Strin
             .enumerate()
             .rev()
             .find_map(|(offset, ch)| is_soft_boundary(*ch).then_some(start + offset + 1));
-        let Some(end) = cut.filter(|end| *end > start) else {
-            return vec![sentence.to_string()];
-        };
+        let end = cut.unwrap_or(hard_end);
         result.push(
             chars[start..end]
                 .iter()
@@ -124,11 +120,7 @@ fn split_long_sentence_for_semantic(sentence: &str, max_len: usize) -> Vec<Strin
     if start < chars.len() {
         result.push(chars[start..].iter().collect::<String>().trim().to_string());
     }
-    if result.len() <= 1 {
-        vec![sentence.to_string()]
-    } else {
-        result
-    }
+    result
 }
 
 fn is_sentence_closer(ch: char) -> bool {

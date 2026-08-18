@@ -9,16 +9,13 @@ import { getProjectProgressText } from "../../utils/projectStatus";
 import {
   getProjectHomeEntryLabel,
   getProjectHomeEntryRoute,
+  PROJECT_ACCESS_ROLE_LABELS,
   getProjectWorkspaceLabel,
   getProjectWorkspaceRoute,
 } from "../../utils/projectRouting";
 import { prefetchProjectRouteByStatus } from "../../utils/projectRoutePrefetch";
 import { formatUiDate } from "../../utils/dateTime";
-import {
-  PROJECT_KIND_LABELS,
-  PROJECT_ROLE_LABELS,
-  type ProjectFamily,
-} from "./novelListUtils";
+import { PROJECT_KIND_LABELS, type ProjectFamily } from "./novelListUtils";
 
 export type ProjectActionItems = React.ComponentProps<typeof Dropdown>["items"];
 
@@ -186,7 +183,7 @@ const ProjectRow: React.FC<{
   const progressText = getProjectProgressText(project);
   const progressDetail = project.progress.detail;
   const kindLabel = PROJECT_KIND_LABELS[project.project_kind];
-  const roleLabel = PROJECT_ROLE_LABELS[project.my_role];
+  const roleLabel = PROJECT_ACCESS_ROLE_LABELS[project.my_role];
   const projectMeta = [
     kindLabel,
     lifecycleLabel,

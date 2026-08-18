@@ -123,6 +123,11 @@ pub struct HostErrorResponse {
     #[schemars(length(max = 4096))]
     pub message: String,
     pub retryable: bool,
-    #[schemars(length(max = 128))]
+    #[serde(deserialize_with = "crate::serde_update::deserialize_required_nullable_field")]
+    #[schemars(
+        required,
+        schema_with = "crate::serde_update::nullable_trace_id_schema"
+    )]
     pub trace_id: Option<String>,
+    pub details: serde_json::Map<String, serde_json::Value>,
 }

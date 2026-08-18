@@ -7,8 +7,6 @@ fn rag_results_reject_unknown_fields() {
         "id": "record-1",
         "content": "content",
         "score": 1.0,
-        "vector_score": 1.0,
-        "bm25_score": null,
         "metadata": {},
         "legacy_rank": 1
     }))

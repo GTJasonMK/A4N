@@ -9,12 +9,6 @@ pub(crate) fn workflow_checkpoint_contract_app_error(
 ) -> AppError {
     match error {
         WorkflowCheckpointContractError::Invalid(message) => AppError::InvalidArgument(message),
-        WorkflowCheckpointContractError::MissingCheckpointJson { call_key } => {
-            AppError::InvalidState {
-                current: "missing_checkpoint_json".to_string(),
-                operation: format!("读取 LLM 调用断点 {call_key}"),
-            }
-        }
         WorkflowCheckpointContractError::Serialization(error) => {
             AppError::InvalidArgument(error.to_string())
         }
@@ -49,23 +43,6 @@ pub(crate) fn workflow_write_app_error(error: WorkflowWriteError) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn checkpoint_missing_json_maps_to_invalid_state() {
-        let error = workflow_checkpoint_contract_app_error(
-            WorkflowCheckpointContractError::MissingCheckpointJson {
-                call_key: "chapter_analysis.facts".to_string(),
-            },
-        );
-
-        match error {
-            AppError::InvalidState { current, operation } => {
-                assert_eq!(current, "missing_checkpoint_json");
-                assert_eq!(operation, "读取 LLM 调用断点 chapter_analysis.facts");
-            }
-            other => panic!("expected invalid state, got {other}"),
-        }
-    }
 
     #[test]
     fn workflow_read_invalid_argument_preserves_message() {

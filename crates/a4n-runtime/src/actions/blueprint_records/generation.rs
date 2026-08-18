@@ -2,6 +2,7 @@ use a4n_api_contract::{
     blueprint::{BlueprintSummary, PreviewBlueprintGenerationInput, StartBlueprintGenerationInput},
     generation_tasks::GenerationTaskHandle,
 };
+use a4n_core::blueprint::BLUEPRINT_GENERATION_KIND;
 use a4n_core::error::AppError;
 use a4n_orchestrator::GenerationTaskAccessError;
 
@@ -17,36 +18,24 @@ pub async fn start_blueprint_generation_typed(
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
         .orchestrator()
-        .start_blueprint_generation_task(user_id, input.clone())
+        .start_blueprint_generation_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
     }
 
     let worker_state = state.clone();
-    let handle = start.handle.clone();
-    state.spawn_generation_execution(handle.task_id.clone(), async move {
-        let prompt_renderer = &worker_state;
-        if let Err(error) = worker_state
-            .orchestrator()
-            .run_blueprint_generation_task(
-                a4n_orchestrator::blueprint::BlueprintGenerationApplicationContext {
-                    prompt_renderer: prompt_renderer,
-                },
-                user_id,
-                input,
-                handle.clone(),
-            )
-            .await
-        {
-            tracing::error!(
-                task_id = %handle.task_id,
-                attempt = handle.attempt,
-                error = %error,
-                "蓝图 generation worker 失败"
-            );
-        }
-    });
+    state.spawn_generation_execution(
+        start.handle.clone(),
+        BLUEPRINT_GENERATION_KIND,
+        move |handle| async move {
+            let prompt_renderer = &worker_state;
+            worker_state
+                .orchestrator()
+                .run_blueprint_generation_task(prompt_renderer, input, handle)
+                .await
+        },
+    );
     Ok(start.handle)
 }
 
@@ -69,9 +58,9 @@ pub async fn preview_generate_blueprint_request(
 ) -> Result<ModelRequestPreview, AppError> {
     let variables = input.variables.unwrap_or_default().into_iter().collect();
     let prompt_renderer = state;
-    let stages = state
+    let stage = state
         .orchestrator()
-        .preview_blueprint_generation_requests_for_user_validated(
+        .preview_blueprint_generation_request_for_user_validated(
             user_id,
             input.project_id,
             &input.title,
@@ -83,11 +72,16 @@ pub async fn preview_generate_blueprint_request(
         .await?;
     chat_status_preview_for_state(
         state,
-        "blueprint_generation",
+        BLUEPRINT_GENERATION_KIND,
         "蓝图生成请求预览",
-        stages
-            .into_iter()
-            .map(super::projections::blueprint_preview_step),
+        [crate::actions::request_preview::ChatStatusPreviewStep::llm(
+            stage.key,
+            stage.title,
+            Some(stage.prompt_name),
+            "ready",
+            None,
+            Some(stage.request),
+        )],
         "llm_chat",
     )
     .await

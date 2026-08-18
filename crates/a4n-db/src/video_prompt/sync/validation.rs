@@ -38,38 +38,55 @@ pub(super) fn validate_prompt_sync_draft(
         ))
     };
     match fields.prompt_type.as_str() {
-        "frame_segment_plan" | "frame_prompt" => {
-            let valid = if fields.prompt_type == "frame_segment_plan" {
-                fields.workflow_mode == "shared_segment_plan"
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+        | chapter_video_prompt::PROMPT_TYPE_FRAME => {
+            let valid = if fields.prompt_type
+                == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+            {
+                fields.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
             } else {
-                fields.workflow_mode == "boundary_frames"
+                fields.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
             };
             if !valid {
                 return Err(invalid_workflow(
-                    if fields.prompt_type == "frame_segment_plan" {
-                        "shared_segment_plan"
+                    if fields.prompt_type
+                        == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+                    {
+                        chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
                     } else {
-                        "boundary_frames"
+                        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
                     },
                 ));
             }
         }
-        "first_frame_prompt" if fields.workflow_mode != "first_frame_chain" => {
-            return Err(invalid_workflow("first_frame_chain"));
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+            if fields.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN =>
+        {
+            return Err(invalid_workflow(
+                chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
+            ));
         }
-        "chat_video_frame_prompt" if fields.workflow_mode != "chat_video" => {
-            return Err(invalid_workflow("chat_video"));
+        chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+            if fields.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO =>
+        {
+            return Err(invalid_workflow(
+                chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
+            ));
         }
-        "storyboard_prompt" if fields.workflow_mode != "storyboard" => {
-            return Err(invalid_workflow("storyboard"));
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD
+            if fields.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_STORYBOARD =>
+        {
+            return Err(invalid_workflow(
+                chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+            ));
         }
-        "video_prompt" => {
+        chapter_video_prompt::PROMPT_TYPE_VIDEO => {
             let actual = fields
                 .metadata_json
                 .as_ref()
                 .and_then(|metadata| metadata.get("source_prompt_type"))
                 .and_then(Value::as_str);
-            if actual != Some("frame_segment_plan") {
+            if actual != Some(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN) {
                 return Err(VideoDbError::InvalidArgument(format!(
                     "视频提示词草稿 workflow {} 的 video_prompt 必须声明 source_prompt_type=frame_segment_plan，实际为 {}",
                     fields.workflow_mode,
@@ -77,14 +94,16 @@ pub(super) fn validate_prompt_sync_draft(
                 )));
             }
         }
-        "first_frame_prompt" | "chat_video_frame_prompt" | "storyboard_prompt" => {}
+        chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {}
         other => {
             return Err(VideoDbError::InvalidArgument(format!(
                 "未知视频提示词草稿类型：{other}"
             )));
         }
     }
-    if fields.prompt_type != "frame_segment_plan"
+    if fields.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
         && prompt_execution_identity(fields.metadata_json.as_ref()).is_none()
     {
         return Err(VideoDbError::InvalidArgument(format!(
@@ -92,6 +111,30 @@ pub(super) fn validate_prompt_sync_draft(
             fields.prompt_type
         )));
     }
+    validate_prompt_output_language_metadata(
+        &fields.prompt_type,
+        fields.metadata_json.as_ref(),
+        0,
+    )?;
+    Ok(())
+}
+
+pub(super) fn validate_prompt_output_language_metadata(
+    prompt_type: &str,
+    metadata: Option<&Value>,
+    prompt_id: i64,
+) -> Result<(), VideoDbError> {
+    if !a4n_core::prompt_language::prompt_type_uses_prompt_output_language(prompt_type) {
+        return Ok(());
+    }
+    a4n_core::prompt_language::PromptOutputLanguage::from_metadata(metadata).map_err(|error| {
+        let subject = if prompt_id > 0 {
+            format!("章节视频提示词 #{prompt_id}")
+        } else {
+            format!("视频提示词草稿类型 {prompt_type}")
+        };
+        VideoDbError::InvalidArgument(format!("{subject} {error}"))
+    })?;
     Ok(())
 }
 
@@ -99,14 +142,7 @@ pub(super) fn validate_prompt_workflow_mode(
     workflow_mode: &str,
     prompt_id: i64,
 ) -> Result<(), VideoDbError> {
-    if matches!(
-        workflow_mode,
-        "shared_segment_plan"
-            | "boundary_frames"
-            | "first_frame_chain"
-            | "chat_video"
-            | "storyboard"
-    ) {
+    if chapter_video_prompt::WORKFLOW_MODES.contains(&workflow_mode) {
         return Ok(());
     }
     let subject = if prompt_id > 0 {

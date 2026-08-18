@@ -1,4 +1,4 @@
-use a4n_api_contract::project::{ProjectKind, ProjectStatus};
+use a4n_api_contract::project::{ProjectKind, ProjectSourceMode, ProjectStatus};
 use a4n_core::models::project::novel_project;
 use a4n_orchestrator::collaboration::ProjectAccessInfo;
 use a4n_orchestrator::project::ProjectFamilyMetadata;
@@ -10,6 +10,7 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
     metadata: &ProjectFamilyMetadata,
     info: &ProjectAccessInfo,
     project_kind: ProjectKind,
+    source_mode: ProjectSourceMode,
     status: ProjectStatus,
     progress: ProjectProgressSummary,
 ) -> ProjectSummary {
@@ -20,7 +21,7 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
         lifecycle_gate: project.lifecycle_gate.clone(),
         project_type: project.project_type.clone(),
         project_kind,
-        source_mode: project.source_mode.clone(),
+        source_mode,
         root_project_id: project.root_project_id,
         source_sync_status: project.source_sync_status.clone(),
         root_project_title: metadata.root_project_title.clone(),

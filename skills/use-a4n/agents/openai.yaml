@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use A4N"
+  short_description: "指导并自动执行 A4N 创作、画布、配置与协作工作流"
+  default_prompt: "使用 $use-a4n 指导或执行一个 A4N 创作、配置或协作工作流。"

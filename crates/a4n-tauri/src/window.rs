@@ -1,5 +1,4 @@
 use a4n_core::{config::app_config::AppConfig, files::paths::AppPaths};
-use tauri::Manager;
 
 pub(crate) fn create_main_window(app: &mut tauri::App, config: &AppConfig) -> tauri::Result<()> {
     let webview_data_dir = AppPaths::from_config(config).webview_dir();
@@ -19,11 +18,11 @@ pub(crate) fn create_main_window(app: &mut tauri::App, config: &AppConfig) -> ta
     Ok(())
 }
 
+#[cfg(debug_assertions)]
 pub(crate) fn open_devtools_in_debug(app: &tauri::App) {
-    #[cfg(debug_assertions)]
-    {
-        if let Some(window) = app.get_webview_window("main") {
-            window.open_devtools();
-        }
+    use tauri::Manager as _;
+
+    if let Some(window) = app.get_webview_window("main") {
+        window.open_devtools();
     }
 }

@@ -1,10 +1,5 @@
-import type {
-  ProjectImportAnalysisProgress,
-  ReverseEngineeringTarget,
-} from "../../../api/import";
+import type { ProjectImportAnalysisProgress, ReverseEngineeringTarget } from "../../../api/import";
 import type { ProgressDialogStatus } from "../../../components/feedback/ProgressDialog";
-
-export type ReverseType = ReverseEngineeringTarget;
 
 export const formalReverseNotice = (
   successMessage: string,
@@ -14,7 +9,7 @@ export const formalReverseNotice = (
   tone: warnings.length > 0 ? "info" : "success",
 });
 
-export const REVERSE_CONTEXT_LIMITS: Record<ReverseType, number> = {
+export const REVERSE_CONTEXT_LIMITS: Record<ReverseEngineeringTarget, number> = {
   blueprint: 50,
   outline: 100,
   part_outline: 200,

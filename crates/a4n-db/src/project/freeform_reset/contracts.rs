@@ -30,10 +30,7 @@ pub enum FreeformGeneratedResetDbError {
     #[error("项目不存在: {project_id}")]
     ProjectNotFound { project_id: i64 },
     #[error("仅自由画布视频项目支持该生成数据重置入口")]
-    UnsupportedProject {
-        project_kind: String,
-        source_mode: String,
-    },
+    UnsupportedProject,
     #[error("{source}")]
     ProjectCleanup {
         #[source]

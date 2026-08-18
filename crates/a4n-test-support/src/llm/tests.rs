@@ -95,18 +95,16 @@ async fn cancelling_provider_cancels_then_keeps_the_stream_pending() {
 }
 
 #[tokio::test]
-async fn counting_provider_tracks_stream_and_connection_calls_independently() {
+async fn counting_provider_tracks_stream_calls() {
     let provider = CountingLlmProvider::default();
 
     let response = collect_chat_stream(&provider, request())
         .await
         .expect("counted chat response");
-    assert!(provider.test_connection().await.expect("connection result"));
 
     assert_eq!(response.message.content, "probe ok");
     assert_eq!(response.usage.map(|usage| usage.total_tokens), Some(5));
     assert_eq!(provider.stream_call_count(), 1);
-    assert_eq!(provider.test_connection_call_count(), 1);
 }
 
 #[tokio::test]
@@ -128,7 +126,7 @@ async fn switchable_provider_replaces_its_delegate() {
 
 #[tokio::test]
 async fn unavailable_llm_preserves_stream_and_capability_contracts() {
-    let provider = UnavailableLlmProvider::new("chat unavailable", "stream unavailable");
+    let provider = UnavailableLlmProvider::new("stream unavailable");
     let stream_error = match provider.chat_stream(request()).await {
         Ok(_) => panic!("unavailable stream must fail"),
         Err(error) => error,
@@ -138,7 +136,6 @@ async fn unavailable_llm_preserves_stream_and_capability_contracts() {
         stream_error,
         AppError::LlmError(message) if message == "stream unavailable"
     ));
-    assert!(!provider.test_connection().await.expect("connection result"));
     assert_eq!(provider.model_name(), "test-unavailable");
     assert_eq!(provider.count_tokens("text"), 0);
 

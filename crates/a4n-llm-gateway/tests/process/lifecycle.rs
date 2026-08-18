@@ -15,7 +15,14 @@ async fn manager_starts_and_stops_independent_gateway_binary() {
         .await
         .expect("manager should start the independent gateway binary");
     assert_eq!(process.service_name(), LLM_SERVICE_NAME);
-    assert!(process.id().is_some_and(|pid| pid > 0));
+    assert!(
+        manager
+            .process_status(LLM_SERVICE_NAME)
+            .await
+            .unwrap()
+            .and_then(|status| status.pid)
+            .is_some_and(|pid| pid > 0)
+    );
     assert_gateway_health(&manager, addr).await;
 
     process
@@ -39,7 +46,14 @@ async fn dropping_manager_owned_handle_kills_gateway_and_releases_port() {
         .start_sidecar(LLM_SERVICE_NAME)
         .await
         .expect("manager should start the independent gateway binary");
-    assert!(process.id().is_some_and(|pid| pid > 0));
+    assert!(
+        manager
+            .process_status(LLM_SERVICE_NAME)
+            .await
+            .unwrap()
+            .and_then(|status| status.pid)
+            .is_some_and(|pid| pid > 0)
+    );
     assert_gateway_health(&manager, addr).await;
 
     drop(process);

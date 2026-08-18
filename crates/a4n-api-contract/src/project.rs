@@ -6,9 +6,9 @@ use crate::collaboration::ProjectAccessRole;
 pub use a4n_domain::project::{
     AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
     AssetLineageRecord, AssetLineageRef, GenerationInputSource, ProjectKind,
-    ProjectProgressSummary, ProjectRollbackImpactSummary, ProjectRollbackPreview, ProjectStatus,
-    ProjectStatusHistorySummary, ProjectStatusMachineSummary, PromptSource,
-    SourceSnapshotChapterSummary,
+    ProjectProgressSummary, ProjectRollbackImpactSummary, ProjectRollbackPreview,
+    ProjectSourceMode, ProjectStatus, ProjectStatusHistorySummary, ProjectStatusMachineSummary,
+    PromptSource, SourceSnapshotChapterSummary,
 };
 
 #[derive(Serialize, JsonSchema)]
@@ -19,7 +19,7 @@ pub struct ProjectSummary {
     pub lifecycle_gate: String,
     pub project_type: String,
     pub project_kind: ProjectKind,
-    pub source_mode: String,
+    pub source_mode: ProjectSourceMode,
     pub root_project_id: Option<i64>,
     pub source_sync_status: String,
     pub root_project_title: Option<String>,

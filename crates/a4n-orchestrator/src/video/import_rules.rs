@@ -1,5 +1,6 @@
 //! 视频导入/裁剪/抽帧纯规则（无 DB、无 Host 路径 IO）。
 
+use a4n_domain::{CanvasFrameKind, VIDEO_TAIL_FRAME_OFFSET_SECS};
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -30,24 +31,6 @@ pub fn import_video_extension(path: &Path) -> Result<&'static str, String> {
         "m4v" => Ok("m4v"),
         _ => Err(format!("导入视频格式不支持：{extension}")),
     }
-}
-
-/// 上传视频文件名（禁止路径分隔）。
-pub fn required_upload_video_file_name(file_name: &str) -> Result<String, String> {
-    let trimmed = file_name.trim();
-    if trimmed.is_empty() {
-        return Err("上传视频文件名不能为空".to_string());
-    }
-    let name = Path::new(trimmed)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "上传视频文件名无效".to_string())?;
-    if name != trimmed {
-        return Err("上传视频文件名不能包含路径".to_string());
-    }
-    Ok(name.to_string())
 }
 
 /// MIME 与扩展名匹配校验。
@@ -129,48 +112,42 @@ pub fn trimmed_video_metadata(
     metadata
 }
 
-/// 规范化画布抽帧类型。
-pub fn normalize_canvas_frame_kind(value: &str) -> Result<String, String> {
-    let value = value.trim();
-    match value {
-        "" | "first" | "first_frame" => Ok("first".to_string()),
-        "tail" | "last" | "last_frame" | "end" => Ok("tail".to_string()),
-        "time" | "key" | "key_frame" | "at_secs" => Ok("time".to_string()),
-        other => Err(format!("抽帧类型无效: {other}")),
-    }
-}
-
 /// 按帧类型与视频时长计算抽帧时间点。
 pub fn canvas_frame_timestamp(
     duration_secs: f32,
-    frame_kind: &str,
+    frame_kind: CanvasFrameKind,
     at_secs: Option<f32>,
 ) -> Result<f32, String> {
-    let duration = duration_secs.max(0.0);
-    let timestamp = match frame_kind {
-        "first" => 0.0,
-        "tail" => {
-            if duration > 0.12 {
-                duration - 0.08
+    if !duration_secs.is_finite() || duration_secs <= 0.0 {
+        return Err("源视频时长必须是有限正数".to_string());
+    }
+    match (frame_kind, at_secs) {
+        (CanvasFrameKind::First, None) => Ok(0.0),
+        (CanvasFrameKind::Tail, None) => Ok(
+            if duration_secs > VIDEO_TAIL_FRAME_OFFSET_SECS {
+                duration_secs - VIDEO_TAIL_FRAME_OFFSET_SECS
             } else {
                 0.0
+            },
+        ),
+        (CanvasFrameKind::Time, Some(timestamp)) => {
+            if !timestamp.is_finite() || timestamp < 0.0 {
+                return Err("抽帧时间必须是有限非负数".to_string());
             }
+            if timestamp >= duration_secs {
+                return Err("抽帧时间必须早于视频结束时间".to_string());
+            }
+            Ok(timestamp)
         }
-        "time" => at_secs.ok_or_else(|| "按时间抽帧必须提供 at_secs".to_string())?,
-        _ => return Err(format!("抽帧类型无效: {frame_kind}")),
-    };
-    if !timestamp.is_finite() || timestamp < 0.0 {
-        return Err("抽帧时间必须是非负数".to_string());
+        (CanvasFrameKind::Time, None) => Err("按时间抽帧必须提供 at_secs".to_string()),
+        (_, Some(_)) => Err("首帧或尾帧抽取不接受 at_secs".to_string()),
     }
-    if duration > 0.0 && timestamp > duration + 0.5 {
-        return Err("抽帧时间超过视频时长".to_string());
-    }
-    Ok(timestamp)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::media::required_upload_file_name;
 
     #[test]
     fn trim_range_and_extension() {
@@ -184,12 +161,12 @@ mod tests {
     }
 
     #[test]
-    fn upload_name_mime_and_data_url() {
+    fn upload_name_and_mime() {
         assert_eq!(
-            required_upload_video_file_name(" clip.mp4 ").unwrap(),
+            required_upload_file_name(" clip.mp4 ", "上传视频文件名").unwrap(),
             "clip.mp4"
         );
-        assert!(required_upload_video_file_name("../x.mp4").is_err());
+        assert!(required_upload_file_name("../x.mp4", "上传视频文件名").is_err());
         validate_upload_video_mime("video/mp4", "mp4").unwrap();
         assert!(validate_upload_video_mime("image/png", "mp4").is_err());
     }
@@ -216,13 +193,23 @@ mod tests {
         assert_eq!(trim["trim"]["start_secs"], json!(1.0));
         assert_eq!(trim["source"]["k"], json!(1));
 
-        assert_eq!(normalize_canvas_frame_kind("last_frame").unwrap(), "tail");
-        assert_eq!(canvas_frame_timestamp(10.0, "first", None).unwrap(), 0.0);
-        assert!((canvas_frame_timestamp(10.0, "tail", None).unwrap() - 9.92).abs() < 1e-3);
         assert_eq!(
-            canvas_frame_timestamp(10.0, "time", Some(3.0)).unwrap(),
+            canvas_frame_timestamp(10.0, CanvasFrameKind::First, None).unwrap(),
+            0.0
+        );
+        assert!(
+            (canvas_frame_timestamp(10.0, CanvasFrameKind::Tail, None).unwrap()
+                - (10.0 - VIDEO_TAIL_FRAME_OFFSET_SECS))
+                .abs()
+                < 1e-3
+        );
+        assert_eq!(
+            canvas_frame_timestamp(10.0, CanvasFrameKind::Time, Some(3.0)).unwrap(),
             3.0
         );
-        assert!(canvas_frame_timestamp(10.0, "time", None).is_err());
+        assert!(canvas_frame_timestamp(10.0, CanvasFrameKind::Time, None).is_err());
+        assert!(canvas_frame_timestamp(10.0, CanvasFrameKind::Time, Some(10.0)).is_err());
+        assert!(canvas_frame_timestamp(0.0, CanvasFrameKind::First, None).is_err());
+        assert!("last_frame".parse::<CanvasFrameKind>().is_err());
     }
 }

@@ -5,14 +5,12 @@ import {
   listImageConfigs,
   listServerImageConfigs,
   previewTestImageConfigRequest,
-  previewServerTestImageConfigRequest,
   removeImageConfig,
   removeServerImageConfig,
   setDefaultImageConfig,
   setDefaultServerImageConfig,
   SYSTEM_IMAGE_CONFIG_ID,
   testImageConfig,
-  testServerImageConfig,
   updateImageConfig,
   updateServerImageConfig,
 } from "../../api/image";
@@ -33,6 +31,7 @@ import {
   listModelProviderCatalog,
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
+import type { ModelConfigScope } from "../../api/modelDiscovery";
 
 /**
  * 图片生成配置 Tab
@@ -43,10 +42,10 @@ import type { ModelProviderCatalog } from "../../api/generated/config";
  */
 
 interface ImageTabProps {
-  scope?: "user" | "server";
+  scope?: ModelConfigScope;
 }
 
-export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
+export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<ImageForm>[];
@@ -94,7 +93,7 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
           form={form}
           setForm={setForm}
           configId={context.selectedId}
-          serverScope={serverScope}
+          scope={scope}
           readonly={context.readonly}
           templateLocked={
             !serverScope && context.selectedId === SYSTEM_IMAGE_CONFIG_ID
@@ -120,13 +119,9 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
         )(id);
       }}
       onTest={async (id) => {
-        await (serverScope ? testServerImageConfig : testImageConfig)(id);
+        await testImageConfig(id, scope);
       }}
-      onPreviewTest={
-        serverScope
-          ? previewServerTestImageConfigRequest
-          : previewTestImageConfigRequest
-      }
+      onPreviewTest={(id) => previewTestImageConfigRequest(id, scope)}
     />
   );
 };

@@ -11,6 +11,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import {
   buildReferenceCandidates,
+  mangaReferenceAssetKey,
   type MangaPagePrompt,
 } from "./mangaPagePromptModel";
 
@@ -51,7 +52,10 @@ export const ReferenceBindingsPanel: React.FC<{
         const candidates = buildReferenceCandidates(binding, profiles, portraits, projectImages);
         const bindingKey = `${page.prompt.id}:${binding.characterName}`;
         const boundKey = binding.boundAsset
-          ? `${binding.boundAsset.asset_kind}:${binding.boundAsset.asset_id}`
+          ? mangaReferenceAssetKey(
+              binding.boundAsset.asset_kind,
+              binding.boundAsset.asset_id,
+            )
           : "";
         const selectedKey = selectedCandidateByCharacter[bindingKey] ?? boundKey;
         const selected = candidates.find((candidate) => candidate.key === selectedKey);

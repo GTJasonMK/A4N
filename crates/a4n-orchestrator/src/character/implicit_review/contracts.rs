@@ -4,15 +4,12 @@ pub use a4n_api_contract::character::{
     ImplicitUpdateDecisionSummary,
 };
 use a4n_core::models::character::{protagonist_behavior_record, protagonist_profile};
+use a4n_domain::character::ImplicitUpdateDecision;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 
-pub struct ImplicitUpdateReviewRequestPreview {
-    pub request: ChatRequest,
-}
-
-pub struct CharacterSyncImplicitReviewInput<'a> {
-    pub workflow_run_id: Option<i64>,
+pub(crate) struct CharacterSyncImplicitReviewInput<'a> {
+    pub workflow_run_id: i64,
     pub profile: &'a protagonist_profile::Model,
     pub start_chapter: i32,
     pub final_attributes: &'a Value,
@@ -46,7 +43,7 @@ impl From<&protagonist_behavior_record::Model> for BehaviorForReview {
 
 #[derive(Debug)]
 pub(super) struct ParsedImplicitDecision {
-    pub(super) decision: String,
+    pub(super) decision: ImplicitUpdateDecision,
     pub(super) reasoning: String,
     pub(super) suggested_new_value: Option<Value>,
     pub(super) evidence_summary: String,
@@ -55,9 +52,16 @@ pub(super) struct ParsedImplicitDecision {
 pub(super) struct CheckImplicitUpdateRequestContext {
     pub(super) profile_id: i64,
     pub(super) project_id: i64,
-    pub(super) current_value: Value,
     pub(super) stats: ImplicitAttributeReviewSummary,
+    pub(super) call_key: String,
+    pub(super) input_fingerprint_json: Value,
     pub(super) request: ChatRequest,
+}
+
+pub(super) struct PreparedImplicitUpdateRequest {
+    pub(super) call_key: String,
+    pub(super) request: ChatRequest,
+    pub(super) input_fingerprint_json: Value,
 }
 
 pub(super) struct ImplicitUpdateLlmRequestInput<'a> {
@@ -65,10 +69,10 @@ pub(super) struct ImplicitUpdateLlmRequestInput<'a> {
     pub(super) profile_id: i64,
     pub(super) profile_name: &'a str,
     pub(super) attribute_key: &'a str,
-    pub(super) current_value: &'a Value,
     pub(super) stats: &'a ImplicitAttributeReviewSummary,
     pub(super) threshold: usize,
     pub(super) window_chapters: usize,
-    pub(super) source_refs_json: Value,
-    pub(super) call_key: String,
+    pub(super) trigger: &'a str,
+    pub(super) start_chapter: Option<i32>,
+    pub(super) evidence_limit: usize,
 }

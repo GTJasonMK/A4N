@@ -1,12 +1,12 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
+use a4n_db::workflow::{
+    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+};
 use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
 use serde_json::{Value, json};
 
-use crate::OrchestratorContext;
-use crate::workflow::{
-    workflow_checkpoint_contract_app_error, workflow_read_app_error, workflow_write_app_error,
-};
+use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
+use crate::workflow::workflow_checkpoint_contract_app_error;
 
 pub mod design_brief;
 
@@ -21,8 +21,8 @@ mod workflow_rules;
 pub use application::{
     DecodedPortraitImage, GenerateAgeVariantInput, GenerateMissingPortraitsInput,
     GeneratePortraitInput, GeneratePortraitPromptInput, GeneratedPortraitImage,
-    PersistPortraitFileInput, PersistedPortraitFile, PortraitArtifactFile, PortraitBatchItem,
-    PortraitBatchOutcome, PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
+    PersistPortraitFileInput, PersistedPortraitFile, PortraitBatchItem, PortraitBatchOutcome,
+    PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
     PortraitReferenceImageSource, PortraitSummary, PortraitType, RegeneratePortraitInput,
     UploadPortraitInput, portrait_summary,
 };
@@ -243,26 +243,17 @@ impl OrchestratorContext {
             &fingerprint_json,
         )?;
 
-        workflow::mark_workflow_current_step(
-            self.database.connection(),
-            workflow_run_id,
-            &call_key,
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
-        if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-            self.database.connection(),
-            workflow_run_id,
-            &call_key,
-            &fingerprint_json,
-        )
-        .await
-        .map_err(workflow_read_app_error)?
+        self.mark_workflow_current_step(workflow_run_id, &call_key)
+            .await?;
+        if let Some(checkpoint) = self
+            .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &fingerprint_json)
+            .await?
         {
-            let checkpoint_json =
-                workflow::required_llm_call_checkpoint_json(checkpoint, &call_key)
-                    .map_err(workflow_checkpoint_contract_app_error)?;
-            return restored_portrait_prompt_checkpoint(checkpoint_json, &call_key);
+            return restored_portrait_prompt_checkpoint(
+                &checkpoint.parsed_output,
+                &checkpoint.response_content,
+                &call_key,
+            );
         }
 
         let response = llm_stream::execute_portrait_llm_call(self, request, &call_key).await?;
@@ -277,25 +268,20 @@ impl OrchestratorContext {
             .as_ref()
             .map(serde_json::to_value)
             .transpose()?;
-        workflow::save_completed_llm_call_checkpoint(
-            self.database.connection(),
-            CompletedLlmCallCheckpointInput {
+        self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key,
                 call_order: 1,
                 input_fingerprint_json: fingerprint_json,
-                checkpoint_json: json!({
-                    "output": output.clone(),
-                    "parsed_output": output.clone(),
-                    "response_content": response.message.content,
-                    "usage": usage,
-                    "finish_reason": response.finish_reason,
-                }),
-                artifacts_json: None,
-            },
-        )
-        .await
-        .map_err(workflow_write_app_error)?;
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: Value::String(output.clone()),
+                    response_content: response.message.content,
+                    usage,
+                    finish_reason: response.finish_reason,
+                    artifacts_json: None,
+                },
+        })
+        .await?;
         Ok(output)
     }
 }
@@ -318,33 +304,19 @@ fn portrait_prompt_call_fingerprint_json(
 }
 
 fn restored_portrait_prompt_checkpoint(
-    checkpoint_json: Value,
+    parsed_output: &Value,
+    response_content: &str,
     call_key: &str,
 ) -> Result<String, AppError> {
-    let parsed_output = required_checkpoint_string(&checkpoint_json, call_key, "parsed_output")?;
-    let response_content =
-        required_checkpoint_string(&checkpoint_json, call_key, "response_content")?;
-    let reparsed = normalize_portrait_prompt_response(&response_content)?;
-    if reparsed != parsed_output {
-        return Err(AppError::InvalidState {
-            current: "checkpoint_parsed_output_mismatch".to_string(),
-            operation: format!("恢复人物三视图提示词 LLM 调用断点 {call_key}"),
-        });
-    }
+    let parsed_output = parsed_output.as_str().ok_or_else(|| AppError::InvalidState {
+        current: "invalid_checkpoint_field:parsed_output".to_string(),
+        operation: format!("读取人物三视图提示词 LLM 调用断点 {call_key}"),
+    })?;
+    let reparsed = normalize_portrait_prompt_response(response_content)?;
+    ensure_checkpoint_parsed_output_matches(
+        parsed_output,
+        &reparsed,
+        &format!("人物三视图提示词 {call_key}"),
+    )?;
     Ok(reparsed)
-}
-
-fn required_checkpoint_string(
-    checkpoint_json: &Value,
-    call_key: &str,
-    field: &str,
-) -> Result<String, AppError> {
-    checkpoint_json
-        .get(field)
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!("missing_or_invalid_checkpoint_field:{field}"),
-            operation: format!("读取人物三视图提示词 LLM 调用断点 {call_key}"),
-        })
 }

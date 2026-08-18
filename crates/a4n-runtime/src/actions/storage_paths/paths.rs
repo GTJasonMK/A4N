@@ -2,7 +2,9 @@ use super::StoragePathsSummary;
 use crate::AppState;
 use crate::actions::admin_records::{AdminPermission, require_admin_permission};
 use a4n_core::config::app_config::portable_home_dir;
+use a4n_core::config::env::optional_non_empty_env_string;
 use a4n_core::error::AppError;
+use a4n_rag_core::DEFAULT_QDRANT_COLLECTION;
 use std::path::{Path, PathBuf};
 
 pub fn data_dir_path(data_dir: &Path) -> PathBuf {
@@ -23,6 +25,9 @@ pub async fn get_storage_paths(
 ) -> Result<StoragePathsSummary, AppError> {
     require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings).await?;
     let paths = state.app_paths();
+    let qdrant_url = optional_non_empty_env_string("A4N_QDRANT_URL")?.unwrap_or_default();
+    let qdrant_collection = optional_non_empty_env_string("A4N_QDRANT_COLLECTION")?
+        .unwrap_or_else(|| DEFAULT_QDRANT_COLLECTION.to_string());
     Ok(StoragePathsSummary {
         application_home: path_to_string(portable_home_dir()),
         data_dir: path_to_string(&paths.data_dir),
@@ -32,19 +37,14 @@ pub async fn get_storage_paths(
         exports_dir: path_to_string(paths.exports_dir()),
         backups_dir: path_to_string(paths.backups_dir()),
         cache_dir: path_to_string(&paths.cache_dir),
-        embedding_models_dir: path_to_string(
-            crate::dynamic_embedding::effective_fastembed_cache_dir(
-                state.default_fastembed_cache_dir(),
-            ),
-        ),
+        embedding_models_dir: path_to_string(state.embedding_models_dir()),
         temp_dir: path_to_string(&paths.temp_dir),
         log_dir: path_to_string(&paths.log_dir),
         webview_dir: path_to_string(paths.webview_dir()),
         frontend_state_file: path_to_string(paths.frontend_state_file()),
         prompts_git_dir: path_to_string(paths.data_dir.join("prompts.git")),
-        qdrant_url: std::env::var("A4N_QDRANT_URL").unwrap_or_else(|_| String::new()),
-        qdrant_collection: std::env::var("A4N_QDRANT_COLLECTION")
-            .unwrap_or_else(|_| "a4n_rag".to_string()),
+        qdrant_url,
+        qdrant_collection,
     })
 }
 

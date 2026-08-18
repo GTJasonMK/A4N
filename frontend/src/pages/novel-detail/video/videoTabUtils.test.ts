@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type {
-  ChapterVideoPrompt,
-  GeneratedVideo,
-  VideoGenConfig,
-  VideoSegmentExecutionRecipe,
+import {
+  VIDEO_TYPE_CHAPTER,
+  type ChapterVideoPrompt,
+  type GeneratedVideo,
+  type VideoGenConfig,
+  type VideoSegmentExecutionRecipe,
 } from "../../../api/video";
 import {
   assemblyPushIndex,
@@ -15,7 +16,9 @@ import {
   isVideoFramePromptType,
   isSegmentPlanDraftCheckpointKey,
   latestVideoSegmentPlanPrompt,
+  parseVideoOptions,
   readVideoSegmentRecipes,
+  serializeVideoOptions,
   videoSegmentCardsFromPlanPrompt,
   videoSegmentCardsFromSegments,
   videoExecutionPromptsShareGenerationChain,
@@ -79,6 +82,52 @@ it("maps validated range and fixed video duration capabilities", () => {
     supportedDurations: [5, 10, 15],
     configError: null,
   });
+});
+
+it("rejects damaged persisted planning options instead of repairing them", () => {
+  const valid = {
+    style: "cinematic",
+    promptOutputLanguage: "zh_cn" as const,
+    durationSecs: 6,
+    durationOptions: [6, 10],
+    aspectRatio: "16:9" as const,
+  };
+  const raw = JSON.stringify(valid);
+
+  expect(parseVideoOptions(raw)).toEqual(valid);
+  expect(serializeVideoOptions(valid)).toBe(raw);
+  expect(() =>
+    parseVideoOptions(
+      JSON.stringify({
+        style: valid.style,
+        durationSecs: valid.durationSecs,
+        durationOptions: valid.durationOptions,
+        aspectRatio: valid.aspectRatio,
+      }),
+    ),
+  ).toThrow("promptOutputLanguage");
+  expect(() =>
+    parseVideoOptions(
+      JSON.stringify({
+        style: valid.style,
+        promptOutputLanguage: valid.promptOutputLanguage,
+        durationSecs: valid.durationSecs,
+        aspectRatio: valid.aspectRatio,
+      }),
+    ),
+  ).toThrow("durationOptions");
+  expect(() =>
+    parseVideoOptions(JSON.stringify({ ...valid, durationOptions: [10, 6] })),
+  ).toThrow("严格递增");
+  expect(() =>
+    parseVideoOptions(JSON.stringify({ ...valid, aspectRatio: "16 / 9" })),
+  ).toThrow("aspectRatio");
+  expect(() =>
+    parseVideoOptions(JSON.stringify({ ...valid, legacyDuration: 6 })),
+  ).toThrow("未知字段");
+  expect(() =>
+    serializeVideoOptions({ ...valid, durationOptions: [6, 6] }),
+  ).toThrow("严格递增");
 });
 
 it("parses assembly push metadata without defaulting an invalid status", () => {
@@ -151,11 +200,6 @@ describe("completedSegmentPlanPreviewItems", () => {
     expect(
       isSegmentPlanDraftCheckpointKey("video_segment_plan.shot.shot-2"),
     ).toBe(true);
-    expect(
-      isSegmentPlanDraftCheckpointKey(
-        "video_segment_plan.shot.shot-2:schema_repair",
-      ),
-    ).toBe(false);
     expect(isSegmentPlanDraftCheckpointKey("video_segment_plan.final")).toBe(
       false,
     );
@@ -406,7 +450,7 @@ describe("video execution generation chain", () => {
       id: planId,
       project_id: 1,
       chapter_id: 2,
-      video_type: "chapter_video",
+      video_type: VIDEO_TYPE_CHAPTER,
       workflow_mode: "chat_video",
       file_path: "video.mp4",
       thumbnail_path: null,
@@ -512,7 +556,7 @@ describe("video execution generation chain", () => {
       id: 401,
       project_id: 1,
       chapter_id: 2,
-      video_type: "chapter_video",
+      video_type: VIDEO_TYPE_CHAPTER,
       workflow_mode: "chat_video",
       file_path: "existing.mp4",
       thumbnail_path: null,

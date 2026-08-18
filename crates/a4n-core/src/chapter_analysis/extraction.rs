@@ -5,6 +5,8 @@ mod value;
 
 use serde_json::Value;
 
+use crate::rag::RagDataType;
+
 pub use character::character_state_snapshots;
 pub use foreshadowing::{foreshadowing_entries, priority_to_importance};
 pub use rag::analysis_rag_items;
@@ -28,13 +30,10 @@ pub struct ForeshadowingEntry {
     pub related_entities: Option<Value>,
 }
 
-#[derive(Debug, Clone)]
 pub struct AnalysisRagItem {
     pub id_suffix: String,
-    pub data_type: String,
-    pub content_kind: String,
+    pub data_type: RagDataType,
     pub text: String,
-    pub metadata: Value,
 }
 
 #[cfg(test)]

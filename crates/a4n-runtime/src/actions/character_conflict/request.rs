@@ -1,50 +1,39 @@
 use crate::{
     AppState,
-    actions::request_preview::{
-        ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
-        model_request_preview,
+    actions::{
+        access,
+        request_preview::{
+            ModelRequestPreview, model_request_preview, traced_chat_request_step_for_state,
+        },
     },
 };
-use a4n_core::error::AppError;
-use a4n_orchestrator::character::CharacterConflictCheckInput;
+use a4n_api_contract::character::CharacterConflictCheckInput;
+use a4n_orchestrator::character::CHARACTER_CONFLICT_KIND;
 
 pub async fn preview_character_conflict_request(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    name: &str,
-    start_chapter: Option<i32>,
-    end_chapter: Option<i32>,
-) -> Result<ModelRequestPreview, AppError> {
+    input: CharacterConflictCheckInput,
+) -> Result<ModelRequestPreview, String> {
+    access::verify_project_editor(state, user_id, input.project_id)
+        .await
+        .map_err(|error| error.to_string())?;
     let prompt_renderer = state;
-    let preview = state
+    let request = state
         .orchestrator()
-        .prepare_character_conflict_request_preview_validated(
-            user_id,
-            CharacterConflictCheckInput {
-                project_id,
-                name: name.to_string(),
-                start_chapter,
-                end_chapter,
-            },
-            prompt_renderer,
-        )
-        .await?;
-    let step = chat_request_step_for_state(
+        .prepare_character_conflict_request_preview_validated(input, prompt_renderer)
+        .await
+        .map_err(|error| error.to_string())?;
+    let step = traced_chat_request_step_for_state(
         state,
-        ChatRequestStepInput {
-            key: "character_conflict".to_string(),
-            title: "角色一致性检查 LLM 请求".to_string(),
-            prompt_name: Some("character_conflict_check".to_string()),
-            state: "ready".to_string(),
-            note: None,
-            request: preview.request,
-        },
+        request,
+        "角色一致性检查 LLM 请求",
+        CHARACTER_CONFLICT_KIND,
+        "角色一致性检查请求缺少 call_key",
     )
-    .await
-    .map_err(AppError::InvalidArgument)?;
+    .await?;
     Ok(model_request_preview(
-        "character_conflict_check",
+        CHARACTER_CONFLICT_KIND,
         "角色一致性检查 LLM 请求预览",
         vec![step],
     ))

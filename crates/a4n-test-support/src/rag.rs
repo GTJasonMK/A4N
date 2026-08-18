@@ -58,7 +58,6 @@ impl VectorStore for ShortWriteVectorStore {
         _query_embedding: Vec<f32>,
         _top_k: usize,
         _filters: Option<SearchFilter>,
-        _vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError> {
         Err(Self::unexpected_call())
     }
@@ -104,45 +103,13 @@ pub fn test_embedding_identity(model: &str) -> EmbeddingModelIdentity {
     }
 }
 
-pub fn embedding_record(id: &str, data_type: &str, chapter_id: i64) -> EmbeddingRecord {
+pub fn embedding_record(id: &str) -> EmbeddingRecord {
     EmbeddingRecord {
         id: id.to_string(),
         embedding: vec![1.0, 0.0],
-        metadata: serde_json::json!({
-            "project_id": 1,
-            "data_type": data_type,
-            "chapter_id": chapter_id,
-            "chapter_number": 3,
-        }),
+        metadata: serde_json::json!({}),
         content: id.to_string(),
     }
-}
-
-pub fn root_text_metadata(project_id: i64) -> serde_json::Value {
-    serde_json::json!({
-        "root_project_id": project_id,
-        "source_snapshot_id": null,
-        "source_chapter_id": null,
-        "source_snapshot_chapter_id": null,
-        "derived_project_id": null,
-    })
-}
-
-pub fn snapshot_text_metadata(
-    root_project_id: i64,
-    source_snapshot_id: i64,
-    source_chapter_id: i64,
-    source_snapshot_chapter_id: i64,
-    data_type: &str,
-) -> serde_json::Value {
-    serde_json::json!({
-        "root_project_id": root_project_id,
-        "source_snapshot_id": source_snapshot_id,
-        "source_chapter_id": source_chapter_id,
-        "source_snapshot_chapter_id": source_snapshot_chapter_id,
-        "derived_project_id": null,
-        "data_type": data_type,
-    })
 }
 
 #[cfg(test)]

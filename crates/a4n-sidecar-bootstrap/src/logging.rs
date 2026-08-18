@@ -1,4 +1,3 @@
-use std::env::VarError;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -8,6 +7,8 @@ use anyhow::{Context, anyhow};
 use tracing_appender::non_blocking::{NonBlocking, NonBlockingBuilder, WorkerGuard};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_subscriber::{EnvFilter, fmt::writer::MakeWriterExt};
+
+use crate::environment::{optional_non_empty_path, u64_or_default};
 
 const LOG_RETENTION_DAYS_ENV: &str = "A4N_SIDECAR_LOG_RETENTION_DAYS";
 const LOG_MAX_BYTES_ENV: &str = "A4N_SIDECAR_LOG_MAX_BYTES";
@@ -19,7 +20,8 @@ static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 pub(super) fn init(log_env: &str, filter_text: &str) -> anyhow::Result<()> {
     let filter = EnvFilter::try_new(filter_text)
         .with_context(|| format!("{log_env} 不是有效日志过滤表达式"))?;
-    let Some(log_root) = optional_path_env("A4N_LOG_DIR")? else {
+    let file_prefix = log_file_prefix(log_env)?;
+    let Some(log_root) = optional_non_empty_path("A4N_LOG_DIR")? else {
         return tracing_subscriber::fmt()
             .with_env_filter(filter)
             .try_init()
@@ -29,10 +31,10 @@ pub(super) fn init(log_env: &str, filter_text: &str) -> anyhow::Result<()> {
     let service_log_dir = log_root.join("services");
     fs::create_dir_all(&service_log_dir)
         .with_context(|| format!("创建 sidecar 日志目录失败: {}", service_log_dir.display()))?;
-    let retention_days = env_u64(LOG_RETENTION_DAYS_ENV, DEFAULT_LOG_RETENTION_DAYS)?;
-    let max_bytes = env_u64(LOG_MAX_BYTES_ENV, DEFAULT_LOG_MAX_BYTES)?;
+    let retention_days = u64_or_default(LOG_RETENTION_DAYS_ENV, DEFAULT_LOG_RETENTION_DAYS)?;
+    let max_bytes = u64_or_default(LOG_MAX_BYTES_ENV, DEFAULT_LOG_MAX_BYTES)?;
     prune_logs(&service_log_dir, retention_days, max_bytes)?;
-    let file = tracing_appender::rolling::daily(&service_log_dir, log_file_prefix(log_env));
+    let file = tracing_appender::rolling::daily(&service_log_dir, file_prefix);
     let (file, guard) = live_file_writer(file);
     tracing_subscriber::fmt()
         .with_env_filter(filter)
@@ -51,10 +53,7 @@ fn live_file_writer(file: RollingFileAppender) -> (NonBlocking, WorkerGuard) {
 }
 
 fn spawn_log_pruner(dir: PathBuf, retention_days: u64, max_bytes: u64) {
-    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-        return;
-    };
-    runtime.spawn(async move {
+    tokio::spawn(async move {
         loop {
             tokio::time::sleep(LOG_PRUNE_INTERVAL).await;
             if let Err(error) = prune_logs(&dir, retention_days, max_bytes) {
@@ -64,44 +63,24 @@ fn spawn_log_pruner(dir: PathBuf, retention_days: u64, max_bytes: u64) {
     });
 }
 
-fn optional_path_env(key: &str) -> anyhow::Result<Option<PathBuf>> {
-    match std::env::var(key) {
-        Ok(value) => {
-            let value = value.trim();
-            if value.is_empty() {
-                Err(anyhow!("{key} 不能为空"))
-            } else {
-                Ok(Some(PathBuf::from(value)))
-            }
-        }
-        Err(VarError::NotPresent) => Ok(None),
-        Err(error) => Err(anyhow!("读取 {key} 失败: {error}")),
-    }
-}
-
-fn env_u64(key: &str, default: u64) -> anyhow::Result<u64> {
-    match std::env::var(key) {
-        Ok(value) => value
-            .trim()
-            .parse::<u64>()
-            .with_context(|| format!("{key} 必须是非负整数")),
-        Err(VarError::NotPresent) => Ok(default),
-        Err(error) => Err(anyhow!("读取 {key} 失败: {error}")),
-    }
-}
-
-fn log_file_prefix(log_env: &str) -> String {
+fn log_file_prefix(log_env: &str) -> anyhow::Result<String> {
     let name = log_env
         .strip_prefix("A4N_")
-        .unwrap_or(log_env)
-        .strip_suffix("_LOG")
-        .unwrap_or_else(|| log_env.strip_prefix("A4N_").unwrap_or(log_env));
-    format!("{}.log", name.to_ascii_lowercase().replace('_', "-"))
+        .and_then(|name| name.strip_suffix("_LOG"))
+        .ok_or_else(|| anyhow!("sidecar 日志环境键必须符合 A4N_<SERVICE>_LOG: {log_env}"))?;
+    Ok(format!(
+        "{}.log",
+        name.to_ascii_lowercase().replace('_', "-")
+    ))
 }
 
 fn prune_logs(dir: &Path, retention_days: u64, max_bytes: u64) -> anyhow::Result<()> {
     let now = SystemTime::now();
-    let retention = Duration::from_secs(retention_days.saturating_mul(24 * 60 * 60));
+    let retention = Duration::from_secs(
+        retention_days
+            .checked_mul(24 * 60 * 60)
+            .ok_or_else(|| anyhow!("sidecar 日志保留天数过大: {retention_days}"))?,
+    );
     let mut files = Vec::new();
     for entry in fs::read_dir(dir)
         .with_context(|| format!("读取 sidecar 日志目录失败: {}", dir.display()))?
@@ -111,7 +90,7 @@ fn prune_logs(dir: &Path, retention_days: u64, max_bytes: u64) -> anyhow::Result
         if !metadata.is_file() {
             continue;
         }
-        let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        let modified = metadata.modified()?;
         if now
             .duration_since(modified)
             .is_ok_and(|age| age > retention)
@@ -132,7 +111,7 @@ fn prune_logs(dir: &Path, retention_days: u64, max_bytes: u64) -> anyhow::Result
             break;
         }
         fs::remove_file(path)?;
-        total = total.saturating_sub(size);
+        total -= size;
     }
     Ok(())
 }
@@ -145,7 +124,11 @@ mod tests {
 
     #[test]
     fn log_file_name_is_derived_from_existing_filter_env() {
-        assert_eq!(log_file_prefix("A4N_LLM_GATEWAY_LOG"), "llm-gateway.log");
+        assert_eq!(
+            log_file_prefix("A4N_LLM_GATEWAY_LOG").unwrap(),
+            "llm-gateway.log"
+        );
+        assert!(log_file_prefix("RUST_LOG").is_err());
     }
 
     #[test]
@@ -196,7 +179,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         std::fs::write(&newest, b"new").unwrap();
 
-        prune_logs(&dir, u64::MAX, 0).unwrap();
+        prune_logs(&dir, u64::MAX / (24 * 60 * 60), 0).unwrap();
 
         assert!(!old.exists());
         assert!(newest.exists());

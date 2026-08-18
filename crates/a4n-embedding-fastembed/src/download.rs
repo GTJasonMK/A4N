@@ -7,7 +7,6 @@ mod metadata;
 mod progress;
 mod transfer;
 
-pub use contracts::FastEmbedDownloadInfo;
 pub use execution::download_fastembed_model;
 pub use info::fastembed_model_download_info;
 

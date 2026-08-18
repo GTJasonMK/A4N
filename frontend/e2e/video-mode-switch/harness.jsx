@@ -1,5 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import {
+  IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
+  IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+} from "../../src/api/image";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
 import { PromptDialogHost } from "../../src/components/feedback/PromptDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
@@ -306,12 +310,12 @@ let storyboardImage = storyboardAssetsScenario
   ? {
       ...referenceImage,
       id: 179,
-      image_type: "video_storyboard_frame",
+      image_type: IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
       chapter_id: chapterId,
       prompt: "片段二分镜板",
       metadata_json: {
         generation_context: {
-          source: "video_storyboard_prompt",
+          source: IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
           prompt_id: 229,
           shot_number: 2,
         },

@@ -2,6 +2,7 @@ use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::workflow::{
     WorkflowProgressEvent, WorkflowProgressEventsInput, WorkflowProgressEventsResponse,
 };
+use a4n_core::event::channel::normalize_task_id;
 use a4n_orchestrator::workflow::require_positive_workflow_run_id;
 
 use super::super::super::{
@@ -25,7 +26,7 @@ pub async fn get_workflow_progress_events(
         }
         ProgressEventsTarget::Task(task_id) => task_id,
     };
-    if let Some(handle) = state.task_handle(&task_id) {
+    if let Some(handle) = state.orchestrator().task_handle(&task_id) {
         verify_task_handle_access(state, user_id, &handle).await?;
         let events = handle
             .progress_events
@@ -80,22 +81,23 @@ pub async fn get_workflow_progress_events(
     Err(format!("任务不存在: {task_id}"))
 }
 
-enum ProgressEventsTarget<'a> {
-    Task(&'a str),
+enum ProgressEventsTarget {
+    Task(String),
     Workflow(i64),
 }
 
 fn progress_events_target(
     input: &WorkflowProgressEventsInput,
-) -> Result<ProgressEventsTarget<'_>, String> {
+) -> Result<ProgressEventsTarget, String> {
     if !(1..=200).contains(&input.limit) {
         return Err("limit 必须在 1 到 200 之间".to_string());
     }
     let task_id = input
         .task_id
         .as_deref()
-        .map(str::trim)
-        .filter(|task_id| !task_id.is_empty());
+        .map(normalize_task_id)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     match (task_id, input.workflow_run_id) {
         (Some(task_id), None) => Ok(ProgressEventsTarget::Task(task_id)),
         (None, Some(workflow_run_id)) => {
@@ -148,7 +150,7 @@ mod tests {
         };
         assert!(matches!(
             progress_events_target(&task).unwrap(),
-            ProgressEventsTarget::Task("task-1")
+            ProgressEventsTarget::Task(task_id) if task_id == "task-1"
         ));
 
         let workflow = WorkflowProgressEventsInput {

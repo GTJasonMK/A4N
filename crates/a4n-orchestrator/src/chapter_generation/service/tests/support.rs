@@ -2,7 +2,7 @@ use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
 use a4n_core::models::project::novel_project;
 use sea_orm::*;
 
-use crate::project::{PROJECT_KIND_TEXT, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT};
+use crate::project::{PROJECT_KIND_TEXT, SOURCE_SYNC_CURRENT};
 
 pub(super) async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
@@ -23,7 +23,6 @@ pub(super) async fn insert_project(db: &DatabaseConnection) -> novel_project::Mo
         description: Set("验证空章节不会残留".to_string()),
         project_type: Set("novel_long".to_string()),
         project_kind: Set(PROJECT_KIND_TEXT.to_string()),
-        source_mode: Set(SOURCE_MODE_SELF.to_string()),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),
         status: Set("writing".to_string()),
         target_chapters: Set(10),

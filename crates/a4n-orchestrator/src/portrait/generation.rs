@@ -4,10 +4,7 @@ use a4n_api_contract::{
 };
 use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
-use a4n_service_protocol::{
-    BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError, GenerationResultRef,
-};
-use sha2::{Digest, Sha256};
+use a4n_service_protocol::{BatchSummary, GenerationError, GenerationResultRef};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -17,12 +14,13 @@ use crate::{
     generation::{
         GenerationProgressUpdate,
         artifacts::{GenerationArtifactCoordinator, PreparedArtifactEvent},
-        generation_public_error, publish_step_progress,
+        best_effort_batch_summary, generation_batch_result_ref, generation_public_error,
+        generation_result_ref, publish_step_progress,
     },
     portrait::{
         GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
-        PortraitBatchItem, PortraitBatchOutcome, PortraitGenerationHostPort, PortraitProgress,
-        PortraitSummary, RegeneratePortraitInput, validate_reference_image_ids,
+        PortraitGenerationHostPort, PortraitProgress, PortraitSummary, RegeneratePortraitInput,
+        validate_reference_image_ids,
     },
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -276,7 +274,7 @@ impl OrchestratorContext {
                         cancel_token,
                     )
                     .await?;
-                let result_ref = portrait_result_ref("portrait", summary.id, &summary)?;
+                let result_ref = portrait_result_ref(&summary)?;
                 Ok(PortraitGenerationResult {
                     summary: "人物三视图拆解生成完成".to_string(),
                     result_ref,
@@ -302,7 +300,7 @@ impl OrchestratorContext {
                         cancel_token,
                     )
                     .await?;
-                let result_ref = portrait_result_ref("portrait", summary.id, &summary)?;
+                let result_ref = portrait_result_ref(&summary)?;
                 Ok(PortraitGenerationResult {
                     summary: "立绘重绘完成".to_string(),
                     result_ref,
@@ -330,7 +328,7 @@ impl OrchestratorContext {
                         cancel_token,
                     )
                     .await?;
-                let result_ref = portrait_result_ref("portrait", summary.id, &summary)?;
+                let result_ref = portrait_result_ref(&summary)?;
                 Ok(PortraitGenerationResult {
                     summary: "年龄变体生成完成".to_string(),
                     result_ref,
@@ -350,7 +348,14 @@ impl OrchestratorContext {
                         cancel_token,
                     )
                     .await?;
-                let batch_summary = portrait_batch_summary(&outcome);
+                let batch_summary = best_effort_batch_summary(
+                    outcome.total,
+                    outcome.succeeded(),
+                    outcome.failed(),
+                    outcome.cancelled,
+                    outcome.skipped,
+                    &outcome.failed_item_keys,
+                );
                 let artifacts = outcome
                     .items
                     .iter()
@@ -364,7 +369,11 @@ impl OrchestratorContext {
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let result_ref = portrait_batch_result_ref(project_id, &outcome.items)?;
+                let result_ref = generation_batch_result_ref(
+                    "portrait_batch",
+                    project_id,
+                    outcome.items.iter().map(|item| item.summary.id).collect(),
+                )?;
                 let failure_kind = if outcome.interrupted {
                     Some("generation_interrupted")
                 } else if outcome.succeeded() == 0 {
@@ -411,64 +420,23 @@ fn portrait_operation_key(operation: &PortraitGenerationOperation) -> &'static s
     }
 }
 
-fn portrait_result_ref(
-    kind: &str,
-    id: i64,
-    summary: &PortraitSummary,
-) -> Result<GenerationResultRef, AppError> {
-    let bytes = serde_json::to_vec(&[
-        serde_json::json!(summary.id),
-        serde_json::json!(summary.profile_id),
-        serde_json::json!(summary.project_id),
-        serde_json::json!(&summary.portrait_type),
-        serde_json::json!(&summary.image_path),
-        serde_json::json!(&summary.prompt),
-        serde_json::json!(&summary.expression),
-        serde_json::json!(&summary.pose),
-        serde_json::json!(summary.is_primary),
-        serde_json::json!(&summary.created_at),
-    ])?;
-    Ok(result_ref_from_bytes(kind, id, bytes))
-}
-
-fn portrait_batch_result_ref(
-    project_id: i64,
-    items: &[PortraitBatchItem],
-) -> Result<GenerationResultRef, AppError> {
-    let mut ids = items.iter().map(|item| item.summary.id).collect::<Vec<_>>();
-    ids.sort_unstable();
-    Ok(result_ref_from_bytes(
-        "portrait_batch",
-        project_id,
-        serde_json::to_vec(&ids)?,
-    ))
-}
-
-fn result_ref_from_bytes(kind: &str, id: i64, bytes: Vec<u8>) -> GenerationResultRef {
-    GenerationResultRef {
-        kind: kind.to_string(),
-        id: id.to_string(),
-        revision: format!("{:x}", Sha256::digest(bytes)),
-    }
-}
-
-fn portrait_batch_summary(outcome: &PortraitBatchOutcome) -> BatchSummary {
-    let mut failed_item_keys = outcome.failed_item_keys.clone();
-    failed_item_keys.sort_unstable();
-    failed_item_keys.dedup();
-    let failed = outcome.failed();
-    let failed_item_keys_truncated = failed_item_keys.len() > 256;
-    failed_item_keys.truncate(256);
-    BatchSummary {
-        policy: BatchCommitPolicy::BestEffort,
-        total: outcome.total,
-        succeeded: outcome.succeeded(),
-        failed,
-        cancelled: outcome.cancelled,
-        skipped: outcome.skipped,
-        failed_item_keys,
-        failed_item_keys_truncated,
-    }
+fn portrait_result_ref(summary: &PortraitSummary) -> Result<GenerationResultRef, AppError> {
+    generation_result_ref(
+        "portrait",
+        summary.id,
+        &[
+            serde_json::json!(summary.id),
+            serde_json::json!(summary.profile_id),
+            serde_json::json!(summary.project_id),
+            serde_json::json!(&summary.portrait_type),
+            serde_json::json!(&summary.image_path),
+            serde_json::json!(&summary.prompt),
+            serde_json::json!(&summary.expression),
+            serde_json::json!(&summary.pose),
+            serde_json::json!(summary.is_primary),
+            serde_json::json!(&summary.created_at),
+        ],
+    )
 }
 
 fn portrait_artifact_event(
@@ -479,17 +447,10 @@ fn portrait_artifact_event(
     item_total: Option<u32>,
 ) -> Result<PreparedArtifactEvent, AppError> {
     let file = host_port.inspect_portrait_file(&summary.image_path, "正式立绘图片")?;
-    Ok(GenerationArtifactCoordinator::available(
-        GenerationArtifactRef {
-            artifact_id: format!("portrait:{}", summary.id),
-            artifact_kind: "portrait_image".to_string(),
-            content_type: file.content_type,
-            sha256: file.sha256.clone(),
-            byte_size: file.byte_size,
-            revision: file.sha256,
-            temporary: false,
-            expires_at_ms: None,
-        },
+    Ok(GenerationArtifactCoordinator::generated_media_available(
+        format!("portrait:{}", summary.id),
+        "portrait_image",
+        file,
         item_key,
         item_index,
         item_total,

@@ -178,9 +178,3 @@ export const filterStorySections = (
 
 export const countAnalyzedChapters = (sections: ChapterStorySection[]): number =>
   sections.filter((section) => section.hasAnalysis).length;
-
-export const countForeshadowingSignals = (sections: ChapterStorySection[]): number =>
-  sections.reduce(
-    (sum, section) => sum + section.plantedCount + section.resolvedCount + section.tensionCount,
-    0,
-  );

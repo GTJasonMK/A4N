@@ -5,8 +5,15 @@ use a4n_core::{
         canvas::canvas_node,
         generation::{generation_spec, workflow_checkpoint},
     },
+    video_workflow::WORKFLOW_MODE_CANVAS_VIDEO,
 };
-use a4n_db::canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput};
+use a4n_db::{
+    canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput},
+    generation::{
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+    },
+};
 use a4n_domain::CanvasNodeRefKind;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
@@ -17,7 +24,7 @@ use tokio::time::{Duration, Instant};
 use crate::{
     OrchestratorContext,
     canvas::{CanvasNodeRunHandle, CanvasNodeRunSummary},
-    project::{PROJECT_KIND_VIDEO, SOURCE_MODE_FREEFORM},
+    project::ProjectSourceMode,
     workflow::{
         WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
         WORKFLOW_STATUS_RUNNING,
@@ -296,8 +303,8 @@ impl OrchestratorContext {
                     crate::video::VideoGenerationRecordInput {
                         project_id: input.project_id,
                         chapter_id: None,
-                        video_type: "canvas_video".to_string(),
-                        workflow_mode: Some("canvas_video".to_string()),
+                        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+                        workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
                         prompt: prompt.clone(),
                         negative_prompt: request.negative_prompt.clone(),
                         model: config.model.clone(),
@@ -477,7 +484,7 @@ impl OrchestratorContext {
                 let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
                 let authoritative = self.generated_video_by_id(video.id).await?;
                 if let Some(authoritative) = authoritative {
-                    if authoritative.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+                    if authoritative.status == generated_video::STATUS_COMPLETED {
                         if authoritative.file_path.as_deref()
                             != Some(persisted.relative_path.as_str())
                             && let Err(cleanup_error) = host_port
@@ -505,7 +512,11 @@ impl OrchestratorContext {
                                 "清理未采用的画布视频文件失败"
                             );
                         }
-                        if matches!(authoritative.status.as_str(), "cancelled" | "interrupted") {
+                        if matches!(
+                            authoritative.status.as_str(),
+                            generated_video::STATUS_CANCELLED
+                                | generated_video::STATUS_INTERRUPTED
+                        ) {
                             return Err(AppError::Cancelled);
                         }
                         return Err(error);
@@ -626,7 +637,11 @@ impl OrchestratorContext {
                 Ok(VideoJobState::Pending) => {
                     consecutive_errors = 0;
                     video = self
-                        .update_generated_video_waiting_status_validated(video.id, None, "pending")
+                        .update_generated_video_waiting_status_validated(
+                            video.id,
+                            None,
+                            generated_video::STATUS_PENDING,
+                        )
                         .await?;
                     self.mark_video_provider_workflow_validated(
                         &video,
@@ -639,7 +654,11 @@ impl OrchestratorContext {
                 Ok(VideoJobState::Running) => {
                     consecutive_errors = 0;
                     video = self
-                        .update_generated_video_waiting_status_validated(video.id, None, "running")
+                        .update_generated_video_waiting_status_validated(
+                            video.id,
+                            None,
+                            generated_video::STATUS_RUNNING,
+                        )
                         .await?;
                     self.mark_video_provider_workflow_validated(
                         &video,
@@ -833,8 +852,8 @@ impl OrchestratorContext {
                 project_id: input.project_id,
                 target_entity_id: input.node.id,
                 canvas_text_asset_id: video_input.canvas_text_asset_id,
-                target_kind: "canvas_video".to_string(),
-                target_entity_kind: "canvas_node".to_string(),
+                target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO.to_string(),
+                target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
                 status: WORKFLOW_STATUS_RUNNING.to_string(),
                 params_json: json!({
                     "canvas_graph_id": input.graph_id,
@@ -860,7 +879,9 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if project.project_kind != PROJECT_KIND_VIDEO || project.source_mode != SOURCE_MODE_FREEFORM
+        if project.source_mode().map_err(|error| {
+            AppError::InvalidArgument(format!("项目 {project_id}: {error}"))
+        })? != ProjectSourceMode::Freeform
         {
             return Err(AppError::InvalidArgument(
                 "GenerateVideoNode 当前只支持自由视频项目".to_string(),

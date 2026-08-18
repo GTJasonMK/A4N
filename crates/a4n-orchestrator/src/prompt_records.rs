@@ -8,7 +8,7 @@ pub use a4n_api_contract::prompt::{
     PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
     ValidateVarsInput, VersionDiffInput,
 };
-use a4n_capabilities::PromptClient;
+use a4n_capabilities::{PromptClient, sidecar_response_payload};
 use a4n_core::error::AppError;
 use a4n_prompt::{
     contracts::{
@@ -21,9 +21,8 @@ use a4n_prompt::{
     engine::{PromptCategory, PromptEntry, PromptVersion},
 };
 use a4n_service_protocol::{
-    PROMPT_RENDER_CAPABILITY_VERSION, SchemaVersion, SecretForwardingPolicy, ServiceRequest,
-    ServiceResponse, ServiceStatus, TraceContext, sanitize_service_response,
-    validate_service_request_context,
+    PROMPT_RENDER_CAPABILITY_VERSION, ServiceRequest, ServiceRequestContext, ServiceResponse,
+    TraceContext,
 };
 use serde_json::Value;
 use uuid::Uuid;
@@ -693,53 +692,24 @@ fn prompt_service_request<T>(
         }
     }
     let request_id = Uuid::new_v4().to_string();
-    let request = ServiceRequest {
-        request_id: request_id.clone(),
-        trace_context: TraceContext {
+    let mut request = ServiceRequestContext::deny_all(
+        request_id.clone(),
+        TraceContext {
             trace_id: request_id,
             parent_span_id: None,
         },
-        schema_version: SchemaVersion::protocol_only(),
-        user_id: context.user_id,
-        project_id,
-        root_project_id,
-        runtime_config_snapshot: context.runtime_config_snapshot.clone(),
-        secret_policy: SecretForwardingPolicy::deny_all(),
-        capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
-        payload,
-    };
-    validate_service_request_context(&request)
-        .map_err(|error| AppError::ConfigError(error.message))?;
-    Ok(request)
+    );
+    request.user_id = context.user_id;
+    request.project_id = project_id;
+    request.root_project_id = root_project_id;
+    request.runtime_config_snapshot = context.runtime_config_snapshot.clone();
+    request
+        .with_payload(PROMPT_RENDER_CAPABILITY_VERSION, payload)
+        .map_err(prompt_sidecar_error)
 }
 
-fn prompt_response_payload<T>(mut response: ServiceResponse<T>) -> Result<T, AppError> {
-    sanitize_service_response(&mut response).map_err(|error| {
-        AppError::ConfigError(format!("prompt sidecar 返回非法 response：{error}"))
-    })?;
-    match response.status {
-        ServiceStatus::Ok => {
-            if response.error.is_some() {
-                return Err(AppError::ConfigError(
-                    "prompt sidecar 返回成功状态但同时携带 error".to_string(),
-                ));
-            }
-            response.payload.ok_or_else(|| {
-                AppError::ConfigError("prompt sidecar 返回成功但缺少 payload".to_string())
-            })
-        }
-        ServiceStatus::Error => {
-            if response.payload.is_some() {
-                return Err(AppError::ConfigError(
-                    "prompt sidecar 返回错误状态但同时携带 payload".to_string(),
-                ));
-            }
-            let error = response.error.ok_or_else(|| {
-                AppError::ConfigError("prompt sidecar 返回错误状态但缺少 error".to_string())
-            })?;
-            Err(AppError::ConfigError(error.message))
-        }
-    }
+fn prompt_response_payload<T>(response: ServiceResponse<T>) -> Result<T, AppError> {
+    sidecar_response_payload(response, "prompt").map_err(prompt_sidecar_error)
 }
 
 fn prompt_sidecar_error(error: a4n_service_protocol::ServiceError) -> AppError {
@@ -774,6 +744,7 @@ fn prompt_version_summary(version: &PromptVersion) -> PromptVersionSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_service_protocol::{SecretForwardingPolicy, ServiceStatus};
 
     #[test]
     fn prompt_request_rejects_incomplete_project_scope() {

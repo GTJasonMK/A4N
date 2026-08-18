@@ -12,6 +12,10 @@ use a4n_core::{
     },
 };
 use a4n_db::collaboration::ProjectAccessRole;
+use a4n_domain::image::{
+    IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, image_generation_prompt_id,
+    image_generation_source,
+};
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
 use async_trait::async_trait;
@@ -35,8 +39,8 @@ use super::{
     VideoProviderExecutionInput, VideoProviderHostPort, VideoProviderRequestBody,
     VideoProviderRequestInput, VideoProviderValidationMode, boundary_frame_numbers_for_prompt,
     ensure_newapi_first_frame_image_supported, first_frame_prompt_matches_video_prompt,
-    frame_prompt_matches_video_prompt, image_generation_prompt_id, image_generation_source,
-    latest_boundary_frame_image_id, latest_storyboard_image_id, linked_video_preview_config_id,
+    frame_prompt_matches_video_prompt, latest_boundary_frame_image_id, latest_storyboard_image_id,
+    linked_video_preview_config_id,
     prompt_provider_workflow_for_recipe, reference_ids_with_storyboard_image, reference_image_ids,
     required_prompt_source_prompt_type, required_video_execution_identity,
     storyboard_prompt_matches_video_prompt, tail_frame_image_belongs_to_video,
@@ -321,7 +325,7 @@ impl OrchestratorContext {
         let source = self
             .project_chapter_video_source(project_id, chapter_id, operation, writable)
             .await?;
-        if prompt.prompt_type != "video_prompt" {
+        if prompt.prompt_type != chapter_video_prompt::PROMPT_TYPE_VIDEO {
             return Err(invalid_argument("请选择 video_prompt 类型的提示词生成视频"));
         }
         let execution_contract = self
@@ -340,7 +344,7 @@ impl OrchestratorContext {
             )
             .map_err(AppError::InvalidArgument)?;
         } else {
-            if prompt.status == "running" {
+            if prompt.status == chapter_video_prompt::STATUS_RUNNING {
                 return Err(invalid_argument(
                     "当前视频提示词正在生成视频，请先等待完成后再重新生成",
                 ));
@@ -572,7 +576,7 @@ impl OrchestratorContext {
         self.create_video_generation_record_validated(VideoGenerationRecordInput {
             project_id: prepared.project_id,
             chapter_id: Some(prepared.chapter_id),
-            video_type: "chapter_video".into(),
+            video_type: generated_video::VIDEO_TYPE_CHAPTER.into(),
             workflow_mode: Some(context.workflow_mode.clone()),
             prompt: context.request.prompt.clone(),
             negative_prompt: context.request.negative_prompt.clone(),
@@ -653,7 +657,7 @@ impl OrchestratorContext {
                     row.id
                 )));
             }
-            if row.prompt_type != "video_prompt" {
+            if row.prompt_type != chapter_video_prompt::PROMPT_TYPE_VIDEO {
                 return Err(invalid_argument(format!(
                     "视频提示词 #{} 不是 video_prompt 类型",
                     row.id
@@ -662,7 +666,7 @@ impl OrchestratorContext {
             self.require_current_segment_recipe_for_video_prompt(row)
                 .await?;
             super::ensure_provider_generation_workflow(row).map_err(AppError::InvalidArgument)?;
-            if row.status == "running" {
+            if row.status == chapter_video_prompt::STATUS_RUNNING {
                 return Err(invalid_argument(format!(
                     "视频提示词 #{} 正在运行，不能批量生成视频",
                     row.id
@@ -701,7 +705,7 @@ impl OrchestratorContext {
                 .chapter_video_timeline_by_scope(
                     prompt.project_id,
                     prompt.chapter_id,
-                    super::timeline::SHARED_VIDEO_TIMELINE_MODE,
+                    chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
                 )
                 .await?
                 .ok_or_else(|| invalid_argument("当前章节不存在插入片段时间线"))?;
@@ -741,11 +745,11 @@ impl OrchestratorContext {
                 recipe,
             });
         }
-        if source_prompt_type != super::FRAME_SEGMENT_PLAN_PROMPT_TYPE {
+        if source_prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
             return Err(invalid_argument(format!(
                 "视频提示词 #{} source_prompt_type={source_prompt_type}，当前要求 {}",
                 prompt.id,
-                super::FRAME_SEGMENT_PLAN_PROMPT_TYPE
+                chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
             )));
         }
         let execution_identity =
@@ -986,7 +990,8 @@ impl OrchestratorContext {
                 .find(|image| {
                     let metadata = image.metadata_json.as_ref();
                     image_generation_prompt_id(metadata) == Some(first_frame_prompt.id)
-                        && image_generation_source(metadata) == Some("video_first_frame_prompt")
+                        && image_generation_source(metadata)
+                            == Some(IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT)
                 })
                 .map(|image| image.id));
         }
@@ -1004,7 +1009,7 @@ impl OrchestratorContext {
                 })?;
             if source_video.project_id != project_id
                 || source_video.chapter_id != Some(chapter_id)
-                || source_video.status != "completed"
+                || source_video.status != generated_video::STATUS_COMPLETED
             {
                 return Err(invalid_argument(format!(
                     "连续性来源视频 #{source_video_id} 不再是当前章节的已完成视频，请重新选择"

@@ -4,7 +4,7 @@ import {
   durationChoicesForLimits,
   isDurationAllowed,
   MAX_VIDEO_DURATION_OPTION_COUNT,
-  normalizeDurationOptions,
+  mergeDurationOptions,
   parseNumberInput,
   type VideoDurationLimits,
   type VideoGenOptions,
@@ -25,9 +25,12 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
 }) => {
   const [customText, setCustomText] = useState("");
   const choices = durationChoicesForLimits(durationLimits);
-  const selected = normalizeDurationOptions(options.durationSecs, options.durationOptions);
+  const selected = options.durationOptions;
   const selectedSet = new Set(selected);
-  const displayChoices = normalizeDurationOptions(options.durationSecs, [...choices, ...selected]);
+  const displayChoices = mergeDurationOptions(options.durationSecs, [
+    ...choices,
+    ...selected,
+  ]);
   const customDuration = parseNumberInput(customText);
   const customAddBlocked =
     disabled ||
@@ -40,13 +43,17 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
     if (disabled) return;
     const active = selectedSet.has(duration);
     if (active && selected.length <= 1) return;
-    const next = active ? selected.filter((item) => item !== duration) : [...selected, duration];
+    const next = active
+      ? selected.filter((item) => item !== duration)
+      : [...selected, duration];
     const nextDefaultDuration =
-      active && duration === options.durationSecs ? next[0] : options.durationSecs;
+      active && duration === options.durationSecs
+        ? next[0]
+        : options.durationSecs;
     onOptionsChange((prev) => ({
       ...prev,
       durationSecs: nextDefaultDuration,
-      durationOptions: normalizeDurationOptions(nextDefaultDuration, next),
+      durationOptions: mergeDurationOptions(nextDefaultDuration, next),
     }));
   };
 
@@ -54,7 +61,7 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
     if (customAddBlocked || customDuration == null) return;
     onOptionsChange((prev) => ({
       ...prev,
-      durationOptions: normalizeDurationOptions(prev.durationSecs, [
+      durationOptions: mergeDurationOptions(prev.durationSecs, [
         ...prev.durationOptions,
         customDuration,
       ]),

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::source_spans::source_text_hash;
 
+pub const SOURCE_CONTEXT_FREEFORM: &str = "freeform";
+
 pub fn freeform_source_version_hash(params_json: &serde_json::Value) -> Option<String> {
     params_json
         .get("source_material")

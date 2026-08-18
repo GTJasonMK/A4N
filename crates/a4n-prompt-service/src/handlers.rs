@@ -2,9 +2,9 @@ mod read;
 mod write;
 
 use a4n_service_protocol::{
-    HealthStatus, PROMPT_SERVICE_NAME, ServiceHealth, known_service_health_for_host,
+    HealthStatus, PROMPT_SERVICE_NAME, ServiceHealth, known_service_health,
 };
-use axum::{Json, http::HeaderMap};
+use axum::Json;
 
 pub(crate) use read::{
     categories, get_prompt, list_prompts, render_prompt, render_prompt_ab, validate_prompt,
@@ -15,11 +15,10 @@ pub(crate) use write::{
     update_many_prompts, update_prompt,
 };
 
-pub(crate) async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
-    Json(known_service_health_for_host(
+pub(crate) async fn healthz() -> Json<ServiceHealth> {
+    Json(known_service_health(
         PROMPT_SERVICE_NAME,
         env!("CARGO_PKG_VERSION"),
         HealthStatus::Healthy,
-        a4n_sidecar_bootstrap::host_protocol_version(&headers),
     ))
 }

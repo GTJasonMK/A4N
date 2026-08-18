@@ -5,7 +5,7 @@ use a4n_video::VideoGenerationRequest;
 use super::HttpVideoProvider;
 
 impl HttpVideoProvider {
-    pub(super) fn request_body(req: &VideoGenerationRequest) -> Value {
+    pub(crate) fn request_body(req: &VideoGenerationRequest) -> Value {
         let mut body = Map::new();
         body.insert("model".into(), json!(req.model));
         body.insert("prompt".into(), json!(req.prompt));
@@ -28,9 +28,5 @@ impl HttpVideoProvider {
         }
         body.insert("response_format".into(), json!("b64_json"));
         Value::Object(body)
-    }
-
-    pub fn request_body_preview(req: &VideoGenerationRequest) -> Value {
-        Self::request_body(req)
     }
 }

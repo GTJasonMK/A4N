@@ -8,8 +8,7 @@ pub mod prompt;
 pub use fields::optional_i32;
 pub use fields::{required_array, required_i32, required_object, required_string};
 pub use parsing::{
-    chapter_outline_batch_response_schema, parse_chapter_outline_batch, parse_outline_json_object,
-    reject_keys, reject_unknown_keys, validate_materialized_chapter_outline_batch,
+    parse_chapter_outline_batch, parse_outline_json_object, reject_keys, reject_unknown_keys,
 };
 pub use part_context::{
     ensure_focus_part_in_context, requested_part_for_chapter, required_part_summary,

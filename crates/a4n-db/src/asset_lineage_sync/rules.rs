@@ -1,3 +1,5 @@
+use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
+
 use super::*;
 
 pub(in crate::asset_lineage_sync) fn video_generation_kinds(
@@ -5,14 +7,21 @@ pub(in crate::asset_lineage_sync) fn video_generation_kinds(
     workflow_mode: &str,
 ) -> Option<(&'static str, &'static str)> {
     match prompt_type {
-        "frame_segment_plan" => Some(("video_segment_plan", "video_segment_plan")),
-        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" | "storyboard_prompt" => {
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => {
+            Some(("video_segment_plan", "video_segment_plan"))
+        }
+        chapter_video_prompt::PROMPT_TYPE_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME
+        | chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {
             Some(("video_frame_prompt", "image_prompt"))
         }
-        "video_prompt" if workflow_mode == "chat_video" => {
+        chapter_video_prompt::PROMPT_TYPE_VIDEO
+            if workflow_mode == chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO =>
+        {
             Some(("video_segment", "chat_video_prompt"))
         }
-        "video_prompt" => Some(("video_segment", "video_prompt")),
+        chapter_video_prompt::PROMPT_TYPE_VIDEO => Some(("video_segment", "video_prompt")),
         _ => None,
     }
 }
@@ -42,7 +51,8 @@ pub(super) fn should_sync_generated_image(
     image: &generated_image::Model,
     manga_prompt_by_image: &BTreeMap<i64, chapter_manga_prompt::Model>,
 ) -> bool {
-    manga_prompt_by_image.contains_key(&image.id) || image.image_type == "video_tail_frame"
+    manga_prompt_by_image.contains_key(&image.id)
+        || image.image_type == IMAGE_TYPE_VIDEO_TAIL_FRAME
 }
 
 pub(super) fn prompt_from_video_metadata<'a>(
@@ -62,7 +72,7 @@ pub(in crate::asset_lineage_sync) fn canonical_spec_status(status: &str) -> Opti
         "draft" => Some("draft"),
         "running" | "generating" => Some("running"),
         "completed" => Some("completed"),
-        "failed" => Some("failed"),
+        "failed" | "interrupted" => Some("failed"),
         "cancelled" => Some("cancelled"),
         "pending" => Some("ready"),
         _ => None,
@@ -74,7 +84,7 @@ pub(in crate::asset_lineage_sync) fn canonical_media_status(status: &str) -> Opt
         "pending" => Some("pending"),
         "running" | "generating" => Some("running"),
         "completed" => Some("completed"),
-        "failed" => Some("failed"),
+        "failed" | "interrupted" => Some("failed"),
         "cancelled" => Some("cancelled"),
         _ => None,
     }

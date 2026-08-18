@@ -1,5 +1,7 @@
 import { apiInvoke } from "../index";
 import type {
+  CharacterConflictCheckInput,
+  CharacterConflictSummary,
   SyncCharacterProfileInput,
   SyncCharacterProfileResult,
 } from "../generated/host";
@@ -18,9 +20,23 @@ function characterProfileSyncInput(
   };
 }
 
-export interface CharacterConflictScope {
-  startChapter?: number | null;
-  endChapter?: number | null;
+export type CharacterConflictScope = Pick<
+  CharacterConflictCheckInput,
+  "start_chapter" | "end_chapter"
+>;
+export type { CharacterConflictSummary };
+
+function characterConflictInput(
+  projectId: Id,
+  name: string,
+  scope: CharacterConflictScope,
+): CharacterConflictCheckInput {
+  return {
+    project_id: idNum(projectId),
+    name,
+    start_chapter: scope.start_chapter ?? null,
+    end_chapter: scope.end_chapter ?? null,
+  };
 }
 
 export async function getCharacterArcStatus(
@@ -46,15 +62,12 @@ export async function getCharacterVoiceFingerprint(
 export async function checkCharacterConflict(
   projectId: Id,
   name: string,
-  taskId?: string | null,
+  taskId: string,
   scope: CharacterConflictScope = {},
-): Promise<unknown[]> {
-  return apiInvoke<unknown[]>("check_character_conflict", {
-    projectId: idNum(projectId),
-    name,
-    startChapter: scope.startChapter ?? null,
-    endChapter: scope.endChapter ?? null,
-    taskId: taskId ?? null,
+): Promise<CharacterConflictSummary[]> {
+  return apiInvoke<CharacterConflictSummary[]>("check_character_conflict", {
+    input: characterConflictInput(projectId, name, scope),
+    taskId,
   });
 }
 
@@ -64,10 +77,7 @@ export async function previewCheckCharacterConflictRequest(
   scope: CharacterConflictScope = {},
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_check_character_conflict_request", {
-    projectId: idNum(projectId),
-    name,
-    startChapter: scope.startChapter ?? null,
-    endChapter: scope.endChapter ?? null,
+    input: characterConflictInput(projectId, name, scope),
   });
 }
 

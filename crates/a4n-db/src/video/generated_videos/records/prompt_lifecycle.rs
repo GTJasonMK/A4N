@@ -25,7 +25,7 @@ where
     video_active.timeline_item_id = Set(prompt.timeline_item_id);
     video_active.update(db).await?;
     let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-    active.status = Set("running".to_string());
+    active.status = Set(chapter_video_prompt::STATUS_RUNNING.to_string());
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(VideoDbError::Database)
 }

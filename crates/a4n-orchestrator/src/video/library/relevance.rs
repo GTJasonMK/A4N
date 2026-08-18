@@ -8,9 +8,6 @@ pub(super) fn is_chapter_video_material(metadata: Option<&Value>) -> bool {
     let Some(metadata) = metadata.and_then(Value::as_object) else {
         return false;
     };
-    if super::super::is_video_frame_input_metadata(metadata) {
-        return false;
-    }
     metadata
         .get("chapter_video_material")
         .and_then(Value::as_bool)

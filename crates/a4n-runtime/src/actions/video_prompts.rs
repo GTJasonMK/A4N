@@ -5,18 +5,18 @@ use async_trait::async_trait;
 
 use crate::{
     AppState,
-    actions::{image_records, video_records},
+    actions::{image_records, task_records::workflow_run_summary, video_records},
 };
 
 pub use a4n_api_contract::video::{
     CommitInsertedSegmentDraftInput, DeleteChapterVideoPromptInput, DeleteInsertedSegmentInput,
-    GetVideoTimelineInput, MoveInsertedSegmentInput, VideoTimelineSummary,
+    GetVideoTimelineInput, MoveInsertedSegmentInput, VideoSegmentPlanDraftSummary,
+    VideoTimelineSummary,
 };
 pub use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 pub use a4n_orchestrator::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
-    VideoSegmentPlanDraftSummary,
 };
 
 struct RuntimeVideoPromptCleanup<'a> {
@@ -117,11 +117,18 @@ pub async fn load_video_segment_plan_draft(
     user_id: i64,
     input: LoadVideoSegmentPlanDraftInput,
 ) -> Result<VideoSegmentPlanDraftSummary, String> {
-    state
+    let draft = state
         .orchestrator()
         .load_video_segment_plan_draft_validated(user_id, input)
         .await
-        .map_err(error_message)
+        .map_err(error_message)?;
+    Ok(VideoSegmentPlanDraftSummary {
+        run: workflow_run_summary(draft.run),
+        segments: draft.segments,
+        recipes: draft.recipes,
+        completed_shot_count: draft.completed_shot_count,
+        total_shot_count: draft.total_shot_count,
+    })
 }
 
 pub async fn update_video_segment_plan_draft_recipe(

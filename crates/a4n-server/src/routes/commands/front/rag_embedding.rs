@@ -1,3 +1,4 @@
+use a4n_core::event::channel::normalize_task_id;
 use serde_json::{Value, json};
 
 use super::super::{
@@ -99,10 +100,10 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
         scope.project_id,
         scope.total,
         "准备同步 RAG 数据",
-    );
+    )?;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let report_progress = web_fire_and_forget_progress_reporter(task.clone());
-    let reporter: a4n_runtime::rag_ingest::RagProgressReporter<'_> = task_id
+    let reporter = task_id
         .as_ref()
         .map(|_| &report_progress as &(dyn Fn(u32, u32, &str) + Send + Sync));
     let mut progress = a4n_runtime::rag_ingest::RagIngestProgress::new(
@@ -126,7 +127,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
             a4n_core::error::AppError::Internal(anyhow::anyhow!(err))
         }
     });
-    let value = finish_web_task(state, task_id, result)?;
+    let value = finish_web_task(state, task.as_ref(), result)?;
     Ok(json!(value))
 }
 
@@ -209,47 +210,39 @@ pub(in crate::routes::commands) async fn download_embedding_model(
 ) -> Result<Value, ApiError> {
     let input: embedding_model_actions::DownloadEmbeddingModelInput =
         command_input(args, "download_embedding_model")?;
-    let task_id =
-        embedding_model_actions::normalize_optional_embedding_download_task_id(input.task_id)?;
+    let task_id = normalize_task_id(&input.task_id)?;
     let task = register_web_task(
         state,
         user_id,
-        task_id.clone(),
+        Some(task_id),
         TaskKind::EmbeddingDownload,
         None,
         embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
         embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_INITIAL_MESSAGE,
-    );
-    let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let (progress_tx, progress_worker) = match task.as_ref() {
-        Some(task) => {
-            let (tx, mut rx) =
-                tokio::sync::mpsc::unbounded_channel::<embedding_model_actions::DownloadProgress>();
-            let task = task.clone();
-            let worker = tokio::spawn(async move {
-                while let Some(progress) = rx.recv().await {
-                    task.update_progress_bytes(
-                        progress.downloaded_bytes,
-                        progress.total_bytes,
-                        embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
-                        &progress.message,
-                    );
-                }
-            });
-            (Some(tx), Some(worker))
+    )?
+    .expect("embedding download task id is required");
+    let cancel_token = task.cancel_token.clone();
+    let (progress_tx, mut progress_rx) =
+        tokio::sync::mpsc::unbounded_channel::<embedding_model_actions::DownloadProgress>();
+    let progress_task = task.clone();
+    let progress_worker = tokio::spawn(async move {
+        while let Some(progress) = progress_rx.recv().await {
+            progress_task.update_progress_bytes(
+                progress.downloaded_bytes,
+                progress.total_bytes,
+                embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
+                &progress.message,
+            );
         }
-        None => (None, None),
-    };
+    });
     let mut result = embedding_model_actions::download_embedding_model(
         state.runtime(),
         embedding_model_actions::EmbeddingModelInput { model: input.model },
-        progress_tx,
+        Some(progress_tx),
         cancel_token,
     )
     .await;
-    if let Some(worker) = progress_worker
-        && let Err(join_error) = worker.await
-    {
+    if let Err(join_error) = progress_worker.await {
         let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
         result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
             "{}",
@@ -259,19 +252,19 @@ pub(in crate::routes::commands) async fn download_embedding_model(
             }
         )));
     }
-    let summary = finish_web_task(state, task_id, result)?;
+    let summary = finish_web_task(state, Some(&task), result)?;
     Ok(json!(summary))
 }
 
 pub(in crate::routes::commands) async fn cancel_embedding_model_download(
     state: &ServerState,
-    _user_id: i64,
+    user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: embedding_model_actions::CancelEmbeddingModelDownloadInput =
         command_input(args, "cancel_embedding_model_download")?;
-    let task_id = embedding_model_actions::required_task_id(input)?;
-    if !task_records_actions::cancel_registered_task(state.runtime(), &task_id) {
+    let task_id = normalize_task_id(&input.task_id)?;
+    if !task_records_actions::cancel_owned_task_handle(state.runtime(), &task_id, user_id) {
         return Err(ApiError::bad_request(format!(
             "模型下载任务不存在或已结束：{task_id}"
         )));

@@ -1,5 +1,7 @@
+use a4n_domain::project::ProjectSourceMode;
+
 use crate::asset_lineage_sync::{
-    AssetLineageBackfillSummary, SOURCE_MODE_FREEFORM,
+    AssetLineageBackfillSummary,
     types::{MediaSourceLineageContext, ProjectLineageContext},
 };
 
@@ -10,7 +12,7 @@ pub(in crate::asset_lineage_sync) fn media_source_context_for_row(
     row_id: i64,
     summary: &mut AssetLineageBackfillSummary,
 ) -> Option<MediaSourceLineageContext> {
-    if project_context.source_mode == SOURCE_MODE_FREEFORM {
+    if project_context.source_mode == ProjectSourceMode::Freeform {
         if source_chapter_id.is_some() {
             summary.warnings.push(format!(
                 "{table} #{row_id} 属于 freeform 项目但绑定了章节 {:?}，无法写入 media_asset，已跳过。",

@@ -16,7 +16,7 @@ pub(super) fn add_video_output_nodes(
 ) {
     let frame_image_count = generated_images
         .iter()
-        .filter(|image| video_frame_image_prompt_id(image.metadata_json.as_ref()).is_some())
+        .filter(|image| video_frame_image_prompt_id(image).is_some())
         .count() as u64;
     graph.add_node(node(
         "video_frame_images",

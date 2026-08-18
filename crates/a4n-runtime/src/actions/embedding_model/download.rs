@@ -1,8 +1,6 @@
-#[cfg(feature = "local-embedding")]
-use super::models::{list_local_embedding_models, list_local_embedding_models_in_cache};
 use super::{
     DownloadProgress, EmbeddingModelInput, LocalEmbeddingModelSummary,
-    host_adapter::{downloaded_model_summary, required_text},
+    host_adapter::required_text,
 };
 use crate::AppState;
 use a4n_core::error::AppError;
@@ -17,14 +15,13 @@ pub async fn download_embedding_model(
     state: &AppState,
     input: EmbeddingModelInput,
     progress_tx: Option<UnboundedSender<DownloadProgress>>,
-    cancel_token: Option<CancellationToken>,
+    cancel_token: CancellationToken,
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
     if state.runtime_profile().uses_sidecars() {
         let capabilities = state.capabilities().clone();
-        let model_for_download = model.clone();
-        let queue_cancel_token = cancel_token.clone().unwrap_or_default();
-        let models = state
+        let queue_cancel_token = cancel_token.clone();
+        return state
             .orchestrator()
             .queue_run_tracked_with_cancel(
                 QueueTaskKind::EmbeddingDownload,
@@ -34,41 +31,7 @@ pub async fn download_embedding_model(
                 || async move {
                     crate::sidecar_clients::download_embedding_model_events(
                         &capabilities,
-                        &model_for_download,
-                        progress_tx,
-                        cancel_token,
-                    )
-                    .await
-                },
-            )
-            .await?;
-        let models: Vec<LocalEmbeddingModelSummary> =
-            serde_json::from_value(models).map_err(|error| {
-                AppError::ConfigError(format!(
-                    "embedding sidecar 下载完成模型列表解析失败: {error}"
-                ))
-            })?;
-        return downloaded_model_summary(models, &model);
-    }
-
-    #[cfg(feature = "local-embedding")]
-    {
-        let cache_dir = state.default_fastembed_cache_dir();
-        let queue_cancel_token = cancel_token.clone().unwrap_or_default();
-        let model_for_download = model.clone();
-        let cache_dir_for_download = cache_dir.clone();
-
-        let download_result = state
-            .orchestrator()
-            .queue_run_tracked_with_cancel(
-                QueueTaskKind::EmbeddingDownload,
-                TaskPriority::Low,
-                None,
-                queue_cancel_token,
-                || async move {
-                    download_fastembed_model(
-                        &model_for_download,
-                        cache_dir_for_download,
+                        &model,
                         progress_tx,
                         cancel_token,
                     )
@@ -76,9 +39,24 @@ pub async fn download_embedding_model(
                 },
             )
             .await;
-        download_result?;
+    }
 
-        downloaded_model_summary(list_local_embedding_models(state).await?, &model)
+    #[cfg(feature = "local-embedding")]
+    {
+        let cache_dir = state.embedding_models_dir();
+        let queue_cancel_token = cancel_token.clone();
+        state
+            .orchestrator()
+            .queue_run_tracked_with_cancel(
+                QueueTaskKind::EmbeddingDownload,
+                TaskPriority::Low,
+                None,
+                queue_cancel_token,
+                || async move {
+                    download_fastembed_model(&model, cache_dir, progress_tx, cancel_token).await
+                },
+            )
+            .await
     }
     #[cfg(not(feature = "local-embedding"))]
     {
@@ -91,13 +69,12 @@ pub async fn download_embedding_model_to_cache(
     input: EmbeddingModelInput,
     cache_dir: PathBuf,
     progress_tx: Option<UnboundedSender<DownloadProgress>>,
-    cancel_token: Option<CancellationToken>,
+    cancel_token: CancellationToken,
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     #[cfg(feature = "local-embedding")]
     {
         let model = required_text(&input.model, "fastembed 模型名")?;
-        download_fastembed_model(&model, cache_dir.clone(), progress_tx, cancel_token).await?;
-        downloaded_model_summary(list_local_embedding_models_in_cache(&cache_dir)?, &model)
+        download_fastembed_model(&model, cache_dir, progress_tx, cancel_token).await
     }
     #[cfg(not(feature = "local-embedding"))]
     {
