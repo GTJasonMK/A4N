@@ -2,7 +2,7 @@ use a4n_core::models::generation::generation_spec;
 
 use crate::galgame::GalgameGenerationRecordError;
 
-pub fn validate_galgame_portrait_spec_family_context(
+pub(in crate::galgame) fn validate_galgame_portrait_spec_family_context(
     spec: &generation_spec::Model,
     root_project_id: i64,
     source_snapshot_id: i64,
@@ -22,7 +22,7 @@ pub fn validate_galgame_portrait_spec_family_context(
     Ok(())
 }
 
-pub fn validate_galgame_portrait_spec_source_chapter(
+pub(in crate::galgame) fn validate_galgame_portrait_spec_source_chapter(
     spec: &generation_spec::Model,
 ) -> Result<(), GalgameGenerationRecordError> {
     match (spec.source_chapter_id, spec.source_snapshot_chapter_id) {

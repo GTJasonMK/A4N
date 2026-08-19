@@ -1,6 +1,4 @@
-use a4n_core::{
-    error::AppError, models::chapter::chapter_video_prompt, source_spans::SourceSpan,
-};
+use a4n_core::{error::AppError, models::chapter::chapter_video_prompt, source_spans::SourceSpan};
 use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashSet};
@@ -12,15 +10,14 @@ use super::super::frame_chain::{
     segment_plan_draft,
 };
 use super::super::{
-    CompletedVideoLlmCheckpointInput, ProgressSpan, VIDEO_PREVIOUS_OUTPUT_SHOOTING_SCRIPT,
-    RenderOrRestoreJsonWithValidationInput, VideoContextManifestInput,
-    VideoContextPreviousOutput, VideoPlanningPromptContext, VideoPromptStepProgress,
-    build_segment_plan_for_shot_user, build_video_context_manifest,
-    parse_generated_segment_plan_with_current_config,
+    CompletedVideoLlmCheckpointInput, ProgressSpan, RenderOrRestoreJsonWithValidationInput,
+    VIDEO_PREVIOUS_OUTPUT_SHOOTING_SCRIPT, VideoContextManifestInput, VideoContextPreviousOutput,
+    VideoPlanningPromptContext, VideoPromptStepProgress, build_segment_plan_for_shot_user,
+    build_video_context_manifest, parse_generated_segment_plan_with_current_config,
     parse_video_segment_plan_input_values, render_json_with_validation_with_context,
     report_video_prompt_checkpoint, report_video_prompt_item_committed,
-    report_video_prompt_progress, save_completed_video_llm_checkpoint,
-    segment_plan_progress_spec, serialize_video_value, source_spans_for_shot,
+    report_video_prompt_progress, save_completed_video_llm_checkpoint, segment_plan_progress_spec,
+    serialize_video_value, source_spans_for_shot,
     validate_segment_plan_against_shooting_script_projection, video_execution_chain_identity,
     video_segment_plan_input_values, video_stage_fingerprint,
 };
@@ -176,11 +173,7 @@ pub(super) async fn render_segment_plan_shots(
             }),
         );
         if let Some(checkpoint) = service
-            .load_completed_llm_call_checkpoint(
-                workflow_run_id,
-                &step_key,
-                &fingerprint_json,
-            )
+            .load_completed_llm_call_checkpoint(workflow_run_id, &step_key, &fingerprint_json)
             .await?
         {
             let (response_content, segment_shot) = restore_segment_plan_shot_checkpoint(
@@ -550,10 +543,12 @@ fn ensure_segment_plan_checkpoint_output(
     segment_shot: &ValidatedSegmentPlanShot,
     context: &str,
 ) -> Result<(), AppError> {
-    let checkpoint_output = parsed_output.as_array().ok_or_else(|| AppError::InvalidState {
-        current: "invalid_checkpoint_parsed_output".to_string(),
-        operation: format!("读取{context}"),
-    })?;
+    let checkpoint_output = parsed_output
+        .as_array()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "invalid_checkpoint_parsed_output".to_string(),
+            operation: format!("读取{context}"),
+        })?;
     ensure_checkpoint_parsed_output_matches(
         checkpoint_output.as_slice(),
         segment_shot.checkpoint_values.as_slice(),

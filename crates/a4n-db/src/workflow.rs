@@ -28,22 +28,69 @@ pub use status::{
 };
 
 mod inputs;
-pub use inputs::*;
+pub use inputs::{
+    ClaimExclusiveWorkflowRunInput, GetWorkflowRunInput, ListWorkflowRunsInput,
+    UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowProgressEventInput,
+};
 
 mod summaries;
-pub use summaries::*;
+pub use summaries::{
+    CancelWorkflowRunPersistenceResult, GenerationRunSummary, PersistedTaskInfo,
+    TaskProgressEventSummary, WorkflowCheckpointSummary, WorkflowRunDetailSummary,
+    WorkflowRunProgressSummary, WorkflowRunSummary,
+};
 
 mod validation;
-pub(in crate::workflow) use validation::*;
+pub(in crate::workflow) use validation::{
+    non_empty_text, normalize_optional_text, required_text, validate_positive_i64,
+    validate_workflow_status,
+};
 
 mod runs;
-pub use runs::*;
+pub use runs::{
+    claim_exclusive_workflow_run, completed_workflow_checkpoint_by_fingerprint,
+    delete_workflow_checkpoints_by_keys, latest_workflow_run_by_business_key,
+    latest_workflow_run_by_business_key_for_update, list_workflow_run_models, list_workflow_runs,
+    mark_workflow_current_step, mark_workflow_status,
+    mutate_completed_workflow_checkpoint_artifacts_unless_step_exists,
+    record_workflow_progress_event, resume_or_upsert_workflow_run, resume_workflow_run,
+    upsert_workflow_checkpoint, upsert_workflow_checkpoint_in_transaction, upsert_workflow_run,
+    upsert_workflow_run_in_transaction, workflow_checkpoint_model_by_step_in,
+    workflow_checkpoint_models, workflow_progress_events, workflow_run_detail,
+    workflow_run_model_by_active_task_id, workflow_run_model_by_id,
+    workflow_run_model_optional_by_id, workflow_run_summary_by_id, workflow_runs_by_project_kind,
+};
+#[cfg(test)]
+pub(in crate::workflow) use runs::{
+    completed_at_for_status_value, ensure_workflow_status_transition,
+    requires_explicit_interrupted_resume, should_resume_existing_run, should_update_existing_run,
+    validate_workflow_progress_range, validate_workflow_run_input, workflow_fingerprint_matches,
+    workflow_run_progress_summary, workflow_run_summary,
+};
+pub(in crate::workflow) use runs::{
+    locked_workflow_run_by_id, trim_workflow_progress_events, workflow_checkpoints,
+};
 
 mod tasks;
-pub use tasks::*;
+pub(crate) use tasks::task_info_from_row;
+pub use tasks::{
+    cancel_workflow_run_persistence, persisted_task_by_id, persisted_task_history,
+    recover_stale_in_process_workflows,
+};
+#[cfg(test)]
+pub(in crate::workflow) use tasks::{
+    generated_video_ids_for_active_checkpoints, persisted_task_info_from_row,
+};
 
 mod llm_checkpoint;
-pub use llm_checkpoint::*;
+#[cfg(test)]
+pub(in crate::workflow) use llm_checkpoint::validate_completed_llm_call_checkpoint_json;
+pub use llm_checkpoint::{
+    CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
+    completed_llm_call_checkpoint_from_model, llm_call_checkpoint_fingerprint_sha256,
+    load_completed_llm_call_checkpoint, required_llm_call_workflow_run_id,
+    save_completed_llm_call_checkpoint,
+};
 
 // ── LLM call level checkpoint 合同（阶段 11 收口） ──────────────────────────
 

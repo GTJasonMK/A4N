@@ -42,11 +42,9 @@ pub async fn test_embedding_config(
             .map_err(|e| e.to_string())?;
         return Ok(());
     }
-    let provider = crate::dynamic_embedding::make_provider_from_model(
-        &config,
-        state.embedding_models_dir(),
-    )
-    .map_err(|e| e.to_string())?;
+    let provider =
+        crate::dynamic_embedding::make_provider_from_model(&config, state.embedding_models_dir())
+            .map_err(|e| e.to_string())?;
     state
         .orchestrator()
         .queue_run_tracked(

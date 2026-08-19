@@ -4,7 +4,7 @@ use a4n_core::{
 };
 use sea_orm::{DatabaseConnection, EntityTrait};
 
-pub async fn embedding_configs_exist(db: &DatabaseConnection) -> Result<bool, AppError> {
+pub(super) async fn embedding_configs_exist(db: &DatabaseConnection) -> Result<bool, AppError> {
     Ok(embedding_config::Entity::find()
         .one(db)
         .await

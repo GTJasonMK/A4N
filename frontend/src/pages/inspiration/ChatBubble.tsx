@@ -87,8 +87,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
   const showPendingSkeleton = message.streaming && message.optionsPending;
 
   return (
-    <div className={`flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
-      <div className="max-w-[80%]">
+    <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+      <div className="min-w-0 max-w-[80%]">
         <div
           className={`text-small font-semibold mb-1 px-1 ${
             isUser ? "text-book-primary" : "text-book-text-muted"
@@ -131,7 +131,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
         </div>
       </div>
       {!isUser && (displayOptions?.length || showPendingSkeleton) && (
-        <div className="flex w-full max-w-[520px] flex-col gap-1.5 pl-3 sm:w-[80%] sm:min-w-[240px]">
+        <div className="flex min-w-0 w-full max-w-[520px] flex-col gap-1.5 pl-3 sm:w-[80%] sm:min-w-[240px]">
           {displayOptions?.map((opt, i) => (
             <OptionCard
               key={opt.id || i}

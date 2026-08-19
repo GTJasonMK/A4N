@@ -124,6 +124,7 @@ if $DRY_RUN; then
 fi
 
 "${prepare_command[@]}"
+require_onnxruntime
 
 log_section "构建 Tauri 原生包"
 (

@@ -208,7 +208,7 @@ export const Modal: React.FC<ModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`dialog-panel relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-[var(--pyqt-radius-xl)] ${maxWidthClassName} ${className}`}
+        className={`a4n-modal-panel dialog-panel relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-[var(--pyqt-radius-xl)] ${maxWidthClassName} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {tone !== 'default' ? <div className={`h-0.5 shrink-0 ${toneClass.accent}`} /> : null}
@@ -238,7 +238,7 @@ export const Modal: React.FC<ModalProps> = ({
           {showCloseButton ? (
             <button
               onClick={requestClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-8 sm:w-8"
+              className="a4n-icon-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-8 sm:w-8"
               aria-label="关闭弹窗"
               title="关闭 (Esc)"
             >

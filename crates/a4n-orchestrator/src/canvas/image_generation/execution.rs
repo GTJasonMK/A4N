@@ -2,8 +2,7 @@ use a4n_core::error::AppError;
 use a4n_db::{
     canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
-        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     },
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
@@ -36,7 +35,8 @@ impl OrchestratorContext {
         let image_input =
             build_canvas_image_node_input(input.node, input.document, checkpoints.as_deref())
                 .map_err(AppError::InvalidArgument)?;
-        let step_key = format!("canvas_node:{}", input.node.id);
+        let step_key = crate::canvas::canvas_node_step_key(input.node.id)
+            .map_err(AppError::InvalidArgument)?;
         let input_json = json!({
             "project_id": input.project_id,
             "graph_id": input.graph_id,
@@ -147,9 +147,10 @@ impl OrchestratorContext {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
-        if project.source_mode().map_err(|error| {
-            AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
-        })? != ProjectSourceMode::Freeform
+        if project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+            != ProjectSourceMode::Freeform
         {
             return Ok(None);
         }

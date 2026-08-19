@@ -56,6 +56,7 @@ pub mod neutral_video_segment_plan;
 pub mod object_profile_usage_fields;
 pub mod postgres_baseline;
 pub mod profile_record_ownership;
+pub mod profile_record_ownership_default_cleanup;
 pub mod project_collaboration;
 pub mod project_derivation_identity_cleanup;
 pub mod project_source_mode_identity_cleanup;

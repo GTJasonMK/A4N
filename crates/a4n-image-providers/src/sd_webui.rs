@@ -8,13 +8,13 @@ use async_trait::async_trait;
 use serde_json::json;
 
 /// Stable Diffusion WebUI provider：AUTOMATIC1111 / sd-webui API。
-pub struct StableDiffusionWebUiImageProvider {
+pub(super) struct StableDiffusionWebUiImageProvider {
     base_url: String,
     client: reqwest::Client,
 }
 
 impl StableDiffusionWebUiImageProvider {
-    pub fn new(base_url: &str) -> Result<Self, AppError> {
+    pub(super) fn new(base_url: &str) -> Result<Self, AppError> {
         Ok(Self {
             base_url: required_non_empty(base_url, "base_url")?
                 .trim_end_matches('/')
@@ -23,7 +23,9 @@ impl StableDiffusionWebUiImageProvider {
         })
     }
 
-    pub(crate) fn txt2img_body(req: &ImageGenerationRequest) -> Result<serde_json::Value, AppError> {
+    pub(super) fn txt2img_body(
+        req: &ImageGenerationRequest,
+    ) -> Result<serde_json::Value, AppError> {
         if !req.reference_images.is_empty() {
             return Err(internal_error(
                 "stable-diffusion 后端使用 /sdapi/v1/txt2img，真实请求不支持参考图绑定",

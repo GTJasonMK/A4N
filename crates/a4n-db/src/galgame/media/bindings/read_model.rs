@@ -3,7 +3,7 @@ use a4n_core::models::media::{media_asset, media_binding};
 use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::BTreeSet;
 
-pub async fn galgame_media_binding_read_model(
+pub(in crate::galgame) async fn galgame_media_binding_read_model(
     db: &DatabaseConnection,
     scene_ids: &[i64],
     line_ids: &[i64],

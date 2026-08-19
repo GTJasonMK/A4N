@@ -9,7 +9,7 @@ use super::{
     types::{CharacterProfileCreateError, CharacterProfileCreateInput},
 };
 
-pub async fn create_profile_record<C>(
+async fn create_profile_record<C>(
     db: &C,
     input: CharacterProfileCreateInput,
 ) -> Result<protagonist_profile::Model, CharacterProfileCreateError>

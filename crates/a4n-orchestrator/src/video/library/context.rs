@@ -4,7 +4,25 @@ use a4n_core::error::AppError;
 use a4n_core::models::ai::generated_image;
 use serde_json::Value;
 
-use super::*;
+use crate::profile_material::{
+    generated_image_profile_material_identity, is_project_reusable_video_material_image,
+};
+use crate::video::{ChapterVideoSourceContext, OrchestratorContext};
+use a4n_db::profile_material::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE};
+
+use super::candidates::{
+    RelevantProfile, VideoAssetCandidate, VideoAssetCandidates, best_profile_material_image,
+};
+use super::projection::video_library_image_entry;
+use super::relevance::{
+    is_chapter_video_material, object_profile_relevance, scene_profile_relevance,
+    source_relevance_text,
+};
+use super::validation::ensure_video_asset_image_usable;
+use super::{
+    MAX_AUTO_PROFILE_ASSETS, MAX_REFERENCE_IMAGE_IDS, MAX_VIDEO_LIBRARY_IMAGE_IDS,
+    SELECTION_REASON_CHAPTER_MATERIAL, SELECTION_REASON_MANUAL_LIBRARY, SELECTION_REASON_REFERENCE,
+};
 
 impl OrchestratorContext {
     pub(in crate::video) async fn video_library_image_context(

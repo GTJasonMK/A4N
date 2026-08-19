@@ -26,7 +26,8 @@ impl OrchestratorContext {
                 &input.node.node_kind,
             )
             .await?;
-        let step_key = format!("canvas_node:{}", input.node.id);
+        let step_key = crate::canvas::canvas_node_step_key(input.node.id)
+            .map_err(AppError::InvalidArgument)?;
         let input_json = json!({
             "project_id": input.project_id,
             "graph_id": input.graph_id,

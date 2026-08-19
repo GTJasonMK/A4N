@@ -165,8 +165,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(err, "第 1 项包含未知字段：legacy_config");
 
-        let err = optional_json_i64_field(&json!({"chapter_id": "12"}), "chapter_id")
-            .unwrap_err();
+        let err = optional_json_i64_field(&json!({"chapter_id": "12"}), "chapter_id").unwrap_err();
         assert_eq!(err, "chapter_id 必须是整数");
 
         let err = batch_image_aspect_ratio(&json!({"aspect_ratio": 169})).unwrap_err();
@@ -217,21 +216,11 @@ mod tests {
     #[test]
     fn aspect_ratio_dimensions_and_backend() {
         assert_eq!(
-            image_dimensions_for_aspect_ratio(
-                1024,
-                1024,
-                VideoAspectRatio::Ratio16x9,
-            )
-            .unwrap(),
+            image_dimensions_for_aspect_ratio(1024, 1024, VideoAspectRatio::Ratio16x9,).unwrap(),
             (1024, 576)
         );
         assert_eq!(
-            image_dimensions_for_aspect_ratio(
-                1024,
-                1024,
-                VideoAspectRatio::Ratio9x16,
-            )
-            .unwrap(),
+            image_dimensions_for_aspect_ratio(1024, 1024, VideoAspectRatio::Ratio9x16,).unwrap(),
             (576, 1024)
         );
         assert_eq!(

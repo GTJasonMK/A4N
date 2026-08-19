@@ -42,7 +42,7 @@ where
     active.update(db).await.map_err(VideoDbError::Database)
 }
 
-pub async fn update_chapter_video_prompt_metadata_record<C>(
+pub(crate) async fn update_chapter_video_prompt_metadata_record<C>(
     db: &C,
     prompt: chapter_video_prompt::Model,
     metadata_json: Value,

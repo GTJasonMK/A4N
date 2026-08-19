@@ -10,8 +10,7 @@ pub(crate) async fn delete_video_tail_frame_assets(
         .orchestrator()
         .video_tail_frame_images()
         .await
-        .map_err(|error| error.to_string())
-        .map_err(|err| format!("查询视频真实尾帧图片失败：{err}"))?
+        .map_err(|error| format!("查询视频真实尾帧图片失败：{error}"))?
         .into_iter()
         .filter(|image| tail_frame_image_belongs_to_video(image, video_id))
         .collect::<Vec<_>>();

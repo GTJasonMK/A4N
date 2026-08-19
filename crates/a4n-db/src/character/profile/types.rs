@@ -2,7 +2,7 @@ use sea_orm::DbErr;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
-pub struct CharacterProfileCurrentStateUpdate {
+pub(in crate::character) struct CharacterProfileCurrentStateUpdate {
     pub gender: Option<String>,
     pub age: Option<String>,
     pub appearance: Option<String>,

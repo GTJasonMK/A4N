@@ -1,14 +1,14 @@
 use crate::ImportTransformError;
 
-use super::helpers::order_epub_html_entries;
+use super::helpers::ordering::order_epub_html_entries;
 
 mod entries;
 
 use entries::scan_epub_entries;
 
 pub(super) struct EpubArchiveContent {
-    pub title: Option<String>,
-    pub text_content: String,
+    pub(super) title: Option<String>,
+    pub(super) text_content: String,
 }
 
 pub(super) fn read_epub_archive(data: &[u8]) -> Result<EpubArchiveContent, ImportTransformError> {

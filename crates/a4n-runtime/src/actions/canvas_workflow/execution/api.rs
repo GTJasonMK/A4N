@@ -9,7 +9,11 @@ use a4n_orchestrator::{
     },
 };
 
-use super::{host_port::RuntimeCanvasGraphExecutionHostPort, prelude::*};
+use super::host_port::RuntimeCanvasGraphExecutionHostPort;
+use crate::{
+    AppState,
+    actions::canvas_workflow::{CanvasRunSummary, RunCanvasGraphInput, RunCanvasNodeInput},
+};
 use crate::actions::canvas_workflow::node_lifecycle::runtime_summary;
 
 pub async fn run_canvas_graph(
@@ -54,7 +58,7 @@ pub async fn run_canvas_node(
     submit_prepared_canvas_graph_run(state, prepared)
 }
 
-pub async fn resume_canvas_graph_run(
+pub(crate) async fn resume_canvas_graph_run(
     state: &AppState,
     user_id: i64,
     workflow_run_id: i64,

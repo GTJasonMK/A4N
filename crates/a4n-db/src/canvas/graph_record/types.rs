@@ -23,7 +23,6 @@ pub struct CanvasGraphRecordInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasNodeRecordInput {
     pub client_id: String,
-    pub id: Option<i64>,
     pub node_kind: String,
     pub ref_type: Option<String>,
     pub ref_id: Option<i64>,
@@ -36,8 +35,6 @@ pub struct CanvasNodeRecordInput {
 pub struct CanvasEdgeRecordInput {
     pub source_client_id: String,
     pub target_client_id: String,
-    pub source_node_id: Option<i64>,
-    pub target_node_id: Option<i64>,
     pub source_port: String,
     pub target_port: String,
     pub role: String,

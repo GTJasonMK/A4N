@@ -29,26 +29,14 @@ pub fn render_zip_package(input: ExportZipPackageInput) -> Result<Vec<u8>, Expor
     Ok(cursor.into_inner())
 }
 
-pub(crate) fn decode_base64(
-    label: impl Into<String>,
-    value: &str,
-) -> Result<Vec<u8>, ExportRenderError> {
-    BASE64
-        .decode(value)
-        .map_err(|source| ExportRenderError::Base64Decode {
-            label: label.into(),
-            source,
-        })
-}
-
-pub(crate) struct ExportZipWriter<W: Write + Seek> {
+struct ExportZipWriter<W: Write + Seek> {
     zip: ZipWriter<W>,
     options: SimpleFileOptions,
     entries: HashSet<String>,
 }
 
 impl<W: Write + Seek> ExportZipWriter<W> {
-    pub(crate) fn new(writer: W) -> Self {
+    fn new(writer: W) -> Self {
         Self {
             zip: ZipWriter::new(writer),
             options: SimpleFileOptions::default()
@@ -57,7 +45,7 @@ impl<W: Write + Seek> ExportZipWriter<W> {
         }
     }
 
-    pub(crate) fn write_entry_bytes(
+    fn write_entry_bytes(
         &mut self,
         path: &str,
         bytes: &[u8],
@@ -81,7 +69,7 @@ impl<W: Write + Seek> ExportZipWriter<W> {
             .map_err(|source| ExportRenderError::ZipEntryWrite { label, source })
     }
 
-    pub(crate) fn finish(self, label: impl Into<String>) -> Result<W, ExportRenderError> {
+    fn finish(self, label: impl Into<String>) -> Result<W, ExportRenderError> {
         self.zip
             .finish()
             .map_err(|source| ExportRenderError::ZipFinish {

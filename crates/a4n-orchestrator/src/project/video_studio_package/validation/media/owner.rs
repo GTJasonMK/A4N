@@ -29,21 +29,20 @@ pub(super) fn resolve_media_entry_owner<'a>(
                     entry.owner_id
                 )
             }),
-        (Some(CanvasNodeRefKind::GeneratedVideo), FILE_PATH_FIELD | THUMBNAIL_PATH_FIELD) => package
-            .generated_videos
-            .iter()
-            .find(|record| record.id == entry.owner_id)
-            .map(MediaEntryOwner::GeneratedVideo)
-            .ok_or_else(|| {
-                format!(
-                    "媒体清单引用了不存在的生成视频: generated_video_id={}",
-                    entry.owner_id
-                )
-            }),
-        (
-            Some(CanvasNodeRefKind::MediaAsset),
-            FILE_PATH_FIELD | THUMBNAIL_PATH_FIELD,
-        ) => package
+        (Some(CanvasNodeRefKind::GeneratedVideo), FILE_PATH_FIELD | THUMBNAIL_PATH_FIELD) => {
+            package
+                .generated_videos
+                .iter()
+                .find(|record| record.id == entry.owner_id)
+                .map(MediaEntryOwner::GeneratedVideo)
+                .ok_or_else(|| {
+                    format!(
+                        "媒体清单引用了不存在的生成视频: generated_video_id={}",
+                        entry.owner_id
+                    )
+                })
+        }
+        (Some(CanvasNodeRefKind::MediaAsset), FILE_PATH_FIELD | THUMBNAIL_PATH_FIELD) => package
             .media_assets
             .iter()
             .find(|record| record.id == entry.owner_id)

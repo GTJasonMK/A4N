@@ -240,15 +240,11 @@ pub(in crate::video) fn expected_contract_version(
         | (
             chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
             chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME,
-        ) => {
-            Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION)
-        }
+        ) => Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION),
         (
             chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
             chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME | chapter_video_prompt::PROMPT_TYPE_VIDEO,
-        ) => {
-            Some(FIRST_FRAME_CHAIN_CONTRACT_VERSION)
-        }
+        ) => Some(FIRST_FRAME_CHAIN_CONTRACT_VERSION),
         (
             chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
             chapter_video_prompt::PROMPT_TYPE_VIDEO,

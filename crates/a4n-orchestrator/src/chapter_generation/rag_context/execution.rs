@@ -2,14 +2,13 @@ use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
 use a4n_rag_core::vector_store::VectorStore;
 
 use super::{
-    contracts::PreparedGenerationRagSearch,
-    formatting::format_generation_rag_context,
+    contracts::PreparedGenerationRagSearch, formatting::format_generation_rag_context,
     fusion::fuse_generation_rag_results,
 };
+use crate::rag::search::enhanced::{validate_embedding_identity_match, validate_query_vectors};
 use crate::rag::{
     hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_validated_embedding_in_store,
 };
-use crate::rag::search::enhanced::{validate_embedding_identity_match, validate_query_vectors};
 
 const GENERATION_RAG_PULL_K: usize = 24;
 

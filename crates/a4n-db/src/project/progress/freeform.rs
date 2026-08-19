@@ -4,12 +4,11 @@ use a4n_core::models::ai::generated_video;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::collections::HashMap;
 
-const FREEFORM_VIDEO_PROGRESS_TYPES: [&str; 3] =
-    [
-        generated_video::VIDEO_TYPE_CANVAS,
-        generated_video::VIDEO_TYPE_TRIMMED_CLIP,
-        generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY,
-    ];
+const FREEFORM_VIDEO_PROGRESS_TYPES: [&str; 3] = [
+    generated_video::VIDEO_TYPE_CANVAS,
+    generated_video::VIDEO_TYPE_TRIMMED_CLIP,
+    generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY,
+];
 
 pub(super) async fn freeform_video_project_progress_by_project(
     db: &DatabaseConnection,

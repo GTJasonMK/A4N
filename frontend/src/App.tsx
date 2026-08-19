@@ -6,7 +6,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { Network, Settings } from "lucide-react";
+import { Activity, Network, Settings } from "lucide-react";
 import { ToastContainer } from "./components/feedback/Toast";
 import { ErrorBoundary } from "./components/feedback/ErrorBoundary";
 import { ConfirmDialogHost } from "./components/feedback/ConfirmDialog";
@@ -24,6 +24,7 @@ import { useAuthStore } from "./store/auth";
 import { ProgressTaskProvider } from "./hooks/useProgressTask";
 import { loadAndApplyActiveTheme } from "./theme/activeTheme";
 import { logger } from "./utils/logger";
+import { shouldUseHttpBackend } from "./utils/runtimeMode";
 
 const NovelList = lazy(() =>
   import("./pages/NovelList").then((m) => ({ default: m.NovelList })),
@@ -61,6 +62,9 @@ const GalgameProjectWorkspace = lazy(() =>
 );
 const SettingsPage = lazy(() =>
   import("./pages/settings").then((m) => ({ default: m.SettingsPage })),
+);
+const AgentMonitor = lazy(() =>
+  import("./pages/AgentMonitor").then((m) => ({ default: m.AgentMonitor })),
 );
 
 function RouteFallback() {
@@ -112,6 +116,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     !/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname);
   const settingsShortcutAvailable =
     location.pathname !== "/" && location.pathname !== "/settings";
+  const agentMonitorAvailable = shouldUseHttpBackend() && location.pathname !== "/agents";
   const [dependencyGraphOpen, setDependencyGraphOpen] = useState(false);
   useEffect(() => {
     if (!dependencyGraphAvailable) setDependencyGraphOpen(false);
@@ -126,7 +131,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [initialized, user?.id]);
 
   return (
-    <div className="h-[100dvh] min-h-0 overflow-hidden bg-book-bg transition-colors duration-150 flex flex-col relative">
+    <div className="a4n-app-shell h-[100dvh] min-h-0 overflow-hidden bg-book-bg transition-colors duration-150 flex flex-col relative">
       <ToastContainer />
       <ConfirmDialogHost />
       <PromptDialogHost />
@@ -139,6 +144,17 @@ function Layout({ children }: { children: React.ReactNode }) {
       <StatusBar
         actions={
           <>
+            {agentMonitorAvailable ? (
+              <button
+                type="button"
+                aria-label="查看 Agent 工作状态"
+                title="查看 Agent 工作状态"
+                onClick={() => navigate("/agents")}
+                className="a4n-status-bar-action"
+              >
+                <Activity size={12} />
+              </button>
+            ) : null}
             {dependencyGraphAvailable ? (
               <button
                 type="button"
@@ -209,6 +225,7 @@ export default function App() {
                       element={<GalgameProjectWorkspace />}
                     />
                     <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/agents" element={<AgentMonitor />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>

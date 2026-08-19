@@ -7,8 +7,7 @@ mod providers;
 mod tests;
 
 use a4n_service_protocol::{
-    HealthStatus, SIDECAR_HEALTH_PATH, ServiceHealth, VIDEO_SERVICE_NAME,
-    known_service_health,
+    HealthStatus, SIDECAR_HEALTH_PATH, ServiceHealth, VIDEO_SERVICE_NAME, known_service_health,
 };
 use axum::{
     Json, Router,

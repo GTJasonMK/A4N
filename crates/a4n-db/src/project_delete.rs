@@ -9,16 +9,19 @@ use crate::generation;
 use crate::project as project_db;
 
 mod types;
-pub use types::*;
+pub use types::{
+    ChapterGenerationCleanupResult, GeneratedImageDeleteScope, ProfileSceneCleanupResult,
+    ProjectDeleteDbError,
+};
 
 mod chapter_generation;
-pub(crate) use chapter_generation::*;
+pub(crate) use chapter_generation::delete_chapter_generation_outputs;
 
 mod profile_scene;
-pub(crate) use profile_scene::*;
+pub(crate) use profile_scene::delete_project_profile_scene_data;
 
 mod cascade;
-pub use cascade::*;
+pub use cascade::delete_project_cascade_record;
 
 #[cfg(test)]
 mod tests;

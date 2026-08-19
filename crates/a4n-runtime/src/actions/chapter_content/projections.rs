@@ -441,7 +441,7 @@ fn append_named_updates(
     Ok(())
 }
 
-pub async fn chapter_summary_with_sync_state(
+pub(crate) async fn chapter_summary_with_sync_state(
     state: &AppState,
     chapter: &chapter::Model,
 ) -> Result<ChapterSummary, AppError> {

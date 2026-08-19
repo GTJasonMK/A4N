@@ -4,14 +4,6 @@ use crate::video::VideoDbError;
 use a4n_core::models::{ai::generated_image, asset::profile_primary_material};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
 
-async fn delete_generated_image_record_in<C>(db: &C, image_id: i64) -> Result<(), VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    let image = generated_image_for_delete(db, image_id).await?;
-    delete_locked_generated_image_record_in(db, &image).await
-}
-
 async fn delete_locked_generated_image_record_in<C>(
     db: &C,
     image: &generated_image::Model,
@@ -30,16 +22,6 @@ where
     generated_image::Entity::delete_by_id(image.id)
         .exec(db)
         .await?;
-    Ok(())
-}
-
-pub async fn delete_generated_image_record<C>(db: &C, image_id: i64) -> Result<(), VideoDbError>
-where
-    C: ConnectionTrait + TransactionTrait,
-{
-    let txn = db.begin().await.map_err(VideoDbError::Database)?;
-    delete_generated_image_record_in(&txn, image_id).await?;
-    txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(())
 }
 

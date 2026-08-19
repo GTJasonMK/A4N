@@ -1,3 +1,4 @@
+pub(crate) mod agents;
 mod auth;
 mod commands;
 mod error;
@@ -12,7 +13,7 @@ pub use generation::dispatch_generation_start;
 use crate::state::ServerState;
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 
 const COMMAND_BODY_LIMIT_BYTES: usize = 32 * 1024 * 1024;
 const TEMP_MEDIA_BODY_LIMIT_BYTES: usize = 32 * 1024 * 1024;
@@ -24,6 +25,13 @@ pub fn api_router(state: ServerState) -> Router {
         .route("/meta", get(meta::get))
         .route("/meta/commands", get(meta::commands))
         .route("/meta/commands/{command}", get(meta::command))
+        .route("/agents", get(agents::list).post(agents::register))
+        .route(
+            "/agents/{agent_id}",
+            patch(agents::update).delete(agents::unregister),
+        )
+        .route("/agents/{agent_id}/heartbeat", post(agents::update))
+        .route("/agents/events", get(agents::events))
         .route(
             "/commands/{cmd}",
             post(commands::invoke).layer(DefaultBodyLimit::max(COMMAND_BODY_LIMIT_BYTES)),

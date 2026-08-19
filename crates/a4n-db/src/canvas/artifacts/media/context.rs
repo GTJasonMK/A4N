@@ -6,7 +6,7 @@ use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
-pub async fn canvas_media_source_context<C>(
+async fn canvas_media_source_context<C>(
     db: &C,
     project_id: i64,
     source_chapter_id: Option<i64>,
@@ -23,9 +23,10 @@ where
             "画布媒体资产只支持视频项目: {project_id}"
         )));
     }
-    match project.source_mode().map_err(|error| {
-        CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
-    })? {
+    match project
+        .source_mode()
+        .map_err(|error| CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}")))?
+    {
         ProjectSourceMode::Freeform => {
             if let Some(chapter_id) = source_chapter_id {
                 return Err(CanvasDbError::InvalidArgument(format!(

@@ -1,6 +1,6 @@
 use super::*;
 
-pub async fn prompt_artifact_by_id<C>(
+pub(crate) async fn prompt_artifact_by_id<C>(
     db: &C,
     prompt_artifact_id: i64,
 ) -> Result<prompt_artifact::Model, GenerationDbError>
@@ -20,7 +20,7 @@ pub fn is_valid_generation_prompt_kind(value: &str) -> bool {
     GENERATION_PROMPT_KINDS.contains(&value)
 }
 
-pub fn validate_prompt_artifact_text(
+pub(in crate::generation) fn validate_prompt_artifact_text(
     prompt_kind: &str,
     prompt_text: &str,
 ) -> Result<(), GenerationDbError> {
@@ -76,7 +76,7 @@ pub fn render_prompt_text(
     }
 }
 
-pub async fn insert_prompt_artifact<C>(
+pub(crate) async fn insert_prompt_artifact<C>(
     db: &C,
     input: PromptArtifactInsertInput,
 ) -> Result<prompt_artifact::Model, GenerationDbError>
@@ -137,7 +137,7 @@ fn required_time_distribution(params: &Value) -> Result<String, GenerationDbErro
     Ok(lines.join("\n"))
 }
 
-pub fn normalize_video_prompt_kind(value: &str) -> Result<&str, GenerationDbError> {
+pub(crate) fn normalize_video_prompt_kind(value: &str) -> Result<&str, GenerationDbError> {
     let value = normalize_prompt_kind(value)?;
     if matches!(
         value,

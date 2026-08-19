@@ -49,7 +49,7 @@ export const BookButton: React.FC<BookButtonProps> = ({
   return (
     <button
       type={type ?? 'button'}
-      className={`${variants[variant]} ${
+      className={`a4n-touch-target ${variants[variant]} ${
         isPyqtVariant ? sizes[size] : ghostSizes[size]
       } min-w-0 max-w-full whitespace-normal text-center sm:whitespace-nowrap disabled:cursor-not-allowed ${className}`}
       {...props}
@@ -90,7 +90,7 @@ export const BookIconButton: React.FC<BookIconButtonProps> = ({
       type={type ?? 'button'}
       aria-label={label}
       title={props.title ?? label}
-      className={`${variants[variant]} ${sizes[size]} disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`a4n-touch-target a4n-icon-button ${variants[variant]} ${sizes[size]} disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     >
       {children}

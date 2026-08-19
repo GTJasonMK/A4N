@@ -13,9 +13,7 @@ use a4n_db::{
         CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
         CanvasNodeRecordInput,
     },
-    generation::{
-        GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT, GENERATION_PROMPT_KIND_VIDEO_PROMPT,
-    },
+    generation::{GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT, GENERATION_PROMPT_KIND_VIDEO_PROMPT},
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
 use a4n_llm::provider::{ChatMessage, ChatResponse, UsageInfo};
@@ -117,8 +115,6 @@ async fn insert_canvas(
                 edges: vec![CanvasEdgeRecordInput {
                     source_client_id: "source".to_string(),
                     target_client_id: "target".to_string(),
-                    source_node_id: None,
-                    target_node_id: None,
                     source_port: "text".to_string(),
                     target_port: "input".to_string(),
                     role: "context".to_string(),
@@ -135,7 +131,6 @@ async fn insert_canvas(
 fn node_input(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNodeRecordInput {
     CanvasNodeRecordInput {
         client_id: client_id.to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: None,
         ref_id: None,

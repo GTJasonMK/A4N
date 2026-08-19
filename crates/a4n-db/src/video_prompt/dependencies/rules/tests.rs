@@ -232,7 +232,7 @@ fn frame_generation_contract_matches_prompt_type_and_workflow() {
             &frame_prompt,
             IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
         )
-            .expect("matching source must pass"),
+        .expect("matching source must pass"),
         IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT
     );
     ensure_frame_prompt_workflow_matches_type(&frame_prompt).expect("matching workflow must pass");
@@ -244,7 +244,7 @@ fn frame_generation_contract_matches_prompt_type_and_workflow() {
             &frame_prompt,
             IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
         )
-            .is_err()
+        .is_err()
     );
 }
 

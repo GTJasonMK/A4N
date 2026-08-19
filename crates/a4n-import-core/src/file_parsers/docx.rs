@@ -6,7 +6,7 @@ mod tests;
 use crate::ImportTransformError;
 
 use super::ParseResult;
-use super::shared::parse_extracted_document;
+use super::shared::result::parse_extracted_document;
 use archive::read_docx_archive;
 
 /// DOCX 文件解析器

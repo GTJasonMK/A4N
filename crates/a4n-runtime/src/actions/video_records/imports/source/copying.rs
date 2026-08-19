@@ -1,8 +1,6 @@
-use super::super::prelude::{
-    Path, PathBuf, append_secondary_error, data_dir_relative_file_path,
-    remove_created_file_on_error_sync,
-};
-use crate::actions::video_records::delete_video_record_cleanup_error;
+use crate::actions::video_records::append_video_record_cleanup_error;
+use crate::file_utils::{data_dir_relative_file_path, remove_created_file_on_error_sync};
+use std::path::{Path, PathBuf};
 
 pub(in crate::actions::video_records::imports) async fn persist_imported_video_file<F>(
     video: &a4n_orchestrator::OrchestratorContext,
@@ -28,13 +26,7 @@ where
         )
         .map(|relative_path| (output, relative_path))
     });
-    match result {
-        Ok(result) => Ok(result),
-        Err(error) => Err(append_secondary_error(
-            error,
-            delete_video_record_cleanup_error(video, record_id).await,
-        )),
-    }
+    append_video_record_cleanup_error(video, record_id, result).await
 }
 
 pub(in crate::actions::video_records) fn copy_imported_video_file(

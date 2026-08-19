@@ -1,12 +1,14 @@
-import { CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT } from "../../api/canvas";
 import {
-  defaultRefTypeForNode,
   nodeKindMeta,
   nodeStateClass,
   stateLabel,
 } from "./StudioCanvasNode";
+import { configText } from "./canvasConfig";
 import { defaultConfigForNode } from "./canvasGraphMapping";
+import { defaultRefTypeForNode } from "./canvasNodeRefs";
 import {
+  generateVideoInputModeLabel,
+  parseGenerateVideoInputMode,
   studioCategoryLabel,
   studioNodeInputPortsForData,
   studioNodeOutputPortsForData,
@@ -150,12 +152,16 @@ function dragPreviewBodyText(kind: string): string {
   switch (kind) {
     case "RenderTextNode":
       return "按模板生成文本";
-    case "LlmTextNode":
-      return `输出类型：${CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT}`;
+    case "LlmTextNode": {
+      const outputKind = configText(defaultConfigForNode(kind), "output_kind");
+      return outputKind ? `输出类型：${outputKind}` : "等待配置";
+    }
     case "GenerateImageNode":
       return "接收上游提示词生成图片";
-    case "GenerateVideoNode":
-      return "输入模式：仅提示词";
+    case "GenerateVideoNode": {
+      const mode = parseGenerateVideoInputMode(defaultConfigForNode(kind).input_mode);
+      return mode ? `输入模式：${generateVideoInputModeLabel(mode)}` : "缺少输入模式";
+    }
     case "ExtractFrameNode":
       return "抽取视频帧";
     case "TrimVideoNode":

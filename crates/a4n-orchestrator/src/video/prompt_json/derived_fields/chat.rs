@@ -1,4 +1,8 @@
-use super::*;
+use serde_json::{Value, json};
+
+use crate::video::prompt_json::contracts::VideoSegmentPlan;
+
+use super::summaries::{performance_summary, segment_end_summary};
 
 pub(in crate::video::prompt_json) fn derive_chat_video(segment: &VideoSegmentPlan) -> Value {
     let input_images = segment

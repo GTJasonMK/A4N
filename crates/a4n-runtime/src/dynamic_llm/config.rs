@@ -1,4 +1,13 @@
-use super::*;
+use std::sync::Arc;
+
+use a4n_capabilities::LlmClient;
+use a4n_core::error::AppError;
+use a4n_core::models::ai::llm_config;
+#[cfg(feature = "embedded-llm-provider")]
+use a4n_llm::provider::LlmProvider;
+use a4n_llm::provider::{ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities};
+
+use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
 
 pub(super) fn validated_timeout_secs(m: &llm_config::Model) -> Result<u64, AppError> {
     let timeout_secs = u64::try_from(m.timeout_secs).map_err(|_| {
@@ -44,7 +53,7 @@ pub(super) fn model_capabilities(m: &llm_config::Model) -> Result<ModelCapabilit
 pub(super) fn make_provider(m: &llm_config::Model) -> Result<Box<dyn LlmProvider>, AppError> {
     let timeout_secs = validated_timeout_secs(m)?;
     let capabilities = model_capabilities(m)?;
-    a4n_llm_http::http::pick_llm_provider(
+    a4n_llm_http::pick_llm_provider(
         &m.provider,
         m.base_url.clone(),
         m.model.clone(),

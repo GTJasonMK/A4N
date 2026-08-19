@@ -17,14 +17,15 @@ pub(crate) struct StoredConfig {
     pub(crate) refresh_token: Option<String>,
     pub(crate) session_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) agent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) agent_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
 impl StoredConfig {
     pub(crate) fn load(path: &Path) -> Result<Self> {
-        if !path.exists() {
-            return Ok(Self::default());
-        }
         let _lock = lock_config(path)?;
         Self::load_unlocked(path)
     }
@@ -52,6 +53,8 @@ impl StoredConfig {
         self.access_token = None;
         self.refresh_token = None;
         self.session_id = None;
+        self.agent_id = None;
+        self.agent_token = None;
     }
 }
 

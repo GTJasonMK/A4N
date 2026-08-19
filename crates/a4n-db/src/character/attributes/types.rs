@@ -14,7 +14,7 @@ pub struct CharacterAttributeEventHistoryFilter {
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterAttributeEventInsertInput {
+pub(in crate::character::attributes) struct CharacterAttributeEventInsertInput {
     pub profile_id: i64,
     pub chapter_number: i32,
     pub source_kind: String,
@@ -47,7 +47,7 @@ pub struct CharacterAttributeMutationResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterDeletionMarkUpsertInput {
+pub(in crate::character::attributes) struct CharacterDeletionMarkUpsertInput {
     pub profile_id: i64,
     pub source_kind: String,
     pub category: String,
@@ -124,7 +124,7 @@ pub(super) struct CharacterAttributeDeletionRecordInput {
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterDeletionMarkExecutedUpdateInput {
+pub(in crate::character::attributes) struct CharacterDeletionMarkExecutedUpdateInput {
     pub profile_id: i64,
     pub category: String,
     pub key: String,

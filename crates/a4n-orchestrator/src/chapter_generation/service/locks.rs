@@ -16,7 +16,7 @@ mod tests {
 
     use tokio::sync::Mutex as AsyncMutex;
 
-    use super::*;
+    use super::{chapter_generation_lock_is_active, ChapterGenerationLocks};
 
     #[test]
     fn reports_only_held_matching_locks_as_active() {

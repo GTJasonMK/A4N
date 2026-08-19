@@ -1,8 +1,10 @@
+use super::candidates::{VideoAssetCandidate, best_profile_material_image};
+use super::projection::video_library_image_entry;
+use super::relevance::{is_chapter_video_material, profile_relevance};
+use super::validation::available_video_image_ids;
 use super::{
-    SELECTION_REASON_PROFILE_FAVORITE, SELECTION_REASON_PROFILE_PRIMARY, VideoAssetCandidate,
-    available_video_image_ids, best_profile_material_image, is_chapter_video_material,
-    is_video_reference_image_candidate, profile_relevance,
-    resolve_video_reference_image_project_ids, video_library_image_entry,
+    SELECTION_REASON_PROFILE_FAVORITE, SELECTION_REASON_PROFILE_PRIMARY,
+    is_video_reference_image_candidate, resolve_video_reference_image_project_ids,
 };
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use serde_json::json;

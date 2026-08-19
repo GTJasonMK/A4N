@@ -53,8 +53,8 @@ pub(crate) use test_support::{test_video_orchestrator, test_video_orchestrator_w
 
 pub use a4n_core::prompt_language::PromptOutputLanguage;
 // 子模块通过 `use crate::video::{...}` / `super::` 共享的类型与错误映射。
+#[cfg(test)]
 pub(crate) use a4n_core::error::AppError;
-pub(crate) use a4n_core::models::chapter::{chapter, chapter_video_prompt};
 pub use a4n_db::generation::RecordStartedGenerationRunInput;
 pub use a4n_db::video::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
@@ -63,9 +63,10 @@ pub use a4n_db::video::{
 pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 
 pub use assembly_clip_rules::{
-    AssemblyClipOrderAnchor, assembly_clip_display_shot_number, assembly_clip_insert_after_video_id,
-    assembly_clip_sort_order, assembly_insert_metadata_with_position, assembly_media_properties,
-    is_assembly_clip_video_type, next_assembly_insert_sort_order,
+    AssemblyClipOrderAnchor, assembly_clip_display_shot_number,
+    assembly_clip_insert_after_video_id, assembly_clip_sort_order,
+    assembly_insert_metadata_with_position, assembly_media_properties, is_assembly_clip_video_type,
+    next_assembly_insert_sort_order,
 };
 pub use assembly_postprocess_rules::{
     PostprocessEditMetadata, parse_postprocess_edit_metadata, postprocess_edit_timing,
@@ -73,10 +74,11 @@ pub use assembly_postprocess_rules::{
 pub use assembly_push_rules::{
     ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_PENDING, ASSEMBLY_PUSH_STATUS_REJECTED,
     AssemblyPushMetadata, AssemblyPushRecord, active_assembly_push_source_ids,
-    assembly_push_metadata_with_status, assembly_push_records, ensure_active_pushes_match_clip_prefix,
-    ensure_insert_position_not_inside_pushed_prefix, is_active_assembly_push_status,
-    is_completed_assembly_push_row, latest_non_rejected_push_index, parse_assembly_push_metadata,
-    selected_assembly_push_end_index, validate_assembly_workflow_mode,
+    assembly_push_metadata_with_status, assembly_push_records,
+    ensure_active_pushes_match_clip_prefix, ensure_insert_position_not_inside_pushed_prefix,
+    is_active_assembly_push_status, is_completed_assembly_push_row, latest_non_rejected_push_index,
+    parse_assembly_push_metadata, selected_assembly_push_end_index,
+    validate_assembly_workflow_mode,
 };
 pub use boundary_frame_rules::{
     boundary_frame_numbers_for_prompt, frame_prompt_matches_video_prompt,

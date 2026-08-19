@@ -70,11 +70,7 @@ async fn remove_unowned_project_data_dirs(
     }
     for item in &summary.items {
         let project_paths = ProjectPaths::new(state.data_dir(), item.project_id);
-        remove_data_dir_in_data_dir(
-            state.data_dir(),
-            project_paths.root(),
-            "孤儿项目数据目录",
-        )?;
+        remove_data_dir_in_data_dir(state.data_dir(), project_paths.root(), "孤儿项目数据目录")?;
     }
     Ok(summary)
 }

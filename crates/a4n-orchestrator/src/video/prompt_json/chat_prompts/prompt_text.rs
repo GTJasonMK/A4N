@@ -1,6 +1,10 @@
-use super::*;
 use a4n_core::error::AppError;
 use a4n_core::prompt_language::PromptOutputLanguage;
+
+use crate::video::prompt_json::validation::{
+    validate_direct_prompt_text, validate_prompt_has_no_upload_status,
+    validate_prompt_has_shot_storyboard_section,
+};
 
 pub(super) fn required_text(value: String, field: &str) -> Result<String, AppError> {
     let text = value.trim();

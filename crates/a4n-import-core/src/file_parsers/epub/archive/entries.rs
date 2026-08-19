@@ -2,10 +2,10 @@ use std::io::{Read, Seek};
 
 use crate::ImportTransformError;
 
-use super::super::super::shared::extract_document_title;
-use super::super::helpers::{
-    EpubHtmlEntry, extract_epub_spine_paths, normalize_epub_path, strip_html_tags,
-};
+use super::super::super::shared::metadata::extract_document_title;
+use super::super::helpers::html::strip_html_tags;
+use super::super::helpers::path::normalize_epub_path;
+use super::super::helpers::spine::{EpubHtmlEntry, extract_epub_spine_paths};
 
 pub(super) struct EpubArchiveEntries {
     pub(super) title: Option<String>,

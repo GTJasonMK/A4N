@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::HashSet;
 
 #[cfg(test)]

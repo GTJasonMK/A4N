@@ -1,6 +1,8 @@
 mod refresh;
 
-use super::*;
+use a4n_core::error::AppError;
+
+use super::Claims;
 pub use refresh::refresh_access_token_with_role;
 
 pub fn verify_token(token: &str, secret: &str) -> Result<Claims, AppError> {

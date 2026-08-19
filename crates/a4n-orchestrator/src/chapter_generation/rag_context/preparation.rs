@@ -35,10 +35,8 @@ impl OrchestratorContext {
             .map_err(|error| error.to_string())?;
         rag::ensure_project_embedding_identity_matches(&stored_metadata, &embedding_identity)
             .map_err(|error| error.to_string())?;
-        let filter = build_chapter_generation_rag_search_filter(
-            chapter_number,
-            embedding_identity.clone(),
-        )?;
+        let filter =
+            build_chapter_generation_rag_search_filter(chapter_number, embedding_identity.clone())?;
         Ok(PreparedGenerationRagSearch {
             project_id,
             chapter_number,

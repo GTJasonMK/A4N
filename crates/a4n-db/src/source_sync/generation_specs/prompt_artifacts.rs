@@ -26,7 +26,7 @@ pub struct SourceSyncManualPromptArtifactRecordInput {
     pub renderer_version: String,
 }
 
-pub async fn insert_source_sync_prompt_artifact_record<C>(
+async fn insert_source_sync_prompt_artifact_record<C>(
     db: &C,
     input: SourceSyncPromptArtifactRecordInput,
 ) -> Result<prompt_artifact::Model, SourceSyncDbError>

@@ -15,7 +15,6 @@ pub(crate) struct SearchPayload {
     pub(crate) query_text: String,
     pub(crate) query_embedding: Vec<f32>,
     pub(crate) top_k: usize,
-    #[serde(default)]
     pub(crate) filters: Option<SearchFilter>,
 }
 
@@ -25,7 +24,6 @@ pub(crate) struct QueryPayload {
     pub(crate) collection: String,
     pub(crate) query_embedding: Vec<f32>,
     pub(crate) top_k: usize,
-    #[serde(default)]
     pub(crate) filters: Option<SearchFilter>,
 }
 
@@ -35,7 +33,6 @@ pub(crate) struct SearchTextPayload {
     pub(crate) collection: String,
     pub(crate) query_text: String,
     pub(crate) top_k: usize,
-    #[serde(default)]
     pub(crate) filters: Option<SearchFilter>,
 }
 

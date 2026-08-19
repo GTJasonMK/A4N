@@ -1,9 +1,4 @@
-mod entities;
-mod metadata;
-mod result;
+pub(super) mod entities;
+pub(super) mod metadata;
+pub(super) mod result;
 mod text;
-
-pub(super) use entities::decode_xml_entities;
-pub(super) use metadata::extract_document_title;
-pub(super) use result::parse_extracted_document;
-pub(super) use text::extract_xml_text;

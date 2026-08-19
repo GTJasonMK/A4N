@@ -32,7 +32,24 @@ use pipeline_workflow_rules::{
     GALGAME_PIPELINE_WORKFLOW_KIND, galgame_pipeline_workflow_run_input,
 };
 
-pub(crate) use contracts::*;
+pub(crate) use contracts::{
+    BindGalgameMediaInput, GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE,
+    GALGAME_ENTITY_SCENE, GALGAME_EXPRESSIONS, GALGAME_PIPELINE_TOTAL_STEPS,
+    GALGAME_TARGET_BACKGROUND, GALGAME_TARGET_CG, GALGAME_TARGET_PORTRAIT_EXPRESSION,
+    GalgameAssetGenerationItem, GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameAudioRole,
+    GalgameCgImportance, GalgameChapterShootingScript, GalgameChoice, GalgameGenerationTargetKind,
+    GalgameLine, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
+    GalgameLinePresentationV2, GalgameLineType, GalgameMediaAsset, GalgameMediaBinding,
+    GalgameMediaBindingSummary, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV3,
+    GalgamePipelinePromptContext, GalgamePipelineStartStage, GalgamePipelineStatusReadModel,
+    GalgameScene, GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail,
+    GalgameSpeakerProfile, GalgameStagePositionV2, GalgameTargetEntityKind,
+    GalgameTextAnchorSummary, GalgameVisibleCastMemberV2, ImportGalgameAudioInput,
+    InsertGalgameLineInput, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE,
+    LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, PROJECT_KIND_GALGAME, ReorderGalgameLinesInput,
+    RunGalgameAssetGenerationInput, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN, UnbindGalgameMediaInput,
+    UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
+};
 pub(crate) use errors::{
     galgame_asset_plan_spec_record_error, galgame_context_record_error,
     galgame_generation_record_error, galgame_line_record_error, galgame_line_reorder_record_error,

@@ -80,9 +80,7 @@ where
             chapter_video_prompt::Column::WorkflowMode
                 .eq(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN),
         )
-        .filter(
-            chapter_video_prompt::Column::Status.eq(chapter_video_prompt::STATUS_COMPLETED),
-        )
+        .filter(chapter_video_prompt::Column::Status.eq(chapter_video_prompt::STATUS_COMPLETED))
         .filter(
             Expr::col(chapter_video_prompt::Column::MetadataJson)
                 .get_json_field("video_execution_identity")
@@ -95,7 +93,7 @@ where
         .map_err(VideoDbError::Database)
 }
 
-pub async fn chapter_video_prompt_record<C>(
+pub(crate) async fn chapter_video_prompt_record<C>(
     db: &C,
     prompt_id: i64,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>
@@ -105,7 +103,7 @@ where
     chapter_video_prompt_record_with_message(db, prompt_id, "视频提示词不存在").await
 }
 
-pub async fn frame_chapter_video_prompt_record<C>(
+pub(crate) async fn frame_chapter_video_prompt_record<C>(
     db: &C,
     prompt_id: i64,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>

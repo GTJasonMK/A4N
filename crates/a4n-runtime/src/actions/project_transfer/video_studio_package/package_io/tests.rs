@@ -1,7 +1,7 @@
 use std::io::{Cursor, Write};
 
-use a4n_core::models::{media::media_asset, project::novel_project};
 use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
+use a4n_core::models::{media::media_asset, project::novel_project};
 use a4n_domain::CanvasNodeRefKind;
 use a4n_orchestrator::media::MEDIA_STATUS_COMPLETED;
 use a4n_orchestrator::project::{

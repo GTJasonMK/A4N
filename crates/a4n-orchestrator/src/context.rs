@@ -57,7 +57,6 @@ mod shooting_script;
 mod source_sync;
 mod task_queue;
 mod text_anchor;
-mod unavailable_providers;
 mod video;
 mod video_studio_transfer;
 mod workflow;
@@ -97,7 +96,6 @@ use settings::ConfigApplication;
 use shooting_script::ShootingScriptApplication;
 use source_sync::SourceSyncApplication;
 use text_anchor::TextAnchorApplication;
-use unavailable_providers::{BootstrapUnavailableEmbedding, BootstrapUnavailableLlm};
 use video::VideoApplication;
 use workflow::WorkflowApplication;
 
@@ -157,5 +155,5 @@ pub struct OrchestratorContext {
     llm: Arc<dyn a4n_llm::provider::LlmProvider>,
     engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
-    snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
+    snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
 }

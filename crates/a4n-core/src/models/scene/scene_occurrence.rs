@@ -65,23 +65,6 @@ pub enum Relation {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-impl Model {
-    pub fn derived_state_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "chapter_number": self.chapter_number,
-            "occurrence_order": self.occurrence_order,
-            "summary": self.summary,
-            "mood": self.mood,
-            "weather_or_lighting": self.weather_or_lighting,
-            "entry_state": self.entry_state_json,
-            "exit_state": self.exit_state_json,
-            "characters": self.characters_json,
-            "objects": self.objects_json,
-            "key_events": self.key_events_json,
-        })
-    }
-}
-
 impl Related<super::scene_profile::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::SceneProfile.def()
@@ -91,42 +74,5 @@ impl Related<super::scene_profile::Entity> for Entity {
 impl Related<super::super::chapter::chapter::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Chapter.def()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Model;
-    use chrono::NaiveDateTime;
-    use serde_json::json;
-
-    #[test]
-    fn derived_state_keeps_the_selected_occurrence_identity() {
-        let occurrence = Model {
-            id: 1,
-            project_id: 2,
-            scene_profile_id: 3,
-            chapter_id: 4,
-            chapter_number: 5,
-            occurrence_order: 6,
-            timeline_position: None,
-            summary: "雨夜会面".to_string(),
-            mood: Some("紧张".to_string()),
-            weather_or_lighting: None,
-            source_span_ids_json: json!([]),
-            evidence_json: json!([]),
-            characters_json: json!(["甲"]),
-            objects_json: json!(["伞"]),
-            key_events_json: json!(["交换信件"]),
-            entry_state_json: json!({"门": "关闭"}),
-            exit_state_json: json!({"门": "打开"}),
-            created_at: NaiveDateTime::MIN,
-            updated_at: NaiveDateTime::MIN,
-        };
-
-        let state = occurrence.derived_state_json();
-        assert_eq!(state["chapter_number"], 5);
-        assert_eq!(state["occurrence_order"], 6);
-        assert_eq!(state["summary"], "雨夜会面");
     }
 }

@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use super::VideoAssetCandidate;
+use super::candidates::VideoAssetCandidate;
 
 pub(super) fn video_library_image_entry(
     candidate: &VideoAssetCandidate,

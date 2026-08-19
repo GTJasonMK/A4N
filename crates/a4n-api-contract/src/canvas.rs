@@ -4,6 +4,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::{image::GeneratedImageSummary, video::GeneratedVideoSummary};
+
 pub type CanvasJsonObject = BTreeMap<String, Value>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -125,6 +127,30 @@ pub struct SaveCanvasTextAssetInput {
     pub text_asset: CanvasTextAssetInput,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct CanvasMediaAssetSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub root_project_id: i64,
+    pub source_snapshot_id: Option<i64>,
+    pub source_chapter_id: Option<i64>,
+    pub source_snapshot_chapter_id: Option<i64>,
+    pub media_kind: String,
+    pub origin: String,
+    pub file_path: Option<String>,
+    pub thumbnail_path: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration_secs: Option<f32>,
+    pub fps: Option<f32>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PreviewCanvasNodeRequestInput {
@@ -183,13 +209,9 @@ pub struct CanvasNodeContract {
 pub struct ImportCanvasMediaInput {
     pub project_id: i64,
     pub media_kind: String,
-    #[serde(default)]
     pub file_path: Option<String>,
-    #[serde(default)]
     pub file_name: Option<String>,
-    #[serde(default)]
     pub mime_type: Option<String>,
-    #[serde(default)]
     pub data_base64: Option<String>,
 }
 
@@ -198,10 +220,10 @@ pub struct ImportCanvasMediaInput {
 pub struct ImportedCanvasMedia {
     pub media_kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<Value>,
+    pub image: Option<GeneratedImageSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub video: Option<Value>,
-    pub asset: Value,
+    pub video: Option<GeneratedVideoSummary>,
+    pub asset: CanvasMediaAssetSummary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

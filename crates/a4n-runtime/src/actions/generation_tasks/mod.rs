@@ -10,9 +10,8 @@ pub use a4n_orchestrator::GenerationTaskAccessError;
 pub use a4n_orchestrator::generation::{
     GenerationReplay, GenerationSubscription, GenerationTerminalError,
 };
-pub use cursor::{
-    GenerationCursorError, decode_generation_history_cursor, encode_generation_history_cursor,
-};
+pub(crate) use cursor::encode_generation_history_cursor;
+pub use cursor::{GenerationCursorError, decode_generation_history_cursor};
 
 use crate::AppState;
 

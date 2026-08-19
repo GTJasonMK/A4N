@@ -25,7 +25,7 @@ import { configNumber, configObject, configPositiveNumber, configText } from "./
 import {
   STUDIO_NODE_CATEGORY_ORDER,
   generateVideoInputModeLabel,
-  normalizeGenerateVideoInputMode,
+  parseGenerateVideoInputMode,
   studioCategoryLabel,
   studioCategoryTitle,
   studioNodeInputPortsForData,
@@ -33,7 +33,10 @@ import {
   type StudioNodeContract,
   useStudioNodeContract,
 } from "./nodeContracts";
-import { nodeGeneratedVideoRefId } from "./canvasNodeRefs";
+import {
+  defaultRefTypeForNode,
+  nodeGeneratedVideoRefId,
+} from "./canvasNodeRefs";
 import { videoPlaybackDataToObjectUrl } from "../../utils/videoPlayback";
 
 type StudioNodeTemplate = {
@@ -246,19 +249,6 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
   );
 };
 
-export function defaultRefTypeForNode(kind: string): string | null {
-  switch (kind) {
-    case "ImageInputNode":
-      return "generated_image";
-    case "VideoInputNode":
-      return "generated_video";
-    case "AudioInputNode":
-      return "media_asset";
-    default:
-      return null;
-  }
-}
-
 export function edgeRoleLabel(role: string): string {
   switch (role) {
     case "context":
@@ -427,9 +417,6 @@ function nodeBodyPreview(data: StudioNodeData): string {
   if (instruction) return instruction;
   const filePath = configText(data.config, "file_path").trim();
   if (filePath) return filePath;
-  if (data.nodeKind === "GenerateVideoNode") {
-    return `输入模式：${generateVideoInputModeLabel(normalizeGenerateVideoInputMode(data.config.input_mode))}`;
-  }
   return "等待配置";
 }
 
@@ -438,16 +425,17 @@ function operationNodeBodyPreview(data: StudioNodeData): string | null {
     case "RenderTextNode":
       return "按模板生成文本";
     case "LlmTextNode": {
-      const outputKind =
-        configText(data.config, "output_kind") ||
-        CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT;
+      const outputKind = configText(data.config, "output_kind");
       const instruction = configText(data.config, "instruction").trim();
-      return instruction || `输出类型：${outputKind}`;
+      return instruction || (outputKind ? `输出类型：${outputKind}` : "缺少输出类型");
     }
     case "GenerateImageNode":
       return "接收上游提示词生成图片";
     case "GenerateVideoNode":
-      return `输入模式：${generateVideoInputModeLabel(normalizeGenerateVideoInputMode(data.config.input_mode))}`;
+      {
+        const mode = parseGenerateVideoInputMode(data.config.input_mode);
+        return mode ? `输入模式：${generateVideoInputModeLabel(mode)}` : "缺少输入模式";
+      }
     case "ExtractFrameNode":
       return `抽帧：${configText(data.config, "frame_kind")}`;
     case "TrimVideoNode": {
@@ -485,7 +473,7 @@ export function nodeValidationIssues(data: StudioNodeData): string[] {
   if (data.state === "missing") {
     issues.push(configText(data.config, "missing_reason") || "引用资产缺失");
   }
-  if ((data.nodeKind === "ImageInputNode" || data.nodeKind === "VideoInputNode" || data.nodeKind === "AudioInputNode") && !data.refId) {
+  if (defaultRefTypeForNode(data.nodeKind) && !data.refId) {
     issues.push("缺少媒体资产引用");
   }
   return issues;

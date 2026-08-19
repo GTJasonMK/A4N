@@ -21,10 +21,7 @@ pub(crate) struct ModelDiscoveryEndpoint {
     pub(crate) parser: ModelDiscoveryParser,
 }
 
-pub(crate) fn model_discovery_endpoint(
-    provider: &str,
-    base_url: &str,
-) -> ModelDiscoveryEndpoint {
+pub(crate) fn model_discovery_endpoint(provider: &str, base_url: &str) -> ModelDiscoveryEndpoint {
     let provider = provider.trim().to_ascii_lowercase();
     if provider == "stable-diffusion" {
         return ModelDiscoveryEndpoint {

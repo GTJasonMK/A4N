@@ -32,9 +32,7 @@ pub fn is_assembly_clip_video_type(video_type: &str) -> bool {
     )
 }
 
-pub fn assembly_media_properties<I>(
-    clips: I,
-) -> Result<(i32, i32, i32, f32), String>
+pub fn assembly_media_properties<I>(clips: I) -> Result<(i32, i32, i32, f32), String>
 where
     I: IntoIterator<Item = (i64, f32, i32, i32, i32)>,
 {
@@ -53,13 +51,7 @@ where
     let height = even_dimension(first_id, first_height, "高度")?;
     let mut duration_secs = first_duration;
     for (video_id, duration, clip_width, clip_height, clip_fps) in clips {
-        validate_assembly_media_properties(
-            video_id,
-            duration,
-            clip_width,
-            clip_height,
-            clip_fps,
-        )?;
+        validate_assembly_media_properties(video_id, duration, clip_width, clip_height, clip_fps)?;
         duration_secs += duration;
         if !duration_secs.is_finite() {
             return Err("成片总时长超过可记录范围".to_string());
@@ -76,10 +68,14 @@ fn validate_assembly_media_properties(
     fps: i32,
 ) -> Result<(), String> {
     if !duration_secs.is_finite() || duration_secs <= 0.0 {
-        return Err(format!("成片片段视频 #{video_id} 时长无效：{duration_secs}"));
+        return Err(format!(
+            "成片片段视频 #{video_id} 时长无效：{duration_secs}"
+        ));
     }
     if width <= 0 || height <= 0 {
-        return Err(format!("成片片段视频 #{video_id} 尺寸无效：{width}x{height}"));
+        return Err(format!(
+            "成片片段视频 #{video_id} 尺寸无效：{width}x{height}"
+        ));
     }
     if fps <= 0 {
         return Err(format!("成片片段视频 #{video_id} 帧率无效：{fps}"));
@@ -91,9 +87,9 @@ fn even_dimension(video_id: i64, value: i32, label: &str) -> Result<i32, String>
     if value % 2 == 0 {
         Ok(value)
     } else {
-        value.checked_add(1).ok_or_else(|| {
-            format!("成片片段视频 #{video_id} {label}超过可编码范围：{value}")
-        })
+        value
+            .checked_add(1)
+            .ok_or_else(|| format!("成片片段视频 #{video_id} {label}超过可编码范围：{value}"))
     }
 }
 
@@ -174,9 +170,11 @@ pub fn assembly_clip_display_shot_number(
         generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => {
             assembly_clip_shot_number(video_id, metadata_json)
         }
-        generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => Ok(parse_assembly_insert_metadata(video_id, metadata_json)?
-            .insert_after_shot_number
-            .unwrap_or(0)),
+        generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => {
+            Ok(parse_assembly_insert_metadata(video_id, metadata_json)?
+                .insert_after_shot_number
+                .unwrap_or(0))
+        }
         _ => Err(format!("视频 #{video_id} 不是成片片段")),
     }
 }
@@ -188,9 +186,9 @@ pub fn assembly_clip_sort_order(
     metadata_json: Option<&Value>,
 ) -> Result<f64, String> {
     match video_type {
-        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => Ok(f64::from(
-            assembly_clip_shot_number(video_id, metadata_json)?,
-        ) * ASSEMBLY_ORDER_STEP),
+        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => Ok(
+            f64::from(assembly_clip_shot_number(video_id, metadata_json)?) * ASSEMBLY_ORDER_STEP,
+        ),
         generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => {
             Ok(parse_assembly_insert_metadata(video_id, metadata_json)?.sort_order)
         }
@@ -205,7 +203,9 @@ pub fn assembly_clip_insert_after_video_id(
     metadata_json: Option<&Value>,
 ) -> Result<Option<i64>, String> {
     match video_type {
-        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => Ok(None),
+        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => {
+            Ok(None)
+        }
         generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => {
             Ok(parse_assembly_insert_metadata(video_id, metadata_json)?.insert_after_video_id)
         }
@@ -305,20 +305,18 @@ mod tests {
 
     #[test]
     fn assembly_clip_sort_order_supports_insert_clips_between_shots() {
-        let first_order =
-            assembly_clip_sort_order(
-                1,
-                generated_video::VIDEO_TYPE_CHAPTER,
-                Some(&json!({ "shot_number": 1 })),
-            )
-                .expect("first");
-        let second_order =
-            assembly_clip_sort_order(
-                2,
-                generated_video::VIDEO_TYPE_CHAPTER,
-                Some(&json!({ "shot_number": 2 })),
-            )
-                .expect("second");
+        let first_order = assembly_clip_sort_order(
+            1,
+            generated_video::VIDEO_TYPE_CHAPTER,
+            Some(&json!({ "shot_number": 1 })),
+        )
+        .expect("first");
+        let second_order = assembly_clip_sort_order(
+            2,
+            generated_video::VIDEO_TYPE_CHAPTER,
+            Some(&json!({ "shot_number": 2 })),
+        )
+        .expect("second");
         let insert_order = assembly_clip_sort_order(
             3,
             generated_video::VIDEO_TYPE_ASSEMBLY_INSERT,
@@ -463,11 +461,7 @@ mod tests {
     #[test]
     fn assembly_media_properties_are_strict_and_normalized_once() {
         assert_eq!(
-            assembly_media_properties([
-                (1, 1.5, 1281, 721, 25),
-                (2, 2.0, 640, 360, 30),
-            ])
-            .unwrap(),
+            assembly_media_properties([(1, 1.5, 1281, 721, 25), (2, 2.0, 640, 360, 30),]).unwrap(),
             (1282, 722, 25, 3.5)
         );
         assert!(

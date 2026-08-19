@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use super::super::super::analysis_schema_error;
 
-pub fn required_string<'a>(
+pub(in crate::chapter_analysis::validation) fn required_string<'a>(
     root: &'a Map<String, Value>,
     key: &str,
     context: &str,

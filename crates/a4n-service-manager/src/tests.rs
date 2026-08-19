@@ -1,6 +1,6 @@
 use super::config::{
-    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode,
-    is_loopback_http_url, normalize_remote_service_url,
+    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode, is_loopback_http_url,
+    normalize_remote_service_url,
 };
 use super::errors::ServiceManagerError;
 use super::health::validate_service_health;

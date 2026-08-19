@@ -1,4 +1,6 @@
-use super::prelude::*;
+use super::super::imports::ImportedVideoSource;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub use a4n_api_contract::video::{
     ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,

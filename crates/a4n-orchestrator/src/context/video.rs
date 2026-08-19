@@ -782,7 +782,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn ensure_video_capacity(
+    pub(crate) async fn ensure_video_capacity(
         &self,
         config_id: i64,
         max_concurrent: i32,
@@ -802,7 +802,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn ensure_created_video_capacity(
+    pub(crate) async fn ensure_created_video_capacity(
         &self,
         config_id: i64,
         max_concurrent: i32,
@@ -930,31 +930,21 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generated_images_by_ids(
+    pub(crate) async fn generated_images_by_ids(
         &self,
         image_ids: &[i64],
     ) -> Result<Vec<generated_image::Model>, AppError> {
         self.video.generated_images_by_ids(image_ids).await
     }
 
-    pub async fn generated_images_for_project(
+    pub(crate) async fn generated_images_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<generated_image::Model>, AppError> {
         self.video.generated_images_for_project(project_id).await
     }
 
-    pub async fn generated_images_for_chapter(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        self.video
-            .generated_images_for_chapter(project_id, chapter_id)
-            .await
-    }
-
-    pub async fn generated_images_for_valid_chapter(
+    pub(crate) async fn generated_images_for_valid_chapter(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -967,11 +957,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn video_asset_project_ids(&self, project_id: i64) -> Result<Vec<i64>, AppError> {
+    pub(crate) async fn video_asset_project_ids(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<i64>, AppError> {
         self.video.video_asset_project_ids_record(project_id).await
     }
 
-    pub async fn video_reference_candidate_images(
+    pub(crate) async fn video_reference_candidate_images(
         &self,
         project_ids: &[i64],
         chapter_id: i64,
@@ -981,7 +974,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn ensure_video_reference_images_available(
+    pub(crate) async fn ensure_video_reference_images_available(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -1080,7 +1073,7 @@ impl OrchestratorContext {
     }
 
     /// 创建视频记录并挂 generation_run：校验 project_id。
-    pub async fn create_video_record_with_generation_run_validated(
+    pub(crate) async fn create_video_record_with_generation_run_validated(
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
         generation_run: RecordStartedGenerationRunInput,
@@ -1108,7 +1101,7 @@ impl OrchestratorContext {
     }
 
     /// 章节提示词视频创建：校验 project_id 与 prompt_id。
-    pub async fn create_prompt_video_record_with_generation_run_validated(
+    pub(crate) async fn create_prompt_video_record_with_generation_run_validated(
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
         generation_run: RecordStartedGenerationRunInput,
@@ -1247,7 +1240,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_missing_generated_video_references(
+    pub(crate) async fn delete_missing_generated_video_references(
         &self,
         video_id: i64,
     ) -> Result<u64, AppError> {
@@ -1325,7 +1318,7 @@ impl OrchestratorContext {
 
     /// provider 异步 job 提交后落库：校验 video_id 与非空 job id。
     /// Host 仍负责后续 wait/poll 与 workflow 钩子。
-    pub async fn mark_generated_video_job_and_prompt_validated(
+    pub(crate) async fn mark_generated_video_job_and_prompt_validated(
         &self,
         video_id: i64,
         provider_job_id: &str,
@@ -1453,7 +1446,7 @@ impl OrchestratorContext {
 
     /// 中断轮询/取消：校验后标 interrupted（不强制 generation_run）。
     /// Host 仍负责 workflow interrupted 钩子。
-    pub async fn mark_generated_video_interrupted_validated(
+    pub(crate) async fn mark_generated_video_interrupted_validated(
         &self,
         video_id: i64,
         prompt_id: Option<i64>,
@@ -1473,7 +1466,7 @@ impl OrchestratorContext {
     }
 
     /// 完成 provider 视频后：complete 关联 generation_run，并要求至少一条。
-    pub async fn complete_generated_video_provider_runs_validated(
+    pub(crate) async fn complete_generated_video_provider_runs_validated(
         &self,
         video: &generated_video::Model,
     ) -> Result<(), AppError> {
@@ -1523,7 +1516,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_video_prompts_for_batch_generation(
+    pub(crate) async fn chapter_video_prompts_for_batch_generation(
         &self,
         prompt_ids: &[i64],
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
@@ -1572,7 +1565,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_chapter_video_prompts_checked(
+    pub(crate) async fn delete_chapter_video_prompts_checked(
         &self,
         prompt_ids: &[i64],
         allow_downstream: bool,
@@ -1650,7 +1643,7 @@ impl OrchestratorContext {
 
     /// 章节视频提示词生成：校验后创建 workflow_run（RUNNING）。
     /// Host 仍负责 LLM 分阶段与提示词落库。
-    pub async fn begin_video_prompt_workflow_validated(
+    pub(crate) async fn begin_video_prompt_workflow_validated(
         &self,
         workflow_kind: &str,
         project_id: i64,
@@ -1683,7 +1676,7 @@ impl OrchestratorContext {
     }
 
     /// 视频提示词优化：校验后创建 workflow_run。
-    pub async fn begin_video_prompt_optimization_workflow_validated(
+    pub(crate) async fn begin_video_prompt_optimization_workflow_validated(
         &self,
         project_id: i64,
         prompt_id: i64,
@@ -1705,7 +1698,7 @@ impl OrchestratorContext {
     }
 
     /// 视频 provider 进度：校验后创建/恢复 RUNNING workflow_run。
-    pub async fn begin_video_provider_progress_workflow_validated(
+    pub(crate) async fn begin_video_provider_progress_workflow_validated(
         &self,
         video: &a4n_core::models::ai::generated_video::Model,
         job_id: &str,
@@ -1726,7 +1719,7 @@ impl OrchestratorContext {
     }
 
     /// provider 轮询进度及 Canvas 节点投影的唯一写入入口。
-    pub async fn record_video_provider_progress_validated(
+    pub(crate) async fn record_video_provider_progress_validated(
         &self,
         video: &generated_video::Model,
         current: u32,
@@ -1778,7 +1771,8 @@ impl OrchestratorContext {
             .and_then(Value::as_i64)
             .filter(|id| *id > 0)
             .ok_or_else(|| AppError::InvalidArgument("画布视频缺少有效 node_id".to_string()))?;
-        let step_key = format!("canvas_node:{node_id}");
+        let step_key =
+            crate::canvas::canvas_node_step_key(node_id).map_err(AppError::InvalidArgument)?;
         self.mark_workflow_current_step(workflow_run_id, &step_key)
             .await?;
         self.upsert_workflow_checkpoint(UpsertWorkflowCheckpointInput {

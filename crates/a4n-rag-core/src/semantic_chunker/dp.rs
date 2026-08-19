@@ -1,5 +1,5 @@
-use super::matrix::block_score;
 use super::SemanticChunkConfig;
+use super::matrix::block_score;
 use a4n_core::error::AppError;
 
 pub(super) fn dynamic_programming(

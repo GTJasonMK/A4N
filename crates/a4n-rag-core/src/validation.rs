@@ -30,13 +30,14 @@ pub fn ensure_embedding_write_count(expected: usize, actual: usize) -> Result<()
     }
 }
 
-pub fn validate_embedding_count<T: AsRef<[f32]>>(
+pub fn validate_embedding_batch<T: AsRef<[f32]>>(
     embeddings: &[T],
-    expected: usize,
+    expected_count: usize,
+    expected_dimension: usize,
 ) -> Result<(), AppError> {
-    if embeddings.len() != expected {
+    if embeddings.len() != expected_count {
         return Err(AppError::EmbeddingError(format!(
-            "嵌入返回数量不匹配：expected={expected}, actual={}",
+            "嵌入返回数量不匹配：expected={expected_count}, actual={}",
             embeddings.len()
         )));
     }
@@ -46,15 +47,6 @@ pub fn validate_embedding_count<T: AsRef<[f32]>>(
     {
         return Err(AppError::EmbeddingError("嵌入返回空向量".to_string()));
     }
-    Ok(())
-}
-
-pub fn validate_embedding_batch<T: AsRef<[f32]>>(
-    embeddings: &[T],
-    expected_count: usize,
-    expected_dimension: usize,
-) -> Result<(), AppError> {
-    validate_embedding_count(embeddings, expected_count)?;
     for (index, embedding) in embeddings
         .iter()
         .map(|embedding| embedding.as_ref())

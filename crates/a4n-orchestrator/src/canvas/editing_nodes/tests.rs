@@ -22,8 +22,8 @@ use a4n_db::{
         CanvasNodeRecordInput,
     },
     generation::{
-        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
@@ -209,19 +209,16 @@ async fn extract_frame_application_persists_spec_asset_checkpoint_and_workflow()
 
     assert_eq!(summary.status, "completed");
     assert_eq!(host.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        spec.target_kind,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE
-    );
+    assert_eq!(spec.target_kind, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE);
     assert_eq!(spec.status, "completed");
     assert_eq!(run.status, "completed");
     assert_eq!(checkpoint.status, "completed");
     assert_eq!(
-        checkpoint.checkpoint_json.as_ref().unwrap()["generated_image_id"],
+        checkpoint.artifacts_json.as_ref().unwrap()["generated_image_id"],
         image.id
     );
     assert_eq!(
-        checkpoint.checkpoint_json.as_ref().unwrap()["media_asset_id"],
+        checkpoint.artifacts_json.as_ref().unwrap()["media_asset_id"],
         asset.id
     );
     assert_eq!(asset.origin, "canvas_extracted_frame");
@@ -250,10 +247,7 @@ async fn trim_video_application_persists_video_asset_and_completed_lifecycle() {
         .expect("裁剪媒体资产应存在");
 
     assert_eq!(summary.status, "completed");
-    assert_eq!(
-        spec.target_kind,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO
-    );
+    assert_eq!(spec.target_kind, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO);
     assert_eq!(spec.status, "completed");
     assert_eq!(run.status, "completed");
     assert_eq!(checkpoint.status, "completed");
@@ -328,7 +322,7 @@ async fn assemble_application_persists_preview_asset_timeline_and_ordered_clips(
     assert_eq!(assets.len(), 3);
     assert_eq!(
         timeline.preview_media_asset_id,
-        checkpoint.checkpoint_json.as_ref().unwrap()["media_asset_id"].as_i64()
+        checkpoint.artifacts_json.as_ref().unwrap()["media_asset_id"].as_i64()
     );
 }
 
@@ -448,7 +442,6 @@ async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> Ca
         .enumerate()
         .map(|(index, video)| CanvasNodeRecordInput {
             client_id: format!("source-{index}"),
-            id: None,
             node_kind: "VideoInputNode".to_string(),
             ref_type: Some("generated_video".to_string()),
             ref_id: Some(video.id),
@@ -459,7 +452,6 @@ async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> Ca
         .collect::<Vec<_>>();
     nodes.push(CanvasNodeRecordInput {
         client_id: "target".to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: None,
         ref_id: None,
@@ -473,8 +465,6 @@ async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> Ca
         .map(|(index, _)| CanvasEdgeRecordInput {
             source_client_id: format!("source-{index}"),
             target_client_id: "target".to_string(),
-            source_node_id: None,
-            target_node_id: None,
             source_port: "video".to_string(),
             target_port: if node_kind == "AssembleVideoNode" {
                 "clip".to_string()

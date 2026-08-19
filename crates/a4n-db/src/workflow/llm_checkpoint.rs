@@ -66,7 +66,10 @@ fn completed_llm_call_checkpoint_from_json(
             )));
         }
     }
-    if let Some(field) = object.keys().find(|field| !FIELDS.contains(&field.as_str())) {
+    if let Some(field) = object
+        .keys()
+        .find(|field| !FIELDS.contains(&field.as_str()))
+    {
         return Err(WorkflowCheckpointContractError::Invalid(format!(
             "{call_key} LLM 调用断点包含未知字段 {field}"
         )));
@@ -126,7 +129,7 @@ fn completed_llm_call_checkpoint_from_json(
     })
 }
 
-pub fn validate_completed_llm_call_checkpoint_json(
+pub(in crate::workflow) fn validate_completed_llm_call_checkpoint_json(
     checkpoint_json: &Value,
     call_key: &str,
 ) -> Result<(), WorkflowCheckpointContractError> {

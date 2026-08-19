@@ -448,15 +448,15 @@ impl crate::OrchestratorContext {
                         &cancel_token,
                     )
                     .await?;
-                let (status, error_message) =
-                    if updated.status == generated_video::STATUS_COMPLETED {
-                        (crate::workflow::WORKFLOW_STATUS_COMPLETED, None)
-                    } else {
-                        (
-                            crate::workflow::WORKFLOW_STATUS_FAILED,
-                            updated.error_message.as_deref(),
-                        )
-                    };
+                let (status, error_message) = if updated.status == generated_video::STATUS_COMPLETED
+                {
+                    (crate::workflow::WORKFLOW_STATUS_COMPLETED, None)
+                } else {
+                    (
+                        crate::workflow::WORKFLOW_STATUS_FAILED,
+                        updated.error_message.as_deref(),
+                    )
+                };
                 self.mark_video_provider_workflow_validated(&updated, status, false, error_message)
                     .await?;
                 self.sync_canvas_video_workflow(&updated, error_message)
@@ -707,9 +707,10 @@ impl crate::OrchestratorContext {
                 };
             if let Err(error) = cancelled {
                 let authoritative = self.generated_video_by_id(video.id).await?;
-                if authoritative.as_ref().is_some_and(|video| {
-                    video.status == generated_video::STATUS_COMPLETED
-                }) {
+                if authoritative
+                    .as_ref()
+                    .is_some_and(|video| video.status == generated_video::STATUS_COMPLETED)
+                {
                     return Err(error);
                 }
                 if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await {
@@ -884,7 +885,8 @@ impl crate::OrchestratorContext {
                 });
             }
         };
-        let step_key = format!("canvas_node:{}", canvas.node_id);
+        let step_key = crate::canvas::canvas_node_step_key(canvas.node_id)
+            .map_err(AppError::InvalidArgument)?;
         self.upsert_workflow_checkpoint(a4n_db::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: canvas.workflow_run_id,
             step_key,
@@ -1036,9 +1038,7 @@ mod tests {
             project_id: 1,
             chapter_id: None,
             video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
-            workflow_mode: Some(
-                a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
-            ),
+            workflow_mode: Some(a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             file_path: None,
             thumbnail_path: None,
             prompt: "test prompt".to_string(),

@@ -1,4 +1,5 @@
-use crate::project_dependency_graph::{AssetLineageRecord, db_record_result, lineage_ref};
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::{db_record_result, lineage_ref};
 use a4n_core::{error::AppError, models::chapter::chapter};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 

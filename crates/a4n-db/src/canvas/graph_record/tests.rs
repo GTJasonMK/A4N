@@ -14,7 +14,6 @@ fn node_with_kind(
 ) -> CanvasNodeRecordInput {
     CanvasNodeRecordInput {
         client_id: client_id.to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: ref_type.map(str::to_string),
         ref_id,
@@ -48,8 +47,6 @@ fn typed_edge(
     CanvasEdgeRecordInput {
         source_client_id: source.to_string(),
         target_client_id: target.to_string(),
-        source_node_id: None,
-        target_node_id: None,
         source_port: source_port.to_string(),
         target_port: target_port.to_string(),
         role: role.to_string(),

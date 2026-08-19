@@ -1,9 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-use crate::structured_llm::{
-    ensure_checkpoint_parsed_output_matches, parse_strict_json_response,
-};
+use crate::structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response};
 
 pub(super) fn parse_chapter_analysis_stage_output<V>(
     response_content: &str,
@@ -50,7 +48,7 @@ mod tests {
             "事实抽取阶段",
             &|_| Ok(()),
         )
-            .expect("matching checkpoint should restore");
+        .expect("matching checkpoint should restore");
 
         assert_eq!(output, serde_json::json!({"facts": []}));
     }

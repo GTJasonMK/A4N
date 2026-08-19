@@ -6,10 +6,10 @@ use std::{
     },
 };
 
-use a4n_core::models::{media::media_asset, project::novel_project, user::user};
 use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
-use a4n_domain::CanvasNodeRefKind;
+use a4n_core::models::{media::media_asset, project::novel_project, user::user};
 use a4n_db::project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record};
+use a4n_domain::CanvasNodeRefKind;
 use async_trait::async_trait;
 use sea_orm::ActiveModelTrait;
 
@@ -200,11 +200,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
     package.media_files.push(entry.clone());
     let mut entries = HashMap::new();
     entries.insert(
-        video_studio_media_file_key(
-            CanvasNodeRefKind::MediaAsset.as_str(),
-            10,
-            FILE_PATH_FIELD,
-        ),
+        video_studio_media_file_key(CanvasNodeRefKind::MediaAsset.as_str(), 10, FILE_PATH_FIELD),
         entry,
     );
     let mut payload_bytes = HashMap::new();

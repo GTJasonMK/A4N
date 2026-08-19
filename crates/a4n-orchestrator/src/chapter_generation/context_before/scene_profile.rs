@@ -1,4 +1,5 @@
-use super::shared::{non_empty_trimmed, truncate_chars};
+use super::shared::truncate_chars;
+use crate::chapter_generation::non_empty_trimmed;
 use crate::OrchestratorContext;
 use a4n_core::models::scene::scene_profile;
 use serde_json::Value;
@@ -63,7 +64,7 @@ fn compact_json_detail(value: &Value, limit: usize) -> Option<String> {
         Value::Array(items) if items.is_empty() => None,
         Value::Object(map) if map.is_empty() => None,
         _ => {
-            let text = serde_json::to_string(value).ok()?;
+            let text = value.to_string();
             non_empty_trimmed(&text).map(|text| truncate_chars(text, limit))
         }
     }

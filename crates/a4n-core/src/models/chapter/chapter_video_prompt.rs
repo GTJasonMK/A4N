@@ -9,14 +9,6 @@ pub const PROMPT_TYPE_FIRST_FRAME: &str = "first_frame_prompt";
 pub const PROMPT_TYPE_CHAT_VIDEO_FRAME: &str = "chat_video_frame_prompt";
 pub const PROMPT_TYPE_STORYBOARD: &str = "storyboard_prompt";
 pub const PROMPT_TYPE_VIDEO: &str = "video_prompt";
-pub const PROMPT_TYPES: [&str; 6] = [
-    PROMPT_TYPE_FRAME_SEGMENT_PLAN,
-    PROMPT_TYPE_FRAME,
-    PROMPT_TYPE_FIRST_FRAME,
-    PROMPT_TYPE_CHAT_VIDEO_FRAME,
-    PROMPT_TYPE_STORYBOARD,
-    PROMPT_TYPE_VIDEO,
-];
 
 pub const WORKFLOW_MODE_SHARED_SEGMENT_PLAN: &str = "shared_segment_plan";
 pub const WORKFLOW_MODE_BOUNDARY_FRAMES: &str = "boundary_frames";

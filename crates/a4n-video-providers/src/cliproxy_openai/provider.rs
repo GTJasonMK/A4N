@@ -18,14 +18,14 @@ use crate::format::video_format_from_content_type_or_bytes;
 use crate::transport::{self, ApiKeyAuth};
 
 /// GGGB Gateway 原生 `/v1/videos/generations` 与 OpenAI `/openai/v1/videos` 适配器。
-pub struct CliProxyOpenAiVideoProvider {
+pub(crate) struct CliProxyOpenAiVideoProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl CliProxyOpenAiVideoProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Self {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),
@@ -72,7 +72,7 @@ impl CliProxyOpenAiVideoProvider {
         request_body_for_route(req, self.uses_openai_route())
     }
 
-    pub fn request_body_preview_for_base_url(
+    pub(crate) fn request_body_preview_for_base_url(
         req: &VideoGenerationRequest,
         base_url: &str,
     ) -> Result<Value, AppError> {

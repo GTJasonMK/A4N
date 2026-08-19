@@ -43,7 +43,11 @@ pub fn apply_attribute_to_state(
     Ok(())
 }
 
-pub fn attribute_value_in_state(state: &Value, category: &str, key: &str) -> Option<Value> {
+pub(in crate::character) fn attribute_value_in_state(
+    state: &Value,
+    category: &str,
+    key: &str,
+) -> Option<Value> {
     state
         .get(category_storage_key(category))
         .and_then(Value::as_object)

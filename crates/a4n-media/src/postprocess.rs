@@ -66,18 +66,15 @@ pub fn build_video_postprocess_filter(
             height: request.height,
         });
     }
-    let width = even_dimension(request.width).ok_or(
-        VideoPostprocessError::InvalidDimensions {
+    let width = even_dimension(request.width).ok_or(VideoPostprocessError::InvalidDimensions {
+        width: request.width,
+        height: request.height,
+    })?;
+    let height =
+        even_dimension(request.height).ok_or(VideoPostprocessError::InvalidDimensions {
             width: request.width,
             height: request.height,
-        },
-    )?;
-    let height = even_dimension(request.height).ok_or(
-        VideoPostprocessError::InvalidDimensions {
-            width: request.width,
-            height: request.height,
-        },
-    )?;
+        })?;
     if request.fps <= 0 {
         return Err(VideoPostprocessError::InvalidFps { fps: request.fps });
     }

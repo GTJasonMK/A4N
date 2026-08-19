@@ -4,7 +4,6 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Serialize, Serializer, ser::Error as _};
 use zip::ZipArchive;
 
-use crate::archive::ExportZipWriter;
 use crate::{
     ExportRenderZipEntryInput, ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
     render_json_manifest_pretty, render_zip, render_zip_package,
@@ -30,60 +29,19 @@ fn render_json_manifest_pretty_reports_labelled_json_errors() {
 }
 
 #[test]
-fn export_zip_writer_writes_named_entries() {
-    let cursor = Cursor::new(Vec::new());
-    let mut writer = ExportZipWriter::new(cursor);
-    writer
-        .write_entry_bytes("manifest.json", br#"{"ok":true}"#, "manifest")
-        .expect("write manifest entry");
-    writer
-        .write_entry_bytes("media/file.txt", b"payload", "media file")
-        .expect("write media entry");
-    let cursor = writer.finish("test package").expect("finish zip");
-    let bytes = cursor.into_inner();
-
-    let mut archive = ZipArchive::new(Cursor::new(bytes)).expect("read zip");
-    let mut manifest = String::new();
-    archive
-        .by_name("manifest.json")
-        .expect("manifest entry")
-        .read_to_string(&mut manifest)
-        .expect("read manifest");
-    assert_eq!(manifest, r#"{"ok":true}"#);
-
-    let mut media = Vec::new();
-    archive
-        .by_name("media/file.txt")
-        .expect("media entry")
-        .read_to_end(&mut media)
-        .expect("read media");
-    assert_eq!(media, b"payload");
-}
-
-#[test]
-fn export_zip_writer_rejects_duplicate_entry_path() {
-    let cursor = Cursor::new(Vec::new());
-    let mut writer = ExportZipWriter::new(cursor);
-    writer
-        .write_entry_bytes("media/file.txt", b"first", "media file")
-        .expect("write first entry");
-
-    let err = writer
-        .write_entry_bytes("media/file.txt", b"second", "media file")
-        .expect_err("duplicate zip entries must fail");
-
-    assert!(err.to_string().contains("导出 zip 条目重复"));
-    assert!(err.to_string().contains("media/file.txt"));
-}
-
-#[test]
-fn export_zip_writer_rejects_unsafe_entry_path() {
-    let cursor = Cursor::new(Vec::new());
-    let mut writer = ExportZipWriter::new(cursor);
-
-    let err = writer
-        .write_entry_bytes("../payload.bin", b"payload", "media file")
-        .expect_err("unsafe zip entry paths must fail");
+fn render_zip_package_rejects_unsafe_entry_path() {
+    let err = render_zip_package(ExportZipPackageInput {
+        manifest_path: "manifest.json".to_string(),
+        manifest_bytes: b"{}".to_vec(),
+        manifest_label: "manifest".to_string(),
+        entries: vec![ExportZipEntryBytes {
+            path: "../payload.bin".to_string(),
+            bytes: b"payload".to_vec(),
+            label: "media file".to_string(),
+        }],
+        package_label: "test package".to_string(),
+    })
+    .expect_err("unsafe zip entry paths must fail");
 
     assert!(err.to_string().contains("不能越界"));
     assert!(err.to_string().contains("../payload.bin"));

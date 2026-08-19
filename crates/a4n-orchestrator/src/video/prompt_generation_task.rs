@@ -696,8 +696,7 @@ fn current_video_prompt_target_identity(
         .find(|row| {
             row.id == segment_plan_prompt_id
                 && row.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
-                && row.workflow_mode
-                    == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+                && row.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
                 && row.status == chapter_video_prompt::STATUS_COMPLETED
         })
         .ok_or_else(|| AppError::InvalidArgument("当前共享片段规划不存在或已失效".to_string()))?;
@@ -740,8 +739,7 @@ fn current_video_prompt_target_identity(
             "片段执行方案已变化，请刷新后重试".to_string(),
         ));
     }
-    let prompt_output_language =
-        PromptOutputLanguage::from_code(&options.prompt_output_language)?;
+    let prompt_output_language = PromptOutputLanguage::from_code(&options.prompt_output_language)?;
     if prompt_output_language.as_str() != recipe.prompt_output_language {
         return Err(AppError::InvalidArgument(
             "片段提示词语言已变化，请刷新后重试".to_string(),

@@ -107,9 +107,7 @@ pub(in crate::collaboration) fn unique_member_user_ids(
     ids
 }
 
-pub(in crate::collaboration) fn unique_invite_user_ids(
-    invites: &[project_invite::Model],
-) -> Vec<i64> {
+pub(super) fn unique_invite_user_ids(invites: &[project_invite::Model]) -> Vec<i64> {
     let mut ids = Vec::with_capacity(invites.len() * 2);
     for invite in invites {
         ids.push(invite.inviter_user_id);
@@ -120,9 +118,7 @@ pub(in crate::collaboration) fn unique_invite_user_ids(
     ids
 }
 
-pub(in crate::collaboration) fn unique_invite_project_ids(
-    invites: &[project_invite::Model],
-) -> Vec<i64> {
+pub(super) fn unique_invite_project_ids(invites: &[project_invite::Model]) -> Vec<i64> {
     let mut ids = Vec::with_capacity(invites.len());
     for invite in invites {
         ids.push(invite.project_id);

@@ -18,8 +18,8 @@ use a4n_core::models::{chapter::chapter_outline, character::foreshadowing_index}
 use a4n_core::rag::RagDataType;
 use a4n_core::text_location::extract_scene_location;
 use a4n_rag_core::{
-    metadata::metadata_i64,
     memory_store::MemoryVectorStore,
+    metadata::metadata_i64,
     vector_store::{EmbeddingRecord, SearchFilter, SearchResult, VectorStore},
 };
 use a4n_test_support::{embedding::MatchingEmbeddingProvider, rag::test_embedding_identity};
@@ -222,8 +222,8 @@ fn previous_chapter_range_requires_a_chapter_after_the_first() {
 #[test]
 fn chapter_generation_filter_adds_previous_range_and_allowed_types() {
     let identity = test_embedding_identity("chapter-generation-filter");
-    let filter = build_chapter_generation_rag_search_filter(4, identity)
-        .expect("chapter generation filter");
+    let filter =
+        build_chapter_generation_rag_search_filter(4, identity).expect("chapter generation filter");
 
     assert_eq!(filter.chapter_range, Some((1, 3)));
     let data_types = filter.data_types.expect("chapter generation data types");

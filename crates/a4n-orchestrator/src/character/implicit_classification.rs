@@ -10,6 +10,8 @@ mod request;
 #[cfg(test)]
 mod tests;
 
-pub use contracts::{CharacterImplicitClassificationInput, CharacterImplicitClassificationOutput};
+pub(crate) use contracts::CharacterImplicitClassificationInput;
 
-pub const IMPLICIT_CLASSIFICATION_PROMPT_NAME: &str = "implicit_classification";
+const IMPLICIT_CLASSIFICATION_KIND: &str = "implicit_classification";
+const IMPLICIT_CLASSIFICATION_STEP_KEY: &str = "behavior_classification";
+const IMPLICIT_CLASSIFICATION_CONTEXT_LEDGER_VERSION: &str = "implicit_classification_context_v1";

@@ -20,7 +20,9 @@ fn resolves_model_by_enum_name() {
 
 #[test]
 fn rejects_ambiguous_model_code() {
-    let err = resolve_model_info("Xenova/all-MiniLM-L12-v2").unwrap_err();
+    let err = resolve_model_info("Xenova/all-MiniLM-L12-v2")
+        .err()
+        .expect("ambiguous model code must be rejected");
     assert!(matches!(err, AppError::InvalidArgument(_)));
     assert!(err.to_string().contains("多个 fastembed 变体"));
 }

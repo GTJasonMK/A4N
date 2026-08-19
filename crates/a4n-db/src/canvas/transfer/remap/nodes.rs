@@ -60,7 +60,11 @@ pub(in crate::canvas::transfer) fn remap_video_studio_canvas_node_refs(
                 .get(&old_id)
                 .and_then(|value| value.as_ref())
             {
-                set_video_studio_json_string(&mut config_json, THUMBNAIL_PATH_FIELD, thumbnail_path);
+                set_video_studio_json_string(
+                    &mut config_json,
+                    THUMBNAIL_PATH_FIELD,
+                    thumbnail_path,
+                );
             }
             Ok((ref_type, Some(new_id), config_json))
         }

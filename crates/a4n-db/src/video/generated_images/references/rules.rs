@@ -39,7 +39,9 @@ pub(in crate::video::generated_images) fn normalize_optional_image_record_text(
         .map(ToString::to_string)
 }
 
-pub fn validate_generated_image_ai_score(value: f32) -> Result<f32, VideoDbError> {
+pub(in crate::video::generated_images) fn validate_generated_image_ai_score(
+    value: f32,
+) -> Result<f32, VideoDbError> {
     if !value.is_finite() {
         return Err(VideoDbError::InvalidArgument(
             "ai_score 必须是有限数".to_string(),

@@ -24,9 +24,9 @@ where
             "画布工作台当前只支持视频项目".to_string(),
         ));
     }
-    project.source_mode().map_err(|error| {
-        CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
-    })?;
+    project
+        .source_mode()
+        .map_err(|error| CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}")))?;
     Ok(project)
 }
 
@@ -46,9 +46,10 @@ pub(super) fn normalize_canvas_record_graph_kind(
 pub(super) fn default_canvas_record_graph_kind(
     project: &novel_project::Model,
 ) -> Result<&'static str, CanvasDbError> {
-    match project.source_mode().map_err(|error| {
-        CanvasDbError::InvalidArgument(format!("项目 {}: {error}", project.id))
-    })? {
+    match project
+        .source_mode()
+        .map_err(|error| CanvasDbError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+    {
         ProjectSourceMode::Derived => Ok(GRAPH_KIND_DERIVED_VIDEO),
         ProjectSourceMode::Freeform => Ok(GRAPH_KIND_VIDEO_STUDIO),
         ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(

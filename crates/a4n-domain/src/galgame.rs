@@ -559,13 +559,6 @@ impl GalgamePipelineStartStage {
     }
 }
 
-pub fn galgame_pipeline_stage_keys() -> Vec<&'static str> {
-    GalgamePipelineStartStage::ALL
-        .into_iter()
-        .map(GalgamePipelineStartStage::key)
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::GalgameLinePresentationDocumentV2;

@@ -14,7 +14,7 @@ use super::rules::{
     normalize_text_anchor_role,
 };
 
-pub async fn insert_generation_text_anchor_ref<C>(
+pub(crate) async fn insert_generation_text_anchor_ref<C>(
     db: &C,
     generation_spec_id: i64,
     text_anchor_id: i64,
@@ -36,7 +36,7 @@ where
     .map_err(GenerationDbError::Database)
 }
 
-pub async fn insert_generation_entity_ref<C>(
+pub(crate) async fn insert_generation_entity_ref<C>(
     db: &C,
     generation_spec_id: i64,
     entity_kind: &str,
@@ -61,7 +61,7 @@ where
     .map_err(GenerationDbError::Database)
 }
 
-pub async fn insert_generation_media_ref<C>(
+pub(crate) async fn insert_generation_media_ref<C>(
     db: &C,
     spec: &generation_spec::Model,
     media_asset_id: i64,

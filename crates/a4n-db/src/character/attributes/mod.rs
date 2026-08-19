@@ -4,16 +4,44 @@ mod implicit_review;
 mod state;
 mod types;
 
-pub use deletion_marks::*;
-pub use events::*;
-pub use implicit_review::*;
+#[cfg(test)]
+pub(in crate::character::attributes) use deletion_marks::request_attribute_deletion_in;
+pub use deletion_marks::{
+    deletion_marks_by_profile, request_attribute_deletion, reset_deletion_marks_in,
+    rewind_deletion_marks_after,
+};
+pub(in crate::character) use deletion_marks::{
+    request_attribute_deletion_from_source_in, rewind_ai_deletion_marks_after,
+};
+pub(in crate::character) use events::attribute_events_by_profile_chapter_range;
+#[cfg(test)]
+pub(in crate::character::attributes) use events::record_attribute_event_in;
+pub use events::{
+    add_profile_attribute, attribute_events_by_ids, attribute_history, modify_profile_attribute,
+};
+pub(in crate::character) use events::{
+    add_profile_attribute_from_source_in, modify_profile_attribute_from_source_in,
+};
+pub use implicit_review::apply_implicit_review_decision_record;
+pub(in crate::character) use implicit_review::apply_implicit_review_decision_record_from_source_in;
+pub use state::apply_attribute_to_state;
+pub(in crate::character) use state::attribute_value_in_state;
 pub(super) use state::category_storage_key;
-pub use state::*;
-pub use types::*;
+pub use types::{
+    AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
+    CharacterAttributeDeletionExecutionInput, CharacterAttributeDeletionExecutionResult,
+    CharacterAttributeDeletionRequestInput, CharacterAttributeEventHistoryFilter,
+    CharacterAttributeMutationResult, CharacterAttributeValueChangeInput,
+    CharacterDeletionMarkRewindSummary, CharacterImplicitReviewDecisionRecordInput,
+};
+pub(in crate::character::attributes) use types::{
+    CharacterAttributeEventInsertInput, CharacterDeletionMarkExecutedUpdateInput,
+};
 
+use super::profile::require_profile_for_update;
 use super::{
-    CharacterDbError, require_non_empty, require_profile_for_update, validate_category,
-    validate_chapter_number, validate_timeline_source_kind,
+    CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
+    validate_timeline_source_kind,
 };
 use a4n_core::models::character::attribute_event;
 use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
@@ -84,7 +112,7 @@ where
     Ok(event)
 }
 
-pub async fn execute_ready_attribute_deletion_in<C>(
+async fn execute_ready_attribute_deletion_in<C>(
     db: &C,
     input: CharacterAttributeDeletionExecutionInput,
 ) -> Result<(attribute_event::Model, i32), CharacterDbError>

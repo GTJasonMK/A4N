@@ -1,6 +1,7 @@
 use a4n_core::json_contract::reject_unknown_fields;
 use serde_json::{Map, Value, json};
 
+use super::IMPLICIT_CLASSIFICATION_KIND;
 use crate::character::{required_string, required_value};
 
 pub(super) fn parse_implicit_classification_output(
@@ -14,7 +15,7 @@ pub(super) fn parse_implicit_classification_output(
     }
     reject_unknown_fields(
         &value,
-        "implicit_classification",
+        IMPLICIT_CLASSIFICATION_KIND,
         &["classifications", "reasoning", "suggested_new_attributes"],
     )?;
 

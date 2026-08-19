@@ -12,7 +12,7 @@ use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
 };
 
-pub async fn delete_galgame_target_generation_media_graph_record<C>(
+pub(in crate::galgame) async fn delete_galgame_target_generation_media_graph_record<C>(
     db: &C,
     project_id: i64,
 ) -> Result<(), DbErr>

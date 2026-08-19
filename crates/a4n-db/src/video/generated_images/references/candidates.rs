@@ -19,7 +19,7 @@ where
     ensure_image_chapter_project_match(&project, &chapter, project_id, chapter_id)
 }
 
-pub async fn ensure_image_chapter_belongs_to_projects_record<C>(
+async fn ensure_image_chapter_belongs_to_projects_record<C>(
     db: &C,
     project_ids: &[i64],
     chapter_id: i64,

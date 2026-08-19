@@ -26,8 +26,8 @@ pub(in crate::actions::video_generation::media) fn image_file_to_provider_media_
 }
 
 fn media_token_ttl_minutes() -> Result<u64, String> {
-    let value = required_non_empty_env_string(MEDIA_TOKEN_TTL_ENV)
-        .map_err(|error| error.to_string())?;
+    let value =
+        required_non_empty_env_string(MEDIA_TOKEN_TTL_ENV).map_err(|error| error.to_string())?;
     value
         .parse::<u64>()
         .ok()

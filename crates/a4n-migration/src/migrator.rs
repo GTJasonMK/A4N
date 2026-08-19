@@ -90,9 +90,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::canvas_extract_frame_contract::Migration),
             Box::new(crate::migrations::canvas_trim_contract::Migration),
             Box::new(crate::migrations::external_import_model_identity_cleanup::Migration),
-            Box::new(
-                crate::migrations::chapter_video_prompt_output_language_contract::Migration,
-            ),
+            Box::new(crate::migrations::chapter_video_prompt_output_language_contract::Migration),
+            Box::new(crate::migrations::profile_record_ownership_default_cleanup::Migration),
         ]
     }
 }
@@ -142,7 +141,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(34)
+                .take(35)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -181,6 +180,7 @@ mod tests {
                 "canvas_trim_contract",
                 "external_import_model_identity_cleanup",
                 "chapter_video_prompt_output_language_contract",
+                "profile_record_ownership_default_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

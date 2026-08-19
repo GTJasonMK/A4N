@@ -11,8 +11,7 @@ use a4n_db::generation::{
     ProjectLifecycleOperation,
 };
 use a4n_orchestrator::{
-    generation::GenerationTerminalWriteOutcome,
-    project::ProjectGeneratedDataResetApplicationResult,
+    generation::GenerationTerminalWriteOutcome, project::ProjectGeneratedDataResetApplicationResult,
 };
 use a4n_service_protocol::InterruptionReason;
 
@@ -292,11 +291,7 @@ impl DestructiveLifecycleCoordinator {
         });
     }
 
-    fn spawn_once<F, Fut>(
-        self: &Arc<Self>,
-        key: String,
-        worker: F,
-    )
+    fn spawn_once<F, Fut>(self: &Arc<Self>, key: String, worker: F)
     where
         F: FnOnce(ContinuationPermit) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,

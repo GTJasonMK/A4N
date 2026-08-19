@@ -8,14 +8,16 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CharacterSnapshotReferenceUpsertInput {
+pub(in crate::character) struct CharacterSnapshotReferenceUpsertInput {
     pub profile_id: i64,
     pub chapter_number: i32,
     pub snapshot_hash: String,
     pub data: Value,
 }
 
-pub fn character_snapshot_content_hash(data: &Value) -> Result<String, serde_json::Error> {
+pub(in crate::character) fn character_snapshot_content_hash(
+    data: &Value,
+) -> Result<String, serde_json::Error> {
     let json = serde_json::to_string(data)?;
     let mut hasher = Sha256::new();
     hasher.update(json.as_bytes());
@@ -95,7 +97,7 @@ where
         .await
 }
 
-pub async fn upsert_snapshot_reference<C>(
+pub(in crate::character) async fn upsert_snapshot_reference<C>(
     db: &C,
     input: CharacterSnapshotReferenceUpsertInput,
 ) -> Result<snapshot_reference::Model, DbErr>
@@ -129,7 +131,7 @@ where
     .await
 }
 
-pub async fn snapshot_reference_by_hash<C>(
+pub(in crate::character) async fn snapshot_reference_by_hash<C>(
     db: &C,
     content_hash: &str,
 ) -> Result<Option<snapshot_reference::Model>, DbErr>

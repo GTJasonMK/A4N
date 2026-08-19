@@ -1,7 +1,7 @@
-use super::super::canvas_node_references_generated_image;
 use super::super::config::{
     IMAGE_REF_CONFIG_KEY, config_id_in, remove_config_any_i64_ref, validate_positive_id,
 };
+use super::super::reset::canvas_node_references_generated_image;
 use super::scope::canvas_nodes_for_projects;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::{ai::generated_image, canvas::canvas_node};
@@ -11,7 +11,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-pub async fn mark_canvas_generated_image_refs_missing<C>(
+pub(crate) async fn mark_canvas_generated_image_refs_missing<C>(
     db: &C,
     image_ids: &[i64],
 ) -> Result<(), CanvasDbError>

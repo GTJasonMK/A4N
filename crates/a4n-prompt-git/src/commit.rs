@@ -11,7 +11,7 @@ impl GitPromptStore {
     /// 提交提示词（覆盖写文件 → stage → commit）
     ///
     /// 返回新 commit 的 SHA。如果新内容与最新版完全一致则跳过提交并返回当前 HEAD（或空仓库时返回空 String）。
-    pub fn commit_prompt(
+    pub(super) fn commit_prompt(
         &self,
         name: &str,
         content: &str,
@@ -23,7 +23,7 @@ impl GitPromptStore {
     /// 批量提交提示词文件（覆盖写文件 → stage → commit）。
     ///
     /// 所有文件写入同一个 commit；任一写入或 Git 步骤失败时恢复本次写入前的工作区文件内容。
-    pub fn commit_prompts(
+    pub(super) fn commit_prompts(
         &self,
         prompts: &[(String, String)],
         message: &str,

@@ -6,7 +6,7 @@ use a4n_core::models::character::{
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
-pub async fn delete_timeline_artifacts_from_chapter<C>(
+async fn delete_timeline_artifacts_from_chapter<C>(
     db: &C,
     profile_id: i64,
     start_chapter: i32,

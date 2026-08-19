@@ -147,11 +147,7 @@ mod tests {
             Ok(false)
         );
         assert_eq!(
-            is_freeform_video_generated_data_reset_project(&project(
-                "video",
-                Some(1),
-                Some(2)
-            )),
+            is_freeform_video_generated_data_reset_project(&project("video", Some(1), Some(2))),
             Ok(false)
         );
     }

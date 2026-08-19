@@ -2,13 +2,13 @@ use super::{
     CheckImplicitUpdateInput, GetImplicitReviewInput, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary,
 };
-use a4n_orchestrator::character::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 use crate::{
     AppState,
     actions::request_preview::{
         ModelRequestPreview, model_request_preview, traced_chat_request_step_for_state,
     },
 };
+use a4n_orchestrator::character::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 
 pub async fn get_implicit_review(
     state: &AppState,

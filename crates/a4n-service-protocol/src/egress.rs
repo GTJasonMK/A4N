@@ -14,9 +14,9 @@ pub enum EgressDataType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EgressPolicy {
-    pub allow_trusted_remote: bool,
-    pub audit_event: &'static str,
+struct EgressPolicy {
+    allow_trusted_remote: bool,
+    audit_event: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +28,7 @@ pub struct EgressAuditEvent {
     pub reason: &'static str,
 }
 
-pub fn egress_policy_for(service: &str, data_type: EgressDataType) -> EgressPolicy {
+fn egress_policy_for(service: &str, data_type: EgressDataType) -> EgressPolicy {
     let allow_trusted_remote = matches!(data_type, EgressDataType::Metadata)
         || matches!(
             (service, data_type),

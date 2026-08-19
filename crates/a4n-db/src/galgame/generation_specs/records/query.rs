@@ -89,7 +89,7 @@ pub(in crate::galgame) fn validate_galgame_asset_generation_spec_query(
     Ok(())
 }
 
-pub async fn galgame_generation_specs_by_canonical_key<C>(
+pub(super) async fn galgame_generation_specs_by_canonical_key<C>(
     db: &C,
     project_id: i64,
 ) -> Result<BTreeMap<String, generation_spec::Model>, DbErr>

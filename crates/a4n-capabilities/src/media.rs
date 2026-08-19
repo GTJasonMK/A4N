@@ -70,9 +70,7 @@ impl ImageClient for HttpImageClient {
     }
 
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post("/image/request_preview", request)
-            .await
+        self.transport.post("/image/request_preview", request).await
     }
 
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
@@ -153,9 +151,7 @@ impl VideoClient for HttpVideoClient {
     }
 
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post("/video/request_preview", request)
-            .await
+        self.transport.post("/video/request_preview", request).await
     }
 
     async fn discover_models(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {

@@ -6,11 +6,11 @@ use sea_orm::{
 use super::tasks::{GenerationTaskPersistenceError, validate_safe_id};
 
 pub const PROJECT_GATE_ACTIVE: &str = "active";
-pub const PROJECT_GATE_DELETING: &str = "deleting";
-pub const PROJECT_GATE_RESETTING: &str = "resetting";
-pub const USER_GATE_ACTIVE: &str = "active";
-pub const USER_GATE_DISABLING: &str = "disabling";
-pub const USER_GATE_DISABLED: &str = "disabled";
+pub(crate) const PROJECT_GATE_DELETING: &str = "deleting";
+pub(crate) const PROJECT_GATE_RESETTING: &str = "resetting";
+const USER_GATE_ACTIVE: &str = "active";
+const USER_GATE_DISABLING: &str = "disabling";
+const USER_GATE_DISABLED: &str = "disabled";
 
 const PROJECT_METADATA_SQL: &str =
     "SELECT user_id, root_project_id FROM novel_project WHERE id = $1";
@@ -503,7 +503,7 @@ where
     Ok(root_project_id.unwrap_or(project_id))
 }
 
-pub async fn require_project_lifecycle_gate<C>(
+pub(crate) async fn require_project_lifecycle_gate<C>(
     db: &C,
     project_id: i64,
     expected_gate: &str,

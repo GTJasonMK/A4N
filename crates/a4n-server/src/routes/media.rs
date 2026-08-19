@@ -2,7 +2,7 @@ use super::auth::{authenticated_user, authenticated_user_from_access_token};
 use super::error::ApiError;
 use crate::state::ServerState;
 use a4n_core::error::AppError;
-use a4n_runtime::host_api::{auth_records, storage_paths};
+use a4n_runtime::host_api::auth_records;
 use a4n_runtime::{file_utils, media_file};
 use axum::body::Body;
 use axum::extract::{Query, State};
@@ -27,7 +27,7 @@ pub(super) async fn serve(
 ) -> Result<Response, ApiError> {
     let path = media_file::relative_media_path(&query.path).map_err(ApiError::bad_request)?;
     authorize_media_request(&state, &headers, &query, &path).await?;
-    let data_dir = storage_paths::data_dir_path(state.runtime().data_dir());
+    let data_dir = state.runtime().data_dir().to_path_buf();
     let path = data_dir.join(path);
     let path = file_utils::canonicalize_path_in_data_dir(&data_dir, &path, MEDIA_LABEL).map_err(
         |err| {

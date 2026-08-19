@@ -17,15 +17,13 @@ pub fn storyboard_prompt_matches_video_prompt(
         chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
         video_prompt,
         storyboard_prompt,
+    ) && prompt_source_type_matches(
+        video_prompt,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+    ) && prompt_source_type_matches(
+        storyboard_prompt,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
     )
-        && prompt_source_type_matches(
-            video_prompt,
-            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
-        )
-        && prompt_source_type_matches(
-            storyboard_prompt,
-            chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
-        )
 }
 
 pub fn latest_storyboard_image_id(

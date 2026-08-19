@@ -42,6 +42,7 @@ async fn delta_sink_and_structured_progress_share_one_stream() {
     };
     let mut deltas = Vec::new();
     let mut messages = Vec::new();
+    let mut delta_sink = |delta: &str| deltas.push(delta.to_string());
 
     let result = chat_json_stream_result_with_sink(
         input(&provider, Some(progress), None),
@@ -49,7 +50,7 @@ async fn delta_sink_and_structured_progress_share_one_stream() {
             messages.push(message.to_string());
             Ok(())
         },
-        Some(|delta: &str| deltas.push(delta.to_string())),
+        Some(&mut delta_sink),
     )
     .await
     .expect("stream with sink should succeed");

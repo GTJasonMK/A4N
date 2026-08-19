@@ -12,11 +12,7 @@ pub(crate) struct GenerationRagQuery {
     pub(crate) weight: f32,
 }
 
-fn push_generation_rag_query(
-    queries: &mut Vec<GenerationRagQuery>,
-    text: String,
-    weight: f32,
-) {
+fn push_generation_rag_query(queries: &mut Vec<GenerationRagQuery>, text: String, weight: f32) {
     let text = text.trim();
     if text.is_empty() || queries.iter().any(|query| query.text == text) {
         return;
@@ -117,11 +113,7 @@ fn dedup_non_empty_lines(lines: Vec<String>) -> Vec<String> {
     let mut deduped: Vec<String> = Vec::new();
     for line in lines {
         let line = line.trim();
-        if line.is_empty()
-            || deduped
-                .iter()
-                .any(|candidate| candidate.as_str() == line)
-        {
+        if line.is_empty() || deduped.iter().any(|candidate| candidate.as_str() == line) {
             continue;
         }
         deduped.push(line.to_string());

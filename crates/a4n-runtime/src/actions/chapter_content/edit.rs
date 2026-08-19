@@ -22,7 +22,7 @@ pub async fn update_chapter_content(
     projections::chapter_summary_with_sync_state(state, &updated).await
 }
 
-pub async fn resume_chapter_content_sync_workflow_run(
+pub(crate) async fn resume_chapter_content_sync_workflow_run(
     state: &AppState,
     run: &workflow_run::Model,
 ) -> Result<(), String> {

@@ -81,7 +81,7 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
           type="button"
           onClick={onCancel}
           disabled={streamBusy}
-          className="pyqt-btn-secondary inline-flex min-w-0 flex-1 items-center justify-center gap-1 !min-h-9 !border-error/50 !px-2 text-small !text-error sm:!min-h-[28px]"
+          className="a4n-touch-target pyqt-btn-secondary inline-flex min-w-0 flex-1 items-center justify-center gap-1 !border-error/50 !px-2 text-small !text-error sm:!min-h-[28px]"
           title="取消当前章节生成任务"
         >
           {streamBusy ? (

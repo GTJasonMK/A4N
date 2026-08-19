@@ -3,23 +3,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct GalgameGenerationSpecRefsRecordInput {
-    pub text_anchor_spec_ids: Vec<i64>,
-    pub text_anchor_refs: Vec<GalgameGenerationSpecTextAnchorRefRecordInput>,
-    pub entity_ref_spec_ids: Vec<i64>,
-    pub entity_refs: Vec<GalgameGenerationSpecEntityRefRecordInput>,
+pub(in crate::galgame) struct GalgameGenerationSpecRefsRecordInput {
+    pub(in crate::galgame) text_anchor_spec_ids: Vec<i64>,
+    pub(in crate::galgame) text_anchor_refs: Vec<GalgameGenerationSpecTextAnchorRefRecordInput>,
+    pub(in crate::galgame) entity_ref_spec_ids: Vec<i64>,
+    pub(in crate::galgame) entity_refs: Vec<GalgameGenerationSpecEntityRefRecordInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GalgameGenerationSpecTextAnchorRefRecordInput {
-    pub generation_spec_id: i64,
-    pub text_anchor_id: i64,
+pub(in crate::galgame) struct GalgameGenerationSpecTextAnchorRefRecordInput {
+    pub(in crate::galgame) generation_spec_id: i64,
+    pub(in crate::galgame) text_anchor_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GalgameGenerationSpecEntityRefRecordInput {
-    pub generation_spec_id: i64,
-    pub profile_id: i64,
+pub(in crate::galgame) struct GalgameGenerationSpecEntityRefRecordInput {
+    pub(in crate::galgame) generation_spec_id: i64,
+    pub(in crate::galgame) profile_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

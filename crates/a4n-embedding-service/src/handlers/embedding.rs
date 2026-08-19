@@ -28,7 +28,11 @@ pub(crate) async fn embed_texts(
         })
     }
     .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) fn embedding_provider(

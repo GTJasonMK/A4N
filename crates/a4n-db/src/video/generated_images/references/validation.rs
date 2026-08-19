@@ -1,6 +1,6 @@
 use super::context::video_asset_project_ids_record;
 use crate::profile_material::is_project_reusable_video_material_image;
-use crate::video::{VideoDbError, generated_image_records_by_ids};
+use crate::video::VideoDbError;
 use a4n_core::models::ai::generated_image;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
@@ -38,7 +38,7 @@ where
         .await?
         .into_iter()
         .collect::<BTreeSet<_>>();
-    let rows = generated_image_records_by_ids(db, &ids).await?;
+    let rows = super::super::records::generated_image_records_by_ids(db, &ids).await?;
     let mut images_by_id = rows
         .into_iter()
         .map(|image| (image.id, image))

@@ -4,14 +4,15 @@ use super::super::types::{
 };
 use super::updates::reset_pending_deletion_marks;
 use super::upsert::upsert_deletion_mark;
+use crate::character::profile::require_profile_for_update;
 use crate::character::{
-    CharacterDbError, require_non_empty, require_profile_for_update, validate_category,
-    validate_chapter_number, validate_timeline_source_kind,
+    CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
+    validate_timeline_source_kind,
 };
 use a4n_core::models::character::{attribute_event::SOURCE_KIND_USER, protagonist_deletion_mark};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
-pub async fn request_attribute_deletion_in<C>(
+pub(in crate::character::attributes) async fn request_attribute_deletion_in<C>(
     db: &C,
     input: CharacterAttributeDeletionRequestInput,
 ) -> Result<protagonist_deletion_mark::Model, CharacterDbError>

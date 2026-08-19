@@ -1,16 +1,14 @@
 use super::contracts::ManifestIds;
 use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_domain::canvas_transfer_runtime_identity_key;
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::canvas_transfer_runtime_identity_key;
 
 use a4n_core::models::ai::generated_video;
 
 use crate::media::{
     MEDIA_STATUS_COMPLETED, is_valid_media_kind, is_valid_media_origin, is_valid_media_status,
 };
-use crate::project::video_studio_package::{
-    ImportMediaPayload, VideoStudioProjectPackage,
-};
+use crate::project::video_studio_package::{ImportMediaPayload, VideoStudioProjectPackage};
 
 use super::super::media::{require_media_payload, validate_optional_file_size};
 use super::super::provenance::{

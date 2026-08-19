@@ -1,7 +1,8 @@
 mod helpers;
 pub(super) mod urlencoding;
 
-use super::*;
+use a4n_core::error::AppError;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 /// OAuth2 用户信息

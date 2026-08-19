@@ -178,7 +178,7 @@ pub async fn prompt_list_categories(state: &AppState) -> Result<Vec<CategoryInfo
         .map_err(prompt_error)
 }
 
-pub async fn prompt_get_runtime_entry(state: &AppState, name: &str) -> Result<PromptEntry, String> {
+pub(crate) async fn prompt_get_runtime_entry(state: &AppState, name: &str) -> Result<PromptEntry, String> {
     let context = prompt_context(state);
     state
         .orchestrator()
@@ -198,7 +198,7 @@ pub(crate) async fn prompt_list_runtime_entries(
         .map_err(prompt_error)
 }
 
-pub async fn prompt_update_many_runtime(
+pub(crate) async fn prompt_update_many_runtime(
     state: &AppState,
     updates: Vec<(String, String)>,
     author: &str,

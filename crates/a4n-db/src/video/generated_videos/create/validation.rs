@@ -1,12 +1,13 @@
+use super::super::CreateGeneratedVideoRecordInput;
 use crate::video::{
-    CreateGeneratedVideoRecordDraftInput, CreateGeneratedVideoRecordInput, VideoDbError,
+    CreateGeneratedVideoRecordDraftInput, VideoDbError,
     ensure_video_chapter_belongs_to_project_record, generated_image_by_id, generated_video_by_id,
-    validate_positive_video_i64, video_project_record,
+    validate_positive_video_i64,
 };
 use a4n_core::video_workflow::is_generated_video_workflow_mode;
 use sea_orm::ConnectionTrait;
 
-pub async fn validate_create_generated_video_record_input<C>(
+pub(super) async fn validate_create_generated_video_record_input<C>(
     db: &C,
     input: CreateGeneratedVideoRecordDraftInput,
 ) -> Result<CreateGeneratedVideoRecordInput, VideoDbError>
@@ -18,7 +19,7 @@ where
         let chapter_id = validate_positive_video_i64(chapter_id, "chapter_id")?;
         ensure_video_chapter_belongs_to_project_record(db, project_id, chapter_id).await?;
     } else {
-        video_project_record(db, project_id).await?;
+        crate::video::generated_images::video_project_record(db, project_id).await?;
     }
     if let Some(source_video_id) = input.source_video_id {
         let source_video_id = validate_positive_video_i64(source_video_id, "source_video_id")?;
@@ -101,8 +102,8 @@ fn normalize_video_provider_job_id(value: Option<&str>) -> Result<Option<String>
 mod tests {
     use super::*;
     use a4n_core::video_workflow::{
-        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM,
-        WORKFLOW_MODE_CANVAS_VIDEO, WORKFLOW_MODE_MIXED,
+        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
+        WORKFLOW_MODE_MIXED,
     };
 
     #[test]

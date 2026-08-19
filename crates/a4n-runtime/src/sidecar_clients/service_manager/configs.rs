@@ -97,8 +97,8 @@ fn managed_sidecar_service(
             executable
         )
     })?;
-    let configured_addr = optional_non_empty_env_string(&spec.addr_env)
-        .map_err(|error| error.to_string())?;
+    let configured_addr =
+        optional_non_empty_env_string(&spec.addr_env).map_err(|error| error.to_string())?;
     let addr = match configured_addr.as_deref() {
         Some(value) => parse_sidecar_addr_env(&spec.addr_env, Some(value), &spec.default_addr)?,
         None => reserve_managed_loopback_addr(reserved_addrs)?.to_string(),

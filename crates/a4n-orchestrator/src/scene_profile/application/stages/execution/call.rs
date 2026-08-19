@@ -24,7 +24,7 @@ pub(super) async fn chat_scene_profile_stage(
     // 活体信号与字段级里程碑取自同一个 token 流：前者证明"还在输出"，
     // 后者说明"进行到哪了"，二者互补而非替代。
     let mut streamed = String::new();
-    let stream_sink = progress
+    let mut stream_sink = progress
         .filter(|progress| progress.has_stream_reporter())
         .map(|progress| {
             move |delta: &str| {
@@ -48,7 +48,9 @@ pub(super) async fn chat_scene_profile_stage(
             |current, message| {
                 report_scene_profile_sync_progress(progress, current, message, "场景档案同步已停止")
             },
-            stream_sink,
+            stream_sink
+                .as_mut()
+                .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
         )
         .await?
         .response_content;

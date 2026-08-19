@@ -5,10 +5,7 @@ use super::identity::{
     blueprint_relationship_identity_from_keys, blueprint_relationship_matches,
     blueprint_relationship_model_identity, normalized_blueprint_identity,
 };
-use a4n_core::{
-    json_contract::is_empty_json_value,
-    models::project::blueprint_relationship,
-};
+use a4n_core::{json_contract::is_empty_json_value, models::project::blueprint_relationship};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,

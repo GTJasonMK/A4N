@@ -17,25 +17,24 @@ use serde_json::Value;
 use std::collections::HashSet;
 
 pub use creation::{
-    create_profile, create_profile_record, create_profile_with_generation_run,
-    create_profile_with_generation_run_in,
+    create_profile, create_profile_with_generation_run, create_profile_with_generation_run_in,
 };
 pub(crate) use deletion::delete_profile_cascade_in;
 pub use deletion::delete_profile_cascade_transaction;
-pub use records::{
-    profile_by_id, profile_by_project_name, profiles_by_project, update_profile_current_state,
+pub use records::{profile_by_id, profile_by_project_name, profiles_by_project};
+pub(in crate::character) use records::{
+    require_profile, require_profile_for_update, update_profile_current_state,
 };
-pub(in crate::character) use records::{require_profile, require_profile_for_update};
-pub use state::{
-    apply_profile_current_state, normalize_base_attributes, profile_current_state_fields,
-};
+pub(crate) use state::apply_profile_current_state;
+use state::normalize_base_attributes;
+pub use state::profile_current_state_fields;
+pub(in crate::character) use types::CharacterProfileCurrentStateUpdate;
 pub use types::{
     CharacterProfileCreateError, CharacterProfileCreateInput, CharacterProfileCurrentStateFields,
-    CharacterProfileCurrentStateUpdate, CharacterProfileDeleteError,
-    CharacterProfileDeletionSummary,
+    CharacterProfileDeleteError, CharacterProfileDeletionSummary,
 };
 
-pub fn initial_profile_editable(
+fn initial_profile_editable(
     last_synced_chapter: i32,
     project_active: bool,
     has_timeline_records: bool,

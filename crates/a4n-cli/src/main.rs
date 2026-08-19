@@ -17,14 +17,14 @@ use a4n_api_contract::auth::{ChangePasswordInput, RevokeSessionInput};
 use a4n_api_contract::command_manifest as catalog;
 use a4n_api_contract::project::CreateProjectInput;
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine as _;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use reqwest::{Method, Response};
 use serde_json::{Map, Value, json};
 use tokio::io::AsyncWriteExt;
 
-use client::{ApiBody, ApiClient, JsonRequest};
+use client::{AgentHeartbeatClient, ApiBody, ApiClient, JsonRequest};
 use config::{StoredConfig, resolve_config_path};
 use context::SessionContext;
 use output::{OutputMode, OutputOptions};
@@ -169,6 +169,11 @@ enum Command {
     Workflow {
         #[command(subcommand)]
         command: WorkflowCommand,
+    },
+    /// 注册并报告当前 CLI Agent 的工作状态
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
     },
     /// 下载 Server 管理的媒体文件
     Media {
@@ -424,6 +429,61 @@ enum WorkflowCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum AgentCommand {
+    /// 注册一个 Agent 并保存返回的租约凭证
+    Register {
+        #[arg(long)]
+        name: String,
+        #[arg(long, default_value = "general")]
+        kind: String,
+        #[arg(long, default_value = "cli")]
+        client: String,
+        #[arg(long)]
+        project_id: Option<i64>,
+        #[arg(long)]
+        chapter_id: Option<i64>,
+    },
+    /// 更新 Agent 工作状态
+    Update {
+        #[arg(long)]
+        agent_id: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        phase: Option<String>,
+        #[arg(long)]
+        summary: Option<String>,
+        #[arg(long)]
+        progress: Option<f32>,
+        #[arg(long)]
+        current_task_id: Option<String>,
+        #[arg(long)]
+        project_id: Option<i64>,
+        #[arg(long)]
+        chapter_id: Option<i64>,
+    },
+    /// 刷新 Agent 租约并可选更新状态
+    Heartbeat {
+        #[arg(long)]
+        agent_id: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        phase: Option<String>,
+        #[arg(long)]
+        summary: Option<String>,
+        #[arg(long)]
+        progress: Option<f32>,
+        #[arg(long)]
+        current_task_id: Option<String>,
+    },
+    /// 注销当前 Agent
+    Unregister { agent_id: Option<String> },
+    /// 查看当前用户的 Agent 列表
+    Status,
+}
+
+#[derive(Debug, Subcommand)]
 enum LocalCommand {
     /// 迁移数据库并在后台启动本地 Server
     Start {
@@ -556,10 +616,46 @@ impl Command {
             Self::Project { command } => format!("project {}", command.label()),
             Self::Chapter { command } => format!("chapter {}", command.label()),
             Self::Workflow { command } => format!("workflow {}", command.label()),
+            Self::Agent { command } => format!("agent {}", command.label()),
             Self::Media { command } => format!("media {}", command.label()),
             Self::Config { command } => format!("config {}", command.label()),
             Self::Context { command } => format!("context {}", command.label()),
         }
+    }
+
+    fn auto_agent_phase(&self) -> Option<String> {
+        let phase = match self {
+            Self::Call { command, .. } => format!("CLI 调用 {command}"),
+            Self::Task {
+                command: TaskCommand::Watch { task_id, .. },
+            } => format!("观察任务 {task_id}"),
+            Self::Workflow {
+                command:
+                    WorkflowCommand::Watch {
+                        workflow_run_id, ..
+                    },
+            } => format!("观察工作流 {workflow_run_id}"),
+            Self::Workflow {
+                command: WorkflowCommand::Resume { workflow_run_id },
+            } => format!("恢复工作流 {workflow_run_id}"),
+            Self::Project {
+                command: ProjectCommand::Create { title, .. },
+            } => format!("创建项目 {title}"),
+            Self::Project {
+                command: ProjectCommand::Delete { .. },
+            } => "删除项目".into(),
+            Self::Chapter {
+                command: ChapterCommand::Import { number, .. },
+            } => format!("导入第 {number} 章"),
+            Self::Chapter {
+                command: ChapterCommand::Update { .. },
+            } => "更新章节".into(),
+            Self::Media {
+                command: MediaCommand::Download { media_path, .. },
+            } => format!("下载媒体 {media_path}"),
+            _ => return None,
+        };
+        Some(phase)
     }
 }
 
@@ -638,6 +734,18 @@ impl WorkflowCommand {
             Self::Resume { .. } => "resume",
             Self::Cancel { .. } => "cancel",
             Self::Watch { .. } => "watch",
+        }
+    }
+}
+
+impl AgentCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Register { .. } => "register",
+            Self::Update { .. } => "update",
+            Self::Heartbeat { .. } => "heartbeat",
+            Self::Unregister { .. } => "unregister",
+            Self::Status => "status",
         }
     }
 }
@@ -770,13 +878,35 @@ async fn run(cli: Cli, output: OutputOptions) -> Result<()> {
         context: session_context,
         no_input: no_input || agent,
     };
+    let auto_agent_phase = agent.then(|| command.auto_agent_phase()).flatten();
 
     match command {
         Command::Shell {
             no_history,
             history,
         } => run_shell(&mut runtime, no_history, history).await,
-        command => execute_command(&mut runtime, command).await,
+        command => {
+            let activity = if let Some(phase) = auto_agent_phase.as_deref() {
+                Some(AutoAgentActivity::start(&runtime.client, phase.to_string()).await?)
+            } else {
+                None
+            };
+            let result = execute_command(&mut runtime, command).await;
+            let tracking_result =
+                if let (Some(activity), Some(phase)) = (activity, auto_agent_phase.as_deref()) {
+                    Some(activity.finish(result.is_ok(), phase).await)
+                } else {
+                    None
+                };
+            match (result, tracking_result) {
+                (Err(command_error), Some(Err(tracking_error))) => Err(anyhow!(
+                    "CLI 命令失败: {command_error:#}; Agent 跟踪失败: {tracking_error:#}"
+                )),
+                (Err(command_error), _) => Err(command_error),
+                (Ok(()), Some(Err(tracking_error))) => Err(tracking_error),
+                (Ok(()), _) => Ok(()),
+            }
+        }
     }
 }
 
@@ -785,6 +915,50 @@ struct CliRuntime {
     output: OutputOptions,
     context: SessionContext,
     no_input: bool,
+}
+
+struct AutoAgentActivity {
+    heartbeat: AgentHeartbeatClient,
+    task: tokio::task::JoinHandle<Result<()>>,
+}
+
+impl AutoAgentActivity {
+    async fn start(client: &ApiClient, phase: String) -> Result<Self> {
+        let heartbeat = client.agent_heartbeat_client()?;
+        heartbeat.update("running", &phase, None).await?;
+        let recurring = heartbeat.clone();
+        let recurring_phase = phase.clone();
+        let task = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(10));
+            interval.tick().await;
+            let error = loop {
+                interval.tick().await;
+                match recurring.update("running", &recurring_phase, None).await {
+                    Ok(()) => {}
+                    Err(error) => break error,
+                }
+            };
+            Err(error)
+        });
+        Ok(Self { heartbeat, task })
+    }
+
+    async fn finish(self, succeeded: bool, phase: &str) -> Result<()> {
+        self.task.abort();
+        match self.task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => return Err(error),
+            Err(error) if error.is_cancelled() => {}
+            Err(error) => return Err(anyhow!("Agent 心跳任务异常: {error}")),
+        }
+        let status = if succeeded { "completed" } else { "failed" };
+        let summary = if succeeded {
+            "CLI 命令已完成"
+        } else {
+            "CLI 命令执行失败"
+        };
+        self.heartbeat.update(status, phase, Some(summary)).await
+    }
 }
 
 async fn execute_command(runtime: &mut CliRuntime, command: Command) -> Result<()> {
@@ -975,6 +1149,7 @@ async fn execute_command(runtime: &mut CliRuntime, command: Command) -> Result<(
         Command::Project { command } => run_project(runtime, command, &output).await,
         Command::Chapter { command } => run_chapter(runtime, command, &output).await,
         Command::Workflow { command } => run_workflow(runtime, command, &output).await,
+        Command::Agent { command } => run_agent(runtime, command, &output).await,
         Command::Media { command } => run_media(&mut runtime.client, command, &output).await,
         Command::Config { command } => run_config(&mut runtime.client, command, &output),
         Command::Context { command } => run_context(runtime, command, &output).await,
@@ -1235,7 +1410,10 @@ fn apply_context_args(
     let object = args
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("call --args 必须是 JSON object"))?;
-    for field in fields.iter().filter_map(Value::as_str) {
+    for field in fields {
+        let field = field
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("CLI manifest context field 必须是字符串"))?;
         if object.contains_key(field) {
             continue;
         }
@@ -1244,7 +1422,7 @@ fn apply_context_args(
             "projectId" => context.project_id,
             "chapterId" => context.chapter_id,
             "snapshotId" => context.snapshot_id,
-            _ => None,
+            _ => bail!("CLI manifest 包含未知 context field: {field}"),
         };
         if let Some(value) = value {
             object.insert(field.to_string(), Value::from(value));
@@ -1532,6 +1710,167 @@ async fn run_task(
             after_sequence,
         } => watch_generation_task(client, &task_id, attempt, after_sequence, output).await,
     }
+}
+
+async fn run_agent(
+    runtime: &mut CliRuntime,
+    command: AgentCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    match command {
+        AgentCommand::Register {
+            name,
+            kind,
+            client,
+            project_id,
+            chapter_id,
+        } => {
+            validate_non_empty(&name, "name")?;
+            validate_non_empty(&kind, "kind")?;
+            validate_non_empty(&client, "client")?;
+            validate_optional_positive(project_id, "project_id")?;
+            validate_optional_positive(chapter_id, "chapter_id")?;
+            let value = runtime
+                .client
+                .register_agent(json!({
+                    "name": name,
+                    "kind": kind,
+                    "client": client,
+                    "project_id": project_id,
+                    "chapter_id": chapter_id,
+                }))
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Status => {
+            let value = runtime
+                .client
+                .send_json(JsonRequest {
+                    method: Method::GET,
+                    path: "/agents".into(),
+                    body: None,
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Update {
+            agent_id,
+            status,
+            phase,
+            summary,
+            progress,
+            current_task_id,
+            project_id,
+            chapter_id,
+        } => {
+            let agent_id = resolve_agent_id(&runtime.client, agent_id)?;
+            let body = agent_update_body(
+                status,
+                phase,
+                summary,
+                progress,
+                current_task_id,
+                project_id,
+                chapter_id,
+            )?;
+            let value = runtime
+                .client
+                .send_agent_json(Method::PATCH, &format!("/agents/{agent_id}"), Some(body))
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Heartbeat {
+            agent_id,
+            status,
+            phase,
+            summary,
+            progress,
+            current_task_id,
+        } => {
+            let agent_id = resolve_agent_id(&runtime.client, agent_id)?;
+            let body = agent_update_body(
+                status,
+                phase,
+                summary,
+                progress,
+                current_task_id,
+                None,
+                None,
+            )?;
+            let value = runtime
+                .client
+                .send_agent_json(
+                    Method::POST,
+                    &format!("/agents/{agent_id}/heartbeat"),
+                    Some(body),
+                )
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Unregister { agent_id } => {
+            let agent_id = resolve_agent_id(&runtime.client, agent_id)?;
+            runtime
+                .client
+                .send_agent_json(Method::DELETE, &format!("/agents/{agent_id}"), None)
+                .await?;
+            runtime.client.clear_agent_credentials()?;
+            print_json(
+                &json!({ "unregistered": true, "agent_id": agent_id }),
+                output,
+            )
+        }
+    }
+}
+
+fn resolve_agent_id(client: &ApiClient, agent_id: Option<String>) -> Result<String> {
+    let agent_id = agent_id
+        .or_else(|| client.agent_id().map(ToString::to_string))
+        .ok_or_else(|| anyhow!("缺少 agent_id；请先执行 `a4n agent register` 或使用 --agent-id"))?;
+    validate_non_empty(&agent_id, "agent_id")?;
+    if !client.has_agent_credentials() {
+        bail!("没有 Agent token；请先执行 `a4n agent register`");
+    }
+    Ok(agent_id)
+}
+
+fn agent_update_body(
+    status: Option<String>,
+    phase: Option<String>,
+    summary: Option<String>,
+    progress: Option<f32>,
+    current_task_id: Option<String>,
+    project_id: Option<i64>,
+    chapter_id: Option<i64>,
+) -> Result<Value> {
+    if let Some(status) = &status {
+        if ![
+            "idle",
+            "running",
+            "paused",
+            "completed",
+            "failed",
+            "offline",
+        ]
+        .contains(&status.as_str())
+        {
+            bail!("status 必须是 idle、running、paused、completed、failed 或 offline");
+        }
+    }
+    if let Some(progress) = progress {
+        if !progress.is_finite() || !(0.0..=100.0).contains(&progress) {
+            bail!("progress 必须在 0 到 100 之间");
+        }
+    }
+    Ok(json!({
+        "status": status,
+        "phase": phase,
+        "summary": summary,
+        "progress": progress,
+        "current_task_id": current_task_id,
+        "project_id": project_id,
+        "chapter_id": chapter_id,
+    }))
 }
 
 async fn run_project(
@@ -2347,39 +2686,30 @@ fn path_segment(value: &str) -> String {
     url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
 
-fn read_json_source(source: &str) -> Result<Value> {
-    let contents = if source == "-" {
-        let mut contents = String::new();
-        std::io::stdin()
-            .read_to_string(&mut contents)
-            .context("从 stdin 读取 JSON 失败")?;
-        contents
-    } else if let Some(path) = source.strip_prefix('@') {
-        if path.is_empty() {
-            bail!("@ 后必须提供 JSON 文件路径");
-        }
-        std::fs::read_to_string(path).with_context(|| format!("读取 JSON 文件失败: {path}"))?
-    } else {
-        source.to_string()
-    };
-    serde_json::from_str(&contents).context("输入不是有效 JSON")
-}
-
-fn read_text_source(source: &str) -> Result<String> {
+fn read_source(source: &str, label: &str) -> Result<String> {
     if source == "-" {
         let mut contents = String::new();
         std::io::stdin()
             .read_to_string(&mut contents)
-            .context("从 stdin 读取文本失败")?;
+            .with_context(|| format!("从 stdin 读取{label}失败"))?;
         return Ok(contents);
     }
     if let Some(path) = source.strip_prefix('@') {
         if path.is_empty() {
-            bail!("@ 后必须提供文本文件路径");
+            bail!("@ 后必须提供{label}文件路径");
         }
-        return std::fs::read_to_string(path).with_context(|| format!("读取文本文件失败: {path}"));
+        return std::fs::read_to_string(path)
+            .with_context(|| format!("读取{label}文件失败: {path}"));
     }
     Ok(source.to_string())
+}
+
+fn read_json_source(source: &str) -> Result<Value> {
+    serde_json::from_str(&read_source(source, "JSON ")?).context("输入不是有效 JSON")
+}
+
+fn read_text_source(source: &str) -> Result<String> {
+    read_source(source, "文本 ")
 }
 
 struct FileAssignment {
@@ -2392,34 +2722,38 @@ fn apply_file_inputs(
     base64_files: &[String],
     text_files: &[String],
 ) -> Result<()> {
-    for raw in base64_files {
+    for (raw, encoding) in base64_files
+        .iter()
+        .map(|raw| (raw, FileEncoding::Base64))
+        .chain(text_files.iter().map(|raw| (raw, FileEncoding::Text)))
+    {
         let assignment = parse_file_assignment(raw, false)?;
-        let bytes = std::fs::read(&assignment.path)
-            .with_context(|| format!("读取文件失败: {}", assignment.path.display()))?;
-        set_json_pointer(
-            args,
-            &assignment.pointer,
-            Value::String(base64::engine::general_purpose::STANDARD.encode(bytes)),
-        )?;
-    }
-    for raw in text_files {
-        let assignment = parse_file_assignment(raw, false)?;
-        let text = std::fs::read_to_string(&assignment.path)
-            .with_context(|| format!("读取 UTF-8 文件失败: {}", assignment.path.display()))?;
-        set_json_pointer(args, &assignment.pointer, Value::String(text))?;
+        let value = match encoding {
+            FileEncoding::Base64 => {
+                let bytes = std::fs::read(&assignment.path)
+                    .with_context(|| format!("读取文件失败: {}", assignment.path.display()))?;
+                Value::String(base64::engine::general_purpose::STANDARD.encode(bytes))
+            }
+            FileEncoding::Text => {
+                Value::String(std::fs::read_to_string(&assignment.path).with_context(|| {
+                    format!("读取 UTF-8 文件失败: {}", assignment.path.display())
+                })?)
+            }
+        };
+        set_json_pointer(args, &assignment.pointer, value)?;
     }
     Ok(())
 }
 
 #[derive(Clone, Copy)]
-enum OutputEncoding {
+enum FileEncoding {
     Base64,
     Text,
 }
 
 struct OutputAssignment {
     file: FileAssignment,
-    encoding: OutputEncoding,
+    encoding: FileEncoding,
 }
 
 fn prepare_outputs(
@@ -2432,18 +2766,11 @@ fn prepare_outputs(
     }
     let assignments = base64_outputs
         .iter()
-        .map(|raw| {
-            parse_file_assignment(raw, true).map(|file| OutputAssignment {
-                file,
-                encoding: OutputEncoding::Base64,
-            })
+        .map(|raw| (raw, FileEncoding::Base64))
+        .chain(text_outputs.iter().map(|raw| (raw, FileEncoding::Text)))
+        .map(|(raw, encoding)| {
+            parse_file_assignment(raw, true).map(|file| OutputAssignment { file, encoding })
         })
-        .chain(text_outputs.iter().map(|raw| {
-            parse_file_assignment(raw, true).map(|file| OutputAssignment {
-                file,
-                encoding: OutputEncoding::Text,
-            })
-        }))
         .collect::<Result<Vec<_>>>()?;
     let mut paths = HashSet::new();
     for assignment in &assignments {
@@ -2464,7 +2791,8 @@ fn save_outputs(value: &mut Value, assignments: &[OutputAssignment], force: bool
     let decoded = assignments
         .iter()
         .map(|assignment| {
-            let source = response_pointer(value, &assignment.file.pointer)
+            let source = value
+                .pointer(&assignment.file.pointer)
                 .and_then(Value::as_str)
                 .ok_or_else(|| {
                     anyhow::anyhow!(
@@ -2473,7 +2801,7 @@ fn save_outputs(value: &mut Value, assignments: &[OutputAssignment], force: bool
                     )
                 })?;
             let bytes = match assignment.encoding {
-                OutputEncoding::Base64 => base64::engine::general_purpose::STANDARD
+                FileEncoding::Base64 => base64::engine::general_purpose::STANDARD
                     .decode(source)
                     .with_context(|| {
                         format!(
@@ -2481,7 +2809,7 @@ fn save_outputs(value: &mut Value, assignments: &[OutputAssignment], force: bool
                             display_pointer(&assignment.file.pointer)
                         )
                     })?,
-                OutputEncoding::Text => source.as_bytes().to_vec(),
+                FileEncoding::Text => source.as_bytes().to_vec(),
             };
             Ok((assignment, bytes))
         })
@@ -2498,19 +2826,7 @@ fn save_outputs(value: &mut Value, assignments: &[OutputAssignment], force: bool
     Ok(())
 }
 
-fn response_pointer<'a>(value: &'a Value, pointer: &str) -> Option<&'a Value> {
-    if pointer.is_empty() {
-        Some(value)
-    } else {
-        value.pointer(pointer)
-    }
-}
-
 fn replace_response_pointer(value: &mut Value, pointer: &str, replacement: Value) -> Result<()> {
-    if pointer.is_empty() {
-        *value = replacement;
-        return Ok(());
-    }
     let target = value
         .pointer_mut(pointer)
         .ok_or_else(|| anyhow::anyhow!("响应 JSON Pointer 不存在: {}", display_pointer(pointer)))?;
@@ -2758,9 +3074,9 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        RuntimeConfigSnapshot, SessionContext, apply_context_args, apply_runtime_config, catalog,
-        prepare_outputs, query_path, read_json_source, request_secret_values, save_outputs,
-        set_json_pointer,
+        AgentCommand, Command, RuntimeConfigSnapshot, SessionContext, apply_context_args,
+        apply_runtime_config, catalog, prepare_outputs, query_path, read_json_source,
+        request_secret_values, save_outputs, set_json_pointer,
     };
 
     #[test]
@@ -2775,6 +3091,32 @@ mod tests {
                 [("limit", Some("20".into())), ("cursor", Some("a/b".into()))]
             ),
             "/generation-tasks/history?limit=20&cursor=a%2Fb"
+        );
+    }
+
+    #[test]
+    fn infers_agent_phases_only_for_work_commands() {
+        assert!(
+            Command::Call {
+                command: "start_video_generation".into(),
+                args: "{}".into(),
+                set_base64: vec![],
+                set_text: vec![],
+                save_base64: vec![],
+                save_text: vec![],
+                force: false,
+                allow_destructive: false,
+            }
+            .auto_agent_phase()
+            .is_some()
+        );
+        assert!(Command::Health.auto_agent_phase().is_none());
+        assert!(
+            Command::Agent {
+                command: AgentCommand::Status,
+            }
+            .auto_agent_phase()
+            .is_none()
         );
     }
 

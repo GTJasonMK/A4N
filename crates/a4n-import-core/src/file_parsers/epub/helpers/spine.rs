@@ -1,14 +1,17 @@
-use super::super::super::shared::decode_xml_entities;
+use super::super::super::shared::entities::decode_xml_entities;
 use super::path::{is_html_path, resolve_epub_href};
 use regex::Regex;
 use std::collections::HashMap;
 
-pub struct EpubHtmlEntry {
-    pub(in crate::file_parsers) path: String,
-    pub(in crate::file_parsers) text: String,
+pub(in crate::file_parsers::epub) struct EpubHtmlEntry {
+    pub(in crate::file_parsers::epub) path: String,
+    pub(in crate::file_parsers::epub) text: String,
 }
 
-pub fn extract_epub_spine_paths(opf: &str, opf_path: &str) -> Vec<String> {
+pub(in crate::file_parsers::epub) fn extract_epub_spine_paths(
+    opf: &str,
+    opf_path: &str,
+) -> Vec<String> {
     let item_re = Regex::new(r"(?is)<item\b[^>]*>").unwrap();
     let itemref_re = Regex::new(r"(?is)<itemref\b[^>]*>").unwrap();
     let mut manifest: HashMap<String, String> = HashMap::new();

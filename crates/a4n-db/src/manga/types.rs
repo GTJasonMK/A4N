@@ -2,7 +2,7 @@ mod contracts;
 mod errors;
 mod rules;
 
-pub use contracts::*;
+pub use contracts::{MangaPagePromptSyncDraft, MangaPromptUpdatedAt};
 pub use errors::{MangaPipelineDbError, MangaPromptRecordError};
 
 pub(in crate::manga) use errors::manga_record_database;

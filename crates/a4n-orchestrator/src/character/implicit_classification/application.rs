@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use serde_json::{Value, json};
 
 use crate::character::{
@@ -11,7 +9,6 @@ pub(super) fn apply_implicit_classification_to_behavior(
     behavior: &mut Value,
     parsed: &Value,
     current_state: &mut Value,
-    suggested_keys: &mut BTreeSet<String>,
     sequence: usize,
 ) -> Result<Vec<Value>, String> {
     let chapter = required_i32(behavior, "chapter_number")?;
@@ -25,13 +22,12 @@ pub(super) fn apply_implicit_classification_to_behavior(
     let mut applied = Vec::new();
     for item in suggestions {
         let key = required_string(item, "key")?;
-        if state_has_attribute(current_state, "implicit", &key) || suggested_keys.contains(&key) {
+        if state_has_implicit_attribute(current_state, &key) {
             continue;
         }
         let value = required_value(item, "value")?.clone();
         apply_attribute_to_state(current_state, "implicit", &key, "add", value.clone())
             .map_err(|err| err.to_string())?;
-        suggested_keys.insert(key.clone());
         applied.push(json!({
             "chapter_number": chapter,
             "key": key,
@@ -56,9 +52,9 @@ pub(super) fn set_behavior_classification_results(
     Ok(())
 }
 
-fn state_has_attribute(state: &Value, category: &str, key: &str) -> bool {
+fn state_has_implicit_attribute(state: &Value, key: &str) -> bool {
     state
-        .get(category_storage_key(category))
+        .get(category_storage_key("implicit"))
         .and_then(Value::as_object)
         .is_some_and(|attributes| attributes.contains_key(key))
 }

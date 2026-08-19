@@ -23,10 +23,17 @@ impl MangaPromptDownstreamCleanupPort for RuntimeMangaDownstreamCleanup<'_> {
     }
 }
 
-pub use contracts::*;
+pub use contracts::{
+    BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaChapterInput,
+    MangaPagePromptSourceSummary, MangaPagePromptSummary, MangaPipelineStatusSummary,
+    MangaReferenceBindingSummary, OptimizeMangaPromptInput, UpdateMangaPromptInput,
+};
 pub use optimization::optimize_manga_prompt;
-pub use pipeline::*;
-pub use records::*;
+pub use pipeline::{cancel_manga_pipeline, get_manga_pipeline_status};
+pub use records::{
+    bind_manga_reference_image, delete_manga_by_chapter, delete_manga_prompt,
+    list_manga_page_prompts, update_manga_prompt,
+};
 
 #[cfg(test)]
 mod tests;

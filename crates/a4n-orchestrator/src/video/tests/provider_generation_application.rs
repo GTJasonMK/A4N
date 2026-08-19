@@ -28,8 +28,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
-use crate::test_support::TestOrchestratorBuilder;
 use crate::generation::GeneratedMediaArtifactFile;
+use crate::test_support::TestOrchestratorBuilder;
 use crate::video::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, GenerateChapterVideoInput,
     GenerateChapterVideosBatchInput, GenerateReferenceMediaVideoInput, PersistedVideoResult,
@@ -651,10 +651,7 @@ async fn reference_media_generate_persists_completed_video() {
         .await
         .expect("查询正式视频")
         .expect("正式视频应落库");
-    assert_eq!(
-        stored.status,
-        generated_video::STATUS_COMPLETED
-    );
+    assert_eq!(stored.status, generated_video::STATUS_COMPLETED);
 }
 
 #[tokio::test]
@@ -749,10 +746,7 @@ async fn reference_media_generate_provider_failure_marks_failed() {
 
     assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 0);
-    assert_eq!(
-        video.status,
-        generated_video::STATUS_FAILED
-    );
+    assert_eq!(video.status, generated_video::STATUS_FAILED);
     assert!(
         video
             .error_message
@@ -764,10 +758,7 @@ async fn reference_media_generate_provider_failure_marks_failed() {
         .await
         .expect("查询失败视频")
         .expect("失败视频应落库");
-    assert_eq!(
-        stored.status,
-        generated_video::STATUS_FAILED
-    );
+    assert_eq!(stored.status, generated_video::STATUS_FAILED);
 }
 
 #[tokio::test]
@@ -929,10 +920,7 @@ async fn reference_media_external_interrupt_during_persist_is_not_downgraded_to_
         .await
         .expect("查询中断视频")
         .expect("中断视频记录应保留");
-    assert_eq!(
-        video.status,
-        generated_video::STATUS_INTERRUPTED
-    );
+    assert_eq!(video.status, generated_video::STATUS_INTERRUPTED);
 }
 
 #[tokio::test]

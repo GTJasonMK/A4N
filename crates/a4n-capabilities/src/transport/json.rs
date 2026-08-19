@@ -22,17 +22,18 @@ pub fn sidecar_response_payload<T>(
             service,
             "返回成功状态但同时携带 error",
         )),
-        (ServiceStatus::Ok, None, None) => Err(invalid_sidecar_response(
+        (ServiceStatus::Ok, None, None) => {
+            Err(invalid_sidecar_response(service, "返回成功但缺少 payload"))
+        }
+        (ServiceStatus::Error, Some(_), _) => Err(invalid_sidecar_response(
             service,
-            "返回成功但缺少 payload",
+            "返回错误状态但同时携带 payload",
         )),
-        (ServiceStatus::Error, Some(_), _) => Err(
-            invalid_sidecar_response(service, "返回错误状态但同时携带 payload"),
-        ),
         (ServiceStatus::Error, None, Some(error)) => Err(error),
-        (ServiceStatus::Error, None, None) => Err(
-            invalid_sidecar_response(service, "返回错误状态但缺少 error"),
-        ),
+        (ServiceStatus::Error, None, None) => Err(invalid_sidecar_response(
+            service,
+            "返回错误状态但缺少 error",
+        )),
     }
 }
 

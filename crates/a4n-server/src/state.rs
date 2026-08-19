@@ -1,3 +1,4 @@
+use crate::routes::agents::AgentRegistry;
 use a4n_core::config::app_config::{AppConfig, apply_storage_env_overrides, portable_home_dir};
 use a4n_core::config::env::{
     optional_non_empty_env_path, optional_non_empty_env_string, required_non_empty_env_string,
@@ -54,6 +55,7 @@ impl ServerConfig {
 #[derive(Clone)]
 pub struct ServerState {
     runtime: Arc<a4n_runtime::AppState>,
+    agents: AgentRegistry,
 }
 
 impl ServerState {
@@ -73,16 +75,24 @@ impl ServerState {
         });
         auth_records::require_existing_user_or_bootstrap_admin(runtime.as_ref(), bootstrap).await?;
 
-        Ok(Self { runtime })
+        Ok(Self {
+            runtime,
+            agents: AgentRegistry::new(),
+        })
     }
 
     pub fn runtime(&self) -> &a4n_runtime::AppState {
         self.runtime.as_ref()
     }
 
+    pub(crate) fn agents(&self) -> &AgentRegistry {
+        &self.agents
+    }
+
     pub(crate) fn from_runtime(runtime: a4n_runtime::AppState) -> Self {
         Self {
             runtime: Arc::new(runtime),
+            agents: AgentRegistry::new(),
         }
     }
 }

@@ -3,10 +3,13 @@ use super::super::{
     types::CharacterAttributeEventInsertInput,
 };
 use super::validation::validate_operation;
+use crate::character::profile::{
+    CharacterProfileCurrentStateUpdate, profile_current_state_fields, require_profile_for_update,
+    update_profile_current_state,
+};
 use crate::character::{
-    CharacterDbError, CharacterProfileCurrentStateUpdate, profile_current_state_fields,
-    require_non_empty, require_profile_for_update, update_profile_current_state, validate_category,
-    validate_chapter_number, validate_timeline_source_kind,
+    CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
+    validate_timeline_source_kind,
 };
 use a4n_core::models::character::attribute_event;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
@@ -25,7 +28,7 @@ pub(in crate::character::attributes) fn default_attribute_change_description(
     format!("{action}{category}属性: {key}")
 }
 
-pub async fn insert_attribute_event<C>(
+async fn insert_attribute_event<C>(
     db: &C,
     input: CharacterAttributeEventInsertInput,
 ) -> Result<attribute_event::Model, DbErr>
@@ -51,7 +54,7 @@ where
     .await
 }
 
-pub async fn record_attribute_event_in<C>(
+pub(in crate::character::attributes) async fn record_attribute_event_in<C>(
     db: &C,
     input: CharacterAttributeEventInsertInput,
 ) -> Result<attribute_event::Model, CharacterDbError>

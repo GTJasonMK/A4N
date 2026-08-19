@@ -19,7 +19,10 @@ fn video_units_only_add_action_bridge_for_preserved_action() {
         units.iter().all(|unit| unit.duration_secs == 5),
         "all generated video units must use the user-selected duration"
     );
-    assert!(units[1].is_action_bridge());
+    assert!(matches!(
+        &units[1].kind,
+        a4n_core::video_execution::VideoExecutionUnitKindV2::ActionBridge(_)
+    ));
     assert_eq!(
         units[1].prompt_segment.video_intent.hook,
         "角色推门动作连续完成"
@@ -67,7 +70,10 @@ fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
     assert_eq!(unit.unit_number, 2);
     assert_eq!(unit.prompt_segment.segment_number, 2);
     assert_eq!(unit.source_segment_numbers(), [2]);
-    assert!(!unit.is_action_bridge());
+    assert!(matches!(
+        &unit.kind,
+        a4n_core::video_execution::VideoExecutionUnitKindV2::Content(_)
+    ));
     assert_eq!(unit.storyboard_number, Some(2));
 }
 
@@ -83,7 +89,10 @@ fn sound_only_or_cut_metadata_does_not_create_action_bridge() {
     });
     let units = video_units_for_segment_plan(&[first, segment(2)], 5).expect("video units");
     assert_eq!(units.len(), 2);
-    assert!(units.iter().all(|unit| !unit.is_action_bridge()));
+    assert!(units.iter().all(|unit| matches!(
+        &unit.kind,
+        a4n_core::video_execution::VideoExecutionUnitKindV2::Content(_)
+    )));
     assert_eq!(expected_boundary_frame_count(&[segment(1), segment(2)]), 3);
 }
 

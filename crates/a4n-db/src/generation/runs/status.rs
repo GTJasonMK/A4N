@@ -52,7 +52,7 @@ pub async fn cancel_runs_for_target(
     .await
 }
 
-pub async fn interrupt_runs_for_target(
+pub(crate) async fn interrupt_runs_for_target(
     db: &DatabaseConnection,
     target_table: &str,
     target_id: i64,

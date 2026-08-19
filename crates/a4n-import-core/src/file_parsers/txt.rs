@@ -7,7 +7,7 @@ use crate::ImportTransformError;
 use regex::Regex;
 
 use super::{ParseResult, ParsedChapter};
-pub(super) use helpers::trim_imported_text;
+use helpers::trim_imported_text;
 
 /// TXT 文件解析器
 ///

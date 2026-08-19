@@ -38,11 +38,7 @@ pub(super) fn split_long_paragraph(paragraph: &str) -> Vec<String> {
     }
 
     push_non_empty_paragraph(&mut paragraphs, &mut current);
-    if paragraphs.is_empty() {
-        vec![trimmed.to_string()]
-    } else {
-        paragraphs
-    }
+    paragraphs
 }
 
 fn push_non_empty_paragraph(paragraphs: &mut Vec<String>, current: &mut String) {

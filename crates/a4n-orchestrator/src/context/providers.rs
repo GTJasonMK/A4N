@@ -55,12 +55,8 @@ impl OrchestratorContext {
         input: ChatJsonStreamInput<'_>,
         report_progress: impl FnMut(u32, &str) -> Result<(), String>,
     ) -> Result<StructuredLlmStreamResult, String> {
-        self.chat_json_stream_result_with_sink(
-            input,
-            report_progress,
-            None::<&mut a4n_llm::structured_stream::DeltaSinkNoop>,
-        )
-        .await
+        self.chat_json_stream_result_with_sink(input, report_progress, None)
+            .await
     }
 
     /// 与 [`Self::chat_json_stream_result_with_progress`] 相同，额外把原始文本增量交给 `on_delta`。
@@ -71,7 +67,7 @@ impl OrchestratorContext {
         &self,
         input: ChatJsonStreamInput<'_>,
         report_progress: impl FnMut(u32, &str) -> Result<(), String>,
-        on_delta: Option<impl FnMut(&str)>,
+        on_delta: Option<&mut (dyn FnMut(&str) + Send)>,
     ) -> Result<StructuredLlmStreamResult, String> {
         let ChatJsonStreamInput {
             request,

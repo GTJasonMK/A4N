@@ -22,13 +22,8 @@ pub(super) fn embedding_download_event_stream(
         let cancel_token = CancellationToken::new();
         let download_cancel_token = cancel_token.clone();
         let download_task = async move {
-            download_fastembed_model(
-                &model,
-                cache_dir,
-                Some(progress_tx),
-                download_cancel_token,
-            )
-            .await
+            download_fastembed_model(&model, cache_dir, Some(progress_tx), download_cancel_token)
+                .await
         };
         tokio::pin!(download_task);
         let mut sequence = 0;

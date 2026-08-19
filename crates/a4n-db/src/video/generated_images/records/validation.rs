@@ -2,7 +2,7 @@ use super::super::{UpdateGeneratedImageRecordInput, VideoDbError};
 use a4n_core::models::ai::generated_image;
 use a4n_domain::image::is_system_managed_image_type;
 
-pub fn validate_generated_image_update_clear_flags(
+pub(super) fn validate_generated_image_update_clear_flags(
     input: &UpdateGeneratedImageRecordInput,
 ) -> Result<(), VideoDbError> {
     if input.clear_chapter_id && input.chapter_id.is_some() {
@@ -23,7 +23,7 @@ pub fn validate_generated_image_update_clear_flags(
     Ok(())
 }
 
-pub fn validate_generated_image_update_image_type(
+pub(super) fn validate_generated_image_update_image_type(
     current: &str,
     next: &str,
 ) -> Result<(), VideoDbError> {
@@ -40,7 +40,7 @@ pub fn validate_generated_image_update_image_type(
     Ok(())
 }
 
-pub fn validate_generated_image_update_chapter_binding(
+pub(super) fn validate_generated_image_update_chapter_binding(
     image: &generated_image::Model,
     next: Option<i64>,
 ) -> Result<(), VideoDbError> {
@@ -56,7 +56,7 @@ pub fn validate_generated_image_update_chapter_binding(
     Ok(())
 }
 
-pub fn validate_generated_image_update_panel_binding(
+pub(super) fn validate_generated_image_update_panel_binding(
     image: &generated_image::Model,
     next: Option<&str>,
 ) -> Result<(), VideoDbError> {

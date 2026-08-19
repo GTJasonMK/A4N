@@ -2,8 +2,8 @@ use super::generic::{lineage_ref, optional_prompt_sources, prompt_source};
 use super::json_records::db_record_result;
 use crate::project_dependency_graph::{
     AssetLineageRecord, PromptSource, VIDEO_FRAME_PROMPT_TYPES, VIDEO_SEGMENT_PLAN_PROMPT_TYPES,
-    prompt_type_str_in,
 };
+use crate::project_dependency_graph::helpers::prompt_type_str_in;
 use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_domain::GeneratedMediaReference;
 use serde_json::Value;

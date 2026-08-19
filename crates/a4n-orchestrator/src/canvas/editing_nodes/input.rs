@@ -4,9 +4,8 @@ use a4n_domain::{CanvasFrameKind, CanvasNodeRefKind};
 use serde_json::Value;
 
 use crate::canvas::{
-    canvas_config_string, canvas_edge_order_index, incoming_edges,
-    source_checkpoint::source_operation_checkpoint_output,
-    source_text::source_canvas_text_asset_id, validate_canvas_clip_order,
+    canvas_config_string, canvas_edge_order_index, first_canvas_text_asset_id, incoming_edges,
+    source_checkpoint::source_node_output_id, source_node, validate_canvas_clip_order,
 };
 
 use super::contracts::{
@@ -110,8 +109,13 @@ fn build_assemble_video_input(
     let mut clips = Vec::<(i64, i64, i64)>::new();
     for edge in incoming_edges(document, node.id) {
         let source = source_node(document, edge.source_node_id)?;
-        if let Some(video_id) = source_generated_video_id(checkpoints, source, "AssembleVideoNode")?
-        {
+        if let Some(video_id) = source_node_output_id(
+            checkpoints,
+            source,
+            "AssembleVideoNode",
+            "generated_video_id",
+            CanvasNodeRefKind::GeneratedVideo,
+        )? {
             clips.push((canvas_edge_order_index(edge)?, video_id, source.id));
         }
     }
@@ -122,7 +126,7 @@ fn build_assemble_video_input(
     validate_canvas_clip_order(&clips)?;
     Ok(CanvasAssembleVideoNodeInput {
         video_ids: clips.iter().map(|(_, video_id, _)| *video_id).collect(),
-        title: canvas_config_string(&node.config_json, &["title", "name"]),
+        title: canvas_config_string(&node.config_json, "title"),
         canvas_text_asset_id: first_canvas_text_asset_id(node, document),
         source_node_ids: clips
             .iter()
@@ -142,52 +146,16 @@ fn resolve_single_source_video(
     for edge in incoming_edges(document, node.id) {
         let source = source_node(document, edge.source_node_id)?;
         source_node_ids.push(source.id);
-        if let Some(id) = source_generated_video_id(checkpoints, source, consumer_label)? {
+        if let Some(id) = source_node_output_id(
+            checkpoints,
+            source,
+            consumer_label,
+            "generated_video_id",
+            CanvasNodeRefKind::GeneratedVideo,
+        )? {
             video_id = Some(id);
         }
     }
     let video_id = video_id.ok_or_else(|| format!("{consumer_label} 缺少源视频"))?;
     Ok((video_id, source_node_ids))
-}
-
-fn source_node(
-    document: &CanvasGraphRecordDocument,
-    source_node_id: i64,
-) -> Result<&canvas_node::Model, String> {
-    document
-        .nodes
-        .iter()
-        .find(|candidate| candidate.id == source_node_id)
-        .ok_or_else(|| format!("画布连线引用不存在的源节点: {source_node_id}"))
-}
-
-fn source_generated_video_id(
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
-    node: &canvas_node::Model,
-    consumer_label: &str,
-) -> Result<Option<i64>, String> {
-    if let Some(output) = source_operation_checkpoint_output(checkpoints, node, consumer_label)? {
-        return Ok(output.get("generated_video_id").and_then(Value::as_i64));
-    }
-    if node.ref_type.as_deref() == Some(CanvasNodeRefKind::GeneratedVideo.as_str()) {
-        return Ok(node.ref_id);
-    }
-    Ok(None)
-}
-
-fn first_canvas_text_asset_id(
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-) -> Option<i64> {
-    source_canvas_text_asset_id(node).or_else(|| {
-        incoming_edges(document, node.id)
-            .into_iter()
-            .find_map(|edge| {
-                document
-                    .nodes
-                    .iter()
-                    .find(|candidate| candidate.id == edge.source_node_id)
-                    .and_then(source_canvas_text_asset_id)
-            })
-    })
 }

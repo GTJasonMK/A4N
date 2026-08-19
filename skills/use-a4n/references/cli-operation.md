@@ -4,6 +4,7 @@
 
 - Startup and diagnosis
 - Authentication
+- Agent registration and heartbeats
 - Context-efficient capability discovery
 - Project and chapter context
 - Tasks and workflows
@@ -49,6 +50,43 @@ a4n auth logout
 ```
 
 Use stdin for passwords, password changes, and OAuth codes. `A4N_ACCESS_TOKEN` is a read-only environment authentication source; unset it before changing the stored session.
+
+## Agent registration and heartbeats
+
+Use the Agent commands when a CLI process is doing work that should be visible in the Tauri/Web Agent workbench. Registration requires an authenticated Server session. The CLI stores the returned Agent ID and private lease token in its local config; do not copy the token into scripts, prompts, or command arguments.
+
+For normal Agent automation, register an Agent once, then prefer running work commands with `--agent`. The CLI infers a phase from commands such as `call`, `task watch`, and `workflow watch`, sends an internal heartbeat every 10 seconds, and marks the entry `completed` or `failed` when the command exits. This tracking adds HTTP calls only; it does not add heartbeat instructions or model tokens to the Agent prompt. Work commands with `--agent` require the saved Agent lease and report monitoring failures instead of running untracked.
+
+Automatic tracking covers activity inside the current CLI process. Use the explicit commands below only when a separate long-lived worker needs to own and maintain its Agent lease.
+
+```bash
+a4n --agent agent register \
+  --name '上一章漫画转换器' \
+  --kind media \
+  --client cli \
+  --project-id 42 \
+  --chapter-id 3
+
+a4n --agent agent update \
+  --status running \
+  --phase '生成分镜' \
+  --summary '正在把上一章拆成漫画镜头' \
+  --progress 20
+
+a4n --agent agent heartbeat \
+  --status running \
+  --phase '生成图片' \
+  --progress 65
+```
+
+Send a heartbeat at least every 20 seconds during a long operation. The Server lease lasts 30 seconds; when it expires, the entry becomes `offline`. Valid statuses are `idle`, `running`, `paused`, `completed`, `failed`, and `offline`. Inspect all Agents with `a4n --agent agent status`; unregister the saved Agent after the work is no longer useful to the UI:
+
+```bash
+a4n --agent agent update --status completed --progress 100 --summary '漫画素材已生成'
+a4n --agent agent unregister
+```
+
+Use `a4n --agent agent update --agent-id ID ...` only when operating the Agent ID already associated with the saved local lease token. `agent status` is read-only and does not require an Agent token.
 
 ## Context-efficient capability discovery
 

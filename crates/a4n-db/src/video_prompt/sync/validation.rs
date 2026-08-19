@@ -40,18 +40,15 @@ pub(super) fn validate_prompt_sync_draft(
     match fields.prompt_type.as_str() {
         chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
         | chapter_video_prompt::PROMPT_TYPE_FRAME => {
-            let valid = if fields.prompt_type
-                == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
-            {
-                fields.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
-            } else {
-                fields.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
-            };
+            let valid =
+                if fields.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
+                    fields.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+                } else {
+                    fields.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
+                };
             if !valid {
                 return Err(invalid_workflow(
-                    if fields.prompt_type
-                        == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
-                    {
+                    if fields.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
                         chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
                     } else {
                         chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES

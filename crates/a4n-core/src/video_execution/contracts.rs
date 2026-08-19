@@ -367,8 +367,4 @@ impl VideoExecutionUnitV2 {
             }
         }
     }
-
-    pub fn is_action_bridge(&self) -> bool {
-        matches!(self.kind, VideoExecutionUnitKindV2::ActionBridge(_))
-    }
 }

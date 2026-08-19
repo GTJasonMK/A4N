@@ -7,23 +7,14 @@ use crate::http::errors::{
     build_http_client, normalized_connect_timeout_secs, normalized_timeout_secs,
 };
 
-use super::{DEFAULT_TIMEOUT_SECS, HttpLlmProvider};
+use super::HttpLlmProvider;
 
 impl HttpLlmProvider {
-    /// 手动创建（用于测试或自定义配置）
-    pub fn new(
-        base_url: impl Into<String>,
-        model: impl Into<String>,
-        api_key: Option<String>,
-    ) -> Self {
-        Self::new_with_timeout(base_url, model, api_key, DEFAULT_TIMEOUT_SECS)
-    }
-
     /// 手动创建并指定非流式请求总超时。
     ///
     /// 流式请求不会使用总超时，因为 reqwest 的总超时会覆盖整个响应体读取，
     /// 长文本生成即使持续输出也可能在固定时间后被强制中断。
-    pub fn new_with_timeout(
+    pub(in crate::http) fn new_with_timeout(
         base_url: impl Into<String>,
         model: impl Into<String>,
         api_key: Option<String>,
@@ -49,7 +40,7 @@ impl HttpLlmProvider {
     }
 
     /// 手动创建并追加 provider-specific JSON 请求字段。
-    pub fn new_with_timeout_and_options(
+    pub(in crate::http) fn new_with_timeout_and_options(
         base_url: impl Into<String>,
         model: impl Into<String>,
         api_key: Option<String>,
@@ -61,7 +52,7 @@ impl HttpLlmProvider {
         Ok(provider)
     }
 
-    pub fn new_with_timeout_options_and_capabilities(
+    pub(in crate::http) fn new_with_timeout_options_and_capabilities(
         base_url: impl Into<String>,
         model: impl Into<String>,
         api_key: Option<String>,

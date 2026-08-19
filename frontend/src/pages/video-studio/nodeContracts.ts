@@ -93,18 +93,22 @@ export function studioNodeInputPortsForData(
   contract: StudioNodeContract,
 ): CanvasPortContract[] {
   if (data.nodeKind !== "GenerateVideoNode") return contract.inputs;
-  const mode = normalizeGenerateVideoInputMode(configText(data.config, "input_mode").trim());
-  const activeImageInputs = new Set(GENERATE_VIDEO_IMAGE_INPUTS_BY_MODE[mode]);
+  const mode = parseGenerateVideoInputMode(configText(data.config, "input_mode"));
+  const activeImageInputs = new Set(mode ? GENERATE_VIDEO_IMAGE_INPUTS_BY_MODE[mode] : []);
   return contract.inputs.filter((port) => port.data_type !== "image" || activeImageInputs.has(port.id));
 }
 
-export function normalizeGenerateVideoInputMode(value: unknown): GenerateVideoInputMode {
-  return value === "first_frame" ||
-    value === "first_end_frame" ||
-    value === "reference_images" ||
-    value === "text_only"
-    ? value
-    : "text_only";
+export function parseGenerateVideoInputMode(value: unknown): GenerateVideoInputMode | null {
+  const normalized = typeof value === "string" ? value.trim() : value;
+  if (
+    normalized === "first_frame" ||
+    normalized === "first_end_frame" ||
+    normalized === "reference_images" ||
+    normalized === "text_only"
+  ) {
+    return normalized;
+  }
+  return null;
 }
 
 export function generateVideoInputModeLabel(mode: GenerateVideoInputMode): string {
@@ -116,7 +120,6 @@ export function generateVideoInputModeLabel(mode: GenerateVideoInputMode): strin
     case "reference_images":
       return "参考图";
     case "text_only":
-    default:
       return "仅提示词";
   }
 }

@@ -34,7 +34,7 @@ struct GenerationHistoryCursorPayload {
     task_id: String,
 }
 
-pub fn encode_generation_history_cursor(
+pub(crate) fn encode_generation_history_cursor(
     cursor: &GenerationTaskListCursor,
 ) -> Result<String, GenerationCursorError> {
     validate_cursor(cursor)?;

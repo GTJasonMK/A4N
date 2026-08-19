@@ -1,4 +1,4 @@
-use super::*;
+use super::video::{generated_video_prompt_id, video_prompt_asset_kind};
 use serde_json::json;
 
 #[test]

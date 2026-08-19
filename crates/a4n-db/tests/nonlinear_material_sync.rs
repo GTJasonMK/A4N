@@ -16,7 +16,7 @@ use a4n_db::{
         finish_generated_chapter_content_record_in_transaction, import_chapter_content_record,
     },
     character::{create_profile, create_profile_with_generation_run_in},
-    generation::PROJECT_GATE_RESETTING,
+    generation::ProjectLifecycleOperation,
     outline::{
         ChapterOutlineSyncDraft, OUTLINE_GENERATION_SOURCE_CHANGED, OutlineDbError,
         load_outline_generation_source_rows, lock_outline_generation_sources,
@@ -371,13 +371,14 @@ async fn later_outline_task_with_the_same_snapshot_cannot_overwrite_first_commit
 async fn outline_generation_does_not_write_while_project_is_resetting() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let project_id = create_project(&db, "重置期间禁止大纲写入").await;
+    let resetting_gate = ProjectLifecycleOperation::Reset.gate();
     let rows = load_outline_generation_source_rows(&db, project_id)
         .await
         .expect("outline generation sources must load")
         .expect("project must exist");
     let snapshot = outline_generation_source_snapshot(&rows);
     let mut project: novel_project::ActiveModel = rows.project.into();
-    project.lifecycle_gate = Set(PROJECT_GATE_RESETTING.to_string());
+    project.lifecycle_gate = Set(resetting_gate.to_string());
     project
         .update(&db)
         .await
@@ -390,7 +391,7 @@ async fn outline_generation_does_not_write_while_project_is_resetting() {
     assert!(matches!(
         error,
         OutlineDbError::InvalidState { current, .. }
-            if current == PROJECT_GATE_RESETTING
+            if current == resetting_gate
     ));
     assert!(
         chapter_outline::Entity::find()

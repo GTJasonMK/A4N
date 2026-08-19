@@ -22,6 +22,7 @@ pub async fn update_user_role(
     active.update(db).await.map_err(AppError::Database)
 }
 
+#[cfg(test)]
 pub async fn disable_user(
     db: &DatabaseConnection,
     caller_user_id: i64,

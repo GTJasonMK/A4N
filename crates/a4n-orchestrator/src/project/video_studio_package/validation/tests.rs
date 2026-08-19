@@ -5,6 +5,7 @@ mod provenance;
 
 use std::collections::HashMap;
 
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::{
     ai::generated_video,
     canvas::{canvas_edge, canvas_graph, canvas_node},
@@ -13,16 +14,15 @@ use a4n_core::models::{
     project::novel_project,
     video_project::assembly_timeline,
 };
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::CanvasNodeRefKind;
 
 use crate::media::MEDIA_STATUS_COMPLETED;
-use crate::project::{PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT, sha256_bytes};
 use crate::project::video_studio_package::{
     ImportMediaPayload, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry,
     VideoStudioProjectPackage, media_file_key,
 };
+use crate::project::{PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT, sha256_bytes};
 
 use super::{validate_media_entry_bytes, validate_package_manifest};
 

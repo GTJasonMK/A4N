@@ -95,8 +95,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
             .await
             .map_err(|error| format!("{failure_prefix}实际时长回写失败：{error}")),
         Err(err) => {
-            let can_adopt =
-                a4n_orchestrator::video::can_adopt_authoritative_video_completion(&err);
+            let can_adopt = a4n_orchestrator::video::can_adopt_authoritative_video_completion(&err);
             let primary_error = format!("{failure_prefix}：{err}");
             let authoritative = match state.orchestrator().generated_video_by_id(record_id).await {
                 Ok(authoritative) => authoritative,

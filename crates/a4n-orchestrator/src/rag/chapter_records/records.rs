@@ -1,6 +1,4 @@
-use a4n_core::{
-    chapter_analysis::analysis_rag_items, models::chapter::chapter, rag::RagDataType,
-};
+use a4n_core::{chapter_analysis::analysis_rag_items, models::chapter::chapter, rag::RagDataType};
 use a4n_embedding::provider::EmbeddingProvider;
 
 use super::{chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode};

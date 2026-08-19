@@ -21,13 +21,18 @@ use std::convert::Infallible;
 
 use a4n_api_contract::temp_media::TempMediaDeleteRequest;
 use a4n_core::models::{
-    ai::{generated_image, generated_video},
+    ai::generated_image,
     chapter::{chapter, chapter_outline, part_outline},
     generation::generation_task_checkpoint,
     project::novel_blueprint,
     task::cleanup_outbox,
     user::role::{ROLE_ADMIN, ROLE_USER},
 };
+#[cfg(any(
+    feature = "embedded-capabilities",
+    feature = "embedded-media-providers"
+))]
+use a4n_core::models::ai::generated_video;
 use a4n_db::generation::{
     PersistGenerationCheckpointInput, ReserveGenerationTaskInput, persist_generation_checkpoint,
     reserve_generation_task,

@@ -78,9 +78,7 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptRenderPayload>,
     ) -> CapabilityResult<ServiceResponse<PromptRenderAbOutput>> {
-        self.transport
-            .post("/prompt/render_ab", request)
-            .await
+        self.transport.post("/prompt/render_ab", request).await
     }
 
     async fn hydrate_project_overrides(
@@ -96,9 +94,7 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptSetProjectOverridePayload>,
     ) -> CapabilityResult<ServiceResponse<()>> {
-        self.transport
-            .post("/prompt/override/set", request)
-            .await
+        self.transport.post("/prompt/override/set", request).await
     }
 
     async fn remove_project_override(
@@ -114,9 +110,7 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptEmptyPayload>,
     ) -> CapabilityResult<ServiceResponse<CountOutput>> {
-        self.transport
-            .post("/prompt/load_defaults", request)
-            .await
+        self.transport.post("/prompt/load_defaults", request).await
     }
 
     async fn update(
@@ -130,9 +124,7 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptUpdateManyPayload>,
     ) -> CapabilityResult<ServiceResponse<Vec<PromptEntry>>> {
-        self.transport
-            .post("/prompt/update_many", request)
-            .await
+        self.transport.post("/prompt/update_many", request).await
     }
 
     async fn reset(
@@ -155,17 +147,13 @@ impl PromptClient for HttpPromptClient {
         &self,
         request: ServiceRequest<PromptVersionDiffPayload>,
     ) -> CapabilityResult<ServiceResponse<PromptVersionDiffOutput>> {
-        self.transport
-            .post("/prompt/version_diff", request)
-            .await
+        self.transport.post("/prompt/version_diff", request).await
     }
 
     async fn categories(
         &self,
         request: ServiceRequest<PromptEmptyPayload>,
     ) -> CapabilityResult<ServiceResponse<Vec<PromptCategory>>> {
-        self.transport
-            .post("/prompt/categories", request)
-            .await
+        self.transport.post("/prompt/categories", request).await
     }
 }

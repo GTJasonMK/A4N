@@ -1,6 +1,8 @@
 use a4n_core::error::AppError;
+#[cfg(test)]
+use a4n_core::models::user::role::ROLE_USER;
 use a4n_core::models::user::{
-    role::{ROLE_ADMIN, ROLE_USER, validate_user_role},
+    role::{ROLE_ADMIN, validate_user_role},
     user,
 };
 use chrono::Utc;
@@ -13,6 +15,7 @@ use crate::auth::rules::{
     hash_password, normalize_email, normalize_username, validate_password_for_storage,
 };
 
+#[cfg(test)]
 pub async fn register_user(
     db: &DatabaseConnection,
     username: &str,

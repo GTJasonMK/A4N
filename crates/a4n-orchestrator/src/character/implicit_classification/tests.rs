@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::HashMap,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -21,7 +21,6 @@ use serde_json::{Value, json};
 use super::{
     application::apply_implicit_classification_to_behavior,
     contracts::CharacterImplicitClassificationInput, output::parse_implicit_classification_output,
-    request::build_implicit_classification_prompt,
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
@@ -37,7 +36,7 @@ impl PromptRenderer for TestPromptRenderer {
         _variables: &HashMap<String, Value>,
         _project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        assert_eq!(template_name, "implicit_classification");
+        assert_eq!(template_name, super::IMPLICIT_CLASSIFICATION_KIND);
         Ok("system prompt".to_string())
     }
 }
@@ -123,32 +122,6 @@ fn counting_provider(response: String, finish_reason: &str) -> Arc<CountingLlmPr
         usage: None,
         finish_reason: Some(finish_reason.to_string()),
     }))
-}
-
-#[test]
-fn user_prompt_uses_json_payload() {
-    let prompt = build_implicit_classification_prompt(
-        "林夏",
-        &json!({
-            "chapter_number": 3,
-            "behavior_type": "action",
-            "behavior_description": "先观察巷口再行动",
-            "original_text": "林夏停在巷口，确认无人埋伏。",
-            "behavior_tags": ["谨慎"]
-        }),
-        &json!({"谨慎": "行动前先观察"}),
-    )
-    .expect("classification prompt should build");
-
-    assert!(prompt.contains(r#""name": "implicit_attribute_classification""#));
-    assert!(prompt.contains(r#""current_implicit_attributes""#));
-    assert!(prompt.contains(r#""current_implicit_attribute_keys""#));
-    assert!(prompt.contains("新隐性属性必须写入 suggested_new_attributes"));
-    assert!(prompt.contains("classifications 必须是 {}"));
-    assert!(prompt.contains(r#""behavior_tags": ["#));
-    assert!(prompt.contains("不要输出 evidence"));
-    assert!(prompt.contains("behavior.original_text 回填"));
-    assert!(!prompt.contains("## 行为信息"));
 }
 
 #[test]
@@ -301,16 +274,9 @@ fn application_adds_each_new_attribute_once() {
         "implicit_attributes": {"谨慎": "遇事先观察"},
         "social_attributes": {}
     });
-    let mut suggested_keys = BTreeSet::new();
-
-    let suggestions = apply_implicit_classification_to_behavior(
-        &mut behavior,
-        &parsed,
-        &mut current_state,
-        &mut suggested_keys,
-        7,
-    )
-    .expect("classification should apply");
+    let suggestions =
+        apply_implicit_classification_to_behavior(&mut behavior, &parsed, &mut current_state, 7)
+            .expect("classification should apply");
 
     assert_eq!(
         behavior["classification_results"]["谨慎"],
@@ -337,9 +303,10 @@ async fn application_skips_llm_when_no_behavior_or_implicit_attribute_exists() {
         .classify_character_sync_behaviors_validated(
             CharacterImplicitClassificationInput {
                 project_id: 1,
-                workflow_run_id: None,
-                profile_name: "林夏".to_string(),
-                changes: vec![json!({
+                workflow_run_id: 1,
+                profile_id: 1,
+                profile_name: "林夏",
+                changes: &[json!({
                     "chapter_number": 2,
                     "category": "explicit",
                     "key": "位置",
@@ -370,9 +337,10 @@ async fn application_skips_llm_when_no_behavior_or_implicit_attribute_exists() {
         .classify_character_sync_behaviors_validated(
             CharacterImplicitClassificationInput {
                 project_id: 1,
-                workflow_run_id: None,
-                profile_name: "林夏".to_string(),
-                changes: Vec::new(),
+                workflow_run_id: 1,
+                profile_id: 1,
+                profile_name: "林夏",
+                changes: &[],
                 behaviors: vec![behavior()],
                 final_attributes: json!({
                     "explicit_attributes": {},
@@ -398,9 +366,10 @@ async fn application_persists_restores_and_revalidates_checkpoint() {
     let workflow_run_id = create_workflow(&database).await;
     let input = CharacterImplicitClassificationInput {
         project_id: 1,
-        workflow_run_id: Some(workflow_run_id),
-        profile_name: "林夏".to_string(),
-        changes: Vec::new(),
+        workflow_run_id,
+        profile_id: 1,
+        profile_name: "林夏",
+        changes: &[],
         behaviors: vec![behavior()],
         final_attributes: baseline_state(),
     };
@@ -430,7 +399,7 @@ async fn application_persists_restores_and_revalidates_checkpoint() {
         .checkpoint_json
         .as_ref()
         .expect("classification checkpoint payload should exist");
-    assert_eq!(checkpoint.step_key, "implicit_classification:林夏:3:0");
+    assert_eq!(checkpoint.step_key, "implicit_classification:1:3:0");
     assert_eq!(
         checkpoint_json["parsed_output"]["classifications"]["谨慎"],
         json!("non-conform")
@@ -482,9 +451,10 @@ async fn application_rejects_truncated_llm_response_without_checkpoint() {
         .classify_character_sync_behaviors_validated(
             CharacterImplicitClassificationInput {
                 project_id: 1,
-                workflow_run_id: Some(workflow_run_id),
-                profile_name: "林夏".to_string(),
-                changes: Vec::new(),
+                workflow_run_id,
+                profile_id: 1,
+                profile_name: "林夏",
+                changes: &[],
                 behaviors: vec![behavior()],
                 final_attributes: baseline_state(),
             },

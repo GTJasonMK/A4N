@@ -14,7 +14,7 @@ pub(super) fn canvas_video_media_origin(video: &generated_video::Model) -> &str 
     }
 }
 
-pub async fn canvas_assembly_source_video<C>(
+pub(super) async fn canvas_assembly_source_video<C>(
     db: &C,
     project_id: i64,
     video_id: i64,
@@ -34,7 +34,7 @@ where
     Ok(video)
 }
 
-pub async fn canvas_assembly_result_video<C>(
+pub(super) async fn canvas_assembly_result_video<C>(
     db: &C,
     video_id: i64,
 ) -> Result<generated_video::Model, CanvasDbError>

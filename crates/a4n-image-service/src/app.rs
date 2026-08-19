@@ -14,10 +14,9 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let addr =
         a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::IMAGE_SERVICE_NAME)?;
-    let policy = a4n_service_protocol::sidecar_resource_policy(
-        a4n_service_protocol::IMAGE_SERVICE_NAME,
-    )
-        .expect("image sidecar must have a resource policy");
+    let policy =
+        a4n_service_protocol::sidecar_resource_policy(a4n_service_protocol::IMAGE_SERVICE_NAME)
+            .expect("image sidecar must have a resource policy");
     let app = Router::new()
         .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route(

@@ -133,28 +133,14 @@ pub enum VideoJobDeleteOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VideoCancelConfirmation {
-    NotApplicable,
-    RequiresReconcile,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VideoPollingProfile {
-    pub interval_secs: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VideoProviderCapabilities {
     pub backend: &'static str,
     pub display_name: &'static str,
     pub min_duration_secs: i32,
     pub max_duration_secs: i32,
     pub asynchronous: bool,
-    pub cancel: bool,
     pub status_query: bool,
     pub delete: bool,
-    pub cancel_confirmation: VideoCancelConfirmation,
-    pub polling_profile: Option<VideoPollingProfile>,
 }
 
 const fn async_video_provider(
@@ -169,11 +155,8 @@ const fn async_video_provider(
         min_duration_secs,
         max_duration_secs,
         asynchronous: true,
-        cancel: false,
         status_query: true,
         delete: false,
-        cancel_confirmation: VideoCancelConfirmation::RequiresReconcile,
-        polling_profile: Some(VideoPollingProfile { interval_secs: 60 }),
     }
 }
 
@@ -192,11 +175,8 @@ pub const VIDEO_PROVIDER_CAPABILITIES: &[VideoProviderCapabilities] = &[
         min_duration_secs: 1,
         max_duration_secs: 60,
         asynchronous: false,
-        cancel: false,
         status_query: false,
         delete: false,
-        cancel_confirmation: VideoCancelConfirmation::NotApplicable,
-        polling_profile: None,
     },
 ];
 
@@ -278,12 +258,7 @@ mod tests {
             let capabilities = video_provider_capabilities(backend).unwrap();
             assert!(capabilities.asynchronous);
             assert!(capabilities.status_query);
-            assert!(!capabilities.cancel);
             assert!(!capabilities.delete);
-            assert_eq!(
-                capabilities.cancel_confirmation,
-                VideoCancelConfirmation::RequiresReconcile
-            );
         }
         let seedance = video_provider_capabilities(SEEDANCE2_VIDEO_BACKEND).unwrap();
         assert_eq!(seedance.min_duration_secs, 4);
@@ -291,7 +266,6 @@ mod tests {
         let openai = video_provider_capabilities(CLIPROXY_OPENAI_VIDEO_BACKEND).unwrap();
         assert!(openai.asynchronous);
         assert!(openai.status_query);
-        assert!(!openai.cancel);
         assert!(openai.delete);
         assert_eq!(openai.min_duration_secs, 1);
         assert_eq!(openai.max_duration_secs, 15);

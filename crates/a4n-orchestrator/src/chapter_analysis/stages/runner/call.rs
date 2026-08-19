@@ -24,7 +24,7 @@ pub(super) async fn chat_chapter_analysis_stage(
     // 先取出 reporter 引用，避免与下面 &mut progress 的进度回调争用借用。
     let stream_reporter = progress.stream_reporter();
     let mut streamed = String::new();
-    let stream_sink = stream_reporter.map(|reporter| {
+    let mut stream_sink = stream_reporter.map(|reporter| {
         move |delta: &str| {
             streamed.push_str(delta);
             reporter(&streamed);
@@ -49,7 +49,9 @@ pub(super) async fn chat_chapter_analysis_stage(
                     .report(current, CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL, message)
                     .map_err(|error| error.to_string())
             },
-            stream_sink,
+            stream_sink
+                .as_mut()
+                .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
         )
         .await
         .map(|result| result.response_content)

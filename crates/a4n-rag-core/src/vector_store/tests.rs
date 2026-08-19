@@ -25,7 +25,7 @@ fn search_filter_applies_equals_data_type_and_bounded_chapter() {
         data_types: Some(vec!["chapter".to_string()]),
     };
 
-    assert!(metadata_matches_search_filter(
+    assert!(filters::metadata_matches_search_filter(
         &serde_json::json!({
             "project_id": 7,
             "data_type": "chapter",
@@ -33,7 +33,7 @@ fn search_filter_applies_equals_data_type_and_bounded_chapter() {
         }),
         &filter
     ));
-    assert!(!metadata_matches_search_filter(
+    assert!(!filters::metadata_matches_search_filter(
         &serde_json::json!({
             "project_id": 8,
             "data_type": "chapter",
@@ -41,7 +41,7 @@ fn search_filter_applies_equals_data_type_and_bounded_chapter() {
         }),
         &filter
     ));
-    assert!(!metadata_matches_search_filter(
+    assert!(!filters::metadata_matches_search_filter(
         &serde_json::json!({
             "project_id": 7,
             "data_type": "profile",
@@ -49,7 +49,7 @@ fn search_filter_applies_equals_data_type_and_bounded_chapter() {
         }),
         &filter
     ));
-    assert!(!metadata_matches_search_filter(
+    assert!(!filters::metadata_matches_search_filter(
         &serde_json::json!({
             "project_id": 7,
             "data_type": "chapter",

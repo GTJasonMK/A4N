@@ -38,11 +38,6 @@ impl GitPromptStore {
         })
     }
 
-    /// 仓库绝对路径
-    pub fn repo_path(&self) -> &Path {
-        &self.repo_path
-    }
-
     pub(super) fn file_path(&self, name: &str) -> PathBuf {
         self.repo_path.join(sanitize_filename(name))
     }

@@ -1,7 +1,7 @@
 use a4n_core::models::chapter::chapter_manga_prompt;
 use a4n_domain::manga::MangaPageDrawingPromptSchemaVersion;
 
-use super::{MangaPageGenerationLayoutV2, MangaPagePromptSummary};
+use super::contracts::{MangaPageGenerationLayoutV2, MangaPagePromptSummary};
 
 pub(super) fn to_summary(
     prompt: &chapter_manga_prompt::Model,

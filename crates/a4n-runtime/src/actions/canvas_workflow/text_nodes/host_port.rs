@@ -1,8 +1,8 @@
 use a4n_core::error::AppError;
 use a4n_orchestrator::canvas::{CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort};
 use a4n_queue::{
+    TaskWorkflowContext,
     priority::{TaskKind as QueueTaskKind, TaskPriority},
-    queue::TaskWorkflowContext,
 };
 use async_trait::async_trait;
 

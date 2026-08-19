@@ -1,6 +1,4 @@
 use super::rules::{validate_key, validate_value};
-use a4n_runtime::AppState;
-use a4n_runtime::host_api::storage_paths;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -12,10 +10,10 @@ const STATE_VERSION: u32 = 1;
 static FRONTEND_STATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(in crate::commands::frontend_state) struct FrontendStateFile {
+pub(super) struct FrontendStateFile {
     version: u32,
     #[serde(default)]
-    pub(in crate::commands::frontend_state) entries: BTreeMap<String, String>,
+    pub(super) entries: BTreeMap<String, String>,
 }
 
 impl Default for FrontendStateFile {
@@ -31,8 +29,8 @@ pub(super) fn frontend_state_lock() -> &'static Mutex<()> {
     FRONTEND_STATE_LOCK.get_or_init(|| Mutex::new(()))
 }
 
-pub(super) fn frontend_state_path(state: &AppState) -> PathBuf {
-    storage_paths::frontend_state_file_path(state)
+pub(super) fn frontend_state_path(state: &super::FrontendStatePath) -> PathBuf {
+    state.0.clone()
 }
 
 pub(super) fn read_state_file(path: &Path) -> Result<FrontendStateFile, String> {

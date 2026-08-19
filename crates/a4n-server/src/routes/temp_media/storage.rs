@@ -1,4 +1,3 @@
-use a4n_runtime::host_api::storage_paths;
 use chrono::{DateTime, Duration, Utc};
 use std::path::{Path, PathBuf};
 
@@ -9,7 +8,10 @@ use super::rules::TEMP_MEDIA_ARTIFACT_EXTENSIONS;
 pub(super) const TEMP_MEDIA_RELATIVE_DIR: &str = "temp-media/video-inputs";
 
 pub(super) fn temp_media_dir(state: &ServerState) -> PathBuf {
-    storage_paths::data_dir_path(state.runtime().data_dir()).join(TEMP_MEDIA_RELATIVE_DIR)
+    state
+        .runtime()
+        .data_dir()
+        .join(TEMP_MEDIA_RELATIVE_DIR)
 }
 
 pub(super) fn find_temp_media_path(state: &ServerState, artifact_id: &str) -> Option<PathBuf> {

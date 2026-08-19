@@ -1,5 +1,5 @@
 use super::errors::*;
-use super::provider::{DEFAULT_TIMEOUT_SECS, HttpLlmProvider};
+use super::provider::HttpLlmProvider;
 use super::response::*;
 use super::sse::*;
 use a4n_core::error::AppError;
@@ -249,7 +249,8 @@ fn provider_uses_derived_connect_timeout() {
 
 #[test]
 fn stream_request_includes_usage_only_when_requested() {
-    let provider = HttpLlmProvider::new("https://example.test", "deepseek-chat", None);
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test", "deepseek-chat", None, 120);
     let base_request = ChatRequest::system_user("system", "user", Some(0.2), None, None);
 
     let without_usage = request_body_json(provider.build_request(&base_request, true));
@@ -268,7 +269,7 @@ fn stream_request_usage_merges_existing_stream_options() {
         "https://example.test",
         "deepseek-chat",
         None,
-        DEFAULT_TIMEOUT_SECS,
+        120,
         Some(json!({
             "stream_options": {
                 "existing_provider_option": "kept"
@@ -289,7 +290,8 @@ fn stream_request_usage_merges_existing_stream_options() {
 
 #[test]
 fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
-    let provider = HttpLlmProvider::new("https://example.test", "gpt-5.6-luna", None);
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test", "gpt-5.6-luna", None, 120);
     let mut request = ChatRequest::new(
         vec![
             ChatMessage::system("stable session"),
@@ -320,7 +322,8 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
 
 #[test]
 fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
-    let provider = HttpLlmProvider::new("https://example.test", "gpt-5.6-luna", None);
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test", "gpt-5.6-luna", None, 120);
     let mut request = ChatRequest::system_user(
         "stable session",
         "[稳定上下文]\nshared chapter\n\n[当前任务]\npage 2",
@@ -350,7 +353,8 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
 
 #[test]
 fn request_includes_json_response_format_when_requested() {
-    let provider = HttpLlmProvider::new("https://example.test", "deepseek-chat", None);
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test", "deepseek-chat", None, 120);
     let request = ChatRequest::system_user("system", "user", Some(0.2), None, None)
         .with_json_response_format();
 

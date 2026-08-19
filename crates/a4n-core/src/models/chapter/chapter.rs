@@ -2,14 +2,13 @@
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 
 pub const STATUS_DRAFT: &str = "draft";
 pub const STATUS_GENERATING: &str = "generating";
 pub const STATUS_IMPORTED: &str = "imported";
 pub const STATUS_COMPLETED: &str = "completed";
-pub const STATUS_REVIEWED: &str = "reviewed";
-pub const STATUS_PUBLISHED: &str = "published";
+const STATUS_REVIEWED: &str = "reviewed";
+const STATUS_PUBLISHED: &str = "published";
 pub const STATUS_DELETED: &str = "deleted";
 
 pub fn is_valid_status(status: &str) -> bool {
@@ -62,15 +61,6 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn display_title(&self) -> Cow<'_, str> {
-        self.title
-            .as_deref()
-            .map(str::trim)
-            .filter(|title| !title.is_empty())
-            .map(Cow::Borrowed)
-            .unwrap_or_else(|| Cow::Owned(format!("第{}章", self.chapter_number)))
-    }
-
     pub fn has_content(&self) -> bool {
         !self.content.trim().is_empty()
     }
@@ -148,16 +138,5 @@ mod tests {
 
         assert!(imported.has_available_content());
         assert!(!empty.has_available_content());
-    }
-
-    #[test]
-    fn display_title_uses_trimmed_title_or_chapter_number() {
-        let mut chapter = chapter_with(STATUS_IMPORTED, "有效正文");
-        chapter.chapter_number = 3;
-        chapter.title = Some("  旧城回声  ".to_string());
-        assert_eq!(chapter.display_title(), "旧城回声");
-
-        chapter.title = Some("  ".to_string());
-        assert_eq!(chapter.display_title(), "第3章");
     }
 }

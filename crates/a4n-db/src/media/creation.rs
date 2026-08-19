@@ -78,9 +78,10 @@ where
         .await
         .map_err(MediaDbError::Database)?
         .ok_or_else(|| MediaDbError::NotFound(format!("项目不存在: {}", input.project_id)))?;
-    if project.source_mode().map_err(|error| {
-        MediaDbError::InvalidArgument(format!("项目 {}: {error}", project.id))
-    })? != ProjectSourceMode::Freeform
+    if project
+        .source_mode()
+        .map_err(|error| MediaDbError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+        != ProjectSourceMode::Freeform
     {
         return Err(MediaDbError::InvalidArgument(
             "缺少 source_snapshot_id 的媒体资产只能创建在 freeform 项目中".to_string(),

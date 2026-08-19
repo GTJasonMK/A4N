@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-use super::super::super::oauth_token_error;
+use crate::oauth_provider::contracts::oauth_token_error;
 
 pub(in crate::oauth_provider::github) async fn exchange_token(
     client: &reqwest::Client,

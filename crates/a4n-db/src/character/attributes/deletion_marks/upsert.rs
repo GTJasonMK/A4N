@@ -6,7 +6,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
 };
 
-pub async fn upsert_deletion_mark<C>(
+pub(super) async fn upsert_deletion_mark<C>(
     db: &C,
     input: CharacterDeletionMarkUpsertInput,
 ) -> Result<protagonist_deletion_mark::Model, DbErr>

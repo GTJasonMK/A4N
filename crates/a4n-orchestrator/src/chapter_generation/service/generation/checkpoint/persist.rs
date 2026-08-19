@@ -1,7 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{
-    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-};
+use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use serde_json::{Value, json};
 
 use crate::chapter_generation::service::ChapterGenerationService;

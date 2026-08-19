@@ -312,9 +312,7 @@ pub(crate) fn chapter_video_provider_descriptor(
     let source = format!("{source_label}；");
     let descriptor = match context.config.backend.as_str() {
         NEWAPI_VIDEO_BACKEND => {
-            let note = if context.workflow_mode
-                == chapter_video_prompt::WORKFLOW_MODE_STORYBOARD
-            {
+            let note = if context.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_STORYBOARD {
                 format!(
                     "{source}New API 的 `image` 字段只作为视频首帧/初始图，不支持分镜模式需要的 reference_images；provider 参考图 ID 数量：{}，参数不发送；预览省略真实媒体输入，真实生成会被阻止，请切换到支持参考图输入的视频 provider。{input_note}；{prompt_length}",
                     context.provider_reference_image_count

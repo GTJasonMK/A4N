@@ -7,9 +7,7 @@ use a4n_llm::provider::ModelCapabilities;
 use reqwest::Client;
 use serde_json::{Map, Value};
 
-pub(super) const DEFAULT_TIMEOUT_SECS: u64 = 120;
-
-pub struct HttpLlmProvider {
+pub(in crate::http) struct HttpLlmProvider {
     client: Client,
     base_url: String,
     api_key: Option<String>,

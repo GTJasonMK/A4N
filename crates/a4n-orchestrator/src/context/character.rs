@@ -943,7 +943,7 @@ impl OrchestratorContext {
         Ok(SnapshotDelta {
             from_hash,
             to_hash: to_ref.snapshot_hash,
-            delta: a4n_db::character::snapshot_store::Sha256SnapshotStore::diff_snapshot_data(
+            delta: a4n_db::character::Sha256SnapshotStore::diff_snapshot_data(
                 &from_data,
                 &to_snapshot.data,
             )?,

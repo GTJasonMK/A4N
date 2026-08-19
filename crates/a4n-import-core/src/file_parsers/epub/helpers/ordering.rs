@@ -1,6 +1,6 @@
-use super::EpubHtmlEntry;
+use super::spine::EpubHtmlEntry;
 
-pub(in crate::file_parsers) fn order_epub_html_entries(
+pub(in crate::file_parsers::epub) fn order_epub_html_entries(
     entries: Vec<EpubHtmlEntry>,
     spine_paths: &[String],
 ) -> Vec<String> {

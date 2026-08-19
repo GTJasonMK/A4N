@@ -24,12 +24,7 @@ pub(crate) async fn capture_video_tail_frame_asset(
             data_file_record_facts(state.data_dir(), &output, "尾帧图片", "尾帧图片")?;
         let image = state
             .orchestrator()
-            .create_video_tail_frame_record_validated(
-                video,
-                chapter_id,
-                output_path_str,
-                file_size,
-            )
+            .create_video_tail_frame_record_validated(video, chapter_id, output_path_str, file_size)
             .await
             .map_err(crate::actions::app_error_message)
             .map_err(|err| format!("尾帧图片记录写入失败：{err}"))?;

@@ -1,8 +1,16 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 
-use crate::archive::decode_base64;
 use crate::errors::ExportRenderError;
+
+fn decode_base64(label: impl Into<String>, value: &str) -> Result<Vec<u8>, ExportRenderError> {
+    BASE64
+        .decode(value)
+        .map_err(|source| ExportRenderError::Base64Decode {
+            label: label.into(),
+            source,
+        })
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

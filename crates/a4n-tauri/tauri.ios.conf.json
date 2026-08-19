@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "A4N - Agents for Narrative"
+      }
+    ]
+  },
+  "bundle": {
+    "icon": ["icons/icon.png"],
+    "iOS": {
+      "minimumSystemVersion": "15.0"
+    }
+  }
+}

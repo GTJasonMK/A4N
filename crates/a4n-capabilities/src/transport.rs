@@ -118,23 +118,20 @@ impl HttpSidecarTransport {
         envelope: &ServiceRequest<T>,
     ) -> CapabilityResult<reqwest::RequestBuilder> {
         let mut request = self.authorize(request);
-        let request_id = reqwest::header::HeaderValue::from_str(&envelope.request_id).map_err(
-            |error| {
+        let request_id =
+            reqwest::header::HeaderValue::from_str(&envelope.request_id).map_err(|error| {
                 ServiceError::non_retryable(
                     ServiceErrorCode::ConfigurationError,
                     format!("request_id 不能作为 HTTP header: {error}"),
                 )
-            },
-        )?;
-        let trace_id =
-            reqwest::header::HeaderValue::from_str(&envelope.trace_context.trace_id).map_err(
-                |error| {
-                    ServiceError::non_retryable(
-                        ServiceErrorCode::ConfigurationError,
-                        format!("trace_context.trace_id 不能作为 HTTP header: {error}"),
-                    )
-                },
-            )?;
+            })?;
+        let trace_id = reqwest::header::HeaderValue::from_str(&envelope.trace_context.trace_id)
+            .map_err(|error| {
+                ServiceError::non_retryable(
+                    ServiceErrorCode::ConfigurationError,
+                    format!("trace_context.trace_id 不能作为 HTTP header: {error}"),
+                )
+            })?;
         request = request.header(SIDECAR_REQUEST_ID_HEADER, request_id);
         Ok(request.header(SIDECAR_TRACE_ID_HEADER, trace_id))
     }

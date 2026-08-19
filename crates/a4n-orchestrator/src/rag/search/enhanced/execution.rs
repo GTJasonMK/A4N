@@ -5,13 +5,10 @@ use a4n_rag_core::vector_store::{SearchResult, VectorStore};
 use super::{
     contracts::{EnhancedRagSearchResult, PreparedEnhancedRagSearch},
     fusion::fuse_enhanced_rag_results,
-    rules::{
-        enhanced_rag_pull_k, validate_embedding_identity_match, validate_query_vectors,
-    },
+    rules::{enhanced_rag_pull_k, validate_embedding_identity_match, validate_query_vectors},
 };
 use crate::rag::search::execution::{
-    hybrid_rag_search_filtered_in_store,
-    hybrid_rag_search_with_validated_embedding_in_store,
+    hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_validated_embedding_in_store,
 };
 
 pub(crate) async fn execute_prepared_enhanced_rag_search_in_store(

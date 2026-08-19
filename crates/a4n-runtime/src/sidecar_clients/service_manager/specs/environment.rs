@@ -49,6 +49,5 @@ pub(in crate::sidecar_clients::service_manager) fn parse_sidecar_addr_env(
     default_addr: &str,
 ) -> Result<String, String> {
     let value = value.unwrap_or(default_addr);
-    a4n_service_protocol::parse_service_socket_addr(env_key, value)
-        .map(|addr| addr.to_string())
+    a4n_service_protocol::parse_service_socket_addr(env_key, value).map(|addr| addr.to_string())
 }

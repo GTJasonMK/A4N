@@ -46,9 +46,9 @@ pub fn validate_postgres_database_url(key: &str, url: &str) -> Result<(), AppErr
     if url.trim().starts_with("postgres://") || url.trim().starts_with("postgresql://") {
         Ok(())
     } else {
-        Err(AppError::ConfigError(
-            format!("{key} 必须是 postgres:// 或 postgresql:// 连接串"),
-        ))
+        Err(AppError::ConfigError(format!(
+            "{key} 必须是 postgres:// 或 postgresql:// 连接串"
+        )))
     }
 }
 
@@ -90,11 +90,7 @@ fn public_app_endpoint(value: &str, path: &str) -> Result<String, AppError> {
             "A4N_PUBLIC_APP_URL 不能使用 localhost、loopback 或 unspecified 地址".to_string(),
         ));
     }
-    Ok(format!(
-        "{}{}",
-        url.as_str().trim_end_matches('/'),
-        path
-    ))
+    Ok(format!("{}{}", url.as_str().trim_end_matches('/'), path))
 }
 
 /// 读取可选路径环境变量。未设置返回 `None`，已设置为空则明确报错。

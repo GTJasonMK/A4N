@@ -28,9 +28,9 @@ pub struct UpdateEmbeddingConfigParams {
     pub local_model_path: Option<String>,
 }
 
-pub const API_EMBEDDING_BACKEND: &str = "api";
-pub const FASTEMBED_EMBEDDING_BACKEND: &str = "fastembed";
-pub const LOCAL_HASH_EMBEDDING_BACKEND: &str = "local_hash";
+const API_EMBEDDING_BACKEND: &str = "api";
+const FASTEMBED_EMBEDDING_BACKEND: &str = "fastembed";
+const LOCAL_HASH_EMBEDDING_BACKEND: &str = "local_hash";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmbeddingBackendKind {

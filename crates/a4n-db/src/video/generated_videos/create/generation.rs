@@ -1,7 +1,8 @@
+use super::super::CreateGeneratedVideoRecordInput;
 use crate::generation::{
     GenerationRunTraceTarget, RecordStartedGenerationRunInput, record_started_generation_run,
 };
-use crate::video::{CreateGeneratedVideoRecordInput, VideoDbError};
+use crate::video::VideoDbError;
 use a4n_core::models::ai::generated_video;
 use sea_orm::ConnectionTrait;
 

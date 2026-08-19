@@ -1,6 +1,6 @@
 //! 画布节点输入：边序、config 读取、节点种类纯规则（无 DB、无 Host）。
 
-use a4n_core::models::canvas::canvas_edge;
+use a4n_core::models::canvas::{canvas_edge, canvas_node};
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use serde_json::Value;
 
@@ -14,6 +14,17 @@ pub fn incoming_edges(
         .iter()
         .filter(|edge| edge.target_node_id == node_id)
         .collect()
+}
+
+pub(crate) fn source_node(
+    document: &CanvasGraphRecordDocument,
+    source_node_id: i64,
+) -> Result<&canvas_node::Model, String> {
+    document
+        .nodes
+        .iter()
+        .find(|candidate| candidate.id == source_node_id)
+        .ok_or_else(|| format!("画布连线引用不存在的源节点: {source_node_id}"))
 }
 
 /// Assemble 片段连线 `config_json.order_index`（正整数）。
@@ -43,16 +54,14 @@ pub fn validate_canvas_clip_order(clips: &[(i64, i64, i64)]) -> Result<(), Strin
     Ok(())
 }
 
-/// 从 config 取首个非空字符串键。
-pub fn canvas_config_string(config: &Value, keys: &[&str]) -> Option<String> {
-    keys.iter().find_map(|key| {
-        config
-            .get(*key)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string)
-    })
+/// 从 config 取非空字符串。
+pub fn canvas_config_string(config: &Value, key: &str) -> Option<String> {
+    config
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 /// 正整数 config 字段。
@@ -106,7 +115,7 @@ mod tests {
         assert!(validate_canvas_clip_order(&[(1, 1, 1), (3, 2, 2)]).is_err());
         let cfg = json!({"template": " hi ", "llm_config_id": 3, "temp": 0.5});
         assert_eq!(
-            canvas_config_string(&cfg, &["template", "template_text"]).as_deref(),
+            canvas_config_string(&cfg, "template").as_deref(),
             Some("hi")
         );
         assert_eq!(canvas_config_i64(&cfg, "llm_config_id"), Some(3));

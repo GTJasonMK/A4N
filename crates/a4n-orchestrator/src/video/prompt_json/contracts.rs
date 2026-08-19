@@ -88,9 +88,7 @@ impl InsertedSegmentDraft {
         prompt_output_language: a4n_core::prompt_language::PromptOutputLanguage,
     ) -> Result<Self, a4n_core::error::AppError> {
         let draft: Self = serde_json::from_str(raw.trim()).map_err(|error| {
-            a4n_core::error::AppError::InvalidArgument(format!(
-                "插入片段草稿 JSON 无效: {error}"
-            ))
+            a4n_core::error::AppError::InvalidArgument(format!("插入片段草稿 JSON 无效: {error}"))
         })?;
         draft.validate(prompt_output_language)
     }

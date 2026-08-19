@@ -6,7 +6,7 @@ use a4n_video::{
     validate_video_provider_duration,
 };
 
-use super::Seedance2VideoProvider;
+use super::provider::Seedance2VideoProvider;
 
 impl Seedance2VideoProvider {
     pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {

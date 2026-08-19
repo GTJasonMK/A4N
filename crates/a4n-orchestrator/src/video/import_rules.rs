@@ -123,13 +123,11 @@ pub fn canvas_frame_timestamp(
     }
     match (frame_kind, at_secs) {
         (CanvasFrameKind::First, None) => Ok(0.0),
-        (CanvasFrameKind::Tail, None) => Ok(
-            if duration_secs > VIDEO_TAIL_FRAME_OFFSET_SECS {
-                duration_secs - VIDEO_TAIL_FRAME_OFFSET_SECS
-            } else {
-                0.0
-            },
-        ),
+        (CanvasFrameKind::Tail, None) => Ok(if duration_secs > VIDEO_TAIL_FRAME_OFFSET_SECS {
+            duration_secs - VIDEO_TAIL_FRAME_OFFSET_SECS
+        } else {
+            0.0
+        }),
         (CanvasFrameKind::Time, Some(timestamp)) => {
             if !timestamp.is_finite() || timestamp < 0.0 {
                 return Err("抽帧时间必须是有限非负数".to_string());

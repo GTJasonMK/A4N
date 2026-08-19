@@ -22,8 +22,7 @@ fn prompt_workflow_matches_chain(
 ) -> bool {
     prompt.workflow_mode == workflow_mode
         || (prompt.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
-            && prompt.workflow_mode
-                == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+            && prompt.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
 }
 
 pub fn prompt_source_type_matches(prompt: &chapter_video_prompt::Model, expected: &str) -> bool {

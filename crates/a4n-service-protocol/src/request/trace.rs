@@ -18,7 +18,7 @@ pub struct SchemaVersion {
 }
 
 impl SchemaVersion {
-    pub fn protocol_only() -> Self {
+    pub(super) fn protocol_only() -> Self {
         Self {
             protocol: PROTOCOL_VERSION,
             database: None,

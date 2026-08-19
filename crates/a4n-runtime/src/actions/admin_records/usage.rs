@@ -2,7 +2,7 @@ use super::{AdminOverviewSummary, DailyUsagePoint, UsageLogSummary, UsageTrendsI
 use crate::{AppState, actions::app_error_message};
 use serde_json::Value;
 
-pub async fn get_user_usage(
+pub(super) async fn get_user_usage(
     state: &AppState,
     user_id: i64,
     limit: u64,
@@ -14,7 +14,7 @@ pub async fn get_user_usage(
         .map_err(app_error_message)
 }
 
-pub async fn get_token_summary(state: &AppState, user_id: i64) -> Result<Value, String> {
+pub(super) async fn get_token_summary(state: &AppState, user_id: i64) -> Result<Value, String> {
     state
         .orchestrator()
         .token_summary(user_id)
@@ -22,7 +22,7 @@ pub async fn get_token_summary(state: &AppState, user_id: i64) -> Result<Value, 
         .map_err(app_error_message)
 }
 
-pub async fn get_usage_trends(
+pub(super) async fn get_usage_trends(
     state: &AppState,
     input: UsageTrendsInput,
 ) -> Result<Vec<DailyUsagePoint>, String> {
@@ -33,7 +33,7 @@ pub async fn get_usage_trends(
         .map_err(app_error_message)
 }
 
-pub async fn get_admin_overview(state: &AppState) -> Result<AdminOverviewSummary, String> {
+pub(super) async fn get_admin_overview(state: &AppState) -> Result<AdminOverviewSummary, String> {
     state
         .orchestrator()
         .admin_overview()

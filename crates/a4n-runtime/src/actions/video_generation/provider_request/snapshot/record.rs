@@ -112,12 +112,15 @@ pub(in crate::actions::video_generation) fn validate_video_provider_request_snap
             generated_video::VIDEO_TYPE_CHAPTER,
             Some(
                 chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
-                    | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
-                    | chapter_video_prompt::WORKFLOW_MODE_STORYBOARD
+                | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
+                | chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
             ),
         ) => Ok(()),
         (generated_video::VIDEO_TYPE_REFERENCE_MEDIA, Some(mode))
-            if mode == VideoSegmentWorkflowModeV1::ReferenceMedia.as_str() => Ok(()),
+            if mode == VideoSegmentWorkflowModeV1::ReferenceMedia.as_str() =>
+        {
+            Ok(())
+        }
         (generated_video::VIDEO_TYPE_CHAPTER, Some(mode)) => Err(format!(
             "视频 #{} 的 workflow_mode={} 与 chapter_video 类型不匹配，无法直接预览 provider 请求",
             video.id, mode

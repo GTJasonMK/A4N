@@ -74,11 +74,9 @@ impl ProjectSourceMode {
         ) {
             (ProjectKind::Text, false, false) => Ok(Self::Self_),
             (ProjectKind::Video, false, false) => Ok(Self::Freeform),
-            (
-                ProjectKind::Comic | ProjectKind::Video | ProjectKind::Galgame,
-                true,
-                true,
-            ) => Ok(Self::Derived),
+            (ProjectKind::Comic | ProjectKind::Video | ProjectKind::Galgame, true, true) => {
+                Ok(Self::Derived)
+            }
             _ => Err(ProjectSourceModeError::InvalidIdentity {
                 project_kind,
                 root_project_id,

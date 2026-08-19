@@ -66,16 +66,139 @@ mod dispatch {
     }
 }
 
-use self::canvas::*;
-use self::characters::*;
-use self::front::*;
-use self::galgame::*;
-use self::import_project::*;
-use self::input::*;
-use self::media::*;
-use self::request::*;
-use self::source_sync::*;
-use self::task::*;
+use self::canvas::{is_canvas_web_command, run_canvas_web_command};
+use self::characters::{
+    add_profile_attribute, apply_implicit_update_decision, apply_optimization_patches,
+    attribute_history, check_character_conflict, check_implicit_update,
+    check_profile_sync_conflict, create_optimization_analysis_session,
+    create_optimization_chat_session, create_profile, delete_optimize_session, delete_profile,
+    diff_profile_chapters, discard_pending_optimize_patch_sets, discover_character_profiles,
+    execute_attribute_deletion, get_character_arc_status, get_character_voice_fingerprint,
+    get_implicit_review, get_inspiration_history, get_optimize_session,
+    get_profile_state_at_chapter, get_snapshot, list_behaviors, list_deletion_marks,
+    list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns, list_profiles,
+    list_snapshots, modify_profile_attribute, prepare_optimization_analysis_session,
+    preview_check_character_conflict_request, preview_check_implicit_update_request,
+    preview_create_optimization_analysis_session_request,
+    preview_discover_character_profiles_request, preview_inspiration_request,
+    preview_prepare_optimization_analysis_session_request,
+    preview_propose_optimization_patches_request, preview_send_optimization_message_request,
+    preview_sync_all_character_profiles_request, preview_sync_character_from_chapters_request,
+    record_optimize_agent_event, request_attribute_deletion, reset_deletion_marks,
+    rollback_to_chapter, sync_all_character_profiles, sync_character_from_chapters,
+    update_character_profile,
+};
+use self::front::{
+    activate_theme, add_image_config, add_video_config, cancel_embedding_model_download,
+    cancel_generation_task, cancel_task, cancel_workflow, change_user_password,
+    create_embedding_config, create_llm_config, create_theme, delete_embedding_config,
+    delete_llm_config, delete_local_embedding_model, delete_theme, detect_image_config_models,
+    detect_llm_config_models, detect_video_config_models, download_embedding_model,
+    export_all_configs_json, export_theme, get_current_user, get_embedding_model_download_info,
+    get_llm_max_tokens_config, get_queue_stats, get_task_history, get_workflow_progress_events,
+    get_workflow_run_detail, import_all_configs, import_theme, list_active_workflows,
+    list_embedding_config, list_image_configs, list_llm_config, list_local_embedding_models,
+    list_model_provider_catalog, list_sessions, list_themes, list_video_configs,
+    list_workflow_runs, login_user, oauth2_authorize_url, oauth2_callback,
+    preview_test_embedding_config_request, preview_test_image_config_request,
+    preview_test_llm_config_request, prompt_list, prompt_list_categories,
+    prompt_list_project_overrides, prompt_load_defaults, prompt_remove_project_override,
+    prompt_render, prompt_render_ab, prompt_reset, prompt_set_project_override, prompt_update,
+    prompt_validate_variables, prompt_version_diff, prompt_version_history, rag_enhanced_search,
+    rag_enhanced_search_with_vectors, rag_ingest_all, rag_prepare_enhanced_search,
+    rag_prepare_ingest_all, rag_upload_ingest_embeddings, refresh_token, register_user,
+    remove_image_config, remove_video_config, resume_workflow_run, revoke_session,
+    set_default_embedding_config, set_default_image_config, set_default_llm_config,
+    set_default_video_config, test_embedding_config, test_image_config, test_llm_config,
+    update_embedding_config, update_image_config, update_llm_config, update_llm_max_tokens_config,
+    update_theme, update_user_profile, update_video_config,
+};
+use self::galgame::{
+    bind_galgame_media, cancel_galgame_pipeline, delete_galgame_line, export_galgame_webgal,
+    get_galgame_pipeline_status, get_galgame_script, import_galgame_audio, insert_galgame_line,
+    plan_galgame_assets, preview_galgame_pipeline_request, reorder_galgame_lines,
+    run_galgame_asset_generation, start_galgame_pipeline, unbind_galgame_media,
+    update_galgame_choices, update_galgame_line, update_galgame_scene,
+};
+use self::import_project::{
+    accept_import_review, accept_project_invite, batch_accept_reviews, cancel_import_analysis,
+    check_import_dedup, cleanup_orphan_project_data_dirs, create_derived_project,
+    create_freeform_video_project, create_project, decline_project_invite, delete_chapter_scene,
+    delete_import_review, delete_latest_chapter_outlines, delete_latest_parts, delete_project,
+    diff_blueprint_versions, duplicate_project, edit_chapter_shooting_script, export_batch_data,
+    export_characters_json_data, export_derived_project_data, export_epub_data,
+    export_markdown_data, export_outline_json_data, export_pdf_data, export_project_family_data,
+    export_txt_data, export_video_studio_project_data, forward_project_status,
+    generate_chapter_analysis, generate_chapter_scene, generate_chapter_shooting_script,
+    generate_next_chapter_shooting_script_unit, generate_portrait_prompt, get_blueprint,
+    get_chapter_outlines_pacing, get_chapter_shooting_script,
+    get_chapter_shooting_script_unit_progress, get_generation_call_analytics,
+    get_generation_progress, get_log_dir, get_primary_portrait, get_project,
+    get_project_asset_dependency_graph, get_project_asset_dependency_graph_node_detail,
+    get_project_import_analysis_progress, get_project_status_machine, get_storage_paths,
+    import_chapter, import_project_family_upload, import_project_text_upload,
+    import_video_studio_project_upload, invite_project_member, is_reverse_engineer_web_command,
+    leave_project, list_blueprint_versions, list_chapter_outlines, list_chapter_scenes,
+    list_chapters, list_import_queue, list_my_project_invites, list_orphan_project_data_dirs,
+    list_parts, list_portraits_by_project, list_project_invites, list_project_members,
+    list_projects, list_source_snapshot_chapters, prepare_chapter_generation_rag_embedding,
+    preview_apply_beat_mapping_request, preview_batch_generate_part_outlines_request,
+    preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
+    preview_continue_part_outlines_request, preview_generate_age_variant_request,
+    preview_generate_blueprint_request, preview_generate_chapter_outlines_by_count_request,
+    preview_generate_missing_portraits_request, preview_generate_part_chapter_outlines_request,
+    preview_generate_parts_request, preview_generate_portrait_prompt_request,
+    preview_generate_portrait_request, preview_import_project_analysis_request,
+    preview_refine_blueprint_request, preview_regenerate_chapter_outline_request,
+    preview_regenerate_last_part_request, preview_regenerate_part_outline_request,
+    preview_regenerate_parts_request, preview_regenerate_portrait_request,
+    preview_resume_chapter_analysis_sync_request, preview_rollback, read_recent_logs,
+    reject_import_review, remove_project_member, reorder_chapter_scenes,
+    reset_project_generated_data, restore_blueprint_version, resume_chapter_analysis_sync,
+    revoke_project_invite, rollback_project_status, run_import_project_analysis,
+    run_reverse_engineer_web_command, save_blueprint, save_chapter_outline, save_part_outline,
+    set_log_level, set_primary_portrait, sync_blueprint_materials, sync_outline_materials,
+    update_chapter_content, update_chapter_outline, update_chapter_scene, update_project,
+    update_project_member_role, update_world_setting, upload_portrait,
+};
+use self::input::{
+    bool_arg, command_input, empty_command_args, f32_arg, i64_arg, nullable_i64_arg,
+    optional_i32_field, optional_string_field, reject_unknown_command_args, required_arg,
+    required_json_i32, strict_command_input, strict_optional_task_runtime_command_input,
+    strict_runtime_command_input, string_arg, to_value, u64_arg,
+};
+use self::media::{
+    apply_assembly_postprocess_edit, assemble_chapter_videos, bind_manga_reference_image,
+    cancel_manga_pipeline, commit_inserted_segment_draft, create_foreshadowing,
+    create_object_profile, create_scene_profile, delete_chapter_video_prompt, delete_foreshadowing,
+    delete_image, delete_inserted_segment, delete_manga_by_chapter, delete_manga_prompt,
+    delete_object_profile, delete_scene_profile, delete_video,
+    generate_object_profile_image_prompt, generate_scene_profile_image_prompt,
+    get_chapter_video_timeline, get_manga_pipeline_status, list_chapter_video_prompts,
+    list_foreshadowing, list_images_by_chapter, list_images_by_project, list_manga_page_prompts,
+    list_object_profiles, list_profile_materials, list_scene_profiles, list_video_reference_images,
+    list_videos_by_chapter, load_cached_assembled_chapter_video_preview, load_video_playback_data,
+    load_video_scrub_playback_data, load_video_segment_plan_draft, move_inserted_segment,
+    optimize_chapter_video_prompt, optimize_manga_prompt, poll_video_job,
+    preview_batch_images_request, preview_chapter_video_request,
+    preview_object_profile_image_request, preview_page_image_request,
+    preview_reference_media_video_request, preview_resume_manga_pipeline_request,
+    preview_scene_image_request, preview_start_manga_pipeline_request,
+    preview_video_provider_request_by_video_id, push_assembled_chapter_video,
+    resume_manga_pipeline, select_segment_video, set_profile_primary_material,
+    start_manga_pipeline, sync_scene_profiles, trim_video, update_assembly_push_status,
+    update_chapter_video_prompt, update_chapter_video_segment_recipe, update_foreshadowing,
+    update_image, update_manga_prompt, update_object_profile, update_scene_profile, update_video,
+    update_video_segment_plan_draft_recipe, upload_assembly_insert_video, upload_chapter_video,
+    upload_image, upload_profile_material_image, upload_reference_media_video,
+};
+use self::request::run_with_runtime_context;
+use self::source_sync::{apply_source_sync_decisions, detach_derived_project, preview_source_sync};
+use self::task::{
+    finish_web_task, register_web_task, sanitize_optional_task_id, sanitize_task_id,
+    string_action_result, web_fire_and_forget_progress_reporter, web_progress_reporter,
+    web_stream_reporter,
+};
 
 use super::auth::{authenticated_user, issue_auth_response, user_agent};
 use super::error::ApiError;

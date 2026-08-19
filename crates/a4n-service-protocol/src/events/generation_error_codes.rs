@@ -1,5 +1,5 @@
 /// 规范生成错误码唯一注册表。
-pub const REGISTERED_GENERATION_ERROR_CODES: &[&str] = &[
+const REGISTERED_GENERATION_ERROR_CODES: &[&str] = &[
     "artifact_download_failed",
     "artifact_persist_failed",
     "artifact_validation_failed",
@@ -43,7 +43,7 @@ pub const REGISTERED_GENERATION_ERROR_CODES: &[&str] = &[
     "provider_job_failed",
 ];
 
-pub fn is_registered_generation_error_code(value: &str) -> bool {
+pub(super) fn is_registered_generation_error_code(value: &str) -> bool {
     REGISTERED_GENERATION_ERROR_CODES
         .binary_search(&value)
         .is_ok()

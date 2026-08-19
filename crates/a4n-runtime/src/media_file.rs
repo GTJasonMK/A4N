@@ -73,5 +73,4 @@ mod tests {
         assert_eq!(requested_byte_range_header(invalid, 100), Some(Err(())));
         assert_eq!(requested_byte_range_header(absent, 100), None);
     }
-
 }

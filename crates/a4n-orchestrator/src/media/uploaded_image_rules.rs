@@ -79,9 +79,8 @@ mod tests {
 
     #[test]
     fn uploaded_image_decode_accepts_raw_base64() {
-        let decoded =
-            decode_uploaded_image_data(" ref.png ", "image/png", PNG_1X1, 1024 * 1024)
-                .expect("valid uploaded png should decode");
+        let decoded = decode_uploaded_image_data(" ref.png ", "image/png", PNG_1X1, 1024 * 1024)
+            .expect("valid uploaded png should decode");
 
         assert_eq!(decoded.source_file_name, "ref.png");
         assert_eq!(decoded.mime_type, "image/png");

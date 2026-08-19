@@ -8,11 +8,7 @@ use zip::ZipArchive;
 use crate::errors::ImportTransformError;
 use crate::json::parse_json_manifest;
 
-pub fn validate_zip_entry_path(path: &str) -> Result<(), ImportTransformError> {
-    a4n_archive_core::validate_zip_entry_path(path).map_err(ImportTransformError::from)
-}
-
-pub fn read_json_manifest_entry<R, T>(
+pub(super) fn read_json_manifest_entry<R, T>(
     zip: &mut ZipArchive<R>,
     manifest_path: &str,
     package_label: impl Into<String>,
@@ -26,7 +22,7 @@ where
     parse_json_manifest(&manifest_bytes, manifest_label)
 }
 
-pub fn read_zip_entry_bytes<R>(
+pub(super) fn read_zip_entry_bytes<R>(
     zip: &mut ZipArchive<R>,
     path: &str,
     label: impl Into<String>,
@@ -34,7 +30,7 @@ pub fn read_zip_entry_bytes<R>(
 where
     R: Read + Seek,
 {
-    validate_zip_entry_path(path)?;
+    a4n_archive_core::validate_zip_entry_path(path)?;
     let label = label.into();
     let mut file = zip
         .by_name(path)
@@ -53,7 +49,7 @@ where
     Ok(bytes)
 }
 
-pub fn read_zip_entries_bytes<R, I, S>(
+pub(super) fn read_zip_entries_bytes<R, I, S>(
     zip: &mut ZipArchive<R>,
     paths: I,
     label: impl Into<String>,
@@ -67,7 +63,6 @@ where
     let mut entries = HashMap::new();
     for path in paths {
         let path = path.as_ref();
-        validate_zip_entry_path(path)?;
         if entries.contains_key(path) {
             return Err(ImportTransformError::DuplicateDeclaredZipEntry {
                 label,
@@ -80,7 +75,7 @@ where
     Ok(entries)
 }
 
-pub fn validate_zip_manifest_declared_files<R, I, S>(
+pub(super) fn validate_zip_manifest_declared_files<R, I, S>(
     zip: &mut ZipArchive<R>,
     manifest_path: &str,
     declared_files: I,
@@ -98,7 +93,7 @@ where
     validate_zip_declared_files(zip, paths, label)
 }
 
-pub fn validate_zip_declared_files<R, I, S>(
+pub(super) fn validate_zip_declared_files<R, I, S>(
     zip: &mut ZipArchive<R>,
     declared_files: I,
     label: impl Into<String>,
@@ -112,7 +107,7 @@ where
     let mut declared = HashSet::new();
     for path in declared_files {
         let path = path.as_ref();
-        validate_zip_entry_path(path)?;
+        a4n_archive_core::validate_zip_entry_path(path)?;
         if !declared.insert(path.to_string()) {
             return Err(ImportTransformError::DuplicateDeclaredZipEntry {
                 label,
@@ -131,7 +126,7 @@ where
                     source,
                 })?;
         let name = file.name().to_string();
-        validate_zip_entry_path(&name)?;
+        a4n_archive_core::validate_zip_entry_path(&name)?;
         if file.is_dir() {
             continue;
         }

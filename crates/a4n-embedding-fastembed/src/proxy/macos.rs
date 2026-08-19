@@ -12,20 +12,8 @@ pub(super) fn read_macos_system_proxy() -> Option<SystemProxy> {
 
     Some(SystemProxy {
         http_proxy: scutil_proxy_url(&text, "HTTPEnable", "HTTPProxy", "HTTPPort", "http"),
-        https_proxy: scutil_proxy_url(
-            &text,
-            "HTTPSEnable",
-            "HTTPSProxy",
-            "HTTPSPort",
-            "http",
-        ),
-        all_proxy: scutil_proxy_url(
-            &text,
-            "SOCKSEnable",
-            "SOCKSProxy",
-            "SOCKSPort",
-            "socks5h",
-        ),
+        https_proxy: scutil_proxy_url(&text, "HTTPSEnable", "HTTPSProxy", "HTTPSPort", "http"),
+        all_proxy: scutil_proxy_url(&text, "SOCKSEnable", "SOCKSProxy", "SOCKSPort", "socks5h"),
         no_proxy: None,
     })
 }

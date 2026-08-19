@@ -398,7 +398,6 @@ async fn insert_test_graph(
 fn record_node(client_id: &str, node_kind: &str) -> CanvasNodeRecordInput {
     CanvasNodeRecordInput {
         client_id: client_id.to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: None,
         ref_id: None,

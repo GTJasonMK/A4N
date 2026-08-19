@@ -6,7 +6,7 @@ use super::{
     AppState, GenerateCanvasVideoInput, ModelRequestPreview, RuntimeVideoProviderHostPort,
 };
 
-pub async fn preview_canvas_video_request(
+pub(crate) async fn preview_canvas_video_request(
     state: &AppState,
     input: GenerateCanvasVideoInput,
 ) -> Result<ModelRequestPreview, String> {

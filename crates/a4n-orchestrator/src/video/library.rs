@@ -2,14 +2,11 @@ use crate::profile_material::{
     generated_image_profile_material_identity, is_project_reusable_video_material_image,
 };
 use a4n_core::models::ai::generated_image;
-use a4n_db::profile_material::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE};
 use a4n_domain::image::{
     IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_VIDEO_START_FRAME,
     IMAGE_TYPE_VIDEO_TAIL_FRAME,
 };
 use std::collections::HashSet;
-
-use super::{ChapterVideoSourceContext, OrchestratorContext};
 
 mod candidates;
 mod context;
@@ -17,10 +14,6 @@ mod projection;
 mod relevance;
 mod validation;
 
-use candidates::*;
-use projection::video_library_image_entry;
-use relevance::*;
-use validation::ensure_video_asset_image_usable;
 pub(super) use validation::{available_video_image_ids, ensure_video_reference_ids_known};
 
 pub(super) const MAX_VIDEO_LIBRARY_IMAGE_IDS: usize = 32;

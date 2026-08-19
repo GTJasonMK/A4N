@@ -1,4 +1,5 @@
 use crate::project::ProjectFamilyTextCoreRows;
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{
@@ -13,7 +14,6 @@ use a4n_core::models::{
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

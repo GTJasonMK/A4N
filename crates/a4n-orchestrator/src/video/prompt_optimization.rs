@@ -43,9 +43,7 @@ use super::provider_prompt_text_rules::{
     MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, validate_provider_model_text,
 };
 use super::reference_media_rules::MIN_PROVIDER_VISUAL_PROMPT_CHARS;
-use super::{
-    VideoPromptDownstreamCleanupPort, VideoPromptDownstreamDependencies,
-};
+use super::{VideoPromptDownstreamCleanupPort, VideoPromptDownstreamDependencies};
 
 const OPTIMIZATION_PROMPT_NAME: &str = "chapter_video_prompt_optimization";
 const OPTIMIZATION_USER_PROMPT_NAME: &str = "chapter_video_prompt_optimization_user";

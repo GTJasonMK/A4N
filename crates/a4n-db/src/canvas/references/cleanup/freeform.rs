@@ -7,7 +7,7 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::Value;
 
-pub async fn mark_freeform_canvas_generated_refs_missing<C>(
+pub(crate) async fn mark_freeform_canvas_generated_refs_missing<C>(
     db: &C,
     project_id: i64,
     targets: &crate::project::FreeformGeneratedResetTargets,

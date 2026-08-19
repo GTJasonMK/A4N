@@ -2,7 +2,7 @@ use super::ImportReviewSummary;
 use a4n_core::{error::AppError, models::project::import_review_queue};
 use a4n_domain::import_review::ImportReviewStatus;
 
-pub fn import_review_summary(
+pub(crate) fn import_review_summary(
     review: &import_review_queue::Model,
 ) -> Result<ImportReviewSummary, AppError> {
     let review_status = normalized_review_status(review)?;

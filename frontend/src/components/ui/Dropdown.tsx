@@ -124,7 +124,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
               menuItem.onClick();
               setIsOpen(false);
             }}
-            className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`a4n-dropdown-menu-item flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9 ${
               menuItem.danger
                 ? 'text-error hover:bg-error-bg focus-visible:bg-error-bg'
                 : 'text-book-text-main hover:bg-book-bg-tertiary focus-visible:bg-book-bg-tertiary'
@@ -158,7 +158,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
           }}
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          className={`pyqt-btn-secondary !min-h-8 !px-2.5 text-xs ${
+          className={`a4n-touch-target pyqt-btn-secondary !px-2.5 text-xs ${
             isOpen ? 'border-book-primary/70 bg-[rgb(var(--color-primary-pale))] text-book-primary' : ''
           }`}
         >
@@ -178,7 +178,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
           }}
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-[10px] border bg-book-bg-tertiary/70 transition-colors sm:h-8 sm:w-8 ${
+          className={`a4n-dropdown-trigger inline-flex h-11 w-11 items-center justify-center rounded-[10px] border bg-book-bg-tertiary/70 transition-colors sm:h-8 sm:w-8 ${
             isOpen
               ? 'border-book-primary/70 text-book-primary'
               : 'border-book-border text-book-text-muted hover:border-book-primary/55 hover:bg-book-bg-tertiary hover:text-book-primary'

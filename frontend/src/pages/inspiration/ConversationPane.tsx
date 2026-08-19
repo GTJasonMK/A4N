@@ -45,9 +45,9 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   placeholder,
   inputActive,
 }) => (
-  <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
-    <div className="min-h-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5">
-      <div className="mx-auto flex max-w-3xl flex-col justify-start gap-3.5">
+  <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto]">
+    <div className="min-h-0 min-w-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5">
+      <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col justify-start gap-3.5">
         {messages.map((m) => (
           <ChatBubble key={m.id} message={m} onSendOption={onSendOption} />
         ))}
@@ -56,11 +56,11 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
     </div>
 
     <footer
-      className={`chat-composer shrink-0 border-t border-book-border/40 bg-book-bg-paper/90 px-3 pt-2.5 backdrop-blur-xl ${
+      className={`chat-composer min-w-0 w-full shrink-0 border-t border-book-border/40 bg-book-bg-paper/90 px-3 pt-2.5 backdrop-blur-xl ${
         inputActive ? "pb-4 sm:pb-3" : "pb-2.5"
       }`}
     >
-      <div className="mx-auto flex max-w-3xl items-end gap-2">
+      <div className="mx-auto flex w-full min-w-0 max-w-3xl items-end gap-2">
         <textarea
           ref={inputRef}
           value={input}
@@ -74,9 +74,9 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
           rows={Math.min(5, Math.max(1, input.split("\n").length))}
           spellCheck={false}
           lang="zh-CN"
-          className="pyqt-input max-h-[140px] !min-h-8 min-w-0 flex-1 resize-y !rounded-[12px] px-4 !py-[5px] text-body-lg leading-5"
+          className="pyqt-input max-h-[140px] min-h-8 min-w-0 flex-1 resize-y !rounded-[12px] px-4 !py-[5px] text-body-lg leading-5"
         />
-        <div className="flex shrink-0 items-center gap-2 [&>div>button]:!h-8 [&>div>button]:!w-8">
+        <div className="flex shrink-0 items-center gap-2">
           <Dropdown
             items={[
               {
@@ -92,7 +92,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
             size="sm"
             onClick={onSend}
             disabled={!input.trim() || sending}
-            className="!h-8 !min-h-8 !px-3 !text-xs"
+            className="a4n-composer-send !px-3 !text-xs"
           >
             {sending ? (
               "等待回复"

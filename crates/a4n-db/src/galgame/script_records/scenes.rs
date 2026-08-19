@@ -24,7 +24,7 @@ pub async fn update_galgame_scene_with_generation_cleanup_record(
     Ok(updated)
 }
 
-pub async fn update_galgame_scene_record<C>(
+async fn update_galgame_scene_record<C>(
     db: &C,
     input: UpdateGalgameSceneRecordInput,
 ) -> Result<galgame_scene::Model, GalgameSceneRecordError>

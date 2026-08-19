@@ -3,12 +3,14 @@ mod errors;
 mod rules;
 
 pub(crate) use checkpoint::attach_llm_call_checkpoint_trace;
-pub use checkpoint::*;
+pub use checkpoint::{
+    CompletedWorkflowCheckpointContractError, CompletedWorkflowCheckpointInput,
+    required_checkpoint_field, required_checkpoint_json, workflow_checkpoint_fingerprint_sha256,
+};
 
 pub use a4n_db::workflow::{
-    CancelWorkflowRunPersistenceResult, ClaimExclusiveWorkflowRunInput,
-    CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, GenerationRunSummary,
-    GetWorkflowRunInput,
+    CancelWorkflowRunPersistenceResult, ClaimExclusiveWorkflowRunInput, CompletedLlmCallCheckpoint,
+    CompletedLlmCallCheckpointInput, GenerationRunSummary, GetWorkflowRunInput,
     ListWorkflowRunsInput, PersistedTaskInfo, TaskProgressEventSummary,
     UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_CANCELLED,
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,

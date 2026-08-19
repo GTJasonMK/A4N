@@ -5,13 +5,12 @@ use a4n_domain::profile_material::ProfileMaterialKind;
 use std::collections::BTreeMap;
 
 pub(super) async fn to_summary(
-    scene_profile: &a4n_orchestrator::OrchestratorContext,
-    profile_material: &a4n_orchestrator::OrchestratorContext,
+    orchestrator: &a4n_orchestrator::OrchestratorContext,
     profile: &scene_profile::Model,
 ) -> Result<SceneProfileSummary, String> {
-    let occurrence_count = occurrence_count(scene_profile, profile).await?;
+    let occurrence_count = occurrence_count(orchestrator, profile).await?;
     let generated_image_count = profile_materials::count_profile_material_images(
-        profile_material,
+        orchestrator,
         profile.project_id,
         ProfileMaterialKind::Scene,
         profile.id,

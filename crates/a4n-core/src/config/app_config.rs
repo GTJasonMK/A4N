@@ -13,7 +13,6 @@ pub use a4n_domain::{
 pub use contracts::{
     AppConfig, EmbeddingConfig, ImageGenConfig, LlmConfig, SecurityConfig, SystemConfig,
 };
-use defaults::*;
 pub use portable::{
     apply_storage_env_overrides, portable_home_dir, resolve_path_in_portable_home,
     resolve_portable_path,

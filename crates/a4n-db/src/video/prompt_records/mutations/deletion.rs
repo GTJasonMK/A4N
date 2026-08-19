@@ -10,7 +10,10 @@ pub(crate) async fn delete_chapter_video_prompt_records<C>(
 where
     C: ConnectionTrait,
 {
-    let prompt_ids = prompts.iter().map(|prompt| prompt.id).collect::<BTreeSet<_>>();
+    let prompt_ids = prompts
+        .iter()
+        .map(|prompt| prompt.id)
+        .collect::<BTreeSet<_>>();
     if prompt_ids.is_empty() {
         return Ok(0);
     }

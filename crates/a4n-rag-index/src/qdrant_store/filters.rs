@@ -5,12 +5,12 @@ use a4n_rag_core::vector_store::SearchFilter;
 use qdrant_client::qdrant::{Condition, Filter, Range, r#match::MatchValue};
 use serde_json::Value;
 
-pub const KEY_DATA_TYPE: &str = "data_type";
-pub const KEY_CHAPTER: &str = "chapter_number";
-pub const KEY_CHUNK_ID: &str = "chunk_id";
-pub const KEY_ID_PREFIX: &str = "id_prefix";
+pub(super) const KEY_DATA_TYPE: &str = "data_type";
+pub(super) const KEY_CHAPTER: &str = "chapter_number";
+pub(super) const KEY_CHUNK_ID: &str = "chunk_id";
+pub(super) const KEY_ID_PREFIX: &str = "id_prefix";
 
-pub fn search_filter(filter: Option<&SearchFilter>) -> Result<Filter, AppError> {
+pub(super) fn search_filter(filter: Option<&SearchFilter>) -> Result<Filter, AppError> {
     let mut must = Vec::new();
     if let Some(f) = filter {
         if let Some(eq) = &f.equals {
@@ -96,7 +96,7 @@ fn unsupported_equals_value(key: &str, reason: &str) -> AppError {
     ))
 }
 
-pub fn delete_filter(ids: &[String], prefixes: &[String]) -> Filter {
+pub(super) fn delete_filter(ids: &[String], prefixes: &[String]) -> Filter {
     if ids.is_empty() && prefixes.is_empty() {
         return Filter::default();
     }
@@ -225,17 +225,14 @@ mod tests {
             data_types: Some(Vec::new()),
         };
 
-        let error = search_filter(Some(&filter))
-            .expect_err("empty data type scope must not be ignored");
+        let error =
+            search_filter(Some(&filter)).expect_err("empty data type scope must not be ignored");
         assert!(error.to_string().contains("data_types 不能为空"));
     }
 
     #[test]
     fn exact_ids_and_prefixes_share_one_union_group() {
-        let filter = delete_filter(
-            &["chapter:42:1".to_string()],
-            &["outline:42:".to_string()],
-        );
+        let filter = delete_filter(&["chapter:42:1".to_string()], &["outline:42:".to_string()]);
         let Some(ConditionOneOf::Filter(selectors)) = filter.must[0].condition_one_of.as_ref()
         else {
             panic!("id selectors must be grouped in one nested filter");

@@ -10,7 +10,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-pub async fn upsert_galgame_generation_spec_record<C>(
+pub(super) async fn upsert_galgame_generation_spec_record<C>(
     db: &C,
     existing_specs_by_canonical_key: &mut BTreeMap<String, generation_spec::Model>,
     input: GalgameGenerationSpecUpsertInput,

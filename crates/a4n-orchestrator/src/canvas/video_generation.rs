@@ -10,8 +10,7 @@ use a4n_core::{
 use a4n_db::{
     canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
-        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
 use a4n_domain::CanvasNodeRefKind;
@@ -256,7 +255,8 @@ impl OrchestratorContext {
             crate::video::VideoProviderValidationMode::Generate,
         )
         .await?;
-        let step_key = format!("canvas_node:{}", input.node.id);
+        let step_key = crate::canvas::canvas_node_step_key(input.node.id)
+            .map_err(AppError::InvalidArgument)?;
         let input_json = json!({
             "user_id": input.user_id,
             "project_id": input.project_id,
@@ -514,8 +514,7 @@ impl OrchestratorContext {
                         }
                         if matches!(
                             authoritative.status.as_str(),
-                            generated_video::STATUS_CANCELLED
-                                | generated_video::STATUS_INTERRUPTED
+                            generated_video::STATUS_CANCELLED | generated_video::STATUS_INTERRUPTED
                         ) {
                             return Err(AppError::Cancelled);
                         }
@@ -879,9 +878,10 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if project.source_mode().map_err(|error| {
-            AppError::InvalidArgument(format!("项目 {project_id}: {error}"))
-        })? != ProjectSourceMode::Freeform
+        if project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {project_id}: {error}")))?
+            != ProjectSourceMode::Freeform
         {
             return Err(AppError::InvalidArgument(
                 "GenerateVideoNode 当前只支持自由视频项目".to_string(),
@@ -922,18 +922,20 @@ fn build_canvas_video_node_input(
     let mut reference_image_ids = Vec::new();
     let mut source_node_ids = Vec::new();
     for edge in crate::canvas::incoming_edges(document, node.id) {
-        let source = document
-            .nodes
-            .iter()
-            .find(|candidate| candidate.id == edge.source_node_id)
-            .ok_or_else(|| format!("画布连线引用不存在的源节点: {}", edge.source_node_id))?;
+        let source = crate::canvas::source_node(document, edge.source_node_id)?;
         source_node_ids.push(source.id);
         if let Some(prompt) =
             crate::canvas::source_text_value(source, document, checkpoints, "GenerateVideoNode")?
         {
             prompt_parts.push(prompt);
         }
-        if let Some(image_id) = source_generated_image_id(checkpoints, source)? {
+        if let Some(image_id) = crate::canvas::source_node_output_id(
+            checkpoints,
+            source,
+            "GenerateVideoNode",
+            "generated_image_id",
+            CanvasNodeRefKind::GeneratedImage,
+        )? {
             match edge.target_port.as_str() {
                 "first_frame" => set_single_image_input(
                     &mut first_frame_image_id,
@@ -976,10 +978,7 @@ fn build_canvas_video_node_input(
     }
     Ok(CanvasVideoNodeInput {
         prompt,
-        negative_prompt: crate::canvas::canvas_config_string(
-            &node.config_json,
-            &["negative_prompt"],
-        ),
+        negative_prompt: crate::canvas::canvas_config_string(&node.config_json, "negative_prompt"),
         config_id: crate::canvas::canvas_config_i64(&node.config_json, "video_config_id"),
         width: crate::canvas::canvas_config_i64(&node.config_json, "width")
             .and_then(crate::canvas::i64_to_i32),
@@ -993,7 +992,7 @@ fn build_canvas_video_node_input(
         last_frame_image_id,
         reference_image_ids,
         source_node_ids,
-        canvas_text_asset_id: first_canvas_text_asset_id(node, document),
+        canvas_text_asset_id: crate::canvas::first_canvas_text_asset_id(node, document),
     })
 }
 
@@ -1006,15 +1005,17 @@ enum GenerateVideoInputMode {
 }
 
 fn generate_video_input_mode(value: Option<&Value>) -> Result<GenerateVideoInputMode, String> {
-    match value.and_then(Value::as_str).map(str::trim) {
-        Some("text_only") => Ok(GenerateVideoInputMode::TextOnly),
-        Some("first_frame") => Ok(GenerateVideoInputMode::FirstFrame),
-        Some("first_end_frame") => Ok(GenerateVideoInputMode::FirstEndFrame),
-        Some("reference_images") => Ok(GenerateVideoInputMode::ReferenceImages),
-        Some(other) if !other.is_empty() => {
-            Err(format!("GenerateVideoNode input_mode 无效: {other}"))
-        }
-        _ => Ok(GenerateVideoInputMode::TextOnly),
+    let value = value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "GenerateVideoNode 缺少 input_mode".to_string())?;
+    match value {
+        "text_only" => Ok(GenerateVideoInputMode::TextOnly),
+        "first_frame" => Ok(GenerateVideoInputMode::FirstFrame),
+        "first_end_frame" => Ok(GenerateVideoInputMode::FirstEndFrame),
+        "reference_images" => Ok(GenerateVideoInputMode::ReferenceImages),
+        other => Err(format!("GenerateVideoNode input_mode 无效: {other}")),
     }
 }
 
@@ -1064,38 +1065,6 @@ fn validate_generate_video_image_inputs(
     Ok(())
 }
 
-fn source_generated_image_id(
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
-    node: &canvas_node::Model,
-) -> Result<Option<i64>, String> {
-    if let Some(output) =
-        crate::canvas::source_operation_checkpoint_output(checkpoints, node, "GenerateVideoNode")?
-    {
-        return Ok(output.get("generated_image_id").and_then(Value::as_i64));
-    }
-    if node.ref_type.as_deref() == Some(CanvasNodeRefKind::GeneratedImage.as_str()) {
-        return Ok(node.ref_id);
-    }
-    Ok(None)
-}
-
-fn first_canvas_text_asset_id(
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-) -> Option<i64> {
-    crate::canvas::source_canvas_text_asset_id(node).or_else(|| {
-        crate::canvas::incoming_edges(document, node.id)
-            .into_iter()
-            .find_map(|edge| {
-                document
-                    .nodes
-                    .iter()
-                    .find(|candidate| candidate.id == edge.source_node_id)
-                    .and_then(crate::canvas::source_canvas_text_asset_id)
-            })
-    })
-}
-
 fn set_single_image_input(
     slot: &mut Option<i64>,
     image_id: i64,
@@ -1127,7 +1096,7 @@ async fn prepare_canvas_video_request(
     mode: crate::video::VideoProviderValidationMode,
 ) -> Result<PreparedCanvasVideoRequest, AppError> {
     let config = host_port.resolve_video_config(input.config_id).await?;
-    let duration_secs = input.duration_secs.unwrap_or(5);
+    let duration_secs = input.duration_secs.unwrap_or(config.default_duration_secs);
     crate::video::validate_video_duration_for_config_secs(&config, duration_secs)
         .map_err(AppError::InvalidArgument)?;
     let width = input.width.unwrap_or(config.default_width);
@@ -1199,10 +1168,11 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn video_input_mode_defaults_to_text_only() {
-        assert_eq!(
-            generate_video_input_mode(None).expect("default mode"),
-            GenerateVideoInputMode::TextOnly
+    fn video_input_mode_requires_canonical_value() {
+        assert!(
+            generate_video_input_mode(None)
+                .expect_err("缺少 input_mode 必须失败")
+                .contains("缺少 input_mode")
         );
     }
 

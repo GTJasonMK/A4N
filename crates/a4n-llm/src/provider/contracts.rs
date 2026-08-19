@@ -48,17 +48,12 @@ pub const LLM_PROVIDER_CAPABILITIES: &[LlmProviderCapabilities] = &[
     },
 ];
 
-pub fn llm_provider_capabilities(provider: &str) -> Option<LlmProviderCapabilities> {
-    let provider = provider.trim();
-    LLM_PROVIDER_CAPABILITIES
-        .iter()
-        .copied()
-        .find(|capabilities| capabilities.id.eq_ignore_ascii_case(provider))
-}
-
 impl LlmProtocolKind {
     pub fn for_provider(provider: &str) -> Option<Self> {
-        llm_provider_capabilities(provider).map(|capabilities| capabilities.protocol)
+        LLM_PROVIDER_CAPABILITIES
+            .iter()
+            .find(|capabilities| capabilities.id.eq_ignore_ascii_case(provider.trim()))
+            .map(|capabilities| capabilities.protocol)
     }
 }
 

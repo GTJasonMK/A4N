@@ -249,7 +249,7 @@ impl OrchestratorContext {
             // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
             let stream_reporter = progress.and_then(|progress| progress.stream_reporter);
             let mut streamed = String::new();
-            let stream_sink = stream_reporter.map(|reporter| {
+            let mut stream_sink = stream_reporter.map(|reporter| {
                 move |delta: &str| {
                     streamed.push_str(delta);
                     reporter(&streamed);
@@ -277,7 +277,9 @@ impl OrchestratorContext {
                         report_character_discovery_progress(progress, current, message)
                             .map_err(|error| error.to_string())
                     },
-                    stream_sink,
+                    stream_sink
+                        .as_mut()
+                        .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
                 )
                 .await
                 .map(|result| result.response_content)

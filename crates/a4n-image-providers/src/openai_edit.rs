@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 ///
 /// 无参考图时走 `/images/generations`；有参考图时走 `/images/edits`，
 /// 并把绑定图片作为 multipart 文件输入发送。
-pub struct OpenAiCompatibleImageEditProvider {
+pub(super) struct OpenAiCompatibleImageEditProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
@@ -22,7 +22,7 @@ pub struct OpenAiCompatibleImageEditProvider {
 }
 
 impl OpenAiCompatibleImageEditProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
+    pub(super) fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
         Ok(Self {
             base_url: required_non_empty(base_url, "base_url")?
                 .trim_end_matches('/')
@@ -58,7 +58,7 @@ impl OpenAiCompatibleImageEditProvider {
         Ok(form)
     }
 
-    pub fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
+    pub(super) fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
         if req.reference_images.is_empty() {
             return OpenAiCompatibleImageProvider::request_body_preview(req);
         }

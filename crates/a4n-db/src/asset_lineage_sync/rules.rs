@@ -51,8 +51,7 @@ pub(super) fn should_sync_generated_image(
     image: &generated_image::Model,
     manga_prompt_by_image: &BTreeMap<i64, chapter_manga_prompt::Model>,
 ) -> bool {
-    manga_prompt_by_image.contains_key(&image.id)
-        || image.image_type == IMAGE_TYPE_VIDEO_TAIL_FRAME
+    manga_prompt_by_image.contains_key(&image.id) || image.image_type == IMAGE_TYPE_VIDEO_TAIL_FRAME
 }
 
 pub(super) fn prompt_from_video_metadata<'a>(

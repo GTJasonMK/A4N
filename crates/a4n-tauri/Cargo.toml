@@ -5,6 +5,10 @@ edition = "2024"
 default-run = "a4n-tauri"
 license.workspace = true
 
+[lib]
+name = "a4n_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [features]
 default = ["migration"]
 migration = ["a4n-runtime/migration"]
@@ -20,25 +24,25 @@ video-scrub-e2e-host = ["dep:base64"]
 
 [[bin]]
 name = "a4n-video-scrub-e2e-host"
-path = "src/bin/video_scrub_e2e_host.rs"
+path = "src/video_scrub_e2e_host.rs"
 required-features = ["video-scrub-e2e-host"]
 
 [dependencies]
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-core = { path = "../a4n-core" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-server = { path = "../a4n-server" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
-# Tauri
-tauri = { workspace = true }
-
 # 异步
 tokio = { workspace = true }
-
-# 序列化
-serde = { workspace = true }
-serde_json = { workspace = true }
+reqwest = { workspace = true }
 
 # 时间处理
 chrono = { workspace = true }
@@ -52,7 +56,6 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "regis
 tracing-appender = "0.2"
 
 # 并发工具
-parking_lot = { workspace = true }
 tokio-util = { workspace = true }
 base64 = { workspace = true, optional = true }
 

@@ -88,7 +88,7 @@ pub enum TimelineError {
 }
 
 /// 在现有顺序中插入一个新项，不改变任何已有项的相对顺序。
-pub fn insert_timeline_item(
+fn insert_timeline_item(
     order: &[i64],
     new_item_id: i64,
     gap: VideoTimelineGap,

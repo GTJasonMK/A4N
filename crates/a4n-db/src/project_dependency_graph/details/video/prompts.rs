@@ -1,4 +1,5 @@
-use crate::project_dependency_graph::{AssetLineageRecord, video_prompt_record};
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::video_prompt_record;
 use a4n_core::{error::AppError, models::chapter::chapter_video_prompt};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 

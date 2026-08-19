@@ -7,10 +7,7 @@ use a4n_core::video_execution::{
     validate_video_segment_recipes_for_plan, video_segment_recipes_for_plan_from_metadata,
     video_segments_share_recipe_anchor,
 };
-use a4n_db::{
-    video::VideoSegmentPlanDraftCheckpoint,
-    workflow::WorkflowWriteError,
-};
+use a4n_db::{video::VideoSegmentPlanDraftCheckpoint, workflow::WorkflowWriteError};
 use serde_json::{Value, json};
 
 use super::super::{

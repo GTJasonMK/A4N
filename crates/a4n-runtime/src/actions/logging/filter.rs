@@ -38,7 +38,7 @@ pub fn build_log_filter_from_env(default_filter: &str) -> Result<EnvFilter, Stri
     build_log_filter(configured.as_deref().unwrap_or(default_filter))
 }
 
-pub fn build_log_filter(filter: &str) -> Result<EnvFilter, String> {
+pub(crate) fn build_log_filter(filter: &str) -> Result<EnvFilter, String> {
     let filter = filter.trim();
     if filter.is_empty() {
         return Err("日志过滤表达式不能为空".to_string());

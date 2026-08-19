@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-pub fn trim_imported_text(text: &str) -> &str {
+pub(super) fn trim_imported_text(text: &str) -> &str {
     text.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
 }
 
@@ -14,14 +14,14 @@ pub(super) fn normalize_chapter_title_line(line: &str) -> &str {
     title
 }
 
-pub fn line_start_at_or_before(text: &str, offset: usize) -> usize {
+pub(super) fn line_start_at_or_before(text: &str, offset: usize) -> usize {
     match text[..offset].rfind('\n') {
         Some(position) => position + 1,
         None => 0,
     }
 }
 
-pub fn line_end_at_or_after(text: &str, offset: usize) -> usize {
+pub(super) fn line_end_at_or_after(text: &str, offset: usize) -> usize {
     match text[offset..].find('\n') {
         Some(position) => offset + position,
         None => text.len(),

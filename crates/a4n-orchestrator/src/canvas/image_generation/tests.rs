@@ -212,8 +212,6 @@ async fn insert_canvas(
                 edges: vec![CanvasEdgeRecordInput {
                     source_client_id: "source".to_string(),
                     target_client_id: "target".to_string(),
-                    source_node_id: None,
-                    target_node_id: None,
                     source_port: "text".to_string(),
                     target_port: "text".to_string(),
                     role: "context".to_string(),
@@ -230,7 +228,6 @@ async fn insert_canvas(
 fn node_input(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNodeRecordInput {
     CanvasNodeRecordInput {
         client_id: client_id.to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: None,
         ref_id: None,
@@ -433,10 +430,7 @@ async fn canvas_image_application_persists_complete_artifact_chain() {
     assert_eq!(summary.status, "completed");
     assert_eq!(host.calls.load(Ordering::SeqCst), 1);
     assert_eq!(spec.status, "completed");
-    assert_eq!(
-        spec.target_kind,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE
-    );
+    assert_eq!(spec.target_kind, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE);
     assert_eq!(image.image_type, IMAGE_TYPE_CANVAS);
     assert_eq!(generation_runs.len(), 1);
     assert_eq!(assets.len(), 1);

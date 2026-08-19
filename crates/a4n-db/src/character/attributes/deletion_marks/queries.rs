@@ -47,7 +47,7 @@ where
         .await
 }
 
-pub async fn pending_deletion_mark_for_attribute<C>(
+pub(in crate::character::attributes) async fn pending_deletion_mark_for_attribute<C>(
     db: &C,
     profile_id: i64,
     category: &str,

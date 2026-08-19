@@ -1,10 +1,10 @@
-use super::existence::{
-    embedding_configs_exist, image_configs_exist, llm_configs_exist, video_configs_exist,
-};
 use super::super::{
     EmbeddingConfigRecordInput, ImageConfigRecordInput, LlmConfigRecordInput,
     VideoConfigRecordInput, insert_embedding_config_record, insert_image_config_record,
     insert_llm_config_record, insert_video_config_record,
+};
+use super::existence::{
+    embedding_configs_exist, image_configs_exist, llm_configs_exist, video_configs_exist,
 };
 use a4n_core::error::AppError;
 use sea_orm::DatabaseConnection;

@@ -47,11 +47,8 @@ pub async fn chat_json_stream_result_with_progress(
     input: ChatJsonStreamInput<'_>,
     report_progress: impl FnMut(u32, &str) -> Result<(), String>,
 ) -> Result<StructuredLlmStreamResult, String> {
-    chat_json_stream_result_with_sink(input, report_progress, None::<&mut DeltaSinkNoop>).await
+    chat_json_stream_result_with_sink(input, report_progress, None).await
 }
-
-/// `on_delta` 的 no-op 占位类型；仅用于让不需要 delta 的调用方省略泛型参数。
-pub type DeltaSinkNoop = fn(&str);
 
 /// 与 [`chat_json_stream_result_with_progress`] 相同，但额外把原始文本增量交给 `on_delta`。
 ///
@@ -62,7 +59,7 @@ pub type DeltaSinkNoop = fn(&str);
 pub async fn chat_json_stream_result_with_sink(
     input: ChatJsonStreamInput<'_>,
     mut report_progress: impl FnMut(u32, &str) -> Result<(), String>,
-    mut on_delta: Option<impl FnMut(&str)>,
+    mut on_delta: Option<&mut (dyn FnMut(&str) + Send)>,
 ) -> Result<StructuredLlmStreamResult, String> {
     let ChatJsonStreamInput {
         llm,

@@ -9,9 +9,8 @@ use a4n_core::{
     source_spans::{metadata_source_content_sha256, source_text_hash},
     video_execution::VideoSegmentWorkflowModeV1,
     video_workflow::{
-        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM,
-        WORKFLOW_MODE_CANVAS_VIDEO, WORKFLOW_MODE_MIXED, is_assembly_video_workflow_mode,
-        is_generated_video_workflow_mode,
+        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
+        WORKFLOW_MODE_MIXED, is_assembly_video_workflow_mode, is_generated_video_workflow_mode,
     },
 };
 use a4n_domain::{
@@ -36,8 +35,7 @@ use super::{
     assembly_insert_metadata_with_position, assembly_media_properties,
     assembly_push_metadata_with_status, assembly_push_records,
     ensure_insert_position_not_inside_pushed_prefix, is_assembly_clip_video_type,
-    is_canvas_video_record,
-    latest_non_rejected_push_index, next_assembly_insert_sort_order,
+    is_canvas_video_record, latest_non_rejected_push_index, next_assembly_insert_sort_order,
     parse_assembly_push_metadata, parse_postprocess_edit_metadata, postprocess_edit_timing,
     selected_assembly_push_end_index, validate_assembly_workflow_mode,
     validate_reference_media_import_options, validate_video_trim_range, video_shot_number,
@@ -182,7 +180,7 @@ pub struct VideoGenerationRecordInput {
 }
 
 impl crate::OrchestratorContext {
-    pub async fn create_video_generation_record_validated(
+    pub(crate) async fn create_video_generation_record_validated(
         &self,
         input: VideoGenerationRecordInput,
     ) -> Result<generated_video::Model, a4n_core::error::AppError> {
@@ -930,8 +928,8 @@ impl crate::OrchestratorContext {
             .ok_or_else(|| {
                 AppError::InvalidArgument("成片推送批次序号超过 i32 上限".to_string())
             })?;
-        let (width, height, fps, duration_secs) = assembly_media_properties(
-            source_clips.iter().map(|clip| {
+        let (width, height, fps, duration_secs) =
+            assembly_media_properties(source_clips.iter().map(|clip| {
                 (
                     clip.video_id,
                     clip.duration_secs,
@@ -939,9 +937,8 @@ impl crate::OrchestratorContext {
                     clip.height,
                     clip.fps,
                 )
-            }),
-        )
-        .map_err(AppError::InvalidArgument)?;
+            }))
+            .map_err(AppError::InvalidArgument)?;
         let source_video_ids = source_clips
             .iter()
             .map(|clip| clip.video_id)
@@ -1220,8 +1217,8 @@ impl crate::OrchestratorContext {
             }
             sources.push(video);
         }
-        let (width, height, fps, duration_secs) = assembly_media_properties(
-            sources.iter().map(|video| {
+        let (width, height, fps, duration_secs) =
+            assembly_media_properties(sources.iter().map(|video| {
                 (
                     video.id,
                     video.duration_secs,
@@ -1229,9 +1226,8 @@ impl crate::OrchestratorContext {
                     video.height,
                     video.fps,
                 )
-            }),
-        )
-        .map_err(AppError::InvalidArgument)?;
+            }))
+            .map_err(AppError::InvalidArgument)?;
         Ok(CanvasAssemblyPlan {
             width,
             height,
@@ -1652,13 +1648,12 @@ fn assembly_clip_records_from_rows(
             .then_some((video, file_path))
         })
         .map(|(video, file_path)| {
-            let timeline_display_index = if video.video_type
-                == generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
-            {
-                None
-            } else {
-                timeline_order.and_then(|order| order.display_index_for_video(video))
-            };
+            let timeline_display_index =
+                if video.video_type == generated_video::VIDEO_TYPE_ASSEMBLY_INSERT {
+                    None
+                } else {
+                    timeline_order.and_then(|order| order.display_index_for_video(video))
+                };
             if timeline_order.is_some()
                 && video.video_type != generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
                 && timeline_display_index.is_none()

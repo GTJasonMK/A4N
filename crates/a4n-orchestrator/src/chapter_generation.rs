@@ -7,9 +7,7 @@ pub(crate) mod rag_context;
 #[path = "chapter_generation/service/mod.rs"]
 pub mod service;
 
-pub use application::{
-    ChapterGenerationApplicationContext, ChapterGenerationRequestPreview,
-};
+pub use application::{ChapterGenerationApplicationContext, ChapterGenerationRequestPreview};
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;
 pub use preparation::{
     ChapterGenerationWordCountRange, compact_json_text, generation_chapter_title,

@@ -1,6 +1,6 @@
 use a4n_queue::{
+    TaskFamilyContext, TaskWorkflowContext,
     priority::{TaskKind, TaskPriority},
-    queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 use tokio_util::sync::CancellationToken;
 

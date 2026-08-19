@@ -779,10 +779,10 @@ mod unit_tests {
 
     #[test]
     fn batch_result_revision_is_stable_for_sorted_ids() {
-        let left = generation_batch_result_ref("generated_video_batch", 10, vec![3, 1, 2])
-            .expect("left");
-        let right = generation_batch_result_ref("generated_video_batch", 10, vec![2, 3, 1])
-            .expect("right");
+        let left =
+            generation_batch_result_ref("generated_video_batch", 10, vec![3, 1, 2]).expect("left");
+        let right =
+            generation_batch_result_ref("generated_video_batch", 10, vec![2, 3, 1]).expect("right");
         assert_eq!(left.kind, "generated_video_batch");
         assert_eq!(left.id, "10");
         assert_eq!(left.revision, right.revision);

@@ -5,10 +5,11 @@ use a4n_core::{
 };
 use a4n_domain::character::ForeshadowingStatus;
 use a4n_llm::provider::ChatRequest;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use a4n_prompt::rendering::PromptRenderer;
 
+use super::required_fact_field;
 use crate::chapter_analysis::owner::{
     prompt::chapter_display_title, requests::context::build_chapter_analysis_stage_request,
 };
@@ -20,6 +21,8 @@ pub async fn build_chapter_foreshadowing_events_request(
     pending_foreshadowing: &Value,
 ) -> Result<ChatRequest, AppError> {
     let chapter_title = chapter_display_title(ch);
+    let event_candidates = required_fact_field(facts, "event_candidates")?;
+    let foreshadowing_candidates = required_fact_field(facts, "foreshadowing_candidates")?;
     build_chapter_analysis_stage_request(
         ch,
         prompt_renderer,
@@ -28,8 +31,8 @@ pub async fn build_chapter_foreshadowing_events_request(
         json!({
             "chapter_title": chapter_title,
             "facts": {
-                "event_candidates": facts.get("event_candidates").cloned().unwrap_or_else(|| json!([])),
-                "foreshadowing_candidates": facts.get("foreshadowing_candidates").cloned().unwrap_or_else(|| json!([])),
+                "event_candidates": event_candidates,
+                "foreshadowing_candidates": foreshadowing_candidates,
             },
             "pending_foreshadowing": pending_foreshadowing,
         }),

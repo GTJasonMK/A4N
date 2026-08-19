@@ -10,6 +10,7 @@ Choose the interface that matches the request. Load only the relevant references
 - Explain a human workflow with the desktop/Web page path and prerequisites. Read [user-workflows.md](references/user-workflows.md).
 - Perform or automate work with the `a4n` CLI. Follow [cli-operation.md](references/cli-operation.md).
 - Reuse minimal Agent patterns for project creation, task observation, and artifact export from [agent-recipes.md](references/agent-recipes.md).
+- Register and report a long-running Agent job with the shared Server. Follow the Agent lifecycle section in [cli-operation.md](references/cli-operation.md) and the recipe in [agent-recipes.md](references/agent-recipes.md).
 - Use output modes, registration/OAuth, local config/runtime snapshots, persistent context, Shell, raw requests, project packages, or media transfer. Read [cli-advanced.md](references/cli-advanced.md).
 - Select an end-to-end creation path from [creation-workflows.md](references/creation-workflows.md).
 - Handle text creation, worldbuilding, profiles/relationships/events, chapter analysis, shooting scripts, portraits/images, optimization, RAG, and text export with [text-workflows.md](references/text-workflows.md).
@@ -30,6 +31,7 @@ Keep progressive disclosure strict. For CLI work, load `cli-operation.md`, then 
 4. If local services are not running and local operation is requested, verify required environment variables and start them with `a4n local start`. Remember that it does not start PostgreSQL or Docker.
 5. Check authentication with `a4n --agent auth status`. Send passwords and OAuth codes through stdin-only auth commands; never place credentials in arguments or output.
 6. For a multi-step session, use one explicit `--context PATH`, select the project with `project use`, and select the chapter with `chapter use`.
+7. Register an Agent once when desktop visibility is needed. After that, work commands run with `--agent` automatically infer the phase, send heartbeats, and mark the entry completed or failed. Use explicit `agent` commands only for a process that is not wrapped by this CLI lifecycle.
 
 ## Discover before calling
 
@@ -47,6 +49,9 @@ Use `--agent` for one-shot automation and parse the success/error envelope plus 
 ## Handle long operations
 
 - Capture returned `task_ids`, `workflow_ids`, `project_ids`, `chapter_ids`, and artifact references from the Agent envelope.
+- For work performed through `a4n --agent` work commands, a previously registered CLI Agent is inferred as `running`, `completed`, and `failed` from command execution, with an internal heartbeat every 10 seconds. The Server lease is 30 seconds; a missed lease is shown as `offline` in the Tauri/Web Agent workbench.
+- The CLI can infer command activity, not hidden model thoughts or work performed outside that process. Use explicit `a4n --agent agent register/update/heartbeat` only for an external worker that owns a long-lived process.
+- Use `running`, `paused`, `completed`, or `failed` explicitly. On failure, publish the failure summary before exiting. On normal termination, unregister when the UI no longer needs the Agent entry; a crashed process is marked offline automatically.
 - Watch only handles that are still running: use `task watch` for asynchronous generation tasks and `workflow watch` for non-terminal persistent pipelines. Some workflow-recorded calls wait and return a completed result or proposal synchronously; do not watch them again.
 - Treat exit code `8` as failed and `9` as cancelled/interrupted. Use `workflow show` before `workflow resume`.
 - For repeatable multi-step automation, compose capability-first calls in an ordinary script and persist returned IDs. Do not rely on commands absent from `a4n --help`.

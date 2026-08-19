@@ -18,10 +18,6 @@ pub struct A4nCapabilities {
 }
 
 impl A4nCapabilities {
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
     pub fn with_prompt(mut self, prompt: Arc<dyn PromptClient>) -> Self {
         self.prompt = Some(prompt);
         self

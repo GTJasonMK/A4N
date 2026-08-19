@@ -5,9 +5,9 @@
 
 mod artifacts;
 mod catalog;
-mod embedding;
 mod egress;
-pub mod events;
+mod embedding;
+mod events;
 mod health;
 mod registry;
 mod release;
@@ -20,7 +20,7 @@ mod validation;
 
 pub use artifacts::{
     ArtifactLocation, ArtifactOwnership, ArtifactRef, ArtifactValidationError,
-    validate_artifact_ref, validate_artifact_refs,
+    validate_artifact_refs,
 };
 pub const SIDECAR_AUTH_TOKEN_ENV: &str = "A4N_SIDECAR_AUTH_TOKEN";
 pub const SIDECAR_AUTH_HEADER: &str = "x-a4n-sidecar-token";
@@ -54,9 +54,7 @@ pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
 pub use catalog::{
     ServiceCatalogEntry, parse_service_socket_addr, service_catalog, service_catalog_entry,
 };
-pub use egress::{
-    EgressAuditEvent, EgressDataType, EgressPolicy, egress_policy_for, validate_egress_scope,
-};
+pub use egress::{EgressAuditEvent, EgressDataType, validate_egress_scope};
 pub use embedding::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 pub use events::*;
 pub use health::{

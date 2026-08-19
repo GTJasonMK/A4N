@@ -4,7 +4,7 @@ use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskSt
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-pub fn task_info_from_row(row: task_queue::Model) -> Result<TaskInfo, WorkflowReadError> {
+pub(crate) fn task_info_from_row(row: task_queue::Model) -> Result<TaskInfo, WorkflowReadError> {
     Ok(TaskInfo {
         id: row.id,
         task_type: TaskKind::parse_storage(&row.task_type)

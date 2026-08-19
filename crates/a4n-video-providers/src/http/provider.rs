@@ -6,14 +6,14 @@ use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, Vi
 use super::response::{decode_result, extract_job_id, required_string};
 use crate::transport::{self, ApiKeyAuth};
 
-pub struct HttpVideoProvider {
+pub(crate) struct HttpVideoProvider {
     base_url: String,
     api_key: String,
     pub(super) client: reqwest::Client,
 }
 
 impl HttpVideoProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Self {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),
@@ -39,8 +39,6 @@ impl HttpVideoProvider {
         }
     }
 }
-impl HttpVideoProvider {}
-
 #[async_trait]
 impl VideoProvider for HttpVideoProvider {
     async fn generate(

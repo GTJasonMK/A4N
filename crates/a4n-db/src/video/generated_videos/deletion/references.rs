@@ -140,9 +140,7 @@ where
         let replacement = generated_video::Entity::find()
             .filter(generated_video::Column::ProjectId.eq(prompt.project_id))
             .filter(generated_video::Column::ChapterId.eq(prompt.chapter_id))
-            .filter(
-                generated_video::Column::Status.eq(generated_video::STATUS_COMPLETED),
-            )
+            .filter(generated_video::Column::Status.eq(generated_video::STATUS_COMPLETED))
             .all(db)
             .await?
             .into_iter()

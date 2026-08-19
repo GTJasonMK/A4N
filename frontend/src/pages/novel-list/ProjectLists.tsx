@@ -33,7 +33,7 @@ export const RecentProjectList: React.FC<
 > = ({ families, empty, onOpen, onWrite, getActions }) => {
   if (empty) {
     return (
-      <EmptyHint text={'还没有项目。点击左侧“创建项目”开始你的第一部作品。'} />
+      <EmptyHint text={'还没有项目。点击上方“创建项目”开始你的第一部作品。'} />
     );
   }
   if (families.length === 0) {

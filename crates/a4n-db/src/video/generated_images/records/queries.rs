@@ -35,7 +35,7 @@ pub async fn generated_images_by_ids(
         .map_err(VideoDbError::Database)
 }
 
-pub async fn generated_images_for_chapter_by_id_desc<C>(
+pub(crate) async fn generated_images_for_chapter_by_id_desc<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
@@ -70,7 +70,7 @@ where
         .await
 }
 
-pub async fn generated_image_records_by_ids<C>(
+pub(in crate::video::generated_images) async fn generated_image_records_by_ids<C>(
     db: &C,
     image_ids: &[i64],
 ) -> Result<Vec<generated_image::Model>, DbErr>

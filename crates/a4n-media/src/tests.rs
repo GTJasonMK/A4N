@@ -229,8 +229,7 @@ fn postprocess_delete_filter_joins_prefix_and_tail_without_source() {
 
 #[test]
 fn postprocess_replace_filter_requires_and_inserts_source() {
-    let missing_source =
-        postprocess_request(AssemblyPostprocessOperation::Replace, None, 2.0, 4.0);
+    let missing_source = postprocess_request(AssemblyPostprocessOperation::Replace, None, 2.0, 4.0);
     assert!(matches!(
         build_video_postprocess_filter(&missing_source),
         Err(VideoPostprocessError::MissingSource)
@@ -259,8 +258,7 @@ fn postprocess_delete_rejects_an_empty_result_range() {
 
 #[test]
 fn postprocess_filter_rejects_invalid_media_properties() {
-    let mut request =
-        postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
+    let mut request = postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
     request.fps = 0;
     assert!(matches!(
         build_video_postprocess_filter(&request),
@@ -277,8 +275,7 @@ fn postprocess_filter_rejects_invalid_media_properties() {
 
 #[test]
 fn postprocess_silent_inputs_keep_video_only_output() {
-    let mut request =
-        postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
+    let mut request = postprocess_request(AssemblyPostprocessOperation::Delete, None, 2.0, 4.0);
     request.base_has_audio = false;
 
     let filter = build_video_postprocess_filter(&request).expect("build silent delete filter");

@@ -10,7 +10,6 @@ pub struct Model {
     pub id: i64,
     pub project_id: i64,
 
-    #[serde(default = "crate::profile_ownership::legacy_unknown_profile_ownership")]
     pub ownership_kind: String,
 
     pub name: String,
@@ -72,5 +71,41 @@ impl ActiveModelBehavior for ActiveModel {}
 impl Related<super::super::project::novel_project::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::NovelProject.def()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Model;
+    use serde_json::json;
+
+    #[test]
+    fn ownership_kind_is_required_when_deserializing() {
+        let error = serde_json::from_value::<Model>(json!({
+            "id": 1,
+            "project_id": 2,
+            "name": "旧书房",
+            "normalized_name": "旧书房",
+            "aliases_json": [],
+            "scene_type": "interior",
+            "importance": "primary",
+            "parent_scene_id": null,
+            "base_description": "旧书房",
+            "visual_description": "落满灰尘",
+            "spatial_layout": "书架环绕",
+            "atmosphere": "安静",
+            "entry_points_json": [],
+            "rules_json": [],
+            "current_state_json": {},
+            "first_seen_chapter": 1,
+            "last_seen_chapter": 1,
+            "evidence_json": [],
+            "image_prompt_seed": "旧书房",
+            "created_at": "2026-08-19T00:00:00",
+            "updated_at": "2026-08-19T00:00:00"
+        }))
+        .expect_err("missing ownership_kind must fail");
+
+        assert!(error.to_string().contains("ownership_kind"));
     }
 }

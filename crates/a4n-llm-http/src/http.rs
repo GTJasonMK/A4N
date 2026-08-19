@@ -9,8 +9,8 @@ mod stream;
 #[cfg(test)]
 mod tests;
 
-pub use anthropic::AnthropicLlmProvider;
-pub use provider::HttpLlmProvider;
+use anthropic::AnthropicLlmProvider;
+use provider::HttpLlmProvider;
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{LlmProtocolKind, LlmProvider, ModelCapabilities};

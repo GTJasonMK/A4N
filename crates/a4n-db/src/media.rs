@@ -12,10 +12,14 @@ mod paths;
 mod provenance;
 mod types;
 
-pub(crate) use bindings::*;
-pub use creation::*;
-pub use paths::*;
-pub use types::*;
+pub(crate) use bindings::{
+    delete_generated_image_target_media_bindings, delete_generated_video_target_media_bindings,
+    generated_video_target_media_binding_project_ids,
+};
+pub use creation::create_media_asset_with_provenance_record;
+pub(crate) use paths::media_path_has_persisted_reference;
+pub use paths::{filter_unreferenced_media_paths, media_path_prefix_has_persisted_reference};
+pub use types::{CreateMediaAssetRecordInput, MediaDbError, MediaProvenanceRecordInput};
 
 pub(crate) async fn schedule_unreferenced_media_cleanup<C>(
     db: &C,

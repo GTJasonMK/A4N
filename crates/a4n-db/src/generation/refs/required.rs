@@ -9,7 +9,7 @@ use crate::generation::{GenerationDbError, validation::validate_positive_id};
 
 use super::rules::normalize_media_ref_role;
 
-pub async fn validate_required_prompt_refs<C>(
+pub(crate) async fn validate_required_prompt_refs<C>(
     db: &C,
     spec: &generation_spec::Model,
 ) -> Result<(), GenerationDbError>

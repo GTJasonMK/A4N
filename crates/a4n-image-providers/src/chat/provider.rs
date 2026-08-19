@@ -9,14 +9,14 @@ use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 use serde_json::Value;
 
-pub struct ChatCompletionsImageProvider {
+pub(crate) struct ChatCompletionsImageProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl ChatCompletionsImageProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
         Ok(Self {
             base_url: required_non_empty(base_url, "base_url")?
                 .trim_end_matches('/')
@@ -31,7 +31,7 @@ impl ChatCompletionsImageProvider {
         extract_chat_image_payload(body)
     }
 
-    pub fn request_body_preview(req: &ImageGenerationRequest) -> Value {
+    pub(crate) fn request_body_preview(req: &ImageGenerationRequest) -> Value {
         chat_request_body(req)
     }
 }

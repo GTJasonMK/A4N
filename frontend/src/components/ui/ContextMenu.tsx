@@ -124,7 +124,7 @@ export const ContextMenuHost: React.FC = () => {
               setMenu(null);
               if (!it.disabled) it.onClick();
             }}
-            className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${
+            className={`a4n-dropdown-menu-item flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${
               it.disabled
                 ? "text-book-text-muted opacity-50 cursor-not-allowed"
                 : it.danger

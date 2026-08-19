@@ -26,9 +26,9 @@ use serde_json::{Value, json};
 use crate::workflow::WORKFLOW_STATUS_COMPLETED;
 use std::collections::HashMap;
 
-use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 use crate::collaboration::ProjectAccessRole;
 use crate::video::prompt_json::InsertedSegmentDraft;
+use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 
 pub(crate) const INSERTED_SEGMENT_SOURCE_PROMPT_TYPE: &str = "inserted_segment";
 pub(crate) const INSERTED_SEGMENT_WORKFLOW_KIND: &str = "video_inserted_segment";
@@ -145,12 +145,13 @@ impl OrchestratorContext {
             ));
         }
 
-        let input_fingerprint_json = run.input_fingerprint_json.as_ref().ok_or_else(|| {
-            AppError::InvalidState {
-                current: "inserted_segment_workflow_missing_fingerprint".to_string(),
-                operation: "提交插入片段草稿".to_string(),
-            }
-        })?;
+        let input_fingerprint_json =
+            run.input_fingerprint_json
+                .as_ref()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "inserted_segment_workflow_missing_fingerprint".to_string(),
+                    operation: "提交插入片段草稿".to_string(),
+                })?;
         let fingerprint = inserted_workflow_fingerprint(&run, input_fingerprint_json)?;
         if fingerprint.timeline_id != input.timeline_id
             || fingerprint.timeline_revision != input.expected_timeline_revision
@@ -194,8 +195,10 @@ impl OrchestratorContext {
             })?;
         let prompt_language =
             PromptOutputLanguage::from_code(&fingerprint.payload.prompt_output_language)?;
-        let draft =
-            InsertedSegmentDraft::parse_and_validate(&checkpoint.response_content, prompt_language)?;
+        let draft = InsertedSegmentDraft::parse_and_validate(
+            &checkpoint.response_content,
+            prompt_language,
+        )?;
         let reparsed_output = serde_json::to_value(&draft)?;
         ensure_checkpoint_parsed_output_matches(
             &checkpoint.parsed_output,
@@ -796,7 +799,8 @@ pub(crate) fn current_timeline_item_video_id(
             current: format!("timeline_selected_video_missing:{video_id}"),
             operation: format!("读取时间线项 {} 的当前视频", item.id),
         })?;
-    if video.status != generated_video::STATUS_COMPLETED || !video_matches_timeline_item(video, item)
+    if video.status != generated_video::STATUS_COMPLETED
+        || !video_matches_timeline_item(video, item)
     {
         return Err(AppError::InvalidState {
             current: format!("timeline_selected_video_invalid:{video_id}"),
@@ -892,8 +896,8 @@ fn inserted_workflow_fingerprint(
     run: &a4n_core::models::generation::workflow_run::Model,
     value: &Value,
 ) -> Result<InsertedSegmentWorkflowFingerprint, AppError> {
-    let fingerprint: InsertedSegmentWorkflowFingerprint =
-        serde_json::from_value(value.clone()).map_err(|error| {
+    let fingerprint: InsertedSegmentWorkflowFingerprint = serde_json::from_value(value.clone())
+        .map_err(|error| {
             AppError::InvalidArgument(format!("插入片段 workflow 指纹无效: {error}"))
         })?;
     if fingerprint.schema_version != 1
@@ -992,9 +996,7 @@ async fn validate_inserted_continuity_source(
         .await?;
     let video = videos
         .iter()
-        .find(|video| {
-            video.id == video_id && video.status == generated_video::STATUS_COMPLETED
-        })
+        .find(|video| video.id == video_id && video.status == generated_video::STATUS_COMPLETED)
         .ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "插入片段续接来源视频 #{video_id} 已失效，请刷新时间线后重试"

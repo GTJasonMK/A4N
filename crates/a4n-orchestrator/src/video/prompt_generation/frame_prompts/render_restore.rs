@@ -16,8 +16,7 @@ use super::{
     VideoPromptStepProgress, build_video_prompt_request_with_call_trace,
     render_and_chat_trace_with_context, report_video_prompt_progress,
     save_completed_video_llm_checkpoint, save_failed_video_llm_checkpoint,
-    video_llm_call_trace_context,
-    video_llm_validation_error_with_diagnostic,
+    video_llm_call_trace_context, video_llm_validation_error_with_diagnostic,
 };
 
 pub(super) fn attach_generation_trace_to_draft(
@@ -193,11 +192,7 @@ where
     let llm_call_trace =
         video_llm_call_trace_context(workflow_run_id, &call_key, &input_fingerprint_json)?;
     if let Some(checkpoint) = service
-        .load_completed_llm_call_checkpoint(
-            workflow_run_id,
-            &call_key,
-            &input_fingerprint_json,
-        )
+        .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &input_fingerprint_json)
         .await?
     {
         let response_content = checkpoint.response_content.clone();

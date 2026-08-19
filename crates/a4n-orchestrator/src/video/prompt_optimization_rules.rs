@@ -1,14 +1,11 @@
 //! 章节视频提示词优化类型合同（无 DB、无 Host）。
 
 use a4n_core::{
-    error::AppError,
-    models::chapter::chapter_video_prompt,
+    error::AppError, models::chapter::chapter_video_prompt,
     prompt_language::prompt_type_uses_prompt_output_language,
 };
 
-use super::{
-    prompt_records::expected_contract_version, prompt_store::PromptWorkflowMode,
-};
+use super::{prompt_records::expected_contract_version, prompt_store::PromptWorkflowMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum VideoPromptOptimizationKind {
@@ -45,17 +42,13 @@ pub(super) fn video_prompt_optimization_kind(
         (chapter_video_prompt::PROMPT_TYPE_VIDEO, _) => {
             Ok(VideoPromptOptimizationKind::ProviderVideo)
         }
-        _ if uses_prompt_output_language && pair_is_valid => {
-            Ok(VideoPromptOptimizationKind::Frame)
-        }
-        (prompt_type, _) if uses_prompt_output_language => {
-            Err(AppError::InvalidArgument(format!(
-                "视频提示词 #{} 的类型 {} 与 workflow_mode {} 不匹配",
-                prompt.id,
-                prompt_type,
-                workflow_mode.as_str()
-            )))
-        }
+        _ if uses_prompt_output_language && pair_is_valid => Ok(VideoPromptOptimizationKind::Frame),
+        (prompt_type, _) if uses_prompt_output_language => Err(AppError::InvalidArgument(format!(
+            "视频提示词 #{} 的类型 {} 与 workflow_mode {} 不匹配",
+            prompt.id,
+            prompt_type,
+            workflow_mode.as_str()
+        ))),
         (prompt_type, _) => Err(AppError::InvalidArgument(format!(
             "视频提示词 #{} 不支持优化：prompt_type={}，workflow_mode={}",
             prompt.id,

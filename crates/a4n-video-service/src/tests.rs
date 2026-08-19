@@ -1,13 +1,10 @@
 use crate::contracts::{VideoPollPayload, VideoProviderPayload};
-use crate::protocol::{
-    validate_video_poll_request, validate_video_provider_request,
-};
+use crate::protocol::{validate_video_poll_request, validate_video_provider_request};
 use a4n_service_protocol::{
     PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
     VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
 };
 use a4n_video::VideoGenerationRequest;
-use serde_json::json;
 
 #[test]
 fn rejects_incompatible_capability_version() {

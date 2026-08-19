@@ -135,9 +135,10 @@ impl OrchestratorContext {
             .classify_character_sync_behaviors_validated(
                 CharacterImplicitClassificationInput {
                     project_id: prepared.project_id,
-                    workflow_run_id: Some(workflow_run_id),
-                    profile_name: prepared.profile.name.clone(),
-                    changes: staged.extraction.changes.clone(),
+                    workflow_run_id,
+                    profile_id: prepared.profile.id,
+                    profile_name: &prepared.profile.name,
+                    changes: &staged.extraction.changes,
                     behaviors: staged.extraction.behaviors,
                     final_attributes: prepared.baseline_state.clone(),
                 },

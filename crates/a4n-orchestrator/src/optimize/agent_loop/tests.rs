@@ -70,10 +70,9 @@ fn rejects_unknown_decision_field() {
 
 #[test]
 fn rejects_non_final_decision_without_public_update() {
-    let err = parse_agent_loop_decision_response(
-        r#"{"thought":"x","action":"think","arguments":{}}"#,
-    )
-    .unwrap_err();
+    let err =
+        parse_agent_loop_decision_response(r#"{"thought":"x","action":"think","arguments":{}}"#)
+            .unwrap_err();
     assert!(err.to_string().contains("public_update"));
 }
 

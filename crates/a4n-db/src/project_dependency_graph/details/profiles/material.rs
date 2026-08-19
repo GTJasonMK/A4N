@@ -1,4 +1,5 @@
-use crate::project_dependency_graph::{AssetLineageRecord, generated_image_record};
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::generated_image_record;
 use a4n_core::{error::AppError, models::ai::generated_image};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 

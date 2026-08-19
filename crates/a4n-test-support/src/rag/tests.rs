@@ -1,9 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_rag_core::vector_store::VectorStore;
 
-use super::{
-    ShortWriteVectorStore, embedding_record, test_embedding_identity,
-};
+use super::{ShortWriteVectorStore, embedding_record, test_embedding_identity};
 
 #[tokio::test]
 async fn short_write_store_returns_configured_count() {

@@ -13,14 +13,14 @@ use crate::transport::{self, ApiKeyAuth};
 /// Reference media mode uses `functionMode = "omni_reference"` with
 /// `image_files` / `video_files` / `audio_files`, referenced from the prompt as
 /// `@image_file_N`, `@video_file_N`, and `@audio_file_N`.
-pub struct Seedance2VideoProvider {
+pub(crate) struct Seedance2VideoProvider {
     base_url: String,
     api_key: String,
     pub(super) client: reqwest::Client,
 }
 
 impl Seedance2VideoProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Self {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),

@@ -1,4 +1,4 @@
-use super::prelude::*;
+use std::path::PathBuf;
 
 pub(super) const MAX_UPLOAD_VIDEO_BYTES: usize = 512 * 1024 * 1024;
 

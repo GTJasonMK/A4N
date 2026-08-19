@@ -1,4 +1,4 @@
-use crate::video::CreateGeneratedVideoRecordInput;
+use super::super::CreateGeneratedVideoRecordInput;
 use a4n_core::models::ai::generated_video;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};

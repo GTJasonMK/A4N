@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-pub const GENERATION_PROMPT_KIND_IMAGE_PROMPT: &str = "image_prompt";
+pub(in crate::generation) const GENERATION_PROMPT_KIND_IMAGE_PROMPT: &str = "image_prompt";
 pub const GENERATION_PROMPT_KIND_VIDEO_PROMPT: &str = "video_prompt";
 pub const GENERATION_PROMPT_KIND_CANVAS_PROMPT: &str = "canvas_prompt";
 pub const GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT: &str = "shot_script";
-pub const GENERATION_PROMPT_KIND_CANVAS_STORYBOARD: &str = "storyboard";
-pub const GENERATION_PROMPT_KIND_CANVAS_VISUAL_DESCRIPTION: &str = "visual_description";
-pub const GENERATION_PROMPT_KIND_CANVAS_DIALOGUE: &str = "dialogue";
-pub const GENERATION_PROMPT_KIND_CANVAS_RHYTHM_PLAN: &str = "rhythm_plan";
+const GENERATION_PROMPT_KIND_CANVAS_STORYBOARD: &str = "storyboard";
+const GENERATION_PROMPT_KIND_CANVAS_VISUAL_DESCRIPTION: &str = "visual_description";
+const GENERATION_PROMPT_KIND_CANVAS_DIALOGUE: &str = "dialogue";
+const GENERATION_PROMPT_KIND_CANVAS_RHYTHM_PLAN: &str = "rhythm_plan";
 
 pub const GENERATION_PROMPT_KINDS: &[&str] = &[
     GENERATION_PROMPT_KIND_IMAGE_PROMPT,
@@ -34,7 +34,7 @@ pub(in crate::generation) const INTERNAL_PROMPT_TOKENS: [&str; 5] = [
     "must_repeat_from_previous",
     "duration_capability",
 ];
-pub const VIDEO_PROMPT_REQUIRED_SECTIONS: [&str; 6] = [
+pub(in crate::generation) const VIDEO_PROMPT_REQUIRED_SECTIONS: [&str; 6] = [
     "[主体定义与素材绑定]",
     "[片段内容以及前因后果]",
     "[镜头分镜]",

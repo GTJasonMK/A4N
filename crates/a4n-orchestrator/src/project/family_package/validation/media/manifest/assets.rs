@@ -5,9 +5,7 @@ use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD
 
 use super::super::assets::validate_media_asset_source_context;
 use super::context::MediaManifestContext;
-use crate::project::family_package::{
-    FamilyImportMediaPayload, ProjectFamilyPackage,
-};
+use crate::project::family_package::{FamilyImportMediaPayload, ProjectFamilyPackage};
 use crate::project::{media_asset_path, media_file_key};
 
 pub(super) fn validate_media_assets(

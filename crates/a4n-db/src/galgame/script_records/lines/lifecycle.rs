@@ -22,10 +22,7 @@ pub async fn delete_galgame_line_with_generation_media_graph_record(
     tx.commit().await.map_err(GalgameLineRecordError::Database)
 }
 
-pub async fn delete_galgame_line_record<C>(
-    db: &C,
-    line_id: i64,
-) -> Result<(), GalgameLineRecordError>
+async fn delete_galgame_line_record<C>(db: &C, line_id: i64) -> Result<(), GalgameLineRecordError>
 where
     C: ConnectionTrait,
 {
@@ -57,7 +54,7 @@ pub async fn update_galgame_line_with_generation_cleanup_record(
     Ok(updated)
 }
 
-pub async fn update_galgame_line_record<C>(
+async fn update_galgame_line_record<C>(
     db: &C,
     input: UpdateGalgameLineRecordInput,
 ) -> Result<galgame_line::Model, GalgameLineRecordError>

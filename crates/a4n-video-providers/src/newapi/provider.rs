@@ -14,14 +14,14 @@ use crate::download::download_video_url;
 use crate::format::{detect_video_format_from_bytes, normalize_video_format_str};
 use crate::transport::{self, ApiKeyAuth};
 
-pub struct NewApiVideoProvider {
+pub(crate) struct NewApiVideoProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl NewApiVideoProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Self {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),

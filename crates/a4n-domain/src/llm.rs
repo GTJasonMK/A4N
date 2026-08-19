@@ -23,8 +23,8 @@ pub const LLM_RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
 ];
 
 pub mod llm_token_profiles {
-    pub const CONNECTION_TEST: &str = "connection_test";
-    pub const SHORT: &str = "short";
+    pub(super) const CONNECTION_TEST: &str = "connection_test";
+    pub(super) const SHORT: &str = "short";
     pub const STANDARD: &str = "standard";
     pub const JSON_STANDARD: &str = "json_standard";
     pub const LONG: &str = "long";

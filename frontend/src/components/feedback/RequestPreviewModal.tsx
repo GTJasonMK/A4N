@@ -185,7 +185,7 @@ const PromptBlock: React.FC<{
         <button
           type="button"
           onClick={() => onCopy(copyText)}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary hover:text-book-primary"
+          className="a4n-icon-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary hover:text-book-primary"
           title={`复制 ${label}`}
           aria-label={`复制 ${label}`}
         >

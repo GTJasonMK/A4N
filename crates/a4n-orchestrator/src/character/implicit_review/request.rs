@@ -24,12 +24,9 @@ pub(super) async fn build_implicit_update_request(
     prompt_renderer: &dyn PromptRenderer,
     input: ImplicitUpdateLlmRequestInput<'_>,
 ) -> Result<PreparedImplicitUpdateRequest, AppError> {
-    let call_key = implicit_update_call_key(
-        input.profile_id,
-        input.attribute_key,
-        input.start_chapter,
-    )
-    .map_err(AppError::InvalidArgument)?;
+    let call_key =
+        implicit_update_call_key(input.profile_id, input.attribute_key, input.start_chapter)
+            .map_err(AppError::InvalidArgument)?;
     let system_prompt = prompt_renderer
         .render_prompt(
             IMPLICIT_UPDATE_PROMPT_NAME,
@@ -90,8 +87,7 @@ pub(super) async fn build_implicit_update_request(
             call_key: Some(call_key.clone()),
         },
     )
-    .map_err(AppError::InvalidArgument)
-    ?;
+    .map_err(AppError::InvalidArgument)?;
     let request_json = context_aware_chat_request_trace_json(&request)?;
     Ok(PreparedImplicitUpdateRequest {
         call_key,

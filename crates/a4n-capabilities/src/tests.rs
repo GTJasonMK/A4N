@@ -1,18 +1,13 @@
 use super::contracts::*;
 use super::embedding::*;
-use super::llm::*;
-use super::media::*;
 use super::package_io::*;
-use super::prompt::*;
-use super::rag::*;
 use super::transport::*;
 use a4n_service_protocol::{
-    CapabilityTaskEventKind, EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH, EMBEDDING_SERVICE_NAME,
-    HealthStatus, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME,
-    PROTOCOL_VERSION, RAG_SERVICE_NAME, SIDECAR_EVENT_CONTENT_TYPE, SIDECAR_EVENT_QUEUE_CAPACITY,
-    SIDECAR_HEALTH_PATH, SIDECAR_REQUEST_ID_HEADER, SIDECAR_TRACE_ID_HEADER, ServiceErrorCode,
-    ServiceRequest, TraceContext, VIDEO_SERVICE_NAME,
-    expected_capability_version_for_service,
+    CapabilityTaskEventKind, EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH, HealthStatus,
+    IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, PROTOCOL_VERSION,
+    SIDECAR_EVENT_CONTENT_TYPE, SIDECAR_EVENT_QUEUE_CAPACITY, SIDECAR_HEALTH_PATH,
+    SIDECAR_REQUEST_ID_HEADER, SIDECAR_TRACE_ID_HEADER, ServiceErrorCode, ServiceRequest,
+    TraceContext, expected_capability_version_for_service,
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{io::AsyncWriteExt, net::TcpListener};
@@ -29,11 +24,9 @@ fn sidecar_transport_joins_paths_without_double_slashes() {
 
 #[test]
 fn sidecar_transport_debug_never_exposes_url_or_token() {
-    let transport = HttpSidecarTransport::new(
-        "https://user:secret@sidecar.example.test",
-        LLM_SERVICE_NAME,
-    )
-    .with_auth_token("manager-issued-secret-token");
+    let transport =
+        HttpSidecarTransport::new("https://user:secret@sidecar.example.test", LLM_SERVICE_NAME)
+            .with_auth_token("manager-issued-secret-token");
     let debug = format!("{transport:?}");
     assert!(!debug.contains("sidecar.example.test"));
     assert!(!debug.contains("manager-issued-secret-token"));
@@ -42,9 +35,8 @@ fn sidecar_transport_debug_never_exposes_url_or_token() {
 
 #[test]
 fn sidecar_transport_propagates_request_and_trace_headers_without_body_duplication() {
-    let transport =
-        HttpSidecarTransport::new("http://127.0.0.1:47641", LLM_SERVICE_NAME)
-            .with_auth_token("manager-token");
+    let transport = HttpSidecarTransport::new("http://127.0.0.1:47641", LLM_SERVICE_NAME)
+        .with_auth_token("manager-token");
     let request = ServiceRequest {
         request_id: "request-42".to_string(),
         trace_context: TraceContext {
@@ -93,9 +85,8 @@ fn sidecar_transport_propagates_request_and_trace_headers_without_body_duplicati
 
 #[test]
 fn sidecar_transport_authorizes_health_requests() {
-    let transport =
-        HttpSidecarTransport::new("https://sidecar.example.test", LLM_SERVICE_NAME)
-            .with_auth_token("manager-token");
+    let transport = HttpSidecarTransport::new("https://sidecar.example.test", LLM_SERVICE_NAME)
+        .with_auth_token("manager-token");
     let request = transport
         .authorize(transport.client.get(transport.url(SIDECAR_HEALTH_PATH)))
         .build()
@@ -114,12 +105,13 @@ fn sidecar_transport_authorizes_health_requests() {
 async fn event_stream_response_headers_have_a_connect_deadline() {
     let (addr, server) =
         delayed_http_server(Duration::from_millis(100), Vec::new(), Duration::ZERO).await;
-    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
-        Duration::from_millis(20),
-        Duration::from_secs(1),
-        Duration::from_secs(1),
-        Duration::from_secs(1),
-    );
+    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME)
+        .with_test_timeouts(
+            Duration::from_millis(20),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        );
     let (events, _receiver) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = transport
@@ -140,12 +132,13 @@ async fn non_streaming_responses_have_a_request_deadline() {
         Duration::ZERO,
     )
     .await;
-    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
-        Duration::from_secs(1),
-        Duration::from_millis(20),
-        Duration::from_secs(1),
-        Duration::from_secs(1),
-    );
+    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME)
+        .with_test_timeouts(
+            Duration::from_secs(1),
+            Duration::from_millis(20),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        );
 
     let result: CapabilityResult<JsonResponse> = transport.post("/json", test_json_request()).await;
     let error = result.expect_err("a delayed JSON response must hit the request deadline");
@@ -168,12 +161,13 @@ async fn event_stream_chunks_have_an_idle_deadline() {
         Duration::from_millis(100),
     )
     .await;
-    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
-        Duration::from_secs(1),
-        Duration::from_secs(1),
-        Duration::from_millis(20),
-        Duration::from_secs(1),
-    );
+    let transport = HttpSidecarTransport::new(format!("http://{addr}"), LLM_SERVICE_NAME)
+        .with_test_timeouts(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_millis(20),
+            Duration::from_secs(1),
+        );
     let (events, mut receiver) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = transport
@@ -344,7 +338,10 @@ async fn drains_ndjson_events_across_chunks() {
         a4n_service_protocol::CapabilityTaskEventKind::Chunk
     );
     assert_eq!(
-        first.payload.as_ref().and_then(|value| value["text"].as_str()),
+        first
+            .payload
+            .as_ref()
+            .and_then(|value| value["text"].as_str()),
         Some("he")
     );
 
@@ -380,10 +377,11 @@ async fn drain_event_lines_stops_after_terminal_event() {
 #[tokio::test]
 async fn drain_event_lines_waits_for_queue_capacity() {
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    let mut buffer = br#"{"task_id":"task","event_kind":"chunk","sequence":1,"payload":{"text":"a"}}
+    let mut buffer =
+        br#"{"task_id":"task","event_kind":"chunk","sequence":1,"payload":{"text":"a"}}
 {"task_id":"task","event_kind":"completed","sequence":2}
 "#
-    .to_vec();
+        .to_vec();
 
     let drain = tokio::spawn(async move { drain_event_lines(&mut buffer, &tx).await });
     tokio::task::yield_now().await;

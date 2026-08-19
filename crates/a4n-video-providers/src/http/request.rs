@@ -2,7 +2,7 @@ use serde_json::{Map, Value, json};
 
 use a4n_video::VideoGenerationRequest;
 
-use super::HttpVideoProvider;
+use super::provider::HttpVideoProvider;
 
 impl HttpVideoProvider {
     pub(crate) fn request_body(req: &VideoGenerationRequest) -> Value {

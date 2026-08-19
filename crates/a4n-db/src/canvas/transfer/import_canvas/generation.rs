@@ -35,9 +35,7 @@ where
         let row = generation_spec::ActiveModel {
             project_id: Set(project_id),
             root_project_id: Set(project_id),
-            source_context_kind: Set(Some(
-                generation_spec::SOURCE_CONTEXT_FREEFORM.to_string(),
-            )),
+            source_context_kind: Set(Some(generation_spec::SOURCE_CONTEXT_FREEFORM.to_string())),
             source_snapshot_id: Set(None),
             source_chapter_id: Set(None),
             source_snapshot_chapter_id: Set(None),

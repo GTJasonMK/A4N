@@ -1,6 +1,6 @@
 use regex::Regex;
 
-pub fn decode_xml_entities(text: &str) -> String {
+pub(in crate::file_parsers) fn decode_xml_entities(text: &str) -> String {
     let entity_re = Regex::new(r"&(#x[0-9A-Fa-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);").unwrap();
 
     entity_re

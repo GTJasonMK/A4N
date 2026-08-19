@@ -17,11 +17,32 @@ mod create;
 mod records;
 mod references;
 
-pub use create::*;
-pub use records::*;
-pub use references::*;
+pub use create::{
+    create_generated_image_record, create_generated_image_record_with_generation_run_checkpoint,
+};
+pub(crate) use records::clear_generated_image_references_record;
+pub(crate) use records::generated_images_for_chapter_by_id_desc;
+pub use records::{
+    delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
+    generated_image_by_id, generated_images_by_ids, generated_images_for_chapter,
+    generated_images_for_project, generated_images_for_projects_chapter_by_id_desc,
+    generated_images_for_video_prompt_references, update_generated_image_record,
+    video_library_chapter_image_records, video_library_explicit_image_records,
+    video_profile_material_read_model, video_project_context_read_model,
+};
+pub(in crate::video) use references::video_project_record;
+pub use references::{
+    ensure_image_chapter_belongs_to_project_record, ensure_video_chapter_belongs_to_project_record,
+    ensure_video_reference_images_available_record, validated_video_reference_image_records,
+    video_asset_project_ids_record, video_chapter_record, video_reference_candidate_image_records,
+    video_tail_frame_images,
+};
+use references::{
+    normalize_optional_image_record_text, required_image_record_text,
+    validate_generated_image_ai_score, validate_positive_image_i32, validate_positive_image_i64,
+};
 
-pub struct CreateGeneratedImageRecordInput {
+pub(in crate::video::generated_images) struct CreateGeneratedImageRecordInput {
     pub project_id: i64,
     pub image_type: String,
     pub file_path: String,

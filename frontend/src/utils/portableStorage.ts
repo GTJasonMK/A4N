@@ -1,10 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import {
-  isTauriRuntime,
-  shouldUseHttpBackend,
-} from "./runtimeMode";
+import { isTauriRuntime } from "./runtimeMode";
 
 const A4N_KEY_RE = /^a4n[:-]/;
+const LOCAL_RUNTIME_SETTINGS_KEY = "a4n:local-runtime-settings:v1";
 const pendingWrites = new Map<string, string | null>();
 const entries = new Map<string, string>();
 
@@ -18,7 +16,9 @@ const isBrowser = (): boolean => typeof window !== "undefined";
 
 const isTauri = (): boolean => isTauriRuntime();
 
-const shouldUseDesktopStorage = (): boolean => isTauri() && !shouldUseHttpBackend();
+// Tauri is the storage owner in both native and HTTP-only modes. API transport
+// must not change where desktop settings and credentials are persisted.
+const shouldUseDesktopStorage = (): boolean => isTauri();
 
 const isDesktopRuntime = (): boolean => desktopRuntime || shouldUseDesktopStorage();
 
@@ -87,8 +87,15 @@ export const initializePortableStorage = async (): Promise<void> => {
     if (isA4nKey(key) && typeof value === "string") entries.set(key, value);
   }
 
+  const browserSettings = readBrowserItem(LOCAL_RUNTIME_SETTINGS_KEY);
+  if (!entries.has(LOCAL_RUNTIME_SETTINGS_KEY) && browserSettings !== null) {
+    entries.set(LOCAL_RUNTIME_SETTINGS_KEY, browserSettings);
+    pendingWrites.set(LOCAL_RUNTIME_SETTINGS_KEY, browserSettings);
+  }
+
   backendAvailable = true;
   initialized = true;
+  await flushPortableStorage();
 };
 
 export const readPortableItem = (key: string): string | null => {

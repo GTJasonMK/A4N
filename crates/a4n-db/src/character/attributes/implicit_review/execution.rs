@@ -10,7 +10,8 @@ use super::super::{
 use super::validation::{
     require_positive_chapter_number, validate_implicit_review_decision_record,
 };
-use crate::character::{CharacterDbError, require_profile_for_update};
+use crate::character::CharacterDbError;
+use crate::character::profile::require_profile_for_update;
 use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
@@ -27,7 +28,7 @@ where
     Ok(applied)
 }
 
-pub async fn apply_implicit_review_decision_record_in<C>(
+async fn apply_implicit_review_decision_record_in<C>(
     db: &C,
     input: CharacterImplicitReviewDecisionRecordInput,
 ) -> Result<AppliedCharacterImplicitDecisionRecord, CharacterDbError>

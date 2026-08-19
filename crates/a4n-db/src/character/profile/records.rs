@@ -78,7 +78,7 @@ where
         .await
 }
 
-pub async fn update_profile_current_state<C>(
+pub(in crate::character) async fn update_profile_current_state<C>(
     db: &C,
     profile: protagonist_profile::Model,
     input: CharacterProfileCurrentStateUpdate,

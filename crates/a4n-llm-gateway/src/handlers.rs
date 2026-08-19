@@ -28,7 +28,7 @@ pub(crate) async fn healthz() -> Json<ServiceHealth> {
 fn provider_from_config(
     config: LlmGatewayProviderConfig,
 ) -> Result<Box<dyn LlmProvider>, AppError> {
-    a4n_llm_http::http::pick_llm_provider(
+    a4n_llm_http::pick_llm_provider(
         &config.provider,
         config.base_url,
         config.model,

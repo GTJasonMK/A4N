@@ -1,7 +1,8 @@
-use crate::project_dependency_graph::{
-    AssetLineageRecord, generated_image_record, lineage_ref, video_frame_image_prompt_id,
-    video_prompt_sources,
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::{
+    generated_image_record, lineage_ref, video_prompt_sources,
 };
+use crate::project_dependency_graph::helpers::video_frame_image_prompt_id;
 use a4n_core::{
     error::AppError,
     models::{ai::generated_image, chapter::chapter_video_prompt},

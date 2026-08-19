@@ -63,7 +63,7 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
           onClick={onImportProject}
           aria-label="导入项目"
           title="导入项目"
-          className="!min-h-10 !px-3 !text-sm md:w-full md:justify-center md:!min-h-11 md:!px-4 md:!text-body-lg"
+          className="!min-h-10 !px-3 !text-sm max-md:!w-11 max-md:!min-w-11 md:w-full md:justify-center md:!min-h-11 md:!px-4 md:!text-body-lg"
         >
           <span className="inline-flex items-center gap-2">
             <Upload size={17} />

@@ -9,6 +9,12 @@ load_dotenv
 export A4N_PORTABLE_HOME="${A4N_PORTABLE_HOME:-$PROJECT_ROOT}"
 cd "$PROJECT_ROOT"
 
+# 当前 GNOME Wayland 环境下 Tauri 窗口可能创建但不映射；有 Xwayland 时优先使用它。
+if [[ "${OSTYPE:-}" == linux* && -n "${WAYLAND_DISPLAY:-}" && -n "${DISPLAY:-}" ]]; then
+  export WINIT_UNIX_BACKEND="${WINIT_UNIX_BACKEND:-x11}"
+  export GDK_BACKEND="${GDK_BACKEND:-x11}"
+fi
+
 SERVER=false
 HOT_RELOAD=true
 RELEASE=false
@@ -16,6 +22,7 @@ REMOTE_API=false
 REMOTE_API_URL="${A4N_REMOTE_API_URL:-}"
 FULL_HOST=false
 MANAGED_SIDECARS=true
+MODE="local-server"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,6 +35,14 @@ while [[ $# -gt 0 ]]; do
       REMOTE_API_URL="$2"
       shift
       ;;
+    --mode)
+      [[ $# -ge 2 && -n "${2:-}" ]] || die "--mode 需要 native、local-server 或 remote"
+      case "$2" in
+        native|local-server|remote) MODE="$2" ;;
+        *) die "无效 --mode: $2；允许值为 native、local-server 或 remote" ;;
+      esac
+      shift
+      ;;
     --full) FULL_HOST=true ;;
     --no-sidecars) MANAGED_SIDECARS=false ;;
     --no-hot) HOT_RELOAD=false ;;
@@ -38,6 +53,7 @@ while [[ $# -gt 0 ]]; do
   --no-hot            静态前端、关闭 watcher
   --release           Release 模式
   --remote-api[-url]  桌面壳连接远程 API
+  --mode MODE          native、local-server（默认）或 remote
   --full              使用 embedded capabilities
   --no-sidecars       不启动 managed sidecar
 EOF
@@ -48,8 +64,37 @@ EOF
   shift
 done
 
+if $REMOTE_API; then
+  [[ "$MODE" == "local-server" || "$MODE" == "remote" ]] || die "--remote-api 不能与 --mode $MODE 同时使用"
+  MODE=remote
+fi
+
+case "$MODE" in
+  native)
+    unset VITE_A4N_API_BASE_URL
+    export VITE_A4N_API_TRANSPORT=tauri
+    export A4N_REMOTE_API_ONLY=0
+    export A4N_TAURI_LOCAL_SERVER=0
+    ;;
+  local-server)
+    unset VITE_A4N_API_BASE_URL
+    export VITE_A4N_API_TRANSPORT=web
+    export A4N_REMOTE_API_ONLY=0
+    export A4N_TAURI_LOCAL_SERVER=1
+    ;;
+  remote)
+    REMOTE_API=true
+    ;;
+esac
+
+if $SERVER && [[ "$MODE" != "local-server" ]]; then
+  die "--mode 仅适用于 Tauri；--server 请使用默认 local-server 模式"
+fi
 if $SERVER && $REMOTE_API; then
   die "--remote-api 仅适用于 Tauri 桌面壳"
+fi
+if ! $SERVER && [[ "$MODE" == "local-server" && "$MANAGED_SIDECARS" == false ]]; then
+  die "local-server 模式需要 managed sidecars，不能使用 --no-sidecars"
 fi
 if $FULL_HOST && ! $MANAGED_SIDECARS; then
   die "--full 与 --no-sidecars 不能同时使用"
@@ -66,6 +111,20 @@ if $REMOTE_API; then
   export VITE_A4N_API_TRANSPORT=web
   export VITE_A4N_API_BASE_URL="$REMOTE_API_URL"
   export A4N_REMOTE_API_ONLY=1
+  export A4N_TAURI_LOCAL_SERVER=0
+fi
+
+if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
+  migration_command=(cargo build)
+  $RELEASE && migration_command+=(--release)
+  migration_command+=(-p a4n-migration)
+  "${migration_command[@]}"
+
+  server_command=(cargo build)
+  $RELEASE && server_command+=(--release)
+  server_command+=(-p a4n-server)
+  $FULL_HOST && server_command+=(--features embedded-capabilities)
+  "${server_command[@]}"
 fi
 
 if $SERVER && ! $REMOTE_API; then

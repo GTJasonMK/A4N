@@ -205,7 +205,9 @@ async fn delete_generated_image_removes_only_generated_target_binding() {
     .await
     .unwrap();
 
-    delete_generated_image_record(&db, image.id).await.unwrap();
+    delete_generated_image_record_with_cleanup(&db, image.id)
+        .await
+        .unwrap();
 
     assert!(
         generated_image::Entity::find_by_id(image.id)
@@ -343,7 +345,9 @@ async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
     .await
     .unwrap();
 
-    delete_generated_image_record(&db, image.id).await.unwrap();
+    delete_generated_image_record_with_cleanup(&db, image.id)
+        .await
+        .unwrap();
 
     let stored = chapter_video_prompt::Entity::find_by_id(plan.id)
         .one(&db)

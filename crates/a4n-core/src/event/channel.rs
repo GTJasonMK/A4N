@@ -7,7 +7,6 @@ mod handle;
 mod manager;
 
 use crate::error::AppError;
-use contracts::MAX_TASK_PROGRESS_EVENTS;
 pub use contracts::{TaskKind, TaskProgress, TaskProgressEvent, TaskSnapshot};
 pub use handle::TaskHandle;
 pub use manager::TaskManager;

@@ -3,10 +3,17 @@ mod context;
 mod outlines;
 mod types;
 
-pub use blueprint::*;
-pub use context::*;
-pub use outlines::*;
-pub use types::*;
+pub use blueprint::{apply_reverse_blueprint_records, apply_reverse_blueprint_records_transaction};
+pub use context::reverse_context_rows;
+pub use outlines::{
+    apply_reverse_outline_records, apply_reverse_outline_records_transaction,
+    apply_reverse_part_outline_records, apply_reverse_part_outline_records_transaction,
+};
+pub use types::{
+    ImportReverseDbError, ReverseBlueprintApplyDraft, ReverseBlueprintApplyPlanRecord,
+    ReverseBlueprintApplyRecord, ReverseBlueprintApplyResult, ReverseBlueprintContextRows,
+    ReverseContextRows, ReverseOutlineApplyRow, ReversePartOutlineApplyRow,
+};
 
 #[cfg(test)]
 mod tests;

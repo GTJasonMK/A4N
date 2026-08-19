@@ -29,9 +29,7 @@ use super::{
         CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictSummary,
         PreparedCharacterConflictCheck, ValidatedCharacterConflictInput,
     },
-    request::{
-        BuildCharacterConflictRequestInput, build_character_conflict_request,
-    },
+    request::{BuildCharacterConflictRequestInput, build_character_conflict_request},
     workflow::character_conflict_workflow_run_input,
 };
 

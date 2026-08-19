@@ -1,3 +1,6 @@
+use a4n_core::error::AppError;
+use serde_json::Value;
+
 mod facts;
 pub use facts::build_chapter_fact_extraction_request;
 mod summary;
@@ -8,3 +11,9 @@ mod foreshadowing;
 pub use foreshadowing::{
     build_chapter_foreshadowing_events_request, chapter_foreshadowing_resolution_context,
 };
+
+fn required_fact_field(facts: &Value, field: &str) -> Result<Value, AppError> {
+    facts.get(field).cloned().ok_or_else(|| {
+        AppError::InvalidArgument(format!("chapter_fact_extraction 缺少必需字段 {field}"))
+    })
+}

@@ -33,12 +33,16 @@ import {
 import { assembleClipEdges, edgeOrderIndex } from "./canvasAssemblyEdges";
 import { isProbeNodeKind } from "./canvasNodeKinds";
 import {
+  CANVAS_REF_TYPE_GENERATED_IMAGE,
+  CANVAS_REF_TYPE_GENERATED_VIDEO,
+  CANVAS_REF_TYPE_MEDIA_ASSET,
+  defaultRefTypeForNode,
   nodeGeneratedImageRefId,
   nodeGeneratedVideoRefId,
   nodeMediaAssetRefId,
 } from "./canvasNodeRefs";
 import {
-  normalizeGenerateVideoInputMode,
+  parseGenerateVideoInputMode,
   studioNodeInputPortsForData,
   studioNodeOutputPortsForData,
   useStudioNodeContract,
@@ -48,6 +52,11 @@ import type { StudioEdge, StudioNode } from "./types";
 const INSPECTOR_CONTROL_CLASS =
   "pyqt-input mt-1 w-full !px-2.5 !py-1.5 text-xs";
 const INSPECTOR_TEXTAREA_CLASS = `${INSPECTOR_CONTROL_CLASS} resize-none leading-relaxed`;
+const CANVAS_INPUT_REFERENCE_LABELS: Record<string, string> = {
+  [CANVAS_REF_TYPE_GENERATED_IMAGE]: "图片资源编号",
+  [CANVAS_REF_TYPE_GENERATED_VIDEO]: "视频资源编号",
+  [CANVAS_REF_TYPE_MEDIA_ASSET]: "音频资源编号",
+};
 
 interface NodeConfigEditorProps {
   node: StudioNode;
@@ -344,33 +353,15 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   configOptions,
 }) => {
   const config = node.data.config;
-  if (node.data.nodeKind === "ImageInputNode") {
+  const inputRefType = defaultRefTypeForNode(node.data.nodeKind);
+  const inputReferenceLabel = inputRefType
+    ? CANVAS_INPUT_REFERENCE_LABELS[inputRefType]
+    : undefined;
+  if (inputRefType && inputReferenceLabel) {
     return (
       <ReferenceEditor
-        label="图片资源编号"
-        refType="generated_image"
-        refId={node.data.refId}
-        disabled={disabled}
-        onChange={onRefChange}
-      />
-    );
-  }
-  if (node.data.nodeKind === "VideoInputNode") {
-    return (
-      <ReferenceEditor
-        label="视频资源编号"
-        refType="generated_video"
-        refId={node.data.refId}
-        disabled={disabled}
-        onChange={onRefChange}
-      />
-    );
-  }
-  if (node.data.nodeKind === "AudioInputNode") {
-    return (
-      <ReferenceEditor
-        label="音频资源编号"
-        refType="media_asset"
+        label={inputReferenceLabel}
+        refType={inputRefType}
         refId={node.data.refId}
         disabled={disabled}
         onChange={onRefChange}
@@ -436,7 +427,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         <label className="block text-caption text-book-text-muted">
           文本类型
           <select
-            value={configText(config, "output_kind") || CANVAS_PROMPT_KIND}
+            value={configText(config, "output_kind")}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
@@ -470,10 +461,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         <label className="block text-caption text-book-text-muted">
           输出类型
           <select
-            value={
-              configText(config, "output_kind") ||
-              CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT
-            }
+            value={configText(config, "output_kind")}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
@@ -489,7 +477,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     );
   }
   if (node.data.nodeKind === "GenerateVideoNode") {
-    const inputMode = normalizeGenerateVideoInputMode(config.input_mode);
+    const inputMode = parseGenerateVideoInputMode(config.input_mode);
     return (
       <div className="space-y-2">
         <ConfigSelect
@@ -502,11 +490,12 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         <label className="block text-caption text-book-text-muted">
           输入模式
           <select
-            value={inputMode}
+            value={inputMode ?? ""}
             disabled={disabled}
             onChange={(event) => onChange({ input_mode: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
+            {inputMode == null ? <option value="" disabled>缺少输入模式</option> : null}
             <option value="text_only">仅提示词</option>
             <option value="first_frame">首帧</option>
             <option value="first_end_frame">首尾帧</option>

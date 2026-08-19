@@ -1,7 +1,7 @@
 use a4n_core::models::task::task_queue;
 use a4n_queue::{
+    TaskFamilyContext, TaskWorkflowContext,
     priority::{TaskKind, TaskPriority},
-    queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 use sea_orm::EntityTrait;
 

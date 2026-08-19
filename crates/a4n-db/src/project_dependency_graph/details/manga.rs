@@ -1,4 +1,19 @@
-use super::*;
+use std::collections::{BTreeMap, BTreeSet};
+
+use a4n_core::{
+    error::AppError,
+    models::{
+        ai::generated_image,
+        chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
+    },
+};
+use a4n_domain::project::AssetLineageRecord;
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+
+use crate::project_dependency_graph::details::records::{
+    db_record_result, db_record_result_with_related, db_related_record, generated_image_record,
+    manga_prompt_record,
+};
 
 pub(in crate::project_dependency_graph) async fn manga_prompt_detail_records<C>(
     db: &C,

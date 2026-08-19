@@ -1,4 +1,13 @@
-use super::*;
+use std::collections::BTreeSet;
+
+use a4n_core::error::AppError;
+
+use crate::video::prompt_generation::frame_prompts::{
+    FramePromptDraftsInput, attach_generation_trace_to_draft, frame_prompt_drafts,
+};
+
+use super::contracts::BoundaryFramePersistenceInput;
+use crate::video::prompt_generation::frame_prompts::video_prompt_generation_trace;
 
 pub(in crate::video::prompt_generation::frame_prompts::frame_chain) async fn persist_boundary_frame_checkpoint(
     input: BoundaryFramePersistenceInput<'_>,

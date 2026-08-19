@@ -504,7 +504,6 @@ async fn insert_audio_asset(database: &DatabaseConnection, project_id: i64) -> m
 fn record_node(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNodeRecordInput {
     CanvasNodeRecordInput {
         client_id: client_id.to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: None,
         ref_id: None,
@@ -552,8 +551,6 @@ fn record_edge_with_role(
     CanvasEdgeRecordInput {
         source_client_id: source_client_id.to_string(),
         target_client_id: target_client_id.to_string(),
-        source_node_id: None,
-        target_node_id: None,
         source_port: source_port.to_string(),
         target_port: target_port.to_string(),
         role: role.to_string(),
@@ -620,7 +617,7 @@ fn test_edge(
 fn test_checkpoint(
     workflow_run_id: i64,
     node_id: i64,
-    checkpoint_json: serde_json::Value,
+    artifacts_json: serde_json::Value,
 ) -> workflow_checkpoint::Model {
     let now = chrono::Utc::now().naive_utc();
     workflow_checkpoint::Model {
@@ -631,8 +628,8 @@ fn test_checkpoint(
         status: "completed".to_string(),
         input_fingerprint_sha256: None,
         input_fingerprint_json: None,
-        checkpoint_json: Some(checkpoint_json),
-        artifacts_json: None,
+        checkpoint_json: None,
+        artifacts_json: Some(artifacts_json),
         generation_run_ids_json: None,
         error_message: None,
         completed_at: Some(now),

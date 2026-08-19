@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-pub fn resolve_epub_href(opf_path: &str, href: &str) -> String {
+pub(super) fn resolve_epub_href(opf_path: &str, href: &str) -> String {
     let href = href
         .split('#')
         .next()
@@ -18,7 +18,7 @@ pub fn resolve_epub_href(opf_path: &str, href: &str) -> String {
     }
 }
 
-pub fn normalize_epub_path(path: &str) -> String {
+pub(in crate::file_parsers::epub) fn normalize_epub_path(path: &str) -> String {
     let normalized = path.replace('\\', "/");
     let mut parts: Vec<&str> = Vec::new();
     for part in normalized.split('/') {

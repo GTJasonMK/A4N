@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_queue::priority::{TaskPermit, TaskStatus};
+use a4n_queue::{TaskWorkflowContext, priority::{TaskPermit, TaskStatus}};
 use tokio_util::sync::CancellationToken;
 
 use super::super::{PersistentTaskQueue, RunningTask, SubmittedTaskGuard};
@@ -36,7 +36,7 @@ impl PersistentTaskQueue {
         task_type: a4n_queue::priority::TaskKind,
         priority: a4n_queue::priority::TaskPriority,
         project_id: Option<i64>,
-        workflow: Option<a4n_queue::queue::TaskWorkflowContext>,
+        workflow: Option<TaskWorkflowContext>,
         cancel_token: CancellationToken,
     ) -> Result<RunningTask, AppError> {
         let task_id = self

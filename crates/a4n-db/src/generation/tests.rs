@@ -176,7 +176,7 @@ fn validate_prompt_artifact_text_allows_image_prompt_without_video_sections() {
         GENERATION_PROMPT_KIND_IMAGE_PROMPT,
         "清晰写实的单张角色立绘。",
     )
-        .expect("image prompt should not require video prompt sections");
+    .expect("image prompt should not require video prompt sections");
 }
 
 #[test]

@@ -32,13 +32,12 @@ impl CapabilityTaskEvent {
         payload: impl Serialize,
         serialization_context: &str,
     ) -> Result<serde_json::Value, ServiceError> {
-        serde_json::to_value(payload)
-            .map_err(|error| {
-                ServiceError::non_retryable(
-                    ServiceErrorCode::Internal,
-                    redact_sensitive_message(format!("{serialization_context}: {error}")),
-                )
-            })
+        serde_json::to_value(payload).map_err(|error| {
+            ServiceError::non_retryable(
+                ServiceErrorCode::Internal,
+                redact_sensitive_message(format!("{serialization_context}: {error}")),
+            )
+        })
     }
 
     pub fn progress(task_id: String, sequence: u64) -> Self {
@@ -57,11 +56,7 @@ impl CapabilityTaskEvent {
         })
     }
 
-    pub fn progress_message(
-        task_id: String,
-        sequence: u64,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn progress_message(task_id: String, sequence: u64, message: impl Into<String>) -> Self {
         Self {
             payload: Some(serde_json::json!({ "message": message.into() })),
             ..Self::progress(task_id, sequence)
@@ -92,11 +87,7 @@ impl CapabilityTaskEvent {
         }
     }
 
-    fn completed_value(
-        task_id: String,
-        sequence: u64,
-        payload: serde_json::Value,
-    ) -> Self {
+    fn completed_value(task_id: String, sequence: u64, payload: serde_json::Value) -> Self {
         Self {
             payload: Some(payload),
             ..Self::completed_empty(task_id, sequence)

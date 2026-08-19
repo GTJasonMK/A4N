@@ -16,8 +16,7 @@ pub(in crate::outline::parts) fn restored_part_outline_checkpoint(
     start_ch: i32,
     end_ch: i32,
 ) -> Result<GeneratedPartOutline, AppError> {
-    let parsed =
-        parse_part_outline_single_response(&response_content, part_num, start_ch, end_ch)?;
+    let parsed = parse_part_outline_single_response(&response_content, part_num, start_ch, end_ch)?;
     ensure_checkpoint_parsed_output_matches(
         &parsed_output,
         &parsed,

@@ -1,4 +1,7 @@
-use a4n_api_contract::character::*;
+use a4n_api_contract::character::{
+    AttributeCountsSummary, AttributeEventSummary, BehaviorRecordSummary,
+    CharacterProfileSummary, DeletionMarkSummary,
+};
 use a4n_core::models::character::{
     attribute_event, protagonist_behavior_record, protagonist_deletion_mark, protagonist_profile,
 };

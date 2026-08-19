@@ -1,4 +1,5 @@
-use super::*;
+use a4n_core::prompt_language::PromptOutputLanguage;
+use serde_json::Value;
 
 #[cfg(test)]
 pub struct VideoPromptUpdateInput<'a> {

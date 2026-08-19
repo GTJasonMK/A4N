@@ -4,8 +4,8 @@ use a4n_orchestrator::rag::{
     PreparedEnhancedRagSearch, normalize_search_data_types, required_nonblank, required_top_k,
 };
 
-use crate::{actions::access, state::AppState};
 use super::EnhancedSearchInput;
+use crate::{actions::access, state::AppState};
 
 pub(super) async fn prepare_enhanced_rag_search(
     state: &AppState,

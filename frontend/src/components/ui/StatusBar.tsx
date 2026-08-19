@@ -90,25 +90,28 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
   if (!ctx) return null;
   const { message, permanent } = ctx;
   return (
-    <div className="flex h-6 shrink-0 select-none items-center justify-between gap-2 border-t border-book-border/70 bg-book-bg-tertiary/80 px-2">
-      <div className="flex min-w-0 items-center gap-2" role="status" aria-live="polite">
+    <div className="a4n-status-bar flex h-6 shrink-0 select-none items-center justify-between gap-2 border-t border-book-border/70 bg-book-bg-tertiary/80 px-2">
+      <div className="a4n-status-bar__message flex min-w-0 items-center gap-2" role="status" aria-live="polite">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden="true" />
         <span className="truncate text-small text-book-text-sub">{message}</span>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="a4n-status-bar__actions flex min-w-0 shrink-0 items-center gap-1">
         {actions != null ? (
-          <div className="inline-flex items-center gap-1 border-l border-book-border/70 pl-2">
+          <div className="a4n-status-bar__action-group inline-flex min-w-0 shrink-0 items-center gap-1 border-l border-book-border/70 pl-2">
             {actions}
           </div>
         ) : null}
-        {permanent.map((w) => (
-          <span
-            key={w.id}
-            className="inline-flex max-w-[40vw] items-center truncate border-l border-book-border/70 px-2 text-small text-book-text-muted"
-          >
-            {w.content}
-          </span>
-        ))}
+        <div className="a4n-status-bar__permanent flex min-w-0 items-center">
+          {permanent.map((w) => (
+            <span
+              key={w.id}
+              data-status-widget={w.id}
+              className="inline-flex max-w-[40vw] items-center truncate border-l border-book-border/70 px-2 text-small text-book-text-muted"
+            >
+              {w.content}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

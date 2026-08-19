@@ -120,9 +120,7 @@ pub(crate) async fn generate_inserted_segment_draft(
             "插入片段时间线不属于当前项目章节".to_string(),
         ));
     }
-    if snapshot.timeline.workflow_mode
-        != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
-    {
+    if snapshot.timeline.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN {
         return Err(AppError::InvalidArgument(
             "插入片段只支持当前共享片段规划时间线".to_string(),
         ));
@@ -188,8 +186,7 @@ pub(crate) async fn generate_inserted_segment_draft(
     } else {
         None
     };
-    let prompt_output_language =
-        PromptOutputLanguage::from_code(&options.prompt_output_language)?;
+    let prompt_output_language = PromptOutputLanguage::from_code(&options.prompt_output_language)?;
     let mut duration_options = options.duration_secs_options.clone();
     duration_options.sort_unstable();
     duration_options.dedup();
@@ -254,8 +251,7 @@ pub(crate) async fn generate_inserted_segment_draft(
             run: UpsertWorkflowRunInput {
                 business_key: format!(
                     "video_inserted_segment:{project_id}:{chapter_id}:timeline:{}:gap:{}:{gap_key}",
-                    options.timeline_id,
-                    options.expected_timeline_revision,
+                    options.timeline_id, options.expected_timeline_revision,
                 ),
                 workflow_kind: crate::video::timeline::INSERTED_SEGMENT_WORKFLOW_KIND.to_string(),
                 project_id: Some(project_id),

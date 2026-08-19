@@ -275,7 +275,7 @@ fn media_index_and_import_path_preserve_field_and_extension() {
             a4n_core::models::media::media_asset::THUMBNAIL_PATH_FIELD,
             "media/x.png",
         )
-            .expect("导入路径应可生成"),
+        .expect("导入路径应可生成"),
         "projects/20/media/video/imported_package_30_thumbnail.png"
     );
 }

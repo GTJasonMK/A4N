@@ -32,11 +32,11 @@ pub use image_workflow_rules::{
     image_generation_workflow_business_key, image_generation_workflow_fingerprint,
     image_generation_workflow_run_input,
 };
-pub use uploaded_image_rules::{DecodedUploadedImage, decode_uploaded_image_data};
 pub use upload_rules::{
     DecodedUploadedAudio, MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data,
     decode_uploaded_bytes, required_upload_file_name,
 };
+pub use uploaded_image_rules::{DecodedUploadedImage, decode_uploaded_image_data};
 
 pub use rules::{
     MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLE_BGM, MEDIA_BINDING_ROLE_CG,
@@ -51,16 +51,59 @@ pub use rules::{
     is_valid_media_status,
 };
 
-use std::fs;
-use std::io::Cursor;
+use std::fs::{self, File};
+use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 
 use a4n_core::error::AppError;
+use a4n_core::files::{
+    create_unique_timestamped_file,
+    paths::{ProjectPaths, data_dir_relative_file_path},
+    remove_created_file_on_error_sync,
+};
 use a4n_core::models::media::media_asset;
 use a4n_db::media::{CreateMediaAssetRecordInput, MediaDbError, MediaProvenanceRecordInput};
 use sha2::{Digest, Sha256};
 
 use crate::OrchestratorContext;
+
+#[derive(Debug)]
+pub(crate) struct PersistedAudioFile {
+    pub relative_path: String,
+    pub duration_secs: f32,
+}
+
+pub(crate) fn persist_audio_file<F>(
+    data_dir: &Path,
+    project_id: i64,
+    prefix: &str,
+    extension: &str,
+    directory_label: &str,
+    file_label: &str,
+    write_file: F,
+) -> Result<PersistedAudioFile, String>
+where
+    F: FnOnce(&mut File) -> Result<(), String>,
+{
+    let dir = ProjectPaths::new(data_dir, project_id).audio_dir();
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| format!("无法创建{directory_label}目录：{error}"))?;
+    let (path, mut output_file) = create_unique_timestamped_file(&dir, prefix, extension)
+        .map_err(|error| format!("创建{file_label}失败：{error}"))?;
+    remove_created_file_on_error_sync(&path, file_label, || {
+        write_file(&mut output_file)?;
+        output_file
+            .flush()
+            .map_err(|error| format!("刷新{file_label}失败：{error}"))?;
+        let relative_path = data_dir_relative_file_path(data_dir, &path, file_label)?;
+        let duration_secs = a4n_media::probe_audio_duration_secs(&path)
+            .map_err(|error| format!("无法读取{file_label}时长：{error}"))?;
+        Ok(PersistedAudioFile {
+            relative_path,
+            duration_secs,
+        })
+    })
+}
 
 impl OrchestratorContext {
     pub async fn create_media_asset(

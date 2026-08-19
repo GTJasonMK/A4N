@@ -10,4 +10,4 @@ pub use records::{
     create_video_config_record, delete_video_config_record, list_video_config_records,
     update_video_config_record, video_config_by_id,
 };
-pub use resolution::{default_video_config, resolve_video_config};
+pub use resolution::default_video_config;

@@ -23,7 +23,7 @@ pub(in crate::project_family_import) fn hash_json(value: &Value) -> String {
     sha256_bytes(&bytes)
 }
 
-pub(in crate::project_family_import) fn normalize_profile_evidence_role(
+pub fn normalize_profile_evidence_role(
     role: &str,
 ) -> Result<&'static str, ProjectFamilyImportError> {
     match role.trim() {
@@ -50,7 +50,7 @@ pub fn media_asset_status_for_import_insert(status: &str) -> &str {
     }
 }
 
-pub fn map_required(
+pub(in crate::project_family_import) fn map_required(
     map: &HashMap<i64, i64>,
     old_id: i64,
     label: &str,
@@ -62,7 +62,7 @@ pub fn map_required(
     })
 }
 
-pub fn map_optional(
+pub(in crate::project_family_import) fn map_optional(
     map: &HashMap<i64, i64>,
     old_id: Option<i64>,
     label: &str,
@@ -70,7 +70,7 @@ pub fn map_optional(
     old_id.map(|id| map_required(map, id, label)).transpose()
 }
 
-pub fn remap_profile_id(
+pub(in crate::project_family_import) fn remap_profile_id(
     profile_kind: &str,
     old_id: i64,
     maps: &ImportIdMaps,
@@ -91,7 +91,7 @@ pub fn remap_profile_id(
     }
 }
 
-pub fn remap_optional_entity_id(
+pub(in crate::project_family_import) fn remap_optional_entity_id(
     entity_type: &str,
     old_id: Option<i64>,
     maps: &ImportIdMaps,

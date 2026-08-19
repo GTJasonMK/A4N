@@ -4,6 +4,11 @@ use a4n_domain::image::{
 };
 use serde_json::json;
 
+use super::super::references::validate_generated_image_ai_score;
+use super::validation::{
+    validate_generated_image_update_chapter_binding, validate_generated_image_update_clear_flags,
+    validate_generated_image_update_image_type, validate_generated_image_update_panel_binding,
+};
 use crate::video::UpdateGeneratedImageRecordInput;
 
 fn image_model() -> generated_image::Model {
@@ -32,12 +37,9 @@ fn image_model() -> generated_image::Model {
 
 #[test]
 fn validate_finite_f32_rejects_non_finite_scores() {
-    assert_eq!(
-        crate::video::validate_generated_image_ai_score(0.8).unwrap(),
-        0.8
-    );
+    assert_eq!(validate_generated_image_ai_score(0.8).unwrap(), 0.8);
     for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
-        let err = crate::video::validate_generated_image_ai_score(value)
+        let err = validate_generated_image_ai_score(value)
             .expect_err("non-finite score must be rejected");
         assert_eq!(err.to_string(), "ai_score 必须是有限数");
     }
@@ -73,7 +75,7 @@ fn update_record_clear_flags_reject_field_value_conflicts() {
     ];
 
     for (input, expected) in cases {
-        let err = crate::video::validate_generated_image_update_clear_flags(&input)
+        let err = validate_generated_image_update_clear_flags(&input)
             .expect_err("conflicting update input must be rejected");
         assert_eq!(err.to_string(), expected);
     }
@@ -81,9 +83,9 @@ fn update_record_clear_flags_reject_field_value_conflicts() {
 
 #[test]
 fn update_record_image_type_rejects_system_managed_type_transitions() {
-    crate::video::validate_generated_image_update_image_type("manga_page", " manga_page ")
+    validate_generated_image_update_image_type("manga_page", " manga_page ")
         .expect("same managed image type should be allowed");
-    crate::video::validate_generated_image_update_image_type("custom_reference", "custom_board")
+    validate_generated_image_update_image_type("custom_reference", "custom_board")
         .expect("custom image type edits should be allowed");
 
     let cases = [
@@ -93,7 +95,7 @@ fn update_record_image_type_rejects_system_managed_type_transitions() {
         (IMAGE_TYPE_VIDEO_TAIL_FRAME, "project_reference"),
     ];
     for (current, next) in cases {
-        let err = crate::video::validate_generated_image_update_image_type(current, next)
+        let err = validate_generated_image_update_image_type(current, next)
             .expect_err("managed image type transition must be rejected");
         assert_eq!(
             err.to_string(),
@@ -105,36 +107,33 @@ fn update_record_image_type_rejects_system_managed_type_transitions() {
 #[test]
 fn update_record_binding_rejects_system_managed_field_changes() {
     let image = image_model();
-    crate::video::validate_generated_image_update_chapter_binding(&image, Some(2))
+    validate_generated_image_update_chapter_binding(&image, Some(2))
         .expect("same managed chapter binding should be allowed");
-    crate::video::validate_generated_image_update_panel_binding(&image, Some("panel-1"))
+    validate_generated_image_update_panel_binding(&image, Some("panel-1"))
         .expect("same managed panel binding should be allowed");
 
-    let chapter_err =
-        crate::video::validate_generated_image_update_chapter_binding(&image, Some(3))
-            .expect_err("managed chapter binding change must be rejected");
+    let chapter_err = validate_generated_image_update_chapter_binding(&image, Some(3))
+        .expect_err("managed chapter binding change must be rejected");
     assert_eq!(
         chapter_err.to_string(),
         "系统管理图片的 chapter_id 不能通过通用 update_image 修改：image_id=9 Some(2) -> Some(3)"
     );
 
-    let clear_chapter_err =
-        crate::video::validate_generated_image_update_chapter_binding(&image, None)
-            .expect_err("managed chapter binding clear must be rejected");
+    let clear_chapter_err = validate_generated_image_update_chapter_binding(&image, None)
+        .expect_err("managed chapter binding clear must be rejected");
     assert_eq!(
         clear_chapter_err.to_string(),
         "系统管理图片的 chapter_id 不能通过通用 update_image 修改：image_id=9 Some(2) -> None"
     );
 
-    let panel_err =
-        crate::video::validate_generated_image_update_panel_binding(&image, Some("panel-2"))
-            .expect_err("managed panel binding change must be rejected");
+    let panel_err = validate_generated_image_update_panel_binding(&image, Some("panel-2"))
+        .expect_err("managed panel binding change must be rejected");
     assert_eq!(
         panel_err.to_string(),
         "系统管理图片的 panel_id 不能通过通用 update_image 修改：image_id=9 Some(\"panel-1\") -> Some(\"panel-2\")"
     );
 
-    let clear_panel_err = crate::video::validate_generated_image_update_panel_binding(&image, None)
+    let clear_panel_err = validate_generated_image_update_panel_binding(&image, None)
         .expect_err("managed panel binding clear must be rejected");
     assert_eq!(
         clear_panel_err.to_string(),
@@ -147,12 +146,12 @@ fn update_record_binding_allows_custom_field_changes() {
     let mut image = image_model();
     image.image_type = "custom_reference".to_string();
 
-    crate::video::validate_generated_image_update_chapter_binding(&image, Some(3))
+    validate_generated_image_update_chapter_binding(&image, Some(3))
         .expect("custom chapter binding change should be allowed");
-    crate::video::validate_generated_image_update_chapter_binding(&image, None)
+    validate_generated_image_update_chapter_binding(&image, None)
         .expect("custom chapter binding clear should be allowed");
-    crate::video::validate_generated_image_update_panel_binding(&image, Some("panel-2"))
+    validate_generated_image_update_panel_binding(&image, Some("panel-2"))
         .expect("custom panel binding change should be allowed");
-    crate::video::validate_generated_image_update_panel_binding(&image, None)
+    validate_generated_image_update_panel_binding(&image, None)
         .expect("custom panel binding clear should be allowed");
 }

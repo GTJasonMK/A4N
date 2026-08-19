@@ -1,5 +1,5 @@
 /// 将文本切成 sparse 检索 token（字符 2–3 gram + 空白分词）。
-pub fn tokenize_for_sparse(text: &str) -> Vec<String> {
+pub(super) fn tokenize_for_sparse(text: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     // 去掉空白与控制符后再做 n-gram，避免纯空格产生噪声
     let chars: Vec<char> = text

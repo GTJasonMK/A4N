@@ -2,7 +2,7 @@ use super::contracts::InsertBehaviorRecordInput;
 use crate::character::{CharacterDbError, validate_timeline_source_kind};
 use serde_json::Value;
 
-pub fn validate_behavior_classification_results(
+pub(super) fn validate_behavior_classification_results(
     classification_results: &Value,
 ) -> Result<(), CharacterDbError> {
     let object = classification_results.as_object().ok_or_else(|| {

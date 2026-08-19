@@ -9,9 +9,10 @@ use a4n_core::{
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
-use crate::project_dependency_graph::{
-    AssetLineageRecord, db_record_result_with_related, db_related_record, lineage_ref,
-    optional_prompt_sources, prompt_source,
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::{
+    db_record_result_with_related, db_related_record, lineage_ref, optional_prompt_sources,
+    prompt_source,
 };
 
 pub(in crate::project_dependency_graph) async fn media_asset_detail_records<C>(

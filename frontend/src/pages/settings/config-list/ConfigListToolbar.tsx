@@ -34,7 +34,7 @@ export const ConfigListToolbar: React.FC<ConfigListToolbarProps> = ({
         type="button"
         onClick={onCreate}
         disabled={loading || busy}
-        className="pyqt-btn-primary !min-h-8 !px-3 text-xs"
+        className="a4n-touch-target pyqt-btn-primary !px-3 text-xs"
       >
         <Plus size={14} />
         {createLabel}

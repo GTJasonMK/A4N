@@ -1,7 +1,9 @@
 mod parsing;
 mod requests;
 
-use super::*;
+use super::contracts::{OAuth2Provider, OAuth2UserInfo};
+use a4n_core::error::AppError;
+use async_trait::async_trait;
 
 /// Google OAuth2 提供者
 pub struct GoogleOAuth2 {
@@ -28,7 +30,7 @@ impl OAuth2Provider for GoogleOAuth2 {
         format!(
             "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=openid%20profile%20email&state={state}",
             self.client_id,
-            urlencoding::encode(&self.redirect_uri),
+            super::contracts::urlencoding::encode(&self.redirect_uri),
         )
     }
 
