@@ -1,6 +1,9 @@
 use super::contracts::SearchFilter;
 
-pub fn metadata_matches_search_filter(metadata: &serde_json::Value, filter: &SearchFilter) -> bool {
+pub(crate) fn metadata_matches_search_filter(
+    metadata: &serde_json::Value,
+    filter: &SearchFilter,
+) -> bool {
     if let Some(equals) = &filter.equals {
         for (key, val) in equals {
             if metadata.get(key) != Some(val) {

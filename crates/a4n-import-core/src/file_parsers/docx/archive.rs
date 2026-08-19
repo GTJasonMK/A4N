@@ -1,12 +1,12 @@
 use crate::ImportTransformError;
 use zip::result::ZipError;
 
-use super::super::shared::extract_document_title;
+use super::super::shared::metadata::extract_document_title;
 use super::document::extract_docx_document_text;
 
 pub(super) struct DocxArchiveContent {
-    pub text_content: String,
-    pub title: Option<String>,
+    pub(super) text_content: String,
+    pub(super) title: Option<String>,
 }
 
 pub(super) fn read_docx_archive(data: &[u8]) -> Result<DocxArchiveContent, ImportTransformError> {

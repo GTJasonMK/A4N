@@ -62,9 +62,7 @@ pub(in crate::actions::video_records::assembly) fn run_media_postprocess_edit(
             start_secs,
             end_secs,
             base_duration_secs,
-        } => format!(
-            "后处理时间范围无效：{start_secs}..{end_secs}，基底时长 {base_duration_secs}"
-        ),
+        } => format!("后处理时间范围无效：{start_secs}..{end_secs}，基底时长 {base_duration_secs}"),
         a4n_media::VideoPostprocessError::InvalidDimensions { width, height } => {
             format!("后处理视频尺寸无效：{width}x{height}")
         }
@@ -72,9 +70,7 @@ pub(in crate::actions::video_records::assembly) fn run_media_postprocess_edit(
             format!("后处理视频帧率无效：{fps}")
         }
         a4n_media::VideoPostprocessError::MissingSource => "插入或替换操作缺少来源视频".to_string(),
-        a4n_media::VideoPostprocessError::UnexpectedSource => {
-            "删除操作不接受来源视频".to_string()
-        }
+        a4n_media::VideoPostprocessError::UnexpectedSource => "删除操作不接受来源视频".to_string(),
         a4n_media::VideoPostprocessError::SourceNotFile => "插入或替换来源视频不是文件".to_string(),
         a4n_media::VideoPostprocessError::InvalidSourceDuration => {
             "插入或替换来源视频时长无效".to_string()

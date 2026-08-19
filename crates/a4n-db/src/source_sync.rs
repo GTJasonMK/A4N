@@ -20,22 +20,58 @@ pub use candidates::{
     anchor_conflict_candidates_for_run, generation_specs_for_profile_ref,
     generation_specs_for_source_chapter, local_state_for_generation_spec,
 };
-pub use conflicts::*;
-pub use decisions::*;
+pub use conflicts::{
+    SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput, detach_derived_project_record,
+    source_sync_conflict_for_decision,
+};
+pub(in crate::source_sync) use conflicts::{
+    insert_source_sync_conflict_record, insert_source_sync_decision_record,
+    resolve_source_sync_conflict_record,
+};
+pub use decisions::{
+    PreparedSourceSyncDecisionRecordInput, SourceSyncRefreshSpecRecordInput,
+    apply_prepared_source_sync_decisions_records_transaction,
+};
 pub use dry_run::{
     CreateSourceSyncDryRunRecordInput, UpdateSourceSyncDryRunSummaryInput,
     insert_source_sync_dry_run_record, update_source_sync_dry_run_summary,
 };
 use galgame::validate_prepared_galgame_scene_regeneration_record;
-pub use galgame::*;
-pub use generation_specs::*;
+pub use galgame::{
+    SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameSceneConflictCandidateRecord,
+    SourceSyncGalgameSceneLineWriteRecordInput, SourceSyncGalgameSceneRegenerationApplyRecord,
+    SourceSyncGalgameSceneRegenerationSourceRecord, SourceSyncGalgameSceneWriteRecordInput,
+    galgame_scene_regeneration_source_record,
+};
+pub(in crate::source_sync) use galgame::{
+    apply_galgame_scene_regeneration_record, galgame_anchor_conflict_candidates_for_run,
+    galgame_scene_conflict_candidates_for_chapter_change,
+};
+pub use generation_specs::{
+    SourceSyncAnchorMappingRecord, SourceSyncEntityRefRecordInput,
+    SourceSyncManualPromptArtifactRecordInput, SourceSyncMediaRefRecordInput,
+    SourceSyncPromptArtifactRecordInput, SourceSyncReplacementSegmentRecordInput,
+    SourceSyncReplacementSpecRecordInput, SourceSyncTextAnchorRefRecordInput,
+};
 use generation_specs::{
     create_source_sync_replacement_spec_record, source_sync_params_with_prompt_kind,
+};
+pub(in crate::source_sync) use generation_specs::{
+    delete_generation_spec_records, delete_local_generation_spec_record,
+    generation_spec_for_source_sync_run, insert_generation_spec_ref_records,
+    insert_manual_source_sync_prompt_artifact_record, rebind_generation_spec_anchor_records,
+    render_and_insert_source_sync_prompt_artifact_record, replace_generation_spec_ref_records,
+    source_snapshot_chapter_for_source, update_generation_spec_params_record,
+    update_generation_spec_to_snapshot_record,
 };
 pub use plan::SourceSyncPlanRecord;
 use plan::source_sync_plan_record;
 pub use preview::create_source_sync_preview_records;
-pub use run::*;
+pub(in crate::source_sync) use run::finalize_source_sync_apply_run_record;
+pub use run::{
+    FinalizeSourceSyncApplyRunInput, apply_unconflicted_source_sync_records_transaction,
+    load_source_sync_apply_run_record, source_sync_run_by_id,
+};
 pub use snapshots::{
     SourceSnapshotChapterChangeRecord, SourceSnapshotDiffRecord, SourceSnapshotProfileChangeRecord,
     diff_source_snapshots, source_sync_chapter_scope_for_derived_project,

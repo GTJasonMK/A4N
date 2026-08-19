@@ -8,4 +8,4 @@ pub use completion::{
     record_completed_generation_run, record_completed_generation_run_in_transaction,
     record_completed_run_with_checkpoint_transaction,
 };
-pub use creation::record_started_generation_run;
+pub(crate) use creation::record_started_generation_run;

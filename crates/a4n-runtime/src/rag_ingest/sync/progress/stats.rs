@@ -15,8 +15,7 @@ impl ExpectedSyncStats {
                 self.added_count = checked_rag_count_add(self.added_count, 1, "新增记录数")?;
             }
             RagRecordSyncOutcome::Updated => {
-                self.updated_count =
-                    checked_rag_count_add(self.updated_count, 1, "更新记录数")?;
+                self.updated_count = checked_rag_count_add(self.updated_count, 1, "更新记录数")?;
             }
             RagRecordSyncOutcome::Skipped => {
                 self.skipped_count = checked_rag_count_add(self.skipped_count, 1, "跳过记录数")?;

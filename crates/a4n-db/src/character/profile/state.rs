@@ -28,7 +28,7 @@ pub fn profile_current_state_fields(current_state: Value) -> CharacterProfileCur
     }
 }
 
-pub fn apply_profile_current_state(
+pub(crate) fn apply_profile_current_state(
     active: &mut protagonist_profile::ActiveModel,
     current_state: Value,
 ) {
@@ -41,7 +41,7 @@ pub fn apply_profile_current_state(
     active.current_state = Set(fields.current_state);
 }
 
-pub fn normalize_base_attributes(base: Value) -> Result<Value, CharacterDbError> {
+pub(super) fn normalize_base_attributes(base: Value) -> Result<Value, CharacterDbError> {
     let Some(root) = base.as_object() else {
         return Err(CharacterDbError::InvalidArgument(
             "初始角色属性必须是 JSON 对象".to_string(),

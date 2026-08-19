@@ -12,7 +12,7 @@ impl GitPromptStore {
     /// 列出提示词的提交历史（从新到旧）
     ///
     /// 仅返回影响 `{name}.md` 的 commit；空仓库返回空数组。
-    pub fn history(&self, name: &str) -> Result<Vec<CommitInfo>, AppError> {
+    pub(super) fn history(&self, name: &str) -> Result<Vec<CommitInfo>, AppError> {
         let repo = self.lock_repo()?;
         let head = match repo.head() {
             Ok(head) => head,
@@ -109,7 +109,7 @@ impl GitPromptStore {
     }
 
     /// 取得指定 commit 处的提示词内容
-    pub fn get_at(&self, name: &str, sha: &str) -> Result<String, AppError> {
+    pub(super) fn get_at(&self, name: &str, sha: &str) -> Result<String, AppError> {
         let repo = self.lock_repo()?;
         let oid = Oid::from_str(sha)
             .map_err(|err| AppError::Internal(anyhow::anyhow!("非法 SHA: {err}")))?;
@@ -136,7 +136,7 @@ impl GitPromptStore {
     }
 
     /// 当前 HEAD 处提示词内容
-    pub fn latest(&self, name: &str) -> Result<Option<String>, AppError> {
+    pub(super) fn latest(&self, name: &str) -> Result<Option<String>, AppError> {
         let repo = self.lock_repo()?;
         let target = sanitize_filename(name);
         read_head_prompt_file(&repo, Path::new(&target))

@@ -1,9 +1,5 @@
-use a4n_capabilities::{
-    A4nCapabilities, EmbeddingClient, EmbeddingModelOperation, JsonResponse,
-};
-use a4n_api_contract::embedding::{
-    EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary,
-};
+use a4n_api_contract::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
+use a4n_capabilities::{A4nCapabilities, EmbeddingClient, EmbeddingModelOperation, JsonResponse};
 use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::DownloadProgress;
@@ -15,8 +11,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::super::{
     global_provider_service_request, global_service_request_without_secrets,
-    missing_sidecar_capability_message, service_app_error, service_error_app_error,
-    response_payload,
+    missing_sidecar_capability_message, response_payload, service_app_error,
+    service_error_app_error,
 };
 use super::contracts::{
     EmbedTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
@@ -78,11 +74,8 @@ pub(crate) async fn test_embedding_config_via_sidecar(
     let client = required_embedding_client(capabilities)?;
     let payload = embedding_connectivity_test_payload(model)?;
     let expected_dimension = payload.dimension;
-    let request = global_provider_service_request(
-        EMBEDDING_CAPABILITY_VERSION,
-        payload,
-    )
-    .map_err(service_app_error)?;
+    let request = global_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
+        .map_err(service_app_error)?;
     let response = client
         .embed(request)
         .await
@@ -144,12 +137,11 @@ pub(super) fn handle_embedding_download_event(
             let payload = event.payload.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar progress 事件缺少 payload".to_string())
             })?;
-            let progress: DownloadProgress = serde_json::from_value(payload)
-                .map_err(|error| {
-                    AppError::ConfigError(format!(
-                        "embedding sidecar progress payload 解析失败: {error}"
-                    ))
-                })?;
+            let progress: DownloadProgress = serde_json::from_value(payload).map_err(|error| {
+                AppError::ConfigError(format!(
+                    "embedding sidecar progress payload 解析失败: {error}"
+                ))
+            })?;
             if let Some(progress_tx) = progress_tx {
                 let _ = progress_tx.send(progress);
             }
@@ -160,9 +152,7 @@ pub(super) fn handle_embedding_download_event(
                 AppError::ConfigError("embedding sidecar completed 事件缺少 payload".to_string())
             })?;
             let model = serde_json::from_value(payload).map_err(|error| {
-                AppError::ConfigError(format!(
-                    "embedding sidecar completed 模型解析失败: {error}"
-                ))
+                AppError::ConfigError(format!("embedding sidecar completed 模型解析失败: {error}"))
             })?;
             Ok(Some(model))
         }

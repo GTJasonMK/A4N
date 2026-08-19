@@ -1,9 +1,8 @@
 use a4n_core::models::chapter::{chapter_outline, part_outline};
 use serde_json::json;
 
-use crate::project_dependency_graph::{
-    GraphBuilder, NodeSeedMetadata, node, outline_range_summary,
-};
+use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
+use crate::project_dependency_graph::helpers::outline_range_summary;
 
 pub(super) fn add_outline_nodes(
     graph: &mut GraphBuilder,

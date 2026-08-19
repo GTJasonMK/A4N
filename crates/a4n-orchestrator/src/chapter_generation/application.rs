@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{
-    Arc,
     atomic::{AtomicI64, Ordering},
+    Arc,
 };
 
 use a4n_api_contract::{
@@ -19,40 +19,39 @@ use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    OrchestratorContext,
     chapter_content::ChapterDerivedCleanupHostPort,
     collaboration::ProjectAccessRole,
-    context::{GenerationTaskExecution, fail_generation_workflow_execution},
+    context::{fail_generation_workflow_execution, GenerationTaskExecution},
     generation::{
         checkpoint::GenerationCheckpointMetadata,
         events::GenerationEventPublisher,
         generation_finish_reason_text as shared_generation_finish_reason_text,
         generation_progress as chapter_progress, generation_public_error, generation_session_error,
         generation_terminal_error,
-        stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation},
+        stream::{execute_llm_generation, LlmGenerationCheckpoint, LlmGenerationRequest},
         terminal::CompletionDescriptor,
     },
     workflow::workflow_checkpoint_contract_app_error,
+    OrchestratorContext,
 };
 
 use super::service::{
-    ChapterGenerationService, ChapterGenerationSession,
     generation::checkpoint::{
-        ChapterGenerationCheckpointSaveInput, chapter_generation_call_fingerprint_json,
-        save_completed_chapter_generation_checkpoint,
-        validate_chapter_generation_source_fingerprint,
+        chapter_generation_call_fingerprint_json, save_completed_chapter_generation_checkpoint,
+        validate_chapter_generation_source_fingerprint, ChapterGenerationCheckpointSaveInput,
     },
+    ChapterGenerationService, ChapterGenerationSession,
 };
 
 use super::{
-    ChapterGenerationWordCountRange, generation_chapter_title, generation_rag_query_fingerprint,
-    merge_generation_outline_text, non_empty_trimmed, resolve_generation_word_count_range,
-    upsert_chapter_generation_variables, validate_generation_rag_query_fingerprint,
+    generation_chapter_title, generation_rag_query_fingerprint, merge_generation_outline_text,
+    non_empty_trimmed, resolve_generation_word_count_range, upsert_chapter_generation_variables,
+    validate_generation_rag_query_fingerprint, ChapterGenerationWordCountRange,
 };
 use crate::rag::search::enhanced::validate_query_vectors;
 
@@ -1236,7 +1235,7 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), String> {
 
 #[cfg(test)]
 mod cancellation_tests {
-    use super::*;
+    use super::{client_generation_rag_input, StartChapterGenerationInput};
 
     fn chapter_generation_input(chapter_number: i32) -> StartChapterGenerationInput {
         StartChapterGenerationInput {
@@ -1260,11 +1259,9 @@ mod cancellation_tests {
         let mut input = chapter_generation_input(2);
         input.client_rag_query_fingerprint = Some("a".repeat(64));
 
-        assert!(
-            client_generation_rag_input(&input)
-                .expect_err("partial client RAG payload must fail")
-                .contains("必须同时提供")
-        );
+        assert!(client_generation_rag_input(&input)
+            .expect_err("partial client RAG payload must fail")
+            .contains("必须同时提供"));
     }
 
     #[test]
@@ -1279,10 +1276,8 @@ mod cancellation_tests {
         input.client_rag_query_fingerprint = Some("a".repeat(64));
         input.client_rag_query_vectors = Some(vec![vec![0.0, 1.0]]);
 
-        assert!(
-            client_generation_rag_input(&input)
-                .expect_err("chapter one must not accept client RAG vectors")
-                .contains("第 1 章")
-        );
+        assert!(client_generation_rag_input(&input)
+            .expect_err("chapter one must not accept client RAG vectors")
+            .contains("第 1 章"));
     }
 }

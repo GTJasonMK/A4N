@@ -3,7 +3,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::records::image_config_by_id;
 
-pub async fn default_image_config(
+async fn default_image_config(
     db: &DatabaseConnection,
 ) -> Result<image_gen_config::Model, AppError> {
     image_gen_config::Entity::find()

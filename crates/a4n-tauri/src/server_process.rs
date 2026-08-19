@@ -1,0 +1,341 @@
+use a4n_core::config::app_config::{AppConfig, portable_home_dir};
+use reqwest::StatusCode;
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::Mutex;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
+
+const LOCAL_SERVER_URL: &str = "http://127.0.0.1:8080";
+
+pub(crate) struct LocalServerProcess {
+    child: Mutex<Option<Child>>,
+}
+
+impl LocalServerProcess {
+    pub(crate) async fn start(
+        app: &AppHandle,
+        config: &AppConfig,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        if server_healthy().await {
+            return Err(format!(
+                "{LOCAL_SERVER_URL} 已有运行中的 A4N Server；local-server 模式不会复用未知版本的进程，请先停止它，或使用 remote 模式显式连接"
+            )
+            .into());
+        }
+
+        let server = resolve_binary(app, "a4n-server", "A4N_SERVER_BINARY")?;
+        let migration = resolve_binary(app, "a4n-migration", "A4N_MIGRATION_BINARY")?;
+        run_migration(&migration)?;
+
+        let mut command = Command::new(&server);
+        command
+            .env("A4N_WEB_ADDR", "127.0.0.1:8080")
+            .env("A4N_RUNTIME_PROFILE", "sidecar")
+            .env("A4N_MANAGED_SIDECARS", "1")
+            .env("A4N_PORTABLE_HOME", server_portable_home())
+            .env("A4N_DATA_DIR", &config.data_dir)
+            .env("A4N_CACHE_DIR", &config.cache_dir)
+            .env("A4N_TEMP_DIR", &config.temp_dir)
+            .env("A4N_LOG_DIR", &config.log_dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        configure_parent_death_signal(&mut command);
+
+        if let Some(sidecar_dir) = bundled_sidecar_dir(app, &server) {
+            command.env("A4N_SIDECAR_BIN_DIR", sidecar_dir);
+        }
+        configure_onnxruntime(&mut command, app)?;
+
+        let child = command
+            .spawn()
+            .map_err(|error| format!("启动 A4N Server 失败: {}: {error}", server.display()))?;
+        let process = Self {
+            child: Mutex::new(Some(child)),
+        };
+        if !wait_until_healthy(&process).await {
+            process.stop();
+            return Err("A4N Server 启动超时；请检查 Server 日志".into());
+        }
+
+        tracing::info!(url = LOCAL_SERVER_URL, "A4N HTTP-only Server 启动完成");
+        Ok(process)
+    }
+
+    pub(crate) fn stop(&self) {
+        let Ok(mut child) = self.child.lock() else {
+            tracing::error!("获取 A4N Server 子进程锁失败");
+            return;
+        };
+        let Some(mut child_process) = child.take() else {
+            return;
+        };
+        if let Err(error) = terminate_child(&mut child_process) {
+            if error.kind() != std::io::ErrorKind::InvalidInput {
+                tracing::warn!(%error, "停止 A4N Server 失败");
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn configure_parent_death_signal(command: &mut Command) {
+    // Keep the child server from surviving a Tauri dev rebuild or abrupt exit.
+    unsafe {
+        command.pre_exec(|| {
+            unsafe extern "C" {
+                fn prctl(option: i32, ...) -> i32;
+            }
+            const PR_SET_PDEATHSIG: i32 = 1;
+            const SIGTERM: i32 = 15;
+            if prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_parent_death_signal(_: &mut Command) {}
+
+impl Drop for LocalServerProcess {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+async fn server_healthy() -> bool {
+    let Ok(client) = reqwest::Client::builder()
+        .timeout(Duration::from_secs(1))
+        .build()
+    else {
+        return false;
+    };
+    let Ok(response) = client
+        .get(format!("{LOCAL_SERVER_URL}/api/health"))
+        .send()
+        .await
+    else {
+        return false;
+    };
+    response.status() == StatusCode::OK
+        && response.text().await.is_ok_and(|body| body.trim() == "ok")
+}
+
+async fn wait_until_healthy(process: &LocalServerProcess) -> bool {
+    for _ in 0..200 {
+        if let Ok(mut child) = process.child.lock() {
+            if !matches!(
+                child.as_mut().and_then(|value| value.try_wait().ok()),
+                Some(None)
+            ) {
+                return false;
+            }
+        }
+        if server_healthy().await {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+    false
+}
+
+fn run_migration(binary: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let output = Command::new(binary)
+        .env_remove("A4N_WEB_ADDR")
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| format!("启动数据库迁移器失败: {}: {error}", binary.display()))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let database_url = std::env::var("A4N_DATABASE_URL").unwrap_or_default();
+    let detail = String::from_utf8_lossy(&output.stderr);
+    let detail = if database_url.is_empty() {
+        detail.into_owned()
+    } else {
+        detail.replace(&database_url, "[REDACTED]")
+    };
+    Err(format!("数据库迁移失败: {}", detail.trim()).into())
+}
+
+fn terminate_child(child: &mut Child) -> Result<(), std::io::Error> {
+    #[cfg(unix)]
+    {
+        let status = Command::new("kill")
+            .args(["-TERM", &child.id().to_string()])
+            .status()?;
+        if status.success() {
+            for _ in 0..50 {
+                if child.try_wait()?.is_some() {
+                    return Ok(());
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+    child.kill()?;
+    let _ = child.wait();
+    Ok(())
+}
+
+fn resolve_binary(
+    app: &AppHandle,
+    name: &str,
+    env_name: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let mut directories = Vec::new();
+    if let Some(path) = std::env::var_os(env_name).map(PathBuf::from) {
+        if path.is_file() {
+            return Ok(path);
+        }
+        directories.push(path);
+    }
+    if let Ok(executable) = std::env::current_exe()
+        && let Some(parent) = executable.parent()
+    {
+        directories.push(parent.to_path_buf());
+    }
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        directories.push(resource_dir.clone());
+        directories.push(resource_dir.join("bin"));
+    }
+
+    for directory in directories {
+        for candidate in [directory.join(name), directory.join(format!("{name}.exe"))] {
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let file_name = entry.file_name().to_string_lossy().into_owned();
+            if (file_name == name
+                || file_name == format!("{name}.exe")
+                || file_name.starts_with(&format!("{name}-")))
+                && entry.path().is_file()
+            {
+                return Ok(entry.path());
+            }
+        }
+    }
+
+    Err(format!("未找到 {name}；请构建 Server，或设置 {env_name}").into())
+}
+
+fn bundled_sidecar_dir(app: &AppHandle, server: &Path) -> Option<PathBuf> {
+    let server_parent = server.parent()?;
+    let service_dir = server_parent.join("services");
+    if service_dir.is_dir() {
+        return Some(service_dir);
+    }
+    let resource_dir = app.path().resource_dir().ok()?;
+    resource_dir.is_dir().then_some(resource_dir)
+}
+
+fn server_portable_home() -> PathBuf {
+    if let Some(path) = std::env::var_os("A4N_PORTABLE_HOME") {
+        return PathBuf::from(path);
+    }
+    if let Ok(current_dir) = std::env::current_dir()
+        && let Some(root) = current_dir
+            .ancestors()
+            .find(|path| path.join("prompts/_registry.yaml").is_file())
+    {
+        return root.to_path_buf();
+    }
+    portable_home_dir()
+}
+
+fn configure_onnxruntime(
+    command: &mut Command,
+    app: &AppHandle,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::var_os("A4N_ONNXRUNTIME_ROOT")
+        .map(PathBuf::from)
+        .or_else(|| {
+            app.path()
+                .resource_dir()
+                .ok()
+                .filter(|path| path.join(onnxruntime_library_name()).is_file())
+                .and_then(|path| path.parent().map(Path::to_path_buf))
+        })
+        .or_else(|| {
+            std::env::var_os("HOME").map(PathBuf::from).map(|home| {
+                home.join(".local/share/a4n/onnxruntime")
+                    .join(onnxruntime_version())
+            })
+        })
+        .ok_or("无法确定 ONNX Runtime 目录；请设置 A4N_ONNXRUNTIME_ROOT")?;
+    let mut library_dir = root.join("lib");
+    if !library_dir.join(onnxruntime_library_name()).is_file()
+        && root.join(onnxruntime_library_name()).is_file()
+    {
+        library_dir = root.clone();
+    }
+    if !library_dir.join(onnxruntime_library_name()).is_file() {
+        return Err(format!(
+            "缺少 ONNX Runtime 动态库: {}",
+            library_dir.join(onnxruntime_library_name()).display()
+        )
+        .into());
+    }
+
+    let loader_path = prepend_env_path(runtime_loader_path_var(), &library_dir)?;
+    command
+        .env("A4N_ONNXRUNTIME_ROOT", &root)
+        .env("ORT_LIB_PATH", &library_dir)
+        .env("ORT_PREFER_DYNAMIC_LINK", "1")
+        .env(runtime_loader_path_var(), loader_path);
+    Ok(())
+}
+
+fn prepend_env_path(name: &str, directory: &Path) -> Result<std::ffi::OsString, std::io::Error> {
+    let mut paths = vec![directory.to_path_buf()];
+    if let Some(current) = std::env::var_os(name) {
+        paths.extend(std::env::split_paths(&current));
+    }
+    std::env::join_paths(paths)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))
+}
+
+fn onnxruntime_version() -> &'static str {
+    include_str!("../../../tools/onnxruntime/VERSION").trim()
+}
+
+#[cfg(target_os = "linux")]
+fn onnxruntime_library_name() -> &'static str {
+    "libonnxruntime.so.1"
+}
+
+#[cfg(target_os = "macos")]
+fn onnxruntime_library_name() -> &'static str {
+    "libonnxruntime.dylib"
+}
+
+#[cfg(windows)]
+fn onnxruntime_library_name() -> &'static str {
+    "onnxruntime.dll"
+}
+
+#[cfg(target_os = "linux")]
+fn runtime_loader_path_var() -> &'static str {
+    "LD_LIBRARY_PATH"
+}
+
+#[cfg(target_os = "macos")]
+fn runtime_loader_path_var() -> &'static str {
+    "DYLD_LIBRARY_PATH"
+}
+
+#[cfg(windows)]
+fn runtime_loader_path_var() -> &'static str {
+    "PATH"
+}

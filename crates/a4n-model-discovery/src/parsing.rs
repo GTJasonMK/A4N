@@ -100,9 +100,7 @@ fn parse_comfyui_checkpoint_models(value: &Value) -> Result<Vec<DiscoveredModel>
 }
 
 fn model_from_data_list_item(value: &Value) -> Result<DiscoveredModel, String> {
-    let item = value
-        .as_object()
-        .ok_or_else(|| "必须是对象".to_string())?;
+    let item = value.as_object().ok_or_else(|| "必须是对象".to_string())?;
     let id = required_trimmed_json_string(item.get("id"), "id")?;
     Ok(DiscoveredModel {
         id: id.to_string(),
@@ -114,9 +112,7 @@ fn model_from_data_list_item(value: &Value) -> Result<DiscoveredModel, String> {
 }
 
 fn model_from_gemini_item(value: &Value) -> Result<DiscoveredModel, String> {
-    let item = value
-        .as_object()
-        .ok_or_else(|| "必须是对象".to_string())?;
+    let item = value.as_object().ok_or_else(|| "必须是对象".to_string())?;
     let raw_name = required_trimmed_json_string(item.get("name"), "name")?;
     let id = strip_models_prefix(raw_name).to_string();
     Ok(DiscoveredModel {

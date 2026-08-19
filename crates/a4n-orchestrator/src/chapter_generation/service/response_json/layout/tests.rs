@@ -1,4 +1,4 @@
-use super::*;
+use super::normalize_generated_chapter_content_layout;
 
 #[test]
 fn preserves_existing_short_paragraphs() {

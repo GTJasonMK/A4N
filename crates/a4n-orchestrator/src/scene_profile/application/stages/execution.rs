@@ -6,8 +6,7 @@ use serde_json::{Value, json};
 use a4n_llm::provider::ChatRequest;
 
 use crate::{
-    OrchestratorContext,
-    structured_llm::ensure_checkpoint_parsed_output_matches,
+    OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches,
     workflow::llm_call_checkpoint_fingerprint_sha256,
 };
 

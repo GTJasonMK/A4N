@@ -73,7 +73,7 @@ where
     })
 }
 
-pub async fn portrait_project_context<C>(db: &C, project_id: i64) -> Result<Option<Value>, DbErr>
+async fn portrait_project_context<C>(db: &C, project_id: i64) -> Result<Option<Value>, DbErr>
 where
     C: ConnectionTrait,
 {

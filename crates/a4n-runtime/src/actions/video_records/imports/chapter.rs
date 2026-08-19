@@ -1,11 +1,21 @@
-use super::prelude::*;
-use super::*;
+use super::contracts::{ImportedVideoSource, UploadChapterVideoInput};
+use super::source::{
+    persist_imported_video_file, probe_imported_video_properties, uploaded_video_source,
+};
+use crate::AppState;
+use crate::actions::access;
+use crate::actions::video_generation::media::{
+    append_secondary_error, best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
+};
+use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
 use crate::actions::video_records::{
     complete_video_record, delete_video_record_cleanup_error, video_record_output_path,
 };
 use a4n_orchestrator::video::{
     completed_provider_metadata, is_first_frame_chain_video, should_capture_video_tail_frame,
 };
+use chrono::Utc;
+use serde_json::Value;
 
 pub async fn upload_chapter_video(
     state: &AppState,

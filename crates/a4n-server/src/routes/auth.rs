@@ -4,7 +4,7 @@ use a4n_core::models::user::user;
 use a4n_runtime::host_api::auth_records;
 use axum::http::HeaderMap;
 
-pub async fn authenticated_user(
+pub(crate) async fn authenticated_user(
     state: &ServerState,
     headers: &HeaderMap,
 ) -> Result<user::Model, ApiError> {
@@ -12,7 +12,7 @@ pub async fn authenticated_user(
     authenticated_user_from_access_token(state, token).await
 }
 
-pub async fn authenticated_user_from_access_token(
+pub(crate) async fn authenticated_user_from_access_token(
     state: &ServerState,
     token: &str,
 ) -> Result<user::Model, ApiError> {

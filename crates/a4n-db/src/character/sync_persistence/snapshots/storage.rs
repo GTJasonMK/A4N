@@ -8,11 +8,15 @@ use super::projection::{
     character_sync_attribute_events_at_chapter, character_sync_count_items_at_chapter,
     character_sync_items_at_chapter,
 };
-use crate::character::{
-    CharacterDbError, CharacterSnapshotReferenceUpsertInput, CharacterStateIndexUpsertInput,
+use crate::character::CharacterDbError;
+use crate::character::attributes::{
     apply_attribute_to_state, attribute_events_by_profile_chapter_range,
-    character_snapshot_content_hash, upsert_snapshot_reference, upsert_state_index,
 };
+use crate::character::snapshot::{
+    CharacterSnapshotReferenceUpsertInput, character_snapshot_content_hash,
+    upsert_snapshot_reference,
+};
+use crate::character::timeline::{CharacterStateIndexUpsertInput, upsert_state_index};
 
 pub(in crate::character::sync_persistence) async fn store_character_sync_snapshots_in<C>(
     db: &C,

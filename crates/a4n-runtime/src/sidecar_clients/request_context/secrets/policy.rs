@@ -75,7 +75,9 @@ pub(in crate::sidecar_clients::request_context) fn service_request_with_context_
         );
     }
     if !is_loopback_http_url(sidecar_url) {
-        return Err("provider sidecar URL 不是本地 loopback 地址，拒绝转发 provider secret".to_string());
+        return Err(
+            "provider sidecar URL 不是本地 loopback 地址，拒绝转发 provider secret".to_string(),
+        );
     }
     service_request_with_value_context(
         context.with_secret_policy(SecretForwardingPolicy::local_user_secret()),

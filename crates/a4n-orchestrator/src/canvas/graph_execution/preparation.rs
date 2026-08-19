@@ -5,7 +5,8 @@ use chrono::Utc;
 use serde_json::{Value, json};
 
 use crate::{
-    OrchestratorContext, canvas::WORKFLOW_KIND_VIDEO_CANVAS_GRAPH,
+    OrchestratorContext,
+    canvas::{WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_node_step_key},
     workflow::WORKFLOW_STATUS_COMPLETED,
 };
 
@@ -55,7 +56,8 @@ impl OrchestratorContext {
         });
         let first_step_key = runnable_node_ids
             .first()
-            .map(|node_id| format!("canvas_node:{node_id}"));
+            .map(|node_id| canvas_node_step_key(*node_id))
+            .transpose()?;
         let graph_run = self
             .begin_canvas_graph_workflow_validated(
                 input.project_id,
@@ -98,7 +100,7 @@ impl OrchestratorContext {
         if !is_runnable_canvas_node(node) {
             return Err(unsupported_canvas_node_execution_error(&node.node_kind));
         }
-        let step_key = format!("canvas_node:{}", input.node_id);
+        let step_key = canvas_node_step_key(input.node_id)?;
         let graph_input_json = json!({
             "project_id": input.project_id,
             "graph_id": input.graph_id,
@@ -156,13 +158,7 @@ impl OrchestratorContext {
             .as_ref()
             .and_then(|value| value.get("target_node_id"))
             .and_then(Value::as_i64);
-        let mode = run.mode.unwrap_or_else(|| {
-            if target_node_id.is_some() {
-                "run_to_node".to_string()
-            } else {
-                "full_graph".to_string()
-            }
-        });
+        let mode = run.mode.ok_or_else(|| "画布运行缺少 mode".to_string())?;
         let single_node_id = if mode == "single_node" {
             Some(
                 run.input_fingerprint_json
@@ -200,10 +196,13 @@ impl OrchestratorContext {
             .filter(|checkpoint| checkpoint.status == WORKFLOW_STATUS_COMPLETED)
             .map(|checkpoint| checkpoint.step_key)
             .collect::<BTreeSet<_>>();
-        let pending_node_ids = runnable_node_ids
-            .into_iter()
-            .filter(|node_id| !completed_step_keys.contains(&format!("canvas_node:{node_id}")))
-            .collect::<Vec<_>>();
+        let mut pending_node_ids = Vec::new();
+        for node_id in runnable_node_ids {
+            let step_key = canvas_node_step_key(node_id)?;
+            if !completed_step_keys.contains(&step_key) {
+                pending_node_ids.push(node_id);
+            }
+        }
         if pending_node_ids.is_empty() {
             let completed = self
                 .complete_canvas_graph_workflow_validated(input.workflow_run_id)
@@ -222,12 +221,10 @@ impl OrchestratorContext {
             .await
             .map_err(|error| error.to_string())?;
         if let Some(first_node_id) = pending_node_ids.first() {
-            self.mark_workflow_current_step(
-                input.workflow_run_id,
-                &format!("canvas_node:{first_node_id}"),
-            )
-            .await
-            .map_err(|error| error.to_string())?;
+            let step_key = canvas_node_step_key(*first_node_id)?;
+            self.mark_workflow_current_step(input.workflow_run_id, &step_key)
+                .await
+                .map_err(|error| error.to_string())?;
         }
         Ok(PreparedCanvasGraphRun {
             workflow_run_id: input.workflow_run_id,

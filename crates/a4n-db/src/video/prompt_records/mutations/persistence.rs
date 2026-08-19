@@ -4,7 +4,7 @@ use a4n_core::models::chapter::chapter_video_prompt;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
-pub async fn insert_chapter_video_prompt_record<C>(
+pub(crate) async fn insert_chapter_video_prompt_record<C>(
     db: &C,
     input: ChapterVideoPromptRecordFields,
     status: String,
@@ -40,7 +40,7 @@ where
     .map_err(VideoDbError::Database)
 }
 
-pub async fn replace_chapter_video_prompt_record<C>(
+pub(crate) async fn replace_chapter_video_prompt_record<C>(
     db: &C,
     existing: chapter_video_prompt::Model,
     input: ChapterVideoPromptRecordFields,

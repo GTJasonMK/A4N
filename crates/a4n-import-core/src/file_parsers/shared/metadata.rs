@@ -1,4 +1,4 @@
-use super::extract_xml_text;
+use super::text::extract_xml_text;
 
 pub(in crate::file_parsers) fn extract_document_title(xml: &str) -> Option<String> {
     extract_xml_text(xml, "title")

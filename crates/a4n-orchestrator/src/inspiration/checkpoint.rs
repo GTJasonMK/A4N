@@ -1,7 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{
-    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-};
+use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::GenerationUsage;
 use serde_json::Value;
@@ -11,9 +9,7 @@ use crate::{
     workflow::workflow_checkpoint_contract_app_error,
 };
 
-use super::validation::{
-    inspiration_call_fingerprint_json, validate_inspiration_response_json,
-};
+use super::validation::{inspiration_call_fingerprint_json, validate_inspiration_response_json};
 use crate::OrchestratorContext;
 
 pub(super) struct InspirationCheckpointRequest {
@@ -64,12 +60,14 @@ impl OrchestratorContext {
         else {
             return Ok(None);
         };
-        let parsed_output = checkpoint.parsed_output.as_str().ok_or_else(|| {
-            AppError::InvalidState {
-                current: "invalid_checkpoint_field:parsed_output".to_string(),
-                operation: format!("读取灵感对话 LLM 调用断点 {call_key}"),
-            }
-        })?;
+        let parsed_output =
+            checkpoint
+                .parsed_output
+                .as_str()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "invalid_checkpoint_field:parsed_output".to_string(),
+                    operation: format!("读取灵感对话 LLM 调用断点 {call_key}"),
+                })?;
         let reparsed = validate_inspiration_response_json(&checkpoint.response_content)?;
         ensure_checkpoint_parsed_output_matches(
             parsed_output,
@@ -90,17 +88,17 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         let usage = usage.map(serde_json::to_value).transpose()?;
         self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-                workflow_run_id,
-                call_key,
-                call_order: 1,
-                input_fingerprint_json: fingerprint_json,
-                checkpoint: CompletedLlmCallCheckpoint {
-                    parsed_output: Value::String(output.to_string()),
-                    response_content: output.to_string(),
-                    usage,
-                    finish_reason,
-                    artifacts_json: None,
-                },
+            workflow_run_id,
+            call_key,
+            call_order: 1,
+            input_fingerprint_json: fingerprint_json,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: Value::String(output.to_string()),
+                response_content: output.to_string(),
+                usage,
+                finish_reason,
+                artifacts_json: None,
+            },
         })
         .await
     }

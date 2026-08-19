@@ -11,8 +11,7 @@ pub fn image_mime_from_path(path: &Path) -> Result<&'static str, String> {
     if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "webp") {
         return Err(format!("图片扩展名不支持：{extension}"));
     }
-    media_mime_from_extension(&extension)
-        .ok_or_else(|| format!("图片扩展名不支持：{extension}"))
+    media_mime_from_extension(&extension).ok_or_else(|| format!("图片扩展名不支持：{extension}"))
 }
 
 pub fn video_mime_from_path(path: &Path) -> Result<&'static str, String> {
@@ -83,10 +82,7 @@ mod tests {
             Ok("image/png")
         );
         assert!(image_mime_from_path(Path::new("image.gif")).is_err());
-        assert_eq!(
-            video_mime_from_path(Path::new("clip.M4V")),
-            Ok("video/mp4")
-        );
+        assert_eq!(video_mime_from_path(Path::new("clip.M4V")), Ok("video/mp4"));
         assert!(video_mime_from_path(Path::new("clip.avi")).is_err());
     }
 

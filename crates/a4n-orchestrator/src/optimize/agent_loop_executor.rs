@@ -28,4 +28,8 @@ mod contracts;
 mod decision;
 mod observations;
 
-pub(in crate::optimize) use contracts::*;
+pub(in crate::optimize) use contracts::{
+    AgentLoopDecisionRequest, AgentLoopExecutionError, AgentLoopGenerationContext,
+    AgentLoopThinkObservationInput, ExplicitAnalysisAgentLoopInput, FailedAgentLoopToolInput,
+    OptimizeAnalysisTurnExecution,
+};

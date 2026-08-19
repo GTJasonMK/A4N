@@ -1,7 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{
-    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-};
+use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 
 use crate::outline::chapter_contract::parse_chapter_outline_batch;
 use crate::outline::{OrchestratorContext, ensure_response_not_truncated};
@@ -95,17 +93,17 @@ impl OrchestratorContext {
                 finish_reason,
             };
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-                    workflow_run_id,
-                    call_key,
-                    call_order: chapter_number,
-                    input_fingerprint_json: fingerprint_json,
-                    checkpoint: CompletedLlmCallCheckpoint {
-                        parsed_output: generated.chapter_json.clone(),
-                        response_content: generated.response_content.clone(),
-                        usage: response_usage_json,
-                        finish_reason: generated.finish_reason.clone(),
-                        artifacts_json: None,
-                    },
+                workflow_run_id,
+                call_key,
+                call_order: chapter_number,
+                input_fingerprint_json: fingerprint_json,
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: generated.chapter_json.clone(),
+                    response_content: generated.response_content.clone(),
+                    usage: response_usage_json,
+                    finish_reason: generated.finish_reason.clone(),
+                    artifacts_json: None,
+                },
             })
             .await?;
             generated

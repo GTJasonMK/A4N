@@ -1,5 +1,12 @@
-use super::*;
+use a4n_core::models::{
+    generation::{generation_spec, prompt_artifact},
+    media::{media_asset, media_provenance},
+    project::novel_project,
+};
 use serde_json::json;
+
+use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
+use crate::project_dependency_graph::helpers::count_strings;
 
 pub(in crate::project_dependency_graph) fn add_generation_nodes(
     graph: &mut GraphBuilder,

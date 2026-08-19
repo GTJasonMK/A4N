@@ -2,8 +2,8 @@ use std::future::Future;
 
 use a4n_core::error::AppError;
 use a4n_queue::{
+    TaskFamilyContext, TaskWorkflowContext,
     priority::{TaskKind, TaskPriority},
-    queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 use tokio_util::sync::CancellationToken;
 

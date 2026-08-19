@@ -41,12 +41,8 @@ pub(crate) fn trimmed_video_path(
         Some(chapter_id) => ensure_chapter_videos_dir(data_dir, source.project_id, chapter_id)?,
         None => ensure_project_videos_dir(data_dir, source.project_id)?,
     };
-    let (path, file) = create_unique_timestamped_file(
-        &dir,
-        &format!("trim_{}", source.id),
-        "mp4",
-    )
-    .map_err(|error| format!("创建裁剪视频文件失败：{error}"))?;
+    let (path, file) = create_unique_timestamped_file(&dir, &format!("trim_{}", source.id), "mp4")
+        .map_err(|error| format!("创建裁剪视频文件失败：{error}"))?;
     drop(file);
     Ok(path)
 }

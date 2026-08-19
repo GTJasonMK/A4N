@@ -1,12 +1,13 @@
-use super::super::prelude::{
-    AppState, GeneratedImageSummary, access, append_secondary_error, canonicalize_data_file_path,
-    persist_created_media_file, to_summary,
-};
 use super::super::processing::{canvas_frame_output_path, run_ffmpeg_extract_frame};
-use a4n_domain::CanvasFrameKind;
+use crate::AppState;
+use crate::actions::access;
+use crate::actions::image_generation::{GeneratedImageSummary, to_summary};
+use crate::actions::video_generation::media::append_secondary_error;
+use crate::file_utils::{canonicalize_data_file_path, persist_created_media_file};
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+use a4n_domain::CanvasFrameKind;
 
-pub async fn extract_canvas_video_frame(
+pub(crate) async fn extract_canvas_video_frame(
     state: &AppState,
     user_id: i64,
     project_id: i64,

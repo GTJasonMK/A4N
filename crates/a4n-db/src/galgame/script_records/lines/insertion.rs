@@ -17,7 +17,7 @@ pub async fn insert_galgame_line_record_transaction(
     Ok(record)
 }
 
-pub async fn insert_galgame_line_record<C>(
+async fn insert_galgame_line_record<C>(
     db: &C,
     input: InsertGalgameLineRecordInput,
 ) -> Result<galgame_line::Model, GalgameLineRecordError>

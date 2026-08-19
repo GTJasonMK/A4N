@@ -23,7 +23,10 @@ use crate::project_delete::{
 };
 
 mod types;
-pub use types::*;
+pub use types::{
+    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult, ProjectResetDbError,
+    ProjectStatusRollbackOutcome,
+};
 
 mod galgame;
 use galgame::reset_galgame_generated_data_in_tx;
@@ -32,10 +35,10 @@ mod characters;
 use characters::reset_character_profiles_for_project;
 
 mod reset;
-pub use reset::*;
+pub use reset::reset_project_generated_data_record;
 
 mod rollback;
-pub use rollback::*;
+pub use rollback::rollback_project_status_record;
 
 #[cfg(test)]
 mod tests;

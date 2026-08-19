@@ -5,13 +5,12 @@
 
 mod completeness;
 mod contracts;
-mod filters;
+pub(crate) mod filters;
 mod store;
 
-pub use completeness::*;
-pub use contracts::*;
-pub use filters::*;
-pub use store::*;
+pub use completeness::CompletenessReport;
+pub use contracts::{DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult};
+pub use store::VectorStore;
 
 #[cfg(test)]
 mod tests;

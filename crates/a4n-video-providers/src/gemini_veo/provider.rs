@@ -14,14 +14,14 @@ use crate::download::download_video_url_with_api_key;
 use crate::format::detect_video_format_from_bytes;
 use crate::transport::{self, ApiKeyAuth};
 
-pub struct GeminiVeoVideoProvider {
+pub(crate) struct GeminiVeoVideoProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl GeminiVeoVideoProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Self {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.trim().to_string(),
@@ -80,7 +80,7 @@ impl GeminiVeoVideoProvider {
         Self::request_body_with_image_mapper(req, image_inline_data)
     }
 
-    pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+    pub(crate) fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
         Self::request_body_with_image_mapper(req, |raw, label| {
             Ok(image_inline_data_preview(raw, label))
         })

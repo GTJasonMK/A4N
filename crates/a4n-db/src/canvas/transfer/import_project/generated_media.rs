@@ -3,8 +3,8 @@ use super::super::{
     types::{VideoStudioProjectImportError, VideoStudioProjectImportMediaFileWriter},
 };
 use super::VideoStudioProjectImportMediaRowsContext;
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::ai::{generated_image, generated_video};
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use std::collections::HashMap;

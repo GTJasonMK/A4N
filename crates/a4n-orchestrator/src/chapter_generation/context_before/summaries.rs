@@ -1,4 +1,5 @@
-use super::shared::{chapter_context_label, non_empty_trimmed, truncate_chars};
+use super::shared::{chapter_context_label, truncate_chars};
+use crate::chapter_generation::non_empty_trimmed;
 use a4n_core::models::chapter::chapter;
 
 const RECENT_SUMMARY_CHAPTERS: i32 = 10;

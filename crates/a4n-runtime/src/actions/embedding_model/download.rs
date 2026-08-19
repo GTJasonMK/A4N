@@ -1,6 +1,5 @@
 use super::{
-    DownloadProgress, EmbeddingModelInput, LocalEmbeddingModelSummary,
-    host_adapter::required_text,
+    DownloadProgress, EmbeddingModelInput, LocalEmbeddingModelSummary, host_adapter::required_text,
 };
 use crate::AppState;
 use a4n_core::error::AppError;

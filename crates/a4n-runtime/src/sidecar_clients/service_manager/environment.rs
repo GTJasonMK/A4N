@@ -9,31 +9,17 @@ pub(super) fn apply_common_sidecar_env(
     env: &mut HashMap<String, String>,
     config: &AppConfig,
 ) -> Result<(), String> {
-    env.insert(
-        "A4N_DATA_DIR".to_string(),
-        path_string(&config.data_dir)?,
-    );
-    env.insert(
-        "A4N_CACHE_DIR".to_string(),
-        path_string(&config.cache_dir)?,
-    );
-    env.insert(
-        "A4N_TEMP_DIR".to_string(),
-        path_string(&config.temp_dir)?,
-    );
-    env.insert(
-        "A4N_LOG_DIR".to_string(),
-        path_string(&config.log_dir)?,
-    );
+    env.insert("A4N_DATA_DIR".to_string(), path_string(&config.data_dir)?);
+    env.insert("A4N_CACHE_DIR".to_string(), path_string(&config.cache_dir)?);
+    env.insert("A4N_TEMP_DIR".to_string(), path_string(&config.temp_dir)?);
+    env.insert("A4N_LOG_DIR".to_string(), path_string(&config.log_dir)?);
     let rag_data_dir = configured_path("A4N_RAG_SERVICE_DATA_DIR", &config.data_dir)?;
     env.insert(
         "A4N_RAG_SERVICE_DATA_DIR".to_string(),
         path_string(&rag_data_dir)?,
     );
-    let embedding_cache_dir = configured_path(
-        EMBEDDING_CACHE_DIR_ENV,
-        &config.embedding_models_dir(),
-    )?;
+    let embedding_cache_dir =
+        configured_path(EMBEDDING_CACHE_DIR_ENV, &config.embedding_models_dir())?;
     env.insert(
         EMBEDDING_CACHE_DIR_ENV.to_string(),
         path_string(&embedding_cache_dir)?,

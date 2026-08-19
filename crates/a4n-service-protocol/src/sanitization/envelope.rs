@@ -1,5 +1,5 @@
+use crate::CapabilityTaskEvent;
 use crate::artifacts::{ArtifactValidationError, validate_artifact_refs};
-use crate::events::CapabilityTaskEvent;
 use crate::response::ServiceResponse;
 
 use super::message::redact_sensitive_message;

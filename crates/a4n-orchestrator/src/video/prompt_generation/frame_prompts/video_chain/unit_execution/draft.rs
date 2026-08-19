@@ -5,9 +5,8 @@ use crate::video::prompt_generation::frame_prompts::{
     AppError, FINAL_VIDEO_PROMPT_OUTPUT_CONTRACT_VERSION, ProgressSpan,
     RenderOrRestoreJsonWithValidationInput, VideoPromptChunk, VideoPromptProgress,
     VideoPromptStepProgress, build_final_video_context_manifest,
-    parse_single_generated_video_prompt_shot,
-    render_or_restore_json_with_validation_with_context, video_prompt_generation_trace,
-    video_prompt_progress_spec, video_stage_fingerprint,
+    parse_single_generated_video_prompt_shot, render_or_restore_json_with_validation_with_context,
+    video_prompt_generation_trace, video_prompt_progress_spec, video_stage_fingerprint,
 };
 use crate::workflow::workflow_checkpoint_contract_app_error;
 
@@ -69,12 +68,8 @@ pub(super) async fn generate_video_prompt_draft(
             context_manifest: prompt_context_manifest,
             temperature: 0.45,
             cancel_token: context.cancel_token,
-            step: VideoPromptStepProgress::new(
-                progress_span.start(),
-                100,
-                generation_message,
-            )
-            .with_span(progress_span),
+            step: VideoPromptStepProgress::new(progress_span.start(), 100, generation_message)
+                .with_span(progress_span),
             progress,
             chunks,
             structured_progress: Some(video_prompt_progress_spec(context.is_chat_video)),

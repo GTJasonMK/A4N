@@ -1,4 +1,4 @@
-pub fn next_deletion_mark_count(
+pub(super) fn next_deletion_mark_count(
     current_count: i32,
     last_marked_chapter: i32,
     chapter_number: i32,
@@ -10,7 +10,10 @@ pub fn next_deletion_mark_count(
     }
 }
 
-pub fn retained_deletion_mark_count(first_chapter: i32, rewind_to_chapter: i32) -> Option<i32> {
+pub(super) fn retained_deletion_mark_count(
+    first_chapter: i32,
+    rewind_to_chapter: i32,
+) -> Option<i32> {
     if rewind_to_chapter <= 0 {
         return None;
     }

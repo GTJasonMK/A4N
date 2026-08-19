@@ -14,10 +14,13 @@ use crate::{
     generation::delete_generation_spec_records_by_ids, media::delete_unbound_project_media_assets,
 };
 
-pub use assets::*;
-pub use lines::*;
-pub use project::*;
-pub use scenes::*;
+pub use assets::delete_media_asset_with_provenance_records;
+pub(in crate::galgame) use lines::{
+    delete_galgame_line_generation_media_graph_record,
+    delete_galgame_line_visual_generation_media_graph_record,
+};
+pub(in crate::galgame) use project::delete_galgame_target_generation_media_graph_record;
+pub(in crate::galgame) use scenes::delete_galgame_scene_visual_generation_media_graph_record;
 
 async fn delete_generation_media_graph<C>(
     db: &C,

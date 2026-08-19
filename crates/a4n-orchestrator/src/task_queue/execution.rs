@@ -80,7 +80,7 @@ impl PersistentTaskQueue {
         };
         let result = match task_type {
             TaskKind::LlmCall | TaskKind::TextGeneration => {
-                a4n_queue::scope::with_llm_slot(operation()).await
+                a4n_queue::with_llm_slot(operation()).await
             }
             _ => operation().await,
         };

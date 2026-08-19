@@ -1,3 +1,4 @@
+use super::sync::{generated_prompt_status, validate_prompt_sync_draft};
 use super::*;
 use a4n_core::models::{
     chapter::{chapter, chapter_video_prompt},
@@ -74,6 +75,7 @@ async fn insert_prompt(
         status: Set("completed".to_string()),
         generated_video_id: Set(None),
         metadata_json: Set(Some(json!({
+            "prompt_output_language": "zh_cn",
             "video_execution_identity": {"duration_secs": 6}
         }))),
         created_at: Set(now),
@@ -269,6 +271,7 @@ async fn prompt_sync_empty_drafts_returns_before_database_access() {
 fn prompt_sync_video_prompt_requires_shared_segment_plan_source() {
     let mut valid = sync_draft(1, 2, "video_prompt", "first_frame_chain", 1);
     valid.fields.metadata_json = Some(json!({
+        "prompt_output_language": "zh_cn",
         "source_prompt_type": "frame_segment_plan",
         "source": {"content_sha256": "same-source"},
         "video_execution_identity": {
@@ -284,6 +287,7 @@ fn prompt_sync_video_prompt_requires_shared_segment_plan_source() {
 
     let mut invalid = valid;
     invalid.fields.metadata_json = Some(json!({
+        "prompt_output_language": "zh_cn",
         "source_prompt_type": "unknown_segment_plan",
         "source": {"content_sha256": "same-source"},
         "video_execution_identity": {

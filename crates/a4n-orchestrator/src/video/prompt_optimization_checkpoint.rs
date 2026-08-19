@@ -1,9 +1,7 @@
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
-use crate::structured_llm::{
-    ensure_checkpoint_parsed_output_matches, parse_strict_json_response,
-};
+use crate::structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response};
 
 #[derive(PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]

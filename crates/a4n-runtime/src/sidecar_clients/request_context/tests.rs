@@ -1,7 +1,7 @@
 use serde_json::json;
 
-use super::*;
 use super::requests::service_request_with_context;
+use super::*;
 
 #[test]
 fn provider_secret_detection_is_recursive_and_key_aware() {

@@ -2,7 +2,7 @@ use a4n_core::models::asset::object_profile;
 use a4n_core::models::scene::scene_profile;
 use serde_json::Value;
 
-use super::ChapterVideoSourceContext;
+use crate::video::ChapterVideoSourceContext;
 
 pub(super) fn is_chapter_video_material(metadata: Option<&Value>) -> bool {
     let Some(metadata) = metadata.and_then(Value::as_object) else {

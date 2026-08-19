@@ -1,8 +1,16 @@
-use super::*;
+use std::sync::Arc;
 
 use a4n_test_support::capability::RecordingLlmClient;
+use a4n_core::config::app_config::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
+use a4n_core::error::AppError;
+use a4n_core::models::ai::llm_config;
+use a4n_llm::provider::{ChatMessage, ChatRequest, MessageRole};
 
 use crate::dynamic_llm::trace::validated_authoritative_trace_root_project_id;
+
+use super::budget::ensure_max_tokens_within_model_cap;
+use super::config::{probe_llm_via_sidecar, require_sidecar_business_trace};
+use super::contracts::ResolvedLlmModel;
 
 #[test]
 fn max_tokens_cap_accepts_missing_or_within_limit() {

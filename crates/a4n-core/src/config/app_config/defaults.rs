@@ -1,10 +1,16 @@
-use super::*;
 use crate::config::env::optional_non_empty_env_path;
+use a4n_domain::{
+    DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LlmMaxTokensConfig,
+};
 use std::path::PathBuf;
 
+use super::contracts::{
+    AppConfig, EmbeddingConfig, ImageGenConfig, LlmConfig, SecurityConfig, SystemConfig,
+};
+use super::portable::{portable_home_dir, resolve_portable_path};
+
 pub(super) fn default_data_dir() -> PathBuf {
-    if let Some(path) = optional_non_empty_env_path("A4N_DATA_DIR")
-        .expect("A4N_DATA_DIR 配置无效")
+    if let Some(path) = optional_non_empty_env_path("A4N_DATA_DIR").expect("A4N_DATA_DIR 配置无效")
     {
         return resolve_portable_path(path);
     }

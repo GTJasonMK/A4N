@@ -4,7 +4,7 @@ use regex::Regex;
 #[cfg(test)]
 mod tests;
 
-pub fn extract_xml_text(xml: &str, tag: &str) -> Option<String> {
+pub(super) fn extract_xml_text(xml: &str, tag: &str) -> Option<String> {
     let pattern = format!(r"<[^:]*:{tag}[^>]*>([^<]*)</[^:]*:{tag}>|<{tag}[^>]*>([^<]*)</{tag}>");
     let re = Regex::new(&pattern).ok()?;
     re.captures(xml).and_then(|cap| {

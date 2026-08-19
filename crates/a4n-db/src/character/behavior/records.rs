@@ -3,7 +3,7 @@ use crate::character::CharacterDbError;
 use a4n_core::models::character::protagonist_behavior_record;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
 
-pub async fn insert_behavior_record<C>(
+async fn insert_behavior_record<C>(
     db: &C,
     input: InsertBehaviorRecordInput,
 ) -> Result<protagonist_behavior_record::Model, DbErr>
@@ -29,7 +29,7 @@ where
     .await
 }
 
-pub async fn record_behavior_in<C>(
+pub(in crate::character) async fn record_behavior_in<C>(
     db: &C,
     input: InsertBehaviorRecordInput,
 ) -> Result<protagonist_behavior_record::Model, CharacterDbError>

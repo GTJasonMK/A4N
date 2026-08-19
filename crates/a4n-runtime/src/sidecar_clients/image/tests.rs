@@ -49,7 +49,7 @@ fn image_request() -> ImageGenerationRequest {
 async fn image_sidecar_missing_capability_fails_without_embedded_fallback() {
     let error = generate_image(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::empty(),
+        &A4nCapabilities::default(),
         &image_config(),
         image_request(),
         None,
@@ -69,7 +69,7 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
     let client = Arc::new(
         RecordingImageClient::new().with_generate_events(successful_image_generation_events()),
     );
-    let capabilities = A4nCapabilities::empty().with_image(client.clone());
+    let capabilities = A4nCapabilities::default().with_image(client.clone());
 
     let progress_messages = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let progress_record = progress_messages.clone();
@@ -119,7 +119,7 @@ async fn image_provider_preview_uses_typed_capability_request() {
     let client = Arc::new(
         RecordingImageClient::new().with_preview_response(successful_image_preview_response()),
     );
-    let capabilities = A4nCapabilities::empty().with_image(client.clone());
+    let capabilities = A4nCapabilities::default().with_image(client.clone());
 
     let preview = preview_image_provider_request(
         &capabilities,
@@ -148,7 +148,7 @@ async fn image_provider_preview_uses_typed_capability_request() {
 #[tokio::test]
 async fn image_provider_preview_missing_capability_has_no_embedded_fallback() {
     let error = preview_image_provider_request(
-        &A4nCapabilities::empty(),
+        &A4nCapabilities::default(),
         &image_config(),
         image_request(),
         Some(42),

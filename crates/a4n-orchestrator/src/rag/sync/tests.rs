@@ -14,9 +14,8 @@ use super::context::RagSyncContext;
 use super::identity::{classify_rag_record, ensure_project_embedding_identity_matches};
 use super::{RagRecord, RagRecordSyncOutcome};
 use crate::rag::{
-    chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id,
-    character_state_rag_chunk_id, foreshadowing_rag_chunk_id, protagonist_rag_chunk_id,
-    protagonist_rag_chunk_prefix,
+    chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,
+    foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, protagonist_rag_chunk_prefix,
 };
 
 fn identity(model: &str) -> EmbeddingModelIdentity {

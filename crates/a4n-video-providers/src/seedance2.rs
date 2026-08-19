@@ -1,7 +1,5 @@
-mod provider;
+pub(super) mod provider;
 mod request;
 mod response;
 #[cfg(test)]
 mod tests;
-
-pub use provider::Seedance2VideoProvider;

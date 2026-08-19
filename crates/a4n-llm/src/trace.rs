@@ -46,7 +46,7 @@ pub fn chat_request_messages_json(request: &ChatRequest) -> Result<Value, AppErr
     serde_json::to_value(&request.messages).map_err(AppError::Serialization)
 }
 
-pub fn chat_request_trace_json(request: &ChatRequest) -> Result<Value, AppError> {
+fn chat_request_trace_json(request: &ChatRequest) -> Result<Value, AppError> {
     serde_json::to_value(request).map_err(AppError::Serialization)
 }
 
@@ -81,7 +81,7 @@ pub fn context_aware_chat_request_trace_json(request: &ChatRequest) -> Result<Va
     Ok(request_json)
 }
 
-pub fn context_manifest_trace_summary(manifest_json: &Value) -> Result<Value, AppError> {
+fn context_manifest_trace_summary(manifest_json: &Value) -> Result<Value, AppError> {
     let manifest: LlmContextManifest =
         serde_json::from_value(manifest_json.clone()).map_err(AppError::Serialization)?;
     let packs = manifest

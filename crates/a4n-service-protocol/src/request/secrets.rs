@@ -45,7 +45,7 @@ impl SecretForwardingPolicy {
         }
     }
 
-    pub fn denies_all_secrets(&self) -> bool {
+    fn denies_all_secrets(&self) -> bool {
         !self.allow_system_secret && !self.allow_user_secret && !self.allow_upload_token
     }
 

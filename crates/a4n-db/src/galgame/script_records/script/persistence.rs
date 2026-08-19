@@ -8,7 +8,7 @@ use sea_orm::sea_query::Expr;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use std::collections::BTreeMap;
 
-pub async fn persist_galgame_script_record<C>(
+pub(super) async fn persist_galgame_script_record<C>(
     db: &C,
     input: PersistGalgameScriptRecordInput,
 ) -> Result<galgame_script::Model, GalgameScriptRecordError>

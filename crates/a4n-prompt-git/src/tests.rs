@@ -59,14 +59,14 @@ fn unrelated_files_not_in_history() {
 
 #[test]
 fn commit_prompt_does_not_stage_unrelated_dirty_repo_files() {
-    let (_tmp, store) = store();
-    std::fs::write(store.repo_path().join("manual.md"), "manual").unwrap();
+    let (tmp, store) = store();
+    std::fs::write(tmp.path().join("manual.md"), "manual").unwrap();
 
     store
         .commit_prompt("tracked", "tracked", "tracked init")
         .unwrap();
 
-    let repo = Repository::open(store.repo_path()).unwrap();
+    let repo = Repository::open(tmp.path()).unwrap();
     let head = repo.head().unwrap().peel_to_commit().unwrap();
     let tree = head.tree().unwrap();
     assert!(tree.get_path(Path::new("tracked.md")).is_ok());
@@ -75,18 +75,18 @@ fn commit_prompt_does_not_stage_unrelated_dirty_repo_files() {
 
 #[test]
 fn latest_reads_committed_head_not_dirty_worktree_file() {
-    let (_tmp, store) = store();
+    let (tmp, store) = store();
     store.commit_prompt("dirty", "committed", "init").unwrap();
-    std::fs::write(store.repo_path().join("dirty.md"), "uncommitted").unwrap();
+    std::fs::write(tmp.path().join("dirty.md"), "uncommitted").unwrap();
 
     assert_eq!(store.latest("dirty").unwrap().as_deref(), Some("committed"));
 }
 
 #[test]
 fn commit_prompt_records_dirty_worktree_content_when_head_differs() {
-    let (_tmp, store) = store();
+    let (tmp, store) = store();
     let first = store.commit_prompt("dirty", "committed", "init").unwrap();
-    std::fs::write(store.repo_path().join("dirty.md"), "uncommitted").unwrap();
+    std::fs::write(tmp.path().join("dirty.md"), "uncommitted").unwrap();
 
     let second = store
         .commit_prompt("dirty", "uncommitted", "commit dirty")

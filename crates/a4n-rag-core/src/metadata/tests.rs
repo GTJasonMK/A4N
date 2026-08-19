@@ -56,12 +56,8 @@ fn metadata_normalization_adds_hash_index_and_embedding_identity() {
 
 #[test]
 fn metadata_normalization_rejects_non_object_and_blank_content() {
-    let non_object = normalize_metadata(
-        "正文内容",
-        serde_json::json!([]),
-        &identity(),
-    )
-    .expect_err("non-object metadata should reject");
+    let non_object = normalize_metadata("正文内容", serde_json::json!([]), &identity())
+        .expect_err("non-object metadata should reject");
     assert!(non_object.to_string().contains("必须是 JSON 对象"));
 
     let blank = normalize_metadata(

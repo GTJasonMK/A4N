@@ -22,12 +22,12 @@ pub(super) async fn recent_object_profile_context_lines(
     });
     Ok(profiles
         .iter()
-        .filter_map(object_profile_context_line)
+        .map(object_profile_context_line)
         .take(OBJECT_PROFILE_CONTEXT_LIMIT)
         .collect())
 }
 
-fn object_profile_context_line(profile: &object_profile::Model) -> Option<String> {
+fn object_profile_context_line(profile: &object_profile::Model) -> String {
     let mut details = Vec::new();
     details.push(format!(
         "外观: {}",
@@ -57,18 +57,14 @@ fn object_profile_context_line(profile: &object_profile::Model) -> Option<String
     {
         details.push(format!("语境: {}", truncate_chars(location, 80)));
     }
-    if details.is_empty() {
-        None
-    } else {
-        Some(format!(
-            "- {}（第{}-{}章，{}）：{}",
-            profile.name,
-            profile.first_seen_chapter,
-            profile.last_seen_chapter,
-            profile.importance,
-            details.join("；")
-        ))
-    }
+    format!(
+        "- {}（第{}-{}章，{}）：{}",
+        profile.name,
+        profile.first_seen_chapter,
+        profile.last_seen_chapter,
+        profile.importance,
+        details.join("；")
+    )
 }
 
 fn importance_rank(value: &str) -> u8 {

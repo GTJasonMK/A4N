@@ -57,18 +57,10 @@ where
     }
 
     for edge in &input.edges {
-        let source_node_id = resolve_canvas_record_edge_node_id(
-            edge.source_node_id,
-            &edge.source_client_id,
-            &node_ids,
-            "source",
-        )?;
-        let target_node_id = resolve_canvas_record_edge_node_id(
-            edge.target_node_id,
-            &edge.target_client_id,
-            &node_ids,
-            "target",
-        )?;
+        let source_node_id =
+            resolve_canvas_record_edge_node_id(&edge.source_client_id, &node_ids, "source")?;
+        let target_node_id =
+            resolve_canvas_record_edge_node_id(&edge.target_client_id, &node_ids, "target")?;
         canvas_edge::ActiveModel {
             graph_id: Set(graph_id),
             source_node_id: Set(source_node_id),
@@ -92,12 +84,10 @@ where
 }
 
 fn resolve_canvas_record_edge_node_id(
-    explicit_id: Option<i64>,
     client_id: &str,
     node_ids: &BTreeMap<String, i64>,
     label: &str,
 ) -> Result<i64, CanvasDbError> {
-    let _ = explicit_id;
     node_ids
         .get(client_id.trim())
         .copied()

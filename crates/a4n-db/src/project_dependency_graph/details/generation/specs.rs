@@ -2,7 +2,8 @@ use a4n_core::{error::AppError, models::generation::generation_spec};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
 
-use crate::project_dependency_graph::{AssetLineageRecord, db_record_result, lineage_ref};
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::{db_record_result, lineage_ref};
 
 pub(in crate::project_dependency_graph) async fn generation_spec_detail_records<C>(
     db: &C,

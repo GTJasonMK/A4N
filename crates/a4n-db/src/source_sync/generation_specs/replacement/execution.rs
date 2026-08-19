@@ -13,7 +13,7 @@ use crate::source_sync::{
     source_sync_params_with_prompt_kind,
 };
 
-pub async fn create_replacement_generation_spec_record<C>(
+async fn create_replacement_generation_spec_record<C>(
     db: &C,
     run: &source_sync_run::Model,
     source_spec: &generation_spec::Model,

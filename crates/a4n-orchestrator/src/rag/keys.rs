@@ -23,10 +23,7 @@ pub(crate) fn chapter_rag_chunk_prefix(project_id: i64, chapter_id: i64) -> Stri
     )
 }
 
-pub(crate) fn character_attribute_event_rag_chunk_id(
-    project_id: i64,
-    event_id: i64,
-) -> String {
+pub(crate) fn character_attribute_event_rag_chunk_id(project_id: i64, event_id: i64) -> String {
     rag_chunk_id(project_id, RagDataType::CharacterAttributeEvent, event_id)
 }
 

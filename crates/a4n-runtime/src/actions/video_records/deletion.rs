@@ -1,7 +1,9 @@
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
-use crate::actions::video_generation::media::delete_video_tail_frame_assets;
+use crate::actions::video_generation::media::{
+    append_secondary_error, delete_video_tail_frame_assets,
+};
 use a4n_core::error::AppError;
 use a4n_orchestrator::video::VideoRecordLifecycleHostPort;
 use async_trait::async_trait;
@@ -15,6 +17,20 @@ pub(in crate::actions::video_records) async fn delete_video_record_cleanup_error
         .await
         .err()
         .map(crate::actions::app_error_message)
+}
+
+pub(in crate::actions::video_records) async fn append_video_record_cleanup_error<T>(
+    video: &a4n_orchestrator::OrchestratorContext,
+    record_id: i64,
+    result: Result<T, String>,
+) -> Result<T, String> {
+    match result {
+        Ok(result) => Ok(result),
+        Err(error) => Err(append_secondary_error(
+            error,
+            delete_video_record_cleanup_error(video, record_id).await,
+        )),
+    }
 }
 
 struct VideoRecordLifecycleHost<'a> {

@@ -33,7 +33,7 @@ export const InspirationChat: React.FC = () => {
   }
 
   return (
-    <div className="h-full w-full flex flex-col">
+    <div className="h-full w-full min-w-0 flex flex-col">
       <InspirationChatHeader
         projectTitle={chat.project.title}
         showConversationControls={chat.stage === "conversation"}
@@ -44,10 +44,10 @@ export const InspirationChat: React.FC = () => {
         onPreviewGenerateBlueprint={() => void chat.handlePreviewGenerateBlueprint()}
       />
 
-      <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 min-h-0">
+      <div className="flex min-w-0 flex-1 min-h-0">
+        <div className="min-w-0 flex-1 min-h-0">
           {chat.stage === "conversation" && (
-            <div className="flex h-full min-h-0">
+            <div className="flex h-full min-h-0 min-w-0">
               <div className="min-w-0 flex-1">
                 <ConversationPane
                   messages={chat.messages}

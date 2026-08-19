@@ -5,12 +5,10 @@ use a4n_core::{
 use a4n_llm::provider::{ChatMessage, ChatResponse};
 use serde_json::Value;
 
-use crate::{
-    optimize::{
-        OrchestratorContext,
-        patch::parse_content_optimization_patch_response,
-        turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED, TURN_STATUS_FAILED},
-    },
+use crate::optimize::{
+    OrchestratorContext,
+    patch::parse_content_optimization_patch_response,
+    turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED, TURN_STATUS_FAILED},
 };
 use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 

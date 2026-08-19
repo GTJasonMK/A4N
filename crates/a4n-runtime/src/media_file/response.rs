@@ -53,21 +53,15 @@ pub fn read_media_file_response<E>(
     range_header: Option<Result<&str, E>>,
     label: &str,
 ) -> Result<MediaFileResponse, MediaFileResponseError> {
-    let content_type = media_mime_from_path(path)
-        .map_err(MediaFileResponseError::UnsupportedMediaType)?;
+    let content_type =
+        media_mime_from_path(path).map_err(MediaFileResponseError::UnsupportedMediaType)?;
     let mut file = std::fs::File::open(path).map_err(|err| {
-        MediaFileResponseError::Read(format!(
-            "无法打开{label}：{}：{err}",
-            path.display()
-        ))
+        MediaFileResponseError::Read(format!("无法打开{label}：{}：{err}", path.display()))
     })?;
     let size = file
         .metadata()
         .map_err(|err| {
-            MediaFileResponseError::Read(format!(
-                "无法读取{label}信息：{}：{err}",
-                path.display()
-            ))
+            MediaFileResponseError::Read(format!("无法读取{label}信息：{}：{err}", path.display()))
         })?
         .len();
 
@@ -75,21 +69,19 @@ pub fn read_media_file_response<E>(
         return match range {
             Ok((start, end)) => {
                 let len = end - start + 1;
-                file.seek(SeekFrom::Start(start))
-                    .map_err(|err| {
-                        MediaFileResponseError::Read(format!(
-                            "无法定位{label}：{}：{err}",
-                            path.display()
-                        ))
-                    })?;
+                file.seek(SeekFrom::Start(start)).map_err(|err| {
+                    MediaFileResponseError::Read(format!(
+                        "无法定位{label}：{}：{err}",
+                        path.display()
+                    ))
+                })?;
                 let mut body = vec![0; len as usize];
-                file.read_exact(&mut body)
-                    .map_err(|err| {
-                        MediaFileResponseError::Read(format!(
-                            "无法读取{label}：{}：{err}",
-                            path.display()
-                        ))
-                    })?;
+                file.read_exact(&mut body).map_err(|err| {
+                    MediaFileResponseError::Read(format!(
+                        "无法读取{label}：{}：{err}",
+                        path.display()
+                    ))
+                })?;
                 Ok(MediaFileResponse {
                     status: MediaResponseStatus::PartialContent,
                     content_type,
@@ -109,13 +101,9 @@ pub fn read_media_file_response<E>(
     }
 
     let mut body = Vec::new();
-    file.read_to_end(&mut body)
-        .map_err(|err| {
-            MediaFileResponseError::Read(format!(
-                "无法读取{label}：{}：{err}",
-                path.display()
-            ))
-        })?;
+    file.read_to_end(&mut body).map_err(|err| {
+        MediaFileResponseError::Read(format!("无法读取{label}：{}：{err}", path.display()))
+    })?;
     Ok(MediaFileResponse {
         status: MediaResponseStatus::Ok,
         content_type,

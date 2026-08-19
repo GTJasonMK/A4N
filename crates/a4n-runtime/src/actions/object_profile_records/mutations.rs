@@ -4,7 +4,12 @@ use super::{
 };
 use crate::{
     AppState,
-    actions::{access, dependency_conflict::delete_downstream_images_if_requested},
+    actions::{
+        access,
+        dependency_conflict::{
+            delete_downstream_images_if_requested, downstream_cleanup_warnings,
+        },
+    },
 };
 
 pub async fn create_object_profile(
@@ -78,12 +83,4 @@ pub async fn delete_object_profile(
             delete_downstream_images_if_requested(state, user_id, downstream).await,
         ),
     })
-}
-
-fn downstream_cleanup_warnings(result: Result<(), String>) -> Vec<String> {
-    result
-        .err()
-        .map(|error| format!("下游图片清理失败：{error}"))
-        .into_iter()
-        .collect()
 }

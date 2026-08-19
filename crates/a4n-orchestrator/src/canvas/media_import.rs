@@ -14,18 +14,16 @@ use crate::{
     project::PROJECT_KIND_VIDEO,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CanvasImageImportHostInput {
-    pub user_id: i64,
     pub project_id: i64,
     pub file_name: String,
     pub mime_type: String,
     pub data_base64: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CanvasVideoImportHostInput {
-    pub user_id: i64,
     pub project_id: i64,
     pub file_path: Option<String>,
     pub file_name: Option<String>,
@@ -51,13 +49,13 @@ pub trait CanvasVideoImportHostPort: Send + Sync {
     async fn delete_canvas_video(&self, video_id: i64) -> Result<(), AppError>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CanvasImageImportApplicationResult {
     pub image: generated_image::Model,
     pub asset: media_asset::Model,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CanvasVideoImportApplicationResult {
     pub video: generated_video::Model,
     pub asset: media_asset::Model,
@@ -67,17 +65,12 @@ impl OrchestratorContext {
     pub async fn import_canvas_image_validated(
         &self,
         host_port: &dyn CanvasImageImportHostPort,
+        user_id: i64,
         input: CanvasImageImportHostInput,
     ) -> Result<CanvasImageImportApplicationResult, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            input.user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
+        self.authorized_canvas_video_project(input.project_id, user_id)
+            .await?;
         let project_id = input.project_id;
-        let user_id = input.user_id;
-        self.require_canvas_video_project(project_id).await?;
         let image = host_port.import_canvas_image(input).await?;
         let asset = match self
             .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
@@ -108,16 +101,12 @@ impl OrchestratorContext {
     pub async fn import_canvas_video_validated(
         &self,
         host_port: &dyn CanvasVideoImportHostPort,
+        user_id: i64,
         input: CanvasVideoImportHostInput,
     ) -> Result<CanvasVideoImportApplicationResult, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            input.user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
+        self.authorized_canvas_video_project(input.project_id, user_id)
+            .await?;
         let project_id = input.project_id;
-        self.require_canvas_video_project(project_id).await?;
         let video = host_port.import_canvas_video(input).await?;
         let asset = match self
             .ensure_canvas_video_media_asset_record(CanvasVideoMediaAssetEnsureInput {
@@ -142,12 +131,22 @@ impl OrchestratorContext {
         Ok(CanvasVideoImportApplicationResult { video, asset })
     }
 
-    async fn require_canvas_video_project(&self, project_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn authorized_canvas_video_project(
+        &self,
+        project_id: i64,
+        user_id: i64,
+    ) -> Result<a4n_core::models::project::novel_project::Model, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "项目 ID 必须是正整数".to_string(),
             ));
         }
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
         let project = self
             .project_by_id(project_id)
             .await?
@@ -157,6 +156,6 @@ impl OrchestratorContext {
                 "画布媒体导入只支持视频项目".to_string(),
             ));
         }
-        Ok(())
+        Ok(project)
     }
 }

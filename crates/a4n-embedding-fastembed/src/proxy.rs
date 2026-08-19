@@ -10,9 +10,9 @@ mod url;
 #[cfg(target_os = "windows")]
 mod windows;
 
+pub(crate) use env::ScopedHfHubEnv;
 #[cfg(test)]
 pub(crate) use env::{HF_HOME_OVERRIDE_LOCK, ScopedEnvVar};
-pub(crate) use env::ScopedHfHubEnv;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) use linux::{parse_gsettings_array, parse_gsettings_string};
 #[cfg(test)]

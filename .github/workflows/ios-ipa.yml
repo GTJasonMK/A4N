@@ -1,0 +1,75 @@
+name: iOS IPA
+
+on:
+  push:
+    branches:
+      - codex/ios-ipa-*
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Public HTTPS A4N API URL, including /api
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-ipa:
+    name: Unsigned iOS IPA
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      VITE_A4N_API_TRANSPORT: web
+      VITE_A4N_API_BASE_URL: ${{ inputs.api_base_url || vars.A4N_IOS_API_BASE_URL || 'https://a4n.invalid/api' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate API URL
+        run: |
+          ruby -ruri -e '
+            url = URI(ENV.fetch("VITE_A4N_API_BASE_URL"))
+            abort "api_base_url must be a public HTTPS URL" unless url.is_a?(URI::HTTPS) && url.host
+          '
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install build dependencies
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          cargo install tauri-cli --version 2.11.0 --locked
+          npm ci --prefix frontend
+
+      - name: Generate iOS project
+        working-directory: crates/a4n-tauri
+        run: cargo tauri ios init --ci
+
+      - name: Build unsigned IPA
+        working-directory: crates/a4n-tauri
+        run: cargo tauri ios build --ci --no-sign
+
+      - name: Collect IPA
+        run: |
+          mkdir -p artifacts/ios
+          ipa="$(find crates/a4n-tauri/gen/apple -type f -name '*.ipa' -print -quit)"
+          test -n "$ipa"
+          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          output="artifacts/ios/A4N-${version}-ios-arm64-unsigned.ipa"
+          cp "$ipa" "$output"
+          shasum -a 256 "$output" > artifacts/ios/SHA256SUMS
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: A4N-ios-arm64-unsigned
+          path: artifacts/ios
+          retention-days: 30

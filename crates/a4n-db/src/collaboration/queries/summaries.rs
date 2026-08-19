@@ -31,7 +31,7 @@ pub(in crate::collaboration) async fn invite_summaries(
     Ok(summaries)
 }
 
-pub(in crate::collaboration) fn invite_summary_from_indexes(
+fn invite_summary_from_indexes(
     invite: project_invite::Model,
     users_by_id: &HashMap<i64, user::Model>,
     projects_by_id: &HashMap<i64, novel_project::Model>,

@@ -1,4 +1,3 @@
-use crate::AppState;
 pub use a4n_orchestrator::canvas::CanvasGraphRecordDocument as CanvasGraphDocument;
 
 mod contracts;
@@ -14,7 +13,8 @@ mod records_api;
 mod text_nodes;
 
 pub use contracts::{CanvasNodeContract, CanvasPortContract, GetCanvasNodeContractsInput};
-pub use execution::{resume_canvas_graph_run, run_canvas_graph, run_canvas_node};
+pub(crate) use execution::resume_canvas_graph_run;
+pub use execution::{run_canvas_graph, run_canvas_node};
 pub use host_contracts::{
     CanvasRunSummary, GetCanvasGraphInput, ImportCanvasMediaInput, ImportedCanvasMedia,
     RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,

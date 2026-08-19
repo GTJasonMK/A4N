@@ -7,6 +7,7 @@ use a4n_llm::context::{
     CONTEXT_MANIFEST_SCHEMA_VERSION, LlmContextManifest, LlmContextManifestPack,
     LlmContextManifestPackVariant,
 };
+use serde_json::json;
 
 #[test]
 fn model_request_preview_counts_only_ready_steps() {

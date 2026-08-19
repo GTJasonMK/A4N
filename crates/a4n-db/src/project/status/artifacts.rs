@@ -1,9 +1,10 @@
-use super::{ProjectStatusArtifacts, ProjectStatusReadError};
+use super::ProjectStatusReadError;
 use crate::project::validate_positive_i64;
 use a4n_core::models::{
     chapter::{chapter, chapter_outline, part_outline},
     project::novel_blueprint,
 };
+use a4n_domain::project::ProjectStatusArtifacts;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn project_status_artifacts(

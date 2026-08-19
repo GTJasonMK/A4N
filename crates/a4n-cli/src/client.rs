@@ -164,6 +164,92 @@ impl ApiClient {
             .filter(|session_id| !session_id.is_empty())
     }
 
+    pub(crate) fn agent_id(&self) -> Option<&str> {
+        self.stored
+            .agent_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    pub(crate) fn agent_token(&self) -> Option<&str> {
+        self.stored
+            .agent_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    pub(crate) fn has_agent_credentials(&self) -> bool {
+        self.agent_id().is_some() && self.agent_token().is_some()
+    }
+
+    pub(crate) async fn register_agent(&mut self, body: Value) -> Result<Value> {
+        let value = self
+            .send_json(JsonRequest {
+                method: Method::POST,
+                path: "/agents".into(),
+                body: Some(body),
+                authenticated: true,
+            })
+            .await?;
+        let agent_id = value
+            .pointer("/agent/agent_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("Agent 注册响应缺少 agent.agent_id"))?;
+        let agent_token = value
+            .get("agent_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("Agent 注册响应缺少 agent_token"))?;
+        self.save_agent_credentials(agent_id.into(), agent_token.into())?;
+        Ok(value)
+    }
+
+    pub(crate) fn agent_heartbeat_client(&self) -> Result<AgentHeartbeatClient> {
+        Ok(AgentHeartbeatClient {
+            http: self.http.clone(),
+            api_base: self.api_base.clone(),
+            agent_id: self
+                .agent_id()
+                .ok_or_else(|| anyhow!("自动 Agent 跟踪缺少 agent_id"))?
+                .to_string(),
+            access_token: self
+                .access_token()
+                .ok_or_else(|| anyhow!("未登录；无法自动跟踪 Agent"))?
+                .to_string(),
+            agent_token: self
+                .agent_token()
+                .ok_or_else(|| anyhow!("自动 Agent 跟踪缺少 agent token"))?
+                .to_string(),
+        })
+    }
+
+    pub(crate) fn save_agent_credentials(
+        &mut self,
+        agent_id: String,
+        agent_token: String,
+    ) -> Result<()> {
+        let _lock = lock_config(&self.config_path)?;
+        let mut stored = StoredConfig::load_unlocked(&self.config_path)?;
+        self.ensure_stored_server_matches(&stored)?;
+        stored.agent_id = Some(agent_id);
+        stored.agent_token = Some(agent_token);
+        stored.save_unlocked(&self.config_path)?;
+        self.stored = stored;
+        Ok(())
+    }
+
+    pub(crate) fn clear_agent_credentials(&mut self) -> Result<()> {
+        let _lock = lock_config(&self.config_path)?;
+        let mut stored = StoredConfig::load_unlocked(&self.config_path)?;
+        self.ensure_stored_server_matches(&stored)?;
+        stored.agent_id = None;
+        stored.agent_token = None;
+        stored.save_unlocked(&self.config_path)?;
+        self.stored = stored;
+        Ok(())
+    }
+
     pub(crate) fn runtime_config_snapshot(&self) -> Option<&RuntimeConfigSnapshot> {
         self.stored.runtime_config_snapshot.as_ref()
     }
@@ -329,6 +415,26 @@ impl ApiClient {
         self.send(request).await?.into_value()
     }
 
+    pub(crate) async fn send_agent_json(
+        &mut self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<Value> {
+        let mut response = self
+            .send_agent_once(method.clone(), path, body.clone())
+            .await?;
+        if response.status() == StatusCode::UNAUTHORIZED && self.can_refresh() {
+            self.refresh_after_unauthorized().await?;
+            response = self.send_agent_once(method, path, body).await?;
+        }
+        let secrets = self.auth_secrets();
+        read_response(response)
+            .await
+            .map_err(|error| redact_error_values(error, &secrets))?
+            .into_value()
+    }
+
     pub(crate) async fn send(&mut self, request: JsonRequest) -> Result<ApiBody> {
         let response = self
             .send_with_refresh(
@@ -419,6 +525,29 @@ impl ApiClient {
                 .ok_or_else(|| anyhow!("未登录；请先执行 `a4n auth login --password-stdin`"))?;
             request = request.bearer_auth(token);
         }
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        request.send().await.map_err(transport_error)
+    }
+
+    async fn send_agent_once(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<Response> {
+        let access_token = self
+            .access_token()
+            .ok_or_else(|| anyhow!("未登录；请先执行 `a4n auth login --password-stdin`"))?;
+        let agent_token = self
+            .agent_token()
+            .ok_or_else(|| anyhow!("没有 Agent 凭证；请先执行 `a4n agent register`"))?;
+        let mut request = self
+            .http
+            .request(method, self.url(path)?)
+            .bearer_auth(access_token)
+            .header("x-agent-token", agent_token);
         if let Some(body) = body {
             request = request.json(&body);
         }
@@ -569,6 +698,8 @@ impl ApiClient {
             access_token: Some(tokens.access_token.clone()),
             refresh_token: Some(tokens.refresh_token.clone()),
             session_id: Some(tokens.session_id.clone()),
+            agent_id: self.stored.agent_id.clone(),
+            agent_token: self.stored.agent_token.clone(),
             runtime_config_snapshot: self.stored.runtime_config_snapshot.clone(),
         }
     }
@@ -598,6 +729,7 @@ impl ApiClient {
         [
             self.access_token().map(str::to_string),
             self.stored.refresh_token.clone(),
+            self.stored.agent_token.clone(),
         ]
         .into_iter()
         .flatten()
@@ -648,6 +780,45 @@ impl ApiClient {
             bail!("API path 不能逃出 Server API 根路径或包含 fragment");
         }
         Ok(url.into())
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct AgentHeartbeatClient {
+    http: reqwest::Client,
+    api_base: String,
+    agent_id: String,
+    access_token: String,
+    agent_token: String,
+}
+
+impl AgentHeartbeatClient {
+    pub(crate) async fn update(
+        &self,
+        status: &str,
+        phase: &str,
+        summary: Option<&str>,
+    ) -> Result<()> {
+        let encoded_id: String =
+            url::form_urlencoded::byte_serialize(self.agent_id.as_bytes()).collect();
+        let response = self
+            .http
+            .post(format!("{}/agents/{encoded_id}/heartbeat", self.api_base))
+            .bearer_auth(&self.access_token)
+            .header("x-agent-token", &self.agent_token)
+            .json(&json!({
+                "status": status,
+                "phase": phase,
+                "summary": summary,
+            }))
+            .send()
+            .await
+            .map_err(transport_error)?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(anyhow!("自动 Agent 心跳失败（HTTP {}）", response.status()))
+        }
     }
 }
 
@@ -964,6 +1135,8 @@ mod tests {
             access_token: Some("access".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         let mut client = ApiClient::new(config_path, stored, None).unwrap();
@@ -1004,6 +1177,8 @@ mod tests {
             access_token: Some("access".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1028,6 +1203,8 @@ mod tests {
             access_token: Some("access".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1080,6 +1257,8 @@ mod tests {
             access_token: Some("old".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1170,6 +1349,8 @@ mod tests {
             access_token: Some("old".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1227,6 +1408,8 @@ mod tests {
             access_token: Some("old".into()),
             refresh_token: Some("refresh".into()),
             session_id: Some("session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1248,6 +1431,8 @@ mod tests {
             access_token: Some("stored-access".into()),
             refresh_token: Some("stored-refresh".into()),
             session_id: Some("stored-session".into()),
+            agent_id: None,
+            agent_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();

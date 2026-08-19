@@ -34,3 +34,11 @@ pub(crate) async fn delete_downstream_images_if_requested(
     }
     Ok(())
 }
+
+pub(crate) fn downstream_cleanup_warnings(result: Result<(), String>) -> Vec<String> {
+    result
+        .err()
+        .map(|error| format!("下游图片清理失败：{error}"))
+        .into_iter()
+        .collect()
+}

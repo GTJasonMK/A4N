@@ -33,15 +33,6 @@ impl VideoSegmentWorkflowModeV1 {
             Self::ChatVideo => chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO,
         }
     }
-
-    pub fn default_guidance_mode(self, segment_number: i32) -> VideoSegmentGuidanceModeV1 {
-        match self {
-            Self::BoundaryFrames | Self::Storyboard => VideoSegmentGuidanceModeV1::SystemFrames,
-            Self::FirstFrameChain if segment_number > 1 => VideoSegmentGuidanceModeV1::Continuity,
-            Self::FirstFrameChain => VideoSegmentGuidanceModeV1::SystemFrames,
-            Self::ReferenceMedia | Self::ChatVideo => VideoSegmentGuidanceModeV1::None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -350,8 +341,7 @@ pub fn default_video_segment_recipes(
             aspect_ratio: segment.aspect_ratio.clone(),
             reference_image_ids: Vec::new(),
             video_library_image_ids: Vec::new(),
-            guidance_mode: VideoSegmentWorkflowModeV1::ChatVideo
-                .default_guidance_mode(segment.segment_number),
+            guidance_mode: VideoSegmentGuidanceModeV1::None,
             guidance_reference_image_ids: Vec::new(),
             continuity_source_video_id: None,
             reference_media: None,

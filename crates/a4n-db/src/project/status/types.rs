@@ -1,5 +1,4 @@
 use a4n_domain::project::ProjectStatus;
-pub use a4n_domain::project::ProjectStatusArtifacts;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 

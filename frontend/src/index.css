@@ -2021,13 +2021,15 @@ body {
     max-height: 40vh;
   }
 
-  .a4n-settings-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .a4n-filter-chips {
     width: 100%;
     max-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .a4n-settings-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -2047,5 +2049,219 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   移动端结构性约束
+   ============================================================================ */
+
+.a4n-app-shell {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.a4n-modal-panel {
+  box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  /* 写作桌移动端把身份行与操作行分开，避免项目标题被操作按钮挤成一个字。 */
+  .a4n-app-page-header--desk {
+    align-items: center;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .a4n-app-page-header--desk .a4n-app-page-header__leading {
+    flex: 0 0 auto;
+  }
+
+  .a4n-app-page-header--desk .a4n-app-page-header__identity {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .a4n-app-page-header--desk .a4n-app-page-header__actions {
+    width: 100%;
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  @media (max-width: 340px) {
+    .a4n-app-page-header--desk .a4n-app-page-header__actions {
+      gap: 2px;
+    }
+  }
+
+  .a4n-app-page-header--desk .a4n-app-page-header__actions > * {
+    flex: 0 0 auto;
+  }
+
+  /* 页面级控件统一达到可触达尺寸；桌面密度保持不变。 */
+  .a4n-dropdown-trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .a4n-dropdown-menu-item {
+    min-height: 44px;
+  }
+
+  .pyqt-btn-icon {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  input.pyqt-input,
+  select.pyqt-input,
+  textarea.pyqt-input,
+  input.book-control,
+  select.book-control,
+  textarea.book-control {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .a4n-sidebar-item {
+    min-height: 44px;
+  }
+
+  .a4n-seg__btn,
+  .a4n-seg--panel .a4n-seg__btn {
+    min-height: 44px;
+  }
+
+  .a4n-flow-controls button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-composer .a4n-dropdown-trigger,
+  .chat-composer .a4n-composer-send {
+    min-height: 44px !important;
+  }
+
+  .chat-composer textarea.pyqt-input {
+    min-height: 44px !important;
+  }
+
+  .chat-composer .a4n-dropdown-trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .a4n-status-bar {
+    height: auto;
+    min-height: calc(44px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .a4n-status-bar__message {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .a4n-status-bar__actions {
+    flex: 0 1 auto;
+    max-width: 100%;
+    height: 44px;
+    min-height: 44px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .a4n-status-bar__actions::-webkit-scrollbar,
+  .a4n-status-bar__permanent::-webkit-scrollbar {
+    display: none;
+  }
+
+  .a4n-status-bar__permanent {
+    min-width: 0;
+    flex: 0 0 auto;
+    order: -1;
+    max-width: 25vw;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .a4n-status-bar__permanent > * {
+    max-width: 25vw;
+  }
+
+  /* 用户名是桌面辅助信息；移动端优先保留当前工作状态，避免底栏挤压成乱码。 */
+  .a4n-status-bar__permanent [data-status-widget="user"] {
+    display: none;
+  }
+
+  .a4n-status-bar-action {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  /* 写作桌辅助面板在窄屏只显示图标，但每个图标仍保持完整触控面积。 */
+  .a4n-writing-panel-toggle {
+    width: 92px !important;
+    min-width: 92px !important;
+    max-width: 92px !important;
+    flex: 0 0 92px !important;
+    height: 48px;
+  }
+
+  .a4n-writing-panel-toggle .a4n-seg__btn {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 0;
+  }
+
+  .a4n-modal-panel {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .a4n-toast-container {
+    top: calc(0.75rem + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  .a4n-mobile-scroll-rail {
+    overscroll-behavior-inline: contain;
+  }
+}
+
+/* Tailwind 的 !min-h-* 工具类属于 utilities 层；移动端触控尺寸必须在
+   更早的 components 层声明 important，才能覆盖局部密度类。 */
+@layer components {
+  @media (max-width: 767px) {
+    button.a4n-touch-target {
+      min-height: 44px !important;
+    }
+
+    button.a4n-icon-button,
+    button.a4n-icon-button.pyqt-btn-icon {
+      width: 44px !important;
+      height: 44px !important;
+    }
+
+    .a4n-dropdown-trigger {
+      width: 44px !important;
+      height: 44px !important;
+    }
+
+    .a4n-dropdown-menu-item {
+      min-height: 44px !important;
+    }
+
+    .pyqt-btn-primary,
+    .pyqt-btn-secondary,
+    .pyqt-tab {
+      min-height: 44px !important;
+    }
   }
 }

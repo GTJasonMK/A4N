@@ -1,4 +1,5 @@
-use super::super::*;
+use super::super::contracts::{OAuth2UserInfo, required_non_empty_string};
+use a4n_core::error::AppError;
 
 pub fn google_oauth_user_info(user: &serde_json::Value) -> Result<OAuth2UserInfo, AppError> {
     let email = verified_google_email(user)?;

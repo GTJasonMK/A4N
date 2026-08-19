@@ -4,7 +4,7 @@ use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};
 
-pub async fn mark_deletion_executed<C>(
+pub(in crate::character::attributes) async fn mark_deletion_executed<C>(
     db: &C,
     input: CharacterDeletionMarkExecutedUpdateInput,
 ) -> Result<u64, DbErr>
@@ -33,7 +33,7 @@ where
         .map(|result| result.rows_affected)
 }
 
-pub async fn reset_pending_deletion_marks<C>(
+pub(in crate::character::attributes) async fn reset_pending_deletion_marks<C>(
     db: &C,
     profile_id: i64,
     category: &str,

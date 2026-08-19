@@ -34,9 +34,7 @@ pub(super) fn parse_generation_event<T: DeserializeOwned>(
                 .ok_or_else(|| format!("{service} sidecar completed 事件缺少 payload"))?;
             serde_json::from_value(payload)
                 .map(GenerationEvent::Completed)
-                .map_err(|error| {
-                    format!("{service} sidecar completed payload 解析失败: {error}")
-                })
+                .map_err(|error| format!("{service} sidecar completed payload 解析失败: {error}"))
         }
         CapabilityTaskEventKind::Failed => {
             let error = event
@@ -44,9 +42,9 @@ pub(super) fn parse_generation_event<T: DeserializeOwned>(
                 .ok_or_else(|| format!("{service} sidecar failed 事件缺少 error"))?;
             Err(service_error_string(error))
         }
-        CapabilityTaskEventKind::Chunk => {
-            Err(format!("{service} sidecar generation 事件类型不符合合同: chunk"))
-        }
+        CapabilityTaskEventKind::Chunk => Err(format!(
+            "{service} sidecar generation 事件类型不符合合同: chunk"
+        )),
     }
 }
 

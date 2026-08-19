@@ -2,7 +2,7 @@ use super::super::support::{
     internal_error, prepare_reference_image_for_upload, prompt_with_reference_labels,
     reference_image_field_name,
 };
-use super::CliProxyImageProvider;
+use super::provider::CliProxyImageProvider;
 use a4n_core::error::AppError;
 use a4n_image::ImageGenerationRequest;
 use reqwest::multipart::{Form, Part};
@@ -53,7 +53,7 @@ impl CliProxyImageProvider {
         Ok(form)
     }
 
-    pub fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
+    pub(crate) fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
         if req.reference_images.is_empty() {
             return Ok(Self::generation_body(req));
         }

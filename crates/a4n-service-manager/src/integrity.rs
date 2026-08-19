@@ -4,9 +4,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use a4n_service_protocol::{
-    PROTOCOL_VERSION, RELEASE_MANIFEST_ENV, RELEASE_MANIFEST_SCHEMA_VERSION,
-    ReleaseBinaryManifest, ReleaseManifest, ReleaseRuntimeFileManifest, release_tool_catalog,
-    service_catalog,
+    PROTOCOL_VERSION, RELEASE_MANIFEST_ENV, RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest,
+    ReleaseManifest, ReleaseRuntimeFileManifest, release_tool_catalog, service_catalog,
 };
 use sha2::{Digest, Sha256};
 
@@ -113,8 +112,7 @@ impl BinaryIntegrityVerifier {
             )
         })?;
         if tool_catalog.iter().any(|entry| {
-            !valid_catalog_identifier(&entry.package)
-                || !valid_catalog_identifier(&entry.binary)
+            !valid_catalog_identifier(&entry.package) || !valid_catalog_identifier(&entry.binary)
         }) {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
                 "release tool catalog is invalid".to_string(),
@@ -298,9 +296,7 @@ fn valid_catalog_identifier(value: &str) -> bool {
     let mut bytes = value.bytes();
     matches!(bytes.next(), Some(b'a'..=b'z' | b'0'..=b'9'))
         && bytes.all(|byte| {
-            byte.is_ascii_lowercase()
-                || byte.is_ascii_digit()
-                || matches!(byte, b'-' | b'_')
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
         })
 }
 

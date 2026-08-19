@@ -1,4 +1,9 @@
-use super::*;
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use a4n_core::error::AppError;
+use a4n_core::models::chapter::chapter_video_prompt;
+
+use crate::video::prompt_json::{ChatVideoPromptShot, VideoSegmentPlan};
 
 pub(in crate::video::prompt_generation::frame_prompts) fn ensure_video_prompts_can_regenerate(
     rows: &[chapter_video_prompt::Model],

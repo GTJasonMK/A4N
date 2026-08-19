@@ -1,8 +1,5 @@
-use crate::text_anchor::{
-    EVIDENCE_ROLE_APPEARANCE, EVIDENCE_ROLE_BEHAVIOR, EVIDENCE_ROLE_FIRST_SEEN,
-    EVIDENCE_ROLE_LOCATION, EVIDENCE_ROLE_RELATIONSHIP, EVIDENCE_ROLE_STATE_CHANGE,
-};
 use a4n_core::models::project::profile_evidence;
+use a4n_db::project_family_import::normalize_profile_evidence_role;
 use std::collections::HashSet;
 
 use super::super::super::ProjectFamilyPackage;
@@ -47,7 +44,8 @@ pub(in super::super) fn validate_profile_evidence_manifest(
             &object_profile_ids,
             &scene_profile_ids,
         )?;
-        let evidence_role = normalize_profile_evidence_role(&evidence.evidence_role)?;
+        let evidence_role = normalize_profile_evidence_role(&evidence.evidence_role)
+            .map_err(|error| error.to_string())?;
         if !seen.insert((
             evidence.profile_kind.clone(),
             evidence.profile_id,
@@ -87,17 +85,4 @@ fn validate_profile_evidence_profile_id(
         ));
     }
     Ok(())
-}
-
-fn normalize_profile_evidence_role(role: &str) -> Result<&'static str, String> {
-    match role.trim() {
-        EVIDENCE_ROLE_FIRST_SEEN => Ok(EVIDENCE_ROLE_FIRST_SEEN),
-        EVIDENCE_ROLE_APPEARANCE => Ok(EVIDENCE_ROLE_APPEARANCE),
-        EVIDENCE_ROLE_STATE_CHANGE => Ok(EVIDENCE_ROLE_STATE_CHANGE),
-        EVIDENCE_ROLE_LOCATION => Ok(EVIDENCE_ROLE_LOCATION),
-        EVIDENCE_ROLE_RELATIONSHIP => Ok(EVIDENCE_ROLE_RELATIONSHIP),
-        EVIDENCE_ROLE_BEHAVIOR => Ok(EVIDENCE_ROLE_BEHAVIOR),
-        "" => Err("项目族导入包档案证据 evidence_role 不能为空".to_string()),
-        other => Err(format!("项目族导入包档案证据 evidence_role 无效: {other}")),
-    }
 }

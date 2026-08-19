@@ -15,8 +15,8 @@ pub(in crate::sidecar_clients::service_manager) fn sidecar_binary_path(
 }
 
 fn sidecar_binary_dir() -> Result<PathBuf, String> {
-    if let Some(dir) = optional_non_empty_env_path(SIDECAR_BIN_DIR_ENV)
-        .map_err(|error| error.to_string())?
+    if let Some(dir) =
+        optional_non_empty_env_path(SIDECAR_BIN_DIR_ENV).map_err(|error| error.to_string())?
     {
         return Ok(dir);
     }

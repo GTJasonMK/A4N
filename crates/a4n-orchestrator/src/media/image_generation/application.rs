@@ -816,8 +816,7 @@ impl OrchestratorContext {
                 if !video_frame_requests.insert(key) {
                     return Err(AppError::InvalidArgument(format!(
                         "批量成图包含重复的{}请求：视频帧提示词 #{}",
-                        generation_label,
-                        prompt_id
+                        generation_label, prompt_id
                     )));
                 }
                 if enforce_generation_locks {
@@ -826,8 +825,7 @@ impl OrchestratorContext {
                 } else {
                     preview_notes.push(format!(
                         "{}绑定视频帧提示词 #{}；预览按当前有效参考图构造图片 provider 请求。",
-                        generation_label,
-                        prompt_id
+                        generation_label, prompt_id
                     ));
                 }
                 let effective_ids = self
@@ -861,8 +859,7 @@ impl OrchestratorContext {
                     .map_err(AppError::InvalidArgument)?;
                 preview_notes.push(format!("参考图数量：{}", reference_images.len()));
             }
-            let aspect_ratio = batch_image_aspect_ratio(item)
-                .map_err(AppError::InvalidArgument)?;
+            let aspect_ratio = batch_image_aspect_ratio(item).map_err(AppError::InvalidArgument)?;
             let (width, height) = image_dimensions_for_aspect_ratio(
                 config.default_width,
                 config.default_height,

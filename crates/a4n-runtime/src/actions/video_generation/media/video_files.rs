@@ -13,9 +13,7 @@ pub(crate) use self::files::{
 };
 pub(super) use self::paths::video_tail_frame_path;
 #[cfg(test)]
-pub(super) use self::paths::{
-    chapter_tail_frame_images_dir, chapter_videos_dir,
-};
+pub(super) use self::paths::{chapter_tail_frame_images_dir, chapter_videos_dir};
 pub(crate) use self::paths::{
     ensure_chapter_videos_dir, ensure_project_videos_dir, trimmed_video_path,
 };

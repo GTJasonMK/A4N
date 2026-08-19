@@ -1,6 +1,11 @@
 use crate::handlers::{
-    completeness_report_by_ids, delete_records, drop_collection, healthz, ingest_events,
-    metadata_by_filter, metadata_by_ids, query, search, search_text,
+    events::ingest_events,
+    healthz,
+    management::{
+        completeness_report_by_ids, delete_records, drop_collection, metadata_by_filter,
+        metadata_by_ids,
+    },
+    search::{query, search, search_text},
 };
 use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_core::error::AppError;

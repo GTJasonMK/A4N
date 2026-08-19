@@ -103,7 +103,7 @@ export const SettingsPage: React.FC = () => {
 
         <section
           aria-label={activeTab?.label || "设置内容"}
-          className="content-wide flex min-h-0 flex-col overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden"
+          className="content-wide min-w-0 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden"
         >
           <div className="min-h-0 flex-1 overflow-visible md:overflow-hidden">
             {tab === "llm" && <LlmTab />}

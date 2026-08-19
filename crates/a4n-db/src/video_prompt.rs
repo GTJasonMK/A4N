@@ -126,13 +126,22 @@ enum PromptStage {
 }
 
 mod dependencies;
-pub use dependencies::*;
+pub use dependencies::{
+    chapter_video_prompt_has_generated_frame_image, delete_chapter_video_prompts_with_policy,
+    effective_frame_prompt_image_reference_ids, ensure_chapter_video_prompt_stage_mutable,
+    ensure_chapter_video_prompt_stage_mutable_ignoring,
+    ensure_frame_prompt_image_generation_allowed, prompt_downstream_dependencies,
+};
 
 mod sync;
-pub use sync::*;
+pub use sync::sync_chapter_video_prompts_with_generation_runs;
 
 mod update;
-pub use update::*;
+pub use update::{
+    sync_chapter_video_prompt_metadata_after_update,
+    update_chapter_video_prompt_with_generation_run_checkpoint,
+    update_chapter_video_prompt_with_policy, update_chapter_video_segment_recipe,
+};
 
 #[cfg(test)]
 mod tests;

@@ -13,24 +13,9 @@ use super::contracts::{
     chapter_source_snapshot_matches, chapter_source_snapshot_targets,
 };
 
-pub use chapter_outline_provenance::SOURCE_KIND_IMPORT_ANALYSIS;
+use chapter_outline_provenance::SOURCE_KIND_IMPORT_ANALYSIS;
 /// 章节分析回顾性章纲的唯一来源标识。
-pub use chapter_outline_provenance::SOURCE_KIND_RETROSPECTIVE_ANALYSIS;
-
-/// 读取一个章纲的自动来源。没有来源记录表示用户/正式流程拥有。
-pub async fn chapter_outline_source_kind<C>(
-    db: &C,
-    outline_id: i64,
-) -> Result<Option<String>, ProjectOutlineRecordError>
-where
-    C: ConnectionTrait,
-{
-    chapter_outline_provenance::Entity::find_by_id(outline_id)
-        .one(db)
-        .await
-        .map(|record| record.map(|record| record.source_kind))
-        .map_err(ProjectOutlineRecordError::Database)
-}
+use chapter_outline_provenance::SOURCE_KIND_RETROSPECTIVE_ANALYSIS;
 
 /// 批量读取章纲自动来源，避免列表页对每一条章纲发起单独查询。
 pub async fn chapter_outline_source_kinds_for_ids<C>(
@@ -320,7 +305,7 @@ mod source_contract_tests {
 /// 用户编辑或正式大纲流程写入后，清除自动来源标记。
 ///
 /// 正式写入调用方应在同一事务内完成来源清理和业务更新，避免留下半次接管。
-pub async fn clear_chapter_outline_provenance<C>(
+pub(crate) async fn clear_chapter_outline_provenance<C>(
     db: &C,
     outline_id: i64,
 ) -> Result<(), sea_orm::DbErr>
@@ -386,7 +371,7 @@ where
 /// ID。只有这些无效关联（或 NULL）才会被替换；指向同一项目同一章节的
 /// 现有关联视为用户拥有并保留。更新时再次带上旧值条件，避免并发用户
 /// 编辑被自动回链覆盖。
-pub async fn link_chapter_to_outline_if_needed<C>(
+pub(in crate::project::outline_records) async fn link_chapter_to_outline_if_needed<C>(
     db: &C,
     project_id: i64,
     chapter_number: i32,
@@ -440,7 +425,7 @@ where
 
 /// 按项目和章节号查找章纲，并在需要时修复正文章节的软关联。
 /// 返回修复后数据库中实际保留的 outline_id；没有对应章纲或章节时返回 None。
-pub async fn link_chapter_to_project_outline_if_needed<C>(
+pub(crate) async fn link_chapter_to_project_outline_if_needed<C>(
     db: &C,
     project_id: i64,
     chapter_number: i32,

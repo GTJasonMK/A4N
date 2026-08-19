@@ -5,7 +5,7 @@ pub mod chapter_analysis;
 pub mod chapter_generation;
 pub mod contracts;
 pub mod engine;
-pub mod includes;
+mod includes;
 mod markdown;
 mod registry;
 pub mod rendering;

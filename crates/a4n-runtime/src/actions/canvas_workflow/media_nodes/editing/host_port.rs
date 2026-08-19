@@ -6,8 +6,8 @@ use a4n_orchestrator::canvas::{
     CanvasGeneratedImageArtifact, CanvasGeneratedVideoArtifact, CanvasTrimVideoHostInput,
 };
 use a4n_queue::{
+    TaskWorkflowContext,
     priority::{TaskKind as QueueTaskKind, TaskPriority},
-    queue::TaskWorkflowContext,
 };
 use async_trait::async_trait;
 

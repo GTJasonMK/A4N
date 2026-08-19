@@ -3,7 +3,10 @@ use a4n_db::canvas::{CanvasNodeArtifactUpdateInput, CanvasTextAssetRecordInput};
 use a4n_domain::CanvasNodeRefKind;
 use serde_json::{Value, json};
 
-use crate::{OrchestratorContext, canvas::canvas_config_string};
+use crate::{
+    OrchestratorContext,
+    canvas::{canvas_config_string, source_canvas_text_asset_id},
+};
 
 use super::{
     contracts::{CanvasOutputDataType, CanvasOutputNodeExecutionInput, CanvasOutputValue},
@@ -58,7 +61,8 @@ impl OrchestratorContext {
         .map_err(AppError::InvalidArgument)?;
         validate_output_node_value(&output, data_type, &input.node.node_kind)
             .map_err(AppError::InvalidArgument)?;
-        let step_key = format!("canvas_node:{}", input.node.id);
+        let step_key = crate::canvas::canvas_node_step_key(input.node.id)
+            .map_err(AppError::InvalidArgument)?;
         let input_json = json!({
             "project_id": input.project_id,
             "graph_id": input.graph_id,
@@ -119,20 +123,13 @@ impl OrchestratorContext {
                     .ok_or_else(|| {
                         AppError::InvalidArgument("TextOutputNode 缺少文本输入".to_string())
                     })?;
-                let title = canvas_config_string(&node.config_json, &["title"])
+                let title = canvas_config_string(&node.config_json, "title")
                     .unwrap_or_else(|| "文本输出".to_string());
                 let asset = self
                     .upsert_canvas_text_asset_record(
                         project_id,
                         CanvasTextAssetRecordInput {
-                            id: node
-                                .ref_type
-                                .as_deref()
-                                .is_some_and(|value| {
-                                    value == CanvasNodeRefKind::CanvasTextAsset.as_str()
-                                })
-                                .then_some(node.ref_id)
-                                .flatten(),
+                            id: source_canvas_text_asset_id(node),
                             title,
                             text_kind: "canvas_output".to_string(),
                             content: text.to_string(),

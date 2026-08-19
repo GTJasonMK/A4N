@@ -6,8 +6,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     structured_llm::{
-        StructuredLlmProgress, ensure_checkpoint_parsed_output_matches,
-        parse_strict_json_response,
+        StructuredLlmProgress, ensure_checkpoint_parsed_output_matches, parse_strict_json_response,
     },
     workflow::{llm_call_checkpoint_fingerprint_sha256, workflow_checkpoint_contract_app_error},
 };

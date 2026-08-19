@@ -72,7 +72,7 @@ where
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-pub fn verify_canonical_json_sha256<T>(
+pub(in crate::generation) fn verify_canonical_json_sha256<T>(
     value: &T,
     expected_sha256: &str,
 ) -> Result<bool, serde_json::Error>

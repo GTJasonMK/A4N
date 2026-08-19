@@ -9,7 +9,7 @@ pub use a4n_api_contract::profile::{
     SceneProfileDeleteResult, SceneProfileInput, SceneProfileMutationResult, SceneProfileSummary,
     UpdateSceneProfileInput,
 };
-pub use mutations::*;
+pub use mutations::{create_scene_profile, delete_scene_profile, update_scene_profile};
 pub use queries::list_scene_profiles;
 
 #[cfg(test)]

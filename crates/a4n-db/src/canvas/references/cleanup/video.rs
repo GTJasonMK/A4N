@@ -1,7 +1,7 @@
-use super::super::canvas_node_references_generated_video;
 use super::super::config::{
     VIDEO_REF_CONFIG_KEY, config_id_in, remove_config_any_i64_ref, validate_positive_id,
 };
+use super::super::reset::canvas_node_references_generated_video;
 use super::scope::canvas_nodes_for_projects;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::canvas::canvas_node;
@@ -10,7 +10,7 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::Value;
 
-pub async fn mark_canvas_generated_video_refs_missing<C>(
+pub(crate) async fn mark_canvas_generated_video_refs_missing<C>(
     db: &C,
     project_id: i64,
     video_id: i64,

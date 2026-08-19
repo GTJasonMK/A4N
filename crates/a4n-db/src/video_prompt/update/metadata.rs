@@ -100,9 +100,7 @@ fn frame_prompt_metadata_key(prompt_type: &str) -> Option<(&'static str, &'stati
             Some(("boundary_frame", "边界帧提示词"))
         }
         chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => Some(("first_frame", "首帧提示词")),
-        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => {
-            Some(("storyboard_frame", "分镜提示词"))
-        }
+        chapter_video_prompt::PROMPT_TYPE_STORYBOARD => Some(("storyboard_frame", "分镜提示词")),
         _ => None,
     }
 }

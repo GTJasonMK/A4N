@@ -1,5 +1,12 @@
-use super::*;
+use std::collections::BTreeSet;
+
+use a4n_core::models::{
+    ai::generated_image,
+    chapter::{chapter, chapter_manga_prompt},
+};
 use serde_json::json;
+
+use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
 pub(in crate::project_dependency_graph) fn add_manga_nodes(
     graph: &mut GraphBuilder,

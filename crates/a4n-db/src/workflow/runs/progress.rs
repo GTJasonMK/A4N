@@ -108,7 +108,7 @@ pub(in crate::workflow) fn validate_workflow_progress_range(
     Ok(())
 }
 
-pub async fn workflow_progress_event_models(
+async fn workflow_progress_event_models(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     limit: usize,

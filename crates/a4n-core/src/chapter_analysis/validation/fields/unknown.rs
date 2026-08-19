@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use super::super::analysis_schema_error;
 
-pub fn reject_unknown_fields(
+pub(in crate::chapter_analysis::validation) fn reject_unknown_fields(
     object: &Map<String, Value>,
     allowed: &[&str],
     context: &str,

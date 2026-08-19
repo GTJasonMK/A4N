@@ -1,6 +1,6 @@
+use crate::oauth_provider::{GitHubOAuth2, OAuth2Provider};
 use a4n_core::error::AppError;
 use a4n_orchestrator::auth::required_authorization_code;
-use crate::oauth_provider::{GitHubOAuth2, OAuth2Provider};
 
 use super::provider::{DEFAULT_OAUTH2_REDIRECT_URI, oauth2_provider_from_env};
 

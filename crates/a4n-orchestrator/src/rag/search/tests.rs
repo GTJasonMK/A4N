@@ -1,15 +1,11 @@
-use a4n_rag_core::{
-    memory_store::MemoryVectorStore,
-    vector_store::VectorStore,
-};
+use a4n_rag_core::{memory_store::MemoryVectorStore, vector_store::VectorStore};
 use a4n_test_support::{
     embedding::ExtraEmbeddingProvider,
     rag::{embedding_record, test_embedding_identity},
 };
 
 use super::execution::{
-    hybrid_rag_search_filtered_in_store,
-    hybrid_rag_search_with_validated_embedding_in_store,
+    hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_validated_embedding_in_store,
 };
 use super::filter::identity_scoped_search_filter;
 
@@ -47,10 +43,7 @@ async fn provider_search_rejects_query_embedding_count_mismatch() {
 async fn caller_embedding_search_forwards_valid_vector_to_store() {
     let store = MemoryVectorStore::new();
     store
-        .add_embeddings(
-            "1",
-            vec![embedding_record("chapter:1:100:p1")],
-        )
+        .add_embeddings("1", vec![embedding_record("chapter:1:100:p1")])
         .await
         .expect("search record should store");
 

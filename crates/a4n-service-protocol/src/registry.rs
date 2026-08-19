@@ -47,12 +47,9 @@ pub fn expected_capability_version_for_service(service: &str) -> Option<&'static
 }
 
 pub fn service_for_capability_version(capability_version: &str) -> Option<&'static str> {
-    REGISTERED_SERVICE_NAMES
-        .iter()
-        .copied()
-        .find(|service| {
-            expected_capability_version_for_service(service) == Some(capability_version)
-        })
+    REGISTERED_SERVICE_NAMES.iter().copied().find(|service| {
+        expected_capability_version_for_service(service) == Some(capability_version)
+    })
 }
 
 pub fn egress_data_type_for_service(service: &str) -> Option<EgressDataType> {

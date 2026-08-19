@@ -7,10 +7,8 @@ use a4n_service_protocol::{
 pub(crate) fn validate_embedding_request(
     request: &ServiceRequest<EmbedTextsPayload>,
 ) -> Result<(), ServiceError> {
-    request.validate_known_provider_request(
-        EMBEDDING_SERVICE_NAME,
-        request.payload.api_key.as_deref(),
-    )
+    request
+        .validate_known_provider_request(EMBEDDING_SERVICE_NAME, request.payload.api_key.as_deref())
 }
 
 fn service_error_code(error: &AppError) -> ServiceErrorCode {

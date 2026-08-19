@@ -1,10 +1,13 @@
 use super::contracts::{AppliedCharacterSyncPersistenceRecord, CharacterSyncPersistenceInput};
 use super::{snapshots, validation::validate_character_sync_persistence_input, write_steps};
-use crate::character::{
-    CharacterDbError, CharacterProfileCurrentStateUpdate, character_attribute_ownership,
-    delete_ai_timeline_artifacts_from_chapter_checked, profile_current_state_fields,
-    require_profile, require_profile_for_update, rewind_ai_deletion_marks_after,
-    update_profile_current_state,
+use crate::character::CharacterDbError;
+use crate::character::attributes::rewind_ai_deletion_marks_after;
+use crate::character::profile::{
+    CharacterProfileCurrentStateUpdate, profile_current_state_fields, require_profile,
+    require_profile_for_update, update_profile_current_state,
+};
+use crate::character::timeline::{
+    character_attribute_ownership, delete_ai_timeline_artifacts_from_chapter_checked,
 };
 use sea_orm::{ConnectionTrait, TransactionTrait};
 

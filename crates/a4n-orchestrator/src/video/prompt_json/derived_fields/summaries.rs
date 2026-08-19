@@ -1,4 +1,4 @@
-use super::*;
+use crate::video::prompt_json::contracts::VideoSegmentPlan;
 
 pub(super) fn character_summary(segment: &VideoSegmentPlan) -> String {
     segment

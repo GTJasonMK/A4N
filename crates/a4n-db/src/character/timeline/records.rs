@@ -5,7 +5,7 @@ use sea_orm::{
     Set,
 };
 
-pub async fn upsert_state_index<C>(
+pub(in crate::character) async fn upsert_state_index<C>(
     db: &C,
     input: CharacterStateIndexUpsertInput,
 ) -> Result<character_state_index::Model, DbErr>

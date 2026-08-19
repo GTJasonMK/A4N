@@ -15,10 +15,7 @@ impl ExpectedRagRecords {
 
     pub(super) fn add_rag_record(&mut self, record: RagRecord) -> Result<(), String> {
         if !self.ids.insert(record.chunk_id.clone()) {
-            return Err(format!(
-                "RAG 预期记录 chunk_id 重复: {}",
-                record.chunk_id
-            ));
+            return Err(format!("RAG 预期记录 chunk_id 重复: {}", record.chunk_id));
         }
         self.records.push(record);
         Ok(())

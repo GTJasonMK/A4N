@@ -1,10 +1,12 @@
 use super::cleanup::delete_timeline_artifacts_from_chapter_checked;
 use super::contracts::CharacterProfileRollbackResult;
-use crate::character::{
-    CharacterDbError, CharacterProfileCurrentStateUpdate, profile_current_state_fields,
-    require_profile, rewind_deletion_marks_after, snapshot_attributes_from_data,
-    snapshot_reference_by_chapter, update_profile_current_state,
+use crate::character::CharacterDbError;
+use crate::character::attributes::rewind_deletion_marks_after;
+use crate::character::profile::{
+    CharacterProfileCurrentStateUpdate, profile_current_state_fields, require_profile,
+    update_profile_current_state,
 };
+use crate::character::snapshot::{snapshot_attributes_from_data, snapshot_reference_by_chapter};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn rollback_profile_to_chapter<C>(

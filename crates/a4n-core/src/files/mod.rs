@@ -1,7 +1,7 @@
 mod cleanup;
 mod creation;
-mod persistence;
 pub mod paths;
+mod persistence;
 
 pub use cleanup::{
     remove_created_file_on_error, remove_created_file_on_error_sync, remove_existing_data_file,

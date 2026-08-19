@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use fastembed::{EmbeddingModel, ModelInfo};
 use hf_hub::{Cache, Repo, RepoType};
 
+use super::FastEmbedDownloadFile;
 use super::cache::cached_file_size;
 use super::client::build_hf_api;
-use super::FastEmbedDownloadFile;
 use crate::proxy::ScopedHfHubEnv;
 use crate::required_files;
 

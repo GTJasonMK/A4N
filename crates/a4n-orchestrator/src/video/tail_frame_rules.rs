@@ -12,7 +12,7 @@ use serde_json::Value;
 pub fn tail_frame_image_belongs_to_video(image: &generated_image::Model, video_id: i64) -> bool {
     if image.image_type != IMAGE_TYPE_VIDEO_TAIL_FRAME
         || image_generation_source(image.metadata_json.as_ref())
-        != Some(IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
+            != Some(IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
     {
         return false;
     }
@@ -38,8 +38,7 @@ pub fn video_shot_number(video: &generated_video::Model) -> Result<i32, String> 
 }
 
 pub fn is_first_frame_chain_video(video: &generated_video::Model) -> bool {
-    video.workflow_mode.as_deref()
-        == Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
+    video.workflow_mode.as_deref() == Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
 }
 
 pub fn should_capture_video_tail_frame(video: &generated_video::Model) -> bool {

@@ -2051,6 +2051,29 @@ export interface CanvasTextAssetSummary {
   text_kind: string;
 }
 
+export interface CanvasMediaAssetSummary {
+  checksum: string | null;
+  created_at: string;
+  duration_secs: number | null;
+  error_message: string | null;
+  file_path: string | null;
+  file_size: number | null;
+  fps: number | null;
+  height: number | null;
+  id: number;
+  media_kind: string;
+  origin: string;
+  project_id: number;
+  root_project_id: number;
+  source_chapter_id: number | null;
+  source_snapshot_chapter_id: number | null;
+  source_snapshot_id: number | null;
+  status: string;
+  thumbnail_path: string | null;
+  updated_at: string;
+  width: number | null;
+}
+
 export interface GetCanvasGraphInput {
   graph_id?: number | null;
   project_id: number;
@@ -2097,10 +2120,10 @@ export interface ImportCanvasMediaInput {
 }
 
 export interface ImportedCanvasMedia {
-  asset: unknown;
-  image: unknown;
+  asset: CanvasMediaAssetSummary;
+  image: GeneratedImage | null;
   media_kind: string;
-  video: unknown;
+  video: GeneratedVideoSummary | null;
 }
 
 export interface CanvasRunSummary {

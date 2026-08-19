@@ -11,12 +11,15 @@ export function shouldUseHttpBackend(): boolean {
   const value = typeof transport === "string" ? transport.trim().toLowerCase() : "";
   if (["web", "http", "remote"].includes(value)) return true;
   if (["tauri", "desktop", "local"].includes(value)) return false;
-  return import.meta.env.VITE_A4N_FORCE_WEB_API === "1";
+  return true;
 }
 
 export function apiBaseUrl(): string {
   const value = import.meta.env.VITE_A4N_API_BASE_URL;
-  return typeof value === "string" && value.trim() ? value.trim().replace(/\/$/, "") : "/api";
+  if (typeof value === "string" && value.trim() && value.trim() !== "/api") {
+    return value.trim().replace(/\/$/, "");
+  }
+  return isTauriRuntime() ? "http://127.0.0.1:8080/api" : "/api";
 }
 
 type BackendKind = "local_tauri" | "remote_http";
@@ -60,9 +63,9 @@ export function workspaceContext(): WorkspaceContext {
 }
 
 export function usesLocalRuntimeSettings(): boolean {
-  return shouldUseHttpBackend();
+  return isTauriRuntime() && !shouldUseHttpBackend();
 }
 
 export function canUseLocalDesktopEmbedding(): boolean {
-  return isTauriRuntime() && shouldUseHttpBackend();
+  return isTauriRuntime() && !shouldUseHttpBackend();
 }

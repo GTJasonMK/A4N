@@ -3,15 +3,15 @@ use super::super::{
     types::{CharacterAttributeMutationResult, CharacterAttributeValueChangeInput},
 };
 use super::recording::{default_attribute_change_description, record_attribute_event_in};
+use crate::character::profile::require_profile_for_update;
 use crate::character::{
-    CharacterDbError, require_non_empty, require_profile_for_update, validate_category,
-    validate_chapter_number,
+    CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
 };
 use a4n_core::models::character::attribute_event::{self, SOURCE_KIND_USER};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::Value;
 
-pub async fn add_profile_attribute_in<C>(
+async fn add_profile_attribute_in<C>(
     db: &C,
     input: CharacterAttributeValueChangeInput,
 ) -> Result<attribute_event::Model, CharacterDbError>
@@ -83,7 +83,7 @@ where
     Ok(CharacterAttributeMutationResult { profile, event })
 }
 
-pub async fn modify_profile_attribute_in<C>(
+async fn modify_profile_attribute_in<C>(
     db: &C,
     input: CharacterAttributeValueChangeInput,
 ) -> Result<attribute_event::Model, CharacterDbError>

@@ -1,7 +1,7 @@
 use a4n_core::models::chapter::chapter_video_prompt;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 
-pub async fn chapter_video_prompt_sibling_records<C>(
+pub(crate) async fn chapter_video_prompt_sibling_records<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
@@ -19,7 +19,7 @@ where
         .await
 }
 
-pub async fn chapter_video_prompt_previous_frame_candidates<C>(
+pub(crate) async fn chapter_video_prompt_previous_frame_candidates<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,

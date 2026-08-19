@@ -345,6 +345,8 @@ enum ProviderCleanupAction {
     ScheduleDelete,
 }
 
+const PROVIDER_RECONCILE_INTERVAL_SECS: i64 = 60;
+
 async fn process_claimed_provider_job_cleanup(
     state: &AppState,
     claim: &a4n_db::cleanup_outbox::ClaimedGenerationCleanup,
@@ -358,14 +360,6 @@ async fn process_claimed_provider_job_cleanup(
         .ok_or_else(|| format!("cleanup outbox claim 缺少 lease token: id={id}"))?;
     let action = match payload.operation {
         a4n_db::cleanup_outbox::GenerationProviderJobCleanupOperation::Cancel => {
-            if video_provider_capabilities(&payload.provider_kind)
-                .is_some_and(|capabilities| capabilities.cancel)
-            {
-                return Err(format!(
-                    "视频 backend {} 声明支持 cancel，但 Runtime 缺少对应 adapter",
-                    payload.provider_kind
-                ));
-            }
             ProviderCleanupAction::Complete(GenerationCleanupOutcome::Unsupported)
         }
         a4n_db::cleanup_outbox::GenerationProviderJobCleanupOperation::Delete => {
@@ -430,11 +424,7 @@ async fn process_claimed_provider_job_cleanup(
                 .await?;
                 match status {
                     VideoJobStatus::Pending | VideoJobStatus::Running => {
-                        let interval = capabilities
-                            .polling_profile
-                            .map(|profile| profile.interval_secs as i64)
-                            .unwrap_or(60);
-                        ProviderCleanupAction::Observe(interval)
+                        ProviderCleanupAction::Observe(PROVIDER_RECONCILE_INTERVAL_SECS)
                     }
                     VideoJobStatus::Failed(_) => {
                         ProviderCleanupAction::Complete(GenerationCleanupOutcome::RemoteFailed)

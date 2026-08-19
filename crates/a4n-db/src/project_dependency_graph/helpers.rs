@@ -1,4 +1,6 @@
-use super::*;
+use std::collections::BTreeMap;
+
+use a4n_core::models::{ai::generated_image, chapter::chapter_video_prompt};
 
 pub(super) fn count_strings<'a>(values: impl Iterator<Item = &'a str>) -> BTreeMap<String, u64> {
     let mut counts = BTreeMap::new();

@@ -156,8 +156,7 @@ pub fn validate_import_unique_ids<I>(ids: I, label: &str) -> Result<(), String>
 where
     I: IntoIterator<Item = i64>,
 {
-    collect_unique_values(ids, |id| format!("导入包包含重复 {label}: {id}"))
-        .map(|_| ())
+    collect_unique_values(ids, |id| format!("导入包包含重复 {label}: {id}")).map(|_| ())
 }
 
 /// 导入包复合 key 字符串唯一性。
@@ -165,8 +164,7 @@ pub fn validate_import_unique_key_strings<I>(keys: I, label: &str) -> Result<(),
 where
     I: IntoIterator<Item = String>,
 {
-    collect_unique_values(keys, |key| format!("导入包包含重复 {label}: {key}"))
-        .map(|_| ())
+    collect_unique_values(keys, |key| format!("导入包包含重复 {label}: {key}")).map(|_| ())
 }
 
 /// 按字段取媒体资产路径。

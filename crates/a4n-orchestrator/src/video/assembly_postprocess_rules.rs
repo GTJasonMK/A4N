@@ -53,9 +53,8 @@ fn parse_postprocess_edit_object(
     let operation = metadata
         .get("operation")
         .ok_or_else(|| format!("后处理编辑视频 #{video_id} 缺少 postprocess_edit.operation"))?;
-    serde_json::from_value::<AssemblyPostprocessOperation>(operation.clone()).map_err(|_| {
-        format!("后处理编辑视频 #{video_id} 的 postprocess_edit.operation 无效")
-    })?;
+    serde_json::from_value::<AssemblyPostprocessOperation>(operation.clone())
+        .map_err(|_| format!("后处理编辑视频 #{video_id} 的 postprocess_edit.operation 无效"))?;
     let _source_video_id =
         optional_positive_i64(metadata.get("source_video_id")).map_err(|err| {
             format!("后处理编辑视频 #{video_id} 的 postprocess_edit.source_video_id {err}")
@@ -95,27 +94,17 @@ pub fn postprocess_edit_timing(
             if source_duration_secs.is_some() {
                 return Err("删除操作不接受来源视频时长".to_string());
             }
-            let (start, end) = required_edit_range(
-                base_duration_secs,
-                at_secs,
-                start_secs,
-                end_secs,
-            )?;
-            let output_duration =
-                required_output_duration(base_duration_secs - (end - start))?;
+            let (start, end) =
+                required_edit_range(base_duration_secs, at_secs, start_secs, end_secs)?;
+            let output_duration = required_output_duration(base_duration_secs - (end - start))?;
             Ok((start, end, output_duration))
         }
         AssemblyPostprocessOperation::Replace => {
-            let (start, end) = required_edit_range(
-                base_duration_secs,
-                at_secs,
-                start_secs,
-                end_secs,
-            )?;
+            let (start, end) =
+                required_edit_range(base_duration_secs, at_secs, start_secs, end_secs)?;
             let source_duration = required_source_duration(source_duration_secs)?;
-            let output_duration = required_output_duration(
-                base_duration_secs - (end - start) + source_duration,
-            )?;
+            let output_duration =
+                required_output_duration(base_duration_secs - (end - start) + source_duration)?;
             Ok((start, end, output_duration))
         }
     }

@@ -7,14 +7,14 @@ use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 
 /// CLIProxyAPI image provider for xAI Grok Imagine Image.
-pub struct CliProxyImageProvider {
+pub(crate) struct CliProxyImageProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl CliProxyImageProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
+    pub(crate) fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
         Ok(Self {
             base_url: required_non_empty(base_url, "base_url")?
                 .trim_end_matches('/')

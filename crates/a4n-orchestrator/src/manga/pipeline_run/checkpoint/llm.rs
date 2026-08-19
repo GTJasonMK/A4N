@@ -30,17 +30,17 @@ impl OrchestratorContext {
             .transpose()
             .map_err(AppError::Serialization)?;
         self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-                workflow_run_id: trace.workflow_run_id,
-                call_key: trace.call_key.clone(),
-                call_order: trace.call_order,
-                input_fingerprint_json: trace.input_fingerprint_json.clone(),
-                checkpoint: CompletedLlmCallCheckpoint {
-                    parsed_output: parsed_output.clone(),
-                    response_content: trace.response_text.clone(),
-                    usage: response_usage_json,
-                    finish_reason: trace.finish_reason.clone(),
-                    artifacts_json: None,
-                },
+            workflow_run_id: trace.workflow_run_id,
+            call_key: trace.call_key.clone(),
+            call_order: trace.call_order,
+            input_fingerprint_json: trace.input_fingerprint_json.clone(),
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: parsed_output.clone(),
+                response_content: trace.response_text.clone(),
+                usage: response_usage_json,
+                finish_reason: trace.finish_reason.clone(),
+                artifacts_json: None,
+            },
         })
         .await
     }

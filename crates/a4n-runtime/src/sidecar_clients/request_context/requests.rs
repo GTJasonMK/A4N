@@ -10,8 +10,8 @@ use super::{
     context::SidecarRequestContext,
     scope::{merge_project_scope, payload_project_scope},
 };
-use a4n_service_manager::is_loopback_http_url;
 use crate::sidecar_clients::service_manager::sidecar_service_and_url_for_capability;
+use a4n_service_manager::is_loopback_http_url;
 
 pub(crate) fn global_service_request_without_secrets(
     capability_version: impl Into<String>,

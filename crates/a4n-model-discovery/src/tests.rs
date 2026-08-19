@@ -33,7 +33,8 @@ fn parses_provider_data_list() {
             ]
         }),
         ModelDiscoveryParser::DataList,
-    ).expect("provider data list");
+    )
+    .expect("provider data list");
 
     assert_eq!(models.len(), 2);
     assert_eq!(models[0].id, "gpt-a");

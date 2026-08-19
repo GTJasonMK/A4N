@@ -45,8 +45,8 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
     if clips.is_empty() {
         return Ok(None);
     }
-    let (width, height, fps, duration_secs) = a4n_orchestrator::video::assembly_media_properties(
-        clips.iter().map(|clip| {
+    let (width, height, fps, duration_secs) =
+        a4n_orchestrator::video::assembly_media_properties(clips.iter().map(|clip| {
             (
                 clip.video_id,
                 clip.duration_secs,
@@ -54,8 +54,7 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
                 clip.height,
                 clip.fps,
             )
-        }),
-    )?;
+        }))?;
     let chapter_videos_dir = crate::actions::video_generation::media::ensure_chapter_videos_dir(
         state.data_dir(),
         project_id,

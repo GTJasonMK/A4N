@@ -1,18 +1,15 @@
 use a4n_core::error::AppError;
-use a4n_core::files::{
-    paths::{ProjectPaths, data_dir_relative_file_path},
-    create_unique_timestamped_file, remove_created_file_on_error_sync, remove_existing_data_file,
-};
+use a4n_core::files::remove_existing_data_file;
 use chrono::Utc;
 use serde_json::json;
-use std::{io::Write, path::Path};
+use std::io::Write;
 
 use crate::{
     OrchestratorContext,
     media::{
-        CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO,
-        MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_COMPLETED, decode_uploaded_audio_data,
-        galgame_media_binding_required_media_kind,
+        CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO, MEDIA_ORIGIN_IMPORTED,
+        MEDIA_STATUS_COMPLETED, decode_uploaded_audio_data,
+        galgame_media_binding_required_media_kind, persist_audio_file,
     },
 };
 
@@ -21,12 +18,6 @@ use super::{
     GalgameMediaTargetKind, GalgameTargetContext, ImportGalgameAudioInput, UnbindGalgameMediaInput,
     read_models::galgame_media_binding_summary,
 };
-
-#[derive(Debug, Clone)]
-struct PersistedGalgameAudioFile {
-    pub relative_path: String,
-    pub duration_secs: f32,
-}
 
 impl OrchestratorContext {
     pub async fn bind_galgame_media_validated(
@@ -111,23 +102,27 @@ impl OrchestratorContext {
                 input.target_line_id,
             )
             .await?;
-        let source = decode_uploaded_audio_data(
-            &input.file_name,
-            &input.mime_type,
-            &input.data_base64,
-        )
-        .map_err(AppError::InvalidArgument)?;
+        let source =
+            decode_uploaded_audio_data(&input.file_name, &input.mime_type, &input.data_base64)
+                .map_err(AppError::InvalidArgument)?;
         if !matches!(source.extension, "mp3" | "wav" | "ogg") {
             return Err(AppError::InvalidArgument(format!(
                 "Galgame 音频格式不支持: {}",
                 input.mime_type.trim()
             )));
         }
-        let persisted = persist_galgame_audio_file(
+        let persisted = persist_audio_file(
             self.data_dir(),
             input.project_id,
+            "galgame_audio",
             source.extension,
-            &source.bytes,
+            "Galgame 音频",
+            "Galgame 音频文件",
+            |output| {
+                output
+                    .write_all(&source.bytes)
+                    .map_err(|error| format!("写入 Galgame 音频文件失败：{error}"))
+            },
         )
         .map_err(|operation| AppError::InvalidState {
             current: "galgame_audio_persist".to_string(),
@@ -213,30 +208,6 @@ impl OrchestratorContext {
             }
         }
     }
-}
-
-fn persist_galgame_audio_file(
-    data_dir: &Path,
-    project_id: i64,
-    extension: &str,
-    bytes: &[u8],
-) -> Result<PersistedGalgameAudioFile, String> {
-    let dir = ProjectPaths::new(data_dir, project_id).audio_dir();
-    std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建 Galgame 音频目录：{err}"))?;
-    let (path, mut output_file) = create_unique_timestamped_file(&dir, "galgame_audio", extension)
-        .map_err(|error| format!("创建 Galgame 音频文件失败：{error}"))?;
-    remove_created_file_on_error_sync(&path, "Galgame 音频文件", || {
-        output_file
-            .write_all(bytes)
-            .map_err(|err| format!("写入 Galgame 音频文件失败：{err}"))?;
-        let relative_path = data_dir_relative_file_path(data_dir, &path, "Galgame 音频文件")?;
-        let duration_secs = a4n_media::probe_audio_duration_secs(&path)
-            .map_err(|error| format!("无法读取 Galgame 音频文件时长：{error}"))?;
-        Ok(PersistedGalgameAudioFile {
-            relative_path,
-            duration_secs,
-        })
-    })
 }
 
 fn append_cleanup_error(primary: AppError, cleanup_error: Option<String>) -> AppError {

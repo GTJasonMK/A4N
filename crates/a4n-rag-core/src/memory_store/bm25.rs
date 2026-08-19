@@ -5,8 +5,8 @@ use parking_lot::RwLock;
 
 use a4n_core::error::AppError;
 
-use super::records::vector_store_error;
 use super::scoring;
+use crate::errors::vector_store_error;
 
 /// BM25 倒排索引和文档长度统计。
 pub(super) struct Bm25Index {

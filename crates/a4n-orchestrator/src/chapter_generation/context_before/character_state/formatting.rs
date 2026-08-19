@@ -1,6 +1,7 @@
 use a4n_core::models::character::{character_state_index, protagonist_profile};
 
-use super::super::shared::{non_empty_trimmed, truncate_chars};
+use super::super::shared::truncate_chars;
+use crate::chapter_generation::non_empty_trimmed;
 
 pub(in crate::chapter_generation::context_before) fn character_state_context_line(
     state_index: &character_state_index::Model,

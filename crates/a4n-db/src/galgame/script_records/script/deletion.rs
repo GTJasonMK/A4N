@@ -2,14 +2,14 @@ use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene, gal
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct GalgameScriptCleanupResult {
-    pub deleted_scripts: u64,
-    pub deleted_scenes: u64,
-    pub deleted_lines: u64,
-    pub deleted_choices: u64,
+pub(crate) struct GalgameScriptCleanupResult {
+    pub(crate) deleted_scripts: u64,
+    pub(crate) deleted_scenes: u64,
+    pub(crate) deleted_lines: u64,
+    pub(crate) deleted_choices: u64,
 }
 
-pub async fn delete_galgame_script_records_for_project<C>(
+pub(crate) async fn delete_galgame_script_records_for_project<C>(
     db: &C,
     project_id: i64,
 ) -> Result<GalgameScriptCleanupResult, DbErr>

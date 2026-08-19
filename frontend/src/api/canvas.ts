@@ -5,6 +5,7 @@ import type { GeneratedVideo } from "./video/types";
 import type {
   CanvasGraphDocument,
   CanvasGraphInput,
+  CanvasMediaAssetSummary,
   CanvasNodeContract,
   CanvasPortContract,
   CanvasRunSummary,
@@ -34,32 +35,11 @@ export const CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN = "rhythm_plan" as const;
 export type {
   CanvasGraphDocument,
   CanvasGraphInput,
+  CanvasMediaAssetSummary,
   CanvasNodeContract,
   CanvasPortContract,
   CanvasRunSummary,
 };
-
-export interface MediaAssetRecord {
-  id: number;
-  project_id: number;
-  root_project_id: number;
-  source_chapter_id: number | null;
-  source_snapshot_chapter_id: number | null;
-  media_kind: string;
-  origin: string;
-  file_path: string | null;
-  thumbnail_path: string | null;
-  width: number | null;
-  height: number | null;
-  duration_secs: number | null;
-  fps: number | null;
-  file_size: number | null;
-  checksum: string | null;
-  status: string;
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-}
 
 type CanvasMediaUploadSource = {
   file_path?: never;
@@ -87,16 +67,16 @@ export type ImportedCanvasMedia =
   | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
       media_kind: "image";
       image: GeneratedImage;
-      asset: MediaAssetRecord;
+      asset: CanvasMediaAssetSummary;
     })
   | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
       media_kind: "video";
       video: GeneratedVideo;
-      asset: MediaAssetRecord;
+      asset: CanvasMediaAssetSummary;
     })
   | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
       media_kind: "audio";
-      asset: MediaAssetRecord;
+      asset: CanvasMediaAssetSummary;
     });
 
 export async function getCanvasGraph(

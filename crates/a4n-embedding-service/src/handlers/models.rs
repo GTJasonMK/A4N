@@ -2,9 +2,7 @@ use std::path::PathBuf;
 
 use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_core::error::AppError;
-use a4n_domain::embedding::{
-    EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary,
-};
+use a4n_domain::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
 use a4n_embedding_fastembed::{
     delete_fastembed_model, fastembed_model_download_info, list_fastembed_local_models,
 };
@@ -24,7 +22,11 @@ pub(crate) async fn list_models(
     }
     let trace_id = request.trace_context.trace_id;
     let result = resolve_cache_dir().and_then(|cache_dir| list_fastembed_local_models(&cache_dir));
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn model_download_info(
@@ -41,7 +43,11 @@ pub(crate) async fn model_download_info(
         Ok(info)
     }
     .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn delete_model(
@@ -54,7 +60,11 @@ pub(crate) async fn delete_model(
     let result = required_model(request.payload).and_then(|model| {
         resolve_cache_dir().and_then(|cache_dir| delete_fastembed_model(&model, &cache_dir))
     });
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) fn required_model(payload: EmbeddingModelPayload) -> Result<String, AppError> {
@@ -68,7 +78,6 @@ pub(crate) fn required_model(payload: EmbeddingModelPayload) -> Result<String, A
 }
 
 pub(crate) fn resolve_cache_dir() -> Result<PathBuf, AppError> {
-    optional_non_empty_env_path(EMBEDDING_CACHE_DIR_ENV)?.ok_or_else(|| {
-        AppError::ConfigError(format!("{EMBEDDING_CACHE_DIR_ENV} 未设置"))
-    })
+    optional_non_empty_env_path(EMBEDDING_CACHE_DIR_ENV)?
+        .ok_or_else(|| AppError::ConfigError(format!("{EMBEDDING_CACHE_DIR_ENV} 未设置")))
 }

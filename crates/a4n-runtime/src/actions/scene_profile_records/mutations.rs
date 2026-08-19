@@ -4,7 +4,12 @@ use super::{
 };
 use crate::{
     AppState,
-    actions::{access, dependency_conflict::delete_downstream_images_if_requested},
+    actions::{
+        access,
+        dependency_conflict::{
+            delete_downstream_images_if_requested, downstream_cleanup_warnings,
+        },
+    },
 };
 
 pub async fn create_scene_profile(
@@ -19,8 +24,7 @@ pub async fn create_scene_profile(
         .await
         .map_err(|error| error.to_string())?;
     Ok(SceneProfileMutationResult {
-        profile: projections::to_summary(state.orchestrator(), state.orchestrator(), &profile)
-            .await?,
+        profile: projections::to_summary(state.orchestrator(), &profile).await?,
         warnings: scene_rag_sync_warnings(state, input.project_id).await,
     })
 }
@@ -51,7 +55,7 @@ pub async fn update_scene_profile(
     );
     warnings.extend(scene_rag_sync_warnings(state, project_id).await);
     Ok(SceneProfileMutationResult {
-        profile: projections::to_summary(scene_profile, state.orchestrator(), &profile).await?,
+        profile: projections::to_summary(scene_profile, &profile).await?,
         warnings,
     })
 }
@@ -82,14 +86,6 @@ pub async fn delete_scene_profile(
     );
     warnings.extend(scene_rag_sync_warnings(state, project_id).await);
     Ok(SceneProfileDeleteResult { warnings })
-}
-
-fn downstream_cleanup_warnings(result: Result<(), String>) -> Vec<String> {
-    result
-        .err()
-        .map(|error| format!("下游图片清理失败：{error}"))
-        .into_iter()
-        .collect()
 }
 
 async fn scene_rag_sync_warnings(state: &AppState, project_id: i64) -> Vec<String> {

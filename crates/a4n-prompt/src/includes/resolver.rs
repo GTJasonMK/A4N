@@ -12,7 +12,7 @@ const DEFAULT_MAX_DEPTH: usize = 10;
 ///
 /// `current_file` 和 `prompts_dir` 必须是可 canonicalize 的真实路径；include 路径始终
 /// 相对 canonical prompts 根目录解析。
-pub fn resolve_includes(
+pub(crate) fn resolve_includes(
     body: &str,
     current_file: &Path,
     prompts_dir: &Path,

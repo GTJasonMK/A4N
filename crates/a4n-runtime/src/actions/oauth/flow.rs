@@ -12,7 +12,7 @@ pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, AppEr
     Ok(provider.authorize_url(&oauth2_state()?))
 }
 
-pub async fn oauth2_login_user(
+pub(crate) async fn oauth2_login_user(
     state: &AppState,
     input: OAuth2CallbackInput,
 ) -> Result<user::Model, AppError> {

@@ -11,14 +11,16 @@ pub use types::{
     CanvasNodeRecordInput, CanvasTextAssetRecordInput,
 };
 pub use validation::{
-    validate_canvas_graph_record_input, validate_canvas_record_document_edge_contract,
-    validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
+    validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
+    validate_canvas_record_viewport_json,
 };
 
 #[cfg(test)]
 use a4n_domain::CanvasNodeRefKind;
 #[cfg(test)]
 use persistence::GRAPH_KIND_VIDEO_STUDIO;
+#[cfg(test)]
+use validation::validate_canvas_graph_record_input;
 #[cfg(test)]
 use validation::validate_canvas_record_node_ref_shape;
 

@@ -13,7 +13,8 @@ use super::{
     generation_io::persist_generated_image_file, run_queued_request_with_cancel_and_workflow,
 };
 use crate::{
-    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    AppState,
+    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::{canonicalize_data_file_path, inspect_generated_media_file},
 };
 

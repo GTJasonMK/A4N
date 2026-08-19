@@ -1,5 +1,5 @@
 mod containers;
 mod string;
 
-pub use containers::{required_array, required_object};
-pub use string::required_string;
+pub(in crate::chapter_analysis::validation) use containers::{required_array, required_object};
+pub(in crate::chapter_analysis::validation) use string::required_string;

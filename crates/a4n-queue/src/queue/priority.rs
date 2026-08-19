@@ -7,10 +7,10 @@ mod models;
 mod permit;
 mod status;
 
-pub use kinds::*;
-pub use models::*;
-pub use permit::*;
-pub use status::*;
+pub use kinds::{TaskKind, TaskPriority};
+pub use models::{QueueSlotStats, QueueStats, TaskInfo, TaskProgress};
+pub use permit::TaskPermit;
+pub use status::TaskStatus;
 
 #[cfg(test)]
 mod tests;

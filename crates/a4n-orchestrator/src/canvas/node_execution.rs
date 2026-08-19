@@ -114,7 +114,7 @@ impl OrchestratorContext {
             status: status.to_string(),
             input_fingerprint_sha256: None,
             input_fingerprint_json: Some(input_json),
-            checkpoint_json: artifacts_json.clone(),
+            checkpoint_json: None,
             artifacts_json,
             generation_run_ids_json: None,
             error_message,

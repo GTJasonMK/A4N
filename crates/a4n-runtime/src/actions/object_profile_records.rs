@@ -9,7 +9,7 @@ pub use a4n_api_contract::profile::{
     ObjectProfileDeleteResult, ObjectProfileInput, ObjectProfileMutationResult,
     ObjectProfileSummary, UpdateObjectProfileInput,
 };
-pub use mutations::*;
+pub use mutations::{create_object_profile, delete_object_profile, update_object_profile};
 pub use queries::list_object_profiles;
 
 #[cfg(test)]

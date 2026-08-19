@@ -10,4 +10,4 @@ pub use records::{
     create_llm_config_record, delete_llm_config_record, list_llm_config_records, llm_config_by_id,
     update_llm_config_record,
 };
-pub use resolution::{default_llm_config, resolve_llm_config};
+pub use resolution::resolve_llm_config;

@@ -13,7 +13,7 @@ pub struct CharacterConflictContextRows {
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterStateIndexUpsertInput {
+pub(in crate::character) struct CharacterStateIndexUpsertInput {
     pub profile_id: i64,
     pub chapter_number: i32,
     pub state_summary: String,

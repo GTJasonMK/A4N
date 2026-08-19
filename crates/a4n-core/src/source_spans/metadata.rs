@@ -35,16 +35,5 @@ pub fn metadata_source_content_sha256(metadata: Option<&Value>) -> Option<&str> 
         .filter(|value| !value.is_empty())
 }
 
-pub fn source_metadata_matches(stored: &Value, current: &Value) -> bool {
-    fn hash(value: &Value) -> Option<&str> {
-        value
-            .get("content_sha256")
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty())
-    }
-
-    hash(stored) == hash(current)
-}
-
 #[cfg(test)]
 mod tests;

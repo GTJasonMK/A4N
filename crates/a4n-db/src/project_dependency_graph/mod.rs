@@ -1,17 +1,4 @@
-use a4n_core::error::AppError;
-use a4n_core::models::{
-    ai::generated_image,
-    chapter::{
-        chapter,
-        chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
-        chapter_video_prompt,
-    },
-    generation::{generation_spec, prompt_artifact},
-    media::{media_asset, media_provenance},
-    project::novel_project,
-};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
-use std::collections::{BTreeMap, BTreeSet};
+use a4n_core::models::chapter::chapter_video_prompt;
 
 pub use a4n_domain::project::{
     AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
@@ -23,7 +10,6 @@ mod details;
 mod scope;
 
 use self::builder::{GraphBuilder, NodeSeedMetadata, node};
-use self::details::*;
 use self::scope::load_asset_graph_scope;
 
 const VIDEO_SEGMENT_PLAN_PROMPT_TYPES: &[&str] =
@@ -36,12 +22,11 @@ const VIDEO_FRAME_PROMPT_TYPES: &[&str] = &[
 const CHAPTER_VIDEO_PROMPT_TYPES: &[&str] = &[chapter_video_prompt::PROMPT_TYPE_VIDEO];
 
 mod helpers;
-use self::helpers::*;
 
 mod nodes;
 
 mod graph;
-pub use self::graph::*;
+pub use self::graph::{asset_dependency_graph, asset_dependency_graph_node_detail};
 
 #[cfg(test)]
 mod tests;

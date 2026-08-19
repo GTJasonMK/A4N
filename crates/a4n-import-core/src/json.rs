@@ -2,7 +2,7 @@ use serde::de::DeserializeOwned;
 
 use crate::errors::ImportTransformError;
 
-pub fn parse_json_manifest<T>(
+pub(super) fn parse_json_manifest<T>(
     manifest_bytes: &[u8],
     label: impl Into<String>,
 ) -> Result<T, ImportTransformError>

@@ -201,13 +201,10 @@ async fn enhanced_rag_provider_execution_returns_domain_result() {
         weight: 1.0,
     }]);
 
-    let result = execute_prepared_enhanced_rag_search_in_store(
-        &store,
-        &MatchingEmbeddingProvider,
-        prepared,
-    )
-    .await
-    .expect("provider enhanced search");
+    let result =
+        execute_prepared_enhanced_rag_search_in_store(&store, &MatchingEmbeddingProvider, prepared)
+            .await
+            .expect("provider enhanced search");
 
     assert_eq!(result.candidate_count, 1);
     assert_eq!(result.results.len(), 1);

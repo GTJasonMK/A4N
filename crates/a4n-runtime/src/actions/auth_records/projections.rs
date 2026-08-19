@@ -1,7 +1,7 @@
 use super::contracts::{SessionSummary, UserSummary};
 use a4n_core::models::user::{user, user_session};
 
-pub fn to_user_summary(user: &user::Model) -> UserSummary {
+pub(crate) fn to_user_summary(user: &user::Model) -> UserSummary {
     UserSummary {
         id: user.id,
         username: user.username.clone(),

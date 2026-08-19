@@ -6,14 +6,28 @@ mod parts;
 mod ranges;
 mod types;
 
-pub use chapters::*;
-pub use generation_sources::*;
-pub use parts::*;
+pub use chapters::{
+    insert_chapter_outline_record, sync_chapter_outline_part_assignments,
+    sync_chapter_outline_records_by_number, sync_chapter_outline_records_by_number_transaction,
+    update_chapter_outline_record, update_chapter_outline_record_transaction,
+};
+pub use generation_sources::{
+    OUTLINE_GENERATION_SOURCE_CHANGED, OutlineGenerationSourceRows,
+    load_outline_generation_source_rows, load_outline_generation_source_rows_for_update,
+    lock_outline_generation_sources, outline_generation_source_snapshot,
+};
+pub use parts::{
+    insert_part_outline_record, sync_part_outline_records,
+    sync_part_outline_records_and_assign_chapters_in,
+    sync_part_outline_records_and_assign_chapters_transaction,
+    update_part_outline_and_rebind_chapters_in,
+    update_part_outline_and_rebind_chapters_transaction, update_part_outline_record,
+};
 pub use ranges::{
     chapter_outline_ids_in_part_range, chapter_outline_ids_in_part_ranges,
     part_id_for_chapter_number, validate_part_outline_records,
 };
-pub use types::*;
+pub use types::{ChapterOutlineSyncDraft, OutlineDbError, PartOutlineSyncDraft};
 
 async fn lock_outline_project_for_write<C>(
     db: &C,

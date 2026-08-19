@@ -15,7 +15,7 @@ use super::errors::{
 };
 use super::response::llm_api_status_error;
 
-pub struct AnthropicLlmProvider {
+pub(in crate::http) struct AnthropicLlmProvider {
     client: reqwest::Client,
     base_url: String,
     api_key: Option<String>,
@@ -27,7 +27,7 @@ pub struct AnthropicLlmProvider {
 }
 
 impl AnthropicLlmProvider {
-    pub fn new(
+    pub(in crate::http) fn new(
         base_url: impl Into<String>,
         model: impl Into<String>,
         api_key: Option<String>,

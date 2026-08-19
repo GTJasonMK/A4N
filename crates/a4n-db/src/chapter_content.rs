@@ -9,12 +9,22 @@ use a4n_core::models::chapter::chapter;
 use chrono::NaiveDateTime;
 use sea_orm::Set;
 
-pub use analysis::*;
-pub use edit::*;
-pub use generation::*;
-pub use import::*;
-pub use queries::*;
-pub use types::*;
+pub use analysis::{
+    chapter_source_snapshots_match_for_update, lock_chapter_analysis_source,
+    store_chapter_analysis_record, update_chapter_style_tags_record,
+};
+pub use edit::save_chapter_content_edit_record;
+pub use generation::{
+    begin_chapter_generation_record, finish_generated_chapter_content_record_in_transaction,
+    restore_chapter_generation_status_record,
+};
+pub use import::import_chapter_content_record;
+pub use queries::{chapter_by_id_for_analysis, chapters_for_project};
+pub use types::{
+    ChapterContentEditError, ChapterContentImportError, ChapterGenerationExistingRecord,
+    ChapterGenerationLifecycleError, EditChapterContentInput, GeneratedChapterContentRecordInput,
+    ImportChapterContentInput, StoreChapterAnalysisRecordInput,
+};
 
 pub(crate) fn assign_chapter_content(
     active: &mut chapter::ActiveModel,

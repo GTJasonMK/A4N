@@ -1,4 +1,4 @@
-use super::*;
+use a4n_llm::provider::ChatRequest;
 
 pub use a4n_api_contract::request_preview::{ModelRequestPreview, ModelRequestPreviewStep};
 

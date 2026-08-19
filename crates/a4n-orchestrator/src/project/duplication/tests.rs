@@ -16,8 +16,7 @@ use a4n_core::{
 };
 use a4n_db::{
     generation::{
-        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+        GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
     project::{
         CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, ProjectMediaCopyError,

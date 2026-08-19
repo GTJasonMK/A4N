@@ -22,10 +22,8 @@ pub fn make_provider_from_model(
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     let dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
     let batch_size = positive_usize(model.batch_size, "批量大小", &model.name)?;
-    let fastembed_cache_dir = resolve_fastembed_cache_dir(
-        model.local_model_path.as_deref(),
-        embedding_models_dir,
-    )?;
+    let fastembed_cache_dir =
+        resolve_fastembed_cache_dir(model.local_model_path.as_deref(), embedding_models_dir)?;
     make_provider(ResolvedEmbeddingConfig {
         name: model.name.clone(),
         backend: model.backend.clone(),
@@ -57,11 +55,7 @@ fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingPro
 
     match backend.kind {
         EmbeddingBackendKind::Api => {
-            let base_url = required_text(
-                config.base_url.as_deref(),
-                "API Base URL",
-                &config.name,
-            )?;
+            let base_url = required_text(config.base_url.as_deref(), "API Base URL", &config.name)?;
             Ok(Arc::new(HttpEmbeddingProvider::new_with_batch(
                 base_url,
                 model,

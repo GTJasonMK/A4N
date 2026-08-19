@@ -2,8 +2,9 @@ use a4n_core::error::AppError;
 
 use crate::vector_store::EmbeddingRecord;
 
-use super::records::{StoredRecord, validate_embedding_vector, vector_store_error};
+use super::records::{StoredRecord, validate_embedding_vector};
 use super::{MemoryVectorStore, scoring};
+use crate::errors::vector_store_error;
 
 impl MemoryVectorStore {
     pub(super) fn add_memory_embeddings(

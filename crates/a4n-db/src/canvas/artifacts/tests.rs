@@ -1,14 +1,13 @@
 use super::*;
 use crate::canvas::CanvasDbError;
+use crate::generation::{
+    GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+};
 use a4n_core::models::{
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
-use crate::generation::{
-    GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
-    GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
-};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 

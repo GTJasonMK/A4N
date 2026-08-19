@@ -1,17 +1,19 @@
 use super::super::{ImportCanvasMediaInput, ImportedCanvasMedia};
+use super::canvas_media_asset_summary;
 use crate::{
     AppState,
     actions::{
         app_error_message,
         image_generation::to_summary,
-        image_records::{import_image_record, UploadImageInput},
+        image_records::{UploadImageInput, import_image_record},
     },
 };
 use a4n_core::{error::AppError, models::ai::generated_image};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_orchestrator::canvas::{CanvasImageImportHostInput, CanvasImageImportHostPort};
+use a4n_orchestrator::media::MEDIA_KIND_IMAGE;
 use async_trait::async_trait;
-use serde_json::{json, Map};
+use serde_json::{Map, json};
 
 pub(super) async fn import_canvas_image(
     state: &AppState,
@@ -26,8 +28,8 @@ pub(super) async fn import_canvas_image(
         .orchestrator()
         .import_canvas_image_validated(
             &host_port,
+            user_id,
             CanvasImageImportHostInput {
-                user_id,
                 project_id: input.project_id,
                 file_name: input
                     .file_name
@@ -43,14 +45,10 @@ pub(super) async fn import_canvas_image(
         .await
         .map_err(app_error_message)?;
     Ok(ImportedCanvasMedia {
-        media_kind: "image".to_string(),
-        image: Some(
-            serde_json::to_value(to_summary(&result.image))
-                .map_err(|error| format!("序列化画布图片摘要失败: {error}"))?,
-        ),
+        media_kind: MEDIA_KIND_IMAGE.to_string(),
+        image: Some(to_summary(&result.image)),
         video: None,
-        asset: serde_json::to_value(result.asset)
-            .map_err(|error| format!("序列化画布图片资产失败: {error}"))?,
+        asset: canvas_media_asset_summary(result.asset),
     })
 }
 

@@ -66,17 +66,3 @@ where
         .map_err(ProjectChapterContextError::Database)?;
     Ok(())
 }
-
-pub async fn delete_chapter_content_record<C>(
-    db: &C,
-    chapter_id: i64,
-) -> Result<(), ProjectChapterContextError>
-where
-    C: ConnectionTrait,
-{
-    chapter::Entity::delete_by_id(chapter_id)
-        .exec(db)
-        .await
-        .map_err(ProjectChapterContextError::Database)?;
-    Ok(())
-}

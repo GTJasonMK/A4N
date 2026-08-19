@@ -12,14 +12,10 @@ pub fn first_frame_prompt_matches_video_prompt(
         chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
         video_prompt,
         first_frame_prompt,
-    )
-        && prompt_uses_shared_segment_source(video_prompt)
+    ) && prompt_uses_shared_segment_source(video_prompt)
         && prompt_uses_shared_segment_source(first_frame_prompt)
 }
 
 fn prompt_uses_shared_segment_source(prompt: &chapter_video_prompt::Model) -> bool {
-    prompt_source_type_matches(
-        prompt,
-        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
-    )
+    prompt_source_type_matches(prompt, chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN)
 }

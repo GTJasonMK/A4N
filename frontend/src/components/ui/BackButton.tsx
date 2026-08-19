@@ -61,8 +61,8 @@ export const BackButton: React.FC<BackButtonProps> = ({
         type="button"
         onClick={handleClick}
         title={title || "返回上一页"}
-        className={`pyqt-btn-icon ${
-          size === "sm" ? "!h-9 !w-9 sm:!h-7 sm:!w-7" : ""
+        className={`a4n-icon-button pyqt-btn-icon ${
+          size === "sm" ? "h-9 w-9 sm:h-7 sm:w-7" : ""
         } ${className}`}
       >
         <ArrowLeft size={size === "sm" ? 13 : 14} />

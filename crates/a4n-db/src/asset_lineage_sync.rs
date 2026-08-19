@@ -29,7 +29,7 @@ const CANONICAL_SCHEMA_VERSION: u64 = 1;
 mod types;
 #[cfg(test)]
 use types::ProjectLineageContext;
-pub use types::*;
+pub use types::{AssetLineageBackfillSummary, AssetLineageSyncError};
 use types::{FamilyLineageContext, SyncedPromptRef};
 
 mod rules;
@@ -48,7 +48,7 @@ mod media;
 use media::{sync_generated_image_media, sync_generated_video_media};
 
 mod sync;
-pub use sync::*;
+pub use sync::sync_project_asset_lineage_record;
 
 #[cfg(test)]
 mod tests;

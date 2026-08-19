@@ -38,17 +38,33 @@ pub struct DynamicProviderFacade {
 impl OrchestratorContext {
     /// 构造动态 provider 窄 facade；不克隆完整上下文。
     pub fn dynamic_provider_facade(&self) -> DynamicProviderFacade {
-        DynamicProviderFacade {
-            task_queue: Arc::clone(&self.task_queue),
-            settings: self.settings.clone(),
-            generation: self.generation.clone(),
-            llm_context: self.llm_context.clone(),
-            project_read: self.project_read.clone(),
-        }
+        DynamicProviderFacade::from_applications(
+            Arc::clone(&self.task_queue),
+            self.settings.clone(),
+            self.generation.clone(),
+            self.llm_context.clone(),
+            self.project_read.clone(),
+        )
     }
 }
 
 impl DynamicProviderFacade {
+    pub(super) fn from_applications(
+        task_queue: Arc<PersistentTaskQueue>,
+        settings: ConfigApplication,
+        generation: GenerationApplication,
+        llm_context: LlmContextApplication,
+        project_read: ProjectReadApplication,
+    ) -> Self {
+        Self {
+            task_queue,
+            settings,
+            generation,
+            llm_context,
+            project_read,
+        }
+    }
+
     pub async fn resolve_llm_config(
         &self,
         config_id: Option<i64>,

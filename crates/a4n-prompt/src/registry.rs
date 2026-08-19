@@ -8,7 +8,7 @@ mod loading;
 mod state;
 mod validation;
 
-pub(crate) use contracts::*;
+pub(crate) use contracts::{CategoryDef, PromptRegistryEntry, RegistryFile};
 pub(crate) use state::PromptRegistry;
 
 #[cfg(test)]

@@ -27,22 +27,6 @@ impl ProgressSpan {
         Self { start, end }
     }
 
-    pub fn first_half(self) -> Self {
-        let mid = self.start + (self.end - self.start) / 2;
-        Self {
-            start: self.start,
-            end: mid,
-        }
-    }
-
-    pub fn second_half(self) -> Self {
-        let mid = self.start + (self.end - self.start) / 2;
-        Self {
-            start: mid,
-            end: self.end,
-        }
-    }
-
     pub(super) fn current_for_units(self, completed_units: u128, total_units: u128) -> u32 {
         let total_units = total_units.max(1);
         let width = self.end - self.start;

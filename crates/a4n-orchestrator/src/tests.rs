@@ -1,14 +1,10 @@
 use std::path::PathBuf;
 
-use a4n_service_manager::{
-    ManagedServiceConfig, ServiceManagerError, ServiceMode,
-};
+use a4n_service_manager::{ManagedServiceConfig, ServiceManagerError, ServiceMode};
 use a4n_service_protocol::{HealthStatus, ServiceHealth};
 
 use super::service_health::service_health_summary;
-use super::{
-    freeform_generated_reset_error_to_app_error, project_delete_error_to_app_error,
-};
+use super::{freeform_generated_reset_error_to_app_error, project_delete_error_to_app_error};
 
 #[test]
 fn project_delete_error_keeps_typed_app_error_mapping() {

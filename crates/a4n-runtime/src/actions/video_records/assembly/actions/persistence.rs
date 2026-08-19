@@ -1,6 +1,5 @@
 use crate::AppState;
-use crate::actions::video_generation::media::append_secondary_error;
-use crate::actions::video_records::delete_video_record_cleanup_error;
+use crate::actions::video_records::append_video_record_cleanup_error;
 use crate::file_utils::persist_created_media_file;
 use std::path::{Path, PathBuf};
 
@@ -28,11 +27,5 @@ where
         )
         .map(|(relative_path, file_size)| (output, relative_path, file_size))
     });
-    match result {
-        Ok(result) => Ok(result),
-        Err(error) => Err(append_secondary_error(
-            error,
-            delete_video_record_cleanup_error(state.orchestrator(), record_id).await,
-        )),
-    }
+    append_video_record_cleanup_error(state.orchestrator(), record_id, result).await
 }

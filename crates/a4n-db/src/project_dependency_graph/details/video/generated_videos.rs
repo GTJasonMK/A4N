@@ -1,7 +1,7 @@
-use crate::project_dependency_graph::{
-    AssetLineageRecord, db_record_result_with_related, db_related_record,
-    generated_video_prompt_id, lineage_ref, optional_prompt_sources, prompt_source,
-    video_prompt_sources,
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::{
+    db_record_result_with_related, db_related_record, generated_video_prompt_id, lineage_ref,
+    optional_prompt_sources, prompt_source, video_prompt_sources,
 };
 use a4n_core::{
     error::AppError,

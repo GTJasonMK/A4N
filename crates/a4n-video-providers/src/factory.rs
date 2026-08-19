@@ -1,11 +1,11 @@
 use a4n_core::error::AppError;
 
 use super::chat::ChatCompletionsVideoProvider;
-use super::cliproxy_openai::CliProxyOpenAiVideoProvider;
-use super::gemini_veo::GeminiVeoVideoProvider;
-use super::http::HttpVideoProvider;
-use super::newapi::NewApiVideoProvider;
-use super::seedance2::Seedance2VideoProvider;
+use super::cliproxy_openai::provider::CliProxyOpenAiVideoProvider;
+use super::gemini_veo::provider::GeminiVeoVideoProvider;
+use super::http::provider::HttpVideoProvider;
+use super::newapi::provider::NewApiVideoProvider;
+use super::seedance2::provider::Seedance2VideoProvider;
 use a4n_video::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,

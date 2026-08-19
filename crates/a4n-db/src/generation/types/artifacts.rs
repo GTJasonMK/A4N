@@ -10,7 +10,7 @@ pub struct GenerationRunTraceTarget {
     pub target_id: i64,
 }
 
-pub fn append_generation_artifact_target(
+pub(crate) fn append_generation_artifact_target(
     artifact_refs: Option<Value>,
     target: GenerationRunTraceTarget,
 ) -> Result<Value, GenerationDbError> {

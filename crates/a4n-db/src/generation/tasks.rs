@@ -29,10 +29,10 @@ use super::{
 };
 
 pub const GENERATION_SEQUENCE_LEASE_SIZE: i64 = 256;
-pub const INITIAL_RESERVED_THROUGH_SEQUENCE: i64 = 257;
-pub const MAX_GENERATION_START_REQUEST_MAPPINGS: u64 = 16;
-pub const MAX_ACTIVE_GENERATION_TASKS: u32 = DEFAULT_GENERATION_ACTIVE_SESSION_MAX as u32;
-pub const MAX_GENERATION_HISTORY_LIMIT: u32 = 100;
+const INITIAL_RESERVED_THROUGH_SEQUENCE: i64 = 257;
+const MAX_GENERATION_START_REQUEST_MAPPINGS: u64 = 16;
+const MAX_ACTIVE_GENERATION_TASKS: u32 = DEFAULT_GENERATION_ACTIVE_SESSION_MAX as u32;
+const MAX_GENERATION_HISTORY_LIMIT: u32 = 100;
 
 const START_REQUEST_LOCK_NAMESPACE: i32 = 1_093_948_242;
 const BUSINESS_ATTEMPT_LOCK_NAMESPACE: i32 = 1_093_943_636;
@@ -481,9 +481,14 @@ async fn list_generation_task_checkpoints(
         .into_iter()
         .map(|row| row.try_get::<String>("", "task_id"))
         .collect::<Result<Vec<_>, _>>()?;
-    let has_more = exclude_expired && ids.len() > usize::try_from(limit).unwrap_or(usize::MAX);
+    let page_limit = usize::try_from(limit).map_err(|_| {
+        GenerationTaskPersistenceError::InvalidArgument(
+            "generation task list limit 超出当前平台 usize 范围".to_string(),
+        )
+    })?;
+    let has_more = exclude_expired && ids.len() > page_limit;
     let ids = if has_more {
-        &ids[..usize::try_from(limit).unwrap_or(0)]
+        &ids[..page_limit]
     } else {
         &ids[..]
     };
@@ -530,7 +535,7 @@ fn validate_safe_cursor(
     Ok(())
 }
 
-pub fn verified_generation_public_snapshot(
+fn verified_generation_public_snapshot(
     checkpoint: &generation_task_checkpoint::Model,
 ) -> Result<Option<GenerationTaskSnapshot>, GenerationTaskPersistenceError> {
     if !ACTIVE_GENERATION_STATUSES.contains(&checkpoint.status.as_str())
@@ -576,7 +581,7 @@ pub fn verified_generation_public_snapshot(
     Ok(Some(snapshot))
 }
 
-pub fn verified_generation_execution_checkpoint(
+fn verified_generation_execution_checkpoint(
     checkpoint: &generation_task_checkpoint::Model,
 ) -> Result<Option<Value>, GenerationTaskPersistenceError> {
     let (Some(checkpoint_json), Some(expected_sha256), Some(version)) = (
@@ -923,7 +928,6 @@ fn ensure_active_task_matches(
     active: &generation_task_checkpoint::Model,
     prepared: &PreparedReservation,
 ) -> Result<(), GenerationTaskPersistenceError> {
-    let desired_is_root = prepared.input.root_task_id.is_none();
     let active_is_root = active.root_task_id == active.task_id
         && active.parent_task_id.is_none()
         && active.item_key.is_none();
@@ -946,12 +950,13 @@ fn ensure_active_task_matches(
         .map(|policy| enum_storage(policy, "batch_policy"))
         .transpose()?;
     let delivery_mode = enum_storage(prepared.input.delivery_mode, "delivery_mode")?;
-    let lineage_matches = if desired_is_root {
-        active_is_root
-    } else {
-        active.root_task_id == prepared.input.root_task_id.as_deref().unwrap_or_default()
-            && active.parent_task_id.as_deref() == prepared.input.parent_task_id.as_deref()
-            && active.item_key.as_deref() == prepared.input.item_key.as_deref()
+    let lineage_matches = match prepared.input.root_task_id.as_deref() {
+        None => active_is_root,
+        Some(root_task_id) => {
+            active.root_task_id == root_task_id
+                && active.parent_task_id.as_deref() == prepared.input.parent_task_id.as_deref()
+                && active.item_key.as_deref() == prepared.input.item_key.as_deref()
+        }
     };
     if active.requested_by_user_id == prepared.input.requested_by_user_id
         && active.input_fingerprint_sha256 == prepared.input_fingerprint_sha256

@@ -18,8 +18,7 @@ impl HttpLlmClient {
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url, LLM_SERVICE_NAME)
-                .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, LLM_SERVICE_NAME).with_auth_token(token),
         }
     }
 

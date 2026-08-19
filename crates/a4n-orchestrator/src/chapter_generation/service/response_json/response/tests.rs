@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 
-use super::*;
+use super::{normalize_generated_chapter_response, GeneratedChapterMetadata};
 
 fn metadata() -> GeneratedChapterMetadata {
     GeneratedChapterMetadata {

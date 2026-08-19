@@ -6,20 +6,13 @@ use serde_json::Value;
 const DEFAULT_INVALID_MESSAGE: &str = "variables 必须是对象或 null";
 
 pub fn parse_template_variables(value: Option<&Value>) -> Result<HashMap<String, Value>, String> {
-    parse_template_variables_with_message(value, DEFAULT_INVALID_MESSAGE)
-}
-
-fn parse_template_variables_with_message(
-    value: Option<&Value>,
-    invalid_message: &str,
-) -> Result<HashMap<String, Value>, String> {
     match value {
         None | Some(Value::Null) => Ok(HashMap::new()),
         Some(Value::Object(map)) => Ok(map
             .iter()
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect()),
-        Some(_) => Err(invalid_message.to_string()),
+        Some(_) => Err(DEFAULT_INVALID_MESSAGE.to_string()),
     }
 }
 
@@ -27,13 +20,6 @@ pub fn parse_template_variables_app_error(
     value: &Option<Value>,
 ) -> Result<HashMap<String, Value>, AppError> {
     parse_template_variables(value.as_ref()).map_err(AppError::InvalidArgument)
-}
-
-pub fn parse_template_variables_app_error_from_ref_with_message(
-    value: Option<&Value>,
-    invalid_message: &str,
-) -> Result<HashMap<String, Value>, AppError> {
-    parse_template_variables_with_message(value, invalid_message).map_err(AppError::InvalidArgument)
 }
 
 #[cfg(test)]
@@ -65,20 +51,11 @@ mod tests {
     }
 
     #[test]
-    fn invalid_values_preserve_default_and_custom_error_contracts() {
+    fn invalid_values_preserve_default_error_contract() {
         let value = json!(["tone"]);
         assert_eq!(
             parse_template_variables(Some(&value)).unwrap_err(),
             DEFAULT_INVALID_MESSAGE
         );
-        let error = parse_template_variables_app_error_from_ref_with_message(
-            Some(&value),
-            "自定义变量错误",
-        )
-        .unwrap_err();
-        assert!(matches!(
-            error,
-            AppError::InvalidArgument(message) if message == "自定义变量错误"
-        ));
     }
 }

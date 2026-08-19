@@ -21,7 +21,7 @@ fn zip_package_input() -> ExportZipPackageInput {
 async fn import_package_io_sidecar_missing_capability_fails_without_local_fallback() {
     let error = read_import_media_package_zip(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::empty(),
+        &A4nCapabilities::default(),
         vec![1, 2, 3],
         "manifest.json",
         "测试项目包",
@@ -37,7 +37,7 @@ async fn import_package_io_sidecar_missing_capability_fails_without_local_fallba
 async fn export_package_io_sidecar_missing_capability_fails_without_local_fallback() {
     let error = render_export_zip_package(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::empty(),
+        &A4nCapabilities::default(),
         zip_package_input(),
         Some(11),
         Some(3),
@@ -50,7 +50,7 @@ async fn export_package_io_sidecar_missing_capability_fails_without_local_fallba
 
 #[tokio::test]
 async fn embedded_package_io_facade_roundtrips_manifest_and_entries() {
-    let capabilities = A4nCapabilities::empty();
+    let capabilities = A4nCapabilities::default();
     let zip_bytes = render_export_zip_package(
         RuntimeProfile::Minimal,
         &capabilities,
@@ -81,7 +81,7 @@ async fn export_sidecar_request_carries_explicit_project_scope() {
     let client = Arc::new(
         RecordingExportClient::new().with_render_zip_response(successful_export_zip_response()),
     );
-    let capabilities = A4nCapabilities::empty().with_export(client.clone());
+    let capabilities = A4nCapabilities::default().with_export(client.clone());
 
     let zip_bytes = render_export_zip_package(
         RuntimeProfile::Sidecar,

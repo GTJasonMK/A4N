@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use a4n_core::error::AppError;
 use a4n_llm::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
@@ -27,19 +25,20 @@ use super::{
 impl OrchestratorContext {
     pub(crate) async fn classify_character_sync_behaviors_validated(
         &self,
-        input: CharacterImplicitClassificationInput,
+        input: CharacterImplicitClassificationInput<'_>,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<CharacterImplicitClassificationOutput, AppError> {
         let CharacterImplicitClassificationInput {
             project_id,
             workflow_run_id,
+            profile_id,
             profile_name,
             changes,
             mut behaviors,
             mut final_attributes,
         } = input;
         if behaviors.is_empty() {
-            final_attributes = project_character_attribute_changes(final_attributes, &changes)
+            final_attributes = project_character_attribute_changes(final_attributes, changes)
                 .map_err(AppError::InvalidArgument)?;
             return Ok(CharacterImplicitClassificationOutput {
                 behaviors,
@@ -50,7 +49,6 @@ impl OrchestratorContext {
 
         let mut change_index = 0usize;
         let mut suggestions = Vec::new();
-        let mut suggested_keys = BTreeSet::new();
         for (behavior_index, behavior) in behaviors.iter_mut().enumerate() {
             let chapter =
                 required_i32(behavior, "chapter_number").map_err(AppError::InvalidArgument)?;
@@ -68,7 +66,7 @@ impl OrchestratorContext {
                 .map_err(AppError::InvalidArgument)?;
             if implicit_attributes
                 .as_object()
-                .is_none_or(serde_json::Map::is_empty)
+                .is_some_and(serde_json::Map::is_empty)
             {
                 set_behavior_classification_results(behavior, json!({}))
                     .map_err(AppError::InvalidArgument)?;
@@ -79,7 +77,8 @@ impl OrchestratorContext {
                 prompt_renderer,
                 project_id,
                 workflow_run_id,
-                &profile_name,
+                profile_id,
+                profile_name,
                 behavior_index,
                 chapter,
                 behavior,
@@ -94,7 +93,6 @@ impl OrchestratorContext {
                     behavior,
                     &parsed,
                     &mut final_attributes,
-                    &mut suggested_keys,
                     behavior_index,
                 )
                 .map_err(AppError::InvalidArgument)?,

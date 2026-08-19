@@ -37,7 +37,7 @@ pub async fn preview_scene_image_request(
     ))
 }
 
-pub async fn preview_canvas_image_request(
+pub(crate) async fn preview_canvas_image_request(
     state: &AppState,
     user_id: i64,
     input: GenerateCanvasImageInput,

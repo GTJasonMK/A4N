@@ -18,7 +18,7 @@ pub async fn reorder_galgame_line_records_transaction(
     Ok(records)
 }
 
-pub async fn reorder_galgame_line_records<C>(
+async fn reorder_galgame_line_records<C>(
     db: &C,
     scene_id: i64,
     line_ids: Vec<i64>,
@@ -73,7 +73,7 @@ where
         .map_err(GalgameLineReorderRecordError::Database)
 }
 
-pub async fn compact_galgame_line_indexes_record<C>(
+pub(super) async fn compact_galgame_line_indexes_record<C>(
     db: &C,
     scene_id: i64,
 ) -> Result<(), GalgameLineRecordError>

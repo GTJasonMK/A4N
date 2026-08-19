@@ -1,14 +1,13 @@
-use super::super::{WORKFLOW_STATUS_COMPLETED, types::CanvasImageMediaAssetEnsureInput};
+use super::super::types::CanvasImageMediaAssetEnsureInput;
 use super::{
-    binding::ensure_canvas_media_binding,
+    CanvasMediaAssetUpsertInput, binding::ensure_canvas_media_binding,
     context::canvas_media_source_context_for_update,
-    lookup::{canvas_generated_image_for_media_ensure, canvas_media_asset_by_path_for_update},
-    provenance::upsert_canvas_image_media_provenance,
+    lookup::canvas_generated_image_for_media_ensure,
+    provenance::upsert_canvas_image_media_provenance, upsert_canvas_media_asset_record,
 };
 use crate::canvas::CanvasDbError;
 use a4n_core::models::media::media_asset;
-use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
+use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn ensure_canvas_image_media_asset_record<C>(
     db: &C,
@@ -48,55 +47,25 @@ where
             image.id
         )));
     }
-    let now = Utc::now().naive_utc();
-    let existing = canvas_media_asset_by_path_for_update(db, input.project_id, file_path).await?;
-    let asset = if let Some(existing) = existing {
-        let mut active: media_asset::ActiveModel = existing.into();
-        active.root_project_id = Set(source_context.root_project_id);
-        active.source_snapshot_id = Set(source_context.source_snapshot_id);
-        active.source_chapter_id = Set(source_context.source_chapter_id);
-        active.source_snapshot_chapter_id = Set(source_context.source_snapshot_chapter_id);
-        active.media_kind = Set("image".to_string());
-        active.origin = Set(input.origin);
-        active.file_path = Set(Some(file_path.to_string()));
-        active.thumbnail_path = Set(None);
-        active.width = Set(Some(image.width));
-        active.height = Set(Some(image.height));
-        active.duration_secs = Set(None);
-        active.fps = Set(None);
-        active.file_size = Set(image.file_size);
-        active.status = Set(WORKFLOW_STATUS_COMPLETED.to_string());
-        active.error_message = Set(None);
-        active.updated_at = Set(now);
-        active.update(db).await?
-    } else {
-        media_asset::ActiveModel {
-            project_id: Set(input.project_id),
-            root_project_id: Set(source_context.root_project_id),
-            source_snapshot_id: Set(source_context.source_snapshot_id),
-            source_chapter_id: Set(source_context.source_chapter_id),
-            source_snapshot_chapter_id: Set(source_context.source_snapshot_chapter_id),
-            media_kind: Set("image".to_string()),
-            origin: Set(input.origin),
-            file_path: Set(Some(file_path.to_string())),
-            thumbnail_path: Set(None),
-            width: Set(Some(image.width)),
-            height: Set(Some(image.height)),
-            duration_secs: Set(None),
-            fps: Set(None),
-            file_size: Set(image.file_size),
-            checksum: Set(None),
-            status: Set(WORKFLOW_STATUS_COMPLETED.to_string()),
-            error_message: Set(None),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        }
-        .insert(db)
-        .await?
-    };
+    let asset = upsert_canvas_media_asset_record(
+        db,
+        CanvasMediaAssetUpsertInput {
+            project_id: input.project_id,
+            media_kind: "image",
+            origin: input.origin,
+            file_path: file_path.to_string(),
+            thumbnail_path: None,
+            width: Some(image.width),
+            height: Some(image.height),
+            duration_secs: None,
+            fps: None,
+            file_size: image.file_size,
+        },
+        &source_context,
+    )
+    .await?;
 
-    upsert_canvas_image_media_provenance(db, &asset, &image, input.generation_spec_id, now).await?;
+    upsert_canvas_image_media_provenance(db, &asset, &image, input.generation_spec_id).await?;
     ensure_canvas_media_binding(
         db,
         asset.id,

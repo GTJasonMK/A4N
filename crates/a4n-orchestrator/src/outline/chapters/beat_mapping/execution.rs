@@ -1,8 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_outline;
-use a4n_db::workflow::{
-    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-};
+use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use chrono::Utc;
 use serde_json::Value;
 
@@ -77,27 +75,24 @@ impl OrchestratorContext {
                 response.finish_reason.as_deref(),
                 &format!("第 {} 部节拍映射", prepared.part.part_number),
             )?;
-            let chapters = parse_chapter_outline_batch(
-                &content,
-                prepared.part.start_chapter,
-                prepared.count,
-            )?;
+            let chapters =
+                parse_chapter_outline_batch(&content, prepared.part.start_chapter, prepared.count)?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-                    workflow_run_id,
-                    call_key,
-                    call_order: prepared.part.part_number,
-                    input_fingerprint_json: fingerprint_json,
-                    checkpoint: CompletedLlmCallCheckpoint {
-                        parsed_output: Value::Array(chapters.clone()),
-                        response_content: content,
-                        usage: response
-                            .usage
-                            .as_ref()
-                            .map(serde_json::to_value)
-                            .transpose()?,
-                        finish_reason: response.finish_reason,
-                        artifacts_json: None,
-                    },
+                workflow_run_id,
+                call_key,
+                call_order: prepared.part.part_number,
+                input_fingerprint_json: fingerprint_json,
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: Value::Array(chapters.clone()),
+                    response_content: content,
+                    usage: response
+                        .usage
+                        .as_ref()
+                        .map(serde_json::to_value)
+                        .transpose()?,
+                    finish_reason: response.finish_reason,
+                    artifacts_json: None,
+                },
             })
             .await?;
             chapters

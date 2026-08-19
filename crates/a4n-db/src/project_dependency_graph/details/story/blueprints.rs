@@ -1,5 +1,6 @@
-use crate::project_dependency_graph::{
-    AssetLineageRecord, db_record_result, lineage_ref, optional_prompt_sources, prompt_source,
+use crate::project_dependency_graph::AssetLineageRecord;
+use crate::project_dependency_graph::details::records::{
+    db_record_result, lineage_ref, optional_prompt_sources, prompt_source,
 };
 use a4n_core::{
     error::AppError,

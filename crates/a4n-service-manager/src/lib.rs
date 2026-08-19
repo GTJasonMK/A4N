@@ -10,8 +10,8 @@ mod process;
 mod tests;
 
 pub use config::{
-    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode,
-    is_loopback_http_url, normalize_remote_service_url,
+    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode, is_loopback_http_url,
+    normalize_remote_service_url,
 };
 pub use errors::ServiceManagerError;
 pub use manager::{HttpClientFactory, ServiceManager};

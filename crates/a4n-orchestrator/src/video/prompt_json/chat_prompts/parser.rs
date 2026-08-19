@@ -1,15 +1,24 @@
-use super::*;
 use a4n_core::error::AppError;
 use a4n_core::prompt_language::PromptOutputLanguage;
 use std::collections::{HashMap, HashSet};
+
+use crate::video::prompt_json::contracts::VideoSegmentPlan;
+use crate::video::prompt_json::derived_fields::derive_chat_video;
+use crate::video::prompt_json::validation::{validate_direct_prompt_text, validate_reference_ids};
+use crate::video::prompt_json::{
+    derived_prompt_shot_number, ordered_segment_numbers, parse_strict_json_response,
+};
+
+use super::contracts::{ChatVideoPromptResponse, ChatVideoPromptShot};
+use super::prompt_text::{required_text, validate_chat_video_prompt_text};
+use super::validation::{validate_chat_video_input_images, validate_chat_video_source_span_ids};
 
 pub(in crate::video) fn parse_chat_video_prompt_shots(
     raw: &str,
     segment_by_number: &HashMap<i32, &VideoSegmentPlan>,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<Vec<ChatVideoPromptShot>, AppError> {
-    let response: ChatVideoPromptResponse =
-        parse_strict_json_response(raw, "Chat 视频提示词")?;
+    let response: ChatVideoPromptResponse = parse_strict_json_response(raw, "Chat 视频提示词")?;
     if response.shots.is_empty() {
         return Err(AppError::InvalidArgument(
             "Chat 视频提示词响应必须包含至少一个 shots 条目".to_string(),

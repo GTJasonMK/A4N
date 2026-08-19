@@ -1010,6 +1010,9 @@ export const WritingDesk: React.FC = () => {
         isMobileLayout={isMobileLayout}
         canGoPrev={previousChapterNumber != null}
         canGoNext={nextChapterNumber != null}
+        chapterNumbers={chapterNumbers}
+        chapters={chapters}
+        outlines={outlines}
         leftSidebarVisible={!isMobileLayout && leftSidebarVisible}
         rightPanel={rightPanel}
         dirty={dirty}
@@ -1023,6 +1026,7 @@ export const WritingDesk: React.FC = () => {
         onCreateChapter={handleCreateChapter}
         onPrev={handlePrev}
         onNext={handleNext}
+        onSelectChapter={safeSelectChapter}
         onToggleLeftSidebar={handleToggleLeftSidebar}
         onOpenProfiles={() => setProfilesOpen(true)}
         onRightPanelChange={handleRightPanelChange}

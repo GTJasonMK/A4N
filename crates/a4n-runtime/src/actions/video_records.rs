@@ -3,19 +3,19 @@ mod completion;
 mod deletion;
 mod imports;
 mod paths;
-mod probe;
 mod playback;
+mod probe;
 mod records;
 
 pub use a4n_api_contract::video::UpdateGeneratedVideoInput;
 pub use a4n_api_contract::video::VideoPlaybackData;
 pub(crate) use assembly::recover_expired_assembly_caches;
-pub(crate) use imports::recover_expired_uploaded_video_sources;
 pub(in crate::actions::video_records) use completion::{
     complete_video_record, enqueue_unadopted_video_file_cleanup,
 };
-pub(in crate::actions::video_records) use probe::probe_video_properties;
+pub(crate) use imports::recover_expired_uploaded_video_sources;
 pub(in crate::actions::video_records) use paths::video_record_output_path;
+pub(in crate::actions::video_records) use probe::probe_video_properties;
 
 pub use assembly::{
     ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,
@@ -25,12 +25,14 @@ pub use assembly::{
     update_assembly_push_status,
 };
 pub use deletion::delete_video;
-pub(in crate::actions::video_records) use deletion::delete_video_record_cleanup_error;
+pub(in crate::actions::video_records) use deletion::{
+    append_video_record_cleanup_error, delete_video_record_cleanup_error,
+};
 pub(crate) use imports::import_canvas_video;
+pub(crate) use imports::{assemble_canvas_videos, extract_canvas_video_frame};
 pub use imports::{
     UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
-    assemble_canvas_videos, extract_canvas_video_frame, trim_video, upload_assembly_insert_video,
-    upload_chapter_video, upload_reference_media_video,
+    trim_video, upload_assembly_insert_video, upload_chapter_video, upload_reference_media_video,
 };
 use playback::MAX_INLINE_PLAYBACK_VIDEO_BYTES;
 pub use playback::{load_video_playback_data, load_video_scrub_playback_data};

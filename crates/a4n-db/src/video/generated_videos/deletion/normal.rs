@@ -4,14 +4,6 @@ use crate::video::VideoDbError;
 use a4n_core::models::ai::generated_video;
 use sea_orm::{ConnectionTrait, EntityTrait, TransactionTrait};
 
-async fn delete_generated_video_record_in<C>(db: &C, video_id: i64) -> Result<(), VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    let video = generated_video_for_delete(db, video_id).await?;
-    delete_locked_generated_video_record_in(db, &video).await
-}
-
 async fn delete_locked_generated_video_record_in<C>(
     db: &C,
     video: &generated_video::Model,
@@ -26,16 +18,6 @@ where
     generated_video::Entity::delete_by_id(video.id)
         .exec(db)
         .await?;
-    Ok(())
-}
-
-pub async fn delete_generated_video_record<C>(db: &C, video_id: i64) -> Result<(), VideoDbError>
-where
-    C: ConnectionTrait + TransactionTrait,
-{
-    let txn = db.begin().await.map_err(VideoDbError::Database)?;
-    delete_generated_video_record_in(&txn, video_id).await?;
-    txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(())
 }
 

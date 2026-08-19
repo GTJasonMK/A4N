@@ -5,7 +5,7 @@ use a4n_capabilities::A4nCapabilities;
 use a4n_core::config::app_config::AppConfig;
 use a4n_core::event::bridge::BroadcastEventBus;
 use a4n_core::event::channel::TaskManager;
-use a4n_db::{DbHandle, SharedDatabaseConnection, character::snapshot_store::Sha256SnapshotStore};
+use a4n_db::{DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore};
 use a4n_embedding::provider::EmbeddingProvider;
 use a4n_llm::provider::LlmProvider;
 use a4n_rag_core::{memory_store::MemoryVectorStore, vector_store::VectorStore};
@@ -33,7 +33,7 @@ impl TestOrchestratorBuilder {
     pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
         Self {
             db,
-            capabilities: A4nCapabilities::empty(),
+            capabilities: A4nCapabilities::default(),
             config: AppConfig::default(),
             prompt_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts"),
             llm: Arc::new(UnavailableLlmProvider::new(DEFAULT_LLM_STREAM_ERROR)),
@@ -83,6 +83,8 @@ impl TestOrchestratorBuilder {
         );
         let snapshot_store = Arc::new(Sha256SnapshotStore::new(self.db));
 
+        let llm = self.llm;
+        let embedding = self.embedding;
         OrchestratorContext::bootstrap(
             db_handle,
             self.capabilities,
@@ -97,8 +99,9 @@ impl TestOrchestratorBuilder {
             task_queue,
             engine,
             snapshot_store,
+            move |_| Ok((llm, embedding)),
         )
-        .with_providers(self.llm, self.embedding)
+        .expect("test providers should initialize")
     }
 }
 
@@ -110,9 +113,8 @@ mod tests {
     #[test]
     fn builder_keeps_explicit_test_overrides() {
         let db = Arc::new(DatabaseConnection::Disconnected);
-        let llm: Arc<dyn LlmProvider> = Arc::new(UnavailableLlmProvider::new(
-            "configured stream failure",
-        ));
+        let llm: Arc<dyn LlmProvider> =
+            Arc::new(UnavailableLlmProvider::new("configured stream failure"));
         let embedding: Arc<dyn EmbeddingProvider> = Arc::new(UnavailableEmbeddingProvider::new(
             "configured embedding failure",
         ));
@@ -125,7 +127,7 @@ mod tests {
         let builder = TestOrchestratorBuilder::new(db)
             .with_llm(Arc::clone(&llm))
             .with_embedding(Arc::clone(&embedding))
-            .with_capabilities(A4nCapabilities::empty())
+            .with_capabilities(A4nCapabilities::default())
             .with_config(config)
             .with_prompt_dir(prompt_dir.clone());
 

@@ -1,12 +1,10 @@
 use a4n_core::error::AppError;
-use a4n_db::workflow::{
-    self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-};
+use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
 use serde_json::{Value, json};
 
-use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 use crate::workflow::workflow_checkpoint_contract_app_error;
+use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 
 pub mod design_brief;
 
@@ -269,17 +267,17 @@ impl OrchestratorContext {
             .map(serde_json::to_value)
             .transpose()?;
         self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-                workflow_run_id,
-                call_key,
-                call_order: 1,
-                input_fingerprint_json: fingerprint_json,
-                checkpoint: CompletedLlmCallCheckpoint {
-                    parsed_output: Value::String(output.clone()),
-                    response_content: response.message.content,
-                    usage,
-                    finish_reason: response.finish_reason,
-                    artifacts_json: None,
-                },
+            workflow_run_id,
+            call_key,
+            call_order: 1,
+            input_fingerprint_json: fingerprint_json,
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: Value::String(output.clone()),
+                response_content: response.message.content,
+                usage,
+                finish_reason: response.finish_reason,
+                artifacts_json: None,
+            },
         })
         .await?;
         Ok(output)
@@ -308,10 +306,12 @@ fn restored_portrait_prompt_checkpoint(
     response_content: &str,
     call_key: &str,
 ) -> Result<String, AppError> {
-    let parsed_output = parsed_output.as_str().ok_or_else(|| AppError::InvalidState {
-        current: "invalid_checkpoint_field:parsed_output".to_string(),
-        operation: format!("读取人物三视图提示词 LLM 调用断点 {call_key}"),
-    })?;
+    let parsed_output = parsed_output
+        .as_str()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "invalid_checkpoint_field:parsed_output".to_string(),
+            operation: format!("读取人物三视图提示词 LLM 调用断点 {call_key}"),
+        })?;
     let reparsed = normalize_portrait_prompt_response(response_content)?;
     ensure_checkpoint_parsed_output_matches(
         parsed_output,

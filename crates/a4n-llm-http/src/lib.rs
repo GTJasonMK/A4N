@@ -1,3 +1,5 @@
 //! OpenAI-compatible HTTP LLM provider implementation.
 
-pub mod http;
+mod http;
+
+pub use http::pick_llm_provider;

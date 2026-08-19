@@ -9,13 +9,13 @@ use serde_json::json;
 use std::time::Duration;
 
 /// ComfyUI provider：使用基础 CheckpointLoaderSimple 文生图 workflow。
-pub struct ComfyUiImageProvider {
+pub(super) struct ComfyUiImageProvider {
     base_url: String,
     client: reqwest::Client,
 }
 
 impl ComfyUiImageProvider {
-    pub fn new(base_url: &str) -> Result<Self, AppError> {
+    pub(super) fn new(base_url: &str) -> Result<Self, AppError> {
         Ok(Self {
             base_url: required_non_empty(base_url, "base_url")?
                 .trim_end_matches('/')
@@ -104,7 +104,7 @@ impl ComfyUiImageProvider {
         }))
     }
 
-    pub fn request_body_preview(
+    pub(super) fn request_body_preview(
         req: &ImageGenerationRequest,
     ) -> Result<serde_json::Value, AppError> {
         Self::submit_body(req, "a4n-preview".to_string())

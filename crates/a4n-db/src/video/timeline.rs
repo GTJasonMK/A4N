@@ -1091,6 +1091,10 @@ mod tests {
 
     #[tokio::test]
     async fn completing_imported_inserted_video_copies_the_prompt_timeline_binding() {
+        const SOURCE_CONTENT_SHA256: &str =
+            "0000000000000000000000000000000000000000000000000000000000000000";
+        const SEGMENT_SHA256: &str =
+            "1111111111111111111111111111111111111111111111111111111111111111";
         let db = a4n_migration::test_support::connect_test_database().await;
         let project = crate::project::create_project_record(
             &db,
@@ -1151,12 +1155,13 @@ mod tests {
                     aspect_ratio: Some("16:9".to_string()),
                     reference_image_ids_json: Some(json!([])),
                     metadata_json: Some(json!({
+                        "prompt_output_language": "zh_cn",
                         "source_prompt_type": "inserted_segment",
                         "segment_recipe": {},
                         "video_execution_identity": {
                             "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
-                            "source_content_sha256": "source",
-                            "segment_sha256": "segment"
+                            "source_content_sha256": SOURCE_CONTENT_SHA256,
+                            "segment_sha256": SEGMENT_SHA256
                         }
                     })),
                 },
@@ -1192,8 +1197,8 @@ mod tests {
                     "source_prompt_type": "inserted_segment",
                     "video_execution_identity": {
                         "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
-                        "source_content_sha256": "source",
-                        "segment_sha256": "segment"
+                        "source_content_sha256": SOURCE_CONTENT_SHA256,
+                        "segment_sha256": SEGMENT_SHA256
                     }
                 })),
             },

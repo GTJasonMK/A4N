@@ -8,7 +8,8 @@ pub use a4n_api_contract::chapter::{
     ChapterMaterialUpdateAction, ChapterMaterialUpdateKind, ChapterSummary, ImportChapterInput,
     UpdateChapterContentInput,
 };
-pub use edit::{resume_chapter_content_sync_workflow_run, update_chapter_content};
+pub(crate) use edit::resume_chapter_content_sync_workflow_run;
+pub use edit::update_chapter_content;
 pub use import::import_chapter;
-pub use projections::chapter_summary_with_sync_state;
+pub(crate) use projections::chapter_summary_with_sync_state;
 pub use queries::list_chapters;

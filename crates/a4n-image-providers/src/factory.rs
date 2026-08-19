@@ -1,5 +1,5 @@
-use super::chat::ChatCompletionsImageProvider;
-use super::cliproxy::CliProxyImageProvider;
+use super::chat::provider::ChatCompletionsImageProvider;
+use super::cliproxy::provider::CliProxyImageProvider;
 use super::comfyui::ComfyUiImageProvider;
 use super::openai::OpenAiCompatibleImageProvider;
 use super::openai_edit::OpenAiCompatibleImageEditProvider;

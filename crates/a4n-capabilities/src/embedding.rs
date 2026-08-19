@@ -4,9 +4,9 @@ use super::contracts::{
 };
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
 use a4n_service_protocol::{
-    CapabilityTaskEvent, EMBEDDING_EMBED_TEXTS_PATH, EMBEDDING_MODELS_PATH,
-    EMBEDDING_MODEL_DELETE_PATH, EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH,
-    EMBEDDING_MODEL_DOWNLOAD_INFO_PATH, EMBEDDING_SERVICE_NAME, ServiceHealth,
+    CapabilityTaskEvent, EMBEDDING_EMBED_TEXTS_PATH, EMBEDDING_MODEL_DELETE_PATH,
+    EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH, EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
+    EMBEDDING_MODELS_PATH, EMBEDDING_SERVICE_NAME, ServiceHealth,
 };
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]

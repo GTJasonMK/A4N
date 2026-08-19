@@ -8,7 +8,7 @@ use crate::generation::{
 use a4n_core::models::generation::generation_run;
 use sea_orm::ConnectionTrait;
 
-pub async fn record_started_generation_run<C>(
+pub(crate) async fn record_started_generation_run<C>(
     db: &C,
     input: RecordStartedGenerationRunInput,
 ) -> Result<generation_run::Model, GenerationDbError>

@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use a4n_core::error::AppError;
 
-use crate::vector_store::{SearchFilter, SearchResult};
+use crate::errors::vector_store_error;
+use crate::vector_store::{SearchFilter, SearchResult, filters::metadata_matches_search_filter};
 
-use super::records::{checked_cosine_sim, vector_store_error};
-use super::{MemoryVectorStore, filters, scoring};
+use super::records::checked_cosine_sim;
+use super::{MemoryVectorStore, scoring};
 
 impl MemoryVectorStore {
     pub(super) fn query_memory(
@@ -23,7 +24,7 @@ impl MemoryVectorStore {
         for record in coll.iter().filter(|record| {
             filters
                 .as_ref()
-                .is_none_or(|filter| filters::matches_filter(&record.metadata, filter))
+                .is_none_or(|filter| metadata_matches_search_filter(&record.metadata, filter))
         }) {
             scored.push((
                 checked_cosine_sim(collection, &record.id, &query_embedding, &record.embedding)?,
@@ -66,10 +67,9 @@ impl MemoryVectorStore {
                             "BM25 索引引用了不存在的记录：collection={collection}, id={doc_id}"
                         ))
                     })?;
-                    if filters
-                        .as_ref()
-                        .is_some_and(|filter| !filters::matches_filter(&record.metadata, filter))
-                    {
+                    if filters.as_ref().is_some_and(|filter| {
+                        !metadata_matches_search_filter(&record.metadata, filter)
+                    }) {
                         continue;
                     }
                     let score = self

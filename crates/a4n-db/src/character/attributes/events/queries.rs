@@ -6,7 +6,7 @@ use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
-pub async fn attribute_events_by_profile_chapter_range<C>(
+pub(in crate::character) async fn attribute_events_by_profile_chapter_range<C>(
     db: &C,
     profile_id: i64,
     start_chapter: i32,
@@ -43,7 +43,7 @@ where
         .await
 }
 
-pub async fn attribute_events_by_profile<C>(
+async fn attribute_events_by_profile<C>(
     db: &C,
     profile_id: i64,
     filter: CharacterAttributeEventHistoryFilter,

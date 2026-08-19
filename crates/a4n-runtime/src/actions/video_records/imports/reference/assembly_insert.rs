@@ -5,9 +5,9 @@ use super::super::source::{
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
-use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
+use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use chrono::Utc;
 
 pub async fn upload_assembly_insert_video(

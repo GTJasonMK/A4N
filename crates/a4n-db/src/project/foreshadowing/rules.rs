@@ -1,7 +1,4 @@
-use a4n_core::{
-    json_contract::is_empty_json_value,
-    models::character::foreshadowing_index,
-};
+use a4n_core::{json_contract::is_empty_json_value, models::character::foreshadowing_index};
 use a4n_domain::character::ForeshadowingStatus;
 
 use super::contracts::ForeshadowingAnalysisDraft;

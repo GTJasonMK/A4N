@@ -9,7 +9,7 @@ use a4n_service_manager::ServiceManager;
 
 use super::{
     AdminApplication, AssetApplication, AssetLineageSyncApplication, AuthApplication,
-    BootstrapUnavailableEmbedding, BootstrapUnavailableLlm, CanvasApplication,
+    CanvasApplication,
     ChapterContentApplication, CharacterApplication, CollaborationApplication, ConfigApplication,
     GalgameApplication, GenerationApplication, ImportReverseApplication, ImportReviewApplication,
     InspirationApplication, LlmContextApplication, MangaApplication, OptimizeApplication,
@@ -22,6 +22,7 @@ use super::{
     TextAnchorApplication, VideoApplication, WorkflowApplication,
 };
 use crate::chapter_generation::ChapterGenerationService;
+use crate::context::dynamic_provider::DynamicProviderFacade;
 use crate::task_queue::PersistentTaskQueue;
 
 impl OrchestratorContext {
@@ -45,8 +46,17 @@ impl OrchestratorContext {
         rag_store: Arc<dyn VectorStore>,
         task_queue: Arc<PersistentTaskQueue>,
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
-        snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
-    ) -> Self {
+        snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
+        provider_factory: impl FnOnce(
+            DynamicProviderFacade,
+        ) -> Result<
+            (
+                Arc<dyn a4n_llm::provider::LlmProvider>,
+                Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
+            ),
+            AppError,
+        >,
+    ) -> Result<Self, AppError> {
         let admin = AdminApplication::new(db.clone());
         let asset = AssetApplication::new(db.clone());
         let asset_lineage_sync = AssetLineageSyncApplication::new(db.clone());
@@ -84,7 +94,14 @@ impl OrchestratorContext {
         let text_anchor = TextAnchorApplication::new(db.clone());
         let video = VideoApplication::new(db.clone());
         let workflow = WorkflowApplication::new(db.clone());
-        Self {
+        let (llm, embedding) = provider_factory(DynamicProviderFacade::from_applications(
+            Arc::clone(&task_queue),
+            settings.clone(),
+            generation.clone(),
+            llm_context.clone(),
+            project_read.clone(),
+        ))?;
+        Ok(Self {
             database: db,
             admin,
             asset,
@@ -131,22 +148,11 @@ impl OrchestratorContext {
             chapter,
             rag_store,
             task_queue,
-            llm: Arc::new(BootstrapUnavailableLlm),
+            llm,
             engine,
-            embedding: Arc::new(BootstrapUnavailableEmbedding),
+            embedding,
             snapshot_store,
-        }
-    }
-
-    /// 用真实 provider 替换引导期占位实现。
-    pub fn with_providers(
-        mut self,
-        llm: Arc<dyn a4n_llm::provider::LlmProvider>,
-        embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
-    ) -> Self {
-        self.llm = llm;
-        self.embedding = embedding;
-        self
+        })
     }
 
     /// 发布内部事件（状态/蓝图等），统一经 EventBus，避免旁路直连。

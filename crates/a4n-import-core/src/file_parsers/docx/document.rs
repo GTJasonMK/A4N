@@ -1,4 +1,4 @@
-use super::super::shared::decode_xml_entities;
+use super::super::shared::entities::decode_xml_entities;
 use regex::Regex;
 
 pub(super) fn extract_docx_document_text(xml: &str) -> String {

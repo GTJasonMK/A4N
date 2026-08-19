@@ -22,6 +22,11 @@ pub use continuity_records::{
     CharacterTimelineRagDeletionSummary, character_attribute_event_rag_record,
     character_state_rag_record, foreshadowing_rag_record,
 };
+pub(crate) use keys::{
+    chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,
+    foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, protagonist_rag_chunk_prefix,
+    rag_chunk_id, rag_project_prefix,
+};
 pub use outline_records::{outline_rag_record, part_outline_rag_record};
 pub use scene_records::{
     scene_occurrence_rag_record, scene_profile_rag_record, scene_transition_rag_record,
@@ -39,16 +44,9 @@ pub use sync::{
     RagSyncError, classify_rag_record, ensure_embedding_identity_matches,
     ensure_project_embedding_identity_matches,
 };
-pub(crate) use keys::{
-    chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id,
-    character_state_rag_chunk_id, foreshadowing_rag_chunk_id, protagonist_rag_chunk_id,
-    protagonist_rag_chunk_prefix, rag_chunk_id, rag_project_prefix,
-};
 pub use write::RagEmbeddedInput;
 pub(crate) use write::RagEmbeddingInput;
 
-pub(crate) use write::{
-    embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store,
-};
+pub(crate) use write::{embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store};
 
 pub(crate) use write::store_embedded_rag_records_in_store;

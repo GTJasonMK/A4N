@@ -3,7 +3,7 @@ use a4n_core::models::{chapter::chapter, project::novel_project};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
-pub async fn video_project_record<C>(
+pub(in crate::video) async fn video_project_record<C>(
     db: &C,
     project_id: i64,
 ) -> Result<novel_project::Model, VideoDbError>

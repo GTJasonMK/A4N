@@ -37,9 +37,10 @@ impl ManagedServiceConfig {
     }
 
     fn validate_remote(&self) -> Result<(), ServiceManagerError> {
-        let url = parse_remote_service_url(self.url.as_deref().unwrap_or("")).map_err(|reason| {
-            ServiceManagerError::InvalidConfig(format!("remote service {} {reason}", self.name))
-        })?;
+        let url =
+            parse_remote_service_url(self.url.as_deref().unwrap_or("")).map_err(|reason| {
+                ServiceManagerError::InvalidConfig(format!("remote service {} {reason}", self.name))
+            })?;
         let loopback = is_loopback_url(&url);
         validate_remote_security(&self.remote_security, &self.name, !loopback)?;
         if !loopback && !self.remote_security.has_deployment_credential() {
@@ -84,8 +85,7 @@ fn validate_sidecar_environment(
 }
 
 pub fn normalize_remote_service_url(value: &str) -> Result<String, String> {
-    parse_remote_service_url(value)
-        .map(|url| url.as_str().trim_end_matches('/').to_string())
+    parse_remote_service_url(value).map(|url| url.as_str().trim_end_matches('/').to_string())
 }
 
 pub fn is_loopback_http_url(value: &str) -> bool {

@@ -1,4 +1,6 @@
-use super::*;
+use a4n_core::models::ai::image_gen_config;
+
+use crate::AppState;
 
 pub(crate) async fn resolve_image_config(
     state: &AppState,

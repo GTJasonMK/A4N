@@ -6,7 +6,7 @@ use crate::galgame::{GALGAME_ENTITY_LINE, GalgameLineRecordError, MEDIA_BINDING_
 use a4n_core::models::{generation::generation_spec, media::media_binding};
 use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
-pub async fn delete_galgame_line_visual_generation_media_graph_record<C>(
+pub(in crate::galgame) async fn delete_galgame_line_visual_generation_media_graph_record<C>(
     db: &C,
     project_id: i64,
     line_id: i64,
@@ -18,7 +18,7 @@ where
         .await
 }
 
-pub async fn delete_galgame_line_generation_media_graph_record<C>(
+pub(in crate::galgame) async fn delete_galgame_line_generation_media_graph_record<C>(
     db: &C,
     project_id: i64,
     line_id: i64,

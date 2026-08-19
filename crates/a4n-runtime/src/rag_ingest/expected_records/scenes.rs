@@ -60,17 +60,12 @@ pub(super) async fn append_scene_records(
                 )
             })?;
         let from_scene_name = match transition.from_scene_profile_id {
-            Some(profile_id) => Some(
-                scene_names
-                    .get(&profile_id)
-                    .copied()
-                    .ok_or_else(|| {
-                        format!(
-                            "场景位移 {} 找不到 from_scene_profile_id={} 对应场景，无法构造 RAG 预期记录",
-                            transition.id, profile_id
-                        )
-                    })?,
-            ),
+            Some(profile_id) => Some(scene_names.get(&profile_id).copied().ok_or_else(|| {
+                format!(
+                    "场景位移 {} 找不到 from_scene_profile_id={} 对应场景，无法构造 RAG 预期记录",
+                    transition.id, profile_id
+                )
+            })?),
             None => None,
         };
         let record =

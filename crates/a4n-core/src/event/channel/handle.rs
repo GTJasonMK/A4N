@@ -1,9 +1,10 @@
-use super::*;
 use a4n_domain::progress::ProgressMeta;
 use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
+
+use super::contracts::{MAX_TASK_PROGRESS_EVENTS, TaskKind, TaskProgress, TaskProgressEvent};
 
 /// 活体信号只保留尾部片段：它用于证明「模型还在输出」，不用于阅读内容。
 /// 按字符边界截断，避免切断多字节 UTF-8 序列。

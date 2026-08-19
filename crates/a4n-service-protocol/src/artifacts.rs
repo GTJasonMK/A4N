@@ -50,7 +50,7 @@ pub fn validate_artifact_refs(
     Ok(())
 }
 
-pub fn validate_artifact_ref(artifact: &ArtifactRef) -> Result<(), ArtifactValidationError> {
+fn validate_artifact_ref(artifact: &ArtifactRef) -> Result<(), ArtifactValidationError> {
     if matches!(artifact.ownership, ArtifactOwnership::Remote)
         && matches!(artifact.location, ArtifactLocation::LocalPath(_))
     {

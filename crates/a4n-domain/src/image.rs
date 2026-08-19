@@ -9,8 +9,7 @@ pub const IMAGE_TYPE_VIDEO_START_FRAME: &str = "video_start_frame";
 pub const IMAGE_TYPE_VIDEO_STORYBOARD_FRAME: &str = "video_storyboard_frame";
 pub const IMAGE_TYPE_VIDEO_TAIL_FRAME: &str = "video_tail_frame";
 
-pub const IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT: &str =
-    "video_boundary_frame_prompt";
+pub const IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT: &str = "video_boundary_frame_prompt";
 pub const IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT: &str = "video_first_frame_prompt";
 pub const IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT: &str = "video_storyboard_prompt";
 pub const IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE: &str = "video_tail_frame_capture";
@@ -88,9 +87,7 @@ pub fn image_generation_source_hash(metadata: Option<&Value>) -> Option<&str> {
         .filter(|value| !value.is_empty() && *value == value.trim())
 }
 
-fn image_generation_context(
-    metadata: Option<&Value>,
-) -> Option<&serde_json::Map<String, Value>> {
+fn image_generation_context(metadata: Option<&Value>) -> Option<&serde_json::Map<String, Value>> {
     metadata
         .and_then(|metadata| metadata.get("generation_context"))
         .and_then(Value::as_object)
@@ -171,7 +168,10 @@ mod tests {
         let context = video_frame_image_generation_context(Some(&metadata))
             .expect("context should parse")
             .expect("video frame context should be present");
-        assert_eq!(context.source, IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT);
+        assert_eq!(
+            context.source,
+            IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT
+        );
         assert_eq!(context.generation_label, "分镜成图");
         assert_eq!(context.prompt_id, 44);
 

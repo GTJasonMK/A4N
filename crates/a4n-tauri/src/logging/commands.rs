@@ -1,6 +1,6 @@
 use super::core::{FILTER_RELOADER, log_dir};
-use super::{LogReadResult, ReadLogsInput, SetLogLevelInput};
 use a4n_runtime::host_api::logging as logging_actions;
+use a4n_runtime::host_api::logging::{LogReadResult, ReadLogsInput, SetLogLevelInput};
 use serde::Deserialize;
 use tauri::State;
 

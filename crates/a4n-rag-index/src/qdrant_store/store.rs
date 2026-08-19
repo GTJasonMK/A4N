@@ -1,9 +1,7 @@
 //! `QdrantVectorStore`：完整 `VectorStore` 实现。
 
 use super::config::QdrantStoreConfig;
-use super::filters::{
-    self, KEY_CHAPTER, KEY_CHUNK_ID, KEY_DATA_TYPE, KEY_ID_PREFIX,
-};
+use super::filters::{self, KEY_CHAPTER, KEY_CHUNK_ID, KEY_DATA_TYPE, KEY_ID_PREFIX};
 use crate::point_id::chunk_id_to_point_uuid;
 use crate::sparse_text::{bm25_document, bm25_query};
 use a4n_core::error::AppError;
@@ -329,10 +327,7 @@ impl VectorStore for QdrantVectorStore {
                 )));
             }
         }
-        let points: Result<Vec<_>, _> = records
-            .iter()
-            .map(Self::record_to_point)
-            .collect();
+        let points: Result<Vec<_>, _> = records.iter().map(Self::record_to_point).collect();
         let points = points?;
         let physical = self.ensure_collection(collection, dim).await?;
         let n = points.len();
@@ -402,11 +397,7 @@ impl VectorStore for QdrantVectorStore {
             )
             .await
             .map_err(|e| Self::map_err("query sparse", e))?;
-        resp
-            .result
-            .iter()
-            .map(Self::scored_to_result)
-            .collect()
+        resp.result.iter().map(Self::scored_to_result).collect()
     }
 
     async fn hybrid_search(

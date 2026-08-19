@@ -21,7 +21,5 @@ pub(crate) async fn download_model_events(
         Ok(cache_dir) => cache_dir,
         Err(error) => return failed_service_event_response(task_id, service_error(error)),
     };
-    service_event_ndjson_response(
-        embedding_download_event_stream(task_id, model, cache_dir),
-    )
+    service_event_ndjson_response(embedding_download_event_stream(task_id, model, cache_dir))
 }

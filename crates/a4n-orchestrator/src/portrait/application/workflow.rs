@@ -71,9 +71,10 @@ pub(super) async fn resolve_initial_portrait_prompt(
         .await?
     {
         report_progress(progress, 2, 6, "图片提示词已从断点恢复")?;
-        let image_prompt = checkpoint.parsed_output.as_str().ok_or_else(|| {
-            checkpoint_missing_field(&call_key, "parsed_output")
-        })?;
+        let image_prompt = checkpoint
+            .parsed_output
+            .as_str()
+            .ok_or_else(|| checkpoint_missing_field(&call_key, "parsed_output"))?;
         let reparsed = normalize_portrait_prompt_response(&checkpoint.response_content)?;
         ensure_checkpoint_parsed_output_matches(
             image_prompt,

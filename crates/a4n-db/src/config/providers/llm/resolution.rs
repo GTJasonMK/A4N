@@ -3,7 +3,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::records::llm_config_by_id;
 
-pub async fn default_llm_config(db: &DatabaseConnection) -> Result<llm_config::Model, AppError> {
+async fn default_llm_config(db: &DatabaseConnection) -> Result<llm_config::Model, AppError> {
     llm_config::Entity::find()
         .filter(llm_config::Column::IsDefault.eq(true))
         .one(db)

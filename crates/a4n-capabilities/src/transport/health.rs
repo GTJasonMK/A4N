@@ -1,6 +1,4 @@
-use a4n_service_protocol::{
-    SIDECAR_HEALTH_PATH, ServiceHealth, validate_service_health_envelope,
-};
+use a4n_service_protocol::{SIDECAR_HEALTH_PATH, ServiceHealth, validate_service_health_envelope};
 
 use super::HttpSidecarTransport;
 use super::errors::{timeout_error, transport_error};

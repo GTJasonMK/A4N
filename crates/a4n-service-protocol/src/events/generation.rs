@@ -16,8 +16,8 @@ pub const JS_SAFE_INTEGER_I64: i64 = 9_007_199_254_740_991;
 pub const MAX_GENERATION_EVENT_BYTES: usize = 64 * 1024;
 pub const MAX_TEXT_DELTA_BYTES: usize = 16 * 1024;
 pub const MAX_GENERATION_SNAPSHOT_BYTES: usize = 4 * 1024 * 1024;
-pub const MAX_GENERATION_STREAMS: usize = 64;
-pub const MAX_GENERATION_ARTIFACTS: usize = 4_096;
+const MAX_GENERATION_STREAMS: usize = 64;
+const MAX_GENERATION_ARTIFACTS: usize = 4_096;
 pub const DEFAULT_GENERATION_ACTIVE_SESSION_MAX: usize = 64;
 
 const MAX_IDENTIFIER_BYTES: usize = 128;
@@ -488,7 +488,7 @@ pub struct TextStreamSnapshot {
 #[error("生成事件合同无效: {0}")]
 pub struct GenerationContractError(String);
 
-pub fn validate_generation_task_event(
+fn validate_generation_task_event(
     event: &GenerationTaskEvent,
 ) -> Result<(), GenerationContractError> {
     if event.schema_version != GENERATION_EVENT_SCHEMA_VERSION {
@@ -583,7 +583,7 @@ pub fn validate_generation_task_event(
     Ok(())
 }
 
-pub fn validate_generation_task_snapshot(
+fn validate_generation_task_snapshot(
     snapshot: &GenerationTaskSnapshot,
 ) -> Result<(), GenerationContractError> {
     if snapshot.schema_version != GENERATION_EVENT_SCHEMA_VERSION {

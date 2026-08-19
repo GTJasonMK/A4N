@@ -18,11 +18,11 @@ mod workflow_rules;
 pub use a4n_db::canvas::{
     CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary,
     CanvasAssemblySourceVideoInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
-    CanvasImageMediaAssetEnsureInput, CanvasMediaSourceContext, CanvasPromptArtifactUpsertInput,
-    CanvasTextAssetRecordInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput, MissingCanvasRef, clear_reset_generated_ref_payload,
-    reset_missing_canvas_ref_for_node, validate_canvas_record_document_edge_contract,
-    validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
+    CanvasImageMediaAssetEnsureInput, CanvasPromptArtifactUpsertInput, CanvasTextAssetRecordInput,
+    CanvasVideoMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput, MissingCanvasRef,
+    clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
+    validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
+    validate_canvas_record_viewport_json,
 };
 pub use audio_import::CanvasAudioImportHostInput;
 pub use editing_nodes::{
@@ -40,6 +40,7 @@ pub use graph_execution::{
 pub use image_generation::{
     CanvasImageNodeExecutionInput, CanvasImageNodeInput, build_canvas_image_node_input_for_preview,
 };
+pub(crate) use input_rules::source_node;
 pub use input_rules::{
     canvas_config_f32, canvas_config_i64, canvas_config_string, canvas_edge_order_index,
     canvas_node_is_operation, i64_to_i32, incoming_edges, validate_canvas_clip_order,
@@ -52,8 +53,10 @@ pub(crate) use node_execution::CanvasNodeLifecycle;
 pub use node_execution::{CanvasNodeRunHandle, CanvasNodeRunSummary};
 pub use output_nodes::{CanvasOutputDataType, CanvasOutputNodeExecutionInput, CanvasOutputValue};
 pub use probe_nodes::CanvasProbeNodeExecutionInput;
-pub(crate) use source_checkpoint::source_operation_checkpoint_output;
-pub(crate) use source_text::{source_canvas_text_asset_id, source_text_value};
+pub(crate) use source_checkpoint::source_node_output_id;
+pub(crate) use source_text::{
+    first_canvas_text_asset_id, source_canvas_text_asset_id, source_text_value,
+};
 pub use text_generation::{
     CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
     CanvasTextNodeRunHandle, CanvasTextNodeRunSummary, build_canvas_llm_text_request_for_preview,

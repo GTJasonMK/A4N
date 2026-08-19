@@ -6,8 +6,8 @@
 mod bm25;
 mod tokenize;
 
-pub use bm25::{SparseEmbedding, bm25_document, bm25_query};
-pub(crate) use tokenize::tokenize_for_sparse;
+pub(crate) use bm25::{bm25_document, bm25_query};
+use tokenize::tokenize_for_sparse;
 
 #[cfg(test)]
 mod tests;

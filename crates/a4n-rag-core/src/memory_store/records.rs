@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-
 use super::scoring;
+use crate::errors::vector_store_error;
+use a4n_core::error::AppError;
 
 #[derive(Debug, Clone)]
 pub(super) struct StoredRecord {
@@ -8,10 +8,6 @@ pub(super) struct StoredRecord {
     pub(super) embedding: Vec<f32>,
     pub(super) content: String,
     pub(super) metadata: serde_json::Value,
-}
-
-pub(super) fn vector_store_error(message: impl Into<String>) -> AppError {
-    AppError::VectorStoreError(message.into())
 }
 
 pub(super) fn validate_embedding_vector(

@@ -19,9 +19,7 @@ pub(in crate::project::progress) async fn video_project_progress_by_project(
         .map_err(|error| ProjectProgressReadError::database("查询视频提示词失败", error))?;
     let videos = generated_video::Entity::find()
         .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(
-            generated_video::Column::VideoType.eq(generated_video::VIDEO_TYPE_CHAPTER),
-        )
+        .filter(generated_video::Column::VideoType.eq(generated_video::VIDEO_TYPE_CHAPTER))
         .all(db)
         .await
         .map_err(|error| ProjectProgressReadError::database("查询章节生成视频失败", error))?;

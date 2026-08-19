@@ -536,7 +536,7 @@ export const NovelDetail: React.FC = () => {
               size="sm"
               onClick={() => setActionsOpen(true)}
               title="更多项目操作"
-              className="!min-h-8 !w-8 !px-0"
+              className="!min-h-8 !w-11 !px-0 sm:!w-8"
               aria-label="更多"
             >
               <MoreHorizontal size={14} />

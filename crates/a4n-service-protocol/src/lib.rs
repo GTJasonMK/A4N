@@ -5,9 +5,9 @@
 
 mod artifacts;
 mod catalog;
-mod embedding;
 mod egress;
-pub mod events;
+mod embedding;
+mod events;
 mod health;
 mod registry;
 mod release;
@@ -20,7 +20,7 @@ mod validation;
 
 pub use artifacts::{
     ArtifactLocation, ArtifactOwnership, ArtifactRef, ArtifactValidationError,
-    validate_artifact_ref, validate_artifact_refs,
+    validate_artifact_refs,
 };
 pub const SIDECAR_AUTH_TOKEN_ENV: &str = "A4N_SIDECAR_AUTH_TOKEN";
 pub const SIDECAR_AUTH_HEADER: &str = "x-a4n-sidecar-token";
@@ -54,11 +54,23 @@ pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
 pub use catalog::{
     ServiceCatalogEntry, parse_service_socket_addr, service_catalog, service_catalog_entry,
 };
-pub use egress::{
-    EgressAuditEvent, EgressDataType, EgressPolicy, egress_policy_for, validate_egress_scope,
-};
+pub use egress::{EgressAuditEvent, EgressDataType, validate_egress_scope};
 pub use embedding::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
-pub use events::*;
+pub use events::{
+    capability::{CapabilityTaskEvent, CapabilityTaskEventKind},
+    generation::{
+        ArtifactEvent, ArtifactOperation, BatchCommitPolicy, BatchSummary, CancelRequestedEvent,
+        CancellationReason, CancelledEvent, CheckpointEvent, CompletedEvent,
+        DEFAULT_GENERATION_ACTIVE_SESSION_MAX, DraftDisposition, FailedEvent,
+        GENERATION_EVENT_SCHEMA_VERSION, GenerationArtifactRef, GenerationContractError,
+        GenerationDeliveryMode, GenerationError, GenerationErrorCode, GenerationEvent,
+        GenerationFinishReason, GenerationResultRef, GenerationTargetRef, GenerationTaskEvent,
+        GenerationTaskSnapshot, GenerationTaskStatus, GenerationUsage, InterruptedEvent,
+        InterruptionReason, JS_SAFE_INTEGER_I64, JS_SAFE_INTEGER_U64, MAX_GENERATION_EVENT_BYTES,
+        MAX_GENERATION_SNAPSHOT_BYTES, MAX_TEXT_DELTA_BYTES, ProgressEvent, StartedEvent,
+        StatusChangedEvent, StreamTextHash, TextDeltaEvent, TextStreamSnapshot, UsageEvent,
+    },
+};
 pub use health::{
     HealthStatus, ServiceHealth, ServiceHealthValidationError, ServiceVersion,
     validate_service_health_envelope,

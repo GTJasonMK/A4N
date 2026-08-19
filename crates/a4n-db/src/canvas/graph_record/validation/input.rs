@@ -13,7 +13,7 @@ use super::{
     nodes::validate_canvas_record_node_ref_shape,
 };
 
-pub fn validate_canvas_graph_record_input(
+pub(in crate::canvas::graph_record) fn validate_canvas_graph_record_input(
     input: &CanvasGraphRecordInput,
 ) -> Result<(), CanvasDbError> {
     validate_canvas_record_viewport_json(

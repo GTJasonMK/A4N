@@ -437,7 +437,6 @@ fn record_node(
 ) -> CanvasNodeRecordInput {
     CanvasNodeRecordInput {
         client_id: client_id.to_string(),
-        id: None,
         node_kind: node_kind.to_string(),
         ref_type: None,
         ref_id: None,
@@ -469,8 +468,6 @@ fn record_edge(
     CanvasEdgeRecordInput {
         source_client_id: source_client_id.to_string(),
         target_client_id: target_client_id.to_string(),
-        source_node_id: None,
-        target_node_id: None,
         source_port: source_port.to_string(),
         target_port: target_port.to_string(),
         role: "context".to_string(),

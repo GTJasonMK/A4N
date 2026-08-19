@@ -10,10 +10,8 @@ use a4n_core::models::{
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
 
-use crate::character::{
-    CharacterDbError, apply_attribute_to_state, attribute_value_in_state,
-    validate_timeline_source_kind,
-};
+use crate::character::attributes::{apply_attribute_to_state, attribute_value_in_state};
+use crate::character::{CharacterDbError, validate_timeline_source_kind};
 
 #[derive(Debug, Clone, Default)]
 pub(in crate::character) struct CharacterAttributeOwnership {

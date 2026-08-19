@@ -51,8 +51,12 @@ impl DynamicLlmProvider {
             "LLM sidecar stream 请求"
         );
 
-        let sidecar_request =
-            sidecar_chat_request(resolved_model, request, &trace_context, "LLM sidecar stream")?;
+        let sidecar_request = sidecar_chat_request(
+            resolved_model,
+            request,
+            &trace_context,
+            "LLM sidecar stream",
+        )?;
         let sidecar_request_id = sidecar_request.request_id.clone();
         let started = Instant::now();
         let running_task = self

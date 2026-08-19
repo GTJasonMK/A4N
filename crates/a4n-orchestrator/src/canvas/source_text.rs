@@ -1,6 +1,6 @@
 use crate::canvas::{
     canvas_config_i64, canvas_config_string, incoming_edges,
-    source_checkpoint::source_operation_checkpoint_output,
+    source_checkpoint::source_operation_checkpoint_output, source_node,
 };
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
@@ -24,11 +24,7 @@ pub(crate) fn collect_canvas_text_source_context(
     let mut canvas_text_asset_id = source_canvas_text_asset_id(node);
 
     for edge in incoming_edges(document, node.id) {
-        let source = document
-            .nodes
-            .iter()
-            .find(|candidate| candidate.id == edge.source_node_id)
-            .ok_or_else(|| format!("画布连线引用不存在的源节点: {}", edge.source_node_id))?;
+        let source = source_node(document, edge.source_node_id)?;
         source_node_ids.push(source.id);
         if let Some(asset_id) = source_canvas_text_asset_id(source)
             && canvas_text_asset_id.is_none()
@@ -75,24 +71,28 @@ pub(crate) fn source_text_value(
     {
         return Ok(Some(asset.content.clone()));
     }
-    Ok(canvas_config_string(
-        &node.config_json,
-        &[
-            "text",
-            "content",
-            "prompt_text",
-            "prompt",
-            "title",
-            "review_note",
-        ],
-    ))
+    Ok(canvas_config_string(&node.config_json, "content"))
+}
+
+pub(crate) fn first_canvas_text_asset_id(
+    node: &canvas_node::Model,
+    document: &CanvasGraphRecordDocument,
+) -> Option<i64> {
+    source_canvas_text_asset_id(node).or_else(|| {
+        incoming_edges(document, node.id)
+            .into_iter()
+            .find_map(|edge| {
+                source_node(document, edge.source_node_id)
+                    .ok()
+                    .and_then(source_canvas_text_asset_id)
+            })
+    })
 }
 
 pub(crate) fn source_canvas_text_asset_id(node: &canvas_node::Model) -> Option<i64> {
     node.ref_type
         .as_deref()
-        .is_some_and(|value| value == CanvasNodeRefKind::CanvasTextAsset.as_str())
-        .then_some(node.ref_id)
-        .flatten()
+        .filter(|value| *value == CanvasNodeRefKind::CanvasTextAsset.as_str())
+        .and(node.ref_id)
         .or_else(|| canvas_config_i64(&node.config_json, "canvas_text_asset_id"))
 }

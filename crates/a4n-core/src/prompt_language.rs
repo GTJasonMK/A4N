@@ -2,9 +2,9 @@ use crate::error::AppError;
 use crate::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
 
-pub const PROMPT_OUTPUT_LANGUAGE_METADATA_KEY: &str = "prompt_output_language";
-pub const PROMPT_OUTPUT_LANGUAGE_ZH_CN: &str = "zh_cn";
-pub const PROMPT_OUTPUT_LANGUAGE_EN: &str = "en";
+const PROMPT_OUTPUT_LANGUAGE_METADATA_KEY: &str = "prompt_output_language";
+const PROMPT_OUTPUT_LANGUAGE_ZH_CN: &str = "zh_cn";
+const PROMPT_OUTPUT_LANGUAGE_EN: &str = "en";
 
 pub fn prompt_type_uses_prompt_output_language(prompt_type: &str) -> bool {
     matches!(

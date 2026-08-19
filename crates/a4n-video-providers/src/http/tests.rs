@@ -2,7 +2,7 @@ use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 use base64::Engine as _;
 use serde_json::json;
 
-use super::HttpVideoProvider;
+use super::provider::HttpVideoProvider;
 use super::response::{decode_result, extract_job_id, required_string, required_video_format};
 
 fn provider() -> HttpVideoProvider {

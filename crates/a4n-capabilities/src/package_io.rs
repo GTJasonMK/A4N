@@ -88,17 +88,13 @@ impl ExportClient for HttpExportClient {
         &self,
         request: ServiceRequest<ExportRenderJsonInput>,
     ) -> CapabilityResult<ServiceResponse<String>> {
-        self.transport
-            .post("/export/render_json", request)
-            .await
+        self.transport.post("/export/render_json", request).await
     }
 
     async fn render_zip(
         &self,
         request: ServiceRequest<ExportRenderZipInput>,
     ) -> CapabilityResult<ServiceResponse<ExportRenderZipOutput>> {
-        self.transport
-            .post("/export/render_zip", request)
-            .await
+        self.transport.post("/export/render_zip", request).await
     }
 }

@@ -49,7 +49,7 @@ pub struct RemoteSecurityConfig {
 }
 
 impl RemoteSecurityConfig {
-    pub fn has_client_identity(&self) -> bool {
+    pub(crate) fn has_client_identity(&self) -> bool {
         self.client_cert_path.is_some() && self.client_key_path.is_some()
     }
 

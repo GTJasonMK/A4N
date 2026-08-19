@@ -29,14 +29,14 @@ use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, Vi
 ///    视频 `![alt](url)`、或以 mp4/webm/mov/m4v 结尾的裸 URL
 ///
 /// chat completions 协议**只有同步返回**，`generate()` 直接拉回字节；`poll()` 永远报错。
-pub struct ChatCompletionsVideoProvider {
+pub(super) struct ChatCompletionsVideoProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl ChatCompletionsVideoProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
+    pub(super) fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
         let base = base_url.trim();
         if base.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 base_url".into()));
@@ -57,7 +57,7 @@ impl ChatCompletionsVideoProvider {
         extract_chat_video_payload(body)
     }
 
-    pub fn request_body_preview(req: &VideoGenerationRequest) -> serde_json::Value {
+    pub(super) fn request_body_preview(req: &VideoGenerationRequest) -> serde_json::Value {
         let user_content = video_user_content(req);
         chat_request_body(req, user_content)
     }

@@ -3,9 +3,7 @@ use a4n_service_protocol::TraceContext;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::sidecar_clients::{
-    SidecarRequestContext, service_request_with_value_context,
-};
+use crate::sidecar_clients::{SidecarRequestContext, service_request_with_value_context};
 
 use super::context::current_rag_operation_trace_id;
 

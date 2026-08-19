@@ -14,9 +14,7 @@ use crate::{
         },
         implicit_review_workflow_rules::implicit_update_review_workflow_run_input,
     },
-    workflow::{
-        self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-    },
+    workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
 use super::{
@@ -37,8 +35,7 @@ use super::{
     },
 };
 
-const IMPLICIT_UPDATE_TRUNCATED_MESSAGE: &str =
-    "隐性属性复审输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“JSON 标准”输出档位，或减少本次复审上下文后重试";
+const IMPLICIT_UPDATE_TRUNCATED_MESSAGE: &str = "隐性属性复审输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“JSON 标准”输出档位，或减少本次复审上下文后重试";
 
 impl OrchestratorContext {
     pub async fn implicit_review_summary_validated(
@@ -154,9 +151,14 @@ impl OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
         let mut decisions = Vec::new();
-        for (call_index, stats) in review.attributes.into_iter().filter(|stats| {
-            stats.threshold_reached && !excluded_keys.contains(&stats.attribute_key)
-        }).enumerate() {
+        for (call_index, stats) in review
+            .attributes
+            .into_iter()
+            .filter(|stats| {
+                stats.threshold_reached && !excluded_keys.contains(&stats.attribute_key)
+            })
+            .enumerate()
+        {
             let prepared = build_implicit_update_request(
                 prompt_renderer,
                 ImplicitUpdateLlmRequestInput {

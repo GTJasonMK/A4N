@@ -23,8 +23,7 @@ impl HttpRagClient {
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(base_url, RAG_SERVICE_NAME)
-                .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, RAG_SERVICE_NAME).with_auth_token(token),
         }
     }
 
@@ -87,15 +86,11 @@ impl RagClient for HttpRagClient {
     }
 
     async fn drop_collection(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post(RAG_DROP_COLLECTION_PATH, request)
-            .await
+        self.transport.post(RAG_DROP_COLLECTION_PATH, request).await
     }
 
     async fn metadata_by_ids(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post(RAG_METADATA_BY_IDS_PATH, request)
-            .await
+        self.transport.post(RAG_METADATA_BY_IDS_PATH, request).await
     }
 
     async fn metadata_by_filter(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {

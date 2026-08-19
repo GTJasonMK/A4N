@@ -80,12 +80,12 @@ import { CanvasWorkflowPanel } from "./video-studio/CanvasWorkflowPanel";
 import {
   STUDIO_NODE_TYPES,
   buildNodeTemplateGroups,
-  defaultRefTypeForNode,
   edgeRoleLabel,
   nodeDisplayTitle,
   nodeKindMeta,
   stateLabel,
 } from "./video-studio/StudioCanvasNode";
+import { defaultRefTypeForNode } from "./video-studio/canvasNodeRefs";
 import {
   nextAssembleClipOrder,
   reorderAssembleClipEdges,
@@ -806,17 +806,35 @@ export const VideoStudioCanvas: React.FC = () => {
         mime_type: file.type,
         data_base64: await readFileAsBase64(file),
       });
+      let importedNode: StudioNode;
+      let successMessage: string;
+      switch (imported.media_kind) {
+        case "image":
+          importedNode = importedImageInputNode(
+            imported.image,
+            imported.asset,
+            nodes.length,
+          );
+          successMessage = "图片已导入画布";
+          break;
+        case "video":
+          importedNode = importedVideoInputNode(
+            imported.video,
+            imported.asset,
+            nodes.length,
+          );
+          successMessage = "视频已导入画布";
+          break;
+        case "audio":
+          importedNode = importedAudioInputNode(imported.asset, nodes.length);
+          successMessage = "音频已导入画布";
+          break;
+        default:
+          throw new Error("画布媒体导入返回不支持的类型");
+      }
       const nextNodes = [
         ...nodes.map((node) => ({ ...node, selected: false })),
-        imported.media_kind === "image"
-          ? importedImageInputNode(imported.image, imported.asset, nodes.length)
-          : imported.media_kind === "video"
-            ? importedVideoInputNode(
-                imported.video,
-                imported.asset,
-                nodes.length,
-              )
-            : importedAudioInputNode(imported.asset, nodes.length),
+        importedNode,
       ];
       const saved = await saveCanvasGraph(
         projectId,
@@ -829,14 +847,7 @@ export const VideoStudioCanvas: React.FC = () => {
       );
       setEdges((current) => preserveSelectedItems(savedEdges, current));
       setDirty(false);
-      addToast(
-        imported.media_kind === "image"
-          ? "图片已导入画布"
-          : imported.media_kind === "video"
-            ? "视频已导入画布"
-            : "音频已导入画布",
-        "success",
-      );
+      addToast(successMessage, "success");
     } catch (err) {
       addToast(
         extractErrorMessage(
@@ -1718,7 +1729,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   />
                 </ReactFlow>
                 {nodes.length === 0 ? (
-                  <CanvasEmptyState disabled={!canEdit} />
+                  <CanvasEmptyState disabled={!canEdit} mobile={isMobileLayout} />
                 ) : null}
               </>
             )}

@@ -1,10 +1,10 @@
-use super::super::super::shared::decode_xml_entities;
+use super::super::super::shared::entities::decode_xml_entities;
 use regex::Regex;
 
 #[cfg(test)]
 mod tests;
 
-pub fn strip_html_tags(html: &str) -> String {
+pub(in crate::file_parsers::epub) fn strip_html_tags(html: &str) -> String {
     let body_re = Regex::new(r"(?is)<body\b[^>]*>(.*?)</body>").unwrap();
     let html = body_re
         .captures(html)

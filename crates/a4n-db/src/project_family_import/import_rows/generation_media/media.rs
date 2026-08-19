@@ -1,8 +1,8 @@
+use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::{
     generation::generation_spec_media_ref,
     media::{media_asset, media_provenance},
 };
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{

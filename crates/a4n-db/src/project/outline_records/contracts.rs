@@ -29,7 +29,7 @@ impl From<&chapter::Model> for ChapterSourceSnapshot {
     }
 }
 
-pub fn chapter_source_snapshot_matches(
+pub(crate) fn chapter_source_snapshot_matches(
     source: &ChapterSourceSnapshot,
     chapter: &chapter::Model,
 ) -> bool {
@@ -40,7 +40,7 @@ pub fn chapter_source_snapshot_matches(
         && source.updated_at == chapter.updated_at
 }
 
-pub fn chapter_source_snapshot_targets(
+pub(crate) fn chapter_source_snapshot_targets(
     source: &ChapterSourceSnapshot,
     project_id: i64,
     chapter_number: i32,

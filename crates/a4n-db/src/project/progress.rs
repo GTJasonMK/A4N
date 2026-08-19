@@ -8,7 +8,8 @@ mod types;
 mod video;
 
 pub use query::{project_progress_summaries, project_progress_summary};
-pub use types::*;
+pub(crate) use types::ProjectProgressSummary;
+pub use types::{ProjectProgressQuery, ProjectProgressReadError};
 
 #[cfg(test)]
 mod tests;

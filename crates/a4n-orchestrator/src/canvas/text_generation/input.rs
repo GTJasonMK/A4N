@@ -18,15 +18,17 @@ pub(super) fn build_canvas_llm_text_input(
 ) -> Result<CanvasLlmTextInput, String> {
     let sources = collect_canvas_text_source_context(node, document, checkpoints, "LlmTextNode")?;
     let config_id = canvas_config_i64(&node.config_json, "llm_config_id");
-    let instruction = canvas_config_string(&node.config_json, &["instruction", "prompt"])
-        .unwrap_or_else(|| {
-            "将输入内容改写为适合视频画布后续节点使用的结构化创作文本。".to_string()
-        });
+    let instruction = canvas_config_string(&node.config_json, "instruction")
+        .ok_or_else(|| "LlmTextNode 缺少指令".to_string())?;
     if sources.text.trim().is_empty() {
         return Err("LlmTextNode 缺少输入文本".to_string());
     }
-    let output_kind = canvas_config_string(&node.config_json, &["output_kind", "text_kind"])
-        .unwrap_or_else(|| GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT.to_string());
+    let output_kind = canvas_config_string(&node.config_json, "output_kind")
+        .ok_or_else(|| {
+            format!(
+                "LlmTextNode 缺少输出类型，必须设置为 {GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT} 或其他合法类型"
+            )
+        })?;
     let system_prompt = format!(
         "你是 A4N 视频画布的文本转换节点。请根据用户指令转换输入文本，输出类型为 {output_kind}。只返回转换后的正文，不要解释过程。"
     );
@@ -56,17 +58,18 @@ pub(super) fn build_canvas_rendered_prompt(
 ) -> Result<CanvasRenderedPrompt, String> {
     let sources =
         collect_canvas_text_source_context(node, document, checkpoints, "RenderTextNode")?;
-    let template = canvas_config_string(&node.config_json, &["template", "template_text"])
+    let template = canvas_config_string(&node.config_json, "template")
         .ok_or_else(|| "RenderTextNode 缺少模板".to_string())?;
-    let prompt_text = template
-        .replace("{{context}}", &sources.text)
-        .replace("{{input}}", &sources.text)
-        .replace("{{content}}", &sources.text);
+    let prompt_text = template.replace("{{context}}", &sources.text);
     if prompt_text.trim().is_empty() {
         return Err("RenderTextNode 缺少可渲染的文本内容".to_string());
     }
-    let prompt_kind = canvas_config_string(&node.config_json, &["output_kind", "prompt_kind"])
-        .unwrap_or_else(|| GENERATION_PROMPT_KIND_CANVAS_PROMPT.to_string());
+    let prompt_kind = canvas_config_string(&node.config_json, "output_kind")
+        .ok_or_else(|| {
+            format!(
+                "RenderTextNode 缺少输出类型，必须设置为 {GENERATION_PROMPT_KIND_CANVAS_PROMPT} 或其他合法类型"
+            )
+        })?;
     Ok(CanvasRenderedPrompt {
         prompt_kind,
         prompt_text,

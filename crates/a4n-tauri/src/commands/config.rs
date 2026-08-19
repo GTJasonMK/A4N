@@ -1,3 +1,1 @@
-mod local_embedding;
-
-pub use local_embedding::*;
+pub(crate) mod local_embedding;

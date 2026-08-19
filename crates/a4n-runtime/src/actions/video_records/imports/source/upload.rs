@@ -1,14 +1,13 @@
-use std::io::Write;
+use std::io::{ErrorKind, Write};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use super::super::contracts::{ImportedVideoSource, MAX_UPLOAD_VIDEO_BYTES};
-use super::super::prelude::*;
 use super::import_video_source;
 use a4n_core::files::create_unique_timestamped_file;
 use a4n_orchestrator::media::{decode_uploaded_bytes, required_upload_file_name};
-use a4n_orchestrator::video::{
-    import_video_extension, validate_upload_video_mime,
-};
+use a4n_orchestrator::video::{import_video_extension, validate_upload_video_mime};
+use crate::file_utils::remove_created_file_on_error_sync;
 
 const UPLOADED_VIDEO_TEMP_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 

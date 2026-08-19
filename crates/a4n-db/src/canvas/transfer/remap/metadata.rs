@@ -4,8 +4,8 @@ use super::ids::{
     remap_video_studio_required_id,
 };
 use a4n_domain::{
-    canvas_cache_key, clear_canvas_transfer_runtime_identity, parse_canvas_cache_key,
-    parse_generated_media_reference, GeneratedMediaReference,
+    GeneratedMediaReference, canvas_cache_key, clear_canvas_transfer_runtime_identity,
+    parse_canvas_cache_key, parse_generated_media_reference,
 };
 use serde_json::Value;
 

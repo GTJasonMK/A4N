@@ -1,7 +1,7 @@
 use a4n_core::models::chapter::chapter;
 use serde_json::Value;
 
-pub use a4n_domain::project::SourceSnapshotChapterSummary;
+pub(crate) use a4n_domain::project::SourceSnapshotChapterSummary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DerivedChapterScope {

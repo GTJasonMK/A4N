@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use fastembed::{EmbeddingModel, ModelInfo};
 use hf_hub::{Cache, Repo, RepoType};
+use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
@@ -8,12 +8,12 @@ use a4n_core::error::AppError;
 use a4n_domain::embedding::LocalEmbeddingModelSummary;
 use a4n_embedding::provider::DownloadProgress;
 
+use super::DOWNLOAD_CANCELLED_MESSAGE;
 use super::client::{build_download_client, ensure_not_cancelled};
 use super::contracts::download_byte_totals;
 use super::metadata::collect_required_download_files;
 use super::progress::{AggregatedDownloadProgress, format_bytes, send_download_progress};
 use super::transfer::download_required_file;
-use super::DOWNLOAD_CANCELLED_MESSAGE;
 use crate::models::{model_status_from_info, resolve_model_info};
 use crate::provider::build_text_embedding;
 

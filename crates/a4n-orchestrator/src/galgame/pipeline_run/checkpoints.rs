@@ -1,9 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-use crate::structured_llm::{
-    ensure_checkpoint_parsed_output_matches, parse_strict_json_response,
-};
+use crate::structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response};
 
 pub(super) fn restored_galgame_llm_stage_output<F>(
     checkpoint_parsed_output: &Value,

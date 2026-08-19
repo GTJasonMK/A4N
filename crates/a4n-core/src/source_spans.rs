@@ -9,10 +9,13 @@ pub use anchor_contract::{
 };
 pub use anchor_prompt::text_anchor_prompt_values;
 pub use metadata::{
-    ChapterSourceContext, metadata_source_content_sha256, source_metadata, source_metadata_matches,
+    ChapterSourceContext, metadata_source_content_sha256, source_metadata,
     source_metadata_with_flags,
 };
-pub use spans::*;
+pub use spans::{
+    SourceSpan, resolve_source_span_text, source_span_prompt_value, source_span_prompt_values,
+    source_spans_for_chapters, source_spans_for_content, source_text_hash,
+};
 
 #[cfg(test)]
 mod tests;

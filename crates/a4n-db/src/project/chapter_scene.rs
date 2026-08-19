@@ -7,10 +7,18 @@ mod reorder;
 #[path = "chapter_scene/types.rs"]
 mod types;
 
-pub use generated::*;
-pub use records::*;
-pub use reorder::*;
-pub use types::*;
+pub use generated::save_generated_chapter_scene_record;
+pub use records::{
+    chapter_by_project_number, chapter_scene_by_id, chapter_scenes_by_chapter,
+    delete_chapter_scene_record, update_chapter_scene_record,
+};
+pub use reorder::{chapter_scene_reorder_scope, reorder_chapter_scene_records};
+pub use types::{
+    ProjectChapterSceneRecordError, ProjectChapterSceneReorderError,
+    ProjectChapterSceneReorderInput, ProjectChapterSceneReorderScope,
+    ProjectChapterSceneUpdateInput, ProjectGeneratedChapterSceneSaveError,
+    ProjectGeneratedChapterSceneSaveInput,
+};
 
 #[cfg(test)]
 #[path = "chapter_scene/tests.rs"]

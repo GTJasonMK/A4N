@@ -2,7 +2,7 @@ use a4n_core::models::ai::{generated_image, generated_video};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanvasMediaSourceContext {
+pub(super) struct CanvasMediaSourceContext {
     pub root_project_id: i64,
     pub source_snapshot_id: Option<i64>,
     pub source_chapter_id: Option<i64>,

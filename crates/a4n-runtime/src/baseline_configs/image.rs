@@ -1,6 +1,4 @@
-use super::env::{
-    any_env_present, env_i32_or, env_string_or, u32_to_i32, usize_to_i32,
-};
+use super::env::{any_env_present, env_i32_or, env_string_or, u32_to_i32, usize_to_i32};
 use a4n_core::{
     config::{
         app_config::ImageGenConfig, env::optional_non_empty_env_string,

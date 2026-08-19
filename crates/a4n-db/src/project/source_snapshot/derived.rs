@@ -1,7 +1,7 @@
 use super::{
     super::{
-        PROJECT_KIND_TEXT, ProjectMutationError, SOURCE_SYNC_CURRENT, normalize_derived_project_kind,
-        project_by_id_for_update, required_project_title,
+        PROJECT_KIND_TEXT, ProjectMutationError, SOURCE_SYNC_CURRENT,
+        normalize_derived_project_kind, project_by_id_for_update, required_project_title,
     },
     creation::{create_source_snapshot_in_record, normalize_chapter_scope},
     types::CreateDerivedProjectParams,

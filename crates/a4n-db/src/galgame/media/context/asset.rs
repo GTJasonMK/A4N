@@ -4,7 +4,7 @@ use crate::galgame::{
 use a4n_core::models::{generation::generation_spec, media::media_asset};
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 
-pub fn validate_galgame_media_asset_source_context(
+pub(in crate::galgame) fn validate_galgame_media_asset_source_context(
     asset: &media_asset::Model,
     context: &GalgameTargetContext,
 ) -> Result<(), GalgameMediaRecordError> {

@@ -1,7 +1,7 @@
 use crate::ImportTransformError;
 
 use super::ParseResult;
-use super::shared::parse_extracted_document;
+use super::shared::result::parse_extracted_document;
 
 mod archive;
 mod helpers;

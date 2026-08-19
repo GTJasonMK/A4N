@@ -24,7 +24,7 @@ impl Sha256SnapshotStore {
     }
 
     pub async fn load_snapshot(&self, content_hash: &str) -> Result<Option<Snapshot>, AppError> {
-        let model = crate::character::snapshot_reference_by_hash(self.db.as_ref(), content_hash)
+        let model = super::snapshot::snapshot_reference_by_hash(self.db.as_ref(), content_hash)
             .await
             .map_err(AppError::Database)?;
 

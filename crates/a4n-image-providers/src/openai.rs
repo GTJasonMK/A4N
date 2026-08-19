@@ -8,14 +8,14 @@ use async_trait::async_trait;
 use serde_json::json;
 
 /// OpenAI-compatible image provider.
-pub struct OpenAiCompatibleImageProvider {
+pub(super) struct OpenAiCompatibleImageProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
 }
 
 impl OpenAiCompatibleImageProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
+    pub(super) fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
         Ok(Self {
             base_url: required_non_empty(base_url, "base_url")?
                 .trim_end_matches('/')
@@ -43,7 +43,7 @@ impl OpenAiCompatibleImageProvider {
         Ok(())
     }
 
-    pub fn request_body_preview(
+    pub(super) fn request_body_preview(
         req: &ImageGenerationRequest,
     ) -> Result<serde_json::Value, AppError> {
         Self::validate_generation_request(req)?;

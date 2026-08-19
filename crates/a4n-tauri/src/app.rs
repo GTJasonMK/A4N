@@ -1,4 +1,6 @@
-use crate::{command_registry, commands, environment, logging, media_protocol, setup, window};
+use crate::{
+    command_registry, commands, environment, logging, media_protocol, server_process, window,
+};
 use a4n_core::{config::app_config::AppConfig, files::paths::AppPaths};
 use tauri::Manager;
 
@@ -23,10 +25,9 @@ pub(crate) fn run() {
         })
         .setup(|app| {
             install_signal_exit(app.handle())?;
-            if environment::remote_api_only().map_err(std::io::Error::other)? {
-                setup_remote_api_mode(app)?;
-            } else {
-                setup_local_runtime(app)?;
+            match environment::api_mode().map_err(std::io::Error::other)? {
+                environment::ApiMode::Native => setup_local_runtime(app)?,
+                environment::ApiMode::Http { remote_only } => setup_http_mode(app, remote_only)?,
             }
             #[cfg(debug_assertions)]
             window::open_devtools_in_debug(app);
@@ -36,33 +37,69 @@ pub(crate) fn run() {
         .build(tauri::generate_context!())
         .expect("启动 A4N 应用失败");
 
-    app.run(|app_handle, event| {
-        if matches!(event, tauri::RunEvent::Exit)
-            && let Some(state) = app_handle.try_state::<a4n_runtime::AppState>()
-        {
-            tauri::async_runtime::block_on(state.shutdown_managed_sidecars())
-                .expect("停止 managed sidecars 失败");
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::Ready => {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                if let Err(error) = window.show() {
+                    tracing::error!(%error, "显示 A4N 主窗口失败");
+                }
+                if let Err(error) = window.set_focus() {
+                    tracing::error!(%error, "聚焦 A4N 主窗口失败");
+                }
+            } else {
+                tracing::error!("A4N 主窗口未创建");
+            }
         }
+        tauri::RunEvent::Exit => {
+            if let Some(server) = app_handle.try_state::<server_process::LocalServerProcess>() {
+                server.stop();
+            }
+            if let Some(state) = app_handle.try_state::<a4n_runtime::AppState>() {
+                if let Err(error) =
+                    tauri::async_runtime::block_on(state.shutdown_managed_sidecars())
+                {
+                    tracing::error!(%error, "停止 managed sidecars 失败");
+                }
+            }
+        }
+        _ => {}
     });
 }
 
-fn setup_remote_api_mode(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+fn setup_http_mode(
+    app: &mut tauri::App,
+    remote_only: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig::default();
     AppPaths::from_config(&config).ensure_dirs()?;
+    if !remote_only {
+        let server = tauri::async_runtime::block_on(server_process::LocalServerProcess::start(
+            app.handle(),
+            &config,
+        ))?;
+        app.manage(server);
+    }
+    app.manage(commands::frontend_state::FrontendStatePath(
+        AppPaths::from_config(&config).frontend_state_file(),
+    ));
     window::create_main_window(app, &config)?;
-    app.manage(commands::config::LocalEmbeddingRuntimeState::new(&config));
+    app.manage(commands::config::local_embedding::LocalEmbeddingRuntimeState::new(&config));
     tracing::info!(
+        remote_only,
         api_base_url = ?std::env::var("VITE_A4N_API_BASE_URL").ok(),
-        "A4N Tauri 远程 API 模式启动完成，已跳过本地 AppState 初始化并启用本机 Embedding Runtime"
+        "A4N Tauri HTTP 模式启动完成，已跳过本地 AppState 初始化并启用本机 Embedding Runtime"
     );
     Ok(())
 }
 
 fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let app_state = tauri::async_runtime::block_on(setup::initialize(app.handle()))?;
+    let app_state = tauri::async_runtime::block_on(crate::setup::initialize(app.handle()))?;
+    app.manage(commands::frontend_state::FrontendStatePath(
+        AppPaths::from_config(app_state.host_app_config()).frontend_state_file(),
+    ));
     window::create_main_window(app, app_state.host_app_config())?;
     app.manage(app_state);
-    tracing::info!("A4N 应用启动完成");
+    tracing::info!("A4N 原生 Tauri API 兼容模式启动完成");
     Ok(())
 }
 

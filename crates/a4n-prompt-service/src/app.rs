@@ -134,10 +134,9 @@ fn prompt_git_manifest_details() -> serde_json::Value {
 }
 
 fn router(state: PromptServiceState) -> Router {
-    let policy = a4n_service_protocol::sidecar_resource_policy(
-        a4n_service_protocol::PROMPT_SERVICE_NAME,
-    )
-    .expect("prompt sidecar must have a resource policy");
+    let policy =
+        a4n_service_protocol::sidecar_resource_policy(a4n_service_protocol::PROMPT_SERVICE_NAME)
+            .expect("prompt sidecar must have a resource policy");
     Router::new()
         .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route("/prompt/list", post(list_prompts))

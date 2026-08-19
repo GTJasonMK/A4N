@@ -21,8 +21,8 @@ mod restore;
 mod snapshots;
 mod types;
 
-pub use restore::*;
-pub use types::*;
+pub use restore::restore_blueprint_version_record;
+pub use types::{BlueprintRestoreError, BlueprintRestoreResult, BlueprintRestoreStatusChange};
 
 pub fn validate_blueprint_version_snapshot(data: &Value) -> Result<(), BlueprintRestoreError> {
     snapshots::validate_blueprint_version_snapshot(data)

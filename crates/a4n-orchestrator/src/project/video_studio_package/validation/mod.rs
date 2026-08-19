@@ -2,9 +2,7 @@
 //!
 //! 每个校验子模块显式声明依赖，避免通过父模块 glob 导入隐藏合同。
 
-use super::{
-    ImportMediaPayload, VideoStudioProjectPackage,
-};
+use super::{ImportMediaPayload, VideoStudioProjectPackage};
 
 mod canvas;
 mod manifest;

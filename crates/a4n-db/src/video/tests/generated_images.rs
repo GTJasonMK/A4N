@@ -12,7 +12,8 @@ use serde_json::json;
 
 use crate::video::{
     CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput, VideoDbError,
-    create_generated_image_record, delete_generated_image_record, update_generated_image_record,
+    create_generated_image_record, delete_generated_image_record_with_cleanup,
+    update_generated_image_record,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -129,6 +130,7 @@ async fn frame_prompt(
         status: Set("pending".to_string()),
         generated_video_id: Set(None),
         metadata_json: Set(Some(json!({
+            "prompt_output_language": "zh_cn",
             "boundary_frame": {
                 "frame_number": shot_number,
                 "reference_image_ids": reference_image_ids,
@@ -352,7 +354,7 @@ async fn delete_missing_image_keeps_orphan_manga_reference_unchanged() {
     let chapter = chapter_record(&db, project.id).await;
     let prompt = manga_prompt(&db, project.id, chapter.id, Some(999_999)).await;
 
-    let error = delete_generated_image_record(&db, 999_999)
+    let error = delete_generated_image_record_with_cleanup(&db, 999_999)
         .await
         .expect_err("missing image deletion must be visible");
 
@@ -378,7 +380,7 @@ async fn delete_existing_image_clears_manga_prompt_reference() {
         &db,
         CreateGeneratedImageRecordDraftInput {
             image_type: "manga_page".to_string(),
-            file_path: "images/page1.png".to_string(),
+            file_path: format!("projects/{}/images/page1.png", project.id),
             prompt: "draw page".to_string(),
             chapter_id: Some(chapter.id),
             panel_id: Some("page1".to_string()),
@@ -389,7 +391,9 @@ async fn delete_existing_image_clears_manga_prompt_reference() {
     .unwrap();
     let prompt = manga_prompt(&db, project.id, chapter.id, Some(image.id)).await;
 
-    delete_generated_image_record(&db, image.id).await.unwrap();
+    delete_generated_image_record_with_cleanup(&db, image.id)
+        .await
+        .unwrap();
 
     assert_eq!(image_count(&db).await, 0);
     let stored = chapter_manga_prompt::Entity::find_by_id(prompt.id)

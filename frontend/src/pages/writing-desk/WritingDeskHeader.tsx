@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,6 +12,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { type NovelProject } from "../../api/project";
+import { type ChapterSummary } from "../../api/chapter";
+import { type ChapterOutline } from "../../api/outline";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { BackButton } from "../../components/ui/BackButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -26,6 +28,9 @@ interface WritingDeskHeaderProps {
   isMobileLayout: boolean;
   canGoPrev: boolean;
   canGoNext: boolean;
+  chapterNumbers: number[];
+  chapters: ChapterSummary[];
+  outlines: ChapterOutline[];
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
   dirty: boolean;
@@ -39,6 +44,7 @@ interface WritingDeskHeaderProps {
   onCreateChapter: () => void | Promise<void>;
   onPrev: () => void;
   onNext: () => void;
+  onSelectChapter: (chapterNumber: number) => void | Promise<unknown>;
   onToggleLeftSidebar: () => void;
   onOpenProfiles: () => void;
   onRightPanelChange: (panel: RightPanel) => void;
@@ -63,6 +69,9 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   isMobileLayout,
   canGoPrev,
   canGoNext,
+  chapterNumbers,
+  chapters,
+  outlines,
   leftSidebarVisible,
   rightPanel,
   dirty,
@@ -76,12 +85,27 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   onCreateChapter,
   onPrev,
   onNext,
+  onSelectChapter,
   onToggleLeftSidebar,
   onOpenProfiles,
   onRightPanelChange,
   onSaveContent,
-}) => (
-  <PageHeader
+}) => {
+  const chapterLabels = useMemo(() => {
+    const labels = new Map<number, string>();
+    chapters.forEach((chapter) => {
+      const title = chapter.title?.trim();
+      if (title) labels.set(chapter.chapter_number, title);
+    });
+    outlines.forEach((outline) => {
+      if (labels.has(outline.chapter_number)) return;
+      const title = outline.title?.trim();
+      if (title) labels.set(outline.chapter_number, title);
+    });
+    return labels;
+  }, [chapters, outlines]);
+
+  return <PageHeader
     className="a4n-app-page-header--desk a4n-app-page-header--detail h-auto min-w-0 shrink-0 py-2 sm:flex-nowrap sm:overflow-hidden sm:py-0"
     leading={
       <>
@@ -120,6 +144,30 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
     }
     actions={
       <>
+        {isMobileLayout && chapterNumbers.length > 0 ? (
+          <select
+            aria-label="选择章节"
+            title="选择章节"
+            value={activeNumber == null ? "" : String(activeNumber)}
+            onChange={(event) => {
+              const nextNumber = Number(event.target.value);
+              if (Number.isSafeInteger(nextNumber) && nextNumber > 0) {
+                void onSelectChapter(nextNumber);
+              }
+            }}
+            className="a4n-mobile-chapter-select pyqt-input min-w-0 max-w-[8rem] !px-2 text-xs"
+          >
+            {activeNumber == null ? <option value="">选择章节</option> : null}
+            {chapterNumbers.map((chapterNumber) => {
+              const label = chapterLabels.get(chapterNumber);
+              return (
+                <option key={chapterNumber} value={chapterNumber}>
+                  {label ? `第 ${chapterNumber} 章 · ${label}` : `第 ${chapterNumber} 章`}
+                </option>
+              );
+            })}
+          </select>
+        ) : null}
         <BookIconButton
           label="上一章"
           onClick={onPrev}
@@ -158,7 +206,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
                 ? rightPanelUnavailableTip
                 : `${panel.label}（写作桌助手）`,
           }))}
-          className="max-w-full max-md:!w-[76px] max-md:!min-w-[76px] max-md:!max-w-[76px] max-md:!flex-[0_0_76px]"
+          className="a4n-writing-panel-toggle max-w-full"
         />
 
         {isMobileLayout ? (
@@ -204,4 +252,4 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
       </>
     }
   />
-);
+};

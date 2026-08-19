@@ -27,15 +27,12 @@ pub use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     AppliedCharacterSyncPersistenceRecord, CharacterAttributeDeletionExecutionInput,
     CharacterAttributeDeletionExecutionResult, CharacterAttributeDeletionRequestInput,
-    CharacterAttributeEventHistoryFilter, CharacterAttributeEventInsertInput,
-    CharacterAttributeMutationResult, CharacterAttributeValueChangeInput,
-    CharacterConflictContextRows, CharacterDeletionMarkExecutedUpdateInput,
-    CharacterDeletionMarkRewindSummary, CharacterDeletionMarkUpsertInput,
-    CharacterImplicitReviewDecisionRecordInput, CharacterPortraitCreateInput,
-    CharacterPortraitRecordError, CharacterPortraitRollbackError, CharacterPortraitRollbackResult,
-    CharacterProfileCreateError, CharacterProfileCreateInput, CharacterProfileDeleteError,
-    CharacterProfileDeletionSummary, CharacterProfileRollbackResult,
-    CharacterSnapshotReferenceUpsertInput, CharacterStateIndexUpsertInput,
+    CharacterAttributeEventHistoryFilter, CharacterAttributeMutationResult,
+    CharacterAttributeValueChangeInput, CharacterConflictContextRows,
+    CharacterDeletionMarkRewindSummary, CharacterImplicitReviewDecisionRecordInput,
+    CharacterPortraitCreateInput, CharacterPortraitRecordError, CharacterPortraitRollbackError,
+    CharacterPortraitRollbackResult, CharacterProfileCreateError, CharacterProfileCreateInput,
+    CharacterProfileDeleteError, CharacterProfileDeletionSummary, CharacterProfileRollbackResult,
     CharacterSyncAttributeEventRecordInput, CharacterSyncChapterStateRecordInput,
     CharacterSyncPersistenceInput, CharacterSyncWriteStepRecordInput,
     CharacterTimelineDeletionSummary, InsertBehaviorRecordInput, PortraitNamedPromptProfileRows,
@@ -92,17 +89,13 @@ pub use discovery::{
     character_identity_key, character_llm_chapter_context, profile_character_keys,
     validate_character_discovery_input,
 };
-pub use implicit_classification::{
-    CharacterImplicitClassificationInput, CharacterImplicitClassificationOutput,
-    IMPLICIT_CLASSIFICATION_PROMPT_NAME,
-};
+pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
+pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub use implicit_review::{
     ApplyImplicitUpdateDecisionInput, CheckImplicitUpdateInput, GetImplicitReviewInput,
     IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND, ImplicitAttributeReviewSummary,
-    ImplicitEvidenceSummary,
-    ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
+    ImplicitEvidenceSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
 };
-pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncProgress, CharacterProfileSyncSubject,

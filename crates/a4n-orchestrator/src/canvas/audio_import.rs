@@ -1,12 +1,4 @@
-use a4n_core::{
-    error::AppError,
-    files::{
-        paths::{ProjectPaths, data_dir_relative_file_path},
-        create_unique_timestamped_file, remove_created_file_on_error_sync,
-        remove_existing_data_file,
-    },
-    models::media::media_asset,
-};
+use a4n_core::{error::AppError, files::remove_existing_data_file, models::media::media_asset};
 use chrono::Utc;
 use serde_json::json;
 use std::{
@@ -18,18 +10,17 @@ use std::{
 use crate::{
     OrchestratorContext,
     media::{
-        CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO,
-        MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_COMPLETED, MAX_IMPORT_AUDIO_BYTES,
-        decode_uploaded_audio_data,
+        CreateMediaAssetInput, CreateMediaProvenanceInput, MAX_IMPORT_AUDIO_BYTES,
+        MEDIA_KIND_AUDIO, MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_COMPLETED, PersistedAudioFile,
+        decode_uploaded_audio_data, persist_audio_file,
     },
     project::ProjectSourceMode,
 };
 
 use super::audio_rules::canvas_audio_format;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CanvasAudioImportHostInput {
-    pub user_id: i64,
     pub project_id: i64,
     pub file_path: Option<String>,
     pub file_name: Option<String>,
@@ -37,7 +28,7 @@ pub struct CanvasAudioImportHostInput {
     pub data_base64: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct PersistedCanvasAudioFile {
     pub relative_path: String,
     pub source_file_name: String,
@@ -60,9 +51,9 @@ struct CanvasAudioImportSource {
 impl CanvasAudioImportSource {
     fn from_input(input: &CanvasAudioImportHostInput) -> Result<Self, String> {
         match (input.file_path.as_deref(), input.data_base64.as_deref()) {
-            (Some(_), Some(_)) => Err(
-                "导入画布音频只能提供 file_path 或 data_base64，不能同时提供".to_string(),
-            ),
+            (Some(_), Some(_)) => {
+                Err("导入画布音频只能提供 file_path 或 data_base64，不能同时提供".to_string())
+            }
             (None, Some(data_base64)) => Self::from_upload(
                 input
                     .file_name
@@ -74,9 +65,9 @@ impl CanvasAudioImportSource {
                     .ok_or_else(|| "导入画布音频缺少 mime_type".to_string())?,
                 data_base64,
             ),
-            (Some(_), None) if input.file_name.is_some() || input.mime_type.is_some() => Err(
-                "file_path 画布音频导入不能同时提供 file_name 或 mime_type".to_string(),
-            ),
+            (Some(_), None) if input.file_name.is_some() || input.mime_type.is_some() => {
+                Err("file_path 画布音频导入不能同时提供 file_name 或 mime_type".to_string())
+            }
             (Some(file_path), None) => Self::from_path(file_path),
             (None, None) => Err("导入画布音频缺少 file_path 或 data_base64".to_string()),
         }
@@ -94,21 +85,21 @@ impl CanvasAudioImportSource {
         self.mime_type
     }
 
-    fn write_to(&self, mut output: File) -> Result<(), String> {
+    fn write_to(&self, output: &mut File) -> Result<(), String> {
         match &self.data {
-            CanvasAudioSourceData::Bytes(bytes) => output
-                .write_all(bytes)
-                .map_err(|err| format!("写入画布音频文件失败：{err}"))?,
+            CanvasAudioSourceData::Bytes(bytes) => {
+                output
+                    .write_all(bytes)
+                    .map_err(|err| format!("写入画布音频文件失败：{err}"))?;
+            }
             CanvasAudioSourceData::Path(path) => {
-                let mut input = File::open(path)
-                    .map_err(|err| format!("打开导入画布音频文件失败：{err}"))?;
-                std::io::copy(&mut input, &mut output)
+                let mut input =
+                    File::open(path).map_err(|err| format!("打开导入画布音频文件失败：{err}"))?;
+                std::io::copy(&mut input, output)
                     .map_err(|err| format!("复制画布音频文件失败：{err}"))?;
             }
         }
-        output
-            .flush()
-            .map_err(|err| format!("刷新画布音频文件失败：{err}"))
+        Ok(())
     }
 
     fn from_upload(file_name: &str, mime_type: &str, data_base64: &str) -> Result<Self, String> {
@@ -159,26 +150,16 @@ impl CanvasAudioImportSource {
 impl OrchestratorContext {
     pub async fn import_canvas_audio_validated(
         &self,
+        user_id: i64,
         input: CanvasAudioImportHostInput,
     ) -> Result<media_asset::Model, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            input.user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        if input.project_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "项目 ID 必须是正整数".to_string(),
-            ));
-        }
         let project = self
-            .project_by_id(input.project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {}", input.project_id)))?;
-        if project.source_mode().map_err(|error| {
-            AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
-        })? != ProjectSourceMode::Freeform
+            .authorized_canvas_video_project(input.project_id, user_id)
+            .await?;
+        if project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+            != ProjectSourceMode::Freeform
         {
             return Err(AppError::InvalidArgument(
                 "画布音频导入只支持自由视频项目".to_string(),
@@ -214,7 +195,7 @@ impl OrchestratorContext {
                     request_snapshot_json: Some(json!({
                         "source": "video_canvas",
                         "canvas_import": true,
-                        "media_kind": "audio",
+                        "media_kind": MEDIA_KIND_AUDIO,
                         "file_name": persisted.source_file_name,
                         "mime_type": persisted.mime_type,
                         "duration_secs": persisted.duration_secs,
@@ -247,33 +228,24 @@ fn persist_canvas_audio(
     input: CanvasAudioImportHostInput,
 ) -> Result<PersistedCanvasAudioFile, AppError> {
     let source = CanvasAudioImportSource::from_input(&input).map_err(AppError::InvalidArgument)?;
-    let dir = ProjectPaths::new(data_dir, input.project_id).audio_dir();
-    std::fs::create_dir_all(&dir).map_err(|error| AppError::InvalidState {
-        current: "canvas_audio_import".to_string(),
-        operation: format!("无法创建项目音频目录：{error}"),
-    })?;
-    let (output, output_file) =
-        create_unique_timestamped_file(&dir, "canvas_audio", source.extension()).map_err(
-            |error| AppError::InvalidState {
-                current: "canvas_audio_import".to_string(),
-                operation: format!("创建画布音频文件失败：{error}"),
-            },
-        )?;
-    remove_created_file_on_error_sync(&output, "画布音频文件", || {
-        source.write_to(output_file)?;
-        let relative_path = data_dir_relative_file_path(data_dir, &output, "画布音频文件")?;
-        let duration_secs = a4n_media::probe_audio_duration_secs(&output)
-            .map_err(|error| format!("无法读取画布音频文件时长：{error}"))?;
-        Ok(PersistedCanvasAudioFile {
-            relative_path,
-            source_file_name: source.file_name().to_string(),
-            mime_type: source.mime_type().to_string(),
-            duration_secs,
-        })
-    })
+    let persisted: PersistedAudioFile = persist_audio_file(
+        data_dir,
+        input.project_id,
+        "canvas_audio",
+        source.extension(),
+        "项目音频",
+        "画布音频文件",
+        |output| source.write_to(output),
+    )
     .map_err(|operation| AppError::InvalidState {
-            current: "canvas_audio_import".to_string(),
-            operation,
+        current: "canvas_audio_import".to_string(),
+        operation,
+    })?;
+    Ok(PersistedCanvasAudioFile {
+        relative_path: persisted.relative_path,
+        source_file_name: source.file_name().to_string(),
+        mime_type: source.mime_type().to_string(),
+        duration_secs: persisted.duration_secs,
     })
 }
 
@@ -284,7 +256,6 @@ mod tests {
     #[test]
     fn upload_source_requires_mime_and_rejects_mixed_path_input() {
         let mut input = CanvasAudioImportHostInput {
-            user_id: 1,
             project_id: 1,
             file_path: None,
             file_name: Some("voice.mp3".to_string()),

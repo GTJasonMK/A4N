@@ -1,15 +1,14 @@
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbedTextsPayload,
-    EmbeddingModelPayload, PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    ServiceStatus,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbedTextsPayload, EmbeddingModelPayload,
+    PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
 };
 
+use crate::handlers::embedding::embedding_provider;
 #[cfg(feature = "fastembed")]
 use crate::handlers::models::required_model;
 #[cfg(feature = "fastembed")]
 use crate::protocol::service_error;
-use crate::handlers::embedding::embedding_provider;
 use crate::protocol::validate_embedding_request;
 
 #[tokio::test]
@@ -110,8 +109,9 @@ fn model_operation_requires_a_nonblank_model() {
         .expect("model operation payload requires a model field");
     assert!(missing.to_string().contains("missing field `model`"));
 
-    let blank = serde_json::from_value::<EmbeddingModelPayload>(serde_json::json!({ "model": "  " }))
-        .expect("blank model is validated after deserialization");
+    let blank =
+        serde_json::from_value::<EmbeddingModelPayload>(serde_json::json!({ "model": "  " }))
+            .expect("blank model is validated after deserialization");
     assert!(required_model(blank).is_err());
 }
 

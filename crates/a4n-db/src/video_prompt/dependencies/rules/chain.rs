@@ -229,9 +229,7 @@ pub(in crate::video_prompt::dependencies) fn prompt_stage_label(
         chapter_video_prompt::PROMPT_TYPE_CHAT_VIDEO_FRAME => "Chat 首尾帧提示词",
         chapter_video_prompt::PROMPT_TYPE_STORYBOARD => "分镜提示词",
         chapter_video_prompt::PROMPT_TYPE_VIDEO => match prompt_workflow_mode(row) {
-            Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN) => {
-                "首帧串联视频提示词"
-            }
+            Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN) => "首帧串联视频提示词",
             Some(chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO) => "Chat 视频提示词",
             Some(chapter_video_prompt::WORKFLOW_MODE_STORYBOARD) => "分镜视频提示词",
             _ => "视频提示词",

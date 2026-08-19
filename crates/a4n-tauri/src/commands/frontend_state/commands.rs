@@ -1,12 +1,11 @@
 use super::file::{frontend_state_lock, frontend_state_path, read_state_file, write_state_file};
 use super::rules::{validate_key, validate_value};
-use a4n_runtime::AppState;
 use std::collections::BTreeMap;
 use tauri::State;
 
 #[tauri::command]
 pub fn get_all_frontend_state(
-    state: State<'_, AppState>,
+    state: State<'_, super::FrontendStatePath>,
 ) -> Result<BTreeMap<String, String>, String> {
     let _guard = frontend_state_lock().lock();
     let path = frontend_state_path(&state);
@@ -15,7 +14,7 @@ pub fn get_all_frontend_state(
 
 #[tauri::command]
 pub fn set_frontend_state_many(
-    state: State<'_, AppState>,
+    state: State<'_, super::FrontendStatePath>,
     entries: BTreeMap<String, String>,
 ) -> Result<(), String> {
     for (key, value) in &entries {
@@ -34,7 +33,7 @@ pub fn set_frontend_state_many(
 
 #[tauri::command]
 pub fn remove_frontend_state_many(
-    state: State<'_, AppState>,
+    state: State<'_, super::FrontendStatePath>,
     keys: Vec<String>,
 ) -> Result<(), String> {
     for key in &keys {

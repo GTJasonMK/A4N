@@ -17,7 +17,7 @@ pub(crate) fn runtime_capabilities(
     service_manager: &ServiceManager,
 ) -> Result<A4nCapabilities, String> {
     if !profile.uses_sidecars() {
-        return Ok(A4nCapabilities::empty());
+        return Ok(A4nCapabilities::default());
     }
 
     let prompt = http_prompt(service_manager)?;
@@ -29,7 +29,7 @@ pub(crate) fn runtime_capabilities(
     let import_client = http_import(service_manager)?;
     let export = http_export(service_manager)?;
 
-    Ok(A4nCapabilities::empty()
+    Ok(A4nCapabilities::default()
         .with_prompt(Arc::new(prompt))
         .with_llm(Arc::new(llm))
         .with_embedding(Arc::new(embedding))
@@ -53,7 +53,10 @@ macro_rules! http_capability {
     ($function:ident, $client:ty, $service:expr) => {
         fn $function(manager: &ServiceManager) -> Result<$client, String> {
             let url = service_url(manager, $service)?;
-            let capability = match manager.auth_token($service).map_err(|error| error.to_string())? {
+            let capability = match manager
+                .auth_token($service)
+                .map_err(|error| error.to_string())?
+            {
                 Some(token) => <$client>::new_with_auth_token(url, token),
                 None => <$client>::new(url),
             };
@@ -67,11 +70,7 @@ macro_rules! http_capability {
 
 http_capability!(http_prompt, HttpPromptClient, PROMPT_SERVICE_NAME);
 http_capability!(http_llm, HttpLlmClient, LLM_SERVICE_NAME);
-http_capability!(
-    http_embedding,
-    HttpEmbeddingClient,
-    EMBEDDING_SERVICE_NAME
-);
+http_capability!(http_embedding, HttpEmbeddingClient, EMBEDDING_SERVICE_NAME);
 http_capability!(http_rag, HttpRagClient, RAG_SERVICE_NAME);
 http_capability!(http_image, HttpImageClient, IMAGE_SERVICE_NAME);
 http_capability!(http_video, HttpVideoClient, VIDEO_SERVICE_NAME);

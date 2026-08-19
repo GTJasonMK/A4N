@@ -159,11 +159,7 @@ async fn supervise(
         let mut last_error = exit_error;
         loop {
             if restart_count >= config.restart_policy.max_restarts {
-                set_status(
-                    &status,
-                    ManagedSidecarState::CircuitOpen,
-                    None,
-                );
+                set_status(&status, ManagedSidecarState::CircuitOpen, None);
                 return Err(ServiceManagerError::RestartLimitExceeded {
                     service: config.name.clone(),
                     restarts: restart_count,
@@ -173,11 +169,7 @@ async fn supervise(
 
             restart_count += 1;
             let backoff_ms = config.restart_policy.backoff_ms(restart_count);
-            set_status(
-                &status,
-                ManagedSidecarState::BackingOff,
-                None,
-            );
+            set_status(&status, ManagedSidecarState::BackingOff, None);
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_millis(backoff_ms)) => {}
                 _ = commands.recv() => {
@@ -186,11 +178,7 @@ async fn supervise(
                 }
             }
 
-            set_status(
-                &status,
-                ManagedSidecarState::Starting,
-                None,
-            );
+            set_status(&status, ManagedSidecarState::Starting, None);
             let mut next = match spawn_child(
                 &config,
                 restart_count,
@@ -211,20 +199,12 @@ async fn supervise(
             match startup_result {
                 Err(command) => {
                     stop_child(&config, &mut next, &client, command).await?;
-                    set_status(
-                        &status,
-                        ManagedSidecarState::Stopped,
-                        None,
-                    );
+                    set_status(&status, ManagedSidecarState::Stopped, None);
                     return Ok(());
                 }
                 Ok(Ok(())) => {
                     child = next;
-                    set_status(
-                        &status,
-                        ManagedSidecarState::Running,
-                        child.id(),
-                    );
+                    set_status(&status, ManagedSidecarState::Running, child.id());
                     break;
                 }
                 Ok(Err(error)) => {
@@ -317,33 +297,35 @@ async fn request_graceful_shutdown(
     if let Some(token) = configured_auth_token(config)? {
         request = request.header(SIDECAR_AUTH_HEADER, token);
     }
-    Ok(match tokio::time::timeout(SHUTDOWN_REQUEST_TIMEOUT, request.send()).await {
-        Ok(Ok(response)) if response.status().is_success() => true,
-        Ok(Ok(response)) => {
-            tracing::warn!(
-                service = %config.name,
-                status = %response.status(),
-                "sidecar graceful shutdown was rejected; forcing termination"
-            );
-            false
-        }
-        Ok(Err(error)) => {
-            tracing::warn!(
-                service = %config.name,
-                error = %redact_sensitive_message(error.to_string()),
-                "sidecar graceful shutdown request failed; forcing termination"
-            );
-            false
-        }
-        Err(_) => {
-            tracing::warn!(
-                service = %config.name,
-                timeout_ms = SHUTDOWN_REQUEST_TIMEOUT.as_millis(),
-                "sidecar graceful shutdown request timed out; forcing termination"
-            );
-            false
-        }
-    })
+    Ok(
+        match tokio::time::timeout(SHUTDOWN_REQUEST_TIMEOUT, request.send()).await {
+            Ok(Ok(response)) if response.status().is_success() => true,
+            Ok(Ok(response)) => {
+                tracing::warn!(
+                    service = %config.name,
+                    status = %response.status(),
+                    "sidecar graceful shutdown was rejected; forcing termination"
+                );
+                false
+            }
+            Ok(Err(error)) => {
+                tracing::warn!(
+                    service = %config.name,
+                    error = %redact_sensitive_message(error.to_string()),
+                    "sidecar graceful shutdown request failed; forcing termination"
+                );
+                false
+            }
+            Err(_) => {
+                tracing::warn!(
+                    service = %config.name,
+                    timeout_ms = SHUTDOWN_REQUEST_TIMEOUT.as_millis(),
+                    "sidecar graceful shutdown request timed out; forcing termination"
+                );
+                false
+            }
+        },
+    )
 }
 
 async fn wait_until_healthy(

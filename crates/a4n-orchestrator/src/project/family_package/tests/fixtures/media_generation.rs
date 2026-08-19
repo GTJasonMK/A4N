@@ -1,6 +1,6 @@
 use super::super::*;
-use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 use crate::project::media_file_key;
+use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 
 pub(in crate::project::family_package::tests) fn media_asset_with_checksum(
     bytes: &[u8],

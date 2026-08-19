@@ -7,8 +7,8 @@ use a4n_db::{
     },
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY,
-        GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
+        GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
 use serde_json::{Value, json};
@@ -41,7 +41,8 @@ impl OrchestratorContext {
         let node_input =
             build_canvas_editing_node_input(input.node, input.document, checkpoints.as_deref())
                 .map_err(AppError::InvalidArgument)?;
-        let step_key = format!("canvas_node:{}", input.node.id);
+        let step_key = crate::canvas::canvas_node_step_key(input.node.id)
+            .map_err(AppError::InvalidArgument)?;
         let input_json = editing_input_json(&input, &node_input);
         let mut lifecycle = self
             .start_canvas_node_execution(
@@ -194,9 +195,10 @@ impl OrchestratorContext {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
-        if project.source_mode().map_err(|error| {
-            AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
-        })? != ProjectSourceMode::Freeform
+        if project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+            != ProjectSourceMode::Freeform
         {
             return Ok(None);
         }

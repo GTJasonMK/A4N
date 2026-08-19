@@ -1,5 +1,5 @@
-use a4n_rag_core::metadata::metadata_i64;
 use a4n_rag_core::fusion::fuse_weighted_rag_results;
+use a4n_rag_core::metadata::metadata_i64;
 use a4n_rag_core::vector_store::SearchResult;
 use serde_json::Value;
 

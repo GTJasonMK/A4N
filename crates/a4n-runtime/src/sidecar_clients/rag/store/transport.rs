@@ -6,9 +6,7 @@ use serde_json::json;
 use super::SidecarVectorStore;
 use crate::sidecar_clients::rag::events::handle_rag_ingest_event;
 use crate::sidecar_clients::rag::request::rag_service_request;
-use crate::sidecar_clients::{
-    response_payload, service_app_error, service_error_app_error,
-};
+use crate::sidecar_clients::{response_payload, service_app_error, service_error_app_error};
 
 impl SidecarVectorStore {
     pub(super) async fn ingest(

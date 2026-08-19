@@ -1,4 +1,4 @@
-use super::*;
+use super::provider::CliProxyImageProvider;
 use a4n_image::{ImageGenerationRequest, ImageReference};
 
 fn request() -> ImageGenerationRequest {

@@ -227,7 +227,10 @@ fn trimmed_video_path_uses_chapter_video_directory() {
             .to_string_lossy()
             .starts_with("trim_42_")
     );
-    assert_eq!(path.extension().and_then(|value| value.to_str()), Some("mp4"));
+    assert_eq!(
+        path.extension().and_then(|value| value.to_str()),
+        Some("mp4")
+    );
 }
 
 #[test]
@@ -247,7 +250,10 @@ fn trimmed_video_path_uses_project_video_directory_without_chapter() {
             .to_string_lossy()
             .starts_with("trim_42_")
     );
-    assert_eq!(path.extension().and_then(|value| value.to_str()), Some("mp4"));
+    assert_eq!(
+        path.extension().and_then(|value| value.to_str()),
+        Some("mp4")
+    );
 }
 
 #[test]

@@ -8,9 +8,8 @@ mod validation;
 
 pub use delete::ensure_default_config_delete_allowed;
 pub use embedding::{
-    API_EMBEDDING_BACKEND, CreateEmbeddingConfigParams, EMBEDDING_PROVIDER_CAPABILITIES,
-    EmbeddingBackendKind, EmbeddingProviderCapabilities, FASTEMBED_EMBEDDING_BACKEND,
-    LOCAL_HASH_EMBEDDING_BACKEND, UpdateEmbeddingConfigParams, embedding_provider_capabilities,
+    CreateEmbeddingConfigParams, EMBEDDING_PROVIDER_CAPABILITIES, EmbeddingBackendKind,
+    EmbeddingProviderCapabilities, UpdateEmbeddingConfigParams, embedding_provider_capabilities,
     validate_embedding_config_model, validate_embedding_config_params,
 };
 pub use image::{

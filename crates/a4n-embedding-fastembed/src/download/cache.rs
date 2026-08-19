@@ -47,7 +47,10 @@ pub(super) fn file_size(path: &Path) -> Result<u64, String> {
         Ok(metadata) if metadata.is_file() => Ok(metadata.len()),
         Ok(_) => Err(format!("模型缓存路径不是文件：{}", path.display())),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
-        Err(error) => Err(format!("读取模型缓存文件状态失败：{}：{error}", path.display())),
+        Err(error) => Err(format!(
+            "读取模型缓存文件状态失败：{}：{error}",
+            path.display()
+        )),
     }
 }
 

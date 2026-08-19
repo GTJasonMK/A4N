@@ -1,6 +1,6 @@
 use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 
-use super::Seedance2VideoProvider;
+use super::provider::Seedance2VideoProvider;
 
 fn request() -> VideoGenerationRequest {
     VideoGenerationRequest {

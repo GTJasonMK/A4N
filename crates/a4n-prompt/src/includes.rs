@@ -7,7 +7,7 @@ mod frontmatter;
 mod resolver;
 mod syntax;
 
-pub use resolver::resolve_includes;
+pub(crate) use resolver::resolve_includes;
 
 #[cfg(test)]
 mod tests;

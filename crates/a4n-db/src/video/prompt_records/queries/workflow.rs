@@ -18,9 +18,8 @@ where
         .filter(chapter_video_prompt::Column::PromptType.eq(prompt_type))
         .filter(chapter_video_prompt::Column::WorkflowMode.eq(workflow_mode));
     if exclude_running {
-        query = query.filter(
-            chapter_video_prompt::Column::Status.ne(chapter_video_prompt::STATUS_RUNNING),
-        );
+        query = query
+            .filter(chapter_video_prompt::Column::Status.ne(chapter_video_prompt::STATUS_RUNNING));
     }
     query
         .order_by_asc(chapter_video_prompt::Column::ShotNumber)

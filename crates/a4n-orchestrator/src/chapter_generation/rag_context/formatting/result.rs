@@ -1,7 +1,7 @@
 use super::super::super::truncate_text_chars;
 use super::super::rules::metadata_str;
-use a4n_rag_core::metadata::metadata_i64;
 use a4n_core::rag::RagDataType;
+use a4n_rag_core::metadata::metadata_i64;
 use a4n_rag_core::vector_store::SearchResult;
 
 const GENERATION_RAG_PASSAGE_CHAR_LIMIT: usize = 460;
@@ -46,10 +46,7 @@ pub(in crate::chapter_generation::rag_context) fn format_generation_rag_result(
         truncate_text_chars(content, GENERATION_RAG_PASSAGE_CHAR_LIMIT)
     );
 
-    Some(FormattedRagResult {
-        line,
-        section,
-    })
+    Some(FormattedRagResult { line, section })
 }
 
 fn generation_rag_section(data_type: RagDataType) -> Option<GenerationRagSection> {

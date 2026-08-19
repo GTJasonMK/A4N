@@ -2,19 +2,19 @@ use super::{
     CharacterSyncAttributeEventRecordInput, CharacterSyncProtectedAttribute,
     CharacterSyncWriteStepRecordInput, CharacterSyncWriteSummary,
 };
-use crate::character::{
+use crate::character::CharacterDbError;
+use crate::character::attributes::{
     AppliedCharacterImplicitDecisionAction, CharacterAttributeDeletionExecutionInput,
-    CharacterAttributeDeletionRequestInput, CharacterDbError,
-    CharacterImplicitReviewDecisionRecordInput, add_profile_attribute_from_source_in,
-    apply_implicit_review_decision_record_from_source_in,
+    CharacterAttributeDeletionRequestInput, CharacterImplicitReviewDecisionRecordInput,
+    add_profile_attribute_from_source_in, apply_implicit_review_decision_record_from_source_in,
     execute_ready_attribute_deletion_from_source_in, modify_profile_attribute_from_source_in,
-    record_behavior_in, request_attribute_deletion_from_source_in,
+    request_attribute_deletion_from_source_in,
 };
+use crate::character::behavior::record_behavior_in;
+use crate::character::timeline::CharacterAttributeOwnership;
 use a4n_core::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
 use a4n_domain::character::CHARACTER_DELETION_THRESHOLD;
 use sea_orm::ConnectionTrait;
-
-use crate::character::CharacterAttributeOwnership;
 
 pub(super) async fn apply_character_sync_write_steps_in<C>(
     db: &C,

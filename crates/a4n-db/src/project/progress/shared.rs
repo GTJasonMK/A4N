@@ -4,9 +4,7 @@ use crate::workflow::{
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
 };
 use a4n_core::models::{
-    ai::generated_video,
-    chapter::chapter_video_prompt,
-    generation::workflow_run,
+    ai::generated_video, chapter::chapter_video_prompt, generation::workflow_run,
 };
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::Value;

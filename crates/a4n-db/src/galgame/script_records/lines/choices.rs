@@ -17,7 +17,7 @@ pub async fn replace_galgame_choice_records_transaction(
     Ok(records)
 }
 
-pub async fn replace_galgame_choice_records<C>(
+async fn replace_galgame_choice_records<C>(
     db: &C,
     line_id: i64,
     choices: Vec<ReplaceGalgameChoiceRecordInput>,

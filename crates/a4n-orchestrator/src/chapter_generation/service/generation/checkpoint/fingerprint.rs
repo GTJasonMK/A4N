@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 
@@ -30,7 +30,10 @@ pub fn validate_chapter_generation_source_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        chapter_generation_call_fingerprint_json, validate_chapter_generation_source_fingerprint,
+    };
+    use serde_json::json;
 
     #[test]
     fn rejects_changed_chapter_generation_sources() {

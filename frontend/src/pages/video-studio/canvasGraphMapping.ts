@@ -10,7 +10,6 @@ import {
   configText,
   firstLine,
 } from "./canvasConfig";
-import { normalizeGenerateVideoInputMode } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
 
 export function toFlowNode(node: CanvasGraphDocument["nodes"][number]): StudioNode {
@@ -251,6 +250,7 @@ function canvasNodeConfigForSave(node: StudioNode): Record<string, unknown> {
   const config = { ...node.data.config };
   if (node.data.nodeKind === "RenderTextNode") {
     delete config.prompt;
+    delete config.template_text;
     delete config.render_mode;
     delete config.prompt_kind;
   }
@@ -258,17 +258,17 @@ function canvasNodeConfigForSave(node: StudioNode): Record<string, unknown> {
     delete config.config_id;
     delete config.input;
     delete config.content;
+    delete config.prompt;
     delete config.text;
   }
-  if (["GenerateImageNode", "GenerateVideoNode"].includes(node.data.nodeKind)) {
-    delete config.prompt;
+  if (node.data.nodeKind === "LlmTextNode") {
+    delete config.text_kind;
   }
   if (node.data.nodeKind === "GenerateVideoNode") {
     delete config.first_frame_image_id;
     delete config.last_frame_image_id;
     delete config.end_frame_image_id;
     delete config.reference_image_ids;
-    config.input_mode = normalizeGenerateVideoInputMode(config.input_mode);
   }
   if (["TrimVideoNode", "ExtractFrameNode"].includes(node.data.nodeKind)) {
     delete config.video_id;

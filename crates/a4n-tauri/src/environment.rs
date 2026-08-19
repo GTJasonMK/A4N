@@ -11,13 +11,25 @@ pub(crate) fn early_log_dir() -> Result<PathBuf, String> {
         })
 }
 
-pub(crate) fn remote_api_only() -> Result<bool, String> {
+pub(crate) enum ApiMode {
+    Native,
+    Http { remote_only: bool },
+}
+
+pub(crate) fn api_mode() -> Result<ApiMode, String> {
+    if env_flag_enabled("A4N_TAURI_LOCAL_SERVER").map_err(|error| error.to_string())? {
+        return Ok(ApiMode::Http { remote_only: false });
+    }
     if env_flag_enabled("A4N_REMOTE_API_ONLY").map_err(|error| error.to_string())? {
-        return Ok(true);
+        return Ok(ApiMode::Http { remote_only: true });
     }
     match std::env::var("VITE_A4N_API_TRANSPORT") {
-        Ok(value) => parse_api_transport(&value),
-        Err(VarError::NotPresent) => Ok(false),
+        Ok(value) => Ok(if parse_api_transport(&value)? {
+            ApiMode::Http { remote_only: true }
+        } else {
+            ApiMode::Native
+        }),
+        Err(VarError::NotPresent) => Ok(ApiMode::Native),
         Err(error) => Err(format!("读取 VITE_A4N_API_TRANSPORT 失败：{error}")),
     }
 }

@@ -50,7 +50,7 @@ where
 /// 只在正文生成实际读取的正式章纲至提交时仍完全一致时返回其 ID。
 ///
 /// 查询会锁定来源章纲，避免校验通过后、章节提交前又被并发修改。
-pub async fn formal_chapter_outline_id_if_unchanged<C>(
+pub(crate) async fn formal_chapter_outline_id_if_unchanged<C>(
     db: &C,
     source: &chapter_outline::Model,
 ) -> Result<Option<i64>, DbErr>

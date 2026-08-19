@@ -99,7 +99,7 @@ async fn failed_video_records_remain_listed_and_deletable_assets() {
         vec![video.id]
     );
 
-    a4n_db::video::delete_generated_video_record(db.as_ref(), video.id)
+    a4n_db::video::delete_generated_video_record_with_cleanup(db.as_ref(), video.id)
         .await
         .map_err(crate::video::video_db_error)
         .unwrap();

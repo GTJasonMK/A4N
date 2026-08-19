@@ -3,27 +3,14 @@ use std::io::{Cursor, Write};
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    ImportReadMediaPackageZipInput, parse_json_manifest, read_json_manifest_entry,
-    read_media_package_zip, read_zip_entries_bytes, read_zip_entry_bytes,
-    validate_zip_declared_files, validate_zip_entry_path, validate_zip_manifest_declared_files,
+    ImportReadMediaPackageZipInput,
+    archive::{
+        read_json_manifest_entry, read_zip_entries_bytes, read_zip_entry_bytes,
+        validate_zip_declared_files, validate_zip_manifest_declared_files,
+    },
+    json::parse_json_manifest,
+    read_media_package_zip,
 };
-
-#[test]
-fn validate_zip_entry_path_accepts_nested_relative_path() {
-    validate_zip_entry_path("media/media_asset/10/file.mp4").unwrap();
-}
-
-#[test]
-fn validate_zip_entry_path_rejects_traversal() {
-    let err = validate_zip_entry_path("media/10/../file.mp4").unwrap_err();
-    assert!(err.to_string().contains("不能越界"));
-}
-
-#[test]
-fn validate_zip_entry_path_rejects_current_dir_segment() {
-    let err = validate_zip_entry_path("./media/file.mp4").unwrap_err();
-    assert!(err.to_string().contains("不能越界"));
-}
 
 #[test]
 fn read_media_package_zip_reads_manifest_and_declared_entries() {
@@ -109,18 +96,6 @@ fn read_media_package_zip_rejects_invalid_zip_base64() {
     .expect_err("invalid base64 must fail");
 
     assert!(err.to_string().contains("测试导入包 base64 解码失败"));
-}
-
-#[test]
-fn validate_zip_entry_path_rejects_backslash() {
-    let err = validate_zip_entry_path("media\\file.mp4").unwrap_err();
-    assert!(err.to_string().contains("反斜杠"));
-}
-
-#[test]
-fn validate_zip_entry_path_rejects_blank_path() {
-    let err = validate_zip_entry_path(" \n\t ").unwrap_err();
-    assert!(err.to_string().contains("不能为空"));
 }
 
 #[test]

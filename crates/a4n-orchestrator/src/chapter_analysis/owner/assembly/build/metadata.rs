@@ -1,6 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
+use super::super::required_stage_field;
 use crate::chapter_analysis::owner::materialize::analysis_materialize_error;
 
 pub(super) fn assemble_metadata(facts: &Value, summary: &Value) -> Result<Value, AppError> {
@@ -14,19 +15,13 @@ pub(super) fn assemble_metadata(facts: &Value, summary: &Value) -> Result<Value,
     for key in ["characters", "locations", "items"] {
         metadata.insert(
             key.to_string(),
-            facts
-                .get(key)
-                .cloned()
-                .unwrap_or_else(|| Value::Array(Vec::new())),
+            required_stage_field(facts, "chapter_fact_extraction", key)?,
         );
     }
-    metadata.insert(
-        "tags".to_string(),
-        metadata_additions
-            .get("tags")
-            .cloned()
-            .unwrap_or_else(|| Value::Array(Vec::new())),
-    );
+    let tags = metadata_additions.get("tags").cloned().ok_or_else(|| {
+        analysis_materialize_error("chapter_summary_synthesis.metadata_additions 缺少必需字段 tags")
+    })?;
+    metadata.insert("tags".to_string(), tags);
     metadata.insert(
         "tone".to_string(),
         metadata_additions

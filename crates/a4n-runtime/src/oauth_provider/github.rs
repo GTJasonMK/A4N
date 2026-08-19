@@ -1,7 +1,9 @@
 mod parsing;
 mod requests;
 
-use super::*;
+use super::contracts::{OAuth2Provider, OAuth2UserInfo};
+use a4n_core::error::AppError;
+use async_trait::async_trait;
 
 pub struct GitHubOAuth2 {
     client_id: String,
@@ -27,7 +29,7 @@ impl OAuth2Provider for GitHubOAuth2 {
         format!(
             "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope=read:user%20user:email&state={state}",
             self.client_id,
-            urlencoding::encode(&self.redirect_uri),
+            super::contracts::urlencoding::encode(&self.redirect_uri),
         )
     }
 

@@ -167,7 +167,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left max-sm:basis-full"
+          className="a4n-touch-target flex min-w-0 flex-1 items-center gap-2 text-left max-sm:basis-full"
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <span className="min-w-0 flex-1">

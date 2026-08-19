@@ -6,8 +6,8 @@ use a4n_core::{
     media::image_mime_from_path,
     models::ai::image_gen_config,
 };
-use a4n_image::{ImageGenerationRequest, ImageReference};
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
+use a4n_image::{ImageGenerationRequest, ImageReference};
 use a4n_orchestrator::{
     config::image_backend_supports_reference_images,
     generation::GeneratedMediaArtifactFile,
@@ -279,12 +279,8 @@ fn create_portrait_output(
 ) -> Result<(std::path::PathBuf, std::fs::File), AppError> {
     let directory = ProjectPaths::new(data_dir, project_id).portraits_dir();
     std::fs::create_dir_all(&directory)?;
-    create_unique_timestamped_file(
-        &directory,
-        &format!("portrait_{profile_id}"),
-        format,
-    )
-    .map_err(AppError::Io)
+    create_unique_timestamped_file(&directory, &format!("portrait_{profile_id}"), format)
+        .map_err(AppError::Io)
 }
 
 fn host_error(message: String) -> AppError {

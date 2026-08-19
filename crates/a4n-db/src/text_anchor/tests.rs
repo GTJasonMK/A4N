@@ -4,6 +4,7 @@ use a4n_core::models::{
     chapter::chapter,
     project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
 };
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -83,6 +84,7 @@ async fn object_profile_record(db: &DatabaseConnection, project_id: i64) -> obje
     let now = Utc::now().naive_utc();
     object_profile::ActiveModel {
         project_id: Set(project_id),
+        ownership_kind: Set(PROFILE_OWNERSHIP_USER.to_string()),
         name: Set("青铜钥匙".to_string()),
         normalized_name: Set("青铜钥匙".to_string()),
         aliases_json: Set(json!([])),

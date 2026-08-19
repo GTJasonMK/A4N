@@ -2,7 +2,7 @@ use super::TaskQueueSummary;
 use crate::{AppState, actions::app_error_message};
 use serde_json::{Value, json};
 
-pub async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary>, String> {
+pub(super) async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary>, String> {
     state
         .orchestrator()
         .pending_tasks()
@@ -10,7 +10,7 @@ pub async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary
         .map_err(app_error_message)
 }
 
-pub async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), String> {
+pub(super) async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), String> {
     state
         .orchestrator()
         .queue_cancel(task_id)
@@ -18,7 +18,7 @@ pub async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), St
         .map_err(|error| error.to_string())
 }
 
-pub async fn health_check(state: &AppState) -> Result<Value, String> {
+pub(super) async fn health_check(state: &AppState) -> Result<Value, String> {
     state
         .orchestrator()
         .check_database_health()

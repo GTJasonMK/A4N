@@ -1,9 +1,3 @@
-mod prelude {
-    pub(super) use super::super::imports::ImportedVideoSource;
-    pub(super) use serde::{Deserialize, Serialize};
-    pub(super) use std::path::PathBuf;
-}
-
 mod actions;
 mod cache;
 mod contracts;
@@ -25,9 +19,6 @@ pub use contracts::{
     AssembledChapterVideoPreview, AssemblyPushResult, PushAssembledChapterVideoInput,
 };
 
-pub(in crate::actions::video_records) use cache::{
-    build_assembly_cache_manifest, run_ffmpeg_assemble_videos,
-};
 #[cfg(test)]
 pub(in crate::actions::video_records) use cache::{
     assembly_cache_is_fresh, build_assembly_cache_manifest_with_audio_probe,
@@ -36,6 +27,9 @@ pub(in crate::actions::video_records) use cache::{
 #[cfg(test)]
 pub(in crate::actions::video_records) use cache::{
     assembly_cache_matches, write_assembly_cache_manifest,
+};
+pub(in crate::actions::video_records) use cache::{
+    build_assembly_cache_manifest, run_ffmpeg_assemble_videos,
 };
 #[cfg(test)]
 pub(in crate::actions::video_records) use contracts::AssemblyCacheManifest;

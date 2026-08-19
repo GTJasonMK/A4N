@@ -9,15 +9,13 @@ pub(crate) fn validate_media_entry_bytes(
     bytes: &[u8],
 ) -> Result<(), String> {
     match resolve_media_entry_owner(package, entry)? {
-        MediaEntryOwner::GeneratedImage(image) => {
-            validate_payload_size(
-                image.file_size,
-                bytes,
-                &entry.owner_kind,
-                entry.owner_id,
-                &entry.field,
-            )
-        }
+        MediaEntryOwner::GeneratedImage(image) => validate_payload_size(
+            image.file_size,
+            bytes,
+            &entry.owner_kind,
+            entry.owner_id,
+            &entry.field,
+        ),
         MediaEntryOwner::GeneratedVideo(video) if entry.field == FILE_PATH_FIELD => {
             validate_payload_size(
                 video.file_size,

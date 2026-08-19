@@ -2,10 +2,7 @@ use super::contracts::{
     BlueprintCharacterDraft, BlueprintIncrementalSyncStats, BlueprintSyncError,
 };
 use super::identity::{blueprint_character_matches, normalized_blueprint_identity};
-use a4n_core::{
-    json_contract::is_empty_json_value,
-    models::project::blueprint_character,
-};
+use a4n_core::{json_contract::is_empty_json_value, models::project::blueprint_character};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,

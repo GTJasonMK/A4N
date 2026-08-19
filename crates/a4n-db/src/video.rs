@@ -1,19 +1,75 @@
 use sea_orm::{ConnectionTrait, DbErr};
 
 mod prompt_records;
-pub use prompt_records::*;
+pub use prompt_records::{
+    ChapterVideoPromptRecordFields, UpdateChapterVideoPromptRecordInput,
+    chapter_video_boundary_frame_prompt_candidates,
+    chapter_video_first_frame_chain_prompt_candidates, chapter_video_first_frame_prompt_candidates,
+    chapter_video_prompt_by_id, chapter_video_prompt_records_for_types,
+    chapter_video_prompt_scope_by_id, chapter_video_prompt_segment_plan_records,
+    chapter_video_prompt_workflow_records, chapter_video_prompt_workflow_shot_records,
+    chapter_video_prompts_for_batch_generation, chapter_video_prompts_for_chapter,
+    chapter_video_storyboard_prompt_candidates, completed_shared_segment_plan_id_for_source_hash,
+    update_chapter_video_prompt_record,
+};
+pub(crate) use prompt_records::{
+    chapter_video_prompt_previous_frame_candidates, chapter_video_prompt_record,
+    chapter_video_prompt_sibling_records, chapter_video_prompt_sync_candidates,
+    delete_chapter_video_prompt_records, ensure_chapter_video_prompt_not_running,
+    frame_chapter_video_prompt_record, insert_chapter_video_prompt_record,
+    replace_chapter_video_prompt_record, update_chapter_video_prompt_metadata_record,
+};
 
 mod generated_images;
-pub use generated_images::*;
+pub(crate) use generated_images::clear_generated_image_references_record;
+pub(crate) use generated_images::generated_images_for_chapter_by_id_desc;
+pub use generated_images::{
+    CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput,
+    VideoProfileMaterialReadModel, VideoProjectContextReadModel, create_generated_image_record,
+    create_generated_image_record_with_generation_run_checkpoint,
+    delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
+    ensure_image_chapter_belongs_to_project_record, ensure_video_chapter_belongs_to_project_record,
+    ensure_video_reference_images_available_record, generated_image_by_id, generated_images_by_ids,
+    generated_images_for_chapter, generated_images_for_project,
+    generated_images_for_projects_chapter_by_id_desc, generated_images_for_video_prompt_references,
+    update_generated_image_record, validated_video_reference_image_records,
+    video_asset_project_ids_record, video_chapter_record, video_library_chapter_image_records,
+    video_library_explicit_image_records, video_profile_material_read_model,
+    video_project_context_read_model, video_reference_candidate_image_records,
+    video_tail_frame_images,
+};
 
 mod generated_videos;
-pub use generated_videos::*;
+pub(crate) use generated_videos::clear_generated_video_references_record;
+pub use generated_videos::{
+    CreateGeneratedVideoRecordDraftInput, UpdateGeneratedVideoRecordInput,
+    create_generated_video_record, create_generated_video_record_with_generation_run,
+    create_prompt_generated_video_record_with_generation_run,
+    delete_generated_video_record_with_cleanup, delete_missing_generated_video_references_record,
+    generated_video_by_id, generated_videos_by_provider_job_id, generated_videos_for_chapter,
+    mark_generated_video_completed_and_link_prompt_record,
+    mark_generated_video_error_status_and_prompt_record,
+    mark_generated_video_job_and_prompt_record, merge_video_provider_response_metadata,
+    missing_video_reference_project_ids, recover_stale_generated_videos_without_provider_job,
+    update_generated_video_duration_record, update_generated_video_record,
+    update_generated_video_waiting_status_and_prompt_record,
+    validate_video_metadata_update_preserves_system_fields,
+};
 
 mod segment_plan_draft;
-pub use segment_plan_draft::*;
+pub use segment_plan_draft::{
+    VideoSegmentPlanDraftCheckpoint, video_segment_plan_draft_checkpoints,
+};
 
 mod timeline;
-pub use timeline::*;
+pub use timeline::{
+    CommitInsertedTimelineItemInput, TIMELINE_ACTIVE_STATUS, TIMELINE_DELETED_STATUS,
+    TIMELINE_INSERTED_KIND, TIMELINE_NATIVE_KIND, TIMELINE_NEEDS_REANCHOR_STATUS,
+    VideoTimelineSnapshot, active_timeline_order, chapter_video_timeline_by_scope,
+    chapter_video_timeline_snapshot, commit_inserted_timeline_item, delete_inserted_timeline_item,
+    ensure_chapter_video_timeline, inserted_timeline_item_by_workflow_run,
+    move_inserted_timeline_item_persisted, reconcile_native_timeline,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VideoDbError {
@@ -112,7 +168,9 @@ pub(super) fn validate_positive_video_ids(values: &[i64], field: &str) -> Result
 }
 
 mod source_context;
-pub use source_context::*;
+pub use source_context::{
+    project_and_chapter_for_video_source, source_snapshot_chapter_for_video_source,
+};
 
 #[cfg(test)]
 mod tests;

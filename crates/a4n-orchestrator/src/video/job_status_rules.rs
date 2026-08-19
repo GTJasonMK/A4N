@@ -1,9 +1,7 @@
 //! 视频生成 job 状态推进纯规则（poll / 失败 / submit 落库门禁）。
 
 use a4n_core::{
-    error::AppError,
-    models::ai::generated_video,
-    video_workflow::CANVAS_WORKFLOW_MODES,
+    error::AppError, models::ai::generated_video, video_workflow::CANVAS_WORKFLOW_MODES,
 };
 
 pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {

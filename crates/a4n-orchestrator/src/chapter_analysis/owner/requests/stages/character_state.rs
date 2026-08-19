@@ -3,10 +3,11 @@ use a4n_core::{
     models::chapter::chapter,
 };
 use a4n_llm::provider::ChatRequest;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use a4n_prompt::rendering::PromptRenderer;
 
+use super::required_fact_field;
 use crate::chapter_analysis::owner::{
     prompt::chapter_display_title, requests::context::build_chapter_analysis_stage_request,
 };
@@ -17,6 +18,8 @@ pub async fn build_chapter_character_state_request(
     facts: &Value,
 ) -> Result<ChatRequest, AppError> {
     let chapter_title = chapter_display_title(ch);
+    let characters = required_fact_field(facts, "characters")?;
+    let event_candidates = required_fact_field(facts, "event_candidates")?;
     build_chapter_analysis_stage_request(
         ch,
         prompt_renderer,
@@ -25,8 +28,8 @@ pub async fn build_chapter_character_state_request(
         json!({
             "chapter_title": chapter_title,
             "content": ch.content,
-            "characters": facts.get("characters").cloned().unwrap_or_else(|| json!([])),
-            "event_candidates": facts.get("event_candidates").cloned().unwrap_or_else(|| json!([])),
+            "characters": characters,
+            "event_candidates": event_candidates,
         }),
         json!({
             "format": "json_object",

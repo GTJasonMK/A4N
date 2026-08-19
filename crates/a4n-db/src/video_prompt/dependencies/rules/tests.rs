@@ -232,7 +232,7 @@ fn frame_generation_contract_matches_prompt_type_and_workflow() {
             &frame_prompt,
             IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
         )
-            .expect("matching source must pass"),
+        .expect("matching source must pass"),
         IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT
     );
     ensure_frame_prompt_workflow_matches_type(&frame_prompt).expect("matching workflow must pass");
@@ -244,7 +244,7 @@ fn frame_generation_contract_matches_prompt_type_and_workflow() {
             &frame_prompt,
             IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
         )
-            .is_err()
+        .is_err()
     );
 }
 
@@ -255,7 +255,7 @@ fn image_generation_metadata_requires_positive_typed_fields() {
             "prompt_id": 12,
             "source": IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
             "shot_number": 3,
-            "source_content_sha256": " source-hash "
+            "source_content_sha256": "source-hash"
         }
     });
     assert_eq!(image_generation_prompt_id(Some(&metadata)), Some(12));

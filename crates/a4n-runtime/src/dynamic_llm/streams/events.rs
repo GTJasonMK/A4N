@@ -1,4 +1,8 @@
-use super::super::*;
+use a4n_core::error::AppError;
+use a4n_llm::provider::ChatChunk;
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
+
+use super::super::config::llm_sidecar_error;
 
 pub(in crate::dynamic_llm) enum SidecarLlmEvent {
     Chunk(ChatChunk),

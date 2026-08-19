@@ -751,10 +751,6 @@ pub fn command_descriptor(command: &str) -> Option<CommandDescriptor> {
     command_spec(command).map(descriptor)
 }
 
-pub fn command_idempotency(command: &str) -> Option<&'static str> {
-    command_spec(command).map(|spec| spec.idempotency)
-}
-
 pub fn command_runtime_config_policy(command: &str) -> RuntimeConfigPolicy {
     command_spec(command)
         .map(|spec| spec.runtime_config_policy)

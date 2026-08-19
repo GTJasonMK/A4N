@@ -139,7 +139,13 @@ pub fn canvas_cache_key(graph_id: i64, node_id: i64) -> String {
 /// 解析画布成片预览缓存键。
 pub fn parse_canvas_cache_key(value: &str) -> Option<(i64, i64)> {
     let mut parts = value.split(':');
-    match (parts.next(), parts.next(), parts.next(), parts.next(), parts.next()) {
+    match (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) {
         (Some("canvas_graph"), Some(graph_id), Some("node"), Some(node_id), None) => {
             Some((graph_id.parse().ok()?, node_id.parse().ok()?))
         }
@@ -265,7 +271,10 @@ mod tests {
     #[test]
     fn canvas_cache_key_has_one_canonical_shape() {
         assert_eq!(canvas_cache_key(1, 2), "canvas_graph:1:node:2");
-        assert_eq!(parse_canvas_cache_key("canvas_graph:1:node:2"), Some((1, 2)));
+        assert_eq!(
+            parse_canvas_cache_key("canvas_graph:1:node:2"),
+            Some((1, 2))
+        );
         assert_eq!(parse_canvas_cache_key("canvas_graph:1:node:2:extra"), None);
         assert_eq!(parse_canvas_cache_key("custom-cache-key"), None);
         assert_eq!(

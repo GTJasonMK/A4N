@@ -8,9 +8,7 @@ use super::super::{
         segment_plan_extension_preserves_existing, should_preserve_existing_prompt,
     },
     validate_prompt_sync_draft,
-    validation::{
-        validate_prompt_output_language_metadata, validate_prompt_workflow_mode,
-    },
+    validation::{validate_prompt_output_language_metadata, validate_prompt_workflow_mode},
 };
 use a4n_core::models::chapter::chapter_video_prompt;
 use sea_orm::ConnectionTrait;

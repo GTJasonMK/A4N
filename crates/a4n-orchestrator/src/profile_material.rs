@@ -14,8 +14,8 @@ use std::path::Path;
 use a4n_core::{
     error::{AppError, append_secondary_message},
     files::{
-        paths::ProjectPaths,
-        create_unique_timestamped_file, persist_created_media_file, remove_existing_data_file,
+        create_unique_timestamped_file, paths::ProjectPaths, persist_created_media_file,
+        remove_existing_data_file,
     },
     models::{ai::generated_image, asset::object_profile, scene::scene_profile},
     source_spans::source_text_hash as source_content_sha256,
@@ -330,8 +330,7 @@ impl OrchestratorContext {
                     current: "profile_material_upload".to_string(),
                     operation: append_secondary_message(
                         format!("素材图记录创建失败：{error}"),
-                        cleanup_error
-                            .map(|cleanup| format!("后续清理也失败：{cleanup}")),
+                        cleanup_error.map(|cleanup| format!("后续清理也失败：{cleanup}")),
                     ),
                 });
             }

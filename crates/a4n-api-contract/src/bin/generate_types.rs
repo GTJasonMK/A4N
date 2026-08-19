@@ -23,7 +23,8 @@ use a4n_api_contract::{
     canvas::{
         CanvasEdgeInput, CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphInput,
         CanvasGraphSummary, CanvasNodeContract, CanvasNodeInput, CanvasNodeSummary,
-        CanvasPortContract, CanvasRunSummary, CanvasTextAssetInput, CanvasTextAssetSummary,
+        CanvasMediaAssetSummary, CanvasPortContract, CanvasRunSummary, CanvasTextAssetInput,
+        CanvasTextAssetSummary,
         GetCanvasGraphInput, GetCanvasNodeContractsInput, ImportCanvasMediaInput,
         ImportedCanvasMedia, PreviewCanvasNodeRequestInput, RunCanvasGraphInput,
         RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
@@ -582,6 +583,7 @@ fn main() {
         &typescript_interface::<CanvasGraphInput>("CanvasGraphInput"),
         &typescript_interface::<CanvasTextAssetInput>("CanvasTextAssetInput"),
         &typescript_interface::<CanvasTextAssetSummary>("CanvasTextAssetSummary"),
+        &typescript_interface::<CanvasMediaAssetSummary>("CanvasMediaAssetSummary"),
         &typescript_interface::<GetCanvasGraphInput>("GetCanvasGraphInput"),
         &typescript_interface::<GetCanvasNodeContractsInput>("GetCanvasNodeContractsInput"),
         &typescript_interface::<SaveCanvasGraphInput>("SaveCanvasGraphInput"),

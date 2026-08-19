@@ -1,4 +1,11 @@
-use super::*;
+use a4n_core::error::AppError;
+
+use crate::video::prompt_generation::frame_prompts::{
+    FramePromptDraftsInput, NewChapterVideoPrompt, frame_prompt_drafts,
+    report_video_prompt_progress, validate_frame_prompts, validate_partial_boundary_frame_prompts,
+};
+
+use super::contracts::BoundaryFrameFinalizationInput;
 
 pub(in crate::video::prompt_generation::frame_prompts::frame_chain) fn finalize_boundary_frame_batch(
     input: BoundaryFrameFinalizationInput<'_, '_>,

@@ -1,9 +1,9 @@
 use super::super::FreeformCopyMaps;
+use crate::project::duplicate::ProjectDuplicateError;
 use a4n_domain::{
     GeneratedMediaReference, canvas_cache_key, parse_canvas_cache_key,
     parse_generated_media_reference,
 };
-use crate::project::duplicate::ProjectDuplicateError;
 
 pub(in crate::project::duplicate::freeform) fn remap_freeform_source_external_path(
     value: Option<&str>,
@@ -20,10 +20,13 @@ pub(in crate::project::duplicate::freeform) fn remap_freeform_source_external_pa
         GeneratedMediaReference::Image(_) => &maps.images.ids,
     };
     let id = reference.id();
-    let new_id = ids.get(&id).copied().ok_or_else(|| ProjectDuplicateError::InvalidState {
-        current: format!("{reference} 缺少目标映射"),
-        operation: "复制媒体来源路径".to_string(),
-    })?;
+    let new_id = ids
+        .get(&id)
+        .copied()
+        .ok_or_else(|| ProjectDuplicateError::InvalidState {
+            current: format!("{reference} 缺少目标映射"),
+            operation: "复制媒体来源路径".to_string(),
+        })?;
     Ok(Some(reference.with_id(new_id).to_string()))
 }
 

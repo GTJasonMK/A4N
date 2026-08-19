@@ -8,7 +8,7 @@ use std::{
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_core::config::app_config::AppConfig;
 use a4n_core::event::bridge::BroadcastEventBus as CoreEventBus;
-use a4n_db::character::snapshot_store::Sha256SnapshotStore;
+use a4n_db::character::Sha256SnapshotStore;
 use a4n_orchestrator::chapter_generation::ChapterGenerationService;
 use a4n_orchestrator::task_queue::PersistentTaskQueue;
 
@@ -104,16 +104,8 @@ impl AppState {
         self.orchestrator.temp_dir()
     }
 
-    pub(crate) fn app_paths(&self) -> a4n_core::files::paths::AppPaths {
-        self.orchestrator.app_paths()
-    }
-
     pub(crate) fn embedding_models_dir(&self) -> std::path::PathBuf {
         self.orchestrator.embedding_models_dir()
-    }
-
-    pub(crate) fn configured_database_url(&self) -> &str {
-        self.orchestrator.configured_database_url()
     }
 
     pub(crate) fn required_jwt_secret(&self) -> Result<&str, a4n_core::error::AppError> {
@@ -135,8 +127,7 @@ impl AppState {
         handle: GenerationTaskHandle,
         worker_kind: &'static str,
         worker: F,
-    )
-    where
+    ) where
         F: FnOnce(GenerationTaskHandle) -> Fut,
         Fut: Future<Output = Result<(), String>> + Send + 'static,
     {
@@ -146,7 +137,7 @@ impl AppState {
             task_id,
             attempt,
             worker_kind,
-            a4n_queue::scope::with_llm_slot(worker(handle)),
+            a4n_queue::with_llm_slot(worker(handle)),
         );
     }
 
@@ -155,8 +146,7 @@ impl AppState {
         handle: GenerationTaskHandle,
         worker_kind: &'static str,
         worker: F,
-    )
-    where
+    ) where
         F: FnOnce(GenerationTaskHandle) -> Fut,
         Fut: Future<Output = Result<(), String>> + Send + 'static,
     {
@@ -166,7 +156,7 @@ impl AppState {
             task_id,
             attempt,
             worker_kind,
-            a4n_queue::scope::with_image_slot(worker(handle)),
+            a4n_queue::with_image_slot(worker(handle)),
         );
     }
 
@@ -175,8 +165,7 @@ impl AppState {
         handle: GenerationTaskHandle,
         worker_kind: &'static str,
         worker: F,
-    )
-    where
+    ) where
         F: FnOnce(GenerationTaskHandle) -> Fut,
         Fut: Future<Output = Result<(), String>> + Send + 'static,
     {
@@ -186,7 +175,7 @@ impl AppState {
             task_id,
             attempt,
             worker_kind,
-            a4n_queue::scope::with_video_slot(worker(handle)),
+            a4n_queue::with_video_slot(worker(handle)),
         );
     }
 
@@ -197,17 +186,19 @@ impl AppState {
         worker_kind: &'static str,
         future: impl Future<Output = Result<(), String>> + Send + 'static,
     ) {
-        drop(tokio::spawn(inherit_generation_runtime_context(async move {
-            if let Err(error) = future.await {
-                tracing::error!(
-                    task_id = %task_id,
-                    attempt,
-                    worker = worker_kind,
-                    error = %error,
-                    "generation worker 失败"
-                );
-            }
-        })));
+        drop(tokio::spawn(inherit_generation_runtime_context(
+            async move {
+                if let Err(error) = future.await {
+                    tracing::error!(
+                        task_id = %task_id,
+                        attempt,
+                        worker = worker_kind,
+                        error = %error,
+                        "generation worker 失败"
+                    );
+                }
+            },
+        )));
     }
 
     pub(crate) fn destructive_lifecycle(
@@ -274,6 +265,13 @@ impl AppState {
         let chapter = ChapterGenerationService::new(db.clone());
         let rag_store = create_rag_store(runtime_profile, &capabilities).await?;
         let snapshot_store = Arc::new(Sha256SnapshotStore::new(db.clone()));
+        let managed_sidecar_processes = crate::sidecar_clients::start_managed_sidecars(
+            runtime_profile,
+            service_manager.as_ref(),
+        )
+        .await
+        .map_err(a4n_core::error::AppError::ConfigError)?;
+        let managed_sidecars = Arc::new(tokio::sync::Mutex::new(managed_sidecar_processes));
         let orchestrator = a4n_orchestrator::OrchestratorContext::bootstrap(
             a4n_db::DbHandle::new(db.clone()),
             capabilities.clone(),
@@ -286,29 +284,22 @@ impl AppState {
             task_queue.clone(),
             Arc::new(prompt_engine),
             snapshot_store,
-        );
+            |provider_facade| {
+                let embedding = crate::sidecar_clients::create_embedding_provider(
+                    provider_facade.clone(),
+                    &config,
+                    runtime_profile,
+                    &capabilities,
+                )?;
+                let llm = crate::sidecar_clients::create_llm_provider(
+                    provider_facade,
+                    runtime_profile,
+                    &capabilities,
+                )?;
+                Ok((llm, embedding))
+            },
+        )?;
         crate::baseline_configs::ensure_baseline_model_configs(&orchestrator, &config).await?;
-
-        let managed_sidecar_processes = crate::sidecar_clients::start_managed_sidecars(
-            runtime_profile,
-            service_manager.as_ref(),
-        )
-        .await
-        .map_err(a4n_core::error::AppError::ConfigError)?;
-        let managed_sidecars = Arc::new(tokio::sync::Mutex::new(managed_sidecar_processes));
-        let provider_facade = orchestrator.dynamic_provider_facade();
-        let embedding = crate::sidecar_clients::create_embedding_provider(
-            provider_facade.clone(),
-            &config,
-            runtime_profile,
-            &capabilities,
-        )?;
-        let llm = crate::sidecar_clients::create_llm_provider(
-            provider_facade,
-            runtime_profile,
-            &capabilities,
-        )?;
-        let orchestrator = orchestrator.with_providers(llm, embedding);
 
         let state = Self {
             orchestrator,

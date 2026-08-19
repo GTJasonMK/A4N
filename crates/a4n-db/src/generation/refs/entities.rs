@@ -8,7 +8,7 @@ use crate::generation::{GenerationDbError, validation::validate_positive_id};
 
 use super::rules::normalize_entity_kind;
 
-pub async fn validate_entity_ref<C>(
+pub(crate) async fn validate_entity_ref<C>(
     db: &C,
     root_project_id: i64,
     source_snapshot_id: i64,

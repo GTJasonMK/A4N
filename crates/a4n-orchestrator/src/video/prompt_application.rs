@@ -31,16 +31,16 @@ use crate::{
     workflow::{WorkflowRunSummary, workflow_run_is_running_or_resumable},
 };
 
+use super::prompt_optimization::VideoPromptOptimizationInput;
 use super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSource,
     ChapterVideoSourceContext, VideoPromptChunk, VideoPromptDownstreamDependencies,
     VideoPromptProgress, VideoPromptProgressUpdate, duration_capability_for_config,
-    load_video_segment_plan_draft_checkpoints,
-    load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
+    update_video_segment_plan_draft_recipe_checkpoint,
     validate_prompt_options_with_reference_limit, validate_video_duration_for_config_secs,
     video_db_error,
 };
-use super::prompt_optimization::VideoPromptOptimizationInput;
 
 const MAX_NON_CHAT_REFERENCE_IMAGE_IDS: usize = 4;
 const MAX_CHAT_REFERENCE_IMAGE_IDS: usize = 16;
@@ -517,8 +517,7 @@ impl OrchestratorContext {
         if run.workflow_kind != "video_segment_plan"
             || run.project_id != Some(project_id)
             || run.chapter_id != Some(chapter_id)
-            || run.mode.as_deref()
-                != Some(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+            || run.mode.as_deref() != Some(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
         {
             return Err(AppError::InvalidArgument(format!(
                 "片段规划 workflow {workflow_run_id} 与当前项目或章节不一致"
@@ -712,8 +711,7 @@ impl OrchestratorContext {
         if prompt.project_id != project_id
             || prompt.chapter_id != chapter_id
             || prompt.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
-            || prompt.workflow_mode
-                != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+            || prompt.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
             || prompt.status != chapter_video_prompt::STATUS_COMPLETED
             || prompt
                 .metadata_json
@@ -1314,8 +1312,7 @@ mod tests {
 
     #[test]
     fn stage_validation_accepts_stable_card_target_and_rejects_it_for_segment_plan() {
-        let mut options =
-            segment_plan_options(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES);
+        let mut options = segment_plan_options(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES);
         options.segment_plan_prompt_id = Some(7);
         options.target_segment = Some(a4n_api_contract::video::VideoSegmentTarget {
             source_shot_id: "shot-1".to_string(),
@@ -1325,9 +1322,8 @@ mod tests {
         assert!(validate_video_frame_prompt_generation_options(&options).is_ok());
         assert!(validate_video_final_prompt_generation_options(&options).is_ok());
 
-        options.workflow_mode = Some(
-            chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string(),
-        );
+        options.workflow_mode =
+            Some(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string());
         options.segment_plan_prompt_id = None;
         let error = validate_video_segment_plan_generation_options(&options).unwrap_err();
         assert!(error.to_string().contains("不能指定片段规划 ID 或目标片段"));

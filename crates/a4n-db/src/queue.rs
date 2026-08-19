@@ -3,10 +3,10 @@ mod contracts;
 mod records;
 mod status;
 
-pub use concurrency::*;
-pub use contracts::*;
-pub use records::*;
-pub use status::*;
+pub use concurrency::load_default_provider_concurrency_limits;
+pub use contracts::{DefaultProviderConcurrencyLimits, PersistTaskQueueRecordInput, QueueDbError};
+pub use records::{insert_task_queue_record, recoverable_active_task_ids};
+pub use status::update_task_status;
 
 #[cfg(test)]
 mod tests;
